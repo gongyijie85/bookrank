@@ -58,27 +58,36 @@ export class BookCard {
      * @returns {HTMLElement} 图片容器
      */
     _createImageContainer() {
-        const container = createElement('div', { className: 'book-image-container' });
-        
-        // 占位符
-        const placeholder = createElement('div', {
-            className: 'image-placeholder',
-            html: '<div class="image-spinner"></div>'
+        const container = createElement('div', { 
+            className: 'book-image-container',
+            attrs: { 'data-isbn': this.book.id }
         });
         
-        // 图书图片
+        // 占位符（显示加载动画）
+        const placeholder = createElement('div', {
+            className: 'image-placeholder',
+            html: `
+                <div class="image-placeholder-content">
+                    <div class="image-spinner"></div>
+                    <span class="image-loading-text">加载中...</span>
+                </div>
+            `
+        });
+        
+        // 图书图片（初始不设置src，使用Intersection Observer懒加载）
         const img = createElement('img', {
             className: 'book-image',
             attrs: {
-                src: this.book.cover,
+                'data-src': this.book.cover,
                 alt: this.book.title,
                 loading: 'lazy'
             }
         });
-        img.style.display = 'none';
+        img.style.opacity = '0';
+        img.style.transition = 'opacity 0.3s ease';
         
         // 图片事件
-        img.onerror = () => this._handleImageError(img);
+        img.onerror = () => this._handleImageError(img, placeholder);
         img.onload = () => this._handleImageLoad(img, placeholder);
         
         // 分类标签
@@ -87,32 +96,101 @@ export class BookCard {
             text: this.book.list_name
         });
         
-        // 排名徽章
+        // 排名徽章（优化显示）
         const rankBadge = createElement('span', {
             className: 'book-rank-badge',
-            text: `#${this.book.rank}`
+            attrs: {
+                'data-rank': this.book.rank,
+                title: `当前排名: 第${this.book.rank}名`
+            },
+            html: `<span class="rank-number">${this.book.rank}</span>`
         });
+        
+        // 排名变化指示器
+        if (this.book.rank_last_week && this.book.rank_last_week !== '无') {
+            const lastWeek = parseInt(this.book.rank_last_week);
+            const current = parseInt(this.book.rank);
+            if (!isNaN(lastWeek) && !isNaN(current)) {
+                const change = lastWeek - current;
+                if (change !== 0) {
+                    const changeClass = change > 0 ? 'rank-up' : 'rank-down';
+                    const changeIcon = change > 0 ? '↑' : '↓';
+                    const changeBadge = createElement('span', {
+                        className: `rank-change ${changeClass}`,
+                        text: `${changeIcon}${Math.abs(change)}`,
+                        title: `较上周${change > 0 ? '上升' : '下降'}${Math.abs(change)}名`
+                    });
+                    rankBadge.appendChild(changeBadge);
+                }
+            }
+        }
         
         container.appendChild(placeholder);
         container.appendChild(img);
         container.appendChild(categoryTag);
         container.appendChild(rankBadge);
         
+        // 使用Intersection Observer实现懒加载
+        this._setupLazyLoad(img, container);
+        
         return container;
+    }
+    
+    /**
+     * 设置图片懒加载
+     * @param {HTMLImageElement} img - 图片元素
+     * @param {HTMLElement} container - 容器元素
+     */
+    _setupLazyLoad(img, container) {
+        // 如果浏览器支持IntersectionObserver
+        if ('IntersectionObserver' in window) {
+            const imageObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const src = img.getAttribute('data-src');
+                        if (src) {
+                            img.src = src;
+                            img.removeAttribute('data-src');
+                        }
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                rootMargin: '50px 0px', // 提前50px开始加载
+                threshold: 0.01
+            });
+            
+            imageObserver.observe(container);
+        } else {
+            // 降级处理：直接加载
+            img.src = img.getAttribute('data-src');
+        }
     }
     
     /**
      * 处理图片加载错误
      * @param {HTMLImageElement} img - 图片元素
+     * @param {HTMLElement} placeholder - 占位符
      */
-    _handleImageError(img) {
-        if (!img.dataset.retried) {
-            img.dataset.retried = 'true';
-            img.src = img.src; // 重试一次
+    _handleImageError(img, placeholder) {
+        // 重试机制
+        if (!img.dataset.retryCount) {
+            img.dataset.retryCount = '1';
+            setTimeout(() => {
+                img.src = img.src; // 重试
+            }, 1000);
             return;
         }
+        
+        // 显示默认封面
+        placeholder.innerHTML = `
+            <div class="image-fallback">
+                <i class="fa fa-book" style="font-size: 48px; color: #ccc;"></i>
+                <span>暂无封面</span>
+            </div>
+        `;
+        img.style.display = 'none';
         img.src = '/static/default-cover.png';
-        img.alt = '无法加载封面图';
     }
     
     /**
@@ -121,8 +199,13 @@ export class BookCard {
      * @param {HTMLElement} placeholder - 占位符
      */
     _handleImageLoad(img, placeholder) {
-        placeholder.style.display = 'none';
-        img.style.display = 'block';
+        placeholder.style.opacity = '0';
+        img.style.opacity = '1';
+        
+        // 延迟隐藏占位符，确保过渡平滑
+        setTimeout(() => {
+            placeholder.style.display = 'none';
+        }, 300);
     }
     
     /**
