@@ -228,35 +228,42 @@ export class BookDetailModal {
     constructor() {
         this.modal = null;
         this.content = null;
-        this._createModal();
+        this.detailContainer = null;
+        this.closeBtn = null;
+        this._initModal();
     }
     
     /**
-     * 创建弹窗结构
+     * 初始化弹窗 - 使用HTML中已有的元素
      */
-    _createModal() {
-        this.modal = createElement('div', { className: 'book-modal' });
-        this.content = createElement('div', { className: 'book-modal-content' });
+    _initModal() {
+        // 获取HTML中已存在的模态框元素
+        this.modal = document.getElementById('bookModal');
+        this.content = this.modal?.querySelector('.modal-content');
+        this.detailContainer = document.getElementById('bookDetail');
+        this.closeBtn = document.getElementById('closeModal');
         
-        const closeBtn = createElement('span', {
-            className: 'book-modal-close',
-            html: '&times;'
-        });
-        
-        const detailContainer = createElement('div', { id: 'bookDetail' });
-        
-        this.content.appendChild(closeBtn);
-        this.content.appendChild(detailContainer);
-        this.modal.appendChild(this.content);
+        if (!this.modal || !this.detailContainer) {
+            console.error('Modal elements not found in DOM');
+            return;
+        }
         
         // 事件绑定
-        closeBtn.addEventListener('click', () => this.hide());
+        if (this.closeBtn) {
+            this.closeBtn.addEventListener('click', () => this.hide());
+        }
+        
+        // 点击模态框外部关闭
         this.modal.addEventListener('click', (e) => {
             if (e.target === this.modal) this.hide();
         });
         
-        // 添加到DOM
-        document.body.appendChild(this.modal);
+        // ESC键关闭
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.modal.classList.contains('show')) {
+                this.hide();
+            }
+        });
     }
     
     /**
@@ -264,21 +271,33 @@ export class BookDetailModal {
      * @param {Object} book - 图书数据
      */
     show(book) {
-        const detailContainer = this.content.querySelector('#bookDetail');
-        detailContainer.innerHTML = this._renderDetail(book);
+        if (!this.detailContainer) {
+            console.error('Detail container not found');
+            return;
+        }
+        
+        this.detailContainer.innerHTML = this._renderDetail(book);
         
         // 绑定展开/收起事件
-        this._bindExpandEvents(detailContainer);
+        this._bindExpandEvents(this.detailContainer);
         
-        this.modal.style.display = 'block';
+        // 显示模态框（使用CSS类）
+        this.modal.classList.add('show');
         document.body.style.overflow = 'hidden';
+        
+        // 滚动到顶部
+        if (this.content) {
+            this.content.scrollTop = 0;
+        }
     }
     
     /**
      * 隐藏弹窗
      */
     hide() {
-        this.modal.style.display = 'none';
+        if (this.modal) {
+            this.modal.classList.remove('show');
+        }
         document.body.style.overflow = '';
     }
     
