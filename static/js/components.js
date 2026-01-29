@@ -1,0 +1,434 @@
+/**
+ * UI组件模块
+ */
+
+import { escapeHtml, createElement, appendElements, truncateText } from './utils.js';
+import { store, actions } from './store.js';
+
+/**
+ * 图书卡片组件
+ */
+export class BookCard {
+    constructor(book) {
+        this.book = book;
+        this.element = null;
+    }
+    
+    /**
+     * 渲染卡片
+     * @returns {HTMLElement} 卡片元素
+     */
+    render() {
+        const card = createElement('div', {
+            className: 'book-card',
+            attrs: { 'data-isbn': this.book.id }
+        });
+        
+        // 图片容器
+        const imageContainer = this._createImageContainer();
+        
+        // 图书信息
+        const infoDiv = createElement('div', {
+            className: 'book-info',
+            html: `
+                <div class="book-title">${escapeHtml(this.book.title)}</div>
+                <div class="book-author">${escapeHtml(this.book.author)}</div>
+                <div class="book-meta">
+                    <span class="book-weeks">上榜${this.book.weeks_on_list}周</span>
+                    ${this.book.rank_last_week && this.book.rank_last_week !== '无' 
+                        ? `<span class="book-last-rank">上周: ${this.book.rank_last_week}</span>` 
+                        : ''}
+                </div>
+                <div class="book-description">${escapeHtml(truncateText(this.book.description, 150))}</div>
+            `
+        });
+        
+        card.appendChild(imageContainer);
+        card.appendChild(infoDiv);
+        
+        // 添加点击事件
+        card.addEventListener('click', () => this._handleClick());
+        
+        this.element = card;
+        return card;
+    }
+    
+    /**
+     * 创建图片容器
+     * @returns {HTMLElement} 图片容器
+     */
+    _createImageContainer() {
+        const container = createElement('div', { className: 'book-image-container' });
+        
+        // 占位符
+        const placeholder = createElement('div', {
+            className: 'image-placeholder',
+            html: '<div class="image-spinner"></div>'
+        });
+        
+        // 图书图片
+        const img = createElement('img', {
+            className: 'book-image',
+            attrs: {
+                src: this.book.cover,
+                alt: this.book.title,
+                loading: 'lazy'
+            }
+        });
+        img.style.display = 'none';
+        
+        // 图片事件
+        img.onerror = () => this._handleImageError(img);
+        img.onload = () => this._handleImageLoad(img, placeholder);
+        
+        // 分类标签
+        const categoryTag = createElement('span', {
+            className: 'book-category-tag',
+            text: this.book.list_name
+        });
+        
+        // 排名徽章
+        const rankBadge = createElement('span', {
+            className: 'book-rank-badge',
+            text: `#${this.book.rank}`
+        });
+        
+        container.appendChild(placeholder);
+        container.appendChild(img);
+        container.appendChild(categoryTag);
+        container.appendChild(rankBadge);
+        
+        return container;
+    }
+    
+    /**
+     * 处理图片加载错误
+     * @param {HTMLImageElement} img - 图片元素
+     */
+    _handleImageError(img) {
+        if (!img.dataset.retried) {
+            img.dataset.retried = 'true';
+            img.src = img.src; // 重试一次
+            return;
+        }
+        img.src = '/static/default-cover.png';
+        img.alt = '无法加载封面图';
+    }
+    
+    /**
+     * 处理图片加载完成
+     * @param {HTMLImageElement} img - 图片元素
+     * @param {HTMLElement} placeholder - 占位符
+     */
+    _handleImageLoad(img, placeholder) {
+        placeholder.style.display = 'none';
+        img.style.display = 'block';
+    }
+    
+    /**
+     * 处理卡片点击
+     */
+    _handleClick() {
+        // 触发自定义事件
+        const event = new CustomEvent('book:click', { 
+            detail: { book: this.book },
+            bubbles: true 
+        });
+        this.element.dispatchEvent(event);
+    }
+}
+
+/**
+ * 图书详情弹窗组件
+ */
+export class BookDetailModal {
+    constructor() {
+        this.modal = null;
+        this.content = null;
+        this._createModal();
+    }
+    
+    /**
+     * 创建弹窗结构
+     */
+    _createModal() {
+        this.modal = createElement('div', { className: 'book-modal' });
+        this.content = createElement('div', { className: 'book-modal-content' });
+        
+        const closeBtn = createElement('span', {
+            className: 'book-modal-close',
+            html: '&times;'
+        });
+        
+        const detailContainer = createElement('div', { id: 'bookDetail' });
+        
+        this.content.appendChild(closeBtn);
+        this.content.appendChild(detailContainer);
+        this.modal.appendChild(this.content);
+        
+        // 事件绑定
+        closeBtn.addEventListener('click', () => this.hide());
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) this.hide();
+        });
+        
+        // 添加到DOM
+        document.body.appendChild(this.modal);
+    }
+    
+    /**
+     * 显示图书详情
+     * @param {Object} book - 图书数据
+     */
+    show(book) {
+        const detailContainer = this.content.querySelector('#bookDetail');
+        detailContainer.innerHTML = this._renderDetail(book);
+        
+        // 绑定展开/收起事件
+        this._bindExpandEvents(detailContainer);
+        
+        this.modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+    
+    /**
+     * 隐藏弹窗
+     */
+    hide() {
+        this.modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+    
+    /**
+     * 渲染详情内容
+     * @param {Object} book - 图书数据
+     * @returns {string} HTML字符串
+     */
+    _renderDetail(book) {
+        // 购买链接
+        let buyLinksHtml = '';
+        if (book.buy_links && book.buy_links.length > 0) {
+            buyLinksHtml = '<div class="buy-links">' +
+                book.buy_links.map(link => `
+                    <a href="${escapeHtml(link.url)}" target="_blank" class="buy-link">
+                        <i class="fa fa-shopping-cart"></i> ${escapeHtml(link.name)}
+                    </a>
+                `).join('') +
+                '</div>';
+        }
+        
+        const description = book.description || '暂无简介';
+        const details = book.details || '暂无详细介绍';
+        
+        return `
+            <div class="book-detail">
+                <div class="detail-image-container">
+                    <img src="${book.cover}" alt="${escapeHtml(book.title)}" class="detail-image"
+                         onerror="this.src='/static/default-cover.png'">
+                    ${buyLinksHtml}
+                </div>
+                <div class="detail-info">
+                    <h2>${escapeHtml(book.title)}</h2>
+                    <div class="detail-author">作者: ${escapeHtml(book.author)}</div>
+                    
+                    <div class="detail-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">出版社:</span> ${escapeHtml(book.publisher || '未知')}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">排名:</span> 第${book.rank}名
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">上榜时间:</span> ${book.weeks_on_list}周
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">上周排名:</span> ${book.rank_last_week || '无'}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">出版日期:</span> ${escapeHtml(book.publication_dt || '未知')}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">页数:</span> ${book.page_count || '未知'}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">语言:</span> ${escapeHtml(book.language || '未知')}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">ISBN:</span> ${book.id || '未知'}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">价格:</span> ${escapeHtml(book.price || '未知')}
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h3>简介</h3>
+                        <div class="expandable-content">
+                            <p>${escapeHtml(description)}</p>
+                        </div>
+                        ${description.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h3>详细介绍</h3>
+                        <div class="expandable-content">
+                            <p>${escapeHtml(details)}</p>
+                        </div>
+                        ${details.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h3>榜单信息</h3>
+                        <p>${escapeHtml(book.list_name)}（数据发布日期: ${book.published_date}）</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    /**
+     * 绑定展开/收起事件
+     * @param {HTMLElement} container - 容器元素
+     */
+    _bindExpandEvents(container) {
+        const buttons = container.querySelectorAll('.expand-btn');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const content = this.previousElementSibling;
+                content.classList.toggle('expanded');
+                this.textContent = content.classList.contains('expanded') ? '收起' : '展开';
+            });
+        });
+    }
+}
+
+/**
+ * 消息提示组件
+ */
+export class MessageToast {
+    constructor() {
+        this.container = null;
+        this._createContainer();
+    }
+    
+    _createContainer() {
+        this.container = createElement('div', { className: 'message-toast-container' });
+        document.body.appendChild(this.container);
+    }
+    
+    /**
+     * 显示消息
+     * @param {string} message - 消息内容
+     * @param {string} type - 消息类型 ('info' | 'success' | 'warning' | 'error')
+     * @param {number} duration - 显示时长（毫秒）
+     */
+    show(message, type = 'info', duration = 3000) {
+        const toast = createElement('div', {
+            className: `message-toast message-toast--${type}`,
+            text: message
+        });
+        
+        this.container.appendChild(toast);
+        
+        // 动画显示
+        requestAnimationFrame(() => {
+            toast.classList.add('message-toast--show');
+        });
+        
+        // 自动移除
+        setTimeout(() => {
+            toast.classList.remove('message-toast--show');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+}
+
+/**
+ * 加载指示器组件
+ */
+export class LoadingIndicator {
+    constructor() {
+        this.element = null;
+    }
+    
+    show() {
+        if (!this.element) {
+            this.element = createElement('div', {
+                className: 'loader',
+                html: '<div class="spinner"></div>'
+            });
+        }
+        this.element.style.display = 'block';
+        return this.element;
+    }
+    
+    hide() {
+        if (this.element) {
+            this.element.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * 搜索建议组件
+ */
+export class SearchSuggestions {
+    constructor(inputElement, onSelect) {
+        this.input = inputElement;
+        this.onSelect = onSelect;
+        this.container = null;
+        this._createContainer();
+        this._bindEvents();
+    }
+    
+    _createContainer() {
+        this.container = createElement('div', { className: 'search-suggestions' });
+        this.container.style.display = 'none';
+        this.input.parentNode.appendChild(this.container);
+    }
+    
+    _bindEvents() {
+        // 点击外部关闭
+        document.addEventListener('click', (e) => {
+            if (!this.input.contains(e.target) && !this.container.contains(e.target)) {
+                this.hide();
+            }
+        });
+    }
+    
+    /**
+     * 显示搜索建议
+     * @param {Array} history - 搜索历史数组
+     */
+    show(history) {
+        if (!history || history.length === 0) {
+            this.hide();
+            return;
+        }
+        
+        this.container.innerHTML = '';
+        
+        history.forEach(item => {
+            const suggestion = createElement('div', {
+                className: 'search-suggestion',
+                html: `
+                    <span>${escapeHtml(item.keyword)}</span>
+                    <small>${item.result_count} 个结果</small>
+                `
+            });
+            
+            suggestion.addEventListener('click', () => {
+                this.onSelect(item.keyword);
+                this.hide();
+            });
+            
+            this.container.appendChild(suggestion);
+        });
+        
+        this.container.style.display = 'block';
+    }
+    
+    hide() {
+        this.container.style.display = 'none';
+    }
+}
