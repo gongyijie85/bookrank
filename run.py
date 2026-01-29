@@ -3,20 +3,11 @@
 
 用法:
     开发环境: python run.py
-    生产环境: gunicorn -w 4 -b 0.0.0.0:8000 run:application
+    生产环境: gunicorn -c gunicorn.conf.py app:app
 """
 
 import os
-from app import create_app
-
-# 获取环境配置
-config_name = os.environ.get('FLASK_ENV', 'development')
-
-# 创建应用实例
-app = create_app(config_name)
-
-# 为Elastic Beanstalk兼容
-application = app
+from app import create_app, app
 
 if __name__ == '__main__':
     # 开发服务器配置

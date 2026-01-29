@@ -168,3 +168,9 @@ def _configure_logging(app):
         # 配置第三方库日志级别
         logging.getLogger('werkzeug').setLevel(logging.WARNING)
         logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
+
+
+# 为 Gunicorn 直接暴露 app 实例
+# 使用环境变量 FLASK_ENV 或默认为 production
+import os
+app = create_app(os.environ.get('FLASK_ENV', 'production'))
