@@ -170,15 +170,20 @@ class LibreTranslateService:
                 url = self.API_URLS[(self.current_api_index + i) % len(self.API_URLS)]
                 
                 try:
-                    data = {
+                    # LibreTranslate API 需要 JSON 格式
+                    payload = {
                         'q': text,
                         'source': source_lang,
                         'target': target_lang,
                         'format': 'text'
                     }
                     
+                    headers = {
+                        'Content-Type': 'application/json'
+                    }
+                    
                     logger.debug(f"正在请求: {url}")
-                    response = requests.post(url, data=data, timeout=30)
+                    response = requests.post(url, json=payload, headers=headers, timeout=30)
                     
                     if response.status_code == 200:
                         try:
