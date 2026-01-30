@@ -84,6 +84,9 @@ CATEGORIES = {
 }
 CATEGORY_ORDER = list(CATEGORIES.keys())
 
+# 配置Flask应用
+app.config['CATEGORIES'] = CATEGORIES
+
 # Cache directory configuration
 CACHE_DIR = Path(__file__).parent / "cache"
 IMAGE_CACHE_DIR = CACHE_DIR / "images"

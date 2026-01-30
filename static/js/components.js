@@ -27,13 +27,8 @@ export class BookCard {
         // 图片容器
         const imageContainer = this._createImageContainer();
         
-        // 获取当前语言
-        const currentLang = store.getState().language || 'en';
-        
-        // 根据语言选择描述
-        const description = currentLang === 'zh' && this.book.description_zh 
-            ? this.book.description_zh 
-            : this.book.description;
+        // 获取图书描述（暂时只支持英文）
+        const description = this.book.description;
         
         // 图书信息
         const infoDiv = createElement('div', {
@@ -556,13 +551,9 @@ export class BookDetailModal {
                 '</div>';
         }
         
-        // 根据语言选择显示内容
-        const description = lang === 'zh' && book.description_zh 
-            ? book.description_zh 
-            : (book.description || '暂无简介');
-        const details = lang === 'zh' && book.details_zh 
-            ? book.details_zh 
-            : (book.details || '暂无详细介绍');
+        // 获取图书描述（暂时只支持英文）
+        const description = book.description || '暂无简介';
+        const details = book.details || '暂无详细介绍';
         
         return `
             <div class="book-detail">

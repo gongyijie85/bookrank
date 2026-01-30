@@ -504,9 +504,11 @@ if ('serviceWorker' in navigator) {
 }
 
 /**
- * 保活Ping机制 - 防止Render休眠
- * 每8分钟发送一次ping请求
+ * 保活Ping机制 - 暂时下线
+ * 翻译功能下线后，不需要频繁保活
+ * 如需重新启用，取消下面代码的注释
  */
+/*
 class KeepAliveService {
     constructor() {
         this.interval = null;
@@ -515,14 +517,10 @@ class KeepAliveService {
     }
 
     start() {
-        // 立即执行一次ping
         this.ping();
-        
-        // 设置定时ping
         this.interval = setInterval(() => {
             this.ping();
         }, this.intervalTime);
-        
         console.log('[KeepAlive] Service started');
     }
 
@@ -555,19 +553,16 @@ class KeepAliveService {
     }
 }
 
-// 启动保活服务
 const keepAlive = new KeepAliveService();
 keepAlive.start();
 
-// 页面可见性变化时调整保活策略
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        // 页面隐藏时降低ping频率（节省资源）
         keepAlive.stop();
         console.log('[KeepAlive] Page hidden, pausing keep-alive');
     } else {
-        // 页面显示时恢复ping
         keepAlive.start();
         console.log('[KeepAlive] Page visible, resuming keep-alive');
     }
 });
+*/

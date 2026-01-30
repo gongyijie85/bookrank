@@ -368,133 +368,32 @@ def internal_error(error):
     return APIResponse.error('Internal server error', 500)
 
 
-# ==================== 翻译相关API ====================
+# ==================== 翻译相关API (暂时下线) ====================
+# 翻译功能将在第三阶段重新上线
 
 @api_bp.route('/translate', methods=['POST'])
 def translate_text():
-    """翻译文本"""
-    try:
-        data = request.get_json()
-        if not data:
-            return APIResponse.error('请求数据不能为空', 400)
-        
-        text = data.get('text', '').strip()
-        source_lang = data.get('source_lang', 'en')
-        target_lang = data.get('target_lang', 'zh')
-        
-        if not text:
-            return APIResponse.error('翻译文本不能为空', 400)
-        
-        # 限制文本长度
-        if len(text) > 2000:
-            return APIResponse.error('文本长度超过限制（最大2000字符）', 400)
-        
-        # 执行翻译
-        service = TranslationService()
-        translated = service.translate(text, source_lang, target_lang)
-        
-        if translated:
-            return APIResponse.success(data={
-                'original': text,
-                'translated': translated,
-                'source_lang': source_lang,
-                'target_lang': target_lang
-            })
-        else:
-            return APIResponse.error('翻译失败，请稍后重试', 500)
-            
-    except Exception as e:
-        logger.error(f"翻译错误: {e}", exc_info=True)
-        return APIResponse.error('翻译服务暂时不可用', 500)
+    """翻译文本 - 暂时下线"""
+    return APIResponse.error('翻译功能暂时下线，将在第三阶段重新上线', 503)
 
 
 @api_bp.route('/translate/book/<isbn>', methods=['POST'])
 def translate_book(isbn: str):
-    """翻译单本图书 - 优先从数据库获取已翻译内容"""
-    try:
-        data = request.get_json() or {}
-        target_lang = data.get('target_lang', 'zh')
-        
-        # 获取图书数据
-        book_service: BookService = api_bp.book_service
-        
-        # 搜索图书
-        from flask import current_app
-        books = []
-        for cat_id in current_app.config['CATEGORIES'].keys():
-            cat_books = book_service.get_books_by_category(cat_id)
-            for book in cat_books:
-                if book.isbn13 == isbn or book.isbn10 == isbn:
-                    books.append(book)
-                    break
-        
-        if not books:
-            return APIResponse.error('图书未找到', 404)
-        
-        book = books[0]
-        book_data = book.to_dict()
-        
-        # 优先使用数据库中的翻译
-        if book.description_zh and book.details_zh:
-            # 数据库已有翻译，直接返回
-            book_data['description_zh'] = book.description_zh
-            book_data['details_zh'] = book.details_zh
-            logger.info(f"从数据库获取翻译: {isbn}")
-        else:
-            # 数据库没有翻译，调用翻译服务
-            logger.info(f"实时翻译图书: {isbn}")
-            translated_data = translate_book_info(book_data, target_lang)
-            book_data.update(translated_data)
-            
-            # 保存翻译到数据库
-            if book_data.get('description_zh') or book_data.get('details_zh'):
-                book_service.save_book_translation(
-                    isbn,
-                    description_zh=book_data.get('description_zh'),
-                    details_zh=book_data.get('details_zh')
-                )
-        
-        return APIResponse.success(data={
-            'book': book_data,
-            'translated_fields': ['description', 'details']
-        })
-        
-    except Exception as e:
-        logger.error(f"翻译图书错误: {e}", exc_info=True)
-        return APIResponse.error('翻译失败', 500)
+    """翻译单本图书 - 暂时下线"""
+    return APIResponse.error('翻译功能暂时下线，将在第三阶段重新上线', 503)
 
 
 @api_bp.route('/translate/cache/stats')
 def get_translation_cache_stats():
-    """获取翻译服务状态"""
-    try:
-        # 返回翻译服务状态
-        return APIResponse.success(data={
-            'service': 'Google Translate (via deep-translator)',
-            'status': 'active',
-            'description': '使用 Google Translate 免费翻译服务'
-        })
-        
-    except Exception as e:
-        logger.error(f"获取缓存统计错误: {e}", exc_info=True)
-        return APIResponse.error('获取统计失败', 500)
+    """获取翻译服务状态 - 暂时下线"""
+    return APIResponse.success(data={
+        'service': 'Google Translate',
+        'status': 'offline',
+        'description': '翻译功能暂时下线，将在第三阶段重新上线'
+    })
 
 
 @api_bp.route('/translate/cache/clear', methods=['POST'])
 def clear_translation_cache():
-    """清理翻译缓存"""
-    try:
-        data = request.get_json() or {}
-        days = data.get('days', 30)
-       # 清理过期缓存
-        service = MyMemoryTranslationService()
-        deleted = service.clear_cache(days)
-        
-        return APIResponse.success(data={
-            'deleted_entries': deleted,
-            'message': f'已清理 {deleted} 条过期缓存'
-        })
-        
-    except Exception as e:
-        logger.error(f"清理缓存错误: {e}", exc_info=True)
-        return APIResponse.error('清理缓存失败', 500)
+    """清理翻译缓存 - 暂时下线"""
+    return APIResponse.error('翻译功能暂时下线，将在第三阶段重新上线', 503)
