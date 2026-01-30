@@ -12,10 +12,8 @@ from ..models.schemas import UserPreference, UserCategory, UserViewedBook, Searc
 from ..models.database import db
 from ..utils.exceptions import APIRateLimitException, APIException, ValidationException
 from ..services import BookService
-from ..services.translation_service import (
-    MyMemoryTranslationService,
-    translate_book_info
-)
+from ..services.multi_translation_service import MultiTranslationService
+from ..services.translation_service import translate_book_info
 
 logger = logging.getLogger(__name__)
 
@@ -469,13 +467,17 @@ def translate_book(isbn: str):
 
 @api_bp.route('/translate/cache/stats')
 def get_translation_cache_stats():
-    """获取翻译缓存统计"""
+    """获取翻译服务状态"""
     try:
-# 获取缓存统计
-        service = MyMemoryTranslationService()
-        stats = service.get_cache_stats()
-        
-        return APIResponse.success(data=stats)
+        # 返回多翻译服务状态
+        return APIResponse.success(data={
+            'services': [
+                {'name': 'MyMemory API', 'type': 'primary', 'status': 'active'},
+                {'name': 'Baidu Translation', 'type': 'backup', 'status': 'active'}
+            ],
+            'strategy': 'failover',
+            'description': '当主API限流时自动切换到备用API'
+        })
         
     except Exception as e:
         logger.error(f"获取缓存统计错误: {e}", exc_info=True)

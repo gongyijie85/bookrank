@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app import create_app
-from app.services.translation_service import MyMemoryTranslationService
+from app.services.multi_translation_service import MultiTranslationService
 from app.services import BookService
 from app.models.database import db
 from app.models.schemas import BookMetadata
@@ -32,8 +32,8 @@ def batch_translate_all_books():
             print("错误: 无法获取图书服务")
             return
         
-        # 创建翻译服务
-        translation_service = MyMemoryTranslationService(delay=0.5)
+        # 创建翻译服务（使用多API轮询）
+        translation_service = MultiTranslationService()
         
         # 获取所有分类
         categories = app.config.get('CATEGORIES', {})
@@ -123,12 +123,10 @@ def batch_translate_all_books():
         print(f"新翻译成功: {translated_count}")
         print(f"失败数量: {failed_count}")
         
-        # 显示缓存统计
-        cache_stats = translation_service.get_cache_stats()
-        print(f"\n缓存统计:")
-        print(f"  缓存条目: {cache_stats['total_entries']}")
-        print(f"  总使用次数: {cache_stats['total_uses']}")
-        print(f"  平均使用: {cache_stats['avg_uses_per_entry']}")
+        # 显示缓存统计（多翻译服务没有缓存统计）
+        print(f"\n翻译完成统计:")
+        print(f"  成功: {translated_count}")
+        print(f"  失败: {failed_count}")
 
 
 def translate_single_book(isbn: str):
@@ -141,7 +139,7 @@ def translate_single_book(isbn: str):
             print("错误: 无法获取图书服务")
             return
         
-        translation_service = MyMemoryTranslationService()
+        translation_service = MultiTranslationService()
         
         # 搜索图书
         found = False
@@ -195,15 +193,12 @@ def show_cache_stats():
     app = create_app()
     
     with app.app_context():
-        translation_service = MyMemoryTranslationService()
-        stats = translation_service.get_cache_stats()
-        
         print("=" * 60)
-        print("翻译缓存统计")
+        print("翻译服务状态")
         print("=" * 60)
-        print(f"缓存条目数: {stats['total_entries']}")
-        print(f"总使用次数: {stats['total_uses']}")
-        print(f"平均每条目使用: {stats['avg_uses_per_entry']}")
+        print("使用多翻译API轮询服务:")
+        print("  - MyMemory API (主)")
+        print("  - 百度翻译API (备用)")
         
         # 数据库中的翻译统计
         metadata_count = BookMetadata.query.filter(
