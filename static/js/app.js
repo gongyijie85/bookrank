@@ -44,12 +44,18 @@ class BookApp {
             searchInput: document.getElementById('searchInput'),
             searchButton: document.getElementById('searchBtn'),
             toggleViewButton: document.getElementById('toggleView'),
+            toggleLangButton: document.getElementById('toggleLang'),
+            langText: document.getElementById('langText'),
             booksContainer: document.getElementById('booksContainer'),
             loader: document.getElementById('loader'),
             errorDiv: document.getElementById('error'),
             infoDiv: document.getElementById('info'),
             lastUpdateElement: document.getElementById('lastUpdate')
         };
+        
+        // 初始化语言设置
+        this.currentLang = localStorage.getItem('app_language') || 'zh';
+        this._updateLanguageUI();
     }
     
     /**
@@ -112,6 +118,11 @@ class BookApp {
         // 切换视图
         this.dom.toggleViewButton.addEventListener('click', () => {
             actions.toggleView();
+        });
+        
+        // 切换语言
+        this.dom.toggleLangButton.addEventListener('click', () => {
+            this._toggleLanguage();
         });
         
         // 图书卡片点击（事件委托）
@@ -413,6 +424,45 @@ class BookApp {
         } else {
             this.dom.infoDiv.style.display = 'none';
         }
+    }
+    
+    /**
+     * 切换语言
+     */
+    _toggleLanguage() {
+        this.currentLang = this.currentLang === 'zh' ? 'en' : 'zh';
+        localStorage.setItem('app_language', this.currentLang);
+        this._updateLanguageUI();
+        
+        // 刷新当前显示的图书
+        const currentCategory = this.dom.listTypeSelect.value;
+        if (currentCategory) {
+            this._loadBooks(currentCategory);
+        }
+        
+        // 显示提示
+        const langName = this.currentLang === 'zh' ? '中文' : 'English';
+        this.toast.show(`已切换到${langName}`, 'success');
+    }
+    
+    /**
+     * 更新语言UI
+     */
+    _updateLanguageUI() {
+        if (this.dom.langText) {
+            this.dom.langText.textContent = this.currentLang === 'zh' ? '中文' : 'EN';
+        }
+        if (this.dom.toggleLangButton) {
+            this.dom.toggleLangButton.classList.toggle('active', this.currentLang === 'en');
+        }
+    }
+    
+    /**
+     * 获取当前语言
+     * @returns {string} 当前语言代码
+     */
+    getCurrentLanguage() {
+        return this.currentLang;
     }
 }
 

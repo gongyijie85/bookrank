@@ -104,6 +104,21 @@
             background-color: #5a6268;
         }
 
+        .lang-toggle {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            margin-left: 10px;
+        }
+
+        .lang-toggle:hover {
+            background: linear-gradient(135deg, #218838, #1ba87e);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+
+        .lang-toggle.active {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+        }
+
         .search-container {
             display: flex;
             margin-left: auto;
@@ -633,6 +648,51 @@
             color: var(--primary-color);
         }
 
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .detail-header h2 {
+            flex: 1;
+            margin: 0;
+        }
+
+        .translate-btn {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .translate-btn:hover {
+            background: linear-gradient(135deg, #138496, #117a8b);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
+        }
+
+        .translate-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .translate-btn i {
+            font-size: 16px;
+        }
+
         .detail-author {
             font-size: 18px;
             color: #666;
@@ -932,6 +992,9 @@
             <i class="fa fa-th-list"></i> 切换视图
         </button>
         
+        <button id="toggleLang" class="lang-toggle" title="切换语言">
+            <i class="fa fa-language"></i> <span id="langText">中文</span>
+        </button>
 
     </div>
     

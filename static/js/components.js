@@ -230,6 +230,9 @@ export class BookDetailModal {
         this.content = null;
         this.detailContainer = null;
         this.closeBtn = null;
+        this.currentBook = null;
+        this.isTranslated = false;
+        this.isTranslating = false;
         this._initModal();
     }
     
@@ -276,10 +279,18 @@ export class BookDetailModal {
             return;
         }
         
+        // 保存当前图书数据
+        this.currentBook = book;
+        this.isTranslated = false;
+        this.isTranslating = false;
+        
         this.detailContainer.innerHTML = this._renderDetail(book);
         
         // 绑定展开/收起事件
         this._bindExpandEvents(this.detailContainer);
+        
+        // 绑定翻译按钮事件
+        this._bindTranslateEvent();
         
         // 显示模态框（使用CSS类）
         this.modal.classList.add('show');
@@ -288,6 +299,136 @@ export class BookDetailModal {
         // 滚动到顶部
         if (this.content) {
             this.content.scrollTop = 0;
+        }
+    }
+    
+    /**
+     * 绑定翻译按钮事件
+     */
+    _bindTranslateEvent() {
+        const translateBtn = this.detailContainer.querySelector('.translate-btn');
+        if (translateBtn) {
+            translateBtn.addEventListener('click', () => this._handleTranslate());
+        }
+    }
+    
+    /**
+     * 处理翻译
+     */
+    async _handleTranslate() {
+        if (this.isTranslating || !this.currentBook) return;
+        
+        const translateBtn = this.detailContainer.querySelector('.translate-btn');
+        const descContent = this.detailContainer.querySelector('.desc-content');
+        const detailsContent = this.detailContainer.querySelector('.details-content');
+        
+        // 如果已经翻译过，切换显示
+        if (this.isTranslated) {
+            this._toggleTranslation();
+            return;
+        }
+        
+        // 开始翻译
+        this.isTranslating = true;
+        if (translateBtn) {
+            translateBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 翻译中...';
+            translateBtn.disabled = true;
+        }
+        
+        try {
+            // 调用翻译API
+            const response = await fetch('/api/translate/book/' + this.currentBook.id, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ target_lang: 'zh' })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.data.book) {
+                const translatedBook = result.data.book;
+                
+                // 更新内容
+                if (descContent && translatedBook.description_zh) {
+                    descContent.innerHTML = `<p>${escapeHtml(translatedBook.description_zh)}</p>`;
+                    descContent.dataset.original = this.currentBook.description || '暂无简介';
+                    descContent.dataset.translated = translatedBook.description_zh;
+                }
+                
+                if (detailsContent && translatedBook.details_zh) {
+                    detailsContent.innerHTML = `<p>${escapeHtml(translatedBook.details_zh)}</p>`;
+                    detailsContent.dataset.original = this.currentBook.details || '暂无详细介绍';
+                    detailsContent.dataset.translated = translatedBook.details_zh;
+                }
+                
+                this.isTranslated = true;
+                
+                if (translateBtn) {
+                    translateBtn.innerHTML = '<i class="fa fa-language"></i> 显示原文';
+                    translateBtn.disabled = false;
+                }
+            } else {
+                throw new Error(result.message || '翻译失败');
+            }
+        } catch (error) {
+            console.error('翻译失败:', error);
+            if (translateBtn) {
+                translateBtn.innerHTML = '<i class="fa fa-exclamation-triangle"></i> 翻译失败';
+                translateBtn.disabled = false;
+            }
+            
+            // 显示错误提示
+            const toast = document.querySelector('.message-toast-container');
+            if (toast) {
+                const errorToast = document.createElement('div');
+                errorToast.className = 'message-toast message-toast--error';
+                errorToast.textContent = '翻译失败，请稍后重试';
+                toast.appendChild(errorToast);
+                setTimeout(() => errorToast.remove(), 3000);
+            }
+        } finally {
+            this.isTranslating = false;
+        }
+    }
+    
+    /**
+     * 切换原文/译文显示
+     */
+    _toggleTranslation() {
+        const descContent = this.detailContainer.querySelector('.desc-content');
+        const detailsContent = this.detailContainer.querySelector('.details-content');
+        const translateBtn = this.detailContainer.querySelector('.translate-btn');
+        
+        const isShowingTranslated = descContent?.dataset.showing === 'translated';
+        
+        if (isShowingTranslated) {
+            // 切换到原文
+            if (descContent) {
+                descContent.innerHTML = `<p>${escapeHtml(descContent.dataset.original || '暂无简介')}</p>`;
+                descContent.dataset.showing = 'original';
+            }
+            if (detailsContent) {
+                detailsContent.innerHTML = `<p>${escapeHtml(detailsContent.dataset.original || '暂无详细介绍')}</p>`;
+                detailsContent.dataset.showing = 'original';
+            }
+            if (translateBtn) {
+                translateBtn.innerHTML = '<i class="fa fa-language"></i> 翻译';
+            }
+        } else {
+            // 切换到译文
+            if (descContent) {
+                descContent.innerHTML = `<p>${escapeHtml(descContent.dataset.translated || descContent.dataset.original || '暂无简介')}</p>`;
+                descContent.dataset.showing = 'translated';
+            }
+            if (detailsContent) {
+                detailsContent.innerHTML = `<p>${escapeHtml(detailsContent.dataset.translated || detailsContent.dataset.original || '暂无详细介绍')}</p>`;
+                detailsContent.dataset.showing = 'translated';
+            }
+            if (translateBtn) {
+                translateBtn.innerHTML = '<i class="fa fa-language"></i> 显示原文';
+            }
         }
     }
     
@@ -330,7 +471,12 @@ export class BookDetailModal {
                     ${buyLinksHtml}
                 </div>
                 <div class="detail-info">
-                    <h2>${escapeHtml(book.title)}</h2>
+                    <div class="detail-header">
+                        <h2>${escapeHtml(book.title)}</h2>
+                        <button class="translate-btn" title="翻译图书介绍">
+                            <i class="fa fa-language"></i> 翻译
+                        </button>
+                    </div>
                     <div class="detail-author">作者: ${escapeHtml(book.author)}</div>
                     
                     <div class="detail-meta">
@@ -365,7 +511,7 @@ export class BookDetailModal {
                     
                     <div class="detail-section">
                         <h3>简介</h3>
-                        <div class="expandable-content">
+                        <div class="expandable-content desc-content" data-original="${escapeHtml(description)}" data-showing="original">
                             <p>${escapeHtml(description)}</p>
                         </div>
                         ${description.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}
@@ -373,7 +519,7 @@ export class BookDetailModal {
                     
                     <div class="detail-section">
                         <h3>详细介绍</h3>
-                        <div class="expandable-content">
+                        <div class="expandable-content details-content" data-original="${escapeHtml(details)}" data-showing="original">
                             <p>${escapeHtml(details)}</p>
                         </div>
                         ${details.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}
