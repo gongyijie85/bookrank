@@ -1,15 +1,9 @@
-# 环境变量文件（包含敏感信息）
-.env
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -26,14 +20,11 @@ wheels/
 .installed.cfg
 *.egg
 
-# 数据库
-*.db
-*.sqlite
-*.sqlite3
-
-# 缓存
-cache/
-!cache/.gitkeep
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
 
 # IDE
 .vscode/
@@ -41,19 +32,68 @@ cache/
 *.swp
 *.swo
 *~
+.trae/
 
-# 日志
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+bestsellers.db
+
+# Cache
+cache/
+__pycache__/
+*.cache
+.pytest_cache/
+.mypy_cache/
+
+# Logs
 *.log
+logs/
 
-# 操作系统
+# Test files
+test_*.py
+*_test.py
+
+# Translation cache
+translation_cache.json
+
+# Local development files
+app.html
+book.py
+run_port8080.py
+run_prod.py
+init_db.py
+
+# Documentation (keep only README.md)
+DEPLOY.md
+REQUIREMENTS_CHECK.md
+deploy_helper.md
+project_rules.md
+
+# Data files
+*.xlsx
+*.csv
+*.json
+!translation_cache.json
+
+# AWS Elastic Beanstalk
+.elasticbeanstalk/
+.ebextensions/
+
+# Render
+render.yaml
+
+# Keywords folder
+keywords/
+
+# Temporary files
+*.tmp
+*.temp
 .DS_Store
 Thumbs.db
-
-# 测试
-.pytest_cache/
-.coverage
-htmlcov/
-
-# 临时文件
-*.tmp
-*.bak
