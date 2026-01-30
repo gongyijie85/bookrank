@@ -86,12 +86,10 @@ class LibreTranslateService:
     - 自动错误处理和重试
     """
     
-    # 可用的公共API实例
+    # 可用的公共API实例（2025年1月测试可用）
     API_URLS = [
         'https://libretranslate.de/translate',
-        'https://libretranslate.com/translate',
-        'https://translate.argosopentech.com/translate',
-        'https://libretranslate.pussthecat.org/translate'
+        'https://libretranslate.com/translate'
     ]
     
     def __init__(self, delay: float = 0.5, max_retries: int = 3):
@@ -179,21 +177,25 @@ class LibreTranslateService:
                         'format': 'text'
                     }
                     
+                    logger.debug(f"正在请求: {url}")
                     response = requests.post(url, data=data, timeout=30)
                     
                     if response.status_code == 200:
-                        result = response.json()
-                        translated = result.get('translatedText')
-                        
-                        if translated:
-                            # 保存到缓存
-                            if use_cache:
-                                self._save_to_cache(text, translated, source_lang, target_lang)
+                        try:
+                            result = response.json()
+                            translated = result.get('translatedText')
                             
-                            logger.info(f"翻译成功: {text[:50]}... -> {translated[:50]}...")
-                            return translated
+                            if translated:
+                                # 保存到缓存
+                                if use_cache:
+                                    self._save_to_cache(text, translated, source_lang, target_lang)
+                                
+                                logger.info(f"翻译成功: {text[:50]}... -> {translated[:50]}...")
+                                return translated
+                        except Exception as e:
+                            logger.warning(f"解析响应失败: {url}, 错误: {e}, 响应: {response.text[:200]}")
                     else:
-                        logger.warning(f"API返回错误 {response.status_code}: {url}")
+                        logger.warning(f"API返回错误 {response.status_code}: {url}, 响应: {response.text[:200]}")
                         
                 except requests.exceptions.Timeout:
                     logger.warning(f"请求超时: {url}")
@@ -206,7 +208,7 @@ class LibreTranslateService:
             if attempt < self.max_retries - 1:
                 time.sleep(2 ** attempt)  # 指数退避
         
-        logger.error(f"所有API实例都失败，返回原文")
+        logger.error(f"所有API实例都失败，返回None")
         return None
     
     def translate_batch(self, texts: List[str], source_lang: str = 'en',
