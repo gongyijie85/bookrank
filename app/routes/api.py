@@ -13,8 +13,7 @@ from ..models.database import db
 from ..utils.exceptions import APIRateLimitException, APIException, ValidationException
 from ..services import BookService
 from ..services.translation_service import (
-    LibreTranslateService, 
-    TranslationCache,
+    LibreTranslateService,
     translate_book_info
 )
 

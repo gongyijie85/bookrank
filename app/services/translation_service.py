@@ -8,39 +8,70 @@
 import logging
 import time
 import hashlib
+import json
+import os
 from typing import Optional, List
 from datetime import datetime, timedelta
 
 import requests
 
-from ..models.database import db
-
 logger = logging.getLogger(__name__)
 
 
-class TranslationCache(db.Model):
-    """翻译缓存表"""
-    __tablename__ = 'translation_cache'
+class TranslationCache:
+    """翻译缓存类（使用文件缓存）"""
     
-    id = db.Column(db.Integer, primary_key=True)
-    text_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    original_text = db.Column(db.Text, nullable=False)
-    translated_text = db.Column(db.Text, nullable=False)
-    source_lang = db.Column(db.String(10), default='en')
-    target_lang = db.Column(db.String(10), default='zh')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    use_count = db.Column(db.Integer, default=1)  # 使用次数统计
+    def __init__(self, cache_file='translation_cache.json'):
+        self.cache_file = cache_file
+        self.cache = self._load_cache()
     
-    def to_dict(self):
+    def _load_cache(self):
+        """加载缓存"""
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"加载缓存失败: {e}")
+        return {}
+    
+    def _save_cache(self):
+        """保存缓存"""
+        try:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.cache, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存缓存失败: {e}")
+    
+    def get(self, text_hash):
+        """获取缓存"""
+        entry = self.cache.get(text_hash)
+        if entry:
+            entry['use_count'] = entry.get('use_count', 0) + 1
+            self._save_cache()
+            return entry.get('translated_text')
+        return None
+    
+    def set(self, text_hash, original_text, translated_text, source_lang, target_lang):
+        """设置缓存"""
+        self.cache[text_hash] = {
+            'original_text': original_text,
+            'translated_text': translated_text,
+            'source_lang': source_lang,
+            'target_lang': target_lang,
+            'created_at': datetime.now().isoformat(),
+            'use_count': 1
+        }
+        self._save_cache()
+    
+    def get_stats(self):
+        """获取统计"""
+        total_entries = len(self.cache)
+        total_uses = sum(entry.get('use_count', 0) for entry in self.cache.values())
         return {
-            'id': self.id,
-            'original_text': self.original_text,
-            'translated_text': self.translated_text,
-            'source_lang': self.source_lang,
-            'target_lang': self.target_lang,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'use_count': self.use_count
+            'total_entries': total_entries,
+            'total_uses': total_uses,
+            'avg_uses_per_entry': round(total_uses / total_entries, 2) if total_entries > 0 else 0
         }
 
 
@@ -74,6 +105,7 @@ class LibreTranslateService:
         self.delay = delay
         self.max_retries = max_retries
         self.current_api_index = 0
+        self.cache = TranslationCache()
         
     def _get_text_hash(self, text: str, source_lang: str, target_lang: str) -> str:
         """生成文本哈希用于缓存"""
@@ -84,17 +116,10 @@ class LibreTranslateService:
         """从缓存获取翻译"""
         try:
             text_hash = self._get_text_hash(text, source_lang, target_lang)
-            cache_entry = TranslationCache.query.filter_by(
-                text_hash=text_hash
-            ).first()
-            
-            if cache_entry:
-                # 更新使用次数
-                cache_entry.use_count += 1
-                db.session.commit()
+            cached = self.cache.get(text_hash)
+            if cached:
                 logger.debug(f"缓存命中: {text[:50]}...")
-                return cache_entry.translated_text
-                
+                return cached
         except Exception as e:
             logger.error(f"读取缓存失败: {e}")
         
@@ -105,28 +130,10 @@ class LibreTranslateService:
         """保存翻译到缓存"""
         try:
             text_hash = self._get_text_hash(original, source_lang, target_lang)
-            
-            # 检查是否已存在
-            existing = TranslationCache.query.filter_by(text_hash=text_hash).first()
-            if existing:
-                existing.translated_text = translated
-                existing.updated_at = datetime.utcnow()
-            else:
-                cache_entry = TranslationCache(
-                    text_hash=text_hash,
-                    original_text=original,
-                    translated_text=translated,
-                    source_lang=source_lang,
-                    target_lang=target_lang
-                )
-                db.session.add(cache_entry)
-            
-            db.session.commit()
+            self.cache.set(text_hash, original, translated, source_lang, target_lang)
             logger.debug(f"缓存已保存: {original[:50]}...")
-            
         except Exception as e:
             logger.error(f"保存缓存失败: {e}")
-            db.session.rollback()
     
     def translate(self, text: str, source_lang: str = 'en', 
                   target_lang: str = 'zh', use_cache: bool = True) -> Optional[str]:
@@ -230,18 +237,7 @@ class LibreTranslateService:
     
     def get_cache_stats(self) -> dict:
         """获取缓存统计信息"""
-        try:
-            total_entries = TranslationCache.query.count()
-            total_uses = db.session.query(db.func.sum(TranslationCache.use_count)).scalar() or 0
-            
-            return {
-                'total_entries': total_entries,
-                'total_uses': int(total_uses),
-                'avg_uses_per_entry': round(total_uses / total_entries, 2) if total_entries > 0 else 0
-            }
-        except Exception as e:
-            logger.error(f"获取缓存统计失败: {e}")
-            return {'total_entries': 0, 'total_uses': 0, 'avg_uses_per_entry': 0}
+        return self.cache.get_stats()
     
     def clear_cache(self, days: int = 30):
         """
@@ -251,16 +247,27 @@ class LibreTranslateService:
             days: 清理多少天前的缓存
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
-            deleted = TranslationCache.query.filter(
-                TranslationCache.updated_at < cutoff_date
-            ).delete()
-            db.session.commit()
-            logger.info(f"清理了 {deleted} 条过期缓存")
-            return deleted
+            cutoff_date = datetime.now() - timedelta(days=days)
+            keys_to_remove = []
+            
+            for key, entry in self.cache.cache.items():
+                created_at = entry.get('created_at')
+                if created_at:
+                    try:
+                        entry_date = datetime.fromisoformat(created_at)
+                        if entry_date < cutoff_date:
+                            keys_to_remove.append(key)
+                    except:
+                        pass
+            
+            for key in keys_to_remove:
+                del self.cache.cache[key]
+            
+            self.cache._save_cache()
+            logger.info(f"清理了 {len(keys_to_remove)} 条过期缓存")
+            return len(keys_to_remove)
         except Exception as e:
             logger.error(f"清理缓存失败: {e}")
-            db.session.rollback()
             return 0
 
 
