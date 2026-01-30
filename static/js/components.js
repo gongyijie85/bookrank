@@ -330,7 +330,7 @@ export class BookDetailModal {
         this.isTranslating = false;
         
         // 根据当前语言设置渲染内容
-        const currentLang = window.bookStore?.getState().language || 'en';
+        const currentLang = store.getState().language || 'zh';
         this.detailContainer.innerHTML = this._renderDetail(book, currentLang);
         
         // 显示模态框（使用CSS类）

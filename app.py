@@ -19,6 +19,9 @@ from flask import Flask, render_template, jsonify, request, make_response, send_
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+# 导入API蓝图
+from app.routes.api import api_bp
+
 # =========================================================
 # 修复 Windows 上的 fcntl 错误：
 # fcntl 是 Unix 专属模块。在 Windows 上提供一个虚拟实现，
@@ -46,6 +49,9 @@ except ImportError:
 app = Flask(__name__)
 CORS(app)
 application = app  # Required by Elastic Beanstalk
+
+# 注册API蓝图
+app.register_blueprint(api_bp)
 
 # Configure logging
 logging.basicConfig(

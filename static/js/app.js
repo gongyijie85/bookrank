@@ -148,6 +148,8 @@ class BookApp {
      * 订阅状态变化
      */
     _subscribeToStore() {
+        let prevLanguage = store.getState().language;
+        
         store.subscribe((state) => {
             // 更新视图模式
             this._updateViewMode(state.currentView);
@@ -164,6 +166,18 @@ class BookApp {
             // 更新时间
             if (state.latestUpdate) {
                 this.dom.lastUpdateElement.textContent = state.latestUpdate;
+            }
+            
+            // 语言变化时重新渲染图书列表
+            if (state.language !== prevLanguage) {
+                prevLanguage = state.language;
+                this.currentLang = state.language;
+                this._updateLanguageUI();
+                // 重新加载当前分类的图书以应用新语言
+                const currentCategory = this.dom.listTypeSelect.value;
+                if (currentCategory && state.books[currentCategory]) {
+                    this._renderBooks(state.books[currentCategory]);
+                }
             }
         });
     }
@@ -488,3 +502,72 @@ if ('serviceWorker' in navigator) {
             });
     });
 }
+
+/**
+ * 保活Ping机制 - 防止Render休眠
+ * 每8分钟发送一次ping请求
+ */
+class KeepAliveService {
+    constructor() {
+        this.interval = null;
+        this.pingUrl = '/api/health';
+        this.intervalTime = 8 * 60 * 1000; // 8分钟
+    }
+
+    start() {
+        // 立即执行一次ping
+        this.ping();
+        
+        // 设置定时ping
+        this.interval = setInterval(() => {
+            this.ping();
+        }, this.intervalTime);
+        
+        console.log('[KeepAlive] Service started');
+    }
+
+    stop() {
+        if (this.interval) {
+            clearInterval(this.interval);
+            this.interval = null;
+            console.log('[KeepAlive] Service stopped');
+        }
+    }
+
+    async ping() {
+        try {
+            const response = await fetch(this.pingUrl, {
+                method: 'GET',
+                cache: 'no-cache',
+                headers: {
+                    'X-Keep-Alive': 'true'
+                }
+            });
+            
+            if (response.ok) {
+                console.log('[KeepAlive] Ping successful at', new Date().toLocaleTimeString());
+            } else {
+                console.warn('[KeepAlive] Ping failed:', response.status);
+            }
+        } catch (error) {
+            console.error('[KeepAlive] Ping error:', error);
+        }
+    }
+}
+
+// 启动保活服务
+const keepAlive = new KeepAliveService();
+keepAlive.start();
+
+// 页面可见性变化时调整保活策略
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // 页面隐藏时降低ping频率（节省资源）
+        keepAlive.stop();
+        console.log('[KeepAlive] Page hidden, pausing keep-alive');
+    } else {
+        // 页面显示时恢复ping
+        keepAlive.start();
+        console.log('[KeepAlive] Page visible, resuming keep-alive');
+    }
+});
