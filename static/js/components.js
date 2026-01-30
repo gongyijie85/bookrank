@@ -27,6 +27,14 @@ export class BookCard {
         // 图片容器
         const imageContainer = this._createImageContainer();
         
+        // 获取当前语言
+        const currentLang = store.getState().language || 'en';
+        
+        // 根据语言选择描述
+        const description = currentLang === 'zh' && this.book.description_zh 
+            ? this.book.description_zh 
+            : this.book.description;
+        
         // 图书信息
         const infoDiv = createElement('div', {
             className: 'book-info',
@@ -39,7 +47,7 @@ export class BookCard {
                         ? `<span class="book-last-rank">上周: ${this.book.rank_last_week}</span>` 
                         : ''}
                 </div>
-                <div class="book-description">${escapeHtml(truncateText(this.book.description, 150))}</div>
+                <div class="book-description">${escapeHtml(truncateText(description, 150))}</div>
             `
         });
         
@@ -96,14 +104,26 @@ export class BookCard {
             text: this.book.list_name
         });
         
-        // 排名徽章（优化显示）
+        // 排名徽章 - 前三名使用皇冠图标
+        const rank = this.book.rank;
+        let rankContent = '';
+        if (rank === 1) {
+            rankContent = '<span class="rank-crown">👑</span>';
+        } else if (rank === 2) {
+            rankContent = '<span class="rank-crown">🥈</span>';
+        } else if (rank === 3) {
+            rankContent = '<span class="rank-crown">🥉</span>';
+        } else {
+            rankContent = `<span class="rank-number">${rank}</span>`;
+        }
+        
         const rankBadge = createElement('span', {
             className: 'book-rank-badge',
             attrs: {
-                'data-rank': this.book.rank,
-                title: `当前排名: 第${this.book.rank}名`
+                'data-rank': rank,
+                title: `当前排名: 第${rank}名`
             },
-            html: `<span class="rank-number">${this.book.rank}</span>`
+            html: rankContent
         });
         
         // 排名变化指示器
@@ -284,13 +304,9 @@ export class BookDetailModal {
         this.isTranslated = false;
         this.isTranslating = false;
         
-        this.detailContainer.innerHTML = this._renderDetail(book);
-        
-        // 绑定展开/收起事件
-        this._bindExpandEvents(this.detailContainer);
-        
-        // 绑定翻译按钮事件
-        this._bindTranslateEvent();
+        // 根据当前语言设置渲染内容
+        const currentLang = window.bookStore?.getState().language || 'en';
+        this.detailContainer.innerHTML = this._renderDetail(book, currentLang);
         
         // 显示模态框（使用CSS类）
         this.modal.classList.add('show');
@@ -496,9 +512,10 @@ export class BookDetailModal {
     /**
      * 渲染详情内容
      * @param {Object} book - 图书数据
+     * @param {string} lang - 语言设置 ('en' 或 'zh')
      * @returns {string} HTML字符串
      */
-    _renderDetail(book) {
+    _renderDetail(book, lang = 'en') {
         // 购买链接
         let buyLinksHtml = '';
         if (book.buy_links && book.buy_links.length > 0) {
@@ -511,13 +528,13 @@ export class BookDetailModal {
                 '</div>';
         }
         
-        const description = book.description || '暂无简介';
-        const details = book.details || '暂无详细介绍';
-        
-        // 检查是否有预翻译内容
-        const hasTranslation = book.description_zh || book.details_zh;
-        const translateBtnText = hasTranslation ? '中文' : '翻译';
-        const translateBtnTitle = hasTranslation ? '切换到中文' : '翻译图书介绍';
+        // 根据语言选择显示内容
+        const description = lang === 'zh' && book.description_zh 
+            ? book.description_zh 
+            : (book.description || '暂无简介');
+        const details = lang === 'zh' && book.details_zh 
+            ? book.details_zh 
+            : (book.details || '暂无详细介绍');
         
         return `
             <div class="book-detail">
@@ -529,9 +546,6 @@ export class BookDetailModal {
                 <div class="detail-info">
                     <div class="detail-header">
                         <h2>${escapeHtml(book.title)}</h2>
-                        <button class="translate-btn" title="${translateBtnTitle}" data-has-translation="${hasTranslation ? 'true' : 'false'}">
-                            <i class="fa fa-language"></i> <span class="translate-btn-text">${translateBtnText}</span>
-                        </button>
                     </div>
                     <div class="detail-author">作者: ${escapeHtml(book.author)}</div>
                     
@@ -567,10 +581,7 @@ export class BookDetailModal {
                     
                     <div class="detail-section">
                         <h3>简介</h3>
-                        <div class="expandable-content desc-content" 
-                             data-original="${escapeHtml(description)}" 
-                             data-translated="${escapeHtml(book.description_zh || '')}"
-                             data-showing="original">
+                        <div class="expandable-content desc-content">
                             <p>${escapeHtml(description)}</p>
                         </div>
                         ${description.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}
@@ -578,10 +589,7 @@ export class BookDetailModal {
                     
                     <div class="detail-section">
                         <h3>详细介绍</h3>
-                        <div class="expandable-content details-content" 
-                             data-original="${escapeHtml(details)}" 
-                             data-translated="${escapeHtml(book.details_zh || '')}"
-                             data-showing="original">
+                        <div class="expandable-content details-content">
                             <p>${escapeHtml(details)}</p>
                         </div>
                         ${details.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}

@@ -430,8 +430,13 @@ class BookApp {
      * 切换语言
      */
     _toggleLanguage() {
-        this.currentLang = this.currentLang === 'zh' ? 'en' : 'zh';
-        localStorage.setItem('app_language', this.currentLang);
+        const newLang = this.currentLang === 'zh' ? 'en' : 'zh';
+        this.currentLang = newLang;
+        localStorage.setItem('app_language', newLang);
+        
+        // 更新 store
+        store.setState({ language: newLang });
+        
         this._updateLanguageUI();
         
         // 刷新当前显示的图书
@@ -441,7 +446,7 @@ class BookApp {
         }
         
         // 显示提示
-        const langName = this.currentLang === 'zh' ? '中文' : 'English';
+        const langName = newLang === 'zh' ? '中文' : 'English';
         this.toast.show(`已切换到${langName}`, 'success');
     }
     

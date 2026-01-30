@@ -1,135 +1,25 @@
 """
-翻译服务模块
-
-使用MyMemory Translation API进行免费翻译
-支持翻译缓存
+翻译服务 - 简化版，只使用 Google Translate
 """
 
 import logging
 import time
-import hashlib
-import json
-import os
-from typing import Optional, List
-from datetime import datetime, timedelta
-
-import requests
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
 
-class TranslationCache:
-    """翻译缓存类（使用文件缓存）"""
-    
-    def __init__(self, cache_file='translation_cache.json'):
-        self.cache_file = cache_file
-        self.cache = self._load_cache()
-    
-    def _load_cache(self):
-        """加载缓存"""
-        if os.path.exists(self.cache_file):
-            try:
-                with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"加载缓存失败: {e}")
-        return {}
-    
-    def _save_cache(self):
-        """保存缓存"""
-        try:
-            with open(self.cache_file, 'w', encoding='utf-8') as f:
-                json.dump(self.cache, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"保存缓存失败: {e}")
-    
-    def get(self, text_hash):
-        """获取缓存"""
-        entry = self.cache.get(text_hash)
-        if entry:
-            entry['use_count'] = entry.get('use_count', 0) + 1
-            self._save_cache()
-            return entry.get('translated_text')
-        return None
-    
-    def set(self, text_hash, original_text, translated_text, source_lang, target_lang):
-        """设置缓存"""
-        self.cache[text_hash] = {
-            'original_text': original_text,
-            'translated_text': translated_text,
-            'source_lang': source_lang,
-            'target_lang': target_lang,
-            'created_at': datetime.now().isoformat(),
-            'use_count': 1
-        }
-        self._save_cache()
-    
-    def get_stats(self):
-        """获取统计"""
-        total_entries = len(self.cache)
-        total_uses = sum(entry.get('use_count', 0) for entry in self.cache.values())
-        return {
-            'total_entries': total_entries,
-            'total_uses': total_uses,
-            'avg_uses_per_entry': round(total_uses / total_entries, 2) if total_entries > 0 else 0
-        }
-
-
-class MyMemoryTranslationService:
+class TranslationService:
     """
-    MyMemory Translation API 翻译服务
-    
-    特点：
-    - 完全免费，无需注册
-    - 每日约5000字符免费额度
-    - 内置翻译缓存
-    - 自动错误处理和重试
+    翻译服务 - 使用 Google Translate (通过 deep-translator)
     """
     
-    API_URL = 'https://api.mymemory.translated.net/get'
-    
-    def __init__(self, delay: float = 0.5, max_retries: int = 3):
-        """
-        初始化翻译服务
-        
-        Args:
-            delay: 请求间隔（秒）
-            max_retries: 最大重试次数
-        """
+    def __init__(self, delay: float = 0.3):
         self.delay = delay
-        self.max_retries = max_retries
-        self.cache = TranslationCache()
+        self._last_request_time = 0
         
-    def _get_text_hash(self, text: str, source_lang: str, target_lang: str) -> str:
-        """生成文本哈希用于缓存"""
-        content = f"{text}:{source_lang}:{target_lang}"
-        return hashlib.md5(content.encode('utf-8')).hexdigest()
-    
-    def _get_from_cache(self, text: str, source_lang: str, target_lang: str) -> Optional[str]:
-        """从缓存获取翻译"""
-        try:
-            text_hash = self._get_text_hash(text, source_lang, target_lang)
-            cached = self.cache.get(text_hash)
-            if cached:
-                logger.debug(f"缓存命中: {text[:50]}...")
-                return cached
-        except Exception as e:
-            logger.error(f"读取缓存失败: {e}")
-        
-        return None
-    
-    def _save_to_cache(self, original: str, translated: str, 
-                       source_lang: str, target_lang: str):
-        """保存翻译到缓存"""
-        try:
-            text_hash = self._get_text_hash(original, source_lang, target_lang)
-            self.cache.set(text_hash, original, translated, source_lang, target_lang)
-            logger.debug(f"缓存已保存: {original[:50]}...")
-        except Exception as e:
-            logger.error(f"保存缓存失败: {e}")
-    
     def translate(self, text: str, source_lang: str = 'en', 
-                  target_lang: str = 'zh', use_cache: bool = True) -> Optional[str]:
+                  target_lang: str = 'zh') -> Optional[str]:
         """
         翻译文本
         
@@ -137,164 +27,78 @@ class MyMemoryTranslationService:
             text: 要翻译的文本
             source_lang: 源语言代码
             target_lang: 目标语言代码
-            use_cache: 是否使用缓存
-        
+            
         Returns:
             翻译后的文本，失败返回None
         """
         if not text or not text.strip():
             return text
         
-        # 限制文本长度（MyMemory建议单次不超过500字符）
-        if len(text) > 500:
-            logger.warning(f"文本过长({len(text)}字符)，将截断翻译")
-            text = text[:500]
+        # 添加延迟避免请求过快
+        current_time = time.time()
+        time_since_last = current_time - self._last_request_time
+        if time_since_last < self.delay:
+            time.sleep(self.delay - time_since_last)
         
-        # 检查缓存
-        if use_cache:
-            cached = self._get_from_cache(text, source_lang, target_lang)
-            if cached:
-                return cached
-        
-        # 添加延迟
-        time.sleep(self.delay)
-        
-        # 尝试翻译
-        for attempt in range(self.max_retries):
-            try:
-                params = {
-                    'q': text,
-                    'langpair': f'{source_lang}|{target_lang}'
-                }
-                
-                logger.debug(f"正在请求MyMemory API")
-                response = requests.get(self.API_URL, params=params, timeout=30)
-                
-                if response.status_code == 200:
-                    try:
-                        result = response.json()
-                        
-                        # 检查响应状态
-                        response_status = result.get('responseStatus', 0)
-                        if response_status == 200:
-                            translated = result.get('responseData', {}).get('translatedText')
-                            
-                            if translated:
-                                # 保存到缓存
-                                if use_cache:
-                                    self._save_to_cache(text, translated, source_lang, target_lang)
-                                
-                                logger.info(f"翻译成功: {text[:50]}... -> {translated[:50]}...")
-                                return translated
-                        else:
-                            logger.warning(f"MyMemory API返回错误状态: {response_status}")
-                            
-                    except Exception as e:
-                        logger.warning(f"解析响应失败: {e}, 响应: {response.text[:200]}")
-                else:
-                    logger.warning(f"API返回错误 {response.status_code}: {response.text[:200]}")
-                        
-            except requests.exceptions.Timeout:
-                logger.warning(f"请求超时")
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"请求失败: {e}")
-            except Exception as e:
-                logger.error(f"未知错误: {e}")
+        try:
+            from deep_translator import GoogleTranslator
             
-            # 重试前等待
-            if attempt < self.max_retries - 1:
-                time.sleep(2 ** attempt)  # 指数退避
+            # 语言代码转换
+            lang_map = {
+                'zh': 'zh-CN',
+                'en': 'en',
+                'auto': 'auto'
+            }
+            source = lang_map.get(source_lang, source_lang)
+            target = lang_map.get(target_lang, target_lang)
+            
+            translator = GoogleTranslator(source=source, target=target)
+            result = translator.translate(text)
+            
+            self._last_request_time = time.time()
+            
+            if result:
+                logger.info(f"翻译成功: {text[:50]}... -> {result[:50]}...")
+                return result
+                
+        except Exception as e:
+            logger.warning(f"翻译失败: {e}")
         
-        logger.error(f"翻译失败，返回None")
         return None
     
-    def translate_batch(self, texts: List[str], source_lang: str = 'en',
-                       target_lang: str = 'zh', progress_callback=None) -> List[str]:
+    def translate_book_info(self, book_data: Dict[str, Any], 
+                           target_lang: str = 'zh') -> Dict[str, Any]:
         """
-        批量翻译
+        翻译图书信息
         
         Args:
-            texts: 文本列表
-            source_lang: 源语言
+            book_data: 图书数据字典
             target_lang: 目标语言
-            progress_callback: 进度回调函数 (current, total)
-        
+            
         Returns:
-            翻译结果列表
+            包含翻译字段的图书数据
         """
-        results = []
-        total = len(texts)
+        result = book_data.copy()
         
-        for i, text in enumerate(texts):
-            if progress_callback:
-                progress_callback(i + 1, total)
-            
-            result = self.translate(text, source_lang, target_lang)
-            results.append(result if result else text)
+        # 翻译描述
+        if book_data.get('description'):
+            translated_desc = self.translate(book_data['description'], target_lang=target_lang)
+            if translated_desc:
+                result['description_zh'] = translated_desc
         
-        return results
-    
-    def get_cache_stats(self) -> dict:
-        """获取缓存统计信息"""
-        return self.cache.get_stats()
-    
-    def clear_cache(self, days: int = 30):
-        """
-        清理过期缓存
+        # 翻译详细信息
+        if book_data.get('details'):
+            translated_details = self.translate(book_data['details'], target_lang=target_lang)
+            if translated_details:
+                result['details_zh'] = translated_details
         
-        Args:
-            days: 清理多少天前的缓存
-        """
-        try:
-            cutoff_date = datetime.now() - timedelta(days=days)
-            keys_to_remove = []
-            
-            for key, entry in self.cache.cache.items():
-                created_at = entry.get('created_at')
-                if created_at:
-                    try:
-                        entry_date = datetime.fromisoformat(created_at)
-                        if entry_date < cutoff_date:
-                            keys_to_remove.append(key)
-                    except:
-                        pass
-            
-            for key in keys_to_remove:
-                del self.cache.cache[key]
-            
-            self.cache._save_cache()
-            logger.info(f"清理了 {len(keys_to_remove)} 条过期缓存")
-            return len(keys_to_remove)
-        except Exception as e:
-            logger.error(f"清理缓存失败: {e}")
-            return 0
+        return result
 
 
 # 全局翻译服务实例
-translation_service = MyMemoryTranslationService()
+translation_service = TranslationService()
 
 
-def translate_book_info(book_data: dict, target_lang: str = 'zh') -> dict:
-    """
-    翻译图书信息
-    
-    Args:
-        book_data: 图书数据字典
-        target_lang: 目标语言
-    
-    Returns:
-        添加翻译字段的图书数据
-    """
-    service = MyMemoryTranslationService()
-    
-    # 需要翻译的字段
-    fields_to_translate = ['description', 'details']
-    
-    for field in fields_to_translate:
-        original = book_data.get(field, '')
-        if original and original not in ['No summary available.', 'No detailed description available.']:
-            translated = service.translate(original, target_lang=target_lang)
-            if translated:
-                book_data[f'{field}_zh'] = translated
-    
-    return book_data
+def translate_book_info(book_data: Dict[str, Any], target_lang: str = 'zh') -> Dict[str, Any]:
+    """翻译图书信息的便捷函数"""
+    return translation_service.translate_book_info(book_data, target_lang)

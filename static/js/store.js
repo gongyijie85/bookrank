@@ -73,6 +73,9 @@ export const store = new Store({
     preferences: {},
     searchHistory: [],
     
+    // 语言设置
+    language: localStorage.getItem('app_language') || 'zh',
+    
     // 元数据
     categories: CONFIG.CATEGORIES,
     latestUpdate: null

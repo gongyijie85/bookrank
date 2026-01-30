@@ -12,8 +12,7 @@ from ..models.schemas import UserPreference, UserCategory, UserViewedBook, Searc
 from ..models.database import db
 from ..utils.exceptions import APIRateLimitException, APIException, ValidationException
 from ..services import BookService
-from ..services.multi_translation_service import MultiTranslationService
-from ..services.translation_service import translate_book_info
+from ..services.translation_service import TranslationService, translate_book_info
 
 logger = logging.getLogger(__name__)
 
@@ -391,7 +390,7 @@ def translate_text():
             return APIResponse.error('文本长度超过限制（最大2000字符）', 400)
         
         # 执行翻译
-        service = MyMemoryTranslationService()
+        service = TranslationService()
         translated = service.translate(text, source_lang, target_lang)
         
         if translated:
@@ -469,14 +468,11 @@ def translate_book(isbn: str):
 def get_translation_cache_stats():
     """获取翻译服务状态"""
     try:
-        # 返回多翻译服务状态
+        # 返回翻译服务状态
         return APIResponse.success(data={
-            'services': [
-                {'name': 'MyMemory API', 'type': 'primary', 'status': 'active'},
-                {'name': 'Baidu Translation', 'type': 'backup', 'status': 'active'}
-            ],
-            'strategy': 'failover',
-            'description': '当主API限流时自动切换到备用API'
+            'service': 'Google Translate (via deep-translator)',
+            'status': 'active',
+            'description': '使用 Google Translate 免费翻译服务'
         })
         
     except Exception as e:
