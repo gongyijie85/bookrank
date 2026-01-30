@@ -228,11 +228,21 @@ class MultiTranslationService:
     多翻译API轮询服务
     
     优先级：
-    1. MyMemory API (免费，但有额度限制)
-    2. 百度翻译API (备用)
+    1. Google Translate (免费，可能不稳定)
+    2. LibreTranslate 公共实例 (免费)
+    3. MyMemory API (免费，每日限额)
+    4. 百度翻译API (备用，需充值)
     """
     
     def __init__(self):
+        # 导入免费翻译服务
+        try:
+            from .free_translation_service import FreeTranslationService
+            self.free_service = FreeTranslationService()
+        except ImportError:
+            logger.warning("免费翻译服务未安装，跳过")
+            self.free_service = None
+        
         self.mymemory = MyMemoryTranslationService()
         self.baidu = BaiduTranslationService()
         
@@ -252,8 +262,15 @@ class MultiTranslationService:
         if not text or not text.strip():
             return text
         
-        # 首先尝试 MyMemory
-        logger.info("尝试使用 MyMemory API 翻译...")
+        # 首先尝试免费服务（Google + LibreTranslate）
+        if self.free_service:
+            logger.info("尝试使用免费翻译服务...")
+            result = self.free_service.translate(text, source_lang, target_lang)
+            if result:
+                return result
+        
+        # 免费服务失败，尝试 MyMemory
+        logger.info("免费服务不可用，尝试 MyMemory API...")
         result = self.mymemory.translate(text, source_lang, target_lang)
         
         if result:

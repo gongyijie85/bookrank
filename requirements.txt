@@ -8,3 +8,4 @@ requests==2.31.0
 gunicorn==21.2.0
 Werkzeug==2.3.7
 alembic==1.12.0
+deep-translator==1.11.4
