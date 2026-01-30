@@ -3,11 +3,14 @@
 
 用法:
     开发环境: python run.py
-    生产环境: gunicorn -c gunicorn.conf.py app:app
+    生产环境: gunicorn -c gunicorn.conf.py run:application
 """
 
 import os
 from app import create_app, app
+
+# 为 Gunicorn 兼容提供 application 变量
+application = app
 
 if __name__ == '__main__':
     # 开发服务器配置
