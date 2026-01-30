@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
-from ..models.schemas import Book, BookMetadata
+from ..models.schemas import Book, BookMetadata, db
 from ..models.database import db
 from .cache_service import CacheService
 from .api_client import NYTApiClient, GoogleBooksClient, ImageCacheService
@@ -163,7 +163,72 @@ class BookService:
             book_data.get('book_image')
         )
         
+        # 获取翻译内容
+        self._attach_translation(book, isbn)
+        
         return book
+    
+    def _attach_translation(self, book: Book, isbn: str):
+        """
+        附加翻译内容到图书对象
+        
+        Args:
+            book: Book对象
+            isbn: ISBN
+        """
+        if not isbn:
+            return
+        
+        try:
+            metadata = BookMetadata.query.get(isbn)
+            if metadata:
+                book.description_zh = metadata.description_zh
+                book.details_zh = metadata.details_zh
+        except Exception as e:
+            logger.debug(f"获取翻译失败 for {isbn}: {e}")
+    
+    def save_book_translation(self, isbn: str, description_zh: str = None, details_zh: str = None) -> bool:
+        """
+        保存图书翻译到数据库
+        
+        Args:
+            isbn: 图书ISBN
+            description_zh: 翻译后的描述
+            details_zh: 翻译后的详情
+            
+        Returns:
+            是否保存成功
+        """
+        if not isbn:
+            return False
+        
+        try:
+            metadata = BookMetadata.query.get(isbn)
+            if not metadata:
+                # 如果没有元数据记录，创建一个新记录
+                metadata = BookMetadata(
+                    isbn=isbn,
+                    title='',
+                    author=''
+                )
+                db.session.add(metadata)
+            
+            if description_zh:
+                metadata.description_zh = description_zh
+            if details_zh:
+                metadata.details_zh = details_zh
+            
+            from datetime import datetime
+            metadata.translated_at = datetime.utcnow()
+            
+            db.session.commit()
+            logger.info(f"翻译已保存: {isbn}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存翻译失败: {e}")
+            db.session.rollback()
+            return False
     
     def _get_book_supplement(self, isbn: str, book_data: Dict[str, Any]) -> Dict[str, Any]:
         """

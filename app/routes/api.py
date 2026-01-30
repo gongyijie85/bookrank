@@ -413,7 +413,7 @@ def translate_text():
 
 @api_bp.route('/translate/book/<isbn>', methods=['POST'])
 def translate_book(isbn: str):
-    """翻译单本图书"""
+    """翻译单本图书 - 优先从数据库获取已翻译内容"""
     try:
         data = request.get_json() or {}
         target_lang = data.get('target_lang', 'zh')
@@ -437,11 +437,28 @@ def translate_book(isbn: str):
         book = books[0]
         book_data = book.to_dict()
         
-        # 翻译图书信息
-        translated_data = translate_book_info(book_data, target_lang)
+        # 优先使用数据库中的翻译
+        if book.description_zh and book.details_zh:
+            # 数据库已有翻译，直接返回
+            book_data['description_zh'] = book.description_zh
+            book_data['details_zh'] = book.details_zh
+            logger.info(f"从数据库获取翻译: {isbn}")
+        else:
+            # 数据库没有翻译，调用翻译服务
+            logger.info(f"实时翻译图书: {isbn}")
+            translated_data = translate_book_info(book_data, target_lang)
+            book_data.update(translated_data)
+            
+            # 保存翻译到数据库
+            if book_data.get('description_zh') or book_data.get('details_zh'):
+                book_service.save_book_translation(
+                    isbn,
+                    description_zh=book_data.get('description_zh'),
+                    details_zh=book_data.get('details_zh')
+                )
         
         return APIResponse.success(data={
-            'book': translated_data,
+            'book': book_data,
             'translated_fields': ['description', 'details']
         })
         

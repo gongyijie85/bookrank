@@ -72,6 +72,10 @@ class BookMetadata(db.Model):
     language = db.Column(db.String(50))
     publication_date = db.Column(db.String(50))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # 翻译字段
+    description_zh = db.Column(db.Text)
+    details_zh = db.Column(db.Text)
+    translated_at = db.Column(db.DateTime)
     
     def to_dict(self) -> dict:
         return {
@@ -82,7 +86,10 @@ class BookMetadata(db.Model):
             'page_count': self.page_count,
             'language': self.language,
             'publication_date': self.publication_date,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'description_zh': self.description_zh,
+            'details_zh': self.details_zh,
+            'translated_at': self.translated_at.isoformat() if self.translated_at else None
         }
 
 
@@ -129,6 +136,9 @@ class Book:
     isbn13: str
     isbn10: str
     price: str
+    # 翻译字段（非持久化，用于前端显示）
+    description_zh: str = None
+    details_zh: str = None
     
     def to_dict(self) -> dict:
         return asdict(self)

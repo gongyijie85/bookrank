@@ -328,7 +328,16 @@ export class BookDetailModal {
             return;
         }
         
-        // 开始翻译
+        // 检查是否有预翻译内容
+        const hasPreTranslation = this.currentBook.description_zh || this.currentBook.details_zh;
+        
+        if (hasPreTranslation) {
+            // 使用预翻译内容，直接切换显示
+            this._applyPreTranslation();
+            return;
+        }
+        
+        // 没有预翻译内容，调用API进行实时翻译
         this.isTranslating = true;
         if (translateBtn) {
             translateBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 翻译中...';
@@ -353,13 +362,11 @@ export class BookDetailModal {
                 // 更新内容
                 if (descContent && translatedBook.description_zh) {
                     descContent.innerHTML = `<p>${escapeHtml(translatedBook.description_zh)}</p>`;
-                    descContent.dataset.original = this.currentBook.description || '暂无简介';
                     descContent.dataset.translated = translatedBook.description_zh;
                 }
                 
                 if (detailsContent && translatedBook.details_zh) {
                     detailsContent.innerHTML = `<p>${escapeHtml(translatedBook.details_zh)}</p>`;
-                    detailsContent.dataset.original = this.currentBook.details || '暂无详细介绍';
                     detailsContent.dataset.translated = translatedBook.details_zh;
                 }
                 
@@ -394,14 +401,50 @@ export class BookDetailModal {
     }
     
     /**
+     * 应用预翻译内容
+     */
+    _applyPreTranslation() {
+        const descContent = this.detailContainer.querySelector('.desc-content');
+        const detailsContent = this.detailContainer.querySelector('.details-content');
+        const translateBtn = this.detailContainer.querySelector('.translate-btn');
+        const btnText = translateBtn?.querySelector('.translate-btn-text');
+        
+        // 切换到中文显示
+        if (descContent && this.currentBook.description_zh) {
+            descContent.innerHTML = `<p>${escapeHtml(this.currentBook.description_zh)}</p>`;
+            descContent.dataset.showing = 'translated';
+        }
+        
+        if (detailsContent && this.currentBook.details_zh) {
+            detailsContent.innerHTML = `<p>${escapeHtml(this.currentBook.details_zh)}</p>`;
+            detailsContent.dataset.showing = 'translated';
+        }
+        
+        this.isTranslated = true;
+        
+        if (translateBtn) {
+            translateBtn.setAttribute('title', '切换到原文');
+        }
+        if (btnText) {
+            btnText.textContent = '原文';
+        }
+    }
+    
+    /**
      * 切换原文/译文显示
      */
     _toggleTranslation() {
         const descContent = this.detailContainer.querySelector('.desc-content');
         const detailsContent = this.detailContainer.querySelector('.details-content');
         const translateBtn = this.detailContainer.querySelector('.translate-btn');
+        const btnText = translateBtn?.querySelector('.translate-btn-text');
         
         const isShowingTranslated = descContent?.dataset.showing === 'translated';
+        
+        // 获取预翻译内容（优先使用当前图书数据）
+        const descZh = this.currentBook?.description_zh || descContent?.dataset.translated;
+        const detailsZh = this.currentBook?.details_zh || detailsContent?.dataset.translated;
+        const hasTranslation = this.currentBook?.description_zh || this.currentBook?.details_zh;
         
         if (isShowingTranslated) {
             // 切换到原文
@@ -414,21 +457,29 @@ export class BookDetailModal {
                 detailsContent.dataset.showing = 'original';
             }
             if (translateBtn) {
-                translateBtn.innerHTML = '<i class="fa fa-language"></i> 翻译';
+                translateBtn.setAttribute('title', hasTranslation ? '切换到中文' : '翻译图书介绍');
             }
+            if (btnText) {
+                btnText.textContent = hasTranslation ? '中文' : '翻译';
+            }
+            this.isTranslated = false;
         } else {
             // 切换到译文
-            if (descContent) {
-                descContent.innerHTML = `<p>${escapeHtml(descContent.dataset.translated || descContent.dataset.original || '暂无简介')}</p>`;
+            if (descContent && descZh) {
+                descContent.innerHTML = `<p>${escapeHtml(descZh)}</p>`;
                 descContent.dataset.showing = 'translated';
             }
-            if (detailsContent) {
-                detailsContent.innerHTML = `<p>${escapeHtml(detailsContent.dataset.translated || detailsContent.dataset.original || '暂无详细介绍')}</p>`;
+            if (detailsContent && detailsZh) {
+                detailsContent.innerHTML = `<p>${escapeHtml(detailsZh)}</p>`;
                 detailsContent.dataset.showing = 'translated';
             }
             if (translateBtn) {
-                translateBtn.innerHTML = '<i class="fa fa-language"></i> 显示原文';
+                translateBtn.setAttribute('title', '切换到原文');
             }
+            if (btnText) {
+                btnText.textContent = '原文';
+            }
+            this.isTranslated = true;
         }
     }
     
@@ -463,6 +514,11 @@ export class BookDetailModal {
         const description = book.description || '暂无简介';
         const details = book.details || '暂无详细介绍';
         
+        // 检查是否有预翻译内容
+        const hasTranslation = book.description_zh || book.details_zh;
+        const translateBtnText = hasTranslation ? '中文' : '翻译';
+        const translateBtnTitle = hasTranslation ? '切换到中文' : '翻译图书介绍';
+        
         return `
             <div class="book-detail">
                 <div class="detail-image-container">
@@ -473,8 +529,8 @@ export class BookDetailModal {
                 <div class="detail-info">
                     <div class="detail-header">
                         <h2>${escapeHtml(book.title)}</h2>
-                        <button class="translate-btn" title="翻译图书介绍">
-                            <i class="fa fa-language"></i> 翻译
+                        <button class="translate-btn" title="${translateBtnTitle}" data-has-translation="${hasTranslation ? 'true' : 'false'}">
+                            <i class="fa fa-language"></i> <span class="translate-btn-text">${translateBtnText}</span>
                         </button>
                     </div>
                     <div class="detail-author">作者: ${escapeHtml(book.author)}</div>
@@ -511,7 +567,10 @@ export class BookDetailModal {
                     
                     <div class="detail-section">
                         <h3>简介</h3>
-                        <div class="expandable-content desc-content" data-original="${escapeHtml(description)}" data-showing="original">
+                        <div class="expandable-content desc-content" 
+                             data-original="${escapeHtml(description)}" 
+                             data-translated="${escapeHtml(book.description_zh || '')}"
+                             data-showing="original">
                             <p>${escapeHtml(description)}</p>
                         </div>
                         ${description.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}
@@ -519,7 +578,10 @@ export class BookDetailModal {
                     
                     <div class="detail-section">
                         <h3>详细介绍</h3>
-                        <div class="expandable-content details-content" data-original="${escapeHtml(details)}" data-showing="original">
+                        <div class="expandable-content details-content" 
+                             data-original="${escapeHtml(details)}" 
+                             data-translated="${escapeHtml(book.details_zh || '')}"
+                             data-showing="original">
                             <p>${escapeHtml(details)}</p>
                         </div>
                         ${details.length > 200 ? '<button class="expand-btn">展开/收起</button>' : ''}
