@@ -104,27 +104,52 @@ export class BookCard {
             text: this.book.list_name
         });
         
-        // 排名徽章 - 前三名使用皇冠图标
+        // 排名徽章 - 前三名使用皇冠徽章
         const rank = this.book.rank;
-        let rankContent = '';
-        if (rank === 1) {
-            rankContent = '<span class="rank-crown">👑</span>';
-        } else if (rank === 2) {
-            rankContent = '<span class="rank-crown">🥈</span>';
-        } else if (rank === 3) {
-            rankContent = '<span class="rank-crown">🥉</span>';
-        } else {
-            rankContent = `<span class="rank-number">${rank}</span>`;
-        }
+        let rankBadge;
         
-        const rankBadge = createElement('span', {
-            className: 'book-rank-badge',
-            attrs: {
-                'data-rank': rank,
-                title: `当前排名: 第${rank}名`
-            },
-            html: rankContent
-        });
+        if (rank <= 3) {
+            // 前三名：皇冠徽章
+            const crownColors = ['gold', 'silver', 'bronze'];
+            const crownColor = crownColors[rank - 1];
+            rankBadge = createElement('span', {
+                className: `book-rank-badge crown-badge ${crownColor}`,
+                attrs: {
+                    'data-rank': rank,
+                    title: `当前排名: 第${rank}名`
+                },
+                html: `
+                    <svg class="crown-svg" viewBox="0 0 36 24">
+                        <defs>
+                            <linearGradient id="${crownColor}Grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:${crownColor === 'gold' ? '#FFD700' : crownColor === 'silver' ? '#F5F5F5' : '#D4A574'}"/>
+                                <stop offset="50%" style="stop-color:${crownColor === 'gold' ? '#FFA500' : crownColor === 'silver' ? '#C0C0C0' : '#B87333'}"/>
+                                <stop offset="100%" style="stop-color:${crownColor === 'gold' ? '#FF8C00' : crownColor === 'silver' ? '#A0A0A0' : '#8B4513'}"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M2 22 L2 8 L8 13 L14 3 L18 10 L22 3 L28 13 L34 8 L34 22 Q34 24 31 24 L5 24 Q2 24 2 22 Z" 
+                              fill="url(#${crownColor}Grad)" stroke="${crownColor === 'gold' ? '#B8860B' : crownColor === 'silver' ? '#808080' : '#8B4513'}" stroke-width="0.8"/>
+                        <circle cx="8" cy="13" r="2.5" fill="${crownColor === 'gold' ? '#FF4444' : '#E8E8E8'}" stroke="${crownColor === 'gold' ? '#B8860B' : '#808080'}" stroke-width="0.5"/>
+                        <circle cx="14" cy="3" r="2.5" fill="${crownColor === 'gold' ? '#4444FF' : '#C0C0C0'}" stroke="${crownColor === 'gold' ? '#B8860B' : '#808080'}" stroke-width="0.5"/>
+                        <circle cx="18" cy="10" r="3" fill="${crownColor === 'gold' ? '#FFD700' : '#F5F5F5'}" stroke="${crownColor === 'gold' ? '#B8860B' : '#808080'}" stroke-width="0.5"/>
+                        <circle cx="22" cy="3" r="2.5" fill="${crownColor === 'gold' ? '#44FF44' : '#C0C0C0'}" stroke="${crownColor === 'gold' ? '#B8860B' : '#808080'}" stroke-width="0.5"/>
+                        <circle cx="28" cy="13" r="2.5" fill="${crownColor === 'gold' ? '#FF4444' : '#E8E8E8'}" stroke="${crownColor === 'gold' ? '#B8860B' : '#808080'}" stroke-width="0.5"/>
+                        <rect x="2" y="19" width="32" height="3" fill="${crownColor === 'gold' ? '#B8860B' : crownColor === 'silver' ? '#808080' : '#8B4513'}"/>
+                    </svg>
+                    <span class="crown-rank-number">${rank}</span>
+                `
+            });
+        } else {
+            // 第4名+：普通圆形徽章
+            rankBadge = createElement('span', {
+                className: 'book-rank-badge',
+                attrs: {
+                    'data-rank': rank,
+                    title: `当前排名: 第${rank}名`
+                },
+                html: `<span class="rank-number">${rank}</span>`
+            });
+        }
         
         // 排名变化指示器
         if (this.book.rank_last_week && this.book.rank_last_week !== '无') {

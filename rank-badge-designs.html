@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排名徽章设计方案</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 40px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+            color: #333;
+        }
+        
+        .design-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .design-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #1a73e8;
+        }
+        
+        .badge-showcase {
+            display: flex;
+            gap: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        /* 基础徽章样式 */
+        .book-card {
+            width: 200px;
+            height: 280px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        /* ========== 方案1: 圆形徽章 + 顶部小皇冠 ========== */
+        .badge-v1 {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .badge-v1.rank-1 {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #333;
+        }
+        
+        .badge-v1.rank-2 {
+            background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+            color: #333;
+        }
+        
+        .badge-v1.rank-3 {
+            background: linear-gradient(135deg, #CD7F32, #B87333);
+            color: white;
+        }
+        
+        .crown-mini {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+        }
+        
+        /* ========== 方案2: 皇冠形状徽章 ========== */
+        .badge-v2 {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 50px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+        }
+        
+        .badge-v2 .crown-svg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .badge-v2 .rank-text {
+            position: relative;
+            z-index: 1;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        /* ========== 方案3: 六边形徽章 ========== */
+        .badge-v3 {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 44px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .badge-v3.rank-1 {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #333;
+        }
+        
+        .badge-v3.rank-2 {
+            background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+            color: #333;
+        }
+        
+        .badge-v3.rank-3 {
+            background: linear-gradient(135deg, #CD7F32, #B87333);
+            color: white;
+        }
+        
+        /* ========== 方案4: 带皇冠图标的圆形 ========== */
+        .badge-v4 {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            overflow: visible;
+        }
+        
+        .badge-v4.rank-1 {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+        }
+        
+        .badge-v4.rank-2 {
+            background: linear-gradient(135deg, #E8E8E8, #C0C0C0);
+        }
+        
+        .badge-v4.rank-3 {
+            background: linear-gradient(135deg, #CD7F32, #B87333);
+        }
+        
+        .badge-v4 .crown-icon {
+            font-size: 14px;
+            margin-bottom: -2px;
+        }
+        
+        .badge-v4 .rank-num {
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* ========== 方案5: 丝带式徽章 ========== */
+        .badge-v5 {
+            position: absolute;
+            top: 0;
+            right: 10px;
+            width: 36px;
+            height: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 5px;
+            font-weight: bold;
+            font-size: 14px;
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 85%, 0 100%);
+            border: 2px solid white;
+            border-top: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .badge-v5.rank-1 {
+            background: linear-gradient(180deg, #FFD700, #FFA500);
+            color: #333;
+        }
+        
+        .badge-v5.rank-2 {
+            background: linear-gradient(180deg, #E8E8E8, #C0C0C0);
+            color: #333;
+        }
+        
+        .badge-v5.rank-3 {
+            background: linear-gradient(180deg, #CD7F32, #B87333);
+            color: white;
+        }
+        
+        .badge-v5 .crown-small {
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+        
+        /* 其他排名（4名以后） */
+        .badge-other {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1a73e8, #0d66d0);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .label {
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏆 排名徽章设计方案</h1>
+        
+        <!-- 方案1 -->
+        <div class="design-section">
+            <div class="design-title">方案1: 圆形徽章 + 顶部小皇冠</div>
+            <div class="badge-showcase">
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v1 rank-1">
+                            <span class="crown-mini">👑</span>
+                            1
+                        </div>
+                    </div>
+                    <div class="label">第1名 - 金色</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v1 rank-2">
+                            <span class="crown-mini">🥈</span>
+                            2
+                        </div>
+                    </div>
+                    <div class="label">第2名 - 银色</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v1 rank-3">
+                            <span class="crown-mini">🥉</span>
+                            3
+                        </div>
+                    </div>
+                    <div class="label">第3名 - 铜色</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-other">4</div>
+                    </div>
+                    <div class="label">第4名+ - 蓝色</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 方案2 -->
+        <div class="design-section">
+            <div class="design-title">方案2: 皇冠形状徽章（SVG）</div>
+            <div class="badge-showcase">
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v2">
+                            <svg class="crown-svg" viewBox="0 0 50 45">
+                                <defs>
+                                    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#FFD700"/>
+                                        <stop offset="100%" style="stop-color:#FFA500"/>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M5 35 L5 15 L12 20 L18 10 L25 18 L32 10 L38 20 L45 15 L45 35 Q45 40 40 40 L10 40 Q5 40 5 35 Z" 
+                                      fill="url(#goldGrad)" stroke="#B8860B" stroke-width="1"/>
+                                <circle cx="12" cy="20" r="3" fill="#FFF"/>
+                                <circle cx="25" cy="18" r="3" fill="#FFF"/>
+                                <circle cx="38" cy="20" r="3" fill="#FFF"/>
+                            </svg>
+                            <span class="rank-text">1</span>
+                        </div>
+                    </div>
+                    <div class="label">第1名 - 金色皇冠</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v2">
+                            <svg class="crown-svg" viewBox="0 0 50 45">
+                                <defs>
+                                    <linearGradient id="silverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#E8E8E8"/>
+                                        <stop offset="100%" style="stop-color:#A0A0A0"/>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M5 35 L5 15 L12 20 L18 10 L25 18 L32 10 L38 20 L45 15 L45 35 Q45 40 40 40 L10 40 Q5 40 5 35 Z" 
+                                      fill="url(#silverGrad)" stroke="#808080" stroke-width="1"/>
+                                <circle cx="12" cy="20" r="3" fill="#FFF"/>
+                                <circle cx="25" cy="18" r="3" fill="#FFF"/>
+                                <circle cx="38" cy="20" r="3" fill="#FFF"/>
+                            </svg>
+                            <span class="rank-text">2</span>
+                        </div>
+                    </div>
+                    <div class="label">第2名 - 银色皇冠</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v2">
+                            <svg class="crown-svg" viewBox="0 0 50 45">
+                                <defs>
+                                    <linearGradient id="bronzeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#CD7F32"/>
+                                        <stop offset="100%" style="stop-color:#B87333"/>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M5 35 L5 15 L12 20 L18 10 L25 18 L32 10 L38 20 L45 15 L45 35 Q45 40 40 40 L10 40 Q5 40 5 35 Z" 
+                                      fill="url(#bronzeGrad)" stroke="#8B4513" stroke-width="1"/>
+                                <circle cx="12" cy="20" r="3" fill="#FFF"/>
+                                <circle cx="25" cy="18" r="3" fill="#FFF"/>
+                                <circle cx="38" cy="20" r="3" fill="#FFF"/>
+                            </svg>
+                            <span class="rank-text">3</span>
+                        </div>
+                    </div>
+                    <div class="label">第3名 - 铜色皇冠</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 方案3 -->
+        <div class="design-section">
+            <div class="design-title">方案3: 六边形徽章（宝石切割风格）</div>
+            <div class="badge-showcase">
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v3 rank-1">1</div>
+                    </div>
+                    <div class="label">第1名 - 金色</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v3 rank-2">2</div>
+                    </div>
+                    <div class="label">第2名 - 银色</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v3 rank-3">3</div>
+                    </div>
+                    <div class="label">第3名 - 铜色</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 方案4 -->
+        <div class="design-section">
+            <div class="design-title">方案4: 圆形徽章内嵌皇冠图标</div>
+            <div class="badge-showcase">
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v4 rank-1">
+                            <span class="crown-icon">👑</span>
+                            <span class="rank-num">1</span>
+                        </div>
+                    </div>
+                    <div class="label">第1名 - 金色</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v4 rank-2">
+                            <span class="crown-icon">🥈</span>
+                            <span class="rank-num">2</span>
+                        </div>
+                    </div>
+                    <div class="label">第2名 - 银色</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v4 rank-3">
+                            <span class="crown-icon">🥉</span>
+                            <span class="rank-num">3</span>
+                        </div>
+                    </div>
+                    <div class="label">第3名 - 铜色</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 方案5 -->
+        <div class="design-section">
+            <div class="design-title">方案5: 丝带式徽章</div>
+            <div class="badge-showcase">
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v5 rank-1">
+                            <span class="crown-small">👑</span>
+                            1
+                        </div>
+                    </div>
+                    <div class="label">第1名 - 金色丝带</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v5 rank-2">
+                            <span class="crown-small">🥈</span>
+                            2
+                        </div>
+                    </div>
+                    <div class="label">第2名 - 银色丝带</div>
+                </div>
+                <div>
+                    <div class="book-card">
+                        <div class="badge-v5 rank-3">
+                            <span class="crown-small">🥉</span>
+                            3
+                        </div>
+                    </div>
+                    <div class="label">第3名 - 铜色丝带</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

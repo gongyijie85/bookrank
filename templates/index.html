@@ -119,6 +119,28 @@
             background: linear-gradient(135deg, #17a2b8, #138496);
         }
 
+        .awards-link {
+            background: linear-gradient(135deg, #ffc107, #ff9800);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .awards-link:hover {
+            background: linear-gradient(135deg, #ffb300, #f57c00);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+            color: white;
+        }
+
         .search-container {
             display: flex;
             margin-left: auto;
@@ -475,23 +497,68 @@
             color: white;
         }
 
-        /* 前三名特殊样式 */
-        .book-rank-badge[data-rank="1"] {
-            background: linear-gradient(135deg, #FFD700, #FFA500);
-            color: #333;
-            box-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
+        /* 皇冠徽章样式 - 前三名 */
+        .book-rank-badge.crown-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 52px;
+            height: 62px;
+            background: transparent;
+            box-shadow: none;
+            border: none;
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
         }
 
-        .book-rank-badge[data-rank="2"] {
-            background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
-            color: #333;
-            box-shadow: 0 2px 8px rgba(192, 192, 192, 0.5);
+        .book-rank-badge.crown-badge .crown-svg {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 24px;
+            z-index: 2;
         }
 
-        .book-rank-badge[data-rank="3"] {
-            background: linear-gradient(135deg, #CD7F32, #B87333);
-            color: white;
-            box-shadow: 0 2px 8px rgba(205, 127, 50, 0.5);
+        .book-rank-badge.crown-badge .crown-rank-number {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 3px solid;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            z-index: 1;
+        }
+
+        /* 金色 - 第1名 */
+        .book-rank-badge.crown-badge.gold .crown-rank-number {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            border-color: #FFD700;
+            color: #8B4513;
+            box-shadow: 0 3px 10px rgba(255, 215, 0, 0.4);
+        }
+
+        /* 银色 - 第2名 */
+        .book-rank-badge.crown-badge.silver .crown-rank-number {
+            background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%);
+            border-color: #C0C0C0;
+            color: #555;
+            box-shadow: 0 3px 10px rgba(192, 192, 192, 0.4);
+        }
+
+        /* 铜色 - 第3名 */
+        .book-rank-badge.crown-badge.bronze .crown-rank-number {
+            background: linear-gradient(135deg, #D4A574 0%, #B87333 100%);
+            border-color: #B87333;
+            color: #5D3A1A;
+            box-shadow: 0 3px 10px rgba(205, 127, 50, 0.4);
         }
 
         .book-info {
@@ -998,6 +1065,10 @@
         <button id="toggleLang" class="lang-toggle" title="切换语言">
             <i class="fa fa-language"></i> <span id="langText">中文</span>
         </button>
+
+        <a href="/awards" class="awards-link" title="图书奖项榜单">
+            <i class="fa fa-trophy"></i> 奖项榜单
+        </a>
 
     </div>
     

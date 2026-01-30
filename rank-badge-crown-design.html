@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>皇冠排名徽章设计</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .design-section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        .design-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            color: #1a73e8;
+            text-align: center;
+        }
+        
+        .badge-showcase {
+            display: flex;
+            gap: 60px;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            border-radius: 12px;
+        }
+        
+        /* 基础图书卡片 */
+        .book-card {
+            width: 180px;
+            height: 260px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            position: relative;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            overflow: visible;
+        }
+        
+        /* ========== 第1名：轮廓圆圈 + 皇冠 ========== */
+        .badge-crown-king {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 50px;
+            height: 50px;
+            z-index: 10;
+        }
+        
+        /* 外圈轮廓 */
+        .badge-crown-king .circle-outline {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 3px solid #FFD700;
+            background: white;
+            box-shadow: 0 3px 10px rgba(255, 215, 0, 0.4);
+        }
+        
+        /* 内部渐变 */
+        .badge-crown-king .circle-inner {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            right: 4px;
+            bottom: 4px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        /* 皇冠 SVG */
+        .badge-crown-king .crown {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 20px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+        
+        /* ========== 第2名：银色奖牌边框 ========== */
+        .badge-medal-silver {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 42px;
+            height: 42px;
+            z-index: 10;
+        }
+        
+        /* 外边框 - 双线设计 */
+        .badge-medal-silver .medal-outer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #E8E8E8 0%, #C0C0C0 50%, #A0A0A0 100%);
+            padding: 3px;
+            box-shadow: 0 3px 10px rgba(192, 192, 192, 0.4);
+        }
+        
+        .badge-medal-silver .medal-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #F5F5F5 0%, #E0E0E0 100%);
+            border: 2px solid #C0C0C0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        /* 装饰性边框线条 */
+        .badge-medal-silver .medal-ring {
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 50%;
+            border: 1px dashed #A0A0A0;
+        }
+        
+        /* ========== 第3名：铜色奖牌边框 ========== */
+        .badge-medal-bronze {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 42px;
+            height: 42px;
+            z-index: 10;
+        }
+        
+        .badge-medal-bronze .medal-outer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #CD7F32 0%, #B87333 50%, #8B4513 100%);
+            padding: 3px;
+            box-shadow: 0 3px 10px rgba(205, 127, 50, 0.4);
+        }
+        
+        .badge-medal-bronze .medal-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #D4A574 0%, #C4956A 100%);
+            border: 2px solid #B87333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: #5D3A1A;
+        }
+        
+        .badge-medal-bronze .medal-ring {
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 50%;
+            border: 1px dashed #8B4513;
+        }
+        
+        /* ========== 第4名+：普通蓝色徽章 ========== */
+        .badge-normal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1a73e8 0%, #0d66d0 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        /* 标签 */
+        .label {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        /* 说明文字 */
+        .description {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #1a73e8;
+        }
+        
+        .description h3 {
+            color: #1a73e8;
+            margin-bottom: 10px;
+        }
+        
+        .description ul {
+            margin-left: 20px;
+            color: #555;
+            line-height: 1.8;
+        }
+        
+        .description li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👑 皇冠排名徽章设计方案</h1>
+        
+        <div class="design-section">
+            <div class="design-title">最终设计方案</div>
+            <div class="badge-showcase">
+                <!-- 第1名 -->
+                <div>
+                    <div class="book-card">
+                        <div class="badge-crown-king">
+                            <!-- 皇冠 SVG -->
+                            <svg class="crown" viewBox="0 0 30 20">
+                                <defs>
+                                    <linearGradient id="crownGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#FFD700"/>
+                                        <stop offset="50%" style="stop-color:#FFA500"/>
+                                        <stop offset="100%" style="stop-color:#FF8C00"/>
+                                    </linearGradient>
+                                </defs>
+                                <!-- 皇冠主体 -->
+                                <path d="M2 18 L2 6 L7 10 L12 2 L15 8 L18 2 L23 10 L28 6 L28 18 Q28 20 25 20 L5 20 Q2 20 2 18 Z" 
+                                      fill="url(#crownGold)" stroke="#B8860B" stroke-width="0.5"/>
+                                <!-- 宝石 -->
+                                <circle cx="7" cy="10" r="1.5" fill="#FF4444"/>
+                                <circle cx="15" cy="8" r="2" fill="#4444FF"/>
+                                <circle cx="23" cy="10" r="1.5" fill="#44FF44"/>
+                                <!-- 底部装饰线 -->
+                                <rect x="2" y="16" width="26" height="2" fill="#B8860B"/>
+                            </svg>
+                            <div class="circle-outline"></div>
+                            <div class="circle-inner">1</div>
+                        </div>
+                    </div>
+                    <div class="label">第1名 - 金色皇冠 + 轮廓圆圈</div>
+                </div>
+                
+                <!-- 第2名 -->
+                <div>
+                    <div class="book-card">
+                        <div class="badge-medal-silver">
+                            <div class="medal-ring"></div>
+                            <div class="medal-outer">
+                                <div class="medal-inner">2</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="label">第2名 - 银色奖牌边框</div>
+                </div>
+                
+                <!-- 第3名 -->
+                <div>
+                    <div class="book-card">
+                        <div class="badge-medal-bronze">
+                            <div class="medal-ring"></div>
+                            <div class="medal-outer">
+                                <div class="medal-inner">3</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="label">第3名 - 铜色奖牌边框</div>
+                </div>
+                
+                <!-- 第4名+ -->
+                <div>
+                    <div class="book-card">
+                        <div class="badge-normal">4</div>
+                    </div>
+                    <div class="label">第4名+ - 蓝色圆形</div>
+                </div>
+            </div>
+            
+            <div class="description">
+                <h3>设计说明</h3>
+                <ul>
+                    <li><strong>第1名：</strong>金色轮廓圆圈，顶部佩戴精致SVG皇冠，皇冠上有红蓝宝石装饰，突出王者地位</li>
+                    <li><strong>第2名：</strong>银色双线奖牌边框，外圈金属质感，内圈浅银色，优雅大方</li>
+                    <li><strong>第3名：</strong>铜色双线奖牌边框，暖色调铜色渐变，与金银形成完整奖牌系列</li>
+                    <li><strong>第4名+：</strong>保持原有蓝色圆形设计，简洁统一</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

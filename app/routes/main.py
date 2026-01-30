@@ -38,3 +38,9 @@ def cached_image(filename: str):
 def send_static(path: str):
     """提供静态文件"""
     return send_from_directory('static', path)
+
+
+@main_bp.route('/awards')
+def awards():
+    """图书奖项榜单页面"""
+    return render_template('awards.html')

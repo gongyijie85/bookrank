@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国际图书奖项榜单 (2023-2026)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    <style>
+        :root {
+            --primary-color: #1a73e8;
+            --secondary-color: #f5f5f5;
+            --text-color: #333;
+            --light-gray: #eee;
+            --border-color: #ddd;
+            --gold-color: #FFD700;
+            --silver-color: #C0C0C0;
+            --bronze-color: #CD7F32;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            color: var(--text-color);
+            line-height: 1.6;
+            background-color: #fafafa;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2.2rem;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary-color);
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* 奖项卡片网格 */
+        .awards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        /* 奖项卡片 */
+        .award-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+
+        .award-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: var(--primary-color);
+        }
+
+        .award-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .award-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .award-icon.pulitzer {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+        }
+
+        .award-icon.booker {
+            background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+        }
+
+        .award-icon.nobel {
+            background: linear-gradient(135deg, #FFD700, #DAA520);
+        }
+
+        .award-icon.national {
+            background: linear-gradient(135deg, #1a73e8, #0d66d0);
+            color: white;
+        }
+
+        .award-icon.goncourt {
+            background: linear-gradient(135deg, #DC143C, #B22222);
+            color: white;
+        }
+
+        .award-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .award-country {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .award-description {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .award-stats {
+            display: flex;
+            gap: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--light-gray);
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .coming-soon {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .coming-soon i {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        .coming-soon h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .awards-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-link">
+        <i class="fa fa-arrow-left"></i> 返回畅销书榜
+    </a>
+
+    <header>
+        <h1><i class="fa fa-trophy"></i> 国际图书奖项榜单</h1>
+        <p class="subtitle">汇聚全球五大权威图书奖项 (2023-2026)</p>
+    </header>
+
+    <div class="awards-grid">
+        <!-- 普利策奖 -->
+        <div class="award-card">
+            <div class="award-header">
+                <div class="award-icon pulitzer">
+                    <i class="fa fa-star"></i>
+                </div>
+                <div>
+                    <div class="award-title">普利策奖</div>
+                    <div class="award-country">美国 · 1917年创立</div>
+                </div>
+            </div>
+            <div class="award-description">
+                美国新闻界和文学界的最高荣誉，分为新闻奖、文学奖和音乐奖。文学奖包括小说、戏剧、历史、传记、诗歌和一般非虚构类作品。
+            </div>
+            <div class="award-stats">
+                <div class="stat-item">
+                    <span class="stat-value">107届</span>
+                    <span class="stat-label">历史</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">6类</span>
+                    <span class="stat-label">文学奖项</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 布克奖 -->
+        <div class="award-card">
+            <div class="award-header">
+                <div class="award-icon booker">
+                    <i class="fa fa-book"></i>
+                </div>
+                <div>
+                    <div class="award-title">布克奖</div>
+                    <div class="award-country">英国 · 1969年创立</div>
+                </div>
+            </div>
+            <div class="award-description">
+                英语文学界最重要的文学奖之一，每年颁发给在英国或爱尔兰出版的优秀长篇小说。被誉为"英语文学的奥斯卡"。
+            </div>
+            <div class="award-stats">
+                <div class="stat-item">
+                    <span class="stat-value">55届</span>
+                    <span class="stat-label">历史</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">1类</span>
+                    <span class="stat-label">长篇小说</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 诺贝尔文学奖 -->
+        <div class="award-card">
+            <div class="award-header">
+                <div class="award-icon nobel">
+                    <i class="fa fa-graduation-cap"></i>
+                </div>
+                <div>
+                    <div class="award-title">诺贝尔文学奖</div>
+                    <div class="award-country">瑞典 · 1901年创立</div>
+                </div>
+            </div>
+            <div class="award-description">
+                诺贝尔奖之一，由瑞典文学院颁发，授予在文学领域创作出具有理想倾向的最佳作品的人。是全球文学界最高荣誉。
+            </div>
+            <div class="award-stats">
+                <div class="stat-item">
+                    <span class="stat-value">123年</span>
+                    <span class="stat-label">历史</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">1人/年</span>
+                    <span class="stat-label">获奖者</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 美国国家图书奖 -->
+        <div class="award-card">
+            <div class="award-header">
+                <div class="award-icon national">
+                    <i class="fa fa-flag"></i>
+                </div>
+                <div>
+                    <div class="award-title">美国国家图书奖</div>
+                    <div class="award-country">美国 · 1950年创立</div>
+                </div>
+            </div>
+            <div class="award-description">
+                美国文学界的重要奖项，分为小说、非虚构、诗歌和青年文学四个类别。旨在表彰美国作家的杰出作品。
+            </div>
+            <div class="award-stats">
+                <div class="stat-item">
+                    <span class="stat-value">74届</span>
+                    <span class="stat-label">历史</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">4类</span>
+                    <span class="stat-label">文学奖项</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 龚古尔文学奖 -->
+        <div class="award-card">
+            <div class="award-header">
+                <div class="award-icon goncourt">
+                    <i class="fa fa-pencil"></i>
+                </div>
+                <div>
+                    <div class="award-title">龚古尔文学奖</div>
+                    <div class="award-country">法国 · 1903年创立</div>
+                </div>
+            </div>
+            <div class="award-description">
+                法国最重要的文学奖，每年颁发给当年出版的最佳小说。与法兰西学院奖并列为法国两大文学奖。
+            </div>
+            <div class="award-stats">
+                <div class="stat-item">
+                    <span class="stat-value">121届</span>
+                    <span class="stat-label">历史</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">1类</span>
+                    <span class="stat-label">小说奖</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="coming-soon">
+        <i class="fa fa-clock-o"></i>
+        <h2>功能开发中</h2>
+        <p>2023-2026年度获奖作品数据整理中，即将上线...</p>
+    </div>
+
+</body>
+</html>
