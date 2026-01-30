@@ -333,6 +333,9 @@ export class BookDetailModal {
         const currentLang = store.getState().language || 'zh';
         this.detailContainer.innerHTML = this._renderDetail(book, currentLang);
         
+        // 绑定展开/收起事件
+        this._bindExpandEvents(this.detailContainer);
+        
         // 显示模态框（使用CSS类）
         this.modal.classList.add('show');
         document.body.style.overflow = 'hidden';
