@@ -1,8 +1,8 @@
 """
 翻译服务模块
 
-使用LibreTranslate API进行免费翻译
-支持多实例轮询和翻译缓存
+使用MyMemory Translation API进行免费翻译
+支持翻译缓存
 """
 
 import logging
@@ -75,22 +75,18 @@ class TranslationCache:
         }
 
 
-class LibreTranslateService:
+class MyMemoryTranslationService:
     """
-    LibreTranslate翻译服务
+    MyMemory Translation API 翻译服务
     
     特点：
     - 完全免费，无需注册
-    - 支持多个公共实例轮询
+    - 每日约5000字符免费额度
     - 内置翻译缓存
     - 自动错误处理和重试
     """
     
-    # 可用的公共API实例（2025年1月测试可用）
-    API_URLS = [
-        'https://libretranslate.de/translate',
-        'https://libretranslate.com/translate'
-    ]
+    API_URL = 'https://api.mymemory.translated.net/get'
     
     def __init__(self, delay: float = 0.5, max_retries: int = 3):
         """
@@ -102,7 +98,6 @@ class LibreTranslateService:
         """
         self.delay = delay
         self.max_retries = max_retries
-        self.current_api_index = 0
         self.cache = TranslationCache()
         
     def _get_text_hash(self, text: str, source_lang: str, target_lang: str) -> str:
@@ -150,10 +145,10 @@ class LibreTranslateService:
         if not text or not text.strip():
             return text
         
-        # 限制文本长度（LibreTranslate建议单次不超过1000字符）
-        if len(text) > 1000:
+        # 限制文本长度（MyMemory建议单次不超过500字符）
+        if len(text) > 500:
             logger.warning(f"文本过长({len(text)}字符)，将截断翻译")
-            text = text[:1000]
+            text = text[:500]
         
         # 检查缓存
         if use_cache:
@@ -164,31 +159,25 @@ class LibreTranslateService:
         # 添加延迟
         time.sleep(self.delay)
         
-        # 尝试所有API实例
+        # 尝试翻译
         for attempt in range(self.max_retries):
-            for i in range(len(self.API_URLS)):
-                url = self.API_URLS[(self.current_api_index + i) % len(self.API_URLS)]
+            try:
+                params = {
+                    'q': text,
+                    'langpair': f'{source_lang}|{target_lang}'
+                }
                 
-                try:
-                    # LibreTranslate API 需要 JSON 格式
-                    payload = {
-                        'q': text,
-                        'source': source_lang,
-                        'target': target_lang,
-                        'format': 'text'
-                    }
-                    
-                    headers = {
-                        'Content-Type': 'application/json'
-                    }
-                    
-                    logger.debug(f"正在请求: {url}")
-                    response = requests.post(url, json=payload, headers=headers, timeout=30)
-                    
-                    if response.status_code == 200:
-                        try:
-                            result = response.json()
-                            translated = result.get('translatedText')
+                logger.debug(f"正在请求MyMemory API")
+                response = requests.get(self.API_URL, params=params, timeout=30)
+                
+                if response.status_code == 200:
+                    try:
+                        result = response.json()
+                        
+                        # 检查响应状态
+                        response_status = result.get('responseStatus', 0)
+                        if response_status == 200:
+                            translated = result.get('responseData', {}).get('translatedText')
                             
                             if translated:
                                 # 保存到缓存
@@ -197,23 +186,26 @@ class LibreTranslateService:
                                 
                                 logger.info(f"翻译成功: {text[:50]}... -> {translated[:50]}...")
                                 return translated
-                        except Exception as e:
-                            logger.warning(f"解析响应失败: {url}, 错误: {e}, 响应: {response.text[:200]}")
-                    else:
-                        logger.warning(f"API返回错误 {response.status_code}: {url}, 响应: {response.text[:200]}")
+                        else:
+                            logger.warning(f"MyMemory API返回错误状态: {response_status}")
+                            
+                    except Exception as e:
+                        logger.warning(f"解析响应失败: {e}, 响应: {response.text[:200]}")
+                else:
+                    logger.warning(f"API返回错误 {response.status_code}: {response.text[:200]}")
                         
-                except requests.exceptions.Timeout:
-                    logger.warning(f"请求超时: {url}")
-                except requests.exceptions.RequestException as e:
-                    logger.warning(f"请求失败: {url}, 错误: {e}")
-                except Exception as e:
-                    logger.error(f"未知错误: {url}, 错误: {e}")
+            except requests.exceptions.Timeout:
+                logger.warning(f"请求超时")
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"请求失败: {e}")
+            except Exception as e:
+                logger.error(f"未知错误: {e}")
             
             # 重试前等待
             if attempt < self.max_retries - 1:
                 time.sleep(2 ** attempt)  # 指数退避
         
-        logger.error(f"所有API实例都失败，返回None")
+        logger.error(f"翻译失败，返回None")
         return None
     
     def translate_batch(self, texts: List[str], source_lang: str = 'en',
@@ -279,7 +271,7 @@ class LibreTranslateService:
 
 
 # 全局翻译服务实例
-translation_service = LibreTranslateService()
+translation_service = MyMemoryTranslationService()
 
 
 def translate_book_info(book_data: dict, target_lang: str = 'zh') -> dict:
@@ -293,7 +285,7 @@ def translate_book_info(book_data: dict, target_lang: str = 'zh') -> dict:
     Returns:
         添加翻译字段的图书数据
     """
-    service = LibreTranslateService()
+    service = MyMemoryTranslationService()
     
     # 需要翻译的字段
     fields_to_translate = ['description', 'details']

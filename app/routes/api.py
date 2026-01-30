@@ -13,7 +13,7 @@ from ..models.database import db
 from ..utils.exceptions import APIRateLimitException, APIException, ValidationException
 from ..services import BookService
 from ..services.translation_service import (
-    LibreTranslateService,
+    MyMemoryTranslationService,
     translate_book_info
 )
 
@@ -393,7 +393,7 @@ def translate_text():
             return APIResponse.error('文本长度超过限制（最大2000字符）', 400)
         
         # 执行翻译
-        service = LibreTranslateService()
+        service = MyMemoryTranslationService()
         translated = service.translate(text, source_lang, target_lang)
         
         if translated:
@@ -454,7 +454,8 @@ def translate_book(isbn: str):
 def get_translation_cache_stats():
     """获取翻译缓存统计"""
     try:
-        service = LibreTranslateService()
+# 获取缓存统计
+        service = MyMemoryTranslationService()
         stats = service.get_cache_stats()
         
         return APIResponse.success(data=stats)
@@ -470,8 +471,8 @@ def clear_translation_cache():
     try:
         data = request.get_json() or {}
         days = data.get('days', 30)
-        
-        service = LibreTranslateService()
+       # 清理过期缓存
+        service = MyMemoryTranslationService()
         deleted = service.clear_cache(days)
         
         return APIResponse.success(data={
