@@ -157,50 +157,87 @@ def _init_sample_books(app):
     try:
         from .models.schemas import Award, AwardBook
         
-        # 示例图书数据
+        # 示例图书数据（包含真实ISBN和封面图片）
         sample_books = [
-            # 普利策奖 2025
-            {'award_name': '普利策奖', 'year': 2025, 'category': '小说', 'rank': 1,
-             'title': 'The Maniac', 'author': 'Benjamín Labatut',
-             'description': 'A gripping narrative about the life of John von Neumann and the dawn of the digital age.'},
-            {'award_name': '普利策奖', 'year': 2025, 'category': '非虚构', 'rank': 1,
-             'title': 'The Uninhabitable Earth', 'author': 'David Wallace-Wells',
-             'description': 'An exploration of the devastating impacts of climate change on our planet.'},
-            {'award_name': '普利策奖', 'year': 2024, 'category': '小说', 'rank': 1,
-             'title': 'Trust', 'author': 'Hernan Diaz',
-             'description': 'A novel about wealth, family, and the American Dream in the 1920s.'},
+            # 普利策奖
+            {'award_name': '普利策奖', 'year': 2023, 'category': '小说', 'rank': 1,
+             'title': 'Demon Copperhead', 'author': 'Barbara Kingsolver',
+             'description': 'A modern retelling of David Copperfield set in Appalachia, following a boy born to a teenage single mother.',
+             'isbn13': '9780063251922',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1667400945i/60561215.jpg'},
+            {'award_name': '普利策奖', 'year': 2023, 'category': '非虚构', 'rank': 1,
+             'title': 'His Name Is George Floyd', 'author': 'Robert Samuels, Toluse Olorunnipa',
+             'description': 'A biography of George Floyd that explores the racial justice movement and systemic inequality in America.',
+             'isbn13': '9780593491930',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1666951046i/61295405.jpg'},
+            {'award_name': '普利策奖', 'year': 2022, 'category': '小说', 'rank': 1,
+             'title': 'The Netanyahus', 'author': 'Joshua Cohen',
+             'description': 'A comic novel about a Jewish historian who meets the Netanyahu family in 1959.',
+             'isbn13': '9781681376070',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1632764182i/58340706.jpg'},
             
             # 布克奖
-            {'award_name': '布克奖', 'year': 2025, 'category': '小说', 'rank': 1,
-             'title': 'Orbital', 'author': 'Samantha Harvey',
-             'description': 'A novel set in space, exploring human relationships and our place in the universe.'},
-            {'award_name': '布克奖', 'year': 2024, 'category': '小说', 'rank': 1,
+            {'award_name': '布克奖', 'year': 2023, 'category': '小说', 'rank': 1,
              'title': 'Prophet Song', 'author': 'Paul Lynch',
-             'description': 'A dystopian novel about a mother searching for her son in a collapsing Ireland.'},
+             'description': 'A dystopian novel about a mother searching for her son in a collapsing Ireland.',
+             'isbn13': '9781954118259',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1674220043i/75246613.jpg'},
+            {'award_name': '布克奖', 'year': 2022, 'category': '小说', 'rank': 1,
+             'title': 'The Seven Moons of Maali Almeida', 'author': 'Shehan Karunatilaka',
+             'description': 'A satirical novel about a war photographer who wakes up dead in a celestial visa office.',
+             'isbn13': '9789357022876',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1644144088i/60190659.jpg'},
+            {'award_name': '布克奖', 'year': 2021, 'category': '小说', 'rank': 1,
+             'title': 'The Promise', 'author': 'Damon Galgut',
+             'description': 'A story about a white South African family and a promise made to their Black servant.',
+             'isbn13': '9781609456517',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1619021347i/56781769.jpg'},
             
             # 诺贝尔文学奖
-            {'award_name': '诺贝尔文学奖', 'year': 2025, 'category': '文学', 'rank': 1,
+            {'award_name': '诺贝尔文学奖', 'year': 2022, 'category': '文学', 'rank': 1,
              'title': 'The Years', 'author': 'Annie Ernaux',
-             'description': 'A memoir that blends personal and collective history.'},
-            {'award_name': '诺贝尔文学奖', 'year': 2024, 'category': '文学', 'rank': 1,
+             'description': 'A memoir that blends personal and collective history from 1941 to 2006.',
+             'isbn13': '9781609808927',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1534801779i/40977547.jpg'},
+            {'award_name': '诺贝尔文学奖', 'year': 2023, 'category': '文学', 'rank': 1,
              'title': 'Time Shelter', 'author': 'Georgi Gospodinov',
-             'description': 'A novel about memory, nostalgia, and the twentieth century.'},
+             'description': 'A novel about memory, nostalgia, and the twentieth century.',
+             'isbn13': '9781324008372',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1658767717i/61718037.jpg'},
             
             # 雨果奖
-            {'award_name': '雨果奖', 'year': 2025, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'Project Hail Mary', 'author': 'Andy Weir',
-             'description': 'An astronaut must save Earth from disaster in this sci-fi adventure.'},
-            {'award_name': '雨果奖', 'year': 2024, 'category': '最佳长篇小说', 'rank': 1,
+            {'award_name': '雨果奖', 'year': 2023, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'Nettle & Bone', 'author': 'T. Kingfisher',
+             'description': 'A fantasy novel about a princess who must save her sister from an abusive husband.',
+             'isbn13': '9781250244048',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1651605882i/57693192.jpg'},
+            {'award_name': '雨果奖', 'year': 2022, 'category': '最佳长篇小说', 'rank': 1,
              'title': 'A Desolation Called Peace', 'author': 'Arkady Martine',
-             'description': 'Sequel to A Memory Called Empire, continuing the story of an interstellar empire.'},
+             'description': 'Sequel to A Memory Called Empire, continuing the story of an interstellar empire.',
+             'isbn13': '9781250186461',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1607446898i/45154552.jpg'},
+            {'award_name': '雨果奖', 'year': 2021, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'Network Effect', 'author': 'Martha Wells',
+             'description': 'The first full-length novel in the Murderbot Diaries series.',
+             'isbn13': '9781250229861',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1569960398i/52381746.jpg'},
             
             # 美国国家图书奖
-            {'award_name': '美国国家图书奖', 'year': 2025, 'category': '小说', 'rank': 1,
+            {'award_name': '美国国家图书奖', 'year': 2023, 'category': '小说', 'rank': 1,
              'title': 'The Rabbit Hutch', 'author': 'Tess Gunty',
-             'description': 'A debut novel about loneliness and connection in a small Indiana town.'},
-            {'award_name': '美国国家图书奖', 'year': 2024, 'category': '小说', 'rank': 1,
+             'description': 'A debut novel about loneliness and connection in a small Indiana town.',
+             'isbn13': '9780593534668',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1646095937i/60317273.jpg'},
+            {'award_name': '美国国家图书奖', 'year': 2022, 'category': '小说', 'rank': 1,
+             'title': 'The Rabbit Hutch', 'author': 'Tess Gunty',
+             'description': 'A debut novel about loneliness and connection in a small Indiana town.',
+             'isbn13': '9780593534668',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1646095937i/60317273.jpg'},
+            {'award_name': '美国国家图书奖', 'year': 2021, 'category': '小说', 'rank': 1,
              'title': 'Hell of a Book', 'author': 'Jason Mott',
-             'description': 'A novel about a Black author on a book tour while dealing with personal and societal trauma.'},
+             'description': 'A novel about a Black author on a book tour while dealing with personal and societal trauma.',
+             'isbn13': '9780593237941',
+             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1611954638i/55835474.jpg'},
         ]
         
         created_count = 0
@@ -214,7 +251,9 @@ def _init_sample_books(app):
                     rank=book_data['rank'],
                     title=book_data['title'],
                     author=book_data['author'],
-                    description=book_data['description']
+                    description=book_data['description'],
+                    isbn13=book_data.get('isbn13'),
+                    cover_original_url=book_data.get('cover_url')
                 )
                 db.session.add(book)
                 created_count += 1
