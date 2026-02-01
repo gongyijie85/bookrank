@@ -650,10 +650,13 @@
                     </div>
                 ` : '';
 
+                // 优先使用原始封面URL，其次是本地路径，最后是默认封面
+                const coverUrl = book.cover_original_url || book.cover_local_path || '/static/default-cover.png';
+                
                 return `
                     <div class="book-card" onclick="showBookDetail(${book.id})">
                         ${rankBadge}
-                        <img class="book-cover" src="${book.cover_local_path || '/static/default-cover.png'}" alt="${book.title}" onerror="this.src='/static/default-cover.png'">
+                        <img class="book-cover" src="${coverUrl}" alt="${book.title}" onerror="this.src='/static/default-cover.png'" loading="lazy">
                         <div class="book-info">
                             <span class="book-award-badge">${award ? award.name : '奖项'}</span>
                             <div class="book-title">${book.title}</div>
@@ -703,9 +706,12 @@
                     const book = data.data.book;
                     const award = awards.find(a => a.id === book.award_id);
 
-                    document.getElementById('modalBody').innerHTML = `
+                    // 优先使用原始封面URL
+                const modalCoverUrl = book.cover_original_url || book.cover_local_path || '/static/default-cover.png';
+                
+                document.getElementById('modalBody').innerHTML = `
                         <div>
-                            <img class="modal-cover" src="${book.cover_local_path || '/static/default-cover.png'}" alt="${book.title}" onerror="this.src='/static/default-cover.png'">
+                            <img class="modal-cover" src="${modalCoverUrl}" alt="${book.title}" onerror="this.src='/static/default-cover.png'">
                         </div>
                         <div class="modal-info">
                             <span class="book-award-badge">${award ? award.name : '奖项'}</span>
