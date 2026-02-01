@@ -397,3 +397,179 @@ def get_translation_cache_stats():
 def clear_translation_cache():
     """清理翻译缓存 - 暂时下线"""
     return APIResponse.error('翻译功能暂时下线，将在第三阶段重新上线', 503)
+
+
+# ==================== 国际图书奖项API ====================
+
+@api_bp.route('/awards')
+def get_awards():
+    """获取所有奖项列表"""
+    try:
+        from app.models.schemas import Award
+        
+        awards = Award.query.all()
+        return APIResponse.success(data={
+            'awards': [award.to_dict() for award in awards]
+        })
+        
+    except Exception as e:
+        logger.error(f"获取奖项列表错误: {e}", exc_info=True)
+        return APIResponse.error('获取奖项列表失败', 500)
+
+
+@api_bp.route('/awards/<int:award_id>/books')
+def get_award_books(award_id: int):
+    """获取指定奖项的图书列表"""
+    try:
+        from app.models.schemas import Award, AwardBook
+        
+        # 验证奖项存在
+        award = Award.query.get(award_id)
+        if not award:
+            return APIResponse.error('奖项不存在', 404)
+        
+        # 获取筛选参数
+        year = request.args.get('year', type=int)
+        category = request.args.get('category')
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 构建查询
+        query = AwardBook.query.filter_by(award_id=award_id)
+        
+        if year:
+            query = query.filter_by(year=year)
+        if category:
+            query = query.filter_by(category=category)
+        
+        # 分页
+        total = query.count()
+        books = query.order_by(AwardBook.year.desc(), AwardBook.rank.asc()).\
+            offset((page - 1) * limit).limit(limit).all()
+        
+        return APIResponse.success(data={
+            'award': award.to_dict(),
+            'books': [book.to_dict() for book in books],
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'pages': (total + limit - 1) // limit
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"获取奖项图书错误: {e}", exc_info=True)
+        return APIResponse.error('获取图书列表失败', 500)
+
+
+@api_bp.route('/award-books')
+def get_all_award_books():
+    """获取所有获奖图书（支持筛选）"""
+    try:
+        from app.models.schemas import AwardBook
+        
+        # 获取筛选参数
+        award_id = request.args.get('award_id', type=int)
+        year = request.args.get('year', type=int)
+        category = request.args.get('category')
+        keyword = request.args.get('keyword')
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 构建查询
+        query = AwardBook.query
+        
+        if award_id:
+            query = query.filter_by(award_id=award_id)
+        if year:
+            query = query.filter_by(year=year)
+        if category:
+            query = query.filter_by(category=category)
+        if keyword:
+            query = query.filter(
+                db.or_(
+                    AwardBook.title.ilike(f'%{keyword}%'),
+                    AwardBook.author.ilike(f'%{keyword}%')
+                )
+            )
+        
+        # 分页
+        total = query.count()
+        books = query.order_by(AwardBook.year.desc()).\
+            offset((page - 1) * limit).limit(limit).all()
+        
+        return APIResponse.success(data={
+            'books': [book.to_dict() for book in books],
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'pages': (total + limit - 1) // limit
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"获取图书列表错误: {e}", exc_info=True)
+        return APIResponse.error('获取图书列表失败', 500)
+
+
+@api_bp.route('/award-books/<int:book_id>')
+def get_award_book_detail(book_id: int):
+    """获取图书详情"""
+    try:
+        from app.models.schemas import AwardBook
+        
+        book = AwardBook.query.get(book_id)
+        if not book:
+            return APIResponse.error('图书不存在', 404)
+        
+        return APIResponse.success(data={
+            'book': book.to_dict(include_zh=True)
+        })
+        
+    except Exception as e:
+        logger.error(f"获取图书详情错误: {e}", exc_info=True)
+        return APIResponse.error('获取图书详情失败', 500)
+
+
+@api_bp.route('/award-books/search')
+def search_award_books():
+    """搜索获奖图书"""
+    try:
+        from app.models.schemas import AwardBook
+        
+        keyword = request.args.get('keyword', '').strip()
+        if not keyword:
+            return APIResponse.error('搜索关键词不能为空', 400)
+        
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 搜索书名和作者
+        query = AwardBook.query.filter(
+            db.or_(
+                AwardBook.title.ilike(f'%{keyword}%'),
+                AwardBook.author.ilike(f'%{keyword}%'),
+                AwardBook.title_zh.ilike(f'%{keyword}%')
+            )
+        )
+        
+        total = query.count()
+        books = query.order_by(AwardBook.year.desc()).\
+            offset((page - 1) * limit).limit(limit).all()
+        
+        return APIResponse.success(data={
+            'keyword': keyword,
+            'books': [book.to_dict() for book in books],
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'pages': (total + limit - 1) // limit
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"搜索图书错误: {e}", exc_info=True)
+        return APIResponse.error('搜索失败', 500)

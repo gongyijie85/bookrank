@@ -112,6 +112,108 @@ class SearchHistory(db.Model):
         }
 
 
+class Award(db.Model):
+    """国际图书奖项"""
+    __tablename__ = 'awards'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)           # 奖项名称（中文）
+    name_en = db.Column(db.String(100))                         # 英文名称
+    country = db.Column(db.String(50))                          # 国家
+    description = db.Column(db.Text)                            # 奖项介绍
+    category_count = db.Column(db.Integer, default=1)           # 奖项类别数
+    icon_class = db.Column(db.String(50))                       # 图标样式类
+    established_year = db.Column(db.Integer)                    # 创立年份
+    award_month = db.Column(db.Integer)                         # 颁布月份（1-12）
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 关系
+    books = db.relationship('AwardBook', back_populates='award', cascade='all, delete-orphan')
+    
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'name': self.name,
+            'name_en': self.name_en,
+            'country': self.country,
+            'description': self.description,
+            'category_count': self.category_count,
+            'icon_class': self.icon_class,
+            'established_year': self.established_year,
+            'award_month': self.award_month,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class AwardBook(db.Model):
+    """获奖图书"""
+    __tablename__ = 'award_books'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    award_id = db.Column(db.Integer, db.ForeignKey('awards.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)                # 获奖年份
+    category = db.Column(db.String(100))                        # 奖项类别
+    rank = db.Column(db.Integer)                                # 排名（如有）
+    
+    # 图书基本信息
+    title = db.Column(db.String(500), nullable=False)           # 书名（英文）
+    title_zh = db.Column(db.String(500))                        # 书名（中文翻译）
+    author = db.Column(db.String(300), nullable=False)          # 作者
+    description = db.Column(db.Text)                            # 简介（英文）
+    description_zh = db.Column(db.Text)                         # 简介（中文翻译）
+    
+    # 封面和链接
+    cover_local_path = db.Column(db.String(255))                # 本地封面路径
+    cover_original_url = db.Column(db.String(500))              # 原始封面URL
+    
+    # 元数据
+    isbn13 = db.Column(db.String(13))                           # ISBN-13
+    isbn10 = db.Column(db.String(10))                           # ISBN-10
+    publisher = db.Column(db.String(200))                       # 出版社
+    publication_year = db.Column(db.Integer)                    # 出版年份
+    
+    # 时间戳
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系
+    award = db.relationship('Award', back_populates='books')
+    
+    __table_args__ = (
+        db.UniqueConstraint('award_id', 'year', 'category', 'isbn13', name='uix_award_book'),
+        db.Index('idx_award_books_award_year', 'award_id', 'year'),
+        db.Index('idx_award_books_category', 'category'),
+        db.Index('idx_award_books_search', 'title', 'author'),
+    )
+    
+    def to_dict(self, include_zh=True) -> dict:
+        data = {
+            'id': self.id,
+            'award_id': self.award_id,
+            'year': self.year,
+            'category': self.category,
+            'rank': self.rank,
+            'title': self.title,
+            'author': self.author,
+            'description': self.description,
+            'cover_local_path': self.cover_local_path,
+            'cover_original_url': self.cover_original_url,
+            'isbn13': self.isbn13,
+            'isbn10': self.isbn10,
+            'publisher': self.publisher,
+            'publication_year': self.publication_year,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+        
+        if include_zh:
+            data.update({
+                'title_zh': self.title_zh,
+                'description_zh': self.description_zh
+            })
+        
+        return data
+
+
 @dataclass
 class Book:
     """书籍数据类"""

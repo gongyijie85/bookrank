@@ -65,126 +65,367 @@
             text-decoration: underline;
         }
 
-        /* 奖项卡片网格 */
-        .awards-grid {
+        /* 筛选栏 */
+        .filter-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+        }
+
+        .filter-select, .filter-input {
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 150px;
+            background: white;
+        }
+
+        .filter-select:focus, .filter-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .search-box {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 40px 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-box i {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+        }
+
+        .filter-btn {
+            padding: 10px 20px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-btn:hover {
+            background: #0d66d0;
+        }
+
+        /* 图书网格 */
+        .books-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 25px;
             margin-top: 30px;
         }
 
-        /* 奖项卡片 */
-        .award-card {
+        /* 图书卡片 */
+        .book-card {
             background: white;
             border-radius: 12px;
-            padding: 25px;
+            overflow: hidden;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             transition: all 0.3s ease;
-            border: 2px solid transparent;
             cursor: pointer;
+            position: relative;
         }
 
-        .award-card:hover {
+        .book-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-            border-color: var(--primary-color);
         }
 
-        .award-header {
+        .book-cover {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .book-info {
+            padding: 20px;
+        }
+
+        .book-award-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: var(--primary-color);
+            color: white;
+            font-size: 12px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+        }
+
+        .book-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .book-title-zh {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .book-author {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        .book-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .book-meta span {
             display: flex;
             align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
+            gap: 5px;
         }
 
-        .award-icon {
-            width: 50px;
-            height: 50px;
+        /* 排名徽章 */
+        .rank-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-weight: bold;
+            font-size: 16px;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
-        .award-icon.pulitzer {
+        .rank-badge.gold {
             background: linear-gradient(135deg, #FFD700, #FFA500);
         }
 
-        .award-icon.booker {
+        .rank-badge.silver {
             background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
         }
 
-        .award-icon.nobel {
-            background: linear-gradient(135deg, #FFD700, #DAA520);
+        .rank-badge.bronze {
+            background: linear-gradient(135deg, #CD7F32, #B87333);
         }
 
-        .award-icon.national {
-            background: linear-gradient(135deg, #1a73e8, #0d66d0);
-            color: white;
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
 
-        .award-icon.goncourt {
-            background: linear-gradient(135deg, #DC143C, #B22222);
-            color: white;
-        }
-
-        .award-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: var(--text-color);
-        }
-
-        .award-country {
-            font-size: 14px;
-            color: #666;
-        }
-
-        .award-description {
-            color: #555;
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 15px;
-        }
-
-        .award-stats {
+        .modal.show {
             display: flex;
-            gap: 20px;
-            padding-top: 15px;
-            border-top: 1px solid var(--light-gray);
         }
 
-        .stat-item {
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .modal-close:hover {
+            background: white;
+        }
+
+        .modal-body {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .modal-cover {
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .modal-info h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .modal-info .title-zh {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .modal-meta {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .modal-meta-item {
             display: flex;
             flex-direction: column;
         }
 
-        .stat-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .stat-label {
+        .modal-meta-label {
             font-size: 12px;
             color: #888;
         }
 
-        .coming-soon {
+        .modal-meta-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .modal-description {
+            margin-bottom: 20px;
+        }
+
+        .modal-description h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .modal-description p {
+            font-size: 14px;
+            line-height: 1.8;
+            color: #555;
+        }
+
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .loading i {
+            font-size: 48px;
+            color: var(--primary-color);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* 空状态 */
+        .empty-state {
             text-align: center;
             padding: 60px 20px;
             color: #666;
         }
 
-        .coming-soon i {
-            font-size: 48px;
-            color: var(--primary-color);
+        .empty-state i {
+            font-size: 64px;
+            color: #ddd;
             margin-bottom: 20px;
         }
 
-        .coming-soon h2 {
-            font-size: 24px;
-            margin-bottom: 10px;
+        /* 分页 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 40px;
+        }
+
+        .pagination button {
+            padding: 10px 20px;
+            border: 1px solid var(--border-color);
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination .page-info {
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            color: #666;
         }
 
         /* 响应式 */
@@ -193,7 +434,20 @@
                 font-size: 1.8rem;
             }
 
-            .awards-grid {
+            .filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group, .search-box {
+                width: 100%;
+            }
+
+            .books-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            }
+
+            .modal-body {
                 grid-template-columns: 1fr;
             }
         }
@@ -209,143 +463,314 @@
         <p class="subtitle">汇聚全球五大权威图书奖项 (2023-2026)</p>
     </header>
 
-    <div class="awards-grid">
-        <!-- 普利策奖 -->
-        <div class="award-card">
-            <div class="award-header">
-                <div class="award-icon pulitzer">
-                    <i class="fa fa-star"></i>
-                </div>
-                <div>
-                    <div class="award-title">普利策奖</div>
-                    <div class="award-country">美国 · 1917年创立</div>
-                </div>
-            </div>
-            <div class="award-description">
-                美国新闻界和文学界的最高荣誉，分为新闻奖、文学奖和音乐奖。文学奖包括小说、戏剧、历史、传记、诗歌和一般非虚构类作品。
-            </div>
-            <div class="award-stats">
-                <div class="stat-item">
-                    <span class="stat-value">107届</span>
-                    <span class="stat-label">历史</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">6类</span>
-                    <span class="stat-label">文学奖项</span>
-                </div>
-            </div>
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+        <div class="filter-group">
+            <label class="filter-label">奖项</label>
+            <select class="filter-select" id="awardFilter">
+                <option value="">全部奖项</option>
+            </select>
         </div>
 
-        <!-- 布克奖 -->
-        <div class="award-card">
-            <div class="award-header">
-                <div class="award-icon booker">
-                    <i class="fa fa-book"></i>
-                </div>
-                <div>
-                    <div class="award-title">布克奖</div>
-                    <div class="award-country">英国 · 1969年创立</div>
-                </div>
-            </div>
-            <div class="award-description">
-                英语文学界最重要的文学奖之一，每年颁发给在英国或爱尔兰出版的优秀长篇小说。被誉为"英语文学的奥斯卡"。
-            </div>
-            <div class="award-stats">
-                <div class="stat-item">
-                    <span class="stat-value">55届</span>
-                    <span class="stat-label">历史</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">1类</span>
-                    <span class="stat-label">长篇小说</span>
-                </div>
-            </div>
+        <div class="filter-group">
+            <label class="filter-label">年份</label>
+            <select class="filter-select" id="yearFilter">
+                <option value="">全部年份</option>
+                <option value="2025">2025年</option>
+                <option value="2024">2024年</option>
+                <option value="2023">2023年</option>
+            </select>
         </div>
 
-        <!-- 诺贝尔文学奖 -->
-        <div class="award-card">
-            <div class="award-header">
-                <div class="award-icon nobel">
-                    <i class="fa fa-graduation-cap"></i>
-                </div>
-                <div>
-                    <div class="award-title">诺贝尔文学奖</div>
-                    <div class="award-country">瑞典 · 1901年创立</div>
-                </div>
-            </div>
-            <div class="award-description">
-                诺贝尔奖之一，由瑞典文学院颁发，授予在文学领域创作出具有理想倾向的最佳作品的人。是全球文学界最高荣誉。
-            </div>
-            <div class="award-stats">
-                <div class="stat-item">
-                    <span class="stat-value">123年</span>
-                    <span class="stat-label">历史</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">1人/年</span>
-                    <span class="stat-label">获奖者</span>
-                </div>
-            </div>
+        <div class="filter-group">
+            <label class="filter-label">类别</label>
+            <select class="filter-select" id="categoryFilter">
+                <option value="">全部类别</option>
+            </select>
         </div>
 
-        <!-- 美国国家图书奖 -->
-        <div class="award-card">
-            <div class="award-header">
-                <div class="award-icon national">
-                    <i class="fa fa-flag"></i>
-                </div>
-                <div>
-                    <div class="award-title">美国国家图书奖</div>
-                    <div class="award-country">美国 · 1950年创立</div>
-                </div>
-            </div>
-            <div class="award-description">
-                美国文学界的重要奖项，分为小说、非虚构、诗歌和青年文学四个类别。旨在表彰美国作家的杰出作品。
-            </div>
-            <div class="award-stats">
-                <div class="stat-item">
-                    <span class="stat-value">74届</span>
-                    <span class="stat-label">历史</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">4类</span>
-                    <span class="stat-label">文学奖项</span>
-                </div>
-            </div>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索书名或作者...">
+            <i class="fa fa-search"></i>
         </div>
 
-        <!-- 龚古尔文学奖 -->
-        <div class="award-card">
-            <div class="award-header">
-                <div class="award-icon goncourt">
-                    <i class="fa fa-pencil"></i>
-                </div>
-                <div>
-                    <div class="award-title">龚古尔文学奖</div>
-                    <div class="award-country">法国 · 1903年创立</div>
-                </div>
-            </div>
-            <div class="award-description">
-                法国最重要的文学奖，每年颁发给当年出版的最佳小说。与法兰西学院奖并列为法国两大文学奖。
-            </div>
-            <div class="award-stats">
-                <div class="stat-item">
-                    <span class="stat-value">121届</span>
-                    <span class="stat-label">历史</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">1类</span>
-                    <span class="stat-label">小说奖</span>
-                </div>
+        <button class="filter-btn" onclick="loadBooks()">
+            <i class="fa fa-filter"></i> 筛选
+        </button>
+    </div>
+
+    <!-- 图书网格 -->
+    <div class="books-grid" id="booksGrid">
+        <div class="loading">
+            <i class="fa fa-spinner"></i>
+            <p>正在加载图书数据...</p>
+        </div>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination" id="pagination" style="display: none;">
+        <button id="prevBtn" onclick="changePage(-1)">上一页</button>
+        <span class="page-info" id="pageInfo">第 1 页</span>
+        <button id="nextBtn" onclick="changePage(1)">下一页</button>
+    </div>
+
+    <!-- 详情模态框 -->
+    <div class="modal" id="bookModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div class="modal-body" id="modalBody">
+                <!-- 动态填充 -->
             </div>
         </div>
     </div>
 
-    <div class="coming-soon">
-        <i class="fa fa-clock-o"></i>
-        <h2>功能开发中</h2>
-        <p>2023-2026年度获奖作品数据整理中，即将上线...</p>
-    </div>
+    <script>
+        // 全局状态
+        let currentPage = 1;
+        let currentFilters = {};
+        let awards = [];
 
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAwards();
+            loadBooks();
+
+            // 搜索防抖
+            let searchTimeout;
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    currentFilters.keyword = e.target.value;
+                    currentPage = 1;
+                    loadBooks();
+                }, 300);
+            });
+        });
+
+        // 加载奖项列表
+        async function loadAwards() {
+            try {
+                const response = await fetch('/api/awards');
+                const data = await response.json();
+
+                if (data.success) {
+                    awards = data.data.awards;
+                    const select = document.getElementById('awardFilter');
+
+                    awards.forEach(award => {
+                        const option = document.createElement('option');
+                        option.value = award.id;
+                        option.textContent = award.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('加载奖项失败:', error);
+            }
+        }
+
+        // 加载图书列表
+        async function loadBooks() {
+            const grid = document.getElementById('booksGrid');
+            grid.innerHTML = `
+                <div class="loading">
+                    <i class="fa fa-spinner"></i>
+                    <p>正在加载图书数据...</p>
+                </div>
+            `;
+
+            // 获取筛选条件
+            const awardId = document.getElementById('awardFilter').value;
+            const year = document.getElementById('yearFilter').value;
+            const category = document.getElementById('categoryFilter').value;
+
+            currentFilters = {
+                award_id: awardId || undefined,
+                year: year || undefined,
+                category: category || undefined,
+                keyword: currentFilters.keyword,
+                page: currentPage,
+                limit: 12
+            };
+
+            // 构建URL
+            const params = new URLSearchParams();
+            Object.entries(currentFilters).forEach(([key, value]) => {
+                if (value) params.append(key, value);
+            });
+
+            try {
+                const response = await fetch(`/api/award-books?${params}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    renderBooks(data.data.books);
+                    renderPagination(data.data.pagination);
+                } else {
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fa fa-exclamation-circle"></i>
+                            <h3>加载失败</h3>
+                            <p>${data.message}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载图书失败:', error);
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fa fa-exclamation-circle"></i>
+                        <h3>加载失败</h3>
+                        <p>请稍后重试</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 渲染图书列表
+        function renderBooks(books) {
+            const grid = document.getElementById('booksGrid');
+
+            if (books.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1/-1;">
+                        <i class="fa fa-inbox"></i>
+                        <h3>暂无数据</h3>
+                        <p>没有找到符合条件的图书</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = books.map(book => {
+                const award = awards.find(a => a.id === book.award_id);
+                const rankBadge = book.rank && book.rank <= 3 ? `
+                    <div class="rank-badge ${book.rank === 1 ? 'gold' : book.rank === 2 ? 'silver' : 'bronze'}">
+                        ${book.rank}
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="book-card" onclick="showBookDetail(${book.id})">
+                        ${rankBadge}
+                        <img class="book-cover" src="${book.cover_local_path || '/static/default-cover.png'}" alt="${book.title}" onerror="this.src='/static/default-cover.png'">
+                        <div class="book-info">
+                            <span class="book-award-badge">${award ? award.name : '奖项'}</span>
+                            <div class="book-title">${book.title}</div>
+                            ${book.title_zh ? `<div class="book-title-zh">${book.title_zh}</div>` : ''}
+                            <div class="book-author">${book.author}</div>
+                            <div class="book-meta">
+                                <span><i class="fa fa-calendar"></i> ${book.year}年</span>
+                                <span><i class="fa fa-tag"></i> ${book.category || '未分类'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 渲染分页
+        function renderPagination(pagination) {
+            const paginationEl = document.getElementById('pagination');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const pageInfo = document.getElementById('pageInfo');
+
+            if (pagination.total <= pagination.limit) {
+                paginationEl.style.display = 'none';
+                return;
+            }
+
+            paginationEl.style.display = 'flex';
+            prevBtn.disabled = pagination.page <= 1;
+            nextBtn.disabled = pagination.page >= pagination.pages;
+            pageInfo.textContent = `第 ${pagination.page} / ${pagination.pages} 页 (共 ${pagination.total} 本)`;
+        }
+
+        // 切换页面
+        function changePage(delta) {
+            currentPage += delta;
+            loadBooks();
+        }
+
+        // 显示图书详情
+        async function showBookDetail(bookId) {
+            try {
+                const response = await fetch(`/api/award-books/${bookId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const book = data.data.book;
+                    const award = awards.find(a => a.id === book.award_id);
+
+                    document.getElementById('modalBody').innerHTML = `
+                        <div>
+                            <img class="modal-cover" src="${book.cover_local_path || '/static/default-cover.png'}" alt="${book.title}" onerror="this.src='/static/default-cover.png'">
+                        </div>
+                        <div class="modal-info">
+                            <span class="book-award-badge">${award ? award.name : '奖项'}</span>
+                            <h2>${book.title}</h2>
+                            ${book.title_zh ? `<div class="title-zh">${book.title_zh}</div>` : ''}
+
+                            <div class="modal-meta">
+                                <div class="modal-meta-item">
+                                    <span class="modal-meta-label">作者</span>
+                                    <span class="modal-meta-value">${book.author}</span>
+                                </div>
+                                <div class="modal-meta-item">
+                                    <span class="modal-meta-label">获奖年份</span>
+                                    <span class="modal-meta-value">${book.year}年</span>
+                                </div>
+                                <div class="modal-meta-item">
+                                    <span class="modal-meta-label">类别</span>
+                                    <span class="modal-meta-value">${book.category || '未分类'}</span>
+                                </div>
+                                <div class="modal-meta-item">
+                                    <span class="modal-meta-label">出版社</span>
+                                    <span class="modal-meta-value">${book.publisher || '未知'}</span>
+                                </div>
+                                ${book.isbn13 ? `
+                                <div class="modal-meta-item">
+                                    <span class="modal-meta-label">ISBN</span>
+                                    <span class="modal-meta-value">${book.isbn13}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+
+                            <div class="modal-description">
+                                <h3>简介</h3>
+                                <p>${book.description || '暂无简介'}</p>
+                                ${book.description_zh ? `<p style="margin-top: 10px; color: #666;">${book.description_zh}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('bookModal').classList.add('show');
+                }
+            } catch (error) {
+                console.error('加载图书详情失败:', error);
+                alert('加载详情失败，请稍后重试');
+            }
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('bookModal').classList.remove('show');
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('bookModal').addEventListener('click', (e) => {
+            if (e.target.id === 'bookModal') {
+                closeModal();
+            }
+        });
+
+        // ESC键关闭模态框
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
 </body>
 </html>

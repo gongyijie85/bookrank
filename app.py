@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 # 导入API蓝图
 from app.routes.api import api_bp
+from app.routes.main import main_bp
 
 # =========================================================
 # 修复 Windows 上的 fcntl 错误：
@@ -52,6 +53,7 @@ application = app  # Required by Elastic Beanstalk
 
 # 注册API蓝图
 app.register_blueprint(api_bp)
+app.register_blueprint(main_bp)
 
 # Configure logging
 logging.basicConfig(
