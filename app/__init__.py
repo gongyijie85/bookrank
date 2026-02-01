@@ -71,20 +71,25 @@ def _init_extensions(app):
 
 
 def _init_awards_data(app):
-    """自动初始化奖项数据（仅在数据库为空时执行）"""
+    """自动初始化奖项数据（Render免费版优化：智能更新）"""
     try:
         with app.app_context():
-            from .models.schemas import Award
+            from .models.schemas import Award, AwardBook
+            
+            app.logger.info("🚀 开始检查奖项数据...")
             
             # 检查是否已有奖项数据
             award_count = Award.query.count()
-            if award_count > 0:
-                app.logger.info(f"✅ 奖项数据已存在 ({award_count} 个奖项)，跳过初始化")
+            book_count = AwardBook.query.count()
+            
+            # 如果数据已存在且完整，跳过初始化
+            if award_count >= 5 and book_count >= 12:
+                app.logger.info(f"✅ 数据已完整 ({award_count} 个奖项, {book_count} 本图书)")
                 return
             
-            app.logger.info("🚀 开始自动初始化奖项数据...")
+            app.logger.info(f"📊 当前数据: {award_count} 个奖项, {book_count} 本图书")
             
-            # 创建奖项数据
+            # 定义奖项数据
             awards_data = [
                 {
                     'name': '普利策奖',
@@ -138,12 +143,20 @@ def _init_awards_data(app):
                 }
             ]
             
+            # 智能创建：只创建不存在的奖项
+            created_awards = 0
             for award_data in awards_data:
-                award = Award(**award_data)
-                db.session.add(award)
+                existing = Award.query.filter_by(name=award_data['name']).first()
+                if not existing:
+                    award = Award(**award_data)
+                    db.session.add(award)
+                    created_awards += 1
             
-            db.session.commit()
-            app.logger.info(f"✅ 已创建 {len(awards_data)} 个奖项")
+            if created_awards > 0:
+                db.session.commit()
+                app.logger.info(f"✅ 已创建 {created_awards} 个新奖项")
+            else:
+                app.logger.info("✅ 所有奖项已存在")
             
             # 创建示例图书数据
             _init_sample_books(app)
@@ -240,10 +253,36 @@ def _init_sample_books(app):
              'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1611954638i/55835474.jpg'},
         ]
         
+        # 智能创建：只创建不存在的图书（根据ISBN判断）
         created_count = 0
+        updated_count = 0
+        
         for book_data in sample_books:
             award = Award.query.filter_by(name=book_data['award_name']).first()
-            if award:
+            if not award:
+                continue
+            
+            isbn = book_data.get('isbn13')
+            
+            # 检查是否已存在（根据ISBN或标题+作者）
+            if isbn:
+                existing = AwardBook.query.filter_by(isbn13=isbn).first()
+            else:
+                existing = AwardBook.query.filter_by(
+                    title=book_data['title'],
+                    author=book_data['author']
+                ).first()
+            
+            if existing:
+                # 更新现有记录（补充ISBN和封面）
+                if isbn and not existing.isbn13:
+                    existing.isbn13 = isbn
+                    updated_count += 1
+                if book_data.get('cover_url') and not existing.cover_original_url:
+                    existing.cover_original_url = book_data['cover_url']
+                    updated_count += 1
+            else:
+                # 创建新记录
                 book = AwardBook(
                     award_id=award.id,
                     year=book_data['year'],
@@ -252,14 +291,17 @@ def _init_sample_books(app):
                     title=book_data['title'],
                     author=book_data['author'],
                     description=book_data['description'],
-                    isbn13=book_data.get('isbn13'),
+                    isbn13=isbn,
                     cover_original_url=book_data.get('cover_url')
                 )
                 db.session.add(book)
                 created_count += 1
         
-        db.session.commit()
-        app.logger.info(f"✅ 已创建 {created_count} 本示例图书")
+        if created_count > 0 or updated_count > 0:
+            db.session.commit()
+            app.logger.info(f"✅ 图书: 新建 {created_count} 本, 更新 {updated_count} 本")
+        else:
+            app.logger.info("✅ 所有图书已是最新")
         
     except Exception as e:
         app.logger.error(f"❌ 初始化示例图书失败: {e}", exc_info=True)
