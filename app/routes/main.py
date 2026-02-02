@@ -23,14 +23,14 @@ def index():
     update_time = None
     
     try:
-        # 获取应用中的缓存服务
-        cache_service = current_app.extensions.get('cache_service')
-        if cache_service:
-            cache_key = f"books_{category}"
-            cached_data = cache_service.get(cache_key)
-            if cached_data:
-                books_data = cached_data
-                update_time = cache_service.get_cache_time(cache_key)
+        # 获取应用中的图书服务（包含缓存服务）
+        book_service = current_app.extensions.get('book_service')
+        if book_service:
+            # 使用 BookService 获取图书数据
+            books = book_service.get_books_by_category(category)
+            if books:
+                books_data = [book.to_dict() for book in books]
+                update_time = book_service._cache.get_cache_time(f"books_{category}")
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Failed to get cached books: {e}")
