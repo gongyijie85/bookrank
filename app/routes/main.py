@@ -11,22 +11,43 @@ main_bp = Blueprint('main', __name__)
 def index():
     """首页 - 畅销书榜单"""
     from flask import current_app
+    from datetime import datetime
     
     # 获取分类参数
     category = request.args.get('category', 'combined-print-and-e-book-fiction')
     search_query = request.args.get('search', '')
     view_mode = request.args.get('view', 'grid')
     
-    # TODO: 从缓存或API获取畅销书数据
-    # 暂时返回空数据，等待数据同步
+    # 尝试从缓存服务获取数据
     books_data = []
+    update_time = None
+    
+    try:
+        # 获取应用中的缓存服务
+        cache_service = current_app.extensions.get('cache_service')
+        if cache_service:
+            cache_key = f"books_{category}"
+            cached_data = cache_service.get(cache_key)
+            if cached_data:
+                books_data = cached_data
+                update_time = cache_service.get_cache_time(cache_key)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to get cached books: {e}")
+    
+    # 处理搜索过滤
+    if search_query and books_data:
+        books_data = [b for b in books_data if 
+                      search_query.lower() in b.get('title', '').lower() or 
+                      search_query.lower() in b.get('author', '').lower()]
     
     return render_template('index.html', 
                           categories=current_app.config['CATEGORIES'],
                           books=books_data,
                           current_category=category,
                           search_query=search_query,
-                          view_mode=view_mode)
+                          view_mode=view_mode,
+                          update_time=update_time)
 
 
 @main_bp.route('/cache/images/<filename>')
@@ -97,6 +118,10 @@ def awards():
     for book in books:
         award = Award.query.get(book.award_id)
         book.award_name = award.name if award else '未知奖项'
+    
+    # 为每个奖项计算图书数量
+    for award in awards_list:
+        award.book_count = AwardBook.query.filter_by(award_id=award.id).count()
     
     return render_template('awards.html',
                           awards=awards_list,
