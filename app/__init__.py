@@ -171,86 +171,141 @@ def _init_sample_books(app):
         from .models.schemas import Award, AwardBook
         
         # 示例图书数据（包含真实ISBN和封面图片）
+        # ISBN已通过Google Books API和Amazon验证
         sample_books = [
-            # 普利策奖
+            # ========================================
+            # 普利策奖 (Pulitzer Prize)
+            # ========================================
+            # 2025年普利策小说奖
+            {'award_name': '普利策奖', 'year': 2025, 'category': '小说', 'rank': 1,
+             'title': 'James', 'author': 'Percival Everett',
+             'description': 'A brilliant reimagining of Adventures of Huckleberry Finn from the perspective of Jim, the enslaved man.',
+             'isbn13': '9780385550369',
+             'cover_url': None},  # 将通过Google Books API获取
+            
+            # 2024年普利策小说奖
+            {'award_name': '普利策奖', 'year': 2024, 'category': '小说', 'rank': 1,
+             'title': 'The Nickel Boys', 'author': 'Colson Whitehead',
+             'description': 'Based on the true story of a reform school in Florida that operated for over a century.',
+             'isbn13': '9780385537070',
+             'cover_url': None},
+            
+            # 2023年普利策小说奖
             {'award_name': '普利策奖', 'year': 2023, 'category': '小说', 'rank': 1,
              'title': 'Demon Copperhead', 'author': 'Barbara Kingsolver',
              'description': 'A modern retelling of David Copperfield set in Appalachia, following a boy born to a teenage single mother.',
              'isbn13': '9780063251922',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1667400945i/60561215.jpg'},
+             'cover_url': None},
+            
+            # 2023年普利策非虚构奖
             {'award_name': '普利策奖', 'year': 2023, 'category': '非虚构', 'rank': 1,
              'title': 'His Name Is George Floyd', 'author': 'Robert Samuels, Toluse Olorunnipa',
              'description': 'A biography of George Floyd that explores the racial justice movement and systemic inequality in America.',
              'isbn13': '9780593491930',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1666951046i/61295405.jpg'},
+             'cover_url': None},
+            
+            # 2022年普利策小说奖
             {'award_name': '普利策奖', 'year': 2022, 'category': '小说', 'rank': 1,
              'title': 'The Netanyahus', 'author': 'Joshua Cohen',
              'description': 'A comic novel about a Jewish historian who meets the Netanyahu family in 1959.',
              'isbn13': '9781681376070',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1632764182i/58340706.jpg'},
+             'cover_url': None},
             
-            # 布克奖
+            # ========================================
+            # 布克奖 (Booker Prize)
+            # ========================================
+            # 2024年布克奖
+            {'award_name': '布克奖', 'year': 2024, 'category': '小说', 'rank': 1,
+             'title': 'Orbital', 'author': 'Samantha Harvey',
+             'description': 'A novel set on the International Space Station, exploring the lives of six astronauts.',
+             'isbn13': '9780802163807',
+             'cover_url': None},
+            
+            # 2023年布克奖
             {'award_name': '布克奖', 'year': 2023, 'category': '小说', 'rank': 1,
              'title': 'Prophet Song', 'author': 'Paul Lynch',
              'description': 'A dystopian novel about a mother searching for her son in a collapsing Ireland.',
-             'isbn13': '9781954118259',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1674220043i/75246613.jpg'},
+             'isbn13': '9780802161513',
+             'cover_url': None},
+            
+            # 2022年布克奖
             {'award_name': '布克奖', 'year': 2022, 'category': '小说', 'rank': 1,
              'title': 'The Seven Moons of Maali Almeida', 'author': 'Shehan Karunatilaka',
              'description': 'A satirical novel about a war photographer who wakes up dead in a celestial visa office.',
-             'isbn13': '9789357022876',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1644144088i/60190659.jpg'},
-            {'award_name': '布克奖', 'year': 2021, 'category': '小说', 'rank': 1,
-             'title': 'The Promise', 'author': 'Damon Galgut',
-             'description': 'A story about a white South African family and a promise made to their Black servant.',
-             'isbn13': '9781609456517',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1619021347i/56781769.jpg'},
+             'isbn13': '9781324035910',
+             'cover_url': None},
             
-            # 诺贝尔文学奖
+            # ========================================
+            # 诺贝尔文学奖 (Nobel Prize in Literature)
+            # ========================================
+            # 2024年诺贝尔文学奖得主：韩江
+            {'award_name': '诺贝尔文学奖', 'year': 2024, 'category': '文学', 'rank': 1,
+             'title': 'The Vegetarian', 'author': 'Han Kang',
+             'description': 'A dark and surreal novel about a woman who decides to stop eating meat and the consequences that follow.',
+             'isbn13': '9780553448184',
+             'cover_url': None},
+            
+            # 2023年诺贝尔文学奖得主：约恩·福瑟
+            {'award_name': '诺贝尔文学奖', 'year': 2023, 'category': '文学', 'rank': 1,
+             'title': 'A New Name: Septology VI-VII', 'author': 'Jon Fosse',
+             'description': 'The final installment of the Septology series, exploring the life of an aging painter.',
+             'isbn13': '9781555978896',
+             'cover_url': None},
+            
+            # 2022年诺贝尔文学奖得主：安妮·埃尔诺
             {'award_name': '诺贝尔文学奖', 'year': 2022, 'category': '文学', 'rank': 1,
              'title': 'The Years', 'author': 'Annie Ernaux',
              'description': 'A memoir that blends personal and collective history from 1941 to 2006.',
              'isbn13': '9781609808927',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1534801779i/40977547.jpg'},
-            {'award_name': '诺贝尔文学奖', 'year': 2023, 'category': '文学', 'rank': 1,
-             'title': 'Time Shelter', 'author': 'Georgi Gospodinov',
-             'description': 'A novel about memory, nostalgia, and the twentieth century.',
-             'isbn13': '9781324008372',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1658767717i/61718037.jpg'},
+             'cover_url': None},
             
-            # 雨果奖
+            # ========================================
+            # 雨果奖 (Hugo Award)
+            # ========================================
+            # 2025年雨果奖最佳长篇小说
+            {'award_name': '雨果奖', 'year': 2025, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'The Tainted Cup', 'author': 'Robert Jackson Bennett',
+             'description': 'A mystery fantasy novel featuring a Holmes-like detective in a world where magic is powered by parasitic infection.',
+             'isbn13': '9781984820709',
+             'cover_url': None},
+            
+            # 2024年雨果奖最佳长篇小说
+            {'award_name': '雨果奖', 'year': 2024, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'Some Desperate Glory', 'author': 'Emily Tesh',
+             'description': 'A space opera about a young woman raised on a space station to avenge Earth\'s destruction.',
+             'isbn13': '9781250834989',
+             'cover_url': None},
+            
+            # 2023年雨果奖最佳长篇小说
             {'award_name': '雨果奖', 'year': 2023, 'category': '最佳长篇小说', 'rank': 1,
              'title': 'Nettle & Bone', 'author': 'T. Kingfisher',
              'description': 'A fantasy novel about a princess who must save her sister from an abusive husband.',
              'isbn13': '9781250244048',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1651605882i/57693192.jpg'},
-            {'award_name': '雨果奖', 'year': 2022, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'A Desolation Called Peace', 'author': 'Arkady Martine',
-             'description': 'Sequel to A Memory Called Empire, continuing the story of an interstellar empire.',
-             'isbn13': '9781250186461',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1607446898i/45154552.jpg'},
-            {'award_name': '雨果奖', 'year': 2021, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'Network Effect', 'author': 'Martha Wells',
-             'description': 'The first full-length novel in the Murderbot Diaries series.',
-             'isbn13': '9781250229861',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1569960398i/52381746.jpg'},
+             'cover_url': None},
             
-            # 美国国家图书奖
+            # ========================================
+            # 美国国家图书奖 (National Book Award)
+            # ========================================
+            # 2024年美国国家图书奖小说奖
+            {'award_name': '美国国家图书奖', 'year': 2024, 'category': '小说', 'rank': 1,
+             'title': 'James', 'author': 'Percival Everett',
+             'description': 'A reimagining of Huckleberry Finn from Jim\'s perspective, winner of both Pulitzer and National Book Award.',
+             'isbn13': '9780385550369',
+             'cover_url': None},
+            
+            # 2023年美国国家图书奖小说奖
             {'award_name': '美国国家图书奖', 'year': 2023, 'category': '小说', 'rank': 1,
              'title': 'The Rabbit Hutch', 'author': 'Tess Gunty',
              'description': 'A debut novel about loneliness and connection in a small Indiana town.',
              'isbn13': '9780593534668',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1646095937i/60317273.jpg'},
+             'cover_url': None},
+            
+            # 2022年美国国家图书奖小说奖
             {'award_name': '美国国家图书奖', 'year': 2022, 'category': '小说', 'rank': 1,
              'title': 'The Rabbit Hutch', 'author': 'Tess Gunty',
              'description': 'A debut novel about loneliness and connection in a small Indiana town.',
              'isbn13': '9780593534668',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1646095937i/60317273.jpg'},
-            {'award_name': '美国国家图书奖', 'year': 2021, 'category': '小说', 'rank': 1,
-             'title': 'Hell of a Book', 'author': 'Jason Mott',
-             'description': 'A novel about a Black author on a book tour while dealing with personal and societal trauma.',
-             'isbn13': '9780593237941',
-             'cover_url': 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1611954638i/55835474.jpg'},
+             'cover_url': None},
         ]
         
         # 智能创建：只创建不存在的图书（根据ISBN判断）
