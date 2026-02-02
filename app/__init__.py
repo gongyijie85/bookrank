@@ -77,12 +77,21 @@ def _init_awards_data(app):
         with app.app_context():
             from .models.schemas import Award, AwardBook
             from .services import WikidataClient
+            from .models.database import db
             
             app.logger.info("🚀 开始检查奖项数据...")
             
-            # 检查是否已有奖项数据
-            award_count = Award.query.count()
-            book_count = AwardBook.query.count()
+            # 尝试检查数据，如果表结构不匹配则重新创建
+            try:
+                award_count = Award.query.count()
+                book_count = AwardBook.query.count()
+            except Exception as e:
+                app.logger.warning(f"⚠️ 数据库表结构可能已改变: {e}")
+                app.logger.info("🔄 重新创建数据库表...")
+                db.drop_all()
+                db.create_all()
+                award_count = 0
+                book_count = 0
             
             # 如果数据已存在且完整，跳过初始化
             if award_count >= 5 and book_count >= 12:

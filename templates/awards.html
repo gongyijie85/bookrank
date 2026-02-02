@@ -174,7 +174,7 @@
 <!-- Books Grid View -->
 <div class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' or not view_mode %}grid{% else %}none{% endif %}">
     {% for book in books %}
-    <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+    <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
         <div class="card-image">
             <img src="{{ book.cover_local_path if book.cover_local_path else url_for('static', filename='default-cover.png') }}" 
                  alt="{{ book.title }}"
@@ -190,7 +190,7 @@
             <div class="card-badge year">{{ book.year }}</div>
             
             <!-- Favorite Button -->
-            <button class="card-favorite" onclick="toggleFavorite(this, '{{ book.id }}')">
+            <button class="card-favorite" onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')">
                 <i class="fa fa-heart-o"></i>
             </button>
         </div>
@@ -216,7 +216,7 @@
 <!-- Books List View -->
 <div class="books-list" id="books-list" style="display: {% if view_mode == 'list' %}flex{% else %}none{% endif %}">
     {% for book in books %}
-    <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+    <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
         <div class="list-item-image">
             <img src="{{ book.cover_local_path if book.cover_local_path else url_for('static', filename='default-cover.png') }}" 
                  alt="{{ book.title }}"
@@ -246,7 +246,7 @@
         </div>
         
         <div class="list-item-actions">
-            <button class="btn btn-icon btn-outline" onclick="toggleFavorite(this, '{{ book.id }}')">
+            <button class="btn btn-icon btn-outline" onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')">
                 <i class="fa fa-heart-o"></i>
             </button>
         </div>
@@ -274,6 +274,77 @@
         <i class="fa fa-arrow-right"></i>
     </a>
 </div>
+
+<!-- Book Detail Modal -->
+<div class="modal" id="book-modal" onclick="closeBookModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <button class="modal-close" onclick="closeBookModal()">
+            <i class="fa fa-times"></i>
+        </button>
+        
+        <div class="modal-body">
+            <div class="modal-left">
+                <div class="modal-cover">
+                    <img id="modal-cover-img" src="" alt="">
+                    <div class="modal-rank" id="modal-rank"></div>
+                </div>
+            </div>
+            
+            <div class="modal-right">
+                <div class="modal-header">
+                    <h2 id="modal-title"></h2>
+                    <p class="modal-author" id="modal-author"></p>
+                </div>
+                
+                <div class="modal-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">奖项</span>
+                        <span class="meta-value" id="modal-award"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">年份</span>
+                        <span class="meta-value" id="modal-year"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">类别</span>
+                        <span class="meta-value" id="modal-category"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">出版社</span>
+                        <span class="meta-value" id="modal-publisher"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">出版年份</span>
+                        <span class="meta-value" id="modal-publication-year"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">ISBN-13</span>
+                        <span class="meta-value" id="modal-isbn"></span>
+                    </div>
+                </div>
+                
+                <div class="modal-tabs">
+                    <button class="tab-btn active" onclick="switchTab('description')">图书简介</button>
+                    <button class="tab-btn" onclick="switchTab('details')">详细信息</button>
+                </div>
+                
+                <div class="modal-tab-content">
+                    <div class="tab-panel active" id="tab-description">
+                        <p id="modal-description"></p>
+                    </div>
+                    <div class="tab-panel" id="tab-details">
+                        <p id="modal-details"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Books Data for JavaScript -->
+<script>
+    window.booksData = {{ books|tojson|safe }};
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -329,6 +400,54 @@
     document.getElementById('search-input').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             applyFilters();
+        }
+    });
+    
+    // Book Modal Functions
+    function openBookModal(bookIndex) {
+        const book = window.booksData[bookIndex];
+        if (!book) return;
+        
+        // Fill modal content
+        document.getElementById('modal-cover-img').src = book.cover_local_path || '/static/default-cover.png';
+        document.getElementById('modal-rank').textContent = bookIndex + 1;
+        document.getElementById('modal-title').textContent = book.title || '';
+        document.getElementById('modal-author').textContent = book.author || '';
+        document.getElementById('modal-award').textContent = book.award_name || '';
+        document.getElementById('modal-year').textContent = (book.year || '') + '年';
+        document.getElementById('modal-category').textContent = book.category || '';
+        document.getElementById('modal-publisher').textContent = book.publisher || '未知';
+        document.getElementById('modal-publication-year').textContent = book.publication_year || '未知';
+        document.getElementById('modal-isbn').textContent = book.isbn13 || '';
+        document.getElementById('modal-description').textContent = book.description || '暂无简介';
+        document.getElementById('modal-details').textContent = book.description || '暂无详细信息';
+        
+        // Show modal
+        document.getElementById('book-modal').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeBookModal(event) {
+        if (!event || event.target.id === 'book-modal' || event.target.closest('.modal-close')) {
+            document.getElementById('book-modal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+    
+    function switchTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        // Update tab panels
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeBookModal();
         }
     });
 </script>
