@@ -140,6 +140,36 @@ def _init_awards_data(app):
                     'icon_class': 'fa-graduation-cap',
                     'established_year': 1901,
                     'award_month': 10
+                },
+                {
+                    'name': '星云奖',
+                    'name_en': 'Nebula Award',
+                    'country': '美国',
+                    'description': '美国科幻和奇幻作家协会颁发的年度大奖，与雨果奖并称为科幻界双璧。评选范围包括最佳长篇小说、中篇小说、短篇小说等。',
+                    'category_count': 6,
+                    'icon_class': 'fa-star',
+                    'established_year': 1965,
+                    'award_month': 5
+                },
+                {
+                    'name': '国际布克奖',
+                    'name_en': 'International Booker Prize',
+                    'country': '英国',
+                    'description': '布克奖的姊妹奖项，专门颁发给翻译成英语并在英国出版的外国小说。作者和译者平分奖金，是挖掘非英语佳作的重要风向标。',
+                    'category_count': 1,
+                    'icon_class': 'fa-globe',
+                    'established_year': 2005,
+                    'award_month': 5
+                },
+                {
+                    'name': '爱伦·坡奖',
+                    'name_en': 'Edgar Award',
+                    'country': '美国',
+                    'description': '美国推理作家协会颁发的年度大奖，以推理小说之父爱伦·坡命名。是推理小说界的最高荣誉，涵盖小说、电视、电影等多个领域。',
+                    'category_count': 12,
+                    'icon_class': 'fa-user-secret',
+                    'established_year': 1946,
+                    'award_month': 4
                 }
             ]
             
@@ -305,6 +335,71 @@ def _init_sample_books(app):
              'title': 'The Rabbit Hutch', 'author': 'Tess Gunty',
              'description': 'A debut novel about loneliness and connection in a small Indiana town.',
              'isbn13': '9780593534668',
+             'cover_url': None},
+            
+            # ========================================
+            # 星云奖 (Nebula Award)
+            # ========================================
+            # 2023年星云奖最佳长篇小说
+            {'award_name': '星云奖', 'year': 2023, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'Babel: Or the Necessity of Violence', 'author': 'R.F. Kuang',
+             'description': 'A dark academia fantasy about a magical translation institute in 1830s Oxford, exploring colonialism and language.',
+             'isbn13': '9780063021426',
+             'cover_url': None},
+            
+            # 2022年星云奖最佳长篇小说
+            {'award_name': '星云奖', 'year': 2022, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'A Desolation Called Peace', 'author': 'Arkady Martine',
+             'description': 'Sequel to A Memory Called Empire, continuing the story of an interstellar empire and its complex diplomatic relations.',
+             'isbn13': '9781250186461',
+             'cover_url': None},
+            
+            # ========================================
+            # 国际布克奖 (International Booker Prize)
+            # ========================================
+            # 2024年国际布克奖
+            {'award_name': '国际布克奖', 'year': 2024, 'category': '翻译小说', 'rank': 1,
+             'title': 'Kairos', 'author': 'Jenny Erpenbeck',
+             'description': 'A love story set in East Germany before the fall of the Berlin Wall, exploring personal and political transformation.',
+             'isbn13': '9780811232011',
+             'cover_url': None},
+            
+            # 2023年国际布克奖
+            {'award_name': '国际布克奖', 'year': 2023, 'category': '翻译小说', 'rank': 1,
+             'title': 'Time Shelter', 'author': 'Georgi Gospodinov',
+             'description': 'A novel about a clinic that recreates past decades to help Alzheimer\'s patients, exploring memory and nostalgia.',
+             'isbn13': '9781324008372',
+             'cover_url': None},
+            
+            # 2022年国际布克奖
+            {'award_name': '国际布克奖', 'year': 2022, 'category': '翻译小说', 'rank': 1,
+             'title': 'Tomb of Sand', 'author': 'Geetanjali Shree',
+             'description': 'An Indian widow defies expectations and travels to Pakistan to confront her past, translated from Hindi.',
+             'isbn13': '9781953861162',
+             'cover_url': None},
+            
+            # ========================================
+            # 爱伦·坡奖 (Edgar Award)
+            # ========================================
+            # 2024年爱伦·坡奖最佳小说
+            {'award_name': '爱伦·坡奖', 'year': 2024, 'category': '最佳小说', 'rank': 1,
+             'title': 'The River We Remember', 'author': 'William Kent Krueger',
+             'description': 'A murder mystery set in 1950s Minnesota, exploring small-town secrets and racial tensions.',
+             'isbn13': '9781982178697',
+             'cover_url': None},
+            
+            # 2023年爱伦·坡奖最佳小说
+            {'award_name': '爱伦·坡奖', 'year': 2023, 'category': '最佳小说', 'rank': 1,
+             'title': 'The Accomplice', 'author': 'Lisa Lutz',
+             'description': 'A psychological thriller about two lifelong friends bound by a dark secret from their teenage years.',
+             'isbn13': '9781982168322',
+             'cover_url': None},
+            
+            # 2022年爱伦·坡奖最佳小说
+            {'award_name': '爱伦·坡奖', 'year': 2022, 'category': '最佳小说', 'rank': 1,
+             'title': 'Billy Summers', 'author': 'Stephen King',
+             'description': 'A hired killer with a conscience takes on one last job, but things go terribly wrong.',
+             'isbn13': '9781982173616',
              'cover_url': None},
         ]
         
