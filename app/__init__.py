@@ -93,12 +93,15 @@ def _init_awards_data(app):
                 award_count = 0
                 book_count = 0
             
-            # 如果数据已存在且完整，跳过初始化
-            if award_count >= 5 and book_count >= 12:
-                app.logger.info(f"✅ 数据已完整 ({award_count} 个奖项, {book_count} 本图书)")
-                return
-            
             app.logger.info(f"📊 当前数据: {award_count} 个奖项, {book_count} 本图书")
+            
+            # 如果数据已存在，先尝试补充缺失的封面和详情
+            if award_count >= 5 and book_count >= 12:
+                app.logger.info(f"✅ 基础数据已完整 ({award_count} 个奖项, {book_count} 本图书)")
+                app.logger.info("🔄 检查并补充缺失的封面和详情...")
+                _fetch_missing_covers(app)
+                _enrich_books_from_google_books(app)
+                return
             
             # 定义奖项基础数据（硬编码作为fallback）
             awards_fallback_data = {

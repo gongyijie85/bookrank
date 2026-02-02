@@ -369,6 +369,17 @@
         
         // 详细信息标签页 - 显示更多元数据
         const detailsContent = document.getElementById('modal-details-content');
+        
+        // 构建详细描述内容（优先使用 details，否则使用更详细的描述）
+        let detailDescription = '';
+        if (book.details && book.details.length > 50) {
+            detailDescription = book.details;
+        } else if (book.description && book.description.length > 100) {
+            detailDescription = book.description;
+        } else {
+            detailDescription = '暂无详细描述';
+        }
+        
         detailsContent.innerHTML = `
             <div class="details-section">
                 <h4>图书信息</h4>
@@ -407,12 +418,10 @@
                     </div>
                 </div>
             </div>
-            ${book.details ? `
             <div class="details-section">
                 <h4>详细描述</h4>
-                <p>${book.details}</p>
+                <p>${detailDescription}</p>
             </div>
-            ` : ''}
         `;
         
         // Buy links
