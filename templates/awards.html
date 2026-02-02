@@ -333,10 +333,16 @@
                         <p id="modal-description"></p>
                     </div>
                     <div class="tab-panel" id="tab-details">
-                        <p id="modal-details"></p>
+                        <div id="modal-details-content"></div>
                     </div>
                 </div>
             </div>
+        </div>
+        
+        <!-- Buy Links Section -->
+        <div class="modal-buy-links" id="modal-buy-links">
+            <h4>购买链接</h4>
+            <div class="buy-links-list" id="buy-links-list"></div>
         </div>
     </div>
 </div>
@@ -419,8 +425,79 @@
         document.getElementById('modal-publisher').textContent = book.publisher || '未知';
         document.getElementById('modal-publication-year').textContent = book.publication_year || '未知';
         document.getElementById('modal-isbn').textContent = book.isbn13 || '';
+        
+        // 图书简介标签页
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
-        document.getElementById('modal-details').textContent = book.description || '暂无详细信息';
+        
+        // 详细信息标签页 - 显示更多元数据
+        const detailsContent = document.getElementById('modal-details-content');
+        if (detailsContent) {
+            detailsContent.innerHTML = `
+                <div class="details-section">
+                    <h4>图书信息</h4>
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">ISBN-10</span>
+                            <span class="detail-value">${book.isbn10 || '暂无'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">ISBN-13</span>
+                            <span class="detail-value">${book.isbn13 || '暂无'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">出版社</span>
+                            <span class="detail-value">${book.publisher || '暂无'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">出版年份</span>
+                            <span class="detail-value">${book.publication_year || '暂无'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">获奖年份</span>
+                            <span class="detail-value">${book.year || '暂无'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">类别</span>
+                            <span class="detail-value">${book.category || '暂无'}</span>
+                        </div>
+                    </div>
+                </div>
+                ${book.details ? `
+                <div class="details-section">
+                    <h4>详细描述</h4>
+                    <p>${book.details}</p>
+                </div>
+                ` : ''}
+            `;
+        }
+        
+        // 填充购买链接
+        const buyLinksContainer = document.getElementById('buy-links-list');
+        if (buyLinksContainer) {
+            buyLinksContainer.innerHTML = '';
+            
+            if (book.buy_links) {
+                try {
+                    const buyLinks = JSON.parse(book.buy_links);
+                    if (Object.keys(buyLinks).length > 0) {
+                        Object.entries(buyLinks).forEach(([name, url]) => {
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.target = '_blank';
+                            link.className = 'buy-link';
+                            link.innerHTML = `<i class="fa fa-external-link"></i> ${name}`;
+                            buyLinksContainer.appendChild(link);
+                        });
+                    } else {
+                        buyLinksContainer.innerHTML = '<span class="no-links">暂无购买链接</span>';
+                    }
+                } catch (e) {
+                    buyLinksContainer.innerHTML = '<span class="no-links">暂无购买链接</span>';
+                }
+            } else {
+                buyLinksContainer.innerHTML = '<span class="no-links">暂无购买链接</span>';
+            }
+        }
         
         // Show modal
         document.getElementById('book-modal').classList.add('active');

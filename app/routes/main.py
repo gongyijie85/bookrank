@@ -123,6 +123,7 @@ def awards():
             'title': book.title,
             'author': book.author,
             'description': book.description,
+            'details': book.details,
             'cover_local_path': book.cover_local_path,
             'cover_original_url': book.cover_original_url,
             'isbn13': book.isbn13,
@@ -131,7 +132,8 @@ def awards():
             'publication_year': book.publication_year,
             'year': book.year,
             'category': book.category,
-            'award_name': award.name if award else '未知奖项'
+            'award_name': award.name if award else '未知奖项',
+            'buy_links': book.buy_links
         }
         books_data.append(book_dict)
     

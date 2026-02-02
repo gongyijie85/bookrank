@@ -174,6 +174,10 @@ class AwardBook(db.Model):
     publisher = db.Column(db.String(200))                       # 出版社
     publication_year = db.Column(db.Integer)                    # 出版年份
     
+    # 详细信息和购买链接
+    details = db.Column(db.Text)                                # 详细描述
+    buy_links = db.Column(db.Text)                              # 购买链接JSON
+    
     # 时间戳
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

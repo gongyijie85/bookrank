@@ -10,9 +10,10 @@ import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 
+import json
 from ..models import db
 from ..models.schemas import Award, AwardBook, SystemConfig
-from .api_client import WikidataClient, OpenLibraryClient, ImageCacheService
+from .api_client import WikidataClient, OpenLibraryClient, ImageCacheService, GoogleBooksClient
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class AwardBookService:
         self.app = app
         self.wikidata_client = WikidataClient(timeout=30)
         self.openlib_client = OpenLibraryClient(timeout=10)
+        self.google_books_client = GoogleBooksClient(timeout=10)
         
         if app:
             self.image_cache = ImageCacheService(
@@ -260,17 +262,32 @@ class AwardBookService:
             
             return 'skipped'
         
-        # 获取图书详情
+        # 获取图书详情 (Open Library)
         book_details = self.openlib_client.fetch_book_by_isbn(isbn)
         
-        # 获取封面
-        cover_url = self._get_cover_url(isbn)
-        cover_local_path = None
+        # 获取 Google Books 数据（详细信息和购买链接）
+        google_books_data = self.google_books_client.search_by_isbn(isbn)
         
+        # 获取封面（优先 Open Library，后补 Google Books）
+        cover_url = self._get_cover_url(isbn)
+        
+        # 如果 Open Library 没有封面，尝试 Google Books
+        if not cover_url and google_books_data.get('cover_url'):
+            cover_url = google_books_data['cover_url']
+            logger.info(f"📚 从 Google Books 获取封面: {book_data['title'][:40]}...")
+        
+        cover_local_path = None
         if cover_url and self.image_cache:
             cover_local_path = self.image_cache.get_cached_image_url(cover_url)
             if cover_local_path == '/static/default-cover.png':
                 cover_local_path = None
+        
+        # 构建描述和详情
+        description = book_details.get('description') or google_books_data.get('description') or f'{award.name}获奖作品'
+        details = google_books_data.get('description') or book_details.get('description') or ''
+        
+        # 获取购买链接
+        buy_links = google_books_data.get('buy_links', {})
         
         # 创建新图书记录
         book = AwardBook(
@@ -279,12 +296,14 @@ class AwardBookService:
             category=category,
             rank=1,
             title=book_data['title'],
-            author=book_data.get('author') or book_details.get('author') or 'Unknown',
-            description=book_details.get('description') or f'{award.name}获奖作品',
+            author=book_data.get('author') or book_details.get('author') or google_books_data.get('author') or 'Unknown',
+            description=description,
+            details=details,
             isbn13=isbn if len(isbn) == 13 else None,
             isbn10=isbn if len(isbn) == 10 else None,
             cover_original_url=cover_url,
-            cover_local_path=cover_local_path
+            cover_local_path=cover_local_path,
+            buy_links=json.dumps(buy_links) if buy_links else None
         )
         
         db.session.add(book)
