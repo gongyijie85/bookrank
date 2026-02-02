@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BookRank - 图书排行榜{% endblock %}</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <a href="{{ url_for('main.index') }}" class="nav-brand">
+            <i class="fa fa-book"></i>
+            <span>BookRank</span>
+        </a>
+        
+        <div class="nav-links">
+            <a href="{{ url_for('main.index') }}" class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}">
+                <i class="fa fa-home"></i>
+                <span>首页</span>
+            </a>
+            <a href="{{ url_for('main.awards') }}" class="nav-link {% if request.endpoint == 'main.awards' %}active{% endif %}">
+                <i class="fa fa-trophy"></i>
+                <span>获奖书单</span>
+            </a>
+        </div>
+        
+        <div class="nav-actions">
+            <button class="btn btn-icon btn-outline" id="theme-toggle" title="切换主题">
+                <i class="fa fa-moon-o"></i>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        {% block sidebar %}
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">导航</h3>
+            <ul class="sidebar-menu">
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.index') }}" class="sidebar-link {% if request.endpoint == 'main.index' %}active{% endif %}">
+                        <i class="fa fa-fire"></i>
+                        <span>畅销书榜</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.awards') }}" class="sidebar-link {% if request.endpoint == 'main.awards' %}active{% endif %}">
+                        <i class="fa fa-trophy"></i>
+                        <span>获奖书单</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">关于</h3>
+            <ul class="sidebar-menu">
+                <li class="sidebar-item">
+                    <a href="#" class="sidebar-link" onclick="showAboutModal(); return false;">
+                        <i class="fa fa-info-circle"></i>
+                        <span>关于我们</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {% endblock %}
+    </aside>
+    
+    <!-- Mobile Sidebar Toggle -->
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="切换侧边栏">
+        <i class="fa fa-bars"></i>
+    </button>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay" style="display: none;">
+        <div class="loading-spinner loading-spinner-lg"></div>
+        <p class="loading-text">加载中...</p>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+    
+    <!-- JavaScript -->
+    <script>
+        // Sidebar Toggle
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+        });
+        
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 1024 && 
+                !sidebar.contains(e.target) && 
+                !sidebarToggle.contains(e.target)) {
+                sidebar.classList.remove('open');
+            }
+        });
+        
+        // Loading Overlay
+        function showLoading(text = '加载中...') {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.querySelector('.loading-text').textContent = text;
+            overlay.style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.style.display = 'none';
+        }
+        
+        // Toast Notification
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <i class="fa fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    container.removeChild(toast);
+                }, 300);
+            }, duration);
+        }
+        
+        // About Modal
+        function showAboutModal() {
+            showToast('BookRank - 图书排行榜与获奖书单平台', 'info', 5000);
+        }
+        
+        // View Toggle (Grid/List)
+        function toggleView(view) {
+            const grid = document.getElementById('books-grid');
+            const list = document.getElementById('books-list');
+            const gridBtn = document.getElementById('view-grid');
+            const listBtn = document.getElementById('view-list');
+            
+            if (view === 'grid') {
+                grid.style.display = 'grid';
+                list.style.display = 'none';
+                gridBtn.classList.add('active');
+                listBtn.classList.remove('active');
+                localStorage.setItem('viewMode', 'grid');
+            } else {
+                grid.style.display = 'none';
+                list.style.display = 'flex';
+                gridBtn.classList.remove('active');
+                listBtn.classList.add('active');
+                localStorage.setItem('viewMode', 'list');
+            }
+        }
+        
+        // Initialize view mode
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedView = localStorage.getItem('viewMode') || 'grid';
+            toggleView(savedView);
+        });
+        
+        // Favorite Toggle
+        function toggleFavorite(button, bookId) {
+            button.classList.toggle('active');
+            const isActive = button.classList.contains('active');
+            button.innerHTML = `<i class="fa fa-heart${isActive ? '' : '-o'}"></i>`;
+            
+            // Add heart beat animation
+            button.classList.add('heart-beat');
+            setTimeout(() => {
+                button.classList.remove('heart-beat');
+            }, 500);
+            
+            showToast(isActive ? '已添加到收藏' : '已取消收藏', 'success');
