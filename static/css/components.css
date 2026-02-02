@@ -224,6 +224,30 @@
     padding: var(--spacing-md);
 }
 
+/* Card Rank Row - 卡片排名行 */
+.card-rank-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.card-rank-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background: var(--primary-color);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+}
+
+.card-weeks {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
 .card-award-tag {
     display: inline-block;
     padding: var(--spacing-xs) var(--spacing-sm);
@@ -332,21 +356,6 @@
     color: white;
 }
 
-/* Card Checkbox */
-.card-checkbox {
-    position: absolute;
-    top: var(--spacing-sm);
-    left: var(--spacing-sm);
-    z-index: 10;
-}
-
-.card-checkbox input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-    accent-color: var(--primary-color);
-}
-
 /* List Item */
 .list-item {
     display: flex;
@@ -362,18 +371,6 @@
 .list-item:hover {
     box-shadow: var(--shadow-md);
     border-color: var(--primary-color);
-}
-
-.list-item-checkbox {
-    display: flex;
-    align-items: center;
-}
-
-.list-item-checkbox input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-    accent-color: var(--primary-color);
 }
 
 .list-item-image {
@@ -463,10 +460,11 @@
     gap: var(--spacing-sm);
 }
 
-/* Batch Actions Bar */
-.batch-actions-bar {
+/* Export Actions Bar - 导出操作栏 */
+.export-actions-bar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--spacing-lg);
     padding: var(--spacing-md) var(--spacing-lg);
     background: var(--card-bg);
@@ -475,26 +473,14 @@
     border: 1px solid var(--border-color);
 }
 
-.batch-select-all {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    cursor: pointer;
+.export-info {
     font-size: 0.95rem;
-    color: var(--text-primary);
-}
-
-.batch-select-all input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: var(--primary-color);
-}
-
-.batch-count {
-    flex: 1;
-    font-size: 0.875rem;
     color: var(--text-secondary);
+}
+
+.export-buttons {
+    display: flex;
+    gap: var(--spacing-md);
 }
 
 /* Modal */

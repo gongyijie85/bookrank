@@ -70,18 +70,20 @@
     </div>
 </div>
 
-<!-- Batch Actions Bar -->
+<!-- Export Actions Bar -->
 {% if books %}
-<div class="batch-actions-bar">
-    <label class="batch-select-all">
-        <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
-        <span>全选</span>
-    </label>
-    <span class="batch-count" id="batch-count">已选择 0 本</span>
-    <button class="btn btn-primary btn-sm" onclick="exportSelected()">
-        <i class="fa fa-download"></i>
-        导出CSV
-    </button>
+<div class="export-actions-bar">
+    <span class="export-info">共 {{ books|length }} 本图书</span>
+    <div class="export-buttons">
+        <button class="btn btn-primary btn-sm" onclick="exportBooks('{{ current_category }}')">
+            <i class="fa fa-download"></i>
+            导出当前分类
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="exportBooks('all')">
+            <i class="fa fa-download"></i>
+            导出全部
+        </button>
+    </div>
 </div>
 {% endif %}
 
@@ -115,24 +117,19 @@
                 <div class="rank-change new">NEW</div>
             {% endif %}
             
-            <!-- Selection Checkbox -->
-            <div class="card-checkbox" onclick="event.stopPropagation()">
-                <input type="checkbox" class="book-select" data-book-index="{{ loop.index - 1 }}" onchange="updateBatchCount()">
-            </div>
         </div>
         
         <div class="card-content">
-            <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
-            <p class="card-author">{{ book.author }}</p>
-            
-            <div class="card-meta">
-                <span class="card-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
+            <div class="card-rank-row">
+                <span class="card-rank-badge">第{{ loop.index }}名</span>
                 {% if book.weeks_on_list %}
-                <span class="card-tag">
+                <span class="card-weeks">
                     <i class="fa fa-clock-o"></i> {{ book.weeks_on_list }}周
                 </span>
                 {% endif %}
             </div>
+            <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
+            <p class="card-author">{{ book.author }}</p>
             
             {% if book.description %}
             <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
@@ -146,10 +143,6 @@
 <div class="books-list" id="books-list" style="display: {% if view_mode == 'list' or not view_mode %}flex{% else %}none{% endif %}">
     {% for book in books %}
     <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
-        <div class="list-item-checkbox" onclick="event.stopPropagation()">
-            <input type="checkbox" class="book-select" data-book-index="{{ loop.index - 1 }}" onchange="updateBatchCount()">
-        </div>
-        
         <div class="list-item-image">
             <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}" 
                  alt="{{ book.title }}"
@@ -346,60 +339,10 @@
         window.location.href = window.location.pathname + '?refresh=1';
     }
     
-    // Batch selection
-    function toggleSelectAll() {
-        const selectAll = document.getElementById('select-all');
-        const checkboxes = document.querySelectorAll('.book-select');
-        checkboxes.forEach(cb => cb.checked = selectAll.checked);
-        updateBatchCount();
-    }
-    
-    function updateBatchCount() {
-        const checked = document.querySelectorAll('.book-select:checked');
-        document.getElementById('batch-count').textContent = `已选择 ${checked.length} 本`;
-    }
-    
-    // Export selected books to CSV
-    function exportSelected() {
-        const checked = document.querySelectorAll('.book-select:checked');
-        if (checked.length === 0) {
-            showToast('请先选择要导出的图书', 'warning');
-            return;
-        }
-        
-        const selectedIndices = Array.from(checked).map(cb => parseInt(cb.dataset.bookIndex));
-        const selectedBooks = selectedIndices.map(index => window.booksData[index]);
-        
-        // CSV Header
-        const headers = ['排名', '书名', '作者', '出版社', '出版日期', '页数', '语言', '分类', '上榜周数', '上周排名', 'ISBN-13', '价格'];
-        
-        // CSV Content
-        const rows = selectedBooks.map((book, index) => [
-            index + 1,
-            book.title || '',
-            book.author || '',
-            book.publisher || '',
-            book.publication_dt || '',
-            book.page_count || '',
-            book.language || '',
-            book.category_name || '',
-            book.weeks_on_list || '',
-            book.rank_last_week || '',
-            book.isbn13 || '',
-            book.price || ''
-        ]);
-        
-        // Create CSV
-        const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
-        
-        // Download
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `畅销书榜单_${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-        
-        showToast('导出成功', 'success');
+    // Export books to CSV - 直接调用后端API导出
+    function exportBooks(category) {
+        showToast('正在导出...', 'info');
+        window.location.href = `/api/export/${category}`;
     }
     
     // Book Modal Functions
