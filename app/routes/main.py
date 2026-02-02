@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from flask import Blueprint, render_template, send_from_directory, abort
+from flask import Blueprint, render_template, send_from_directory, abort, request
 from werkzeug.utils import secure_filename
 
 main_bp = Blueprint('main', __name__)
@@ -9,9 +9,24 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    """首页"""
+    """首页 - 畅销书榜单"""
     from flask import current_app
-    return render_template('index.html', categories=current_app.config['CATEGORIES'])
+    
+    # 获取分类参数
+    category = request.args.get('category', 'combined-print-and-e-book-fiction')
+    search_query = request.args.get('search', '')
+    view_mode = request.args.get('view', 'grid')
+    
+    # TODO: 从缓存或API获取畅销书数据
+    # 暂时返回空数据，等待数据同步
+    books_data = []
+    
+    return render_template('index.html', 
+                          categories=current_app.config['CATEGORIES'],
+                          books=books_data,
+                          current_category=category,
+                          search_query=search_query,
+                          view_mode=view_mode)
 
 
 @main_bp.route('/cache/images/<filename>')
@@ -43,4 +58,52 @@ def send_static(path: str):
 @main_bp.route('/awards')
 def awards():
     """图书奖项榜单页面"""
-    return render_template('awards.html')
+    from ..models.schemas import Award, AwardBook, db
+    
+    # 获取筛选参数
+    selected_award = request.args.get('award', '')
+    selected_year = request.args.get('year', '')
+    search_query = request.args.get('search', '')
+    view_mode = request.args.get('view', 'grid')
+    
+    # 获取所有奖项
+    awards_list = Award.query.all()
+    
+    # 获取所有年份（从图书数据中提取）
+    years = db.session.query(AwardBook.year).distinct().order_by(AwardBook.year.desc()).all()
+    years = [y[0] for y in years if y[0]]
+    
+    # 构建图书查询
+    query = AwardBook.query
+    
+    if selected_award:
+        award = Award.query.filter_by(name=selected_award).first()
+        if award:
+            query = query.filter_by(award_id=award.id)
+    
+    if selected_year:
+        query = query.filter_by(year=int(selected_year))
+    
+    # 获取图书数据
+    books = query.order_by(AwardBook.year.desc()).all()
+    
+    # 处理搜索
+    if search_query and books:
+        books = [b for b in books if 
+                 search_query.lower() in b.title.lower() or 
+                 search_query.lower() in b.author.lower()]
+    
+    # 为每本书添加奖项名称
+    for book in books:
+        award = Award.query.get(book.award_id)
+        book.award_name = award.name if award else '未知奖项'
+    
+    return render_template('awards.html',
+                          awards=awards_list,
+                          books=books,
+                          years=years,
+                          selected_award=selected_award,
+                          selected_year=selected_year if selected_year else None,
+                          search_query=search_query,
+                          view_mode=view_mode,
+                          total_books=len(books))
