@@ -451,6 +451,170 @@ class OpenLibraryClient:
             return []
 
 
+class WikidataClient:
+    """
+    Wikidata SPARQL API 客户端
+    
+    用于批量获取图书奖项获奖数据
+    Wikidata 是维基百科的结构化数据存储库
+    
+    API 文档：https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service
+    """
+    
+    # 奖项的 Wikidata QID
+    AWARD_IDS = {
+        'nebula': 'Q327503',           # 星云奖
+        'hugo': 'Q162455',             # 雨果奖
+        'booker': 'Q155091',           # 布克奖
+        'international_booker': 'Q2519161',  # 国际布克奖
+        'pulitzer_fiction': 'Q162530', # 普利策小说奖
+        'edgar': 'Q532244',            # 爱伦·坡奖
+        'nobel_literature': 'Q37922',  # 诺贝尔文学奖
+    }
+    
+    def __init__(self, timeout: int = 30):
+        self._base_url = 'https://query.wikidata.org/sparql'
+        self._timeout = timeout
+        self._session = requests.Session()
+        self._session.headers.update({
+            'User-Agent': 'BookRank/1.0 (bookrank@example.com)',
+            'Accept': 'application/sparql-results+json'
+        })
+    
+    @retry(max_attempts=2, backoff_factor=1.5)
+    def query_award_winners(self, award_key: str, start_year: int = 2020, 
+                           end_year: int = 2025, limit: int = 100) -> list:
+        """
+        查询指定奖项的获奖图书
+        
+        Args:
+            award_key: 奖项键名 (nebula, hugo, booker 等)
+            start_year: 开始年份
+            end_year: 结束年份
+            limit: 结果数量限制
+            
+        Returns:
+            获奖图书列表
+        """
+        award_id = self.AWARD_IDS.get(award_key)
+        if not award_id:
+            logger.error(f"Unknown award: {award_key}")
+            return []
+        
+        sparql_query = self._build_sparql_query(award_id, start_year, end_year, limit)
+        
+        try:
+            response = self._session.get(
+                self._base_url,
+                params={'query': sparql_query, 'format': 'json'},
+                timeout=self._timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            return self._parse_sparql_results(data, award_key)
+            
+        except requests.RequestException as e:
+            logger.warning(f"Failed to query Wikidata for {award_key}: {e}")
+            return []
+    
+    def _build_sparql_query(self, award_id: str, start_year: int, 
+                           end_year: int, limit: int) -> str:
+        """构建 SPARQL 查询语句"""
+        return f"""
+        SELECT DISTINCT ?book ?bookLabel ?author ?authorLabel ?isbn13 ?isbn10 
+                        ?publicationDate ?year ?publisher ?publisherLabel
+        WHERE {{
+          # 图书获得指定奖项
+          ?book wdt:P31 wd:Q7725634 ;
+                wdt:P166 wd:{award_id} ;
+                wdt:P1476 ?bookLabel ;
+                wdt:P50 ?author ;
+                wdt:P577 ?publicationDate .
+          
+          # 获取作者名称
+          ?author rdfs:label ?authorLabel .
+          FILTER(LANG(?authorLabel) = "en")
+          
+          # 获取 ISBN-13（优先）
+          OPTIONAL {{ ?book wdt:P212 ?isbn13 }}
+          
+          # 获取 ISBN-10
+          OPTIONAL {{ ?book wdt:P957 ?isbn10 }}
+          
+          # 获取出版社
+          OPTIONAL {{ 
+            ?book wdt:P123 ?publisher .
+            ?publisher rdfs:label ?publisherLabel .
+            FILTER(LANG(?publisherLabel) = "en")
+          }}
+          
+          # 提取年份
+          BIND(YEAR(?publicationDate) AS ?year)
+          
+          # 过滤年份范围
+          FILTER(?year >= {start_year} && ?year <= {end_year})
+          
+          # 确保有英文标题
+          FILTER(LANG(?bookLabel) = "en")
+        }}
+        ORDER BY DESC(?year)
+        LIMIT {limit}
+        """
+    
+    def _parse_sparql_results(self, data: dict, award_key: str) -> list:
+        """解析 SPARQL 查询结果"""
+        books = []
+        
+        bindings = data.get('results', {}).get('bindings', [])
+        
+        for binding in bindings:
+            book = {
+                'award': award_key,
+                'wikidata_id': binding.get('book', {}).get('value', '').split('/')[-1],
+                'title': binding.get('bookLabel', {}).get('value', ''),
+                'author_wikidata_id': binding.get('author', {}).get('value', '').split('/')[-1],
+                'author': binding.get('authorLabel', {}).get('value', ''),
+                'isbn13': binding.get('isbn13', {}).get('value', ''),
+                'isbn10': binding.get('isbn10', {}).get('value', ''),
+                'publication_date': binding.get('publicationDate', {}).get('value', ''),
+                'year': int(binding.get('year', {}).get('value', 0)),
+                'publisher': binding.get('publisherLabel', {}).get('value', ''),
+            }
+            books.append(book)
+        
+        return books
+    
+    def get_all_award_books(self, awards: list = None, start_year: int = 2020,
+                           end_year: int = 2025) -> dict:
+        """
+        获取多个奖项的获奖图书
+        
+        Args:
+            awards: 奖项键名列表，None 表示所有奖项
+            start_year: 开始年份
+            end_year: 结束年份
+            
+        Returns:
+            按奖项分组的图书字典
+        """
+        if awards is None:
+            awards = list(self.AWARD_IDS.keys())
+        
+        results = {}
+        
+        for award_key in awards:
+            logger.info(f"🔍 查询 {award_key} 获奖图书...")
+            books = self.query_award_winners(award_key, start_year, end_year)
+            results[award_key] = books
+            logger.info(f"✅ {award_key}: 找到 {len(books)} 本图书")
+            
+            # 添加延迟避免请求过快
+            time.sleep(0.5)
+        
+        return results
+
+
 class ImageCacheService:
     """图片缓存服务"""
     
