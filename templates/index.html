@@ -97,13 +97,13 @@
                  loading="lazy"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
             
-            <!-- Rank Badge -->
+            <!-- Category Tag - 分类标签 (左上角) -->
+            <div class="card-category-tag">{{ book.category_name if book.category_name else '虚构类' }}</div>
+            
+            <!-- Rank Badge - 排名徽章 (右上角) -->
             <div class="card-badge {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% else %}other{% endif %}">
                 {{ loop.index }}
             </div>
-            
-            <!-- Category Tag - 分类标签 -->
-            <div class="card-category-tag">{{ book.category_name if book.category_name else '虚构类' }}</div>
             
             <!-- Rank Change Badge -->
             {% if book.rank_last_week and book.rank_last_week != '0' %}
@@ -238,6 +238,12 @@
                     <img id="modal-cover-img" src="" alt="">
                     <div class="modal-rank" id="modal-rank"></div>
                 </div>
+                
+                <!-- Buy Links - 购买链接移到左下角 -->
+                <div class="modal-buy-links" id="modal-buy-links">
+                    <h4>购买链接</h4>
+                    <div class="buy-links-list" id="buy-links-list"></div>
+                </div>
             </div>
             
             <div class="modal-right">
@@ -291,13 +297,8 @@
                         <p id="modal-description"></p>
                     </div>
                     <div class="tab-panel" id="tab-details">
-                        <p id="modal-details"></p>
+                        <div id="modal-details-content"></div>
                     </div>
-                </div>
-                
-                <div class="modal-buy-links" id="modal-buy-links">
-                    <h4>购买链接</h4>
-                    <div class="buy-links-list" id="buy-links-list"></div>
                 </div>
             </div>
         </div>
@@ -363,8 +364,56 @@
         document.getElementById('modal-weeks-on-list').textContent = book.weeks_on_list ? `${book.weeks_on_list}周` : '未知';
         document.getElementById('modal-rank-last-week').textContent = book.rank_last_week || 'NEW';
         document.getElementById('modal-isbn').textContent = book.isbn13 || '';
+        // 图书简介标签页
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
-        document.getElementById('modal-details').textContent = book.details || '暂无详细信息';
+        
+        // 详细信息标签页 - 显示更多元数据
+        const detailsContent = document.getElementById('modal-details-content');
+        detailsContent.innerHTML = `
+            <div class="details-section">
+                <h4>图书信息</h4>
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <span class="detail-label">ISBN-10</span>
+                        <span class="detail-value">${book.isbn10 || '暂无'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">ISBN-13</span>
+                        <span class="detail-value">${book.isbn13 || '暂无'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">出版社</span>
+                        <span class="detail-value">${book.publisher || '暂无'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">出版日期</span>
+                        <span class="detail-value">${book.publication_dt || '暂无'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">页数</span>
+                        <span class="detail-value">${book.page_count || '暂无'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">语言</span>
+                        <span class="detail-value">${book.language || '暂无'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">分类</span>
+                        <span class="detail-value">${book.category_name || '暂无'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">价格</span>
+                        <span class="detail-value">${book.price || '暂无'}</span>
+                    </div>
+                </div>
+            </div>
+            ${book.details ? `
+            <div class="details-section">
+                <h4>详细描述</h4>
+                <p>${book.details}</p>
+            </div>
+            ` : ''}
+        `;
         
         // Buy links
         const buyLinksContainer = document.getElementById('buy-links-list');
