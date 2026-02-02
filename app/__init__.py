@@ -72,10 +72,11 @@ def _init_extensions(app):
 
 
 def _init_awards_data(app):
-    """自动初始化奖项数据（Render免费版优化：智能更新）"""
+    """自动初始化奖项数据（从Wikidata动态获取，Render免费版优化）"""
     try:
         with app.app_context():
             from .models.schemas import Award, AwardBook
+            from .services import WikidataClient
             
             app.logger.info("🚀 开始检查奖项数据...")
             
@@ -90,9 +91,9 @@ def _init_awards_data(app):
             
             app.logger.info(f"📊 当前数据: {award_count} 个奖项, {book_count} 本图书")
             
-            # 定义奖项数据
-            awards_data = [
-                {
+            # 定义奖项基础数据（硬编码作为fallback）
+            awards_fallback_data = {
+                'pulitzer_fiction': {
                     'name': '普利策奖',
                     'name_en': 'Pulitzer Prize',
                     'country': '美国',
@@ -102,17 +103,7 @@ def _init_awards_data(app):
                     'established_year': 1917,
                     'award_month': 5
                 },
-                {
-                    'name': '美国国家图书奖',
-                    'name_en': 'National Book Award',
-                    'country': '美国',
-                    'description': '美国文学界的重要奖项，设立于1950年，分为小说、非虚构、诗歌、青少年文学和翻译文学五个类别。',
-                    'category_count': 5,
-                    'icon_class': 'fa-book',
-                    'established_year': 1950,
-                    'award_month': 11
-                },
-                {
+                'booker': {
                     'name': '布克奖',
                     'name_en': 'Booker Prize',
                     'country': '英国',
@@ -122,7 +113,7 @@ def _init_awards_data(app):
                     'established_year': 1969,
                     'award_month': 11
                 },
-                {
+                'hugo': {
                     'name': '雨果奖',
                     'name_en': 'Hugo Award',
                     'country': '美国',
@@ -132,7 +123,7 @@ def _init_awards_data(app):
                     'established_year': 1953,
                     'award_month': 8
                 },
-                {
+                'nobel_literature': {
                     'name': '诺贝尔文学奖',
                     'name_en': 'Nobel Prize in Literature',
                     'country': '瑞典',
@@ -142,7 +133,7 @@ def _init_awards_data(app):
                     'established_year': 1901,
                     'award_month': 10
                 },
-                {
+                'nebula': {
                     'name': '星云奖',
                     'name_en': 'Nebula Award',
                     'country': '美国',
@@ -152,7 +143,7 @@ def _init_awards_data(app):
                     'established_year': 1965,
                     'award_month': 5
                 },
-                {
+                'international_booker': {
                     'name': '国际布克奖',
                     'name_en': 'International Booker Prize',
                     'country': '英国',
@@ -162,7 +153,7 @@ def _init_awards_data(app):
                     'established_year': 2005,
                     'award_month': 5
                 },
-                {
+                'edgar': {
                     'name': '爱伦·坡奖',
                     'name_en': 'Edgar Award',
                     'country': '美国',
@@ -172,7 +163,39 @@ def _init_awards_data(app):
                     'established_year': 1946,
                     'award_month': 4
                 }
-            ]
+            }
+            
+            # 尝试从 Wikidata 获取奖项信息
+            app.logger.info("🔍 正在从 Wikidata 获取奖项信息...")
+            wikidata_client = WikidataClient(timeout=30)
+            
+            try:
+                wikidata_award_info = wikidata_client.get_all_award_info(
+                    awards=list(awards_fallback_data.keys())
+                )
+                app.logger.info(f"✅ 从 Wikidata 获取到 {len(wikidata_award_info)} 个奖项信息")
+            except Exception as e:
+                app.logger.warning(f"⚠️ 从 Wikidata 获取奖项信息失败: {e}")
+                wikidata_award_info = {}
+            
+            # 合并 Wikidata 数据和硬编码数据
+            awards_data = []
+            for award_key, fallback_data in awards_fallback_data.items():
+                wikidata_info = wikidata_award_info.get(award_key, {})
+                
+                # 合并数据：Wikidata 数据优先，缺失的使用 fallback
+                merged_data = {
+                    'name': fallback_data['name'],  # 使用中文名称
+                    'name_en': wikidata_info.get('name_en') or fallback_data['name_en'],
+                    'country': wikidata_info.get('country_en') or fallback_data['country'],
+                    'description': fallback_data['description'],  # 使用更详细的中文描述
+                    'category_count': wikidata_info.get('category_count') or fallback_data['category_count'],
+                    'icon_class': fallback_data['icon_class'],
+                    'established_year': wikidata_info.get('established_year') or fallback_data['established_year'],
+                    'award_month': fallback_data['award_month'],
+                    'wikidata_id': wikidata_info.get('wikidata_id')
+                }
+                awards_data.append(merged_data)
             
             # 智能创建：只创建不存在的奖项
             created_awards = 0

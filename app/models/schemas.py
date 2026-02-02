@@ -125,6 +125,7 @@ class Award(db.Model):
     icon_class = db.Column(db.String(50))                       # 图标样式类
     established_year = db.Column(db.Integer)                    # 创立年份
     award_month = db.Column(db.Integer)                         # 颁布月份（1-12）
+    wikidata_id = db.Column(db.String(50))                      # Wikidata ID
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # 关系
@@ -141,6 +142,7 @@ class Award(db.Model):
             'icon_class': self.icon_class,
             'established_year': self.established_year,
             'award_month': self.award_month,
+            'wikidata_id': self.wikidata_id,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
