@@ -512,6 +512,9 @@ def _init_sample_books(app):
         # 为没有本地封面的图书获取 Google Books 封面
         _fetch_missing_covers(app)
         
+        # 为缺失详情和购买链接的图书补充数据（使用 Google Books API）
+        _enrich_books_from_google_books(app)
+        
     except Exception as e:
         app.logger.error(f"❌ 初始化示例图书失败: {e}", exc_info=True)
         db.session.rollback()
@@ -661,6 +664,102 @@ def _enrich_books_from_openlibrary(app, books, openlib_client, image_cache):
         
     except Exception as e:
         app.logger.error(f"❌ 补充图书信息失败: {e}", exc_info=True)
+
+
+def _enrich_books_from_google_books(app):
+    """通过 Google Books API 补充图书详情和购买链接（Render免费版自动补充）"""
+    try:
+        import json
+        from .models.schemas import AwardBook
+        from .services import GoogleBooksClient, ImageCacheService
+        
+        # 创建客户端
+        google_client = GoogleBooksClient(
+            api_key=app.config.get('GOOGLE_API_KEY'),
+            base_url='https://www.googleapis.com/books/v1/volumes',
+            timeout=10
+        )
+        
+        image_cache = ImageCacheService(
+            cache_dir=app.config['IMAGE_CACHE_DIR'],
+            default_cover='/static/default-cover.png'
+        )
+        
+        # 获取需要补充数据的图书（缺少封面、详情或购买链接）
+        books = AwardBook.query.filter(
+            (AwardBook.cover_local_path.is_(None)) |
+            (AwardBook.cover_local_path == '/static/default-cover.png') |
+            (AwardBook.details.is_(None)) |
+            (AwardBook.buy_links.is_(None))
+        ).limit(20).all()  # 每批最多处理20本，避免超时
+        
+        if not books:
+            app.logger.info("✅ 所有图书数据已完整")
+            return
+        
+        app.logger.info(f"📚 开始为 {len(books)} 本图书补充 Google Books 数据...")
+        
+        stats = {'cover': 0, 'details': 0, 'buy_links': 0, 'failed': 0}
+        
+        for i, book in enumerate(books, 1):
+            try:
+                if not book.isbn13:
+                    stats['failed'] += 1
+                    continue
+                
+                # 从 Google Books 获取数据
+                google_data = google_client.search_by_isbn(book.isbn13)
+                
+                if not google_data:
+                    app.logger.warning(f"  [{i}/{len(books)}] ⚠️ Google Books 未找到: {book.title[:30]}...")
+                    stats['failed'] += 1
+                    continue
+                
+                updated = False
+                
+                # 1. 补充封面
+                if (not book.cover_local_path or 
+                    book.cover_local_path == '/static/default-cover.png'):
+                    cover_url = google_data.get('cover_url')
+                    if cover_url:
+                        cached_path = image_cache.get_cached_image_url(cover_url)
+                        if cached_path and cached_path != '/static/default-cover.png':
+                            book.cover_original_url = cover_url
+                            book.cover_local_path = cached_path
+                            stats['cover'] += 1
+                            updated = True
+                            app.logger.info(f"  [{i}/{len(books)}] ✅ 封面: {book.title[:30]}...")
+                
+                # 2. 补充详情
+                if not book.details and google_data.get('description'):
+                    book.details = google_data['description']
+                    stats['details'] += 1
+                    updated = True
+                    app.logger.info(f"  [{i}/{len(books)}] ✅ 详情: {book.title[:30]}...")
+                
+                # 3. 补充购买链接
+                if not book.buy_links and google_data.get('buy_links'):
+                    book.buy_links = json.dumps(google_data['buy_links'])
+                    stats['buy_links'] += 1
+                    updated = True
+                    app.logger.info(f"  [{i}/{len(books)}] ✅ 购买链接: {book.title[:30]}...")
+                
+                if updated:
+                    db.session.commit()
+                
+                # 延迟避免请求过快
+                import time
+                time.sleep(0.5)
+                
+            except Exception as e:
+                app.logger.error(f"  [{i}/{len(books)}] ❌ 错误: {e}")
+                stats['failed'] += 1
+                continue
+        
+        app.logger.info(f"✅ Google Books 补充完成: 封面{stats['cover']}本, 详情{stats['details']}本, 购买链接{stats['buy_links']}本, 失败{stats['failed']}本")
+        
+    except Exception as e:
+        app.logger.error(f"❌ Google Books 补充失败: {e}", exc_info=True)
 
 
 def _init_services(app):
