@@ -114,10 +114,26 @@ def awards():
                  search_query.lower() in b.title.lower() or 
                  search_query.lower() in b.author.lower()]
     
-    # 为每本书添加奖项名称
+    # 为每本书添加奖项名称，并转换为字典列表（用于JSON序列化）
+    books_data = []
     for book in books:
         award = Award.query.get(book.award_id)
-        book.award_name = award.name if award else '未知奖项'
+        book_dict = {
+            'id': book.id,
+            'title': book.title,
+            'author': book.author,
+            'description': book.description,
+            'cover_local_path': book.cover_local_path,
+            'cover_original_url': book.cover_original_url,
+            'isbn13': book.isbn13,
+            'isbn10': book.isbn10,
+            'publisher': book.publisher,
+            'publication_year': book.publication_year,
+            'year': book.year,
+            'category': book.category,
+            'award_name': award.name if award else '未知奖项'
+        }
+        books_data.append(book_dict)
     
     # 为每个奖项计算图书数量
     for award in awards_list:
@@ -125,10 +141,10 @@ def awards():
     
     return render_template('awards.html',
                           awards=awards_list,
-                          books=books,
+                          books=books_data,
                           years=years,
                           selected_award=selected_award,
                           selected_year=selected_year if selected_year else None,
                           search_query=search_query,
                           view_mode=view_mode,
-                          total_books=len(books))
+                          total_books=len(books_data))
