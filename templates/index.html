@@ -20,9 +20,9 @@
     <div class="filter-group">
         <label class="filter-label">图书分类</label>
         <select class="filter-select" id="category-select" onchange="changeCategory(this.value)">
-            {% for cat in categories %}
-            <option value="{{ cat.value }}" {% if cat.value == current_category %}selected{% endif %}>
-                {{ cat.label }}
+            {% for key, label in categories.items() %}
+            <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
+                {{ label }}
             </option>
             {% endfor %}
         </select>
