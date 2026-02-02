@@ -1,782 +1,335 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>国际图书奖项榜单 (2023-2026)</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
-    <style>
-        :root {
-            --primary-color: #1a73e8;
-            --secondary-color: #f5f5f5;
-            --text-color: #333;
-            --light-gray: #eee;
-            --border-color: #ddd;
-            --gold-color: #FFD700;
-            --silver-color: #C0C0C0;
-            --bronze-color: #CD7F32;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-            color: var(--text-color);
-            line-height: 1.6;
-            background-color: #fafafa;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        h1 {
-            color: var(--primary-color);
-            margin-bottom: 10px;
-            font-size: 2.2rem;
-        }
-
-        .subtitle {
-            color: #666;
-            font-size: 16px;
-        }
-
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--primary-color);
-            text-decoration: none;
-            margin-bottom: 20px;
-            font-size: 16px;
-        }
-
-        .back-link:hover {
-            text-decoration: underline;
-        }
-
-        /* 筛选栏 */
-        .filter-bar {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .filter-label {
-            font-size: 12px;
-            color: #666;
-            font-weight: 600;
-        }
-
-        .filter-select, .filter-input {
-            padding: 10px 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 14px;
-            min-width: 150px;
-            background: white;
-        }
-
-        .filter-select:focus, .filter-input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        .search-box {
-            position: relative;
-            flex: 1;
-            min-width: 250px;
-        }
-
-        .search-box input {
-            width: 100%;
-            padding: 10px 40px 10px 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 14px;
-        }
-
-        .search-box i {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #999;
-        }
-
-        .filter-btn {
-            padding: 10px 20px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .filter-btn:hover {
-            background: #0d66d0;
-        }
-
-        /* 图书网格 */
-        .books-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 25px;
-            margin-top: 30px;
-        }
-
-        /* 图书卡片 */
-        .book-card {
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .book-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
-
-        .book-cover {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        .book-info {
-            padding: 20px;
-        }
-
-        .book-award-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            background: var(--primary-color);
-            color: white;
-            font-size: 12px;
-            border-radius: 20px;
-            margin-bottom: 10px;
-        }
-
-        .book-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 8px;
-            line-height: 1.4;
-        }
-
-        .book-title-zh {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 8px;
-        }
-
-        .book-author {
-            font-size: 14px;
-            color: #888;
-            margin-bottom: 10px;
-        }
-
-        .book-meta {
-            display: flex;
-            gap: 15px;
-            font-size: 12px;
-            color: #999;
-        }
-
-        .book-meta span {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        /* 排名徽章 */
-        .rank-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 16px;
-            color: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-
-        .rank-badge.gold {
-            background: linear-gradient(135deg, #FFD700, #FFA500);
-        }
-
-        .rank-badge.silver {
-            background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
-        }
-
-        .rank-badge.bronze {
-            background: linear-gradient(135deg, #CD7F32, #B87333);
-        }
-
-        /* 模态框 */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 16px;
-            max-width: 800px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
-            position: relative;
-        }
-
-        .modal-close {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.9);
-            border: none;
-            cursor: pointer;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-        }
-
-        .modal-close:hover {
-            background: white;
-        }
-
-        .modal-body {
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 30px;
-            padding: 30px;
-        }
-
-        .modal-cover {
-            width: 100%;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .modal-info h2 {
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-
-        .modal-info .title-zh {
-            font-size: 18px;
-            color: #666;
-            margin-bottom: 20px;
-        }
-
-        .modal-meta {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-
-        .modal-meta-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .modal-meta-label {
-            font-size: 12px;
-            color: #888;
-        }
-
-        .modal-meta-value {
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .modal-description {
-            margin-bottom: 20px;
-        }
-
-        .modal-description h3 {
-            font-size: 16px;
-            margin-bottom: 10px;
-            color: var(--primary-color);
-        }
-
-        .modal-description p {
-            font-size: 14px;
-            line-height: 1.8;
-            color: #555;
-        }
-
-        /* 加载状态 */
-        .loading {
-            text-align: center;
-            padding: 60px 20px;
-        }
-
-        .loading i {
-            font-size: 48px;
-            color: var(--primary-color);
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        /* 空状态 */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #666;
-        }
-
-        .empty-state i {
-            font-size: 64px;
-            color: #ddd;
-            margin-bottom: 20px;
-        }
-
-        /* 分页 */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 40px;
-        }
-
-        .pagination button {
-            padding: 10px 20px;
-            border: 1px solid var(--border-color);
-            background: white;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        .pagination button:hover:not(:disabled) {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .pagination button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .pagination .page-info {
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            color: #666;
-        }
-
-        /* 响应式 */
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 1.8rem;
-            }
-
-            .filter-bar {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .filter-group, .search-box {
-                width: 100%;
-            }
-
-            .books-grid {
-                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            }
-
-            .modal-body {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
-    <a href="/" class="back-link">
-        <i class="fa fa-arrow-left"></i> 返回畅销书榜
-    </a>
-
-    <header>
-        <h1><i class="fa fa-trophy"></i> 国际图书奖项榜单</h1>
-        <p class="subtitle">汇聚全球五大权威图书奖项 (2023-2026)</p>
-    </header>
-
-    <!-- 筛选栏 -->
-    <div class="filter-bar">
-        <div class="filter-group">
-            <label class="filter-label">奖项</label>
-            <select class="filter-select" id="awardFilter">
-                <option value="">全部奖项</option>
-            </select>
+{% extends "base.html" %}
+
+{% block title %}国际图书奖项榜单 - BookRank{% endblock %}
+
+{% block sidebar %}
+<div class="sidebar-section">
+    <h3 class="sidebar-title">奖项分类</h3>
+    <ul class="sidebar-menu">
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.awards') }}" 
+               class="sidebar-link {% if not selected_award %}active{% endif %}">
+                <i class="fa fa-list"></i>
+                <span>全部奖项</span>
+            </a>
+        </li>
+        {% for award in awards %}
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.awards', award=award.name) }}" 
+               class="sidebar-link {% if selected_award == award.name %}active{% endif %}">
+                <i class="fa fa-trophy"></i>
+                <span>{{ award.name }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="sidebar-section">
+    <h3 class="sidebar-title">年份筛选</h3>
+    <ul class="sidebar-menu">
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.awards', award=selected_award) }}" 
+               class="sidebar-link {% if not selected_year %}active{% endif %}">
+                <i class="fa fa-calendar"></i>
+                <span>全部年份</span>
+            </a>
+        </li>
+        {% for year in years %}
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.awards', award=selected_award, year=year) }}" 
+               class="sidebar-link {% if selected_year == year %}active{% endif %}">
+                <i class="fa fa-calendar-o"></i>
+                <span>{{ year }}年</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="sidebar-section">
+    <h3 class="sidebar-title">统计信息</h3>
+    <div class="sidebar-stats">
+        <div class="stat-item">
+            <span class="stat-value">{{ total_books }}</span>
+            <span class="stat-label">本图书</span>
         </div>
-
-        <div class="filter-group">
-            <label class="filter-label">年份</label>
-            <select class="filter-select" id="yearFilter">
-                <option value="">全部年份</option>
-                <option value="2025">2025年</option>
-                <option value="2024">2024年</option>
-                <option value="2023">2023年</option>
-            </select>
+        <div class="stat-item">
+            <span class="stat-value">{{ awards|length }}</span>
+            <span class="stat-label">个奖项</span>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-        <div class="filter-group">
-            <label class="filter-label">类别</label>
-            <select class="filter-select" id="categoryFilter">
-                <option value="">全部类别</option>
-            </select>
-        </div>
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa fa-trophy text-gold"></i>
+        {% if selected_award %}
+            {{ selected_award }}
+        {% else %}
+            国际图书奖项榜单
+        {% endif %}
+    </h1>
+    <p class="page-subtitle">
+        {% if selected_award %}
+            {{ selected_award }}获奖图书展示
+        {% else %}
+            汇集全球最具影响力的图书奖项
+        {% endif %}
+        {% if selected_year %}
+            · {{ selected_year }}年
+        {% endif %}
+    </p>
+</div>
 
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="搜索书名或作者...">
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <div class="filter-group">
+        <label class="filter-label">奖项</label>
+        <select class="filter-select" id="award-select" onchange="changeAward(this.value)">
+            <option value="">全部奖项</option>
+            {% for award in awards %}
+            <option value="{{ award.name }}" {% if selected_award == award.name %}selected{% endif %}>
+                {{ award.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="filter-group">
+        <label class="filter-label">年份</label>
+        <select class="filter-select" id="year-select" onchange="changeYear(this.value)">
+            <option value="">全部年份</option>
+            {% for year in years %}
+            <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>
+                {{ year }}年
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="filter-group search-box">
+        <label class="filter-label">搜索</label>
+        <div class="search-input-wrapper">
+            <input type="text" 
+                   class="filter-input" 
+                   id="search-input"
+                   placeholder="搜索书名或作者..."
+                   value="{{ search_query if search_query else '' }}">
             <i class="fa fa-search"></i>
         </div>
-
-        <button class="filter-btn" onclick="loadBooks()">
-            <i class="fa fa-filter"></i> 筛选
+    </div>
+    
+    <div class="filter-actions">
+        <button class="btn btn-primary" onclick="applyFilters()">
+            <i class="fa fa-filter"></i>
+            筛选
+        </button>
+        <button class="btn btn-secondary" onclick="clearFilters()">
+            <i class="fa fa-refresh"></i>
+            重置
         </button>
     </div>
+    
+    <div class="view-toggle">
+        <button class="btn btn-icon {% if view_mode == 'grid' or not view_mode %}active{% endif %}" 
+                id="view-grid"
+                onclick="toggleView('grid')"
+                title="网格视图">
+            <i class="fa fa-th"></i>
+        </button>
+        <button class="btn btn-icon {% if view_mode == 'list' %}active{% endif %}" 
+                id="view-list"
+                onclick="toggleView('list')"
+                title="列表视图">
+            <i class="fa fa-list"></i>
+        </button>
+    </div>
+</div>
 
-    <!-- 图书网格 -->
-    <div class="books-grid" id="booksGrid">
-        <div class="loading">
-            <i class="fa fa-spinner"></i>
-            <p>正在加载图书数据...</p>
+<!-- Awards Info Cards -->
+{% if not selected_award %}
+<div class="awards-grid">
+    {% for award in awards %}
+    <a href="{{ url_for('main.awards', award=award.name) }}" class="award-card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+        <div class="award-icon">
+            <i class="fa fa-trophy"></i>
         </div>
-    </div>
-
-    <!-- 分页 -->
-    <div class="pagination" id="pagination" style="display: none;">
-        <button id="prevBtn" onclick="changePage(-1)">上一页</button>
-        <span class="page-info" id="pageInfo">第 1 页</span>
-        <button id="nextBtn" onclick="changePage(1)">下一页</button>
-    </div>
-
-    <!-- 详情模态框 -->
-    <div class="modal" id="bookModal">
-        <div class="modal-content">
-            <button class="modal-close" onclick="closeModal()">&times;</button>
-            <div class="modal-body" id="modalBody">
-                <!-- 动态填充 -->
+        <div class="award-info">
+            <h3>{{ award.name }}</h3>
+            <p>{{ award.description[:60] }}{% if award.description|length > 60 %}...{% endif %}</p>
+            <div class="award-meta">
+                <span class="award-country">{{ award.country }}</span>
+                <span class="award-count">{{ award.book_count }}本图书</span>
             </div>
         </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Books Grid View -->
+<div class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' or not view_mode %}grid{% else %}none{% endif %}">
+    {% for book in books %}
+    <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+        <div class="card-image">
+            <img src="{{ book.cover_local_path if book.cover_local_path else url_for('static', filename='default-cover.png') }}" 
+                 alt="{{ book.title }}"
+                 loading="lazy"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            
+            <!-- Award Badge -->
+            <div class="card-badge award">
+                <i class="fa fa-trophy"></i>
+            </div>
+            
+            <!-- Year Badge -->
+            <div class="card-badge year">{{ book.year }}</div>
+            
+            <!-- Favorite Button -->
+            <button class="card-favorite" onclick="toggleFavorite(this, '{{ book.id }}')">
+                <i class="fa fa-heart-o"></i>
+            </button>
+        </div>
+        
+        <div class="card-content">
+            <div class="card-award-tag">{{ book.award_name }}</div>
+            <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
+            <p class="card-author">{{ book.author }}</p>
+            
+            <div class="card-meta">
+                <span class="card-tag">{{ book.category }}</span>
+                <span class="card-tag">{{ book.year }}年</span>
+            </div>
+            
+            {% if book.description %}
+            <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
+            {% endif %}
+        </div>
     </div>
+    {% endfor %}
+</div>
 
-    <script>
-        // 全局状态
-        let currentPage = 1;
-        let currentFilters = {};
-        let awards = [];
+<!-- Books List View -->
+<div class="books-list" id="books-list" style="display: {% if view_mode == 'list' %}flex{% else %}none{% endif %}">
+    {% for book in books %}
+    <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+        <div class="list-item-image">
+            <img src="{{ book.cover_local_path if book.cover_local_path else url_for('static', filename='default-cover.png') }}" 
+                 alt="{{ book.title }}"
+                 loading="lazy"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+        
+        <div class="list-item-content">
+            <div class="list-item-header">
+                <span class="list-item-award">{{ book.award_name }}</span>
+                <h3 class="list-item-title">{{ book.title }}</h3>
+            </div>
+            
+            <p class="list-item-author">{{ book.author }}</p>
+            
+            {% if book.description %}
+            <p class="list-item-desc">{{ book.description }}</p>
+            {% endif %}
+            
+            <div class="list-item-meta">
+                <span class="card-tag">{{ book.category }}</span>
+                <span class="card-tag">{{ book.year }}年</span>
+                {% if book.isbn13 %}
+                <span class="card-tag">ISBN: {{ book.isbn13 }}</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="list-item-actions">
+            <button class="btn btn-icon btn-outline" onclick="toggleFavorite(this, '{{ book.id }}')">
+                <i class="fa fa-heart-o"></i>
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
 
-        // 初始化
-        document.addEventListener('DOMContentLoaded', () => {
-            loadAwards();
-            loadBooks();
+<!-- Empty State -->
+{% if not books %}
+<div class="empty-state">
+    <i class="fa fa-inbox"></i>
+    <h3>暂无数据</h3>
+    <p>请尝试切换筛选条件或稍后重试</p>
+</div>
+{% endif %}
 
-            // 搜索防抖
-            let searchTimeout;
-            document.getElementById('searchInput').addEventListener('input', (e) => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    currentFilters.keyword = e.target.value;
-                    currentPage = 1;
-                    loadBooks();
-                }, 300);
-            });
-        });
+<!-- Quick Link to Bestsellers -->
+<div class="quick-link-section">
+    <a href="{{ url_for('main.index') }}" class="quick-link-card">
+        <i class="fa fa-fire"></i>
+        <div>
+            <h4>查看纽约时报畅销书榜</h4>
+            <p>实时更新的畅销图书排行榜</p>
+        </div>
+        <i class="fa fa-arrow-right"></i>
+    </a>
+</div>
+{% endblock %}
 
-        // 加载奖项列表
-        async function loadAwards() {
-            try {
-                const response = await fetch('/api/awards');
-                const data = await response.json();
-
-                if (data.success) {
-                    awards = data.data.awards;
-                    const select = document.getElementById('awardFilter');
-
-                    awards.forEach(award => {
-                        const option = document.createElement('option');
-                        option.value = award.id;
-                        option.textContent = award.name;
-                        select.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('加载奖项失败:', error);
-            }
+{% block extra_js %}
+<script>
+    // Change award filter
+    function changeAward(award) {
+        showLoading('加载中...');
+        const year = document.getElementById('year-select').value;
+        let url = '/awards';
+        if (award) url += `?award=${encodeURIComponent(award)}`;
+        if (year) url += `${award ? '&' : '?'}year=${year}`;
+        window.location.href = url;
+    }
+    
+    // Change year filter
+    function changeYear(year) {
+        showLoading('加载中...');
+        const award = document.getElementById('award-select').value;
+        let url = '/awards';
+        if (award) url += `?award=${encodeURIComponent(award)}`;
+        if (year) url += `${award ? '&' : '?'}year=${year}`;
+        window.location.href = url;
+    }
+    
+    // Apply filters
+    function applyFilters() {
+        const award = document.getElementById('award-select').value;
+        const year = document.getElementById('year-select').value;
+        const search = document.getElementById('search-input').value;
+        
+        showLoading('搜索中...');
+        
+        let url = '/awards';
+        const params = [];
+        if (award) params.push(`award=${encodeURIComponent(award)}`);
+        if (year) params.push(`year=${year}`);
+        if (search) params.push(`search=${encodeURIComponent(search)}`);
+        
+        if (params.length > 0) {
+            url += '?' + params.join('&');
         }
-
-        // 加载图书列表
-        async function loadBooks() {
-            const grid = document.getElementById('booksGrid');
-            grid.innerHTML = `
-                <div class="loading">
-                    <i class="fa fa-spinner"></i>
-                    <p>正在加载图书数据...</p>
-                </div>
-            `;
-
-            // 获取筛选条件
-            const awardId = document.getElementById('awardFilter').value;
-            const year = document.getElementById('yearFilter').value;
-            const category = document.getElementById('categoryFilter').value;
-
-            currentFilters = {
-                award_id: awardId || undefined,
-                year: year || undefined,
-                category: category || undefined,
-                keyword: currentFilters.keyword,
-                page: currentPage,
-                limit: 12
-            };
-
-            // 构建URL
-            const params = new URLSearchParams();
-            Object.entries(currentFilters).forEach(([key, value]) => {
-                if (value) params.append(key, value);
-            });
-
-            try {
-                const response = await fetch(`/api/award-books?${params}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    renderBooks(data.data.books);
-                    renderPagination(data.data.pagination);
-                } else {
-                    grid.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fa fa-exclamation-circle"></i>
-                            <h3>加载失败</h3>
-                            <p>${data.message}</p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('加载图书失败:', error);
-                grid.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fa fa-exclamation-circle"></i>
-                        <h3>加载失败</h3>
-                        <p>请稍后重试</p>
-                    </div>
-                `;
-            }
+        
+        window.location.href = url;
+    }
+    
+    // Clear filters
+    function clearFilters() {
+        showLoading('重置中...');
+        window.location.href = '/awards';
+    }
+    
+    // Search on Enter key
+    document.getElementById('search-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            applyFilters();
         }
-
-        // 渲染图书列表
-        function renderBooks(books) {
-            const grid = document.getElementById('booksGrid');
-
-            if (books.length === 0) {
-                grid.innerHTML = `
-                    <div class="empty-state" style="grid-column: 1/-1;">
-                        <i class="fa fa-inbox"></i>
-                        <h3>暂无数据</h3>
-                        <p>没有找到符合条件的图书</p>
-                    </div>
-                `;
-                return;
-            }
-
-            grid.innerHTML = books.map(book => {
-                const award = awards.find(a => a.id === book.award_id);
-                const rankBadge = book.rank && book.rank <= 3 ? `
-                    <div class="rank-badge ${book.rank === 1 ? 'gold' : book.rank === 2 ? 'silver' : 'bronze'}">
-                        ${book.rank}
-                    </div>
-                ` : '';
-
-                // 优先使用原始封面URL，其次是本地路径，最后是默认封面
-                const coverUrl = book.cover_original_url || book.cover_local_path || '/static/default-cover.png';
-                
-                return `
-                    <div class="book-card" onclick="showBookDetail(${book.id})">
-                        ${rankBadge}
-                        <img class="book-cover" src="${coverUrl}" alt="${book.title}" onerror="this.src='/static/default-cover.png'" loading="lazy">
-                        <div class="book-info">
-                            <span class="book-award-badge">${award ? award.name : '奖项'}</span>
-                            <div class="book-title">${book.title}</div>
-                            ${book.title_zh ? `<div class="book-title-zh">${book.title_zh}</div>` : ''}
-                            <div class="book-author">${book.author}</div>
-                            <div class="book-meta">
-                                <span><i class="fa fa-calendar"></i> ${book.year}年</span>
-                                <span><i class="fa fa-tag"></i> ${book.category || '未分类'}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // 渲染分页
-        function renderPagination(pagination) {
-            const paginationEl = document.getElementById('pagination');
-            const prevBtn = document.getElementById('prevBtn');
-            const nextBtn = document.getElementById('nextBtn');
-            const pageInfo = document.getElementById('pageInfo');
-
-            if (pagination.total <= pagination.limit) {
-                paginationEl.style.display = 'none';
-                return;
-            }
-
-            paginationEl.style.display = 'flex';
-            prevBtn.disabled = pagination.page <= 1;
-            nextBtn.disabled = pagination.page >= pagination.pages;
-            pageInfo.textContent = `第 ${pagination.page} / ${pagination.pages} 页 (共 ${pagination.total} 本)`;
-        }
-
-        // 切换页面
-        function changePage(delta) {
-            currentPage += delta;
-            loadBooks();
-        }
-
-        // 显示图书详情
-        async function showBookDetail(bookId) {
-            try {
-                const response = await fetch(`/api/award-books/${bookId}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    const book = data.data.book;
-                    const award = awards.find(a => a.id === book.award_id);
-
-                    // 优先使用原始封面URL
-                const modalCoverUrl = book.cover_original_url || book.cover_local_path || '/static/default-cover.png';
-                
-                document.getElementById('modalBody').innerHTML = `
-                        <div>
-                            <img class="modal-cover" src="${modalCoverUrl}" alt="${book.title}" onerror="this.src='/static/default-cover.png'">
-                        </div>
-                        <div class="modal-info">
-                            <span class="book-award-badge">${award ? award.name : '奖项'}</span>
-                            <h2>${book.title}</h2>
-                            ${book.title_zh ? `<div class="title-zh">${book.title_zh}</div>` : ''}
-
-                            <div class="modal-meta">
-                                <div class="modal-meta-item">
-                                    <span class="modal-meta-label">作者</span>
-                                    <span class="modal-meta-value">${book.author}</span>
-                                </div>
-                                <div class="modal-meta-item">
-                                    <span class="modal-meta-label">获奖年份</span>
-                                    <span class="modal-meta-value">${book.year}年</span>
-                                </div>
-                                <div class="modal-meta-item">
-                                    <span class="modal-meta-label">类别</span>
-                                    <span class="modal-meta-value">${book.category || '未分类'}</span>
-                                </div>
-                                <div class="modal-meta-item">
-                                    <span class="modal-meta-label">出版社</span>
-                                    <span class="modal-meta-value">${book.publisher || '未知'}</span>
-                                </div>
-                                ${book.isbn13 ? `
-                                <div class="modal-meta-item">
-                                    <span class="modal-meta-label">ISBN</span>
-                                    <span class="modal-meta-value">${book.isbn13}</span>
-                                </div>
-                                ` : ''}
-                            </div>
-
-                            <div class="modal-description">
-                                <h3>简介</h3>
-                                <p>${book.description || '暂无简介'}</p>
-                                ${book.description_zh ? `<p style="margin-top: 10px; color: #666;">${book.description_zh}</p>` : ''}
-                            </div>
-                        </div>
-                    `;
-
-                    document.getElementById('bookModal').classList.add('show');
-                }
-            } catch (error) {
-                console.error('加载图书详情失败:', error);
-                alert('加载详情失败，请稍后重试');
-            }
-        }
-
-        // 关闭模态框
-        function closeModal() {
-            document.getElementById('bookModal').classList.remove('show');
-        }
-
-        // 点击模态框外部关闭
-        document.getElementById('bookModal').addEventListener('click', (e) => {
-            if (e.target.id === 'bookModal') {
-                closeModal();
-            }
-        });
-
-        // ESC键关闭模态框
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
-        });
-    </script>
-</body>
-</html>
+    });
+</script>
+{% endblock %}

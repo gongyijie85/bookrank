@@ -201,3 +201,29 @@
             }, 500);
             
             showToast(isActive ? '已添加到收藏' : '已取消收藏', 'success');
+        }
+        
+        // Clear filters
+        function clearFilters() {
+            showLoading('重置中...');
+            window.location.href = window.location.pathname;
+        }
+        
+        // Search on Enter key
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        applyFilters();
+                    }
+                });
+            }
+        });
+        
+        // Apply filters (placeholder, to be overridden in child templates)
+        function applyFilters() {
+            console.log('applyFilters not implemented');
+        }
+        
+        {% block extra_js %}{% endblock %}

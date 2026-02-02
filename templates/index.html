@@ -1,1091 +1,206 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>纽约时报畅销书排行榜</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
-    <style>
-        :root {
-            --primary-color: #1a73e8;
-            --secondary-color: #f5f5f5;
-            --text-color: #333;
-            --light-gray: #eee;
-            --border-color: #ddd;
-            --success-color: #28a745;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-            color: var(--text-color);
-            line-height: 1.6;
-            background-color: #fafafa;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        h1 {
-            color: var(--primary-color);
-            margin-bottom: 10px;
-            font-size: 2.2rem;
-        }
-
-        .update-info {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 15px;
-        }
-
-        .controls {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            position: relative;
-        }
-
-        select, button, input {
-            padding: 10px 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        button {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        button:hover {
-            background-color: #0d66d0;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .view-toggle {
-            background-color: #6c757d;
-        }
-
-        .view-toggle:hover {
-            background-color: #5a6268;
-        }
-
-        .lang-toggle {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            margin-left: 10px;
-        }
-
-        .lang-toggle:hover {
-            background: linear-gradient(135deg, #218838, #1ba87e);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-        }
-
-        .lang-toggle.active {
-            background: linear-gradient(135deg, #17a2b8, #138496);
-        }
-
-        .awards-link {
-            background: linear-gradient(135deg, #ffc107, #ff9800);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 4px;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-        }
-
-        .awards-link:hover {
-            background: linear-gradient(135deg, #ffb300, #f57c00);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
-            color: white;
-        }
-
-        .search-container {
-            display: flex;
-            margin-left: auto;
-            position: relative;
-        }
-
-        #searchInput {
-            padding: 10px 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px 0 0 4px;
-            font-size: 16px;
-            width: 300px;
-            transition: border-color 0.3s;
-        }
-
-        #searchInput:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
-        }
-
-        .search-container button {
-            border-radius: 0 4px 4px 0;
-        }
-
-        .search-suggestions {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid var(--border-color);
-            border-radius: 0 0 4px 4px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            z-index: 100;
-            display: none;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .search-suggestion {
-            padding: 10px 15px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .search-suggestion:hover {
-            background-color: var(--light-gray);
-        }
-
-        .search-suggestion small {
-            color: #666;
-            font-size: 12px;
-        }
-
-        .loader {
-            display: none;
-            text-align: center;
-            padding: 50px 0;
-        }
-
-        .loader::after {
-            content: "";
-            display: inline-block;
-            width: 40px;
-            height: 40px;
-            border: 5px solid var(--light-gray);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .error {
-            color: var(--danger-color);
-            padding: 15px;
-            background-color: #f8d7da;
-            border-radius: 4px;
-            margin: 20px 0;
-            display: none;
-            text-align: center;
-        }
-
-        .info {
-            color: var(--primary-color);
-            padding: 15px;
-            background-color: #cfe2ff;
-            border-radius: 4px;
-            margin: 20px 0;
-            text-align: center;
-        }
-
-        .success {
-            color: var(--success-color);
-            padding: 15px;
-            background-color: #d4edda;
-            border-radius: 4px;
-            margin: 20px 0;
-            text-align: center;
-        }
-
-        .category-section {
-            margin-bottom: 40px;
-        }
-
-        .category-title {
-            color: var(--primary-color);
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--light-gray);
-            font-size: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .category-toggle {
-            background: none;
-            border: none;
-            color: var(--primary-color);
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        /* Grid View - 响应式布局 */
-        .grid-view .books-container {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 20px;
-            margin: 30px 0;
-        }
-
-        /* 大屏幕 - 5列 */
-        @media (min-width: 1400px) {
-            .grid-view .books-container {
-                grid-template-columns: repeat(5, 1fr);
-            }
-        }
-
-        /* 中等屏幕 - 4列 */
-        @media (max-width: 1399px) and (min-width: 1200px) {
-            .grid-view .books-container {
-                grid-template-columns: repeat(4, 1fr);
-            }
-        }
-
-        /* List View */
-        .list-view .books-container {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .list-view .book-card {
-            display: flex;
-            height: auto;
-        }
-
-        .list-view .book-image-container {
-            width: 120px;
-            flex-shrink: 0;
-        }
-
-        .list-view .book-image {
-            height: 160px;
-        }
-
-        .list-view .image-placeholder {
-            height: 160px;
-        }
-
-        .list-view .book-info {
-            flex: 1;
-            padding: 15px;
-        }
-
-        .list-view .book-title {
-            white-space: normal;
-            -webkit-line-clamp: 2;
-        }
-
-        .list-view .book-description {
-            -webkit-line-clamp: 2;
-        }
-
-        .book-card {
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
-                        box-shadow 0.3s ease;
-            cursor: pointer;
-            background-color: white;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-
-        .book-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, rgba(26, 115, 232, 0.03) 0%, transparent 100%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .book-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.15), 
-                        0 4px 8px rgba(26, 115, 232, 0.1);
-            border-color: var(--primary-color);
-        }
-
-        .book-card:hover::before {
-            opacity: 1;
-        }
-
-        .book-card:active {
-            transform: translateY(-4px) scale(1.01);
-            transition-duration: 0.1s;
-        }
-
-        .book-image-container {
-            position: relative;
-        }
-
-        .book-image {
-            width: 100%;
-            height: 250px;
-            object-fit: cover;
-            border-bottom: 1px solid var(--border-color);
-            transition: opacity 0.3s;
-        }
-
-        .image-placeholder {
-            width: 100%;
-            height: 250px;
-            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-bottom: 1px solid var(--border-color);
-            transition: opacity 0.3s ease;
-        }
-
-        .image-placeholder-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            color: #999;
-        }
-
-        .image-spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(26, 115, 232, 0.1);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        .image-loading-text {
-            font-size: 12px;
-            color: #666;
-        }
-
-        .image-fallback {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            color: #999;
-            font-size: 14px;
-        }
-
-        .book-image {
-            width: 100%;
-            height: 250px;
-            object-fit: cover;
-            border-bottom: 1px solid var(--border-color);
-            transition: opacity 0.3s ease, transform 0.3s ease;
-        }
-
-        .book-card:hover .book-image {
-            transform: scale(1.02);
-        }
-
-        .book-category-tag {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background-color: rgba(0,0,0,0.6);
-            color: white;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .book-rank-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: linear-gradient(135deg, var(--primary-color), #0d66d0);
-            color: white;
-            min-width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.4);
-            border: 2px solid white;
-            padding: 0 6px;
-        }
-
-        .book-rank-badge .rank-number {
-            font-size: 14px;
-        }
-
-        .rank-change {
-            position: absolute;
-            bottom: -8px;
-            right: -8px;
-            font-size: 10px;
-            padding: 2px 5px;
-            border-radius: 10px;
-            font-weight: bold;
-            white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-
-        .rank-change.rank-up {
-            background-color: #28a745;
-            color: white;
-        }
-
-        .rank-change.rank-down {
-            background-color: #dc3545;
-            color: white;
-        }
-
-        /* 皇冠徽章样式 - 前三名 */
-        .book-rank-badge.crown-badge {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            width: 52px;
-            height: 62px;
-            background: transparent;
-            box-shadow: none;
-            border: none;
-            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
-        }
-
-        .book-rank-badge.crown-badge .crown-svg {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 36px;
-            height: 24px;
-            z-index: 2;
-        }
-
-        .book-rank-badge.crown-badge .crown-rank-number {
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            border: 3px solid;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 18px;
-            z-index: 1;
-        }
-
-        /* 金色 - 第1名 */
-        .book-rank-badge.crown-badge.gold .crown-rank-number {
-            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-            border-color: #FFD700;
-            color: #8B4513;
-            box-shadow: 0 3px 10px rgba(255, 215, 0, 0.4);
-        }
-
-        /* 银色 - 第2名 */
-        .book-rank-badge.crown-badge.silver .crown-rank-number {
-            background: linear-gradient(135deg, #F5F5F5 0%, #C0C0C0 100%);
-            border-color: #C0C0C0;
-            color: #555;
-            box-shadow: 0 3px 10px rgba(192, 192, 192, 0.4);
-        }
-
-        /* 铜色 - 第3名 */
-        .book-rank-badge.crown-badge.bronze .crown-rank-number {
-            background: linear-gradient(135deg, #D4A574 0%, #B87333 100%);
-            border-color: #B87333;
-            color: #5D3A1A;
-            box-shadow: 0 3px 10px rgba(205, 127, 50, 0.4);
-        }
-
-        .book-info {
-            padding: 15px;
-            position: relative;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .book-title {
-            font-size: 16px;
-            margin-bottom: 5px;
-            color: var(--text-color);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-weight: 600;
-        }
-
-        .book-author {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 8px;
-        }
-
-        .book-meta {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 5px;
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 5px;
-        }
-
-        .book-weeks {
-            display: inline-block;
-            background-color: var(--warning-color);
-            color: #000;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .book-last-rank {
-            display: inline-block;
-            background-color: #6c757d;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .book-description {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #555;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-        }
-
-        .export-btn {
-            margin: 20px auto;
-            display: block;
-        }
-
-        /* 详情模态框 - 优化动画和关闭按钮 */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.7);
-            z-index: 1000;
-            overflow: auto;
-            padding: 40px 20px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .modal.show {
-            display: block;
-            opacity: 1;
-        }
-
-        .modal-content {
-            background-color: white;
-            margin: 0 auto;
-            padding: 30px;
-            padding-top: 60px;
-            border-radius: 8px;
-            max-width: 900px;
-            position: relative;
-            transform: translateY(-50px);
-            transition: transform 0.4s ease-out, opacity 0.4s ease-out;
-            opacity: 0;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal.show .modal-content {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .close-modal {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            background: white;
-            border: 1px solid #e0e0e0;
-            transition: all 0.3s;
-            z-index: 1001;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .close-modal:hover {
-            color: #000;
-            background: #f5f5f5;
-            border-color: #ccc;
-        }
-
-        .book-detail {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 30px;
-            clear: both;
-            padding-top: 10px;
-        }
-
-        .detail-image {
-            width: 100%;
-            max-width: 250px;
-            border-radius: 4px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-
-        .detail-info h2 {
-            margin-bottom: 10px;
-            color: var(--primary-color);
-        }
-
-        .detail-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 15px;
-            margin-bottom: 10px;
-        }
-
-        .detail-header h2 {
-            flex: 1;
-            margin: 0;
-        }
-
-        .translate-btn {
-            background: linear-gradient(135deg, #17a2b8, #138496);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-        }
-
-        .translate-btn:hover {
-            background: linear-gradient(135deg, #138496, #117a8b);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
-        }
-
-        .translate-btn:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .translate-btn i {
-            font-size: 16px;
-        }
-
-        .detail-author {
-            font-size: 18px;
-            color: #666;
-            margin-bottom: 20px;
-        }
-
-        .detail-section {
-            margin: 20px 0;
-        }
-
-        .detail-section h3 {
-            border-bottom: 2px solid var(--light-gray);
-            padding-bottom: 5px;
-            margin-bottom: 10px;
-            color: #444;
-        }
-
-        .detail-meta {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
-        }
-
-        .meta-item {
-            margin-bottom: 10px;
-        }
-
-        .meta-label {
-            font-weight: bold;
-            color: #555;
-        }
-
-        .expandable-content {
-            max-height: 100px;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-
-        .expandable-content.expanded {
-            max-height: 1000px;
-        }
-
-        .expand-btn {
-            background: none;
-            border: none;
-            color: var(--primary-color);
-            cursor: pointer;
-            padding: 5px 0;
-            font-size: 14px;
-            margin-top: 5px;
-        }
-
-        .expand-btn:hover {
-            text-decoration: underline;
-        }
-
-        .buy-links {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .buy-link {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 8px 15px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 14px;
-            transition: background-color 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .buy-link:hover {
-            background-color: #0d66d0;
-        }
-
-        /* 移动端优化 */
-        /* 平板 - 3列 */
-        @media (max-width: 1199px) and (min-width: 768px) {
-            .grid-view .books-container {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 15px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            
-            h1 {
-                font-size: 1.8rem;
-            }
-            
-            .controls {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .search-container {
-                margin-left: 0;
-                width: 100%;
-            }
-            
-            #searchInput {
-                width: 100%;
-            }
-            
-            /* 手机 - 2列 */
-            .grid-view .books-container {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-            }
-            
-            .book-card {
-                border-radius: 6px;
-            }
-            
-            .book-image, .image-placeholder {
-                height: 180px;
-            }
-            
-            .book-info {
-                padding: 10px;
-            }
-            
-            .book-title {
-                font-size: 13px;
-                font-weight: 600;
-            }
-            
-            .book-author {
-                font-size: 12px;
-            }
-            
-            .book-meta {
-                font-size: 11px;
-            }
-            
-            .book-rank-badge {
-                min-width: 26px;
-                height: 26px;
-                font-size: 12px;
-            }
-            
-            .book-category-tag {
-                font-size: 10px;
-                padding: 2px 6px;
-            }
-            
-            .book-image {
-                height: 200px;
-            }
-            
-            .book-detail {
-                grid-template-columns: 1fr;
-            }
-            
-            .detail-image {
-                max-width: 200px;
-                margin: 0 auto;
-            }
-            
-            .detail-meta {
-                grid-template-columns: 1fr;
-            }
-            
-            .list-view .book-card {
-                flex-direction: column;
-            }
-            
-            .list-view .book-image-container {
-                width: 100%;
-            }
-
-            /* 移动端模态框优化 */
-            .modal {
-                padding: 20px 10px;
-            }
-            
-            .modal-content {
-                padding: 20px;
-                margin: 0;
-                width: 100%;
-            }
-            
-            .close-modal {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: rgba(255,255,255,0.95);
-                z-index: 1002;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .grid-view .books-container {
-                grid-template-columns: repeat(2, minmax(130px, 1fr));
-                gap: 10px;
-            }
-            
-            .book-info {
-                padding: 10px;
-            }
-            
-            .book-title {
-                font-size: 14px;
-            }
-            
-            .book-author, .book-meta {
-                font-size: 12px;
-            }
-
-            /* 移动端详情页优化 */
-            .detail-section h3 {
-                font-size: 16px;
-            }
-            
-            .detail-meta .meta-item {
-                font-size: 14px;
-            }
-            
-            .buy-links {
-                flex-direction: column;
-            }
-            
-            .buy-link {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-
-        /* 触摸设备优化 */
-        @media (hover: none) {
-            .book-card:hover {
-                transform: none;
-            }
-            
-            button:hover, .buy-link:hover {
-                background-color: var(--primary-color);
-            }
-            
-            .close-modal:hover {
-                background: white;
-                color: #666;
-            }
-            
-            /* 增加触摸目标大小 */
-            button, .buy-link, .close-modal {
-                min-height: 44px;
-                min-width: 44px;
-            }
-            
-            .book-card {
-                cursor: default;
-            }
-        }
-    </style>
-</head>
-<body>
-    <header>
-        <h1>纽约时报畅销书排行榜</h1>
-        <p>实时获取纽约时报各类别畅销书信息，包含详细介绍与购买链接</p>
-        <div class="update-info">
-            <i class="fa fa-clock-o"></i> 榜单最后更新时间: <span id="lastUpdate">加载中...</span>
-        </div>
-    </header>
-    
-    <div class="controls">
-        <select id="listType">
-            <option value="all">全部分类</option>
-            <option value="hardcover-fiction">精装小说</option>
-            <option value="hardcover-nonfiction">精装非虚构</option>
-            <option value="trade-fiction-paperback">平装小说</option>
-            <option value="paperback-nonfiction">平装非虚构</option>
+{% extends "base.html" %}
+
+{% block title %}纽约时报畅销书排行榜 - BookRank{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fa fa-fire text-gold"></i>
+        纽约时报畅销书排行榜
+    </h1>
+    <p class="page-subtitle">
+        <i class="fa fa-clock-o"></i>
+        更新于: {{ update_time if update_time else '刚刚' }}
+    </p>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <div class="filter-group">
+        <label class="filter-label">图书分类</label>
+        <select class="filter-select" id="category-select" onchange="changeCategory(this.value)">
+            {% for cat in categories %}
+            <option value="{{ cat.value }}" {% if cat.value == current_category %}selected{% endif %}>
+                {{ cat.label }}
+            </option>
+            {% endfor %}
         </select>
-        
-        <button id="fetchBooks">
-            <i class="fa fa-refresh"></i> 加载图书
+    </div>
+    
+    <div class="filter-group search-box">
+        <label class="filter-label">搜索</label>
+        <div class="search-input-wrapper">
+            <input type="text" 
+                   class="filter-input" 
+                   id="search-input"
+                   placeholder="搜索书名或作者..."
+                   value="{{ search_query if search_query else '' }}">
+            <i class="fa fa-search"></i>
+        </div>
+    </div>
+    
+    <div class="filter-actions">
+        <button class="btn btn-primary" onclick="applyFilters()">
+            <i class="fa fa-filter"></i>
+            筛选
         </button>
-        
-        <button id="exportBooks" class="export-btn">
-            <i class="fa fa-download"></i> 导出CSV
+        <button class="btn btn-secondary" onclick="clearFilters()">
+            <i class="fa fa-refresh"></i>
+            重置
         </button>
-        
-        <div class="search-container">
-            <input type="text" id="searchInput" placeholder="搜索书名或作者...">
-            <button id="searchBtn">
-                <i class="fa fa-search"></i> 搜索
+    </div>
+    
+    <div class="view-toggle">
+        <button class="btn btn-icon {% if view_mode == 'grid' or not view_mode %}active{% endif %}" 
+                id="view-grid"
+                onclick="toggleView('grid')"
+                title="网格视图">
+            <i class="fa fa-th"></i>
+        </button>
+        <button class="btn btn-icon {% if view_mode == 'list' %}active{% endif %}" 
+                id="view-list"
+                onclick="toggleView('list')"
+                title="列表视图">
+            <i class="fa fa-list"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Books Grid View -->
+<div class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' or not view_mode %}grid{% else %}none{% endif %}">
+    {% for book in books %}
+    <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+        <div class="card-image">
+            <img src="{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png') }}" 
+                 alt="{{ book.title }}"
+                 loading="lazy"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            
+            <!-- Rank Badge -->
+            <div class="card-badge {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% else %}other{% endif %}">
+                {{ loop.index }}
+            </div>
+            
+            <!-- Favorite Button -->
+            <button class="card-favorite" onclick="toggleFavorite(this, '{{ book.isbn13 }}')">
+                <i class="fa fa-heart-o"></i>
             </button>
         </div>
         
-        <button id="toggleView" class="view-toggle">
-            <i class="fa fa-th-list"></i> 切换视图
-        </button>
-        
-        <button id="toggleLang" class="lang-toggle" title="切换语言">
-            <i class="fa fa-language"></i> <span id="langText">中文</span>
-        </button>
-
-        <a href="/awards" class="awards-link" title="图书奖项榜单">
-            <i class="fa fa-trophy"></i> 奖项榜单
-        </a>
-
-    </div>
-    
-    <div class="loader" id="loader"></div>
-    <div class="error" id="error"></div>
-    <div class="info" id="info" style="display: none;"></div>
-    
-    <div id="booksContainer" class="grid-view"></div>
-    
-    <!-- 图书详情模态框 -->
-    <div id="bookModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal" id="closeModal">&times;</span>
-            <div id="bookDetail"></div>
+        <div class="card-content">
+            <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
+            <p class="card-author">{{ book.author }}</p>
+            
+            <div class="card-meta">
+                <span class="card-tag">{{ book.category if book.category else '虚构类' }}</span>
+                {% if book.weeks_on_list %}
+                <span class="card-tag">
+                    <i class="fa fa-clock-o"></i> {{ book.weeks_on_list }}周
+                </span>
+                {% endif %}
+            </div>
+            
+            {% if book.description %}
+            <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
+            {% endif %}
         </div>
     </div>
+    {% endfor %}
+</div>
+
+<!-- Books List View -->
+<div class="books-list" id="books-list" style="display: {% if view_mode == 'list' %}flex{% else %}none{% endif %}">
+    {% for book in books %}
+    <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+        <div class="list-item-image">
+            <img src="{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png') }}" 
+                 alt="{{ book.title }}"
+                 loading="lazy"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+        
+        <div class="list-item-content">
+            <div class="list-item-header">
+                <div class="list-item-rank {% if loop.index == 1 %}rank-gold{% elif loop.index == 2 %}rank-silver{% elif loop.index == 3 %}rank-bronze{% endif %}">
+                    {{ loop.index }}
+                </div>
+                <h3 class="list-item-title">{{ book.title }}</h3>
+            </div>
+            
+            <p class="list-item-author">{{ book.author }}</p>
+            
+            {% if book.description %}
+            <p class="list-item-desc">{{ book.description }}</p>
+            {% endif %}
+            
+            <div class="list-item-meta">
+                <span class="card-tag">{{ book.category if book.category else '虚构类' }}</span>
+                {% if book.weeks_on_list %}
+                <span class="card-tag">
+                    <i class="fa fa-clock-o"></i> {{ book.weeks_on_list }}周
+                </span>
+                {% endif %}
+                {% if book.publisher %}
+                <span class="card-tag">
+                    <i class="fa fa-building"></i> {{ book.publisher }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="list-item-actions">
+            <button class="btn btn-icon btn-outline" onclick="toggleFavorite(this, '{{ book.isbn13 }}')">
+                <i class="fa fa-heart-o"></i>
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Empty State -->
+{% if not books %}
+<div class="empty-state">
+    <i class="fa fa-inbox"></i>
+    <h3>暂无数据</h3>
+    <p>请尝试切换分类或稍后重试</p>
+</div>
+{% endif %}
+
+<!-- Quick Link to Awards -->
+<div class="quick-link-section">
+    <a href="{{ url_for('main.awards') }}" class="quick-link-card">
+        <i class="fa fa-trophy"></i>
+        <div>
+            <h4>查看国际图书奖项榜单</h4>
+            <p>诺贝尔文学奖、布克奖、普利策奖等</p>
+        </div>
+        <i class="fa fa-arrow-right"></i>
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Change category
+    function changeCategory(category) {
+        showLoading('加载中...');
+        window.location.href = `/?category=${category}`;
+    }
     
-    <script type="module" src="/static/js/app.js"></script>
-</body>
-</html>
+    // Apply filters
+    function applyFilters() {
+        const category = document.getElementById('category-select').value;
+        const search = document.getElementById('search-input').value;
+        
+        showLoading('搜索中...');
+        
+        let url = `/?category=${category}`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        
+        window.location.href = url;
+    }
+    
+    // Clear
