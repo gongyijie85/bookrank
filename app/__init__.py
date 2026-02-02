@@ -367,12 +367,13 @@ def _init_sample_books(app):
 
 
 def _fetch_missing_covers(app):
-    """为缺失封面的图书从 Google Books 获取封面"""
+    """为缺失封面的图书获取封面（优先使用 Open Library，回退到 Google Books）"""
     try:
         from .models.schemas import AwardBook
-        from .services import GoogleBooksClient, ImageCacheService
+        from .services import OpenLibraryClient, GoogleBooksClient, ImageCacheService
         
         # 创建客户端
+        openlib_client = OpenLibraryClient(timeout=10)
         google_client = GoogleBooksClient(
             api_key=app.config.get('GOOGLE_API_KEY'),
             base_url='https://www.googleapis.com/books/v1/volumes',
@@ -397,17 +398,32 @@ def _fetch_missing_covers(app):
         app.logger.info(f"📚 开始为 {len(books)} 本图书获取封面...")
         
         updated = 0
+        failed_books = []
+        
         for i, book in enumerate(books, 1):
             try:
-                # 获取封面 URL
-                cover_url = google_client.get_cover_url(
-                    isbn=book.isbn13,
-                    title=book.title,
-                    author=book.author
-                )
+                cover_url = None
+                source = None
+                
+                # 第一步：尝试 Open Library（免费，无需 API Key）
+                if book.isbn13:
+                    cover_url = openlib_client.get_cover_url(book.isbn13, size='L')
+                    if cover_url:
+                        source = 'Open Library'
+                
+                # 第二步：如果 Open Library 失败，尝试 Google Books
+                if not cover_url:
+                    cover_url = google_client.get_cover_url(
+                        isbn=book.isbn13,
+                        title=book.title,
+                        author=book.author
+                    )
+                    if cover_url:
+                        source = 'Google Books'
                 
                 if not cover_url:
                     app.logger.warning(f"  [{i}/{len(books)}] 未找到封面: {book.title}")
+                    failed_books.append(book)
                     continue
                 
                 # 下载并缓存封面
@@ -417,9 +433,10 @@ def _fetch_missing_covers(app):
                     book.cover_original_url = cover_url
                     book.cover_local_path = cached_url
                     updated += 1
-                    app.logger.info(f"  [{i}/{len(books)}] ✅ {book.title[:30]}...")
+                    app.logger.info(f"  [{i}/{len(books)}] ✅ {book.title[:30]}... ({source})")
                 else:
                     app.logger.warning(f"  [{i}/{len(books)}] ⚠️ 下载失败: {book.title[:30]}...")
+                    failed_books.append(book)
                 
                 # 每5本保存一次
                 if i % 5 == 0:
@@ -431,13 +448,68 @@ def _fetch_missing_covers(app):
                 
             except Exception as e:
                 app.logger.error(f"  [{i}/{len(books)}] ❌ 错误: {e}")
+                failed_books.append(book)
                 continue
         
         db.session.commit()
         app.logger.info(f"✅ 封面更新完成: {updated}/{len(books)} 本")
         
+        # 尝试通过 Open Library API 补充图书详细信息
+        if failed_books:
+            _enrich_books_from_openlibrary(app, failed_books, openlib_client, image_cache)
+        
     except Exception as e:
         app.logger.error(f"❌ 获取封面失败: {e}", exc_info=True)
+
+
+def _enrich_books_from_openlibrary(app, books, openlib_client, image_cache):
+    """通过 Open Library API 补充图书详细信息"""
+    try:
+        from .models.schemas import AwardBook
+        
+        app.logger.info(f"📖 尝试通过 Open Library API 补充 {len(books)} 本图书信息...")
+        
+        enriched = 0
+        for i, book in enumerate(books, 1):
+            try:
+                if not book.isbn13:
+                    continue
+                
+                # 获取图书详情
+                book_data = openlib_client.fetch_book_by_isbn(book.isbn13)
+                
+                if not book_data:
+                    continue
+                
+                # 更新图书信息
+                if book_data.get('description') and len(book_data['description']) > len(book.description or ''):
+                    book.description = book_data['description']
+                
+                # 获取封面
+                if book_data.get('cover_url') and not book.cover_local_path:
+                    cached_url = image_cache.get_cached_image_url(book_data['cover_url'], ttl=86400*365)
+                    if cached_url and cached_url != '/static/default-cover.png':
+                        book.cover_original_url = book_data['cover_url']
+                        book.cover_local_path = cached_url
+                        enriched += 1
+                        app.logger.info(f"  [{i}/{len(books)}] ✅ 补充信息: {book.title[:30]}...")
+                
+                # 每3本保存一次
+                if i % 3 == 0:
+                    db.session.commit()
+                
+                import time
+                time.sleep(0.5)
+                
+            except Exception as e:
+                app.logger.error(f"  [{i}/{len(books)}] ❌ 错误: {e}")
+                continue
+        
+        db.session.commit()
+        app.logger.info(f"✅ 信息补充完成: {enriched} 本")
+        
+    except Exception as e:
+        app.logger.error(f"❌ 补充图书信息失败: {e}", exc_info=True)
 
 
 def _init_services(app):

@@ -253,6 +253,204 @@ class GoogleBooksClient:
         return None
 
 
+class OpenLibraryClient:
+    """
+    Open Library API 客户端
+    
+    Open Library 是由 Internet Archive 维护的免费图书数据库
+    优势：完全免费，无需 API Key，支持 ISBN 查询和封面图片
+    
+    API 文档：https://openlibrary.org/dev/docs/api/books
+    """
+    
+    def __init__(self, timeout: int = 10):
+        self._base_url = 'https://openlibrary.org'
+        self._covers_url = 'https://covers.openlibrary.org'
+        self._timeout = timeout
+        self._session = requests.Session()
+        # 设置请求头，避免被阻止
+        self._session.headers.update({
+            'User-Agent': 'BookRank/1.0 (bookrank@example.com)'
+        })
+    
+    @retry(max_attempts=2, backoff_factor=1.5)
+    def fetch_book_by_isbn(self, isbn: str) -> Dict[str, Any]:
+        """
+        通过 ISBN 获取图书详情
+        
+        Args:
+            isbn: 图书 ISBN-10 或 ISBN-13
+            
+        Returns:
+            图书详细信息字典
+        """
+        if not isbn:
+            return {}
+        
+        # 清理 ISBN（移除连字符和空格）
+        clean_isbn = isbn.replace('-', '').replace(' ', '')
+        
+        url = f"{self._base_url}/api/books"
+        params = {
+            'bibkeys': f'ISBN:{clean_isbn}',
+            'format': 'json',
+            'jscmd': 'data'
+        }
+        
+        try:
+            response = self._session.get(
+                url,
+                params=params,
+                timeout=self._timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            # Open Library 返回的键格式为 "ISBN:xxxx"
+            key = f'ISBN:{clean_isbn}'
+            if key not in data:
+                logger.warning(f"No data found for ISBN: {isbn}")
+                return {}
+            
+            book_data = data[key]
+            return self._parse_book_data(book_data, clean_isbn)
+            
+        except requests.RequestException as e:
+            logger.warning(f"Failed to fetch Open Library data for ISBN {isbn}: {e}")
+            return {}
+    
+    def _parse_book_data(self, book_data: Dict[str, Any], isbn: str) -> Dict[str, Any]:
+        """解析 Open Library 返回的图书数据"""
+        
+        # 获取作者信息
+        authors = []
+        if 'authors' in book_data:
+            authors = [author.get('name', '') for author in book_data['authors']]
+        
+        # 获取出版信息
+        publish_date = book_data.get('publish_date', 'Unknown')
+        publishers = []
+        if 'publishers' in book_data:
+            publishers = [pub.get('name', '') for pub in book_data['publishers']]
+        
+        # 获取封面信息
+        cover_url = None
+        if 'cover' in book_data:
+            cover = book_data['cover']
+            # 优先使用大封面
+            cover_url = (cover.get('large') or 
+                        cover.get('medium') or 
+                        cover.get('small'))
+        
+        # 获取页数
+        pages = book_data.get('number_of_pages', 'Unknown')
+        
+        # 获取描述
+        description = ''
+        if 'description' in book_data:
+            desc = book_data['description']
+            if isinstance(desc, dict):
+                description = desc.get('value', '')
+            else:
+                description = str(desc)
+        
+        return {
+            'title': book_data.get('title'),
+            'authors': authors,
+            'author': ', '.join(authors) if authors else None,
+            'publisher': publishers[0] if publishers else None,
+            'publish_date': publish_date,
+            'pages': pages,
+            'description': description or 'No description available.',
+            'cover_url': cover_url,
+            'isbn_13': isbn if len(isbn) == 13 else None,
+            'isbn_10': isbn if len(isbn) == 10 else None,
+            'source': 'open_library'
+        }
+    
+    def get_cover_url(self, isbn: str, size: str = 'L') -> Optional[str]:
+        """
+        获取 Open Library 封面图片 URL
+        
+        Args:
+            isbn: 图书 ISBN
+            size: 图片尺寸 ('S'=小, 'M'=中, 'L'=大)
+            
+        Returns:
+            封面图片 URL 或 None
+        """
+        if not isbn:
+            return None
+        
+        # 清理 ISBN
+        clean_isbn = isbn.replace('-', '').replace(' ', '')
+        
+        # 验证尺寸参数
+        size = size.upper()
+        if size not in ['S', 'M', 'L']:
+            size = 'L'
+        
+        # 构建封面 URL
+        cover_url = f"{self._covers_url}/b/isbn/{clean_isbn}-{size}.jpg"
+        
+        # 检查封面是否存在（Open Library 会返回 1x1 像素的占位图如果不存在）
+        try:
+            response = self._session.head(cover_url, timeout=5)
+            if response.status_code == 200:
+                # 检查内容长度，排除占位图
+                content_length = response.headers.get('Content-Length')
+                if content_length and int(content_length) > 100:
+                    return cover_url
+        except requests.RequestException:
+            pass
+        
+        return None
+    
+    def search_books(self, query: str, limit: int = 10) -> list:
+        """
+        搜索图书
+        
+        Args:
+            query: 搜索关键词
+            limit: 返回结果数量限制
+            
+        Returns:
+            图书列表
+        """
+        url = f"{self._base_url}/search.json"
+        params = {
+            'q': query,
+            'limit': limit
+        }
+        
+        try:
+            response = self._session.get(
+                url,
+                params=params,
+                timeout=self._timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            books = []
+            for doc in data.get('docs', []):
+                book = {
+                    'title': doc.get('title'),
+                    'authors': doc.get('author_name', []),
+                    'author': ', '.join(doc.get('author_name', [])),
+                    'first_publish_year': doc.get('first_publish_year'),
+                    'isbn': doc.get('isbn', [None])[0] if doc.get('isbn') else None,
+                    'cover_id': doc.get('cover_i')
+                }
+                books.append(book)
+            
+            return books
+            
+        except requests.RequestException as e:
+            logger.warning(f"Failed to search Open Library: {e}")
+            return []
+
+
 class ImageCacheService:
     """图片缓存服务"""
     
