@@ -451,6 +451,22 @@ h4 { font-size: 1.125rem; }
     color: var(--primary-color);
 }
 
+/* Books Grid - 畅销书网格视图 */
+.books-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+/* Books List - 畅销书列表视图 */
+.books-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
 /* Awards Grid */
 .awards-grid {
     display: grid;

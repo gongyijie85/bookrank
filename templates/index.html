@@ -12,6 +12,9 @@
     <p class="page-subtitle">
         <i class="fa fa-clock-o"></i>
         更新于: {{ update_time if update_time else '刚刚' }}
+        {% if is_cached %}
+        <span class="cache-badge">缓存数据</span>
+        {% endif %}
     </p>
 </div>
 
@@ -52,13 +55,13 @@
     </div>
     
     <div class="view-toggle">
-        <button class="btn btn-icon {% if view_mode == 'grid' or not view_mode %}active{% endif %}" 
+        <button class="btn btn-icon {% if view_mode == 'grid' %}active{% endif %}" 
                 id="view-grid"
                 onclick="toggleView('grid')"
                 title="网格视图">
             <i class="fa fa-th"></i>
         </button>
-        <button class="btn btn-icon {% if view_mode == 'list' %}active{% endif %}" 
+        <button class="btn btn-icon {% if view_mode == 'list' or not view_mode %}active{% endif %}" 
                 id="view-list"
                 onclick="toggleView('list')"
                 title="列表视图">
@@ -67,12 +70,27 @@
     </div>
 </div>
 
+<!-- Batch Actions Bar -->
+{% if books %}
+<div class="batch-actions-bar">
+    <label class="batch-select-all">
+        <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
+        <span>全选</span>
+    </label>
+    <span class="batch-count" id="batch-count">已选择 0 本</span>
+    <button class="btn btn-primary btn-sm" onclick="exportSelected()">
+        <i class="fa fa-download"></i>
+        导出CSV
+    </button>
+</div>
+{% endif %}
+
 <!-- Books Grid View -->
-<div class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' or not view_mode %}grid{% else %}none{% endif %}">
+<div class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' %}grid{% else %}none{% endif %}">
     {% for book in books %}
-    <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+    <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
         <div class="card-image">
-            <img src="{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png') }}" 
+            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}" 
                  alt="{{ book.title }}"
                  loading="lazy"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
@@ -82,10 +100,25 @@
                 {{ loop.index }}
             </div>
             
-            <!-- Favorite Button -->
-            <button class="card-favorite" onclick="toggleFavorite(this, '{{ book.isbn13 }}')">
-                <i class="fa fa-heart-o"></i>
-            </button>
+            <!-- Category Tag - 分类标签 -->
+            <div class="card-category-tag">{{ book.category_name if book.category_name else '虚构类' }}</div>
+            
+            <!-- Rank Change Badge -->
+            {% if book.rank_last_week and book.rank_last_week != '0' %}
+                {% set rank_change = book.rank_last_week|int - loop.index %}
+                {% if rank_change > 0 %}
+                <div class="rank-change up">↑{{ rank_change }}</div>
+                {% elif rank_change < 0 %}
+                <div class="rank-change down">↓{{ rank_change|abs }}</div>
+                {% endif %}
+            {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+                <div class="rank-change new">NEW</div>
+            {% endif %}
+            
+            <!-- Selection Checkbox -->
+            <div class="card-checkbox" onclick="event.stopPropagation()">
+                <input type="checkbox" class="book-select" data-book-index="{{ loop.index - 1 }}" onchange="updateBatchCount()">
+            </div>
         </div>
         
         <div class="card-content">
@@ -93,7 +126,7 @@
             <p class="card-author">{{ book.author }}</p>
             
             <div class="card-meta">
-                <span class="card-tag">{{ book.category if book.category else '虚构类' }}</span>
+                <span class="card-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
                 {% if book.weeks_on_list %}
                 <span class="card-tag">
                     <i class="fa fa-clock-o"></i> {{ book.weeks_on_list }}周
@@ -110,11 +143,15 @@
 </div>
 
 <!-- Books List View -->
-<div class="books-list" id="books-list" style="display: {% if view_mode == 'list' %}flex{% else %}none{% endif %}">
+<div class="books-list" id="books-list" style="display: {% if view_mode == 'list' or not view_mode %}flex{% else %}none{% endif %}">
     {% for book in books %}
-    <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
+    <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
+        <div class="list-item-checkbox" onclick="event.stopPropagation()">
+            <input type="checkbox" class="book-select" data-book-index="{{ loop.index - 1 }}" onchange="updateBatchCount()">
+        </div>
+        
         <div class="list-item-image">
-            <img src="{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png') }}" 
+            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}" 
                  alt="{{ book.title }}"
                  loading="lazy"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
@@ -125,17 +162,30 @@
                 <div class="list-item-rank {% if loop.index == 1 %}rank-gold{% elif loop.index == 2 %}rank-silver{% elif loop.index == 3 %}rank-bronze{% endif %}">
                     {{ loop.index }}
                 </div>
+                
+                <!-- Rank Change -->
+                {% if book.rank_last_week and book.rank_last_week != '0' %}
+                    {% set rank_change = book.rank_last_week|int - loop.index %}
+                    {% if rank_change > 0 %}
+                    <span class="rank-change-badge up">↑{{ rank_change }}</span>
+                    {% elif rank_change < 0 %}
+                    <span class="rank-change-badge down">↓{{ rank_change|abs }}</span>
+                    {% endif %}
+                {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+                    <span class="rank-change-badge new">NEW</span>
+                {% endif %}
+                
                 <h3 class="list-item-title">{{ book.title }}</h3>
             </div>
             
             <p class="list-item-author">{{ book.author }}</p>
             
             {% if book.description %}
-            <p class="list-item-desc">{{ book.description }}</p>
+            <p class="list-item-desc">{{ book.description[:200] }}{% if book.description|length > 200 %}...{% endif %}</p>
             {% endif %}
             
             <div class="list-item-meta">
-                <span class="card-tag">{{ book.category if book.category else '虚构类' }}</span>
+                <span class="card-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
                 {% if book.weeks_on_list %}
                 <span class="card-tag">
                     <i class="fa fa-clock-o"></i> {{ book.weeks_on_list }}周
@@ -150,7 +200,7 @@
         </div>
         
         <div class="list-item-actions">
-            <button class="btn btn-icon btn-outline" onclick="toggleFavorite(this, '{{ book.isbn13 }}')">
+            <button class="btn btn-icon btn-outline" onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.isbn13 }}')">
                 <i class="fa fa-heart-o"></i>
             </button>
         </div>
@@ -164,6 +214,9 @@
     <i class="fa fa-inbox"></i>
     <h3>暂无数据</h3>
     <p>请尝试切换分类或稍后重试</p>
+    {% if is_cached %}
+    <p class="cache-hint">当前展示为缓存数据，<a href="javascript:void(0)" onclick="refreshData()">点击刷新</a>获取最新榜单</p>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -178,6 +231,90 @@
         <i class="fa fa-arrow-right"></i>
     </a>
 </div>
+
+<!-- Book Detail Modal -->
+<div class="modal" id="book-modal" onclick="closeBookModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <button class="modal-close" onclick="closeBookModal()">
+            <i class="fa fa-times"></i>
+        </button>
+        
+        <div class="modal-body">
+            <div class="modal-left">
+                <div class="modal-cover">
+                    <img id="modal-cover-img" src="" alt="">
+                    <div class="modal-rank" id="modal-rank"></div>
+                </div>
+            </div>
+            
+            <div class="modal-right">
+                <div class="modal-header">
+                    <h2 id="modal-title"></h2>
+                    <p class="modal-author" id="modal-author"></p>
+                </div>
+                
+                <div class="modal-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">出版社</span>
+                        <span class="meta-value" id="modal-publisher"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">出版日期</span>
+                        <span class="meta-value" id="modal-publication-date"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">页数</span>
+                        <span class="meta-value" id="modal-page-count"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">语言</span>
+                        <span class="meta-value" id="modal-language"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">分类</span>
+                        <span class="meta-value" id="modal-category"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">上榜周数</span>
+                        <span class="meta-value" id="modal-weeks-on-list"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">上周排名</span>
+                        <span class="meta-value" id="modal-rank-last-week"></span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">ISBN-13</span>
+                        <span class="meta-value" id="modal-isbn"></span>
+                    </div>
+                </div>
+                
+                <div class="modal-tabs">
+                    <button class="tab-btn active" onclick="switchTab('description')">图书简介</button>
+                    <button class="tab-btn" onclick="switchTab('details')">详细信息</button>
+                </div>
+                
+                <div class="modal-tab-content">
+                    <div class="tab-panel active" id="tab-description">
+                        <p id="modal-description"></p>
+                    </div>
+                    <div class="tab-panel" id="tab-details">
+                        <p id="modal-details"></p>
+                    </div>
+                </div>
+                
+                <div class="modal-buy-links" id="modal-buy-links">
+                    <h4>购买链接</h4>
+                    <div class="buy-links-list" id="buy-links-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Books Data for JavaScript -->
+<script>
+    window.booksData = {{ books|tojson|safe }};
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -202,5 +339,135 @@
         
         window.location.href = url;
     }
+    
+    // Refresh data
+    function refreshData() {
+        showLoading('刷新中...');
+        window.location.href = window.location.pathname + '?refresh=1';
+    }
+    
+    // Batch selection
+    function toggleSelectAll() {
+        const selectAll = document.getElementById('select-all');
+        const checkboxes = document.querySelectorAll('.book-select');
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        updateBatchCount();
+    }
+    
+    function updateBatchCount() {
+        const checked = document.querySelectorAll('.book-select:checked');
+        document.getElementById('batch-count').textContent = `已选择 ${checked.length} 本`;
+    }
+    
+    // Export selected books to CSV
+    function exportSelected() {
+        const checked = document.querySelectorAll('.book-select:checked');
+        if (checked.length === 0) {
+            showToast('请先选择要导出的图书', 'warning');
+            return;
+        }
+        
+        const selectedIndices = Array.from(checked).map(cb => parseInt(cb.dataset.bookIndex));
+        const selectedBooks = selectedIndices.map(index => window.booksData[index]);
+        
+        // CSV Header
+        const headers = ['排名', '书名', '作者', '出版社', '出版日期', '页数', '语言', '分类', '上榜周数', '上周排名', 'ISBN-13', '价格'];
+        
+        // CSV Content
+        const rows = selectedBooks.map((book, index) => [
+            index + 1,
+            book.title || '',
+            book.author || '',
+            book.publisher || '',
+            book.publication_dt || '',
+            book.page_count || '',
+            book.language || '',
+            book.category_name || '',
+            book.weeks_on_list || '',
+            book.rank_last_week || '',
+            book.isbn13 || '',
+            book.price || ''
+        ]);
+        
+        // Create CSV
+        const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
+        
+        // Download
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `畅销书榜单_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        
+        showToast('导出成功', 'success');
+    }
+    
+    // Book Modal Functions
+    function openBookModal(bookIndex) {
+        const book = window.booksData[bookIndex];
+        if (!book) return;
+        
+        // Fill modal content
+        document.getElementById('modal-cover-img').src = book.cover || '/static/default-cover.png';
+        document.getElementById('modal-rank').textContent = bookIndex + 1;
+        document.getElementById('modal-title').textContent = book.title || '';
+        document.getElementById('modal-author').textContent = book.author || '';
+        document.getElementById('modal-publisher').textContent = book.publisher || '未知';
+        document.getElementById('modal-publication-date').textContent = book.publication_dt || '未知';
+        document.getElementById('modal-page-count').textContent = book.page_count || '未知';
+        document.getElementById('modal-language').textContent = book.language || '未知';
+        document.getElementById('modal-category').textContent = book.category_name || '';
+        document.getElementById('modal-weeks-on-list').textContent = book.weeks_on_list ? `${book.weeks_on_list}周` : '未知';
+        document.getElementById('modal-rank-last-week').textContent = book.rank_last_week || 'NEW';
+        document.getElementById('modal-isbn').textContent = book.isbn13 || '';
+        document.getElementById('modal-description').textContent = book.description || '暂无简介';
+        document.getElementById('modal-details').textContent = book.details || '暂无详细信息';
+        
+        // Buy links
+        const buyLinksContainer = document.getElementById('buy-links-list');
+        buyLinksContainer.innerHTML = '';
+        if (book.buy_links && book.buy_links.length > 0) {
+            book.buy_links.forEach(link => {
+                if (link.url) {
+                    const a = document.createElement('a');
+                    a.href = link.url;
+                    a.target = '_blank';
+                    a.className = 'buy-link';
+                    a.innerHTML = `<i class="fa fa-external-link"></i> ${link.name || '购买链接'}`;
+                    buyLinksContainer.appendChild(a);
+                }
+            });
+        } else {
+            buyLinksContainer.innerHTML = '<p class="no-links">暂无购买链接</p>';
+        }
+        
+        // Show modal
+        document.getElementById('book-modal').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeBookModal(event) {
+        if (!event || event.target.id === 'book-modal' || event.target.closest('.modal-close')) {
+            document.getElementById('book-modal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+    
+    function switchTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        // Update tab panels
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeBookModal();
+        }
+    });
 </script>
 {% endblock %}

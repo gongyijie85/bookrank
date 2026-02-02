@@ -16,7 +16,7 @@ def index():
     # 获取分类参数
     category = request.args.get('category', 'combined-print-and-e-book-fiction')
     search_query = request.args.get('search', '')
-    view_mode = request.args.get('view', 'grid')
+    view_mode = request.args.get('view', 'list')
     
     # 尝试从缓存服务获取数据
     books_data = []
