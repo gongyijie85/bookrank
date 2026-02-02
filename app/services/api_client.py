@@ -111,14 +111,16 @@ class GoogleBooksClient:
         Returns:
             图书详细信息字典
         """
-        if not self._api_key or not isbn:
+        if not isbn:
             return {}
         
         url = f"{self._base_url}"
         params = {
-            'q': f'isbn:{isbn}',
-            'key': self._api_key
+            'q': f'isbn:{isbn}'
         }
+        # API Key 是可选的
+        if self._api_key:
+            params['key'] = self._api_key
         
         try:
             response = self._session.get(
@@ -132,21 +134,123 @@ class GoogleBooksClient:
             if 'items' not in data or len(data['items']) == 0:
                 return {}
             
-            volume_info = data['items'][0]['volumeInfo']
-            lang_code = volume_info.get('language', '').lower()
-            
-            from ..config import Config
-            
-            return {
-                'publication_dt': volume_info.get('publishedDate', 'Unknown'),
-                'details': volume_info.get('description', 'No detailed description available.'),
-                'page_count': volume_info.get('pageCount', 'Unknown'),
-                'language': Config.LANGUAGE_MAP.get(lang_code, lang_code)
-            }
+            return self._parse_volume_info(data['items'][0]['volumeInfo'])
             
         except requests.RequestException as e:
             logger.warning(f"Failed to fetch Google Books data for ISBN {isbn}: {e}")
             return {}
+    
+    @retry(max_attempts=2, backoff_factor=1.5)
+    def search_book_by_title(self, title: str, author: str = None) -> Dict[str, Any]:
+        """
+        根据书名搜索图书
+        
+        Args:
+            title: 图书标题
+            author: 作者（可选，用于提高搜索精度）
+            
+        Returns:
+            图书详细信息字典
+        """
+        if not title:
+            return {}
+        
+        url = f"{self._base_url}"
+        # 构建搜索查询
+        query = f'intitle:{title}'
+        if author:
+            query += f' inauthor:{author}'
+        
+        params = {
+            'q': query,
+            'maxResults': 1
+        }
+        if self._api_key:
+            params['key'] = self._api_key
+        
+        try:
+            response = self._session.get(
+                url,
+                params=params,
+                timeout=self._timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if 'items' not in data or len(data['items']) == 0:
+                return {}
+            
+            return self._parse_volume_info(data['items'][0]['volumeInfo'])
+            
+        except requests.RequestException as e:
+            logger.warning(f"Failed to search Google Books for '{title}': {e}")
+            return {}
+    
+    def _parse_volume_info(self, volume_info: Dict[str, Any]) -> Dict[str, Any]:
+        """解析 Google Books API 返回的 volumeInfo"""
+        lang_code = volume_info.get('language', '').lower()
+        
+        from ..config import Config
+        
+        # 获取封面图片URL（优先使用大尺寸的）
+        image_links = volume_info.get('imageLinks', {})
+        cover_url = (image_links.get('extraLarge') or 
+                    image_links.get('large') or 
+                    image_links.get('medium') or 
+                    image_links.get('small') or 
+                    image_links.get('thumbnail') or 
+                    image_links.get('smallThumbnail'))
+        
+        # 处理 HTTP 图片URL（转换为HTTPS）
+        if cover_url and cover_url.startswith('http:'):
+            cover_url = 'https:' + cover_url[5:]
+        
+        return {
+            'title': volume_info.get('title'),
+            'authors': volume_info.get('authors', []),
+            'publication_dt': volume_info.get('publishedDate', 'Unknown'),
+            'details': volume_info.get('description', 'No detailed description available.'),
+            'page_count': volume_info.get('pageCount', 'Unknown'),
+            'language': Config.LANGUAGE_MAP.get(lang_code, lang_code),
+            'cover_url': cover_url,
+            'isbn_13': self._extract_isbn(volume_info, 'ISBN_13'),
+            'isbn_10': self._extract_isbn(volume_info, 'ISBN_10'),
+            'publisher': volume_info.get('publisher')
+        }
+    
+    def _extract_isbn(self, volume_info: Dict[str, Any], isbn_type: str) -> Optional[str]:
+        """从 volumeInfo 中提取 ISBN"""
+        identifiers = volume_info.get('industryIdentifiers', [])
+        for identifier in identifiers:
+            if identifier.get('type') == isbn_type:
+                return identifier.get('identifier')
+        return None
+    
+    def get_cover_url(self, isbn: str = None, title: str = None, author: str = None) -> Optional[str]:
+        """
+        获取图书封面URL
+        
+        Args:
+            isbn: ISBN（优先使用）
+            title: 书名（当ISBN搜索失败时使用）
+            author: 作者（可选）
+            
+        Returns:
+            封面图片URL或None
+        """
+        # 优先使用ISBN搜索
+        if isbn:
+            details = self.fetch_book_details(isbn)
+            if details and details.get('cover_url'):
+                return details['cover_url']
+        
+        # 如果ISBN搜索失败，使用书名搜索
+        if title:
+            details = self.search_book_by_title(title, author)
+            if details and details.get('cover_url'):
+                return details['cover_url']
+        
+        return None
 
 
 class ImageCacheService:

@@ -303,9 +303,86 @@ def _init_sample_books(app):
         else:
             app.logger.info("✅ 所有图书已是最新")
         
+        # 为没有本地封面的图书获取 Google Books 封面
+        _fetch_missing_covers(app)
+        
     except Exception as e:
         app.logger.error(f"❌ 初始化示例图书失败: {e}", exc_info=True)
         db.session.rollback()
+
+
+def _fetch_missing_covers(app):
+    """为缺失封面的图书从 Google Books 获取封面"""
+    try:
+        from .models.schemas import AwardBook
+        from .services import GoogleBooksClient, ImageCacheService
+        
+        # 创建客户端
+        google_client = GoogleBooksClient(
+            api_key=app.config.get('GOOGLE_API_KEY'),
+            base_url='https://www.googleapis.com/books/v1/volumes',
+            timeout=10
+        )
+        
+        image_cache = ImageCacheService(
+            cache_dir=app.config['IMAGE_CACHE_DIR'],
+            default_cover='/static/default-cover.png'
+        )
+        
+        # 获取需要更新封面的图书
+        books = AwardBook.query.filter(
+            (AwardBook.cover_local_path.is_(None)) | 
+            (AwardBook.cover_local_path == '/static/default-cover.png')
+        ).all()
+        
+        if not books:
+            app.logger.info("✅ 所有图书已有封面")
+            return
+        
+        app.logger.info(f"📚 开始为 {len(books)} 本图书获取封面...")
+        
+        updated = 0
+        for i, book in enumerate(books, 1):
+            try:
+                # 获取封面 URL
+                cover_url = google_client.get_cover_url(
+                    isbn=book.isbn13,
+                    title=book.title,
+                    author=book.author
+                )
+                
+                if not cover_url:
+                    app.logger.warning(f"  [{i}/{len(books)}] 未找到封面: {book.title}")
+                    continue
+                
+                # 下载并缓存封面
+                cached_url = image_cache.get_cached_image_url(cover_url, ttl=86400*365)
+                
+                if cached_url and cached_url != '/static/default-cover.png':
+                    book.cover_original_url = cover_url
+                    book.cover_local_path = cached_url
+                    updated += 1
+                    app.logger.info(f"  [{i}/{len(books)}] ✅ {book.title[:30]}...")
+                else:
+                    app.logger.warning(f"  [{i}/{len(books)}] ⚠️ 下载失败: {book.title[:30]}...")
+                
+                # 每5本保存一次
+                if i % 5 == 0:
+                    db.session.commit()
+                
+                # 延迟避免请求过快
+                import time
+                time.sleep(0.3)
+                
+            except Exception as e:
+                app.logger.error(f"  [{i}/{len(books)}] ❌ 错误: {e}")
+                continue
+        
+        db.session.commit()
+        app.logger.info(f"✅ 封面更新完成: {updated}/{len(books)} 本")
+        
+    except Exception as e:
+        app.logger.error(f"❌ 获取封面失败: {e}", exc_info=True)
 
 
 def _init_services(app):
