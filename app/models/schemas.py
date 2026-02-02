@@ -214,6 +214,33 @@ class AwardBook(db.Model):
         return data
 
 
+class SystemConfig(db.Model):
+    """系统配置表"""
+    __tablename__ = 'system_config'
+    
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text)
+    description = db.Column(db.String(255))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    @classmethod
+    def get_value(cls, key: str, default=None):
+        """获取配置值"""
+        config = cls.query.get(key)
+        return config.value if config else default
+    
+    @classmethod
+    def set_value(cls, key: str, value: str, description: str = None):
+        """设置配置值"""
+        config = cls.query.get(key)
+        if config:
+            config.value = value
+        else:
+            config = cls(key=key, value=value, description=description)
+            db.session.add(config)
+        return config
+
+
 @dataclass
 class Book:
     """书籍数据类"""
