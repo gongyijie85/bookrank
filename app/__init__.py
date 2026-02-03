@@ -281,13 +281,8 @@ def _init_sample_books(app):
             # ========================================
             # 普利策奖 (Pulitzer Prize)
             # ========================================
-            # 2026年普利策小说奖（预测）
-            {'award_name': '普利策奖', 'year': 2026, 'category': '小说', 'rank': 1,
-             'title': 'The Memory Artist', 'author': 'Kristen Loesch',
-             'description': 'A sweeping historical novel about memory, identity, and the power of storytelling across generations.',
-             'isbn13': '9780063289239',
-             'cover_url': None},
-
+            # 注：普利策奖通常在每年5月公布，2026年获奖名单尚未公布
+            
             # 2025年普利策小说奖
             {'award_name': '普利策奖', 'year': 2025, 'category': '小说', 'rank': 1,
              'title': 'James', 'author': 'Percival Everett',
