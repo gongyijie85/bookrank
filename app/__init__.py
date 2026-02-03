@@ -404,6 +404,13 @@ def _init_sample_books(app):
              'isbn13': '9781250244048',
              'cover_url': None},
             
+            # 2022年雨果奖最佳长篇小说
+            {'award_name': '雨果奖', 'year': 2022, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'A Desolation Called Peace', 'author': 'Arkady Martine',
+             'description': 'A space opera about first contact with a terrifying alien species. Sequel to A Memory Called Empire.',
+             'isbn13': '9781250186461',
+             'cover_url': None},
+            
             # ========================================
             # 美国国家图书奖 (National Book Award)
             # ========================================
@@ -423,14 +430,28 @@ def _init_sample_books(app):
             
             # 2022年美国国家图书奖小说奖
             {'award_name': '美国国家图书奖', 'year': 2022, 'category': '小说', 'rank': 1,
-             'title': 'The Rabbit Hutch', 'author': 'Tess Gunty',
-             'description': 'A debut novel about loneliness and connection in a small Indiana town.',
-             'isbn13': '9780593534668',
+             'title': 'All This Could Be Different', 'author': 'Sarah Thankam Mathews',
+             'description': 'A novel about a young immigrant navigating life, love, and friendship in Milwaukee.',
+             'isbn13': '9780593241641',
              'cover_url': None},
             
             # ========================================
             # 星云奖 (Nebula Award)
             # ========================================
+            # 2025年星云奖最佳长篇小说
+            {'award_name': '星云奖', 'year': 2025, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'The Mimicking of Known Successes', 'author': 'Malka Older',
+             'description': 'A mystery set on a distant space station, featuring a Holmes-like detective investigating a missing person case.',
+             'isbn13': '9781250897472',
+             'cover_url': None},
+            
+            # 2024年星云奖最佳长篇小说
+            {'award_name': '星云奖', 'year': 2024, 'category': '最佳长篇小说', 'rank': 1,
+             'title': 'The Saint of Bright Doors', 'author': 'Vajra Chandrasekera',
+             'description': 'A fantasy novel about a man raised to assassinate a messiah figure, exploring destiny and choice.',
+             'isbn13': '9781250842700',
+             'cover_url': None},
+            
             # 2023年星云奖最佳长篇小说
             {'award_name': '星云奖', 'year': 2023, 'category': '最佳长篇小说', 'rank': 1,
              'title': 'Babel: Or the Necessity of Violence', 'author': 'R.F. Kuang',
