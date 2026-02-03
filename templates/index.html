@@ -348,12 +348,24 @@
     
     // Helper function: Get best description
     function getBestDescription(book) {
-        if (book.details && book.details.length > 50) {
+        // 对于畅销书，优先使用 description（NYT API 数据）
+        // 对于奖项图书，优先使用 details（Google Books 数据）
+        const hasDetails = book.details && book.details.length > 50;
+        const hasDescription = book.description && book.description.length > 50;
+        
+        if (hasDetails && hasDescription) {
+            // 两者都有，返回更详细的那个
+            return book.details.length > book.description.length ? book.details : book.description;
+        }
+        
+        if (hasDetails) {
             return book.details;
         }
-        if (book.description && book.description.length > 100) {
+        
+        if (hasDescription) {
             return book.description;
         }
+        
         return '暂无详细描述';
     }
     
