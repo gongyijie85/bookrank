@@ -50,8 +50,6 @@ class Config:
     
     # 分类配置
     CATEGORIES: dict[str, str] = {
-        'combined-print-and-e-book-fiction': '虚构类',
-        'combined-print-and-e-book-nonfiction': '非虚构类',
         'hardcover-fiction': '精装小说',
         'hardcover-nonfiction': '精装非虚构',
         'trade-fiction-paperback': '平装小说',
