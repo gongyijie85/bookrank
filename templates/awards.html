@@ -288,6 +288,11 @@
                     <img id="modal-cover-img" src="" alt="">
                     <div class="modal-rank" id="modal-rank"></div>
                 </div>
+                <!-- Buy Links Section - Moved to left side below cover -->
+                <div class="modal-buy-links" id="modal-buy-links">
+                    <h4>购买链接</h4>
+                    <div class="buy-links-list" id="buy-links-list"></div>
+                </div>
             </div>
             
             <div class="modal-right">
@@ -337,12 +342,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Buy Links Section -->
-        <div class="modal-buy-links" id="modal-buy-links">
-            <h4>购买链接</h4>
-            <div class="buy-links-list" id="buy-links-list"></div>
         </div>
     </div>
 </div>
@@ -434,7 +433,6 @@
         if (detailsContent) {
             detailsContent.innerHTML = `
                 <div class="details-section">
-                    <h4>图书简介</h4>
                     <p id="modal-detail-description" class="book-full-description">${book.details || book.description || '暂无详细简介'}</p>
                     <p id="modal-detail-loading" class="loading-text" style="display: none; color: #999; font-style: italic; margin-top: 10px;">正在获取详细介绍...</p>
                 </div>

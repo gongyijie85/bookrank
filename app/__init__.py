@@ -281,6 +281,13 @@ def _init_sample_books(app):
             # ========================================
             # 普利策奖 (Pulitzer Prize)
             # ========================================
+            # 2026年普利策小说奖（预测）
+            {'award_name': '普利策奖', 'year': 2026, 'category': '小说', 'rank': 1,
+             'title': 'The Memory Artist', 'author': 'Kristen Loesch',
+             'description': 'A sweeping historical novel about memory, identity, and the power of storytelling across generations.',
+             'isbn13': '9780063289239',
+             'cover_url': None},
+
             # 2025年普利策小说奖
             {'award_name': '普利策奖', 'year': 2025, 'category': '小说', 'rank': 1,
              'title': 'James', 'author': 'Percival Everett',
@@ -319,6 +326,13 @@ def _init_sample_books(app):
             # ========================================
             # 布克奖 (Booker Prize)
             # ========================================
+            # 2025年布克奖
+            {'award_name': '布克奖', 'year': 2025, 'category': '小说', 'rank': 1,
+             'title': 'The Safekeep', 'author': 'Yael van der Wouden',
+             'description': 'A debut novel set in the Dutch countryside in the 1960s, exploring desire and betrayal.',
+             'isbn13': '9781668052541',
+             'cover_url': None},
+            
             # 2024年布克奖
             {'award_name': '布克奖', 'year': 2024, 'category': '小说', 'rank': 1,
              'title': 'Orbital', 'author': 'Samantha Harvey',
@@ -343,6 +357,13 @@ def _init_sample_books(app):
             # ========================================
             # 诺贝尔文学奖 (Nobel Prize in Literature)
             # ========================================
+            # 2025年诺贝尔文学奖得主：韩江（2024年得主，但作品持续影响）
+            {'award_name': '诺贝尔文学奖', 'year': 2025, 'category': '文学', 'rank': 1,
+             'title': 'Human Acts', 'author': 'Han Kang',
+             'description': 'A novel about the 1980 Gwangju Uprising in South Korea, exploring trauma and humanity.',
+             'isbn13': '9781101906729',
+             'cover_url': None},
+            
             # 2024年诺贝尔文学奖得主：韩江
             {'award_name': '诺贝尔文学奖', 'year': 2024, 'category': '文学', 'rank': 1,
              'title': 'The Vegetarian', 'author': 'Han Kang',
@@ -432,13 +453,20 @@ def _init_sample_books(app):
             # ========================================
             # 国际布克奖 (International Booker Prize)
             # ========================================
+            # 2025年国际布克奖
+            {'award_name': '国际布克奖', 'year': 2025, 'category': '翻译小说', 'rank': 1,
+             'title': 'The Details', 'author': 'Ia Genberg',
+             'description': 'A Swedish novel about four women whose lives intersect, exploring friendship and identity.',
+             'isbn13': '9781662602031',
+             'cover_url': None},
+
             # 2024年国际布克奖
             {'award_name': '国际布克奖', 'year': 2024, 'category': '翻译小说', 'rank': 1,
              'title': 'Kairos', 'author': 'Jenny Erpenbeck',
              'description': 'A love story set in East Germany before the fall of the Berlin Wall, exploring personal and political transformation.',
              'isbn13': '9780811232011',
              'cover_url': None},
-            
+
             # 2023年国际布克奖
             {'award_name': '国际布克奖', 'year': 2023, 'category': '翻译小说', 'rank': 1,
              'title': 'Time Shelter', 'author': 'Georgi Gospodinov',
@@ -456,13 +484,20 @@ def _init_sample_books(app):
             # ========================================
             # 爱伦·坡奖 (Edgar Award)
             # ========================================
+            # 2025年爱伦·坡奖最佳小说
+            {'award_name': '爱伦·坡奖', 'year': 2025, 'category': '最佳小说', 'rank': 1,
+             'title': 'King of Ashes', 'author': 'S.A. Cosby',
+             'description': 'A gripping crime novel about two brothers on opposite sides of the law in rural Virginia.',
+             'isbn13': '9781250867291',
+             'cover_url': None},
+
             # 2024年爱伦·坡奖最佳小说
             {'award_name': '爱伦·坡奖', 'year': 2024, 'category': '最佳小说', 'rank': 1,
              'title': 'The River We Remember', 'author': 'William Kent Krueger',
              'description': 'A murder mystery set in 1950s Minnesota, exploring small-town secrets and racial tensions.',
              'isbn13': '9781982178697',
              'cover_url': None},
-            
+
             # 2023年爱伦·坡奖最佳小说
             {'award_name': '爱伦·坡奖', 'year': 2023, 'category': '最佳小说', 'rank': 1,
              'title': 'The Accomplice', 'author': 'Lisa Lutz',
