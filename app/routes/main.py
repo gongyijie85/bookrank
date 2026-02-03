@@ -94,8 +94,8 @@ def awards():
     years = db.session.query(AwardBook.year).distinct().order_by(AwardBook.year.desc()).all()
     years = [y[0] for y in years if y[0]]
     
-    # 构建图书查询
-    query = AwardBook.query
+    # 构建图书查询 - 只查询已验证且可展示的图书
+    query = AwardBook.query.filter_by(is_displayable=True)
     
     if selected_award:
         award = Award.query.filter_by(name=selected_award).first()

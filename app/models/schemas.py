@@ -178,6 +178,12 @@ class AwardBook(db.Model):
     details = db.Column(db.Text)                                # 详细描述
     buy_links = db.Column(db.Text)                              # 购买链接JSON
     
+    # 验证状态字段
+    verification_status = db.Column(db.String(20), default='pending')  # pending/verified/failed
+    verification_checked_at = db.Column(db.DateTime)            # 上次验证时间
+    verification_errors = db.Column(db.Text)                    # 验证错误信息JSON
+    is_displayable = db.Column(db.Boolean, default=False)       # 是否可展示给读者
+    
     # 时间戳
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -208,6 +214,8 @@ class AwardBook(db.Model):
             'isbn10': self.isbn10,
             'publisher': self.publisher,
             'publication_year': self.publication_year,
+            'verification_status': self.verification_status,
+            'is_displayable': self.is_displayable,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
         
