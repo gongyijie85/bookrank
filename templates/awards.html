@@ -176,7 +176,7 @@
     {% for book in books %}
     <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
         <div class="card-image">
-            <img src="{{ book.cover_local_path if book.cover_local_path else url_for('static', filename='default-cover.png') }}" 
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}" 
                  alt="{{ book.title }}"
                  loading="lazy"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
@@ -218,7 +218,7 @@
     {% for book in books %}
     <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
         <div class="list-item-image">
-            <img src="{{ book.cover_local_path if book.cover_local_path else url_for('static', filename='default-cover.png') }}" 
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}" 
                  alt="{{ book.title }}"
                  loading="lazy"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
