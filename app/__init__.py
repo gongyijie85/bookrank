@@ -754,18 +754,30 @@ def _enrich_books_from_google_books(app):
                     app.logger.info(f"  [{i}/{len(books)}] ✅ 购买链接: {book.title[:30]}...")
                 
                 if updated:
-                    db.session.commit()
+                    try:
+                        db.session.commit()
+                        app.logger.info(f"  [{i}/{len(books)}] 💾 已保存到数据库")
+                    except Exception as commit_error:
+                        app.logger.error(f"  [{i}/{len(books)}] ❌ 保存失败: {commit_error}")
+                        db.session.rollback()
+                        stats['failed'] += 1
                 
                 # 延迟避免请求过快
                 import time
                 time.sleep(0.5)
                 
             except Exception as e:
-                app.logger.error(f"  [{i}/{len(books)}] ❌ 错误: {e}")
+                app.logger.error(f"  [{i}/{len(books)}] ❌ 处理错误: {e}")
                 stats['failed'] += 1
                 continue
         
-        app.logger.info(f"✅ Google Books 补充完成: 封面{stats['cover']}本, 详情{stats['details']}本, 购买链接{stats['buy_links']}本, 失败{stats['failed']}本")
+        # 最后确保所有更改都提交
+        try:
+            db.session.commit()
+            app.logger.info(f"✅ Google Books 补充完成: 封面{stats['cover']}本, 详情{stats['details']}本, 购买链接{stats['buy_links']}本, 失败{stats['failed']}本")
+        except Exception as final_error:
+            app.logger.error(f"❌ 最终提交失败: {final_error}")
+            db.session.rollback()
         
     except Exception as e:
         app.logger.error(f"❌ Google Books 补充失败: {e}", exc_info=True)
