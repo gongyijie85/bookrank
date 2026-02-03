@@ -13,8 +13,10 @@ def index():
     from flask import current_app
     from datetime import datetime
     
-    # 获取分类参数
-    category = request.args.get('category', 'combined-print-and-e-book-fiction')
+    # 获取分类参数，默认使用第一个可用的分类（精装小说）
+    from flask import current_app
+    default_category = list(current_app.config['CATEGORIES'].keys())[0]
+    category = request.args.get('category', default_category)
     search_query = request.args.get('search', '')
     view_mode = request.args.get('view', 'list')
     
