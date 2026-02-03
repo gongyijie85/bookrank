@@ -282,9 +282,19 @@ class AwardBookService:
             if cover_local_path == '/static/default-cover.png':
                 cover_local_path = None
         
-        # 构建描述和详情
-        description = book_details.get('description') or google_books_data.get('description') or f'{award.name}获奖作品'
-        details = google_books_data.get('description') or book_details.get('description') or ''
+        # 提取描述信息（优先使用更详细的来源）
+        def get_description(preferred_source, fallback_source, default_msg):
+            """获取描述，优先使用指定来源"""
+            desc = preferred_source.get('description')
+            if desc and len(desc) > 50:
+                return desc
+            desc = fallback_source.get('description')
+            if desc and len(desc) > 50:
+                return desc
+            return default_msg
+        
+        description = get_description(book_details, google_books_data, f'{award.name}获奖作品')
+        details = get_description(google_books_data, book_details, '')
         
         # 获取购买链接
         buy_links = google_books_data.get('buy_links', {})

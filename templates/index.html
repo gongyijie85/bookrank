@@ -346,6 +346,46 @@
         window.location.href = `/api/export/${category}`;
     }
     
+    // Helper function: Get best description
+    function getBestDescription(book) {
+        if (book.details && book.details.length > 50) {
+            return book.details;
+        }
+        if (book.description && book.description.length > 100) {
+            return book.description;
+        }
+        return '暂无详细描述';
+    }
+    
+    // Helper function: Build detail item HTML
+    function buildDetailItem(label, value) {
+        return `
+            <div class="detail-item">
+                <span class="detail-label">${label}</span>
+                <span class="detail-value">${value || '暂无'}</span>
+            </div>
+        `;
+    }
+    
+    // Helper function: Render buy links
+    function renderBuyLinks(container, buyLinks) {
+        container.innerHTML = '';
+        if (!buyLinks || buyLinks.length === 0) {
+            container.innerHTML = '<p class="no-links">暂无购买链接</p>';
+            return;
+        }
+        
+        buyLinks.forEach(link => {
+            if (!link.url) return;
+            const a = document.createElement('a');
+            a.href = link.url;
+            a.target = '_blank';
+            a.className = 'buy-link';
+            a.innerHTML = `<i class="fa fa-external-link"></i> ${link.name || '购买链接'}`;
+            container.appendChild(a);
+        });
+    }
+    
     // Book Modal Functions
     function openBookModal(bookIndex) {
         const book = window.booksData[bookIndex];
@@ -364,83 +404,36 @@
         document.getElementById('modal-weeks-on-list').textContent = book.weeks_on_list ? `${book.weeks_on_list}周` : '未知';
         document.getElementById('modal-rank-last-week').textContent = book.rank_last_week || 'NEW';
         document.getElementById('modal-isbn').textContent = book.isbn13 || '';
+        
         // 图书简介标签页
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
         
-        // 详细信息标签页 - 显示更多元数据
+        // 详细信息标签页
         const detailsContent = document.getElementById('modal-details-content');
-        
-        // 构建详细描述内容（优先使用 details，否则使用更详细的描述）
-        let detailDescription = '';
-        if (book.details && book.details.length > 50) {
-            detailDescription = book.details;
-        } else if (book.description && book.description.length > 100) {
-            detailDescription = book.description;
-        } else {
-            detailDescription = '暂无详细描述';
-        }
+        const detailItems = [
+            buildDetailItem('ISBN-10', book.isbn10),
+            buildDetailItem('ISBN-13', book.isbn13),
+            buildDetailItem('出版社', book.publisher),
+            buildDetailItem('出版日期', book.publication_dt),
+            buildDetailItem('页数', book.page_count),
+            buildDetailItem('语言', book.language),
+            buildDetailItem('分类', book.category_name),
+            buildDetailItem('价格', book.price)
+        ];
         
         detailsContent.innerHTML = `
             <div class="details-section">
                 <h4>图书信息</h4>
-                <div class="details-grid">
-                    <div class="detail-item">
-                        <span class="detail-label">ISBN-10</span>
-                        <span class="detail-value">${book.isbn10 || '暂无'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">ISBN-13</span>
-                        <span class="detail-value">${book.isbn13 || '暂无'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">出版社</span>
-                        <span class="detail-value">${book.publisher || '暂无'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">出版日期</span>
-                        <span class="detail-value">${book.publication_dt || '暂无'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">页数</span>
-                        <span class="detail-value">${book.page_count || '暂无'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">语言</span>
-                        <span class="detail-value">${book.language || '暂无'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">分类</span>
-                        <span class="detail-value">${book.category_name || '暂无'}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">价格</span>
-                        <span class="detail-value">${book.price || '暂无'}</span>
-                    </div>
-                </div>
+                <div class="details-grid">${detailItems.join('')}</div>
             </div>
             <div class="details-section">
                 <h4>详细描述</h4>
-                <p>${detailDescription}</p>
+                <p>${getBestDescription(book)}</p>
             </div>
         `;
         
         // Buy links
-        const buyLinksContainer = document.getElementById('buy-links-list');
-        buyLinksContainer.innerHTML = '';
-        if (book.buy_links && book.buy_links.length > 0) {
-            book.buy_links.forEach(link => {
-                if (link.url) {
-                    const a = document.createElement('a');
-                    a.href = link.url;
-                    a.target = '_blank';
-                    a.className = 'buy-link';
-                    a.innerHTML = `<i class="fa fa-external-link"></i> ${link.name || '购买链接'}`;
-                    buyLinksContainer.appendChild(a);
-                }
-            });
-        } else {
-            buyLinksContainer.innerHTML = '<p class="no-links">暂无购买链接</p>';
-        }
+        renderBuyLinks(document.getElementById('buy-links-list'), book.buy_links);
         
         // Show modal
         document.getElementById('book-modal').classList.add('active');

@@ -82,16 +82,22 @@ def _init_awards_data(app):
             app.logger.info("🚀 开始检查奖项数据...")
             
             # 尝试检查数据，如果表结构不匹配则重新创建
+            award_count = 0
+            book_count = 0
             try:
                 award_count = Award.query.count()
                 book_count = AwardBook.query.count()
             except Exception as e:
-                app.logger.warning(f"⚠️ 数据库表结构可能已改变: {e}")
-                app.logger.info("🔄 重新创建数据库表...")
-                db.drop_all()
-                db.create_all()
-                award_count = 0
-                book_count = 0
+                error_msg = str(e).lower()
+                # 只处理特定的表结构错误
+                if "no such column" in error_msg or "no such table" in error_msg:
+                    app.logger.warning(f"⚠️ 数据库表结构已改变: {e}")
+                    app.logger.info("🔄 重新创建数据库表...")
+                    db.drop_all()
+                    db.create_all()
+                else:
+                    app.logger.error(f"❌ 数据库查询失败: {e}")
+                    raise
             
             app.logger.info(f"📊 当前数据: {award_count} 个奖项, {book_count} 本图书")
             
