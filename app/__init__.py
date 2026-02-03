@@ -101,15 +101,10 @@ def _init_awards_data(app):
             
             app.logger.info(f"📊 当前数据: {award_count} 个奖项, {book_count} 本图书")
             
-            # 如果数据已存在，先尝试补充缺失的封面和详情
+            # 如果数据已存在，跳过自动补充（避免API限流，改为按需获取）
             if award_count >= 5 and book_count >= 12:
                 app.logger.info(f"✅ 基础数据已完整 ({award_count} 个奖项, {book_count} 本图书)")
-                app.logger.info("🔄 检查并补充缺失的封面和详情...")
-                try:
-                    _fetch_missing_covers(app)
-                    _enrich_books_from_google_books(app)
-                except Exception as enrich_error:
-                    app.logger.error(f"❌ 补充数据失败: {enrich_error}")
+                app.logger.info("⏭️ 跳过自动补充，将在用户查看详情时按需获取")
                 return
             
             # 如果数据为空，需要创建基础数据
@@ -533,11 +528,8 @@ def _init_sample_books(app):
         else:
             app.logger.info("✅ 所有图书已是最新")
         
-        # 为没有本地封面的图书获取 Google Books 封面
-        _fetch_missing_covers(app)
-        
-        # 为缺失详情和购买链接的图书补充数据（使用 Google Books API）
-        _enrich_books_from_google_books(app)
+        # 跳过自动获取封面和详情，改为按需获取（避免API限流）
+        app.logger.info("⏭️ 跳过自动封面获取，将在用户查看详情时按需获取")
         
     except Exception as e:
         app.logger.error(f"❌ 初始化示例图书失败: {e}", exc_info=True)
