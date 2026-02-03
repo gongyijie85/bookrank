@@ -399,7 +399,7 @@
     }
     
     // Book Modal Functions
-    function openBookModal(bookIndex) {
+    async function openBookModal(bookIndex) {
         const book = window.booksData[bookIndex];
         if (!book) return;
         
@@ -420,7 +420,7 @@
         // 图书简介标签页
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
         
-        // 详细信息标签页
+        // 详细信息标签页 - 先显示基础信息
         const detailsContent = document.getElementById('modal-details-content');
         const detailItems = [
             buildDetailItem('ISBN-10', book.isbn10),
@@ -440,7 +440,7 @@
             </div>
             <div class="details-section">
                 <h4>详细描述</h4>
-                <p>${getBestDescription(book)}</p>
+                <p id="modal-detail-description">${getBestDescription(book)}</p>
             </div>
         `;
         
@@ -450,6 +450,45 @@
         // Show modal
         document.getElementById('book-modal').classList.add('active');
         document.body.style.overflow = 'hidden';
+        
+        // 异步获取 Google Books 详细信息
+        if (book.isbn13) {
+            try {
+                const response = await fetch(`/api/book-details/${book.isbn13}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const googleData = data.data;
+                    
+                    // 更新详细信息
+                    if (googleData.details && googleData.details.length > 50) {
+                        document.getElementById('modal-detail-description').textContent = googleData.details;
+                    }
+                    
+                    // 更新购买链接
+                    if (googleData.buy_links && Object.keys(googleData.buy_links).length > 0) {
+                        const buyLinksArray = Object.entries(googleData.buy_links).map(([name, url]) => ({
+                            name: name,
+                            url: url
+                        }));
+                        renderBuyLinks(document.getElementById('buy-links-list'), buyLinksArray);
+                    }
+                    
+                    // 更新其他字段（如果有）
+                    if (googleData.page_count) {
+                        document.getElementById('modal-page-count').textContent = googleData.page_count;
+                    }
+                    if (googleData.language) {
+                        document.getElementById('modal-language').textContent = googleData.language;
+                    }
+                    if (googleData.publisher) {
+                        document.getElementById('modal-publisher').textContent = googleData.publisher;
+                    }
+                }
+            } catch (error) {
+                console.log('Failed to fetch Google Books details:', error);
+            }
+        }
     }
     
     function closeBookModal(event) {

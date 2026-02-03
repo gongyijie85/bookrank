@@ -351,6 +351,41 @@ def save_search_history(session_id: str, keyword: str, result_count: int):
         db.session.rollback()
 
 
+@api_bp.route('/book-details/<isbn>')
+def get_book_details(isbn: str):
+    """从 Google Books API 获取图书详细信息"""
+    try:
+        from ..services.api_client import GoogleBooksClient
+        from flask import current_app
+        
+        # 创建 Google Books 客户端
+        google_client = GoogleBooksClient(
+            api_key=current_app.config.get('GOOGLE_API_KEY'),
+            base_url=current_app.config.get('GOOGLE_BOOKS_API_URL', 'https://www.googleapis.com/books/v1/volumes'),
+            timeout=10
+        )
+        
+        # 获取图书详情
+        book_data = google_client.search_by_isbn(isbn)
+        
+        if not book_data:
+            return APIResponse.error('Book not found in Google Books', 404)
+        
+        return APIResponse.success(data={
+            'description': book_data.get('description', ''),
+            'details': book_data.get('description', ''),
+            'page_count': book_data.get('page_count'),
+            'language': book_data.get('language'),
+            'publisher': book_data.get('publisher'),
+            'publication_date': book_data.get('publication_date'),
+            'buy_links': book_data.get('buy_links', {})
+        })
+        
+    except Exception as e:
+        logger.error(f"Get book details error: {e}", exc_info=True)
+        return APIResponse.error('Failed to fetch book details', 500)
+
+
 # 错误处理器
 @api_bp.errorhandler(404)
 def not_found(error):
