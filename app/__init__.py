@@ -323,14 +323,14 @@ def _init_sample_books(app):
             {'award_name': '布克奖', 'year': 2024, 'category': '小说', 'rank': 1,
              'title': 'Orbital', 'author': 'Samantha Harvey',
              'description': 'A novel set on the International Space Station, exploring the lives of six astronauts.',
-             'isbn13': '9780802163807',
+             'isbn13': '9780802163784',
              'cover_url': None},
             
             # 2023年布克奖
             {'award_name': '布克奖', 'year': 2023, 'category': '小说', 'rank': 1,
              'title': 'Prophet Song', 'author': 'Paul Lynch',
              'description': 'A dystopian novel about a mother searching for her son in a collapsing Ireland.',
-             'isbn13': '9780802161513',
+             'isbn13': '9780802161506',
              'cover_url': None},
             
             # 2022年布克奖
