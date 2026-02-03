@@ -732,7 +732,7 @@ def _enrich_books_from_google_books(app):
                     continue
                 
                 # 从 Google Books 获取数据
-                google_data = google_client.search_by_isbn(book.isbn13)
+                google_data = google_client.fetch_book_details(book.isbn13)
                 
                 if not google_data:
                     app.logger.warning(f"  [{i}/{len(books)}] ⚠️ Google Books 未找到: {book.title[:30]}...")

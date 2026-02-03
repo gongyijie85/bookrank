@@ -420,27 +420,12 @@
         // 图书简介标签页
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
         
-        // 详细信息标签页 - 先显示基础信息
+        // 详细信息标签页 - 只显示图书详细介绍
         const detailsContent = document.getElementById('modal-details-content');
-        const detailItems = [
-            buildDetailItem('ISBN-10', book.isbn10),
-            buildDetailItem('ISBN-13', book.isbn13),
-            buildDetailItem('出版社', book.publisher),
-            buildDetailItem('出版日期', book.publication_dt),
-            buildDetailItem('页数', book.page_count),
-            buildDetailItem('语言', book.language),
-            buildDetailItem('分类', book.category_name),
-            buildDetailItem('价格', book.price)
-        ];
-        
         detailsContent.innerHTML = `
             <div class="details-section">
-                <h4>图书信息</h4>
-                <div class="details-grid">${detailItems.join('')}</div>
-            </div>
-            <div class="details-section">
-                <h4>详细描述</h4>
-                <p id="modal-detail-description">${getBestDescription(book)}</p>
+                <h4>图书简介</h4>
+                <p id="modal-detail-description" class="book-full-description">${getBestDescription(book)}</p>
             </div>
         `;
         

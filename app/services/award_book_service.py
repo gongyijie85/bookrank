@@ -55,7 +55,16 @@ class AwardBookService:
         self.app = app
         self.wikidata_client = WikidataClient(timeout=30)
         self.openlib_client = OpenLibraryClient(timeout=10)
-        self.google_books_client = GoogleBooksClient(timeout=10)
+        
+        # Google Books 客户端需要 api_key 和 base_url
+        if app:
+            self.google_books_client = GoogleBooksClient(
+                api_key=app.config.get('GOOGLE_API_KEY'),
+                base_url=app.config.get('GOOGLE_BOOKS_API_URL', 'https://www.googleapis.com/books/v1/volumes'),
+                timeout=10
+            )
+        else:
+            self.google_books_client = None
         
         if app:
             self.image_cache = ImageCacheService(
