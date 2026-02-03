@@ -410,7 +410,7 @@
     });
     
     // Book Modal Functions
-    function openBookModal(bookIndex) {
+    async function openBookModal(bookIndex) {
         const book = window.booksData[bookIndex];
         if (!book) return;
         
@@ -426,74 +426,42 @@
         document.getElementById('modal-publication-year').textContent = book.publication_year || '未知';
         document.getElementById('modal-isbn').textContent = book.isbn13 || '';
         
-        // 图书简介标签页
+        // 图书简介标签页 - 显示基础描述
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
         
-        // 详细信息标签页 - 显示更多元数据
+        // 详细信息标签页 - 只显示详细描述（不包含图书信息表格）
         const detailsContent = document.getElementById('modal-details-content');
         if (detailsContent) {
             detailsContent.innerHTML = `
                 <div class="details-section">
-                    <h4>图书信息</h4>
-                    <div class="details-grid">
-                        <div class="detail-item">
-                            <span class="detail-label">ISBN-10</span>
-                            <span class="detail-value">${book.isbn10 || '暂无'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">ISBN-13</span>
-                            <span class="detail-value">${book.isbn13 || '暂无'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">出版社</span>
-                            <span class="detail-value">${book.publisher || '暂无'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">出版年份</span>
-                            <span class="detail-value">${book.publication_year || '暂无'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">获奖年份</span>
-                            <span class="detail-value">${book.year || '暂无'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">类别</span>
-                            <span class="detail-value">${book.category || '暂无'}</span>
-                        </div>
-                    </div>
+                    <h4>图书简介</h4>
+                    <p id="modal-detail-description" class="book-full-description">${book.details || book.description || '暂无详细简介'}</p>
+                    <p id="modal-detail-loading" class="loading-text" style="display: none; color: #999; font-style: italic; margin-top: 10px;">正在获取详细介绍...</p>
                 </div>
-                ${book.details ? `
-                <div class="details-section">
-                    <h4>详细描述</h4>
-                    <p>${book.details}</p>
-                </div>
-                ` : ''}
             `;
         }
         
-        // 填充购买链接
+        // 填充购买链接（基础链接）
         const buyLinksContainer = document.getElementById('buy-links-list');
         if (buyLinksContainer) {
             buyLinksContainer.innerHTML = '';
             
-            if (book.buy_links) {
-                try {
-                    const buyLinks = JSON.parse(book.buy_links);
-                    if (Object.keys(buyLinks).length > 0) {
-                        Object.entries(buyLinks).forEach(([name, url]) => {
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.target = '_blank';
-                            link.className = 'buy-link';
-                            link.innerHTML = `<i class="fa fa-external-link"></i> ${name}`;
-                            buyLinksContainer.appendChild(link);
-                        });
-                    } else {
-                        buyLinksContainer.innerHTML = '<span class="no-links">暂无购买链接</span>';
-                    }
-                } catch (e) {
-                    buyLinksContainer.innerHTML = '<span class="no-links">暂无购买链接</span>';
-                }
+            // 添加基础购买链接（Amazon、Google Books）
+            if (book.isbn13) {
+                const baseLinks = [
+                    { name: 'Amazon', url: `https://www.amazon.com/s?k=${book.isbn13}` },
+                    { name: 'Google Books', url: `https://books.google.com/books?isbn=${book.isbn13}` },
+                    { name: 'Open Library', url: `https://openlibrary.org/isbn/${book.isbn13}` }
+                ];
+                
+                baseLinks.forEach(link => {
+                    const a = document.createElement('a');
+                    a.href = link.url;
+                    a.target = '_blank';
+                    a.className = 'buy-link';
+                    a.innerHTML = `<i class="fa fa-external-link"></i> ${link.name}`;
+                    buyLinksContainer.appendChild(a);
+                });
             } else {
                 buyLinksContainer.innerHTML = '<span class="no-links">暂无购买链接</span>';
             }
@@ -502,6 +470,71 @@
         // Show modal
         document.getElementById('book-modal').classList.add('active');
         document.body.style.overflow = 'hidden';
+        
+        // 异步获取 Google Books 详细信息（封面、详细介绍、购买链接）
+        if (book.isbn13) {
+            await fetchBookDetailsFromGoogle(book, bookIndex);
+        }
+    }
+    
+    // 从 Google Books API 获取详细信息
+    async function fetchBookDetailsFromGoogle(book, bookIndex) {
+        try {
+            const loadingEl = document.getElementById('modal-detail-loading');
+            if (loadingEl) loadingEl.style.display = 'block';
+            
+            const response = await fetch(`/api/book-details/${book.isbn13}`);
+            const data = await response.json();
+            
+            if (data.success && data.data) {
+                const googleData = data.data;
+                
+                // 更新封面图片
+                if (googleData.cover_url) {
+                    document.getElementById('modal-cover-img').src = googleData.cover_url;
+                }
+                
+                // 更新详细介绍
+                const descriptionEl = document.getElementById('modal-detail-description');
+                if (descriptionEl && googleData.details && googleData.details.length > 50) {
+                    descriptionEl.textContent = googleData.details;
+                    descriptionEl.classList.add('updated');
+                }
+                
+                // 更新元数据
+                if (googleData.publisher) {
+                    document.getElementById('modal-publisher').textContent = googleData.publisher;
+                }
+                if (googleData.publication_date) {
+                    document.getElementById('modal-publication-year').textContent = googleData.publication_date.substring(0, 4);
+                }
+                
+                // 更新购买链接
+                const buyLinksContainer = document.getElementById('buy-links-list');
+                if (buyLinksContainer && googleData.buy_links && Object.keys(googleData.buy_links).length > 0) {
+                    buyLinksContainer.innerHTML = '';
+                    Object.entries(googleData.buy_links).forEach(([name, url]) => {
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.target = '_blank';
+                        link.className = 'buy-link';
+                        link.innerHTML = `<i class="fa fa-external-link"></i> ${name}`;
+                        buyLinksContainer.appendChild(link);
+                    });
+                }
+                
+                // 更新数据缓存
+                if (window.booksData[bookIndex]) {
+                    window.booksData[bookIndex].details = googleData.details;
+                    window.booksData[bookIndex].cover_original_url = googleData.cover_url;
+                }
+            }
+        } catch (error) {
+            console.log('获取 Google Books 详情失败:', error);
+        } finally {
+            const loadingEl = document.getElementById('modal-detail-loading');
+            if (loadingEl) loadingEl.style.display = 'none';
+        }
     }
     
     function closeBookModal(event) {

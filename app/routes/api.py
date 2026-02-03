@@ -376,9 +376,18 @@ def get_book_details(isbn: str):
         # Google Books API 返回的数据中可能包含 saleInfo，从中提取购买链接
         # 这里简化处理，返回空字典，实际项目中可以从其他来源获取
         
+        # 构建封面 URL
+        cover_url = None
+        if book_data.get('cover_url'):
+            cover_url = book_data['cover_url']
+        elif book_data.get('isbn_13'):
+            # 使用 Open Library 封面作为备选
+            cover_url = f"https://covers.openlibrary.org/b/isbn/{book_data['isbn_13']}-L.jpg"
+        
         return APIResponse.success(data={
             'description': book_data.get('details', ''),
             'details': book_data.get('details', ''),
+            'cover_url': cover_url,
             'page_count': book_data.get('page_count'),
             'language': book_data.get('language'),
             'publisher': book_data.get('publisher'),
