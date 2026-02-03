@@ -365,20 +365,25 @@ def get_book_details(isbn: str):
             timeout=10
         )
         
-        # 获取图书详情
-        book_data = google_client.search_by_isbn(isbn)
+        # 获取图书详情（使用 fetch_book_details 方法）
+        book_data = google_client.fetch_book_details(isbn)
         
         if not book_data:
             return APIResponse.error('Book not found in Google Books', 404)
         
+        # 解析购买链接
+        buy_links = {}
+        # Google Books API 返回的数据中可能包含 saleInfo，从中提取购买链接
+        # 这里简化处理，返回空字典，实际项目中可以从其他来源获取
+        
         return APIResponse.success(data={
-            'description': book_data.get('description', ''),
-            'details': book_data.get('description', ''),
+            'description': book_data.get('details', ''),
+            'details': book_data.get('details', ''),
             'page_count': book_data.get('page_count'),
             'language': book_data.get('language'),
             'publisher': book_data.get('publisher'),
-            'publication_date': book_data.get('publication_date'),
-            'buy_links': book_data.get('buy_links', {})
+            'publication_date': book_data.get('publication_dt'),
+            'buy_links': buy_links
         })
         
     except Exception as e:

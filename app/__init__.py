@@ -105,9 +105,18 @@ def _init_awards_data(app):
             if award_count >= 5 and book_count >= 12:
                 app.logger.info(f"✅ 基础数据已完整 ({award_count} 个奖项, {book_count} 本图书)")
                 app.logger.info("🔄 检查并补充缺失的封面和详情...")
-                _fetch_missing_covers(app)
-                _enrich_books_from_google_books(app)
+                try:
+                    _fetch_missing_covers(app)
+                    _enrich_books_from_google_books(app)
+                except Exception as enrich_error:
+                    app.logger.error(f"❌ 补充数据失败: {enrich_error}")
                 return
+            
+            # 如果数据为空，需要创建基础数据
+            if award_count == 0 and book_count == 0:
+                app.logger.info("🆕 数据库为空，开始初始化基础数据...")
+            else:
+                app.logger.info(f"⚠️ 数据不完整 ({award_count} 个奖项, {book_count} 本图书)，补充数据...")
             
             # 定义奖项基础数据（硬编码作为fallback）
             awards_fallback_data = {
@@ -247,22 +256,28 @@ def _init_sample_books(app):
         service = AwardBookService(app)
         
         # 检查是否需要刷新（每7天自动刷新一次）
-        if service.should_refresh():
-            app.logger.info("🔄 检测到需要刷新获奖图书数据...")
-            stats = service.refresh_award_books(
-                award_keys=['nebula', 'hugo', 'booker', 'international_booker', 
-                           'pulitzer_fiction', 'edgar', 'nobel_literature'],
-                start_year=2020,
-                end_year=2025,
-                force=False
-            )
-            app.logger.info(f"✅ 刷新完成: {stats}")
-        else:
-            status = service.get_refresh_status()
-            app.logger.info(f"⏭️ 跳过刷新，上次刷新: {status['days_since_last']} 天前")
+        try:
+            if service.should_refresh():
+                app.logger.info("🔄 检测到需要刷新获奖图书数据...")
+                stats = service.refresh_award_books(
+                    award_keys=['nebula', 'hugo', 'booker', 'international_booker', 
+                               'pulitzer_fiction', 'edgar', 'nobel_literature'],
+                    start_year=2020,
+                    end_year=2025,
+                    force=False
+                )
+                app.logger.info(f"✅ API刷新完成: {stats}")
+            else:
+                status = service.get_refresh_status()
+                app.logger.info(f"⏭️ 跳过API刷新，上次刷新: {status.get('days_since_last', 'unknown')} 天前")
+        except Exception as api_error:
+            app.logger.warning(f"⚠️ API刷新失败，使用硬编码数据: {api_error}")
         
         # 为缺失封面的图书获取封面
-        service.fetch_missing_covers(batch_size=20)
+        try:
+            service.fetch_missing_covers(batch_size=20)
+        except Exception as cover_error:
+            app.logger.warning(f"⚠️ 获取封面失败: {cover_error}")
         
         # 原有的硬编码数据作为备用（如果 API 获取失败）
         # 示例图书数据（包含真实ISBN和封面图片）
