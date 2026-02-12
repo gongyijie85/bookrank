@@ -6,7 +6,7 @@ from flask_cors import CORS
 
 from .config import config
 from .models import db, init_db
-from .routes import api_bp, main_bp
+from .routes import api_bp, main_bp, public_api_bp
 from .services import (
     CacheService, MemoryCache, FileCache,
     NYTApiClient, GoogleBooksClient, ImageCacheService,
@@ -912,12 +912,14 @@ def _init_services(app):
     
     # 将book_service注入到api_bp中
     api_bp.book_service = book_service
+    public_api_bp.book_service = book_service
 
 
 def _register_blueprints(app):
     """注册蓝图"""
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(public_api_bp)
 
 
 def _register_error_handlers(app):
