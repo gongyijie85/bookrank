@@ -536,10 +536,11 @@ def get_all_award_books():
         if category:
             query = query.filter_by(category=category)
         if keyword:
+            escaped_keyword = keyword.replace('%', r'\%').replace('_', r'\_')
             query = query.filter(
                 db.or_(
-                    AwardBook.title.ilike(f'%{keyword}%'),
-                    AwardBook.author.ilike(f'%{keyword}%')
+                    AwardBook.title.ilike(f'%{escaped_keyword}%'),
+                    AwardBook.author.ilike(f'%{escaped_keyword}%')
                 )
             )
         
@@ -592,15 +593,16 @@ def search_award_books():
         if not keyword:
             return APIResponse.error('搜索关键词不能为空', 400)
         
+        escaped_keyword = keyword.replace('%', r'\%').replace('_', r'\_')
+        
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 20, type=int)
         
-        # 搜索书名和作者
         query = AwardBook.query.filter(
             db.or_(
-                AwardBook.title.ilike(f'%{keyword}%'),
-                AwardBook.author.ilike(f'%{keyword}%'),
-                AwardBook.title_zh.ilike(f'%{keyword}%')
+                AwardBook.title.ilike(f'%{escaped_keyword}%'),
+                AwardBook.author.ilike(f'%{escaped_keyword}%'),
+                AwardBook.title_zh.ilike(f'%{escaped_keyword}%')
             )
         )
         

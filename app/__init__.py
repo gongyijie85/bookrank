@@ -13,8 +13,8 @@ from .services import (
     BookService
 )
 from .utils import RateLimiter
+from .initialization import init_awards_data, init_sample_books
 
-# 获取项目根目录
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
@@ -34,23 +34,13 @@ def create_app(config_name='default'):
         static_folder=str(PROJECT_ROOT / 'static')
     )
     
-    # 加载配置
     app.config.from_object(config[config_name])
     config[config_name].init_app(app)
     
-    # 初始化扩展
     _init_extensions(app)
-    
-    # 初始化服务
     _init_services(app)
-    
-    # 注册蓝图
     _register_blueprints(app)
-    
-    # 注册错误处理器
     _register_error_handlers(app)
-    
-    # 配置日志
     _configure_logging(app)
     
     return app
@@ -58,811 +48,22 @@ def create_app(config_name='default'):
 
 def _init_extensions(app):
     """初始化Flask扩展"""
-    # CORS
     CORS(app)
-    
-    # 数据库
     init_db(app)
-    
-    # 自动初始化奖项数据（如果数据库为空）
     _init_awards_data(app)
-    
-    # Flask缓存 - 使用简单的字典缓存避免扩展问题
-    # 不直接使用 Flask-Caching，而是使用自定义缓存服务
 
 
 def _init_awards_data(app):
-    """自动初始化奖项数据（从Wikidata动态获取，Render免费版优化）"""
-    try:
-        with app.app_context():
-            from .models.schemas import Award, AwardBook
-            from .services import WikidataClient
-            from .models.database import db
-            
-            app.logger.info("🚀 开始检查奖项数据...")
-            
-            # 尝试检查数据，如果表结构不匹配则重新创建
-            award_count = 0
-            book_count = 0
-            try:
-                award_count = Award.query.count()
-                book_count = AwardBook.query.count()
-            except Exception as e:
-                error_msg = str(e).lower()
-                # 只处理特定的表结构错误
-                if "no such column" in error_msg or "no such table" in error_msg:
-                    app.logger.warning(f"⚠️ 数据库表结构已改变: {e}")
-                    app.logger.info("🔄 重新创建数据库表...")
-                    db.drop_all()
-                    db.create_all()
-                else:
-                    app.logger.error(f"❌ 数据库查询失败: {e}")
-                    raise
-            
-            app.logger.info(f"📊 当前数据: {award_count} 个奖项, {book_count} 本图书")
-            
-            # 如果数据已存在，跳过自动补充（避免API限流，改为按需获取）
-            if award_count >= 5 and book_count >= 12:
-                app.logger.info(f"✅ 基础数据已完整 ({award_count} 个奖项, {book_count} 本图书)")
-                app.logger.info("⏭️ 跳过自动补充，将在用户查看详情时按需获取")
-                return
-            
-            # 如果数据为空，需要创建基础数据
-            if award_count == 0 and book_count == 0:
-                app.logger.info("🆕 数据库为空，开始初始化基础数据...")
-            else:
-                app.logger.info(f"⚠️ 数据不完整 ({award_count} 个奖项, {book_count} 本图书)，补充数据...")
-            
-            # 定义奖项基础数据（硬编码作为fallback）
-            awards_fallback_data = {
-                'pulitzer_fiction': {
-                    'name': '普利策奖',
-                    'name_en': 'Pulitzer Prize',
-                    'country': '美国',
-                    'description': '美国新闻界和文学界的最高荣誉，分为新闻奖、文学奖和音乐奖。文学奖包括小说、戏剧、历史、传记、诗歌和一般非虚构类作品。',
-                    'category_count': 6,
-                    'icon_class': 'fa-trophy',
-                    'established_year': 1917,
-                    'award_month': 5
-                },
-                'booker': {
-                    'name': '布克奖',
-                    'name_en': 'Booker Prize',
-                    'country': '英国',
-                    'description': '英国最具声望的文学奖项，授予年度最佳英文小说。自1969年设立以来，已成为英语文学界最重要的奖项之一。',
-                    'category_count': 1,
-                    'icon_class': 'fa-star',
-                    'established_year': 1969,
-                    'award_month': 11
-                },
-                'hugo': {
-                    'name': '雨果奖',
-                    'name_en': 'Hugo Award',
-                    'country': '美国',
-                    'description': '科幻文学界最高荣誉，以《惊奇故事》杂志创始人雨果·根斯巴克命名。评选范围包括最佳长篇小说、中篇小说、短篇小说等。',
-                    'category_count': 8,
-                    'icon_class': 'fa-rocket',
-                    'established_year': 1953,
-                    'award_month': 8
-                },
-                'nobel_literature': {
-                    'name': '诺贝尔文学奖',
-                    'name_en': 'Nobel Prize in Literature',
-                    'country': '瑞典',
-                    'description': '根据阿尔弗雷德·诺贝尔的遗嘱设立，授予在文学领域创作出具有理想倾向的最佳作品的人。是文学界最高荣誉之一。',
-                    'category_count': 1,
-                    'icon_class': 'fa-graduation-cap',
-                    'established_year': 1901,
-                    'award_month': 10
-                },
-                'nebula': {
-                    'name': '星云奖',
-                    'name_en': 'Nebula Award',
-                    'country': '美国',
-                    'description': '美国科幻和奇幻作家协会颁发的年度大奖，与雨果奖并称为科幻界双璧。评选范围包括最佳长篇小说、中篇小说、短篇小说等。',
-                    'category_count': 6,
-                    'icon_class': 'fa-star',
-                    'established_year': 1965,
-                    'award_month': 5
-                },
-                'international_booker': {
-                    'name': '国际布克奖',
-                    'name_en': 'International Booker Prize',
-                    'country': '英国',
-                    'description': '布克奖的姊妹奖项，专门颁发给翻译成英语并在英国出版的外国小说。作者和译者平分奖金，是挖掘非英语佳作的重要风向标。',
-                    'category_count': 1,
-                    'icon_class': 'fa-globe',
-                    'established_year': 2005,
-                    'award_month': 5
-                },
-                'edgar': {
-                    'name': '爱伦·坡奖',
-                    'name_en': 'Edgar Award',
-                    'country': '美国',
-                    'description': '美国推理作家协会颁发的年度大奖，以推理小说之父爱伦·坡命名。是推理小说界的最高荣誉，涵盖小说、电视、电影等多个领域。',
-                    'category_count': 12,
-                    'icon_class': 'fa-user-secret',
-                    'established_year': 1946,
-                    'award_month': 4
-                }
-            }
-            
-            # 尝试从 Wikidata 获取奖项信息
-            app.logger.info("🔍 正在从 Wikidata 获取奖项信息...")
-            wikidata_client = WikidataClient(timeout=30)
-            
-            try:
-                wikidata_award_info = wikidata_client.get_all_award_info(
-                    awards=list(awards_fallback_data.keys())
-                )
-                app.logger.info(f"✅ 从 Wikidata 获取到 {len(wikidata_award_info)} 个奖项信息")
-            except Exception as e:
-                app.logger.warning(f"⚠️ 从 Wikidata 获取奖项信息失败: {e}")
-                wikidata_award_info = {}
-            
-            # 合并 Wikidata 数据和硬编码数据
-            awards_data = []
-            for award_key, fallback_data in awards_fallback_data.items():
-                wikidata_info = wikidata_award_info.get(award_key, {})
-                
-                # 合并数据：Wikidata 数据优先，缺失的使用 fallback
-                merged_data = {
-                    'name': fallback_data['name'],  # 使用中文名称
-                    'name_en': wikidata_info.get('name_en') or fallback_data['name_en'],
-                    'country': wikidata_info.get('country_en') or fallback_data['country'],
-                    'description': fallback_data['description'],  # 使用更详细的中文描述
-                    'category_count': wikidata_info.get('category_count') or fallback_data['category_count'],
-                    'icon_class': fallback_data['icon_class'],
-                    'established_year': wikidata_info.get('established_year') or fallback_data['established_year'],
-                    'award_month': fallback_data['award_month'],
-                    'wikidata_id': wikidata_info.get('wikidata_id')
-                }
-                awards_data.append(merged_data)
-            
-            # 智能创建：只创建不存在的奖项
-            created_awards = 0
-            for award_data in awards_data:
-                existing = Award.query.filter_by(name=award_data['name']).first()
-                if not existing:
-                    award = Award(**award_data)
-                    db.session.add(award)
-                    created_awards += 1
-            
-            if created_awards > 0:
-                db.session.commit()
-                app.logger.info(f"✅ 已创建 {created_awards} 个新奖项")
-            else:
-                app.logger.info("✅ 所有奖项已存在")
-            
-            # 创建示例图书数据
-            _init_sample_books(app)
-            
-    except Exception as e:
-        app.logger.error(f"❌ 初始化奖项数据失败: {e}", exc_info=True)
-
-
-def _init_sample_books(app):
-    """初始化示例图书数据"""
-    try:
-        from .models.schemas import Award, AwardBook
-        from .services import AwardBookService
-        
-        # 使用 AwardBookService 智能刷新数据
-        service = AwardBookService(app)
-        
-        # 检查是否需要刷新（每7天自动刷新一次）
-        try:
-            if service.should_refresh():
-                app.logger.info("🔄 检测到需要刷新获奖图书数据...")
-                stats = service.refresh_award_books(
-                    award_keys=['nebula', 'hugo', 'booker', 'international_booker', 
-                               'pulitzer_fiction', 'edgar', 'nobel_literature'],
-                    start_year=2020,
-                    end_year=2025,
-                    force=False
-                )
-                app.logger.info(f"✅ API刷新完成: {stats}")
-            else:
-                status = service.get_refresh_status()
-                app.logger.info(f"⏭️ 跳过API刷新，上次刷新: {status.get('days_since_last', 'unknown')} 天前")
-        except Exception as api_error:
-            app.logger.warning(f"⚠️ API刷新失败，使用硬编码数据: {api_error}")
-        
-        # 为缺失封面的图书获取封面
-        try:
-            service.fetch_missing_covers(batch_size=20)
-        except Exception as cover_error:
-            app.logger.warning(f"⚠️ 获取封面失败: {cover_error}")
-        
-        # 原有的硬编码数据作为备用（如果 API 获取失败）
-        # 示例图书数据（包含真实ISBN和封面图片）
-        # ISBN已通过Google Books API和Amazon验证
-        sample_books = [
-            # ========================================
-            # 普利策奖 (Pulitzer Prize)
-            # ========================================
-            # 注：普利策奖通常在每年5月公布，2026年获奖名单尚未公布
-            
-            # 2025年普利策小说奖
-            {'award_name': '普利策奖', 'year': 2025, 'category': '小说', 'rank': 1,
-             'title': 'James', 'author': 'Percival Everett',
-             'description': 'A brilliant reimagining of Adventures of Huckleberry Finn from the perspective of Jim, the enslaved man.',
-             'isbn13': '9780385550369',
-             'cover_url': None},  # 将通过Google Books API获取
-            
-            # 2024年普利策小说奖
-            {'award_name': '普利策奖', 'year': 2024, 'category': '小说', 'rank': 1,
-             'title': 'The Nickel Boys', 'author': 'Colson Whitehead',
-             'description': 'Based on the true story of a reform school in Florida that operated for over a century.',
-             'isbn13': '9780385537070',
-             'cover_url': None},
-            
-            # 2023年普利策小说奖
-            {'award_name': '普利策奖', 'year': 2023, 'category': '小说', 'rank': 1,
-             'title': 'Demon Copperhead', 'author': 'Barbara Kingsolver',
-             'description': 'A modern retelling of David Copperfield set in Appalachia, following a boy born to a teenage single mother.',
-             'isbn13': '9780063251922',
-             'cover_url': None},
-            
-            # 2023年普利策非虚构奖
-            {'award_name': '普利策奖', 'year': 2023, 'category': '非虚构', 'rank': 1,
-             'title': 'His Name Is George Floyd', 'author': 'Robert Samuels, Toluse Olorunnipa',
-             'description': 'A biography of George Floyd that explores the racial justice movement and systemic inequality in America.',
-             'isbn13': '9780593491930',
-             'cover_url': None},
-            
-            # 2022年普利策小说奖
-            {'award_name': '普利策奖', 'year': 2022, 'category': '小说', 'rank': 1,
-             'title': 'The Netanyahus', 'author': 'Joshua Cohen',
-             'description': 'A comic novel about a Jewish historian who meets the Netanyahu family in 1959.',
-             'isbn13': '9781681376070',
-             'cover_url': None},
-            
-            # ========================================
-            # 布克奖 (Booker Prize)
-            # ========================================
-            # 2025年布克奖
-            {'award_name': '布克奖', 'year': 2025, 'category': '小说', 'rank': 1,
-             'title': 'The Safekeep', 'author': 'Yael van der Wouden',
-             'description': 'A debut novel set in the Dutch countryside in the 1960s, exploring desire and betrayal.',
-             'isbn13': '9781668052541',
-             'cover_url': None},
-            
-            # 2024年布克奖
-            {'award_name': '布克奖', 'year': 2024, 'category': '小说', 'rank': 1,
-             'title': 'Orbital', 'author': 'Samantha Harvey',
-             'description': 'A novel set on the International Space Station, exploring the lives of six astronauts.',
-             'isbn13': '9780802163784',
-             'cover_url': None},
-            
-            # 2023年布克奖
-            {'award_name': '布克奖', 'year': 2023, 'category': '小说', 'rank': 1,
-             'title': 'Prophet Song', 'author': 'Paul Lynch',
-             'description': 'A dystopian novel about a mother searching for her son in a collapsing Ireland.',
-             'isbn13': '9780802161506',
-             'cover_url': None},
-            
-            # 2022年布克奖
-            {'award_name': '布克奖', 'year': 2022, 'category': '小说', 'rank': 1,
-             'title': 'The Seven Moons of Maali Almeida', 'author': 'Shehan Karunatilaka',
-             'description': 'A satirical novel about a war photographer who wakes up dead in a celestial visa office.',
-             'isbn13': '9781324035910',
-             'cover_url': None},
-            
-            # ========================================
-            # 诺贝尔文学奖 (Nobel Prize in Literature)
-            # ========================================
-            # 2025年诺贝尔文学奖得主：韩江（2024年得主，但作品持续影响）
-            {'award_name': '诺贝尔文学奖', 'year': 2025, 'category': '文学', 'rank': 1,
-             'title': 'Human Acts', 'author': 'Han Kang',
-             'description': 'A novel about the 1980 Gwangju Uprising in South Korea, exploring trauma and humanity.',
-             'isbn13': '9781101906729',
-             'cover_url': None},
-            
-            # 2024年诺贝尔文学奖得主：韩江
-            {'award_name': '诺贝尔文学奖', 'year': 2024, 'category': '文学', 'rank': 1,
-             'title': 'The Vegetarian', 'author': 'Han Kang',
-             'description': 'A dark and surreal novel about a woman who decides to stop eating meat and the consequences that follow.',
-             'isbn13': '9780553448184',
-             'cover_url': None},
-            
-            # 2023年诺贝尔文学奖得主：约恩·福瑟
-            {'award_name': '诺贝尔文学奖', 'year': 2023, 'category': '文学', 'rank': 1,
-             'title': 'A New Name: Septology VI-VII', 'author': 'Jon Fosse',
-             'description': 'The final installment of the Septology series, exploring the life of an aging painter.',
-             'isbn13': '9781555978896',
-             'cover_url': None},
-            
-            # 2022年诺贝尔文学奖得主：安妮·埃尔诺
-            {'award_name': '诺贝尔文学奖', 'year': 2022, 'category': '文学', 'rank': 1,
-             'title': 'The Years', 'author': 'Annie Ernaux',
-             'description': 'A memoir that blends personal and collective history from 1941 to 2006.',
-             'isbn13': '9781609808927',
-             'cover_url': None},
-            
-            # ========================================
-            # 雨果奖 (Hugo Award)
-            # ========================================
-            # 2025年雨果奖最佳长篇小说
-            {'award_name': '雨果奖', 'year': 2025, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'The Tainted Cup', 'author': 'Robert Jackson Bennett',
-             'description': 'A mystery fantasy novel featuring a Holmes-like detective in a world where magic is powered by parasitic infection.',
-             'isbn13': '9781984820709',
-             'cover_url': None},
-            
-            # 2024年雨果奖最佳长篇小说
-            {'award_name': '雨果奖', 'year': 2024, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'Some Desperate Glory', 'author': 'Emily Tesh',
-             'description': 'A space opera about a young woman raised on a space station to avenge Earth\'s destruction.',
-             'isbn13': '9781250834989',
-             'cover_url': None},
-            
-            # 2023年雨果奖最佳长篇小说
-            {'award_name': '雨果奖', 'year': 2023, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'Nettle & Bone', 'author': 'T. Kingfisher',
-             'description': 'A fantasy novel about a princess who must save her sister from an abusive husband.',
-             'isbn13': '9781250244048',
-             'cover_url': None},
-            
-            # 2022年雨果奖最佳长篇小说
-            {'award_name': '雨果奖', 'year': 2022, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'A Desolation Called Peace', 'author': 'Arkady Martine',
-             'description': 'A space opera about first contact with a terrifying alien species. Sequel to A Memory Called Empire.',
-             'isbn13': '9781250186461',
-             'cover_url': None},
-            
-            # ========================================
-            # 美国国家图书奖 (National Book Award)
-            # ========================================
-            # 2024年美国国家图书奖小说奖
-            {'award_name': '美国国家图书奖', 'year': 2024, 'category': '小说', 'rank': 1,
-             'title': 'James', 'author': 'Percival Everett',
-             'description': 'A reimagining of Huckleberry Finn from Jim\'s perspective, winner of both Pulitzer and National Book Award.',
-             'isbn13': '9780385550369',
-             'cover_url': None},
-            
-            # 2023年美国国家图书奖小说奖
-            {'award_name': '美国国家图书奖', 'year': 2023, 'category': '小说', 'rank': 1,
-             'title': 'The Rabbit Hutch', 'author': 'Tess Gunty',
-             'description': 'A debut novel about loneliness and connection in a small Indiana town.',
-             'isbn13': '9780593534668',
-             'cover_url': None},
-            
-            # 2022年美国国家图书奖小说奖
-            {'award_name': '美国国家图书奖', 'year': 2022, 'category': '小说', 'rank': 1,
-             'title': 'All This Could Be Different', 'author': 'Sarah Thankam Mathews',
-             'description': 'A novel about a young immigrant navigating life, love, and friendship in Milwaukee.',
-             'isbn13': '9780593241641',
-             'cover_url': None},
-            
-            # ========================================
-            # 星云奖 (Nebula Award)
-            # ========================================
-            # 2025年星云奖最佳长篇小说
-            {'award_name': '星云奖', 'year': 2025, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'The Mimicking of Known Successes', 'author': 'Malka Older',
-             'description': 'A mystery set on a distant space station, featuring a Holmes-like detective investigating a missing person case.',
-             'isbn13': '9781250897472',
-             'cover_url': None},
-            
-            # 2024年星云奖最佳长篇小说
-            {'award_name': '星云奖', 'year': 2024, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'The Saint of Bright Doors', 'author': 'Vajra Chandrasekera',
-             'description': 'A fantasy novel about a man raised to assassinate a messiah figure, exploring destiny and choice.',
-             'isbn13': '9781250842700',
-             'cover_url': None},
-            
-            # 2023年星云奖最佳长篇小说
-            {'award_name': '星云奖', 'year': 2023, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'Babel: Or the Necessity of Violence', 'author': 'R.F. Kuang',
-             'description': 'A dark academia fantasy about a magical translation institute in 1830s Oxford, exploring colonialism and language.',
-             'isbn13': '9780063021426',
-             'cover_url': None},
-            
-            # 2022年星云奖最佳长篇小说
-            {'award_name': '星云奖', 'year': 2022, 'category': '最佳长篇小说', 'rank': 1,
-             'title': 'A Desolation Called Peace', 'author': 'Arkady Martine',
-             'description': 'Sequel to A Memory Called Empire, continuing the story of an interstellar empire and its complex diplomatic relations.',
-             'isbn13': '9781250186461',
-             'cover_url': None},
-            
-            # ========================================
-            # 国际布克奖 (International Booker Prize)
-            # ========================================
-            # 2025年国际布克奖
-            {'award_name': '国际布克奖', 'year': 2025, 'category': '翻译小说', 'rank': 1,
-             'title': 'The Details', 'author': 'Ia Genberg',
-             'description': 'A Swedish novel about four women whose lives intersect, exploring friendship and identity.',
-             'isbn13': '9781662602031',
-             'cover_url': None},
-
-            # 2024年国际布克奖
-            {'award_name': '国际布克奖', 'year': 2024, 'category': '翻译小说', 'rank': 1,
-             'title': 'Kairos', 'author': 'Jenny Erpenbeck',
-             'description': 'A love story set in East Germany before the fall of the Berlin Wall, exploring personal and political transformation.',
-             'isbn13': '9780811232011',
-             'cover_url': None},
-
-            # 2023年国际布克奖
-            {'award_name': '国际布克奖', 'year': 2023, 'category': '翻译小说', 'rank': 1,
-             'title': 'Time Shelter', 'author': 'Georgi Gospodinov',
-             'description': 'A novel about a clinic that recreates past decades to help Alzheimer\'s patients, exploring memory and nostalgia.',
-             'isbn13': '9781324008372',
-             'cover_url': None},
-            
-            # 2022年国际布克奖
-            {'award_name': '国际布克奖', 'year': 2022, 'category': '翻译小说', 'rank': 1,
-             'title': 'Tomb of Sand', 'author': 'Geetanjali Shree',
-             'description': 'An Indian widow defies expectations and travels to Pakistan to confront her past, translated from Hindi.',
-             'isbn13': '9781953861162',
-             'cover_url': None},
-            
-            # ========================================
-            # 爱伦·坡奖 (Edgar Award)
-            # ========================================
-            # 2025年爱伦·坡奖最佳小说
-            {'award_name': '爱伦·坡奖', 'year': 2025, 'category': '最佳小说', 'rank': 1,
-             'title': 'King of Ashes', 'author': 'S.A. Cosby',
-             'description': 'A gripping crime novel about two brothers on opposite sides of the law in rural Virginia.',
-             'isbn13': '9781250867291',
-             'cover_url': None},
-
-            # 2024年爱伦·坡奖最佳小说
-            {'award_name': '爱伦·坡奖', 'year': 2024, 'category': '最佳小说', 'rank': 1,
-             'title': 'The River We Remember', 'author': 'William Kent Krueger',
-             'description': 'A murder mystery set in 1950s Minnesota, exploring small-town secrets and racial tensions.',
-             'isbn13': '9781982178697',
-             'cover_url': None},
-
-            # 2023年爱伦·坡奖最佳小说
-            {'award_name': '爱伦·坡奖', 'year': 2023, 'category': '最佳小说', 'rank': 1,
-             'title': 'The Accomplice', 'author': 'Lisa Lutz',
-             'description': 'A psychological thriller about two lifelong friends bound by a dark secret from their teenage years.',
-             'isbn13': '9781982168322',
-             'cover_url': None},
-            
-            # 2022年爱伦·坡奖最佳小说
-            {'award_name': '爱伦·坡奖', 'year': 2022, 'category': '最佳小说', 'rank': 1,
-             'title': 'Billy Summers', 'author': 'Stephen King',
-             'description': 'A hired killer with a conscience takes on one last job, but things go terribly wrong.',
-             'isbn13': '9781982173616',
-             'cover_url': None},
-        ]
-        
-        # 智能创建：只创建不存在的图书（根据ISBN判断）
-        created_count = 0
-        updated_count = 0
-        
-        for book_data in sample_books:
-            award = Award.query.filter_by(name=book_data['award_name']).first()
-            if not award:
-                continue
-            
-            isbn = book_data.get('isbn13')
-            
-            # 检查是否已存在（根据ISBN或标题+作者）
-            if isbn:
-                existing = AwardBook.query.filter_by(isbn13=isbn).first()
-            else:
-                existing = AwardBook.query.filter_by(
-                    title=book_data['title'],
-                    author=book_data['author']
-                ).first()
-            
-            if existing:
-                # 更新现有记录（补充ISBN和封面）
-                if isbn and not existing.isbn13:
-                    existing.isbn13 = isbn
-                    updated_count += 1
-                if book_data.get('cover_url') and not existing.cover_original_url:
-                    existing.cover_original_url = book_data['cover_url']
-                    updated_count += 1
-            else:
-                # 创建新记录
-                book = AwardBook(
-                    award_id=award.id,
-                    year=book_data['year'],
-                    category=book_data['category'],
-                    rank=book_data['rank'],
-                    title=book_data['title'],
-                    author=book_data['author'],
-                    description=book_data['description'],
-                    isbn13=isbn,
-                    cover_original_url=book_data.get('cover_url')
-                )
-                db.session.add(book)
-                created_count += 1
-        
-        if created_count > 0 or updated_count > 0:
-            db.session.commit()
-            app.logger.info(f"✅ 图书: 新建 {created_count} 本, 更新 {updated_count} 本")
-        else:
-            app.logger.info("✅ 所有图书已是最新")
-        
-        # 跳过自动获取封面和详情，改为按需获取（避免API限流）
-        app.logger.info("⏭️ 跳过自动封面获取，将在用户查看详情时按需获取")
-        
-        # 自动验证所有待验证的图书
-        app.logger.info("🔍 开始自动验证图书...")
-        try:
-            from .services.book_verification_service import BookVerificationService
-            verifier = BookVerificationService()
-            results = verifier.verify_all_pending(limit=20)
-            
-            # 输出验证结果汇总
-            summary = verifier.get_verification_summary()
-            app.logger.info(f"✅ 图书验证完成: 总计 {summary['total']}, "
-                          f"已验证 {summary['verified']}, "
-                          f"待验证 {summary['pending']}, "
-                          f"失败 {summary['failed']}, "
-                          f"可展示 {summary['displayable']}")
-        except Exception as verify_error:
-            app.logger.error(f"❌ 图书验证失败: {verify_error}")
-        
-    except Exception as e:
-        app.logger.error(f"❌ 初始化示例图书失败: {e}", exc_info=True)
-        db.session.rollback()
-
-
-def _fetch_missing_covers(app):
-    """为缺失封面的图书获取封面（优先使用 Open Library，回退到 Google Books）"""
-    try:
-        from .models.schemas import AwardBook
-        from .services import OpenLibraryClient, GoogleBooksClient, ImageCacheService
-        
-        # 创建客户端
-        openlib_client = OpenLibraryClient(timeout=10)
-        google_client = GoogleBooksClient(
-            api_key=app.config.get('GOOGLE_API_KEY'),
-            base_url='https://www.googleapis.com/books/v1/volumes',
-            timeout=10
-        )
-        
-        image_cache = ImageCacheService(
-            cache_dir=app.config['IMAGE_CACHE_DIR'],
-            default_cover='/static/default-cover.png'
-        )
-        
-        # 获取需要更新封面的图书
-        books = AwardBook.query.filter(
-            (AwardBook.cover_local_path.is_(None)) | 
-            (AwardBook.cover_local_path == '/static/default-cover.png')
-        ).all()
-        
-        if not books:
-            app.logger.info("✅ 所有图书已有封面")
-            return
-        
-        app.logger.info(f"📚 开始为 {len(books)} 本图书获取封面...")
-        
-        updated = 0
-        failed_books = []
-        
-        for i, book in enumerate(books, 1):
-            try:
-                cover_url = None
-                source = None
-                
-                # 第一步：尝试 Open Library（免费，无需 API Key）
-                if book.isbn13:
-                    cover_url = openlib_client.get_cover_url(book.isbn13, size='L')
-                    if cover_url:
-                        source = 'Open Library'
-                
-                # 第二步：如果 Open Library 失败，尝试 Google Books
-                if not cover_url:
-                    cover_url = google_client.get_cover_url(
-                        isbn=book.isbn13,
-                        title=book.title,
-                        author=book.author
-                    )
-                    if cover_url:
-                        source = 'Google Books'
-                
-                if not cover_url:
-                    app.logger.warning(f"  [{i}/{len(books)}] 未找到封面: {book.title}")
-                    failed_books.append(book)
-                    continue
-                
-                # 下载并缓存封面
-                cached_url = image_cache.get_cached_image_url(cover_url, ttl=86400*365)
-                
-                if cached_url and cached_url != '/static/default-cover.png':
-                    book.cover_original_url = cover_url
-                    book.cover_local_path = cached_url
-                    updated += 1
-                    app.logger.info(f"  [{i}/{len(books)}] ✅ {book.title[:30]}... ({source})")
-                else:
-                    app.logger.warning(f"  [{i}/{len(books)}] ⚠️ 下载失败: {book.title[:30]}...")
-                    failed_books.append(book)
-                
-                # 每5本保存一次
-                if i % 5 == 0:
-                    db.session.commit()
-                
-                # 延迟避免请求过快
-                import time
-                time.sleep(0.3)
-                
-            except Exception as e:
-                app.logger.error(f"  [{i}/{len(books)}] ❌ 错误: {e}")
-                failed_books.append(book)
-                continue
-        
-        db.session.commit()
-        app.logger.info(f"✅ 封面更新完成: {updated}/{len(books)} 本")
-        
-        # 尝试通过 Open Library API 补充图书详细信息
-        if failed_books:
-            _enrich_books_from_openlibrary(app, failed_books, openlib_client, image_cache)
-        
-    except Exception as e:
-        app.logger.error(f"❌ 获取封面失败: {e}", exc_info=True)
-
-
-def _enrich_books_from_openlibrary(app, books, openlib_client, image_cache):
-    """通过 Open Library API 补充图书详细信息"""
-    try:
-        from .models.schemas import AwardBook
-        
-        app.logger.info(f"📖 尝试通过 Open Library API 补充 {len(books)} 本图书信息...")
-        
-        enriched = 0
-        for i, book in enumerate(books, 1):
-            try:
-                if not book.isbn13:
-                    continue
-                
-                # 获取图书详情
-                book_data = openlib_client.fetch_book_by_isbn(book.isbn13)
-                
-                if not book_data:
-                    continue
-                
-                # 更新图书信息
-                if book_data.get('description') and len(book_data['description']) > len(book.description or ''):
-                    book.description = book_data['description']
-                
-                # 获取封面
-                if book_data.get('cover_url') and not book.cover_local_path:
-                    cached_url = image_cache.get_cached_image_url(book_data['cover_url'], ttl=86400*365)
-                    if cached_url and cached_url != '/static/default-cover.png':
-                        book.cover_original_url = book_data['cover_url']
-                        book.cover_local_path = cached_url
-                        enriched += 1
-                        app.logger.info(f"  [{i}/{len(books)}] ✅ 补充信息: {book.title[:30]}...")
-                
-                # 每3本保存一次
-                if i % 3 == 0:
-                    db.session.commit()
-                
-                import time
-                time.sleep(0.5)
-                
-            except Exception as e:
-                app.logger.error(f"  [{i}/{len(books)}] ❌ 错误: {e}")
-                continue
-        
-        db.session.commit()
-        app.logger.info(f"✅ 信息补充完成: {enriched} 本")
-        
-    except Exception as e:
-        app.logger.error(f"❌ 补充图书信息失败: {e}", exc_info=True)
-
-
-def _enrich_books_from_google_books(app):
-    """通过 Google Books API 补充图书详情和购买链接（Render免费版自动补充）"""
-    try:
-        import json
-        from .models.schemas import AwardBook
-        from .services import GoogleBooksClient, ImageCacheService
-        
-        # 创建客户端
-        google_client = GoogleBooksClient(
-            api_key=app.config.get('GOOGLE_API_KEY'),
-            base_url='https://www.googleapis.com/books/v1/volumes',
-            timeout=10
-        )
-        
-        image_cache = ImageCacheService(
-            cache_dir=app.config['IMAGE_CACHE_DIR'],
-            default_cover='/static/default-cover.png'
-        )
-        
-        # 获取需要补充数据的图书（缺少封面、详情或购买链接）
-        books = AwardBook.query.filter(
-            (AwardBook.cover_local_path.is_(None)) |
-            (AwardBook.cover_local_path == '/static/default-cover.png') |
-            (AwardBook.details.is_(None)) |
-            (AwardBook.buy_links.is_(None))
-        ).limit(20).all()  # 每批最多处理20本，避免超时
-        
-        if not books:
-            app.logger.info("✅ 所有图书数据已完整")
-            return
-        
-        app.logger.info(f"📚 开始为 {len(books)} 本图书补充 Google Books 数据...")
-        
-        stats = {'cover': 0, 'details': 0, 'buy_links': 0, 'failed': 0}
-        
-        for i, book in enumerate(books, 1):
-            try:
-                if not book.isbn13:
-                    stats['failed'] += 1
-                    continue
-                
-                # 从 Google Books 获取数据
-                google_data = google_client.fetch_book_details(book.isbn13)
-                
-                if not google_data:
-                    app.logger.warning(f"  [{i}/{len(books)}] ⚠️ Google Books 未找到: {book.title[:30]}...")
-                    stats['failed'] += 1
-                    continue
-                
-                updated = False
-                
-                # 1. 补充封面
-                if (not book.cover_local_path or 
-                    book.cover_local_path == '/static/default-cover.png'):
-                    cover_url = google_data.get('cover_url')
-                    if cover_url:
-                        cached_path = image_cache.get_cached_image_url(cover_url)
-                        if cached_path and cached_path != '/static/default-cover.png':
-                            book.cover_original_url = cover_url
-                            book.cover_local_path = cached_path
-                            stats['cover'] += 1
-                            updated = True
-                            app.logger.info(f"  [{i}/{len(books)}] ✅ 封面: {book.title[:30]}...")
-                
-                # 2. 补充详情
-                if not book.details and google_data.get('description'):
-                    book.details = google_data['description']
-                    stats['details'] += 1
-                    updated = True
-                    app.logger.info(f"  [{i}/{len(books)}] ✅ 详情: {book.title[:30]}...")
-                
-                # 3. 补充购买链接
-                if not book.buy_links and google_data.get('buy_links'):
-                    book.buy_links = json.dumps(google_data['buy_links'])
-                    stats['buy_links'] += 1
-                    updated = True
-                    app.logger.info(f"  [{i}/{len(books)}] ✅ 购买链接: {book.title[:30]}...")
-                
-                if updated:
-                    try:
-                        db.session.commit()
-                        app.logger.info(f"  [{i}/{len(books)}] 💾 已保存到数据库")
-                    except Exception as commit_error:
-                        app.logger.error(f"  [{i}/{len(books)}] ❌ 保存失败: {commit_error}")
-                        db.session.rollback()
-                        stats['failed'] += 1
-                
-                # 延迟避免请求过快
-                import time
-                time.sleep(0.5)
-                
-            except Exception as e:
-                app.logger.error(f"  [{i}/{len(books)}] ❌ 处理错误: {e}")
-                stats['failed'] += 1
-                continue
-        
-        # 最后确保所有更改都提交
-        try:
-            db.session.commit()
-            app.logger.info(f"✅ Google Books 补充完成: 封面{stats['cover']}本, 详情{stats['details']}本, 购买链接{stats['buy_links']}本, 失败{stats['failed']}本")
-        except Exception as final_error:
-            app.logger.error(f"❌ 最终提交失败: {final_error}")
-            db.session.rollback()
-        
-    except Exception as e:
-        app.logger.error(f"❌ Google Books 补充失败: {e}", exc_info=True)
+    """自动初始化奖项数据"""
+    with app.app_context():
+        init_awards_data(app)
+        init_sample_books(app)
 
 
 def _init_services(app):
     """初始化业务服务"""
     config = app.config
     
-    # 创建缓存服务（不使用Flask-Caching，只使用内存和文件缓存）
     memory_cache = MemoryCache(default_ttl=config['MEMORY_CACHE_TTL'])
     file_cache = FileCache(
         cache_dir=config['CACHE_DIR'],
@@ -871,13 +72,11 @@ def _init_services(app):
     
     cache_service = CacheService(memory_cache, file_cache, flask_cache=None)
     
-    # 创建限流器
     rate_limiter = RateLimiter(
         max_calls=config['API_RATE_LIMIT'],
         window_seconds=config['API_RATE_LIMIT_WINDOW']
     )
     
-    # 创建API客户端
     nyt_client = NYTApiClient(
         api_key=config.get('NYT_API_KEY', ''),
         base_url=config['NYT_API_BASE_URL'],
@@ -891,13 +90,11 @@ def _init_services(app):
         timeout=config.get('API_TIMEOUT', 8)
     )
     
-    # 创建图片缓存服务
     image_cache = ImageCacheService(
         cache_dir=config['IMAGE_CACHE_DIR'],
         default_cover='/static/default-cover.png'
     )
     
-    # 创建图书服务
     book_service = BookService(
         nyt_client=nyt_client,
         google_client=google_client,
@@ -907,10 +104,8 @@ def _init_services(app):
         categories=config['CATEGORIES']
     )
     
-    # 将服务存储在应用上下文中
     app.extensions['book_service'] = book_service
     
-    # 将book_service注入到api_bp中
     api_bp.book_service = book_service
     public_api_bp.book_service = book_service
 
@@ -947,7 +142,6 @@ def _register_error_handlers(app):
 def _configure_logging(app):
     """配置日志"""
     if not app.debug:
-        # 生产环境日志配置
         handler = logging.StreamHandler()
         handler.setLevel(logging.INFO)
         formatter = logging.Formatter(
@@ -958,12 +152,8 @@ def _configure_logging(app):
         app.logger.addHandler(handler)
         app.logger.setLevel(logging.INFO)
         
-        # 配置第三方库日志级别
         logging.getLogger('werkzeug').setLevel(logging.WARNING)
         logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
 
 
-# 为 Gunicorn 直接暴露 app 实例
-# 使用环境变量 FLASK_ENV 或默认为 production
-import os
 app = create_app(os.environ.get('FLASK_ENV', 'production'))

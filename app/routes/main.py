@@ -1,8 +1,9 @@
 import re
 from pathlib import Path
 
-from flask import Blueprint, render_template, send_from_directory, abort, request
+from flask import Blueprint, render_template, send_from_directory, abort, request, current_app
 from werkzeug.utils import secure_filename
+from sqlalchemy.orm import joinedload
 
 main_bp = Blueprint('main', __name__)
 
@@ -10,25 +11,17 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def index():
     """首页 - 畅销书榜单"""
-    from flask import current_app
-    from datetime import datetime
-    
-    # 获取分类参数，默认使用第一个可用的分类（精装小说）
-    from flask import current_app
     default_category = list(current_app.config['CATEGORIES'].keys())[0]
     category = request.args.get('category', default_category)
     search_query = request.args.get('search', '')
     view_mode = request.args.get('view', 'list')
     
-    # 尝试从缓存服务获取数据
     books_data = []
     update_time = None
     
     try:
-        # 获取应用中的图书服务（包含缓存服务）
         book_service = current_app.extensions.get('book_service')
         if book_service:
-            # 使用 BookService 获取图书数据
             books = book_service.get_books_by_category(category)
             if books:
                 books_data = [book.to_dict() for book in books]
@@ -37,7 +30,6 @@ def index():
         import logging
         logging.getLogger(__name__).warning(f"Failed to get cached books: {e}")
     
-    # 处理搜索过滤
     if search_query and books_data:
         books_data = [b for b in books_data if 
                       search_query.lower() in b.get('title', '').lower() or 
@@ -59,14 +51,10 @@ def cached_image(filename: str):
     
     安全注意：验证文件名格式，防止路径遍历攻击
     """
-    # 验证文件名格式（只允许MD5哈希格式的文件名）
     if not re.match(r'^[a-f0-9]{32}\.jpg$', filename):
         abort(404)
     
-    # 使用secure_filename进一步确保安全
     safe_filename = secure_filename(filename)
-    
-    from flask import current_app
     cache_dir = current_app.config.get('IMAGE_CACHE_DIR', Path('cache/images'))
     
     return send_from_directory(cache_dir, safe_filename)
@@ -82,22 +70,19 @@ def send_static(path: str):
 def awards():
     """图书奖项榜单页面"""
     from ..models.schemas import Award, AwardBook, db
+    from sqlalchemy import func
     
-    # 获取筛选参数
     selected_award = request.args.get('award', '')
     selected_year = request.args.get('year', '')
     search_query = request.args.get('search', '')
     view_mode = request.args.get('view', 'grid')
     
-    # 获取所有奖项
     awards_list = Award.query.all()
     
-    # 获取所有年份（从图书数据中提取）
     years = db.session.query(AwardBook.year).distinct().order_by(AwardBook.year.desc()).all()
     years = [y[0] for y in years if y[0]]
     
-    # 构建图书查询 - 只查询已验证且可展示的图书
-    query = AwardBook.query.filter_by(is_displayable=True)
+    query = AwardBook.query.options(joinedload(AwardBook.award)).filter_by(is_displayable=True)
     
     if selected_award:
         award = Award.query.filter_by(name=selected_award).first()
@@ -107,19 +92,15 @@ def awards():
     if selected_year:
         query = query.filter_by(year=int(selected_year))
     
-    # 获取图书数据
     books = query.order_by(AwardBook.year.desc()).all()
     
-    # 处理搜索
     if search_query and books:
         books = [b for b in books if 
                  search_query.lower() in b.title.lower() or 
                  search_query.lower() in b.author.lower()]
     
-    # 为每本书添加奖项名称，并转换为字典列表（用于JSON序列化）
     books_data = []
     for book in books:
-        award = Award.query.get(book.award_id)
         book_dict = {
             'id': book.id,
             'title': book.title,
@@ -134,14 +115,18 @@ def awards():
             'publication_year': book.publication_year,
             'year': book.year,
             'category': book.category,
-            'award_name': award.name if award else '未知奖项',
+            'award_name': book.award.name if book.award else '未知奖项',
             'buy_links': book.buy_links
         }
         books_data.append(book_dict)
     
-    # 为每个奖项计算图书数量
+    book_counts = dict(
+        db.session.query(AwardBook.award_id, func.count(AwardBook.id))
+        .group_by(AwardBook.award_id)
+        .all()
+    )
     for award in awards_list:
-        award.book_count = AwardBook.query.filter_by(award_id=award.id).count()
+        award.book_count = book_counts.get(award.id, 0)
     
     return render_template('awards.html',
                           awards=awards_list,

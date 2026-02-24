@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Optional, List
+from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 
 from .database import db
@@ -11,10 +10,9 @@ class UserPreference(db.Model):
     
     session_id = db.Column(db.String(64), primary_key=True)
     view_mode = db.Column(db.String(20), default='grid')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
-    # 关系
     categories = db.relationship('UserCategory', back_populates='user', cascade='all, delete-orphan')
     viewed_books = db.relationship('UserViewedBook', back_populates='user', cascade='all, delete-orphan')
     
@@ -41,6 +39,7 @@ class UserCategory(db.Model):
     
     __table_args__ = (
         db.UniqueConstraint('session_id', 'category_id', name='uix_user_category'),
+        db.Index('idx_user_categories_session', 'session_id'),
     )
 
 
@@ -51,12 +50,13 @@ class UserViewedBook(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(64), db.ForeignKey('user_preferences.session_id'), nullable=False)
     isbn = db.Column(db.String(13), nullable=False)
-    viewed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    viewed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = db.relationship('UserPreference', back_populates='viewed_books')
     
     __table_args__ = (
         db.UniqueConstraint('session_id', 'isbn', name='uix_user_book'),
+        db.Index('idx_user_viewed_session', 'session_id'),
     )
 
 
@@ -71,11 +71,15 @@ class BookMetadata(db.Model):
     page_count = db.Column(db.Integer)
     language = db.Column(db.String(50))
     publication_date = db.Column(db.String(50))
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    # 翻译字段
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     description_zh = db.Column(db.Text)
     details_zh = db.Column(db.Text)
     translated_at = db.Column(db.DateTime)
+    
+    __table_args__ = (
+        db.Index('idx_book_metadata_title', 'title'),
+        db.Index('idx_book_metadata_author', 'author'),
+    )
     
     def to_dict(self) -> dict:
         return {
@@ -101,7 +105,12 @@ class SearchHistory(db.Model):
     session_id = db.Column(db.String(64), nullable=False, index=True)
     keyword = db.Column(db.String(200), nullable=False)
     result_count = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    __table_args__ = (
+        db.Index('idx_search_history_session', 'session_id'),
+        db.Index('idx_search_history_created', 'created_at'),
+    )
     
     def to_dict(self) -> dict:
         return {
@@ -117,19 +126,22 @@ class Award(db.Model):
     __tablename__ = 'awards'
     
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)           # 奖项名称（中文）
-    name_en = db.Column(db.String(100))                         # 英文名称
-    country = db.Column(db.String(50))                          # 国家
-    description = db.Column(db.Text)                            # 奖项介绍
-    category_count = db.Column(db.Integer, default=1)           # 奖项类别数
-    icon_class = db.Column(db.String(50))                       # 图标样式类
-    established_year = db.Column(db.Integer)                    # 创立年份
-    award_month = db.Column(db.Integer)                         # 颁布月份（1-12）
-    wikidata_id = db.Column(db.String(50))                      # Wikidata ID
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    name = db.Column(db.String(100), nullable=False)
+    name_en = db.Column(db.String(100))
+    country = db.Column(db.String(50))
+    description = db.Column(db.Text)
+    category_count = db.Column(db.Integer, default=1)
+    icon_class = db.Column(db.String(50))
+    established_year = db.Column(db.Integer)
+    award_month = db.Column(db.Integer)
+    wikidata_id = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
-    # 关系
     books = db.relationship('AwardBook', back_populates='award', cascade='all, delete-orphan')
+    
+    __table_args__ = (
+        db.Index('idx_awards_name', 'name'),
+    )
     
     def to_dict(self) -> dict:
         return {
@@ -153,42 +165,35 @@ class AwardBook(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     award_id = db.Column(db.Integer, db.ForeignKey('awards.id'), nullable=False)
-    year = db.Column(db.Integer, nullable=False)                # 获奖年份
-    category = db.Column(db.String(100))                        # 奖项类别
-    rank = db.Column(db.Integer)                                # 排名（如有）
+    year = db.Column(db.Integer, nullable=False)
+    category = db.Column(db.String(100))
+    rank = db.Column(db.Integer)
     
-    # 图书基本信息
-    title = db.Column(db.String(500), nullable=False)           # 书名（英文）
-    title_zh = db.Column(db.String(500))                        # 书名（中文翻译）
-    author = db.Column(db.String(300), nullable=False)          # 作者
-    description = db.Column(db.Text)                            # 简介（英文）
-    description_zh = db.Column(db.Text)                         # 简介（中文翻译）
+    title = db.Column(db.String(500), nullable=False)
+    title_zh = db.Column(db.String(500))
+    author = db.Column(db.String(300), nullable=False)
+    description = db.Column(db.Text)
+    description_zh = db.Column(db.Text)
     
-    # 封面和链接
-    cover_local_path = db.Column(db.String(255))                # 本地封面路径
-    cover_original_url = db.Column(db.String(500))              # 原始封面URL
+    cover_local_path = db.Column(db.String(255))
+    cover_original_url = db.Column(db.String(500))
     
-    # 元数据
-    isbn13 = db.Column(db.String(13))                           # ISBN-13
-    isbn10 = db.Column(db.String(10))                           # ISBN-10
-    publisher = db.Column(db.String(200))                       # 出版社
-    publication_year = db.Column(db.Integer)                    # 出版年份
+    isbn13 = db.Column(db.String(13))
+    isbn10 = db.Column(db.String(10))
+    publisher = db.Column(db.String(200))
+    publication_year = db.Column(db.Integer)
     
-    # 详细信息和购买链接
-    details = db.Column(db.Text)                                # 详细描述
-    buy_links = db.Column(db.Text)                              # 购买链接JSON
+    details = db.Column(db.Text)
+    buy_links = db.Column(db.Text)
     
-    # 验证状态字段
-    verification_status = db.Column(db.String(20), default='pending')  # pending/verified/failed
-    verification_checked_at = db.Column(db.DateTime)            # 上次验证时间
-    verification_errors = db.Column(db.Text)                    # 验证错误信息JSON
-    is_displayable = db.Column(db.Boolean, default=False)       # 是否可展示给读者
+    verification_status = db.Column(db.String(20), default='pending')
+    verification_checked_at = db.Column(db.DateTime)
+    verification_errors = db.Column(db.Text)
+    is_displayable = db.Column(db.Boolean, default=False)
     
-    # 时间戳
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
-    # 关系
     award = db.relationship('Award', back_populates='books')
     
     __table_args__ = (
@@ -196,9 +201,11 @@ class AwardBook(db.Model):
         db.Index('idx_award_books_award_year', 'award_id', 'year'),
         db.Index('idx_award_books_category', 'category'),
         db.Index('idx_award_books_search', 'title', 'author'),
+        db.Index('idx_award_books_displayable', 'is_displayable', 'year'),
+        db.Index('idx_award_books_isbn', 'isbn13'),
     )
     
-    def to_dict(self, include_zh=True) -> dict:
+    def to_dict(self, include_zh: bool = True) -> dict:
         data = {
             'id': self.id,
             'award_id': self.award_id,
@@ -235,16 +242,16 @@ class SystemConfig(db.Model):
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text)
     description = db.Column(db.String(255))
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     @classmethod
-    def get_value(cls, key: str, default=None):
+    def get_value(cls, key: str, default: str | None = None) -> str | None:
         """获取配置值"""
         config = cls.query.get(key)
         return config.value if config else default
     
     @classmethod
-    def set_value(cls, key: str, value: str, description: str = None):
+    def set_value(cls, key: str, value: str, description: str | None = None) -> 'SystemConfig':
         """设置配置值"""
         config = cls.query.get(key)
         if config:
@@ -275,31 +282,35 @@ class Book:
     publication_dt: str
     page_count: str
     language: str
-    buy_links: List[dict]
+    buy_links: list[dict]
     isbn13: str
     isbn10: str
     price: str
-    # 翻译字段（非持久化，用于前端显示）
-    description_zh: str = None
-    details_zh: str = None
+    description_zh: str | None = None
+    details_zh: str | None = None
     
     def to_dict(self) -> dict:
         return asdict(self)
     
     @classmethod
-    def from_api_response(cls, book_data: dict, category_id: str, category_name: str, 
-                         list_name: str, published_date: str, supplement: dict) -> 'Book':
+    def from_api_response(
+        cls,
+        book_data: dict,
+        category_id: str,
+        category_name: str,
+        list_name: str,
+        published_date: str,
+        supplement: dict
+    ) -> 'Book':
         """从API响应创建Book对象"""
         isbn = book_data.get('primary_isbn13') or book_data.get('primary_isbn10', '')
         
-        # 处理价格
         price_value = book_data.get('price')
         try:
             final_price = str(price_value) if price_value and float(price_value) > 0 else '未知'
         except (ValueError, TypeError):
             final_price = '未知'
         
-        # 提取购买链接
         buy_links = [
             {'name': link.get('name', ''), 'url': link.get('url', '')}
             for link in book_data.get('buy_links', [])
@@ -311,7 +322,7 @@ class Book:
             title=book_data.get('title', 'Unknown Title'),
             author=book_data.get('author', 'Unknown Author'),
             publisher=book_data.get('publisher', 'Unknown Publisher'),
-            cover='',  # 将在后续处理
+            cover='',
             list_name=list_name,
             category_id=category_id,
             category_name=category_name,

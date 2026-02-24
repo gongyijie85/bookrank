@@ -4,14 +4,14 @@
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request, current_app
 from functools import wraps
-import time
 
 from ..models.schemas import AwardBook, Award
 from ..models.database import db
 from ..services import BookService
+from ..utils.rate_limiter import get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -23,22 +23,20 @@ class PublicAPIResponse:
     
     @staticmethod
     def success(data=None, message="Success", status_code=200):
-        """成功响应"""
         response = {
             'success': True,
             'data': data,
             'message': message,
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         }
         return jsonify(response), status_code
     
     @staticmethod
     def error(message="Error", status_code=400, errors=None):
-        """错误响应"""
         response = {
             'success': False,
             'message': message,
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         }
         if errors:
             response['errors'] = errors
@@ -47,39 +45,24 @@ class PublicAPIResponse:
 
 def rate_limit(max_requests=60, window=60):
     """
-    简单的API限流装饰器
+    API限流装饰器
+    
     Args:
         max_requests: 时间窗口内最大请求数
         window: 时间窗口（秒）
     """
     def decorator(f):
-        # 使用字典存储请求计数（生产环境应使用Redis）
-        request_counts = {}
-        
         @wraps(f)
         def wrapped(*args, **kwargs):
-            # 获取客户端标识
+            limiter = get_rate_limiter(max_requests, window)
             client_id = request.remote_addr or 'unknown'
-            current_time = time.time()
             
-            # 清理过期记录
-            if client_id in request_counts:
-                request_counts[client_id] = [
-                    t for t in request_counts[client_id] 
-                    if current_time - t < window
-                ]
-            else:
-                request_counts[client_id] = []
-            
-            # 检查请求次数
-            if len(request_counts[client_id]) >= max_requests:
+            if not limiter.is_allowed(client_id):
+                retry_after = limiter.get_retry_after(client_id)
                 return PublicAPIResponse.error(
-                    'Rate limit exceeded. Please try again later.',
+                    f'Rate limit exceeded. Retry after {retry_after}s.',
                     429
                 )
-            
-            # 记录请求
-            request_counts[client_id].append(current_time)
             
             return f(*args, **kwargs)
         return wrapped

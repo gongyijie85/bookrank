@@ -2,8 +2,8 @@ import time
 import logging
 import hashlib
 from pathlib import Path
-from typing import Optional, Dict, Any
 from functools import wraps
+from typing import Any
 
 import requests
 
@@ -43,7 +43,7 @@ class NYTApiClient:
         self._session = requests.Session()
     
     @retry(max_attempts=3, backoff_factor=2.0)
-    def fetch_books(self, category_id: str) -> Dict[str, Any]:
+    def fetch_books(self, category_id: str) -> dict[str, Any]:
         """
         获取指定分类的图书数据
         
@@ -94,14 +94,14 @@ class NYTApiClient:
 class GoogleBooksClient:
     """Google Books API客户端"""
     
-    def __init__(self, api_key: Optional[str], base_url: str, timeout: int = 8):
+    def __init__(self, api_key: str | None, base_url: str, timeout: int = 8):
         self._api_key = api_key
         self._base_url = base_url
         self._timeout = timeout
         self._session = requests.Session()
     
     @retry(max_attempts=2, backoff_factor=1.5)
-    def fetch_book_details(self, isbn: str) -> Dict[str, Any]:
+    def fetch_book_details(self, isbn: str) -> dict[str, Any]:
         """
         获取图书详细信息
         
@@ -141,7 +141,7 @@ class GoogleBooksClient:
             return {}
     
     @retry(max_attempts=2, backoff_factor=1.5)
-    def search_book_by_title(self, title: str, author: str = None) -> Dict[str, Any]:
+    def search_book_by_title(self, title: str, author: str = None) -> dict[str, Any]:
         """
         根据书名搜索图书
         
@@ -186,7 +186,7 @@ class GoogleBooksClient:
             logger.warning(f"Failed to search Google Books for '{title}': {e}")
             return {}
     
-    def _parse_volume_info(self, volume_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _parse_volume_info(self, volume_info: dict[str, Any]) -> dict[str, Any]:
         """解析 Google Books API 返回的 volumeInfo"""
         lang_code = volume_info.get('language', '').lower()
         
@@ -218,7 +218,7 @@ class GoogleBooksClient:
             'publisher': volume_info.get('publisher')
         }
     
-    def _extract_isbn(self, volume_info: Dict[str, Any], isbn_type: str) -> Optional[str]:
+    def _extract_isbn(self, volume_info: dict[str, Any], isbn_type: str) -> str | None:
         """从 volumeInfo 中提取 ISBN"""
         identifiers = volume_info.get('industryIdentifiers', [])
         for identifier in identifiers:
@@ -226,7 +226,7 @@ class GoogleBooksClient:
                 return identifier.get('identifier')
         return None
     
-    def get_cover_url(self, isbn: str = None, title: str = None, author: str = None) -> Optional[str]:
+    def get_cover_url(self, isbn: str = None, title: str = None, author: str = None) -> str | None:
         """
         获取图书封面URL
         
@@ -274,7 +274,7 @@ class OpenLibraryClient:
         })
     
     @retry(max_attempts=2, backoff_factor=1.5)
-    def fetch_book_by_isbn(self, isbn: str) -> Dict[str, Any]:
+    def fetch_book_by_isbn(self, isbn: str) -> dict[str, Any]:
         """
         通过 ISBN 获取图书详情
         
@@ -319,33 +319,27 @@ class OpenLibraryClient:
             logger.warning(f"Failed to fetch Open Library data for ISBN {isbn}: {e}")
             return {}
     
-    def _parse_book_data(self, book_data: Dict[str, Any], isbn: str) -> Dict[str, Any]:
+    def _parse_book_data(self, book_data: dict[str, Any], isbn: str) -> dict[str, Any]:
         """解析 Open Library 返回的图书数据"""
         
-        # 获取作者信息
         authors = []
         if 'authors' in book_data:
             authors = [author.get('name', '') for author in book_data['authors']]
         
-        # 获取出版信息
         publish_date = book_data.get('publish_date', 'Unknown')
         publishers = []
         if 'publishers' in book_data:
             publishers = [pub.get('name', '') for pub in book_data['publishers']]
         
-        # 获取封面信息
         cover_url = None
         if 'cover' in book_data:
             cover = book_data['cover']
-            # 优先使用大封面
             cover_url = (cover.get('large') or 
                         cover.get('medium') or 
                         cover.get('small'))
         
-        # 获取页数
         pages = book_data.get('number_of_pages', 'Unknown')
         
-        # 获取描述
         description = ''
         if 'description' in book_data:
             desc = book_data['description']
@@ -368,7 +362,7 @@ class OpenLibraryClient:
             'source': 'open_library'
         }
     
-    def get_cover_url(self, isbn: str, size: str = 'L') -> Optional[str]:
+    def get_cover_url(self, isbn: str, size: str = 'L') -> str | None:
         """
         获取 Open Library 封面图片 URL
         
@@ -585,7 +579,7 @@ class WikidataClient:
         
         return books
     
-    def get_all_award_books(self, awards: list = None, start_year: int = 2020,
+    def get_all_award_books(self, awards: list | None = None, start_year: int = 2020,
                            end_year: int = 2025) -> dict:
         """
         获取多个奖项的获奖图书
@@ -609,7 +603,6 @@ class WikidataClient:
             results[award_key] = books
             logger.info(f"✅ {award_key}: 找到 {len(books)} 本图书")
             
-            # 添加延迟避免请求过快
             time.sleep(0.5)
         
         return results
@@ -717,7 +710,7 @@ class WikidataClient:
             'category_count': category_count,
         }
     
-    def get_all_award_info(self, awards: list = None) -> dict:
+    def get_all_award_info(self, awards: list | None = None) -> dict:
         """
         获取多个奖项的详细信息
         
@@ -741,7 +734,6 @@ class WikidataClient:
             else:
                 logger.warning(f"⚠️ {award_key}: 未能获取奖项信息")
             
-            # 添加延迟避免请求过快
             time.sleep(0.3)
         
         return results
@@ -769,12 +761,10 @@ class ImageCacheService:
         if not original_url:
             return self._default_cover
         
-        # 生成安全的文件名
         filename = hashlib.md5(original_url.encode()).hexdigest() + '.jpg'
         cache_path = self._cache_dir / filename
         relative_path = f'/cache/images/{filename}'
         
-        # 检查缓存是否有效
         if cache_path.exists():
             try:
                 file_age = time.time() - cache_path.stat().st_mtime
@@ -783,7 +773,6 @@ class ImageCacheService:
             except OSError:
                 pass
         
-        # 下载并缓存图片
         try:
             response = requests.get(original_url, timeout=10, stream=True)
             response.raise_for_status()

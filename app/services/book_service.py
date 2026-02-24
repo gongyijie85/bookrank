@@ -1,5 +1,4 @@
 import logging
-from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
 from ..models.schemas import Book, BookMetadata, db
@@ -21,7 +20,7 @@ class BookService:
         cache_service: CacheService,
         image_cache: ImageCacheService,
         max_workers: int = 4,
-        categories: dict = None
+        categories: dict | None = None
     ):
         self._nyt_client = nyt_client
         self._google_client = google_client
@@ -30,7 +29,7 @@ class BookService:
         self._max_workers = max_workers
         self._categories = categories or {}
     
-    def get_books_by_category(self, category_id: str, force_refresh: bool = False) -> List[Book]:
+    def get_books_by_category(self, category_id: str, force_refresh: bool = False) -> list[Book]:
         """
         获取指定分类的图书列表
         
@@ -77,7 +76,7 @@ class BookService:
                 return [Book(**book_data) for book_data in cached_data]
             return []
     
-    def _process_api_response(self, api_data: Dict[str, Any], category_id: str) -> List[Book]:
+    def _process_api_response(self, api_data: dict[str, any], category_id: str) -> list[Book]:
         """
         处理API响应数据
         
@@ -95,7 +94,6 @@ class BookService:
         
         category_name = self._categories.get(category_id, category_id)
         
-        # 使用线程池并发处理图书详情
         processed_books = []
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             future_to_book = {
@@ -118,18 +116,17 @@ class BookService:
                 except Exception as e:
                     logger.error(f"Error processing book: {e}")
         
-        # 按排名排序
         processed_books.sort(key=lambda x: x.rank)
         return processed_books
     
     def _process_single_book(
         self,
-        book_data: Dict[str, Any],
+        book_data: dict[str, any],
         category_id: str,
         category_name: str,
         list_name: str,
         published_date: str
-    ) -> Optional[Book]:
+    ) -> Book | None:
         """
         处理单本图书数据
         
@@ -145,10 +142,8 @@ class BookService:
         """
         isbn = book_data.get('primary_isbn13') or book_data.get('primary_isbn10', '')
         
-        # 获取补充信息（从缓存或API）
         supplement = self._get_book_supplement(isbn, book_data)
         
-        # 创建Book对象
         book = Book.from_api_response(
             book_data=book_data,
             category_id=category_id,
@@ -158,12 +153,10 @@ class BookService:
             supplement=supplement
         )
         
-        # 处理封面图片
         book.cover = self._image_cache.get_cached_image_url(
             book_data.get('book_image')
         )
         
-        # 获取翻译内容
         self._attach_translation(book, isbn)
         
         return book
@@ -218,8 +211,8 @@ class BookService:
             if details_zh:
                 metadata.details_zh = details_zh
             
-            from datetime import datetime
-            metadata.translated_at = datetime.utcnow()
+            from datetime import datetime, timezone
+            metadata.translated_at = datetime.now(timezone.utc)
             
             db.session.commit()
             logger.info(f"翻译已保存: {isbn}")
@@ -230,7 +223,7 @@ class BookService:
             db.session.rollback()
             return False
     
-    def _get_book_supplement(self, isbn: str, book_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_book_supplement(self, isbn: str, book_data: dict[str, any]) -> dict[str, any]:
         """
         获取图书补充信息
         
@@ -244,14 +237,11 @@ class BookService:
         if not isbn:
             return {}
         
-        # 在线程中需要应用上下文才能访问数据库
-        # 暂时跳过数据库查询，直接从API获取
-        # 从Google Books API获取
         supplement = self._google_client.fetch_book_details(isbn)
         
         return supplement
     
-    def search_books(self, keyword: str, categories: List[str] = None) -> List[Book]:
+    def search_books(self, keyword: str, categories: list[str] | None = None) -> list[Book]:
         """
         搜索图书
         
