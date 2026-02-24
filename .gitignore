@@ -60,27 +60,15 @@ logs/
 test_*.py
 *_test.py
 
-# Translation cache
+# Translation cache (can be regenerated)
 translation_cache.json
 
-# Local development files
+# Local development files (temporary)
 app.html
 book.py
 run_port8080.py
 run_prod.py
 init_db.py
-
-# Documentation (keep only README.md)
-DEPLOY.md
-REQUIREMENTS_CHECK.md
-deploy_helper.md
-project_rules.md
-
-# Data files
-*.xlsx
-*.csv
-*.json
-!translation_cache.json
 
 # AWS Elastic Beanstalk
 .elasticbeanstalk/
