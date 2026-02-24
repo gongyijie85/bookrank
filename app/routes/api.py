@@ -1,11 +1,12 @@
 import csv
 import logging
 import re
+import secrets
 from io import StringIO
 from datetime import datetime
 from urllib.parse import quote
 
-from flask import Blueprint, jsonify, request, make_response, abort
+from flask import Blueprint, jsonify, request, make_response, abort, session
 from werkzeug.utils import secure_filename
 
 from ..models.schemas import UserPreference, UserCategory, UserViewedBook, SearchHistory
@@ -30,8 +31,10 @@ def health_check():
 
 
 def get_session_id() -> str:
-    """获取或生成会话ID"""
-    return request.args.get('session_id') or request.remote_addr or 'anonymous'
+    """获取或生成安全的会话ID"""
+    if 'session_id' not in session:
+        session['session_id'] = secrets.token_hex(16)
+    return session['session_id']
 
 
 def validate_category(category: str) -> bool:
@@ -46,7 +49,6 @@ class APIResponse:
     
     @staticmethod
     def success(data=None, message="Success", status_code=200):
-        """成功响应"""
         response = {
             'success': True,
             'data': data,
@@ -56,7 +58,6 @@ class APIResponse:
     
     @staticmethod
     def error(message="Error", status_code=400, errors=None):
-        """错误响应"""
         response = {
             'success': False,
             'message': message
@@ -135,20 +136,19 @@ def search_books():
         if len(keyword) < 2:
             return APIResponse.error('Keyword must be at least 2 characters', 400)
         
-        # 验证关键词（防止XSS）
+        if len(keyword) > 100:
+            return APIResponse.error('Keyword must be at most 100 characters', 400)
+        
         if not re.match(r'^[\w\s\-\u4e00-\u9fff]+$', keyword):
             return APIResponse.error('Invalid keyword format', 400)
         
         session_id = get_session_id()
         book_service: BookService = api_bp.book_service
         
-        # 执行搜索
         results = book_service.search_books(keyword)
         
-        # 保存搜索历史
         save_search_history(session_id, keyword, len(results))
         
-        # 保存浏览记录
         if results:
             viewed_isbns = [book.id for book in results[:5]]
             save_viewed_books(session_id, viewed_isbns)

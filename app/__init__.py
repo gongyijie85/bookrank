@@ -1,8 +1,11 @@
 import logging
 import os
+import secrets
 from pathlib import Path
-from flask import Flask
+from datetime import datetime, timezone
+from flask import Flask, session
 from flask_cors import CORS
+from flask_talisman import Talisman
 
 from .config import config
 from .models import db, init_db
@@ -14,6 +17,7 @@ from .services import (
 )
 from .utils import RateLimiter
 from .initialization import init_awards_data, init_sample_books
+from .utils.security import add_security_headers
 
 PROJECT_ROOT = Path(__file__).parent.parent
 

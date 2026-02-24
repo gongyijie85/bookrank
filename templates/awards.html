@@ -348,7 +348,7 @@
 
 <!-- Books Data for JavaScript -->
 <script>
-    window.booksData = {{ books|tojson|safe }};
+    window.booksData = JSON.parse({{ books|tojson }});
 </script>
 {% endblock %}
 
