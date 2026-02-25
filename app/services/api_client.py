@@ -143,6 +143,9 @@ class GoogleBooksClient:
         self._timeout = timeout
         # 使用配置了重试机制的 Session
         self._session = create_session_with_retry(max_retries=2)
+        # 本地缓存，减少重复API调用
+        self._cache = {}
+        self._cache_ttl = 86400  # 缓存1天
 
     @retry(max_attempts=2, backoff_factor=1.5)
     def fetch_book_details(self, isbn: str) -> dict[str, Any]:
@@ -157,6 +160,15 @@ class GoogleBooksClient:
         """
         if not isbn:
             return {}
+
+        # 检查缓存
+        cache_key = f"isbn_{isbn}"
+        current_time = time.time()
+        if cache_key in self._cache:
+            cached_data, timestamp = self._cache[cache_key]
+            if current_time - timestamp < self._cache_ttl:
+                logger.info(f"Returning cached Google Books data for ISBN {isbn}")
+                return cached_data
 
         url = f"{self._base_url}"
         params = {
@@ -176,12 +188,19 @@ class GoogleBooksClient:
             data = response.json()
 
             if 'items' not in data or len(data['items']) == 0:
+                # 缓存空结果，避免重复请求
+                self._cache[cache_key] = ({}, current_time)
                 return {}
 
-            return self._parse_volume_info(data['items'][0]['volumeInfo'])
+            result = self._parse_volume_info(data['items'][0]['volumeInfo'])
+            # 缓存结果
+            self._cache[cache_key] = (result, current_time)
+            return result
 
         except requests.RequestException as e:
             logger.warning(f"Failed to fetch Google Books data for ISBN {isbn}: {e}")
+            # 缓存错误结果，避免重复请求
+            self._cache[cache_key] = ({}, current_time)
             return {}
 
     @retry(max_attempts=2, backoff_factor=1.5)
@@ -198,6 +217,15 @@ class GoogleBooksClient:
         """
         if not title:
             return {}
+
+        # 检查缓存
+        cache_key = f"title_{title.lower()}_{author.lower() if author else 'none'}"
+        current_time = time.time()
+        if cache_key in self._cache:
+            cached_data, timestamp = self._cache[cache_key]
+            if current_time - timestamp < self._cache_ttl:
+                logger.info(f"Returning cached Google Books search for '{title}'")
+                return cached_data
 
         url = f"{self._base_url}"
         # 构建搜索查询
@@ -222,12 +250,19 @@ class GoogleBooksClient:
             data = response.json()
 
             if 'items' not in data or len(data['items']) == 0:
+                # 缓存空结果，避免重复请求
+                self._cache[cache_key] = ({}, current_time)
                 return {}
 
-            return self._parse_volume_info(data['items'][0]['volumeInfo'])
+            result = self._parse_volume_info(data['items'][0]['volumeInfo'])
+            # 缓存结果
+            self._cache[cache_key] = (result, current_time)
+            return result
 
         except requests.RequestException as e:
             logger.warning(f"Failed to search Google Books for '{title}': {e}")
+            # 缓存错误结果，避免重复请求
+            self._cache[cache_key] = ({}, current_time)
             return {}
     
     def _parse_volume_info(self, volume_info: dict[str, Any]) -> dict[str, Any]:
@@ -792,6 +827,9 @@ class ImageCacheService:
         self._cache_dir = cache_dir
         self._default_cover = default_cover
         self._cache_dir.mkdir(parents=True, exist_ok=True)
+        # 内存缓存，减少文件系统操作
+        self._memory_cache = {}  # key: original_url, value: (cached_path, timestamp)
+        self._memory_cache_ttl = 3600  # 内存缓存1小时
     
     def get_cached_image_url(self, original_url: str, ttl: int = 3600) -> str:
         """
@@ -807,6 +845,14 @@ class ImageCacheService:
         if not original_url:
             return self._default_cover
         
+        # 检查内存缓存
+        current_time = time.time()
+        if original_url in self._memory_cache:
+            cached_path, timestamp = self._memory_cache[original_url]
+            if current_time - timestamp < self._memory_cache_ttl:
+                logger.info(f"Returning image from memory cache: {original_url}")
+                return cached_path
+        
         filename = hashlib.md5(original_url.encode()).hexdigest() + '.jpg'
         cache_path = self._cache_dir / filename
         relative_path = f'/cache/images/{filename}'
@@ -815,6 +861,8 @@ class ImageCacheService:
             try:
                 file_age = time.time() - cache_path.stat().st_mtime
                 if file_age < ttl:
+                    # 更新内存缓存
+                    self._memory_cache[original_url] = (relative_path, current_time)
                     return relative_path
             except OSError:
                 pass
@@ -827,6 +875,8 @@ class ImageCacheService:
                 for chunk in response.iter_content(1024):
                     f.write(chunk)
             
+            # 更新内存缓存
+            self._memory_cache[original_url] = (relative_path, current_time)
             return relative_path
             
         except Exception as e:
