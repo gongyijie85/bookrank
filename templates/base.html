@@ -3,71 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息">
+    <meta name="keywords" content="图书排行榜, 纽约时报, 畅销书, 图书奖项, 诺贝尔文学奖, 布克奖, 普利策奖">
+    <meta name="author" content="BookRank">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="{% block og_title %}BookRank - 图书排行榜{% endblock %}">
+    <meta property="og:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:site_name" content="BookRank">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}BookRank - 图书排行榜{% endblock %}">
+    <meta name="twitter:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{{ request.url }}">
+
     <title>{% block title %}BookRank - 图书排行榜{% endblock %}</title>
-    
+
+    <!-- Preconnect to external resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer">
-    
+
+    <!-- Main Stylesheets -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
-    
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
     {% block extra_css %}{% endblock %}
+
+    <!-- JSON-LD Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "BookRank",
+        "description": "汇集纽约时报畅销书排行榜与国际图书奖项榜单",
+        "url": "{{ request.url_root }}",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "{{ request.url_root }}?search={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
 </head>
 <body>
-    <nav class="top-nav">
-        <a href="{{ url_for('main.index') }}" class="nav-brand">
-            <i class="fa-solid fa-book"></i>
+    <!-- Skip Link for Accessibility -->
+    <a href="#main-content" class="skip-link">跳转到主要内容</a>
+
+    <!-- Top Navigation -->
+    <nav class="top-nav" role="navigation" aria-label="主导航">
+        <a href="{{ url_for('main.index') }}" class="nav-brand" aria-label="BookRank 首页">
+            <i class="fa-solid fa-book" aria-hidden="true"></i>
             <span>BookRank</span>
         </a>
-        
-        <div class="nav-links">
-            <a href="{{ url_for('main.index') }}" class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}">
-                <i class="fa-solid fa-home"></i>
+
+        <div class="nav-links" role="menubar">
+            <a href="{{ url_for('main.index') }}"
+               class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if request.endpoint == 'main.index' %}page{% endif %}">
+                <i class="fa-solid fa-home" aria-hidden="true"></i>
                 <span>首页</span>
             </a>
-            <a href="{{ url_for('main.awards') }}" class="nav-link {% if request.endpoint == 'main.awards' %}active{% endif %}">
-                <i class="fa-solid fa-trophy"></i>
+            <a href="{{ url_for('main.awards') }}"
+               class="nav-link {% if request.endpoint == 'main.awards' %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if request.endpoint == 'main.awards' %}page{% endif %}">
+                <i class="fa-solid fa-trophy" aria-hidden="true"></i>
                 <span>获奖书单</span>
             </a>
         </div>
-        
+
         <div class="nav-actions">
-            <button class="btn btn-icon btn-outline" id="theme-toggle" title="切换主题">
-                <i class="fa-solid fa-moon"></i>
+            <button class="btn btn-icon btn-outline" id="theme-toggle" title="切换主题" aria-label="切换明暗主题">
+                <i class="fa-solid fa-moon" aria-hidden="true"></i>
             </button>
         </div>
     </nav>
-    
-    <aside class="sidebar" id="sidebar">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar" role="complementary" aria-label="侧边导航">
         {% block sidebar %}
         <div class="sidebar-section">
             <h3 class="sidebar-title">导航</h3>
-            <ul class="sidebar-menu">
-                <li class="sidebar-item">
-                    <a href="{{ url_for('main.index') }}" class="sidebar-link {% if request.endpoint == 'main.index' %}active{% endif %}">
-                        <i class="fa-solid fa-fire"></i>
+            <ul class="sidebar-menu" role="menu">
+                <li class="sidebar-item" role="none">
+                    <a href="{{ url_for('main.index') }}"
+                       class="sidebar-link {% if request.endpoint == 'main.index' %}active{% endif %}"
+                       role="menuitem"
+                       aria-current="{% if request.endpoint == 'main.index' %}page{% endif %}">
+                        <i class="fa-solid fa-fire" aria-hidden="true"></i>
                         <span>畅销书榜</span>
                     </a>
                 </li>
-                <li class="sidebar-item">
-                    <a href="{{ url_for('main.awards') }}" class="sidebar-link {% if request.endpoint == 'main.awards' %}active{% endif %}">
-                        <i class="fa-solid fa-trophy"></i>
+                <li class="sidebar-item" role="none">
+                    <a href="{{ url_for('main.awards') }}"
+                       class="sidebar-link {% if request.endpoint == 'main.awards' %}active{% endif %}"
+                       role="menuitem"
+                       aria-current="{% if request.endpoint == 'main.awards' %}page{% endif %}">
+                        <i class="fa-solid fa-trophy" aria-hidden="true"></i>
                         <span>获奖书单</span>
                     </a>
                 </li>
             </ul>
         </div>
-        
+
         <div class="sidebar-section">
             <h3 class="sidebar-title">关于</h3>
-            <ul class="sidebar-menu">
-                <li class="sidebar-item">
-                    <a href="#" class="sidebar-link" onclick="showAboutModal(); return false;">
-                        <i class="fa-solid fa-circle-info"></i>
+            <ul class="sidebar-menu" role="menu">
+                <li class="sidebar-item" role="none">
+                    <a href="#" class="sidebar-link" role="menuitem" onclick="showAboutModal(); return false;">
+                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
                         <span>关于我们</span>
                     </a>
                 </li>
@@ -75,24 +140,29 @@
         </div>
         {% endblock %}
     </aside>
-    
-    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="切换侧边栏">
-        <i class="fa-solid fa-bars"></i>
+
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="切换侧边栏" aria-expanded="false" aria-controls="sidebar">
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
     </button>
-    
-    <main class="main-content">
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content" role="main" tabindex="-1">
         {% block content %}{% endblock %}
     </main>
-    
-    <div class="loading-overlay" id="loading-overlay" style="display: none;">
-        <div class="loading-spinner loading-spinner-lg"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay" role="status" aria-live="polite" style="display: none;">
+        <div class="loading-spinner loading-spinner-lg" aria-hidden="true"></div>
         <p class="loading-text">加载中...</p>
     </div>
-    
-    <div class="toast-container" id="toast-container"></div>
-    
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container" role="region" aria-label="通知提示" aria-live="polite"></div>
+
+    <!-- Base JavaScript -->
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>
-    
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

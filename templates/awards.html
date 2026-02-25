@@ -1,23 +1,31 @@
 {% extends "base.html" %}
 
-{% block title %}国际图书奖项榜单 - BookRank{% endblock %}
+{% block og_title %}{% if selected_award %}{{ selected_award }} - {% endif %}国际图书奖项榜单 - BookRank{% endblock %}
+{% block twitter_title %}{% if selected_award %}{{ selected_award }} - {% endif %}国际图书奖项榜单 - BookRank{% endblock %}
+
+{% block title %}{% if selected_award %}{{ selected_award }} - {% endif %}国际图书奖项榜单 - BookRank{% endblock %}
 
 {% block sidebar %}
+<aside aria-label="奖项分类">
 <div class="sidebar-section">
     <h3 class="sidebar-title">奖项分类</h3>
-    <ul class="sidebar-menu">
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.awards') }}" 
-               class="sidebar-link {% if not selected_award %}active{% endif %}">
-                <i class="fa fa-list"></i>
+    <ul class="sidebar-menu" role="menu">
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards') }}"
+               class="sidebar-link {% if not selected_award %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if not selected_award %}page{% endif %}">
+                <i class="fa fa-list" aria-hidden="true"></i>
                 <span>全部奖项</span>
             </a>
         </li>
         {% for award in awards %}
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.awards', award=award.name) }}" 
-               class="sidebar-link {% if selected_award == award.name %}active{% endif %}">
-                <i class="fa fa-trophy"></i>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards', award=award.name) }}"
+               class="sidebar-link {% if selected_award == award.name %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if selected_award == award.name %}page{% endif %}">
+                <i class="fa fa-trophy" aria-hidden="true"></i>
                 <span>{{ award.name }}</span>
             </a>
         </li>
@@ -27,19 +35,23 @@
 
 <div class="sidebar-section">
     <h3 class="sidebar-title">年份筛选</h3>
-    <ul class="sidebar-menu">
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.awards', award=selected_award) }}" 
-               class="sidebar-link {% if not selected_year %}active{% endif %}">
-                <i class="fa fa-calendar"></i>
+    <ul class="sidebar-menu" role="menu">
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards', award=selected_award) }}"
+               class="sidebar-link {% if not selected_year %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if not selected_year %}page{% endif %}">
+                <i class="fa fa-calendar" aria-hidden="true"></i>
                 <span>全部年份</span>
             </a>
         </li>
         {% for year in years %}
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.awards', award=selected_award, year=year) }}" 
-               class="sidebar-link {% if selected_year == year %}active{% endif %}">
-                <i class="fa fa-calendar-o"></i>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards', award=selected_award, year=year) }}"
+               class="sidebar-link {% if selected_year == year %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if selected_year == year %}page{% endif %}">
+                <i class="fa fa-calendar-o" aria-hidden="true"></i>
                 <span>{{ year }}年</span>
             </a>
         </li>
@@ -49,7 +61,7 @@
 
 <div class="sidebar-section">
     <h3 class="sidebar-title">统计信息</h3>
-    <div class="sidebar-stats">
+    <div class="sidebar-stats" aria-label="统计数据">
         <div class="stat-item">
             <span class="stat-value">{{ total_books }}</span>
             <span class="stat-label">本图书</span>
@@ -60,13 +72,14 @@
         </div>
     </div>
 </div>
+</aside>
 {% endblock %}
 
 {% block content %}
 <!-- Page Header -->
-<div class="page-header">
+<header class="page-header">
     <h1 class="page-title">
-        <i class="fa fa-trophy text-gold"></i>
+        <i class="fa fa-trophy text-gold" aria-hidden="true"></i>
         {% if selected_award %}
             {{ selected_award }}
         {% else %}
@@ -83,12 +96,12 @@
             · {{ selected_year }}年
         {% endif %}
     </p>
-</div>
+</header>
 
 <!-- Filter Bar -->
-<div class="filter-bar">
+<section class="filter-bar" aria-label="筛选选项">
     <div class="filter-group">
-        <label class="filter-label">奖项</label>
+        <label class="filter-label" for="award-select">奖项</label>
         <select class="filter-select" id="award-select" onchange="changeAward(this.value)">
             <option value="">全部奖项</option>
             {% for award in awards %}
@@ -98,9 +111,9 @@
             {% endfor %}
         </select>
     </div>
-    
+
     <div class="filter-group">
-        <label class="filter-label">年份</label>
+        <label class="filter-label" for="year-select">年份</label>
         <select class="filter-select" id="year-select" onchange="changeYear(this.value)">
             <option value="">全部年份</option>
             {% for year in years %}
@@ -110,52 +123,60 @@
             {% endfor %}
         </select>
     </div>
-    
+
     <div class="filter-group search-box">
-        <label class="filter-label">搜索</label>
+        <label class="filter-label" for="search-input">搜索</label>
         <div class="search-input-wrapper">
-            <input type="text" 
-                   class="filter-input" 
+            <input type="search"
+                   class="filter-input"
                    id="search-input"
                    placeholder="搜索书名或作者..."
-                   value="{{ search_query if search_query else '' }}">
-            <i class="fa fa-search"></i>
+                   value="{{ search_query if search_query else '' }}"
+                   aria-label="搜索书名或作者">
+            <i class="fa fa-search" aria-hidden="true"></i>
         </div>
     </div>
-    
+
     <div class="filter-actions">
-        <button class="btn btn-primary" onclick="applyFilters()">
-            <i class="fa fa-filter"></i>
+        <button class="btn btn-primary" onclick="applyFilters()" aria-label="应用筛选">
+            <i class="fa fa-filter" aria-hidden="true"></i>
             筛选
         </button>
-        <button class="btn btn-secondary" onclick="clearFilters()">
-            <i class="fa fa-refresh"></i>
+        <button class="btn btn-secondary" onclick="clearFilters()" aria-label="重置筛选">
+            <i class="fa fa-refresh" aria-hidden="true"></i>
             重置
         </button>
     </div>
-    
-    <div class="view-toggle">
-        <button class="btn btn-icon {% if view_mode == 'grid' or not view_mode %}active{% endif %}" 
+
+    <div class="view-toggle" role="group" aria-label="视图切换">
+        <button class="btn btn-icon {% if view_mode == 'grid' or not view_mode %}active{% endif %}"
                 id="view-grid"
                 onclick="toggleView('grid')"
-                title="网格视图">
-            <i class="fa fa-th"></i>
+                title="网格视图"
+                aria-label="切换到网格视图"
+                aria-pressed="{% if view_mode == 'grid' or not view_mode %}true{% else %}false{% endif %}">
+            <i class="fa fa-th" aria-hidden="true"></i>
         </button>
-        <button class="btn btn-icon {% if view_mode == 'list' %}active{% endif %}" 
+        <button class="btn btn-icon {% if view_mode == 'list' %}active{% endif %}"
                 id="view-list"
                 onclick="toggleView('list')"
-                title="列表视图">
-            <i class="fa fa-list"></i>
+                title="列表视图"
+                aria-label="切换到列表视图"
+                aria-pressed="{% if view_mode == 'list' %}true{% else %}false{% endif %}">
+            <i class="fa fa-list" aria-hidden="true"></i>
         </button>
     </div>
-</div>
+</section>
 
 <!-- Awards Info Cards -->
 {% if not selected_award %}
-<div class="awards-grid">
+<section class="awards-grid" aria-label="奖项列表">
     {% for award in awards %}
-    <a href="{{ url_for('main.awards', award=award.name) }}" class="award-card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s">
-        <div class="award-icon">
+    <a href="{{ url_for('main.awards', award=award.name) }}"
+       class="award-card card-animate"
+       style="animation-delay: {{ loop.index * 0.05 }}s"
+       aria-label="{{ award.name }} - {{ award.book_count }}本图书">
+        <div class="award-icon" aria-hidden="true">
             <i class="fa fa-trophy"></i>
         </div>
         <div class="award-info">
@@ -168,74 +189,91 @@
         </div>
     </a>
     {% endfor %}
-</div>
+</section>
 {% endif %}
 
 <!-- Books Grid View -->
-<div class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' or not view_mode %}grid{% else %}none{% endif %}">
+<section class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' or not view_mode %}grid{% else %}none{% endif %}" aria-label="图书网格视图">
     {% for book in books %}
-    <div class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
+    <article class="card card-animate"
+             style="animation-delay: {{ loop.index * 0.05 }}s"
+             onclick="openBookModal({{ loop.index - 1 }})"
+             role="button"
+             tabindex="0"
+             aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
         <div class="card-image">
-            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}" 
-                 alt="{{ book.title }}"
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+                 alt="{{ book.title }}封面"
                  loading="lazy"
+                 width="280"
+                 height="240"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
-            
+
             <!-- Award Badge -->
-            <div class="card-badge award">
-                <i class="fa fa-trophy"></i>
-            </div>
-            
+            <span class="card-badge award" aria-label="获奖图书">
+                <i class="fa fa-trophy" aria-hidden="true"></i>
+            </span>
+
             <!-- Year Badge -->
-            <div class="card-badge year">{{ book.year }}</div>
-            
+            <span class="card-badge year">{{ book.year }}</span>
+
             <!-- Favorite Button -->
-            <button class="card-favorite" onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')">
-                <i class="fa fa-heart-o"></i>
+            <button class="card-favorite"
+                    onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')"
+                    aria-label="收藏 {{ book.title }}"
+                    aria-pressed="false">
+                <i class="fa fa-heart-o" aria-hidden="true"></i>
             </button>
         </div>
-        
+
         <div class="card-content">
-            <div class="card-award-tag">{{ book.award_name }}</div>
+            <span class="card-award-tag">{{ book.award_name }}</span>
             <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
             <p class="card-author">{{ book.author }}</p>
-            
+
             <div class="card-meta">
                 <span class="card-tag">{{ book.category }}</span>
                 <span class="card-tag">{{ book.year }}年</span>
             </div>
-            
+
             {% if book.description %}
             <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
             {% endif %}
         </div>
-    </div>
+    </article>
     {% endfor %}
-</div>
+</section>
 
 <!-- Books List View -->
-<div class="books-list" id="books-list" style="display: {% if view_mode == 'list' %}flex{% else %}none{% endif %}">
+<section class="books-list" id="books-list" style="display: {% if view_mode == 'list' %}flex{% else %}none{% endif %}" aria-label="图书列表视图">
     {% for book in books %}
-    <div class="list-item card-animate" style="animation-delay: {{ loop.index * 0.05 }}s" onclick="openBookModal({{ loop.index - 1 }})">
+    <article class="list-item card-animate"
+             style="animation-delay: {{ loop.index * 0.05 }}s"
+             onclick="openBookModal({{ loop.index - 1 }})"
+             role="button"
+             tabindex="0"
+             aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
         <div class="list-item-image">
-            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}" 
-                 alt="{{ book.title }}"
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+                 alt="{{ book.title }}封面"
                  loading="lazy"
+                 width="100"
+                 height="150"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
         </div>
-        
+
         <div class="list-item-content">
             <div class="list-item-header">
                 <span class="list-item-award">{{ book.award_name }}</span>
                 <h3 class="list-item-title">{{ book.title }}</h3>
             </div>
-            
+
             <p class="list-item-author">{{ book.author }}</p>
-            
+
             {% if book.description %}
             <p class="list-item-desc">{{ book.description }}</p>
             {% endif %}
-            
+
             <div class="list-item-meta">
                 <span class="card-tag">{{ book.category }}</span>
                 <span class="card-tag">{{ book.year }}年</span>
@@ -244,100 +282,102 @@
                 {% endif %}
             </div>
         </div>
-        
+
         <div class="list-item-actions">
-            <button class="btn btn-icon btn-outline" onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')">
-                <i class="fa fa-heart-o"></i>
+            <button class="btn btn-icon btn-outline"
+                    onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')"
+                    aria-label="收藏 {{ book.title }}"
+                    aria-pressed="false">
+                <i class="fa fa-heart-o" aria-hidden="true"></i>
             </button>
         </div>
-    </div>
+    </article>
     {% endfor %}
-</div>
+</section>
 
 <!-- Empty State -->
 {% if not books %}
-<div class="empty-state">
-    <i class="fa fa-inbox"></i>
-    <h3>暂无数据</h3>
+<section class="empty-state" aria-label="暂无数据">
+    <i class="fa fa-inbox" aria-hidden="true"></i>
+    <h2>暂无数据</h2>
     <p>请尝试切换筛选条件或稍后重试</p>
-</div>
+</section>
 {% endif %}
 
 <!-- Quick Link to Bestsellers -->
-<div class="quick-link-section">
+<nav class="quick-link-section" aria-label="快速链接">
     <a href="{{ url_for('main.index') }}" class="quick-link-card">
-        <i class="fa fa-fire"></i>
+        <i class="fa fa-fire" aria-hidden="true"></i>
         <div>
-            <h4>查看纽约时报畅销书榜</h4>
+            <h3>查看纽约时报畅销书榜</h3>
             <p>实时更新的畅销图书排行榜</p>
         </div>
-        <i class="fa fa-arrow-right"></i>
+        <i class="fa fa-arrow-right" aria-hidden="true"></i>
     </a>
-</div>
+</nav>
 
 <!-- Book Detail Modal -->
-<div class="modal" id="book-modal" onclick="closeBookModal(event)">
-    <div class="modal-content" onclick="event.stopPropagation()">
-        <button class="modal-close" onclick="closeBookModal()">
-            <i class="fa fa-times"></i>
+<div class="modal" id="book-modal" onclick="closeBookModal(event)" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-hidden="true">
+    <div class="modal-content" onclick="event.stopPropagation()" role="document">
+        <button class="modal-close" onclick="closeBookModal()" aria-label="关闭详情">
+            <i class="fa fa-times" aria-hidden="true"></i>
         </button>
-        
+
         <div class="modal-body">
             <div class="modal-left">
                 <div class="modal-cover">
-                    <img id="modal-cover-img" src="" alt="">
+                    <img id="modal-cover-img" src="" alt="" width="300" height="450">
                     <div class="modal-rank" id="modal-rank"></div>
                 </div>
-                <!-- Buy Links Section - Moved to left side below cover -->
-                <div class="modal-buy-links" id="modal-buy-links">
+                <div class="modal-buy-links" id="modal-buy-links" aria-label="购买链接">
                     <h4>购买链接</h4>
                     <div class="buy-links-list" id="buy-links-list"></div>
                 </div>
             </div>
-            
+
             <div class="modal-right">
                 <div class="modal-header">
                     <h2 id="modal-title"></h2>
                     <p class="modal-author" id="modal-author"></p>
                 </div>
-                
-                <div class="modal-meta">
+
+                <dl class="modal-meta" aria-label="图书信息">
                     <div class="meta-item">
-                        <span class="meta-label">奖项</span>
-                        <span class="meta-value" id="modal-award"></span>
+                        <dt class="meta-label">奖项</dt>
+                        <dd class="meta-value" id="modal-award"></dd>
                     </div>
                     <div class="meta-item">
-                        <span class="meta-label">年份</span>
-                        <span class="meta-value" id="modal-year"></span>
+                        <dt class="meta-label">年份</dt>
+                        <dd class="meta-value" id="modal-year"></dd>
                     </div>
                     <div class="meta-item">
-                        <span class="meta-label">类别</span>
-                        <span class="meta-value" id="modal-category"></span>
+                        <dt class="meta-label">类别</dt>
+                        <dd class="meta-value" id="modal-category"></dd>
                     </div>
                     <div class="meta-item">
-                        <span class="meta-label">出版社</span>
-                        <span class="meta-value" id="modal-publisher"></span>
+                        <dt class="meta-label">出版社</dt>
+                        <dd class="meta-value" id="modal-publisher"></dd>
                     </div>
                     <div class="meta-item">
-                        <span class="meta-label">出版年份</span>
-                        <span class="meta-value" id="modal-publication-year"></span>
+                        <dt class="meta-label">出版年份</dt>
+                        <dd class="meta-value" id="modal-publication-year"></dd>
                     </div>
                     <div class="meta-item">
-                        <span class="meta-label">ISBN-13</span>
-                        <span class="meta-value" id="modal-isbn"></span>
+                        <dt class="meta-label">ISBN-13</dt>
+                        <dd class="meta-value" id="modal-isbn"></dd>
                     </div>
-                </div>
-                
-                <div class="modal-tabs">
-                    <button class="tab-btn active" onclick="switchTab('description')">图书简介</button>
-                    <button class="tab-btn" onclick="switchTab('details')">详细信息</button>
-                </div>
-                
+                </dl>
+
+                <nav class="modal-tabs" role="tablist" aria-label="详情标签页">
+                    <button class="tab-btn active" role="tab" id="tab-description-btn" aria-selected="true" aria-controls="tab-description" onclick="switchTab('description')">图书简介</button>
+                    <button class="tab-btn" role="tab" id="tab-details-btn" aria-selected="false" aria-controls="tab-details" onclick="switchTab('details')">详细信息</button>
+                </nav>
+
                 <div class="modal-tab-content">
-                    <div class="tab-panel active" id="tab-description">
+                    <div class="tab-panel active" id="tab-description" role="tabpanel" aria-labelledby="tab-description-btn">
                         <p id="modal-description"></p>
                     </div>
-                    <div class="tab-panel" id="tab-details">
+                    <div class="tab-panel" id="tab-details" role="tabpanel" aria-labelledby="tab-details-btn">
                         <div id="modal-details-content"></div>
                     </div>
                 </div>
@@ -347,13 +387,16 @@
 </div>
 
 <!-- Books Data for JavaScript -->
-<script>
-    window.booksData = JSON.parse({{ books|tojson }});
+<script type="application/json" id="books-data">
+{{ books|tojson }}
 </script>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    // Parse books data safely
+    window.booksData = JSON.parse(document.getElementById('books-data').textContent);
+
     // Change award filter
     function changeAward(award) {
         showLoading('加载中...');
@@ -363,7 +406,7 @@
         if (year) url += `${award ? '&' : '?'}year=${year}`;
         window.location.href = url;
     }
-    
+
     // Change year filter
     function changeYear(year) {
         showLoading('加载中...');
@@ -373,48 +416,54 @@
         if (year) url += `${award ? '&' : '?'}year=${year}`;
         window.location.href = url;
     }
-    
+
     // Apply filters
     function applyFilters() {
         const award = document.getElementById('award-select').value;
         const year = document.getElementById('year-select').value;
         const search = document.getElementById('search-input').value;
-        
+
         showLoading('搜索中...');
-        
+
         let url = '/awards';
         const params = [];
         if (award) params.push(`award=${encodeURIComponent(award)}`);
         if (year) params.push(`year=${year}`);
         if (search) params.push(`search=${encodeURIComponent(search)}`);
-        
+
         if (params.length > 0) {
             url += '?' + params.join('&');
         }
-        
+
         window.location.href = url;
     }
-    
+
     // Clear filters
     function clearFilters() {
         showLoading('重置中...');
         window.location.href = '/awards';
     }
-    
+
     // Search on Enter key
-    document.getElementById('search-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            applyFilters();
-        }
-    });
-    
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                applyFilters();
+            }
+        });
+    }
+
     // Book Modal Functions
     async function openBookModal(bookIndex) {
         const book = window.booksData[bookIndex];
         if (!book) return;
-        
+
         // Fill modal content
-        document.getElementById('modal-cover-img').src = book.cover_local_path || '/static/default-cover.png';
+        const coverImg = document.getElementById('modal-cover-img');
+        coverImg.src = book.cover_local_path || '/static/default-cover.png';
+        coverImg.alt = book.title + '封面';
+
         document.getElementById('modal-rank').textContent = bookIndex + 1;
         document.getElementById('modal-title').textContent = book.title || '';
         document.getElementById('modal-author').textContent = book.author || '';
@@ -424,11 +473,11 @@
         document.getElementById('modal-publisher').textContent = book.publisher || '未知';
         document.getElementById('modal-publication-year').textContent = book.publication_year || '未知';
         document.getElementById('modal-isbn').textContent = book.isbn13 || '';
-        
-        // 图书简介标签页 - 显示基础描述
+
+        // Description tab
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
-        
-        // 详细信息标签页 - 只显示详细描述（不包含图书信息表格）
+
+        // Details tab
         const detailsContent = document.getElementById('modal-details-content');
         if (detailsContent) {
             detailsContent.innerHTML = `
@@ -438,76 +487,82 @@
                 </div>
             `;
         }
-        
-        // 填充购买链接（基础链接）
+
+        // Render buy links
         const buyLinksContainer = document.getElementById('buy-links-list');
         if (buyLinksContainer) {
             buyLinksContainer.innerHTML = '';
-            
-            // 添加基础购买链接（Amazon、Google Books）
+
             if (book.isbn13) {
                 const baseLinks = [
                     { name: 'Amazon', url: `https://www.amazon.com/s?k=${book.isbn13}` },
                     { name: 'Google Books', url: `https://books.google.com/books?isbn=${book.isbn13}` },
                     { name: 'Open Library', url: `https://openlibrary.org/isbn/${book.isbn13}` }
                 ];
-                
+
                 baseLinks.forEach(link => {
                     const a = document.createElement('a');
                     a.href = link.url;
                     a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
                     a.className = 'buy-link';
-                    a.innerHTML = `<i class="fa fa-external-link"></i> ${link.name}`;
+                    a.innerHTML = `<i class="fa fa-external-link" aria-hidden="true"></i> ${link.name}`;
+                    a.setAttribute('aria-label', `在 ${link.name} 上购买`);
                     buyLinksContainer.appendChild(a);
                 });
             } else {
                 buyLinksContainer.innerHTML = '<span class="no-links">暂无购买链接</span>';
             }
         }
-        
+
         // Show modal
-        document.getElementById('book-modal').classList.add('active');
+        const modal = document.getElementById('book-modal');
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
-        
-        // 异步获取 Google Books 详细信息（封面、详细介绍、购买链接）
+
+        // Focus first focusable element
+        modal.querySelector('.modal-close').focus();
+
+        // Fetch Google Books details
         if (book.isbn13) {
-            await fetchBookDetailsFromGoogle(book, bookIndex);
+            await fetchBookDetailsFromGoogle(book.isbn13, bookIndex);
         }
     }
-    
-    // 从 Google Books API 获取详细信息
-    async function fetchBookDetailsFromGoogle(book, bookIndex) {
+
+    // Fetch book details from Google Books API
+    async function fetchBookDetailsFromGoogle(isbn, bookIndex) {
+        const loadingEl = document.getElementById('modal-detail-loading');
+        if (loadingEl) loadingEl.style.display = 'block';
+
         try {
-            const loadingEl = document.getElementById('modal-detail-loading');
-            if (loadingEl) loadingEl.style.display = 'block';
-            
-            const response = await fetch(`/api/book-details/${book.isbn13}`);
+            const response = await fetch(`/api/book-details/${isbn}`);
             const data = await response.json();
-            
+
             if (data.success && data.data) {
                 const googleData = data.data;
-                
-                // 更新封面图片
+
+                // Update cover image
                 if (googleData.cover_url) {
                     document.getElementById('modal-cover-img').src = googleData.cover_url;
                 }
-                
-                // 更新详细介绍
+
+                // Update description
                 const descriptionEl = document.getElementById('modal-detail-description');
                 if (descriptionEl && googleData.details && googleData.details.length > 50) {
                     descriptionEl.textContent = googleData.details;
                     descriptionEl.classList.add('updated');
                 }
-                
-                // 更新元数据
+
+                // Update metadata
                 if (googleData.publisher) {
                     document.getElementById('modal-publisher').textContent = googleData.publisher;
                 }
                 if (googleData.publication_date) {
                     document.getElementById('modal-publication-year').textContent = googleData.publication_date.substring(0, 4);
                 }
-                
-                // 更新购买链接
+
+                // Update buy links
                 const buyLinksContainer = document.getElementById('buy-links-list');
                 if (buyLinksContainer && googleData.buy_links && Object.keys(googleData.buy_links).length > 0) {
                     buyLinksContainer.innerHTML = '';
@@ -515,13 +570,15 @@
                         const link = document.createElement('a');
                         link.href = url;
                         link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
                         link.className = 'buy-link';
-                        link.innerHTML = `<i class="fa fa-external-link"></i> ${name}`;
+                        link.innerHTML = `<i class="fa fa-external-link" aria-hidden="true"></i> ${name}`;
+                        link.setAttribute('aria-label', `在 ${name} 上购买`);
                         buyLinksContainer.appendChild(link);
                     });
                 }
-                
-                // 更新数据缓存
+
+                // Update cache
                 if (window.booksData[bookIndex]) {
                     window.booksData[bookIndex].details = googleData.details;
                     window.booksData[bookIndex].cover_original_url = googleData.cover_url;
@@ -534,29 +591,48 @@
             if (loadingEl) loadingEl.style.display = 'none';
         }
     }
-    
+
     function closeBookModal(event) {
+        const modal = document.getElementById('book-modal');
         if (!event || event.target.id === 'book-modal' || event.target.closest('.modal-close')) {
-            document.getElementById('book-modal').classList.remove('active');
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
             document.body.style.overflow = '';
         }
     }
-    
+
     function switchTab(tabName) {
         // Update tab buttons
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        event.target.classList.add('active');
-        
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            btn.setAttribute('aria-selected', 'false');
+        });
+
+        const activeBtn = event.target;
+        activeBtn.classList.add('active');
+        activeBtn.setAttribute('aria-selected', 'true');
+
         // Update tab panels
         document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
-        document.getElementById(`tab-${tabName}`).classList.add('active');
+        const activePanel = document.getElementById(`tab-${tabName}`);
+        activePanel.classList.add('active');
     }
-    
+
     // Close modal on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeBookModal();
         }
+    });
+
+    // Keyboard accessibility for cards
+    document.querySelectorAll('.card, .list-item').forEach(item => {
+        item.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.click();
+            }
+        });
     });
 </script>
 {% endblock %}

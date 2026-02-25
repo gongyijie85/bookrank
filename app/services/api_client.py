@@ -6,6 +6,8 @@ from functools import wraps
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from ..utils.exceptions import APIRateLimitException, APIException
 from ..utils.rate_limiter import RateLimiter
@@ -13,7 +15,7 @@ from ..utils.rate_limiter import RateLimiter
 logger = logging.getLogger(__name__)
 
 
-def retry(max_attempts: int = 3, backoff_factor: float = 2.0, 
+def retry(max_attempts: int = 3, backoff_factor: float = 2.0,
           exceptions=(requests.RequestException,)):
     """重试装饰器"""
     def decorator(func):
@@ -32,34 +34,75 @@ def retry(max_attempts: int = 3, backoff_factor: float = 2.0,
     return decorator
 
 
+def create_session_with_retry(max_retries: int = 3, backoff_factor: float = 0.5) -> requests.Session:
+    """
+    创建配置了重试机制的 requests Session
+
+    Args:
+        max_retries: 最大重试次数
+        backoff_factor: 退避因子
+
+    Returns:
+        配置好的 Session 对象
+    """
+    session = requests.Session()
+
+    # 配置重试策略
+    retry_strategy = Retry(
+        total=max_retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "OPTIONS"]
+    )
+
+    # 配置连接池
+    adapter = HTTPAdapter(
+        pool_connections=10,
+        pool_maxsize=20,
+        max_retries=retry_strategy
+    )
+
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    # 设置默认请求头
+    session.headers.update({
+        'User-Agent': 'BookRank/2.0 (https://github.com/gongyijie85/bookrank)',
+        'Accept': 'application/json',
+    })
+
+    return session
+
+
 class NYTApiClient:
     """纽约时报API客户端"""
-    
+
     def __init__(self, api_key: str, base_url: str, rate_limiter: RateLimiter, timeout: int = 15):
         self._api_key = api_key
         self._base_url = base_url
         self._rate_limiter = rate_limiter
         self._timeout = timeout
-        self._session = requests.Session()
-    
+        # 使用配置了重试机制的 Session
+        self._session = create_session_with_retry(max_retries=3)
+
     @retry(max_attempts=3, backoff_factor=2.0)
     def fetch_books(self, category_id: str) -> dict[str, Any]:
         """
         获取指定分类的图书数据
-        
+
         Args:
             category_id: 分类ID
-            
+
         Returns:
             API响应数据
-            
+
         Raises:
             APIRateLimitException: 当API限流时
             APIException: 当API调用失败时
         """
         if not self._api_key:
             raise APIException("NYT API key not configured", 500)
-        
+
         # 检查限流
         if not self._rate_limiter.is_allowed():
             retry_after = self._rate_limiter.get_retry_after()
@@ -67,24 +110,24 @@ class NYTApiClient:
                 f"API rate limit exceeded. Retry after {retry_after}s",
                 retry_after
             )
-        
+
         url = f"{self._base_url}/{category_id}.json"
-        
+
         try:
             response = self._session.get(
                 url,
                 params={'api-key': self._api_key},
                 timeout=self._timeout
             )
-            
+
             # 处理限流响应
             if response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', 60))
                 raise APIRateLimitException("API rate limited", retry_after)
-            
+
             response.raise_for_status()
             return response.json()
-            
+
         except requests.Timeout:
             raise APIException(f"Request timeout for {category_id}", 504)
         except requests.RequestException as e:
@@ -93,27 +136,28 @@ class NYTApiClient:
 
 class GoogleBooksClient:
     """Google Books API客户端"""
-    
+
     def __init__(self, api_key: str | None, base_url: str, timeout: int = 8):
         self._api_key = api_key
         self._base_url = base_url
         self._timeout = timeout
-        self._session = requests.Session()
-    
+        # 使用配置了重试机制的 Session
+        self._session = create_session_with_retry(max_retries=2)
+
     @retry(max_attempts=2, backoff_factor=1.5)
     def fetch_book_details(self, isbn: str) -> dict[str, Any]:
         """
         获取图书详细信息
-        
+
         Args:
             isbn: 图书ISBN
-            
+
         Returns:
             图书详细信息字典
         """
         if not isbn:
             return {}
-        
+
         url = f"{self._base_url}"
         params = {
             'q': f'isbn:{isbn}'
@@ -121,7 +165,7 @@ class GoogleBooksClient:
         # API Key 是可选的
         if self._api_key:
             params['key'] = self._api_key
-        
+
         try:
             response = self._session.get(
                 url,
@@ -130,44 +174,44 @@ class GoogleBooksClient:
             )
             response.raise_for_status()
             data = response.json()
-            
+
             if 'items' not in data or len(data['items']) == 0:
                 return {}
-            
+
             return self._parse_volume_info(data['items'][0]['volumeInfo'])
-            
+
         except requests.RequestException as e:
             logger.warning(f"Failed to fetch Google Books data for ISBN {isbn}: {e}")
             return {}
-    
+
     @retry(max_attempts=2, backoff_factor=1.5)
     def search_book_by_title(self, title: str, author: str = None) -> dict[str, Any]:
         """
         根据书名搜索图书
-        
+
         Args:
             title: 图书标题
             author: 作者（可选，用于提高搜索精度）
-            
+
         Returns:
             图书详细信息字典
         """
         if not title:
             return {}
-        
+
         url = f"{self._base_url}"
         # 构建搜索查询
         query = f'intitle:{title}'
         if author:
             query += f' inauthor:{author}'
-        
+
         params = {
             'q': query,
             'maxResults': 1
         }
         if self._api_key:
             params['key'] = self._api_key
-        
+
         try:
             response = self._session.get(
                 url,
@@ -176,12 +220,12 @@ class GoogleBooksClient:
             )
             response.raise_for_status()
             data = response.json()
-            
+
             if 'items' not in data or len(data['items']) == 0:
                 return {}
-            
+
             return self._parse_volume_info(data['items'][0]['volumeInfo'])
-            
+
         except requests.RequestException as e:
             logger.warning(f"Failed to search Google Books for '{title}': {e}")
             return {}
@@ -256,21 +300,22 @@ class GoogleBooksClient:
 class OpenLibraryClient:
     """
     Open Library API 客户端
-    
+
     Open Library 是由 Internet Archive 维护的免费图书数据库
     优势：完全免费，无需 API Key，支持 ISBN 查询和封面图片
-    
+
     API 文档：https://openlibrary.org/dev/docs/api/books
     """
-    
+
     def __init__(self, timeout: int = 10):
         self._base_url = 'https://openlibrary.org'
         self._covers_url = 'https://covers.openlibrary.org'
         self._timeout = timeout
-        self._session = requests.Session()
+        # 使用配置了重试机制的 Session
+        self._session = create_session_with_retry(max_retries=2)
         # 设置请求头，避免被阻止
         self._session.headers.update({
-            'User-Agent': 'BookRank/1.0 (bookrank@example.com)'
+            'User-Agent': 'BookRank/2.0 (bookrank@example.com)'
         })
     
     @retry(max_attempts=2, backoff_factor=1.5)
@@ -448,13 +493,13 @@ class OpenLibraryClient:
 class WikidataClient:
     """
     Wikidata SPARQL API 客户端
-    
+
     用于批量获取图书奖项获奖数据
     Wikidata 是维基百科的结构化数据存储库
-    
+
     API 文档：https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service
     """
-    
+
     # 奖项的 Wikidata QID
     AWARD_IDS = {
         'nebula': 'Q327503',           # 星云奖
@@ -465,13 +510,14 @@ class WikidataClient:
         'edgar': 'Q532244',            # 爱伦·坡奖
         'nobel_literature': 'Q37922',  # 诺贝尔文学奖
     }
-    
+
     def __init__(self, timeout: int = 30):
         self._base_url = 'https://query.wikidata.org/sparql'
         self._timeout = timeout
-        self._session = requests.Session()
+        # 使用配置了重试机制的 Session
+        self._session = create_session_with_retry(max_retries=2)
         self._session.headers.update({
-            'User-Agent': 'BookRank/1.0 (bookrank@example.com)',
+            'User-Agent': 'BookRank/2.0 (bookrank@example.com)',
             'Accept': 'application/sparql-results+json'
         })
     

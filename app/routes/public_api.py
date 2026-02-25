@@ -4,6 +4,7 @@
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request, current_app
 from functools import wraps
@@ -18,9 +19,32 @@ logger = logging.getLogger(__name__)
 public_api_bp = Blueprint('public_api', __name__, url_prefix='/api/public')
 
 
+# ==================== 辅助函数 ====================
+
+def validate_isbn(isbn: str) -> bool:
+    """验证ISBN格式"""
+    if not isbn:
+        return False
+    clean_isbn = re.sub(r'[^0-9X]', '', isbn.upper())
+    if len(clean_isbn) == 10:
+        return bool(re.match(r'^\d{9}[\dX]$', clean_isbn))
+    elif len(clean_isbn) == 13:
+        return bool(re.match(r'^\d{13}$', clean_isbn))
+    return False
+
+
+def validate_pagination(page: int, limit: int, max_limit: int = 50) -> tuple[int, int]:
+    """验证并规范化分页参数"""
+    page = max(1, page)
+    limit = min(max(1, limit), max_limit)
+    return page, limit
+
+
+# ==================== 响应类 ====================
+
 class PublicAPIResponse:
     """统一API响应格式"""
-    
+
     @staticmethod
     def success(data=None, message="Success", status_code=200):
         response = {
@@ -30,7 +54,7 @@ class PublicAPIResponse:
             'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         }
         return jsonify(response), status_code
-    
+
     @staticmethod
     def error(message="Error", status_code=400, errors=None):
         response = {
@@ -43,10 +67,12 @@ class PublicAPIResponse:
         return jsonify(response), status_code
 
 
+# ==================== 限流装饰器 ====================
+
 def rate_limit(max_requests=60, window=60):
     """
     API限流装饰器
-    
+
     Args:
         max_requests: 时间窗口内最大请求数
         window: 时间窗口（秒）
@@ -56,14 +82,14 @@ def rate_limit(max_requests=60, window=60):
         def wrapped(*args, **kwargs):
             limiter = get_rate_limiter(max_requests, window)
             client_id = request.remote_addr or 'unknown'
-            
+
             if not limiter.is_allowed(client_id):
                 retry_after = limiter.get_retry_after(client_id)
                 return PublicAPIResponse.error(
                     f'Rate limit exceeded. Retry after {retry_after}s.',
                     429
                 )
-            
+
             return f(*args, **kwargs)
         return wrapped
     return decorator
@@ -78,10 +104,10 @@ def rate_limit(max_requests=60, window=60):
 def get_all_bestsellers():
     """
     获取所有分类畅销书
-    
+
     Query Parameters:
         limit (int): 每个分类返回的图书数量，默认10，最大50
-    
+
     Returns:
         {
             "success": true,
@@ -99,10 +125,10 @@ def get_all_bestsellers():
     try:
         limit = request.args.get('limit', 10, type=int)
         limit = min(limit, 50)  # 最大50本
-        
+
         book_service: BookService = public_api_bp.book_service
         categories = current_app.config.get('CATEGORIES', {})
-        
+
         all_books = {}
         for cat_id, cat_name in categories.items():
             books = book_service.get_books_by_category(cat_id)
@@ -110,13 +136,13 @@ def get_all_bestsellers():
                 'category_name': cat_name,
                 'books': [book.to_dict() for book in books[:limit]]
             }
-        
+
         return PublicAPIResponse.success(data={
             'categories': categories,
             'books': all_books,
             'last_updated': book_service.get_latest_cache_time()
         })
-        
+
     except Exception as e:
         logger.error(f"Error in get_all_bestsellers: {e}", exc_info=True)
         return PublicAPIResponse.error('Internal server error', 500)
@@ -127,13 +153,13 @@ def get_all_bestsellers():
 def get_bestsellers_by_category(category: str):
     """
     获取指定分类畅销书
-    
+
     Path Parameters:
         category (str): 分类ID (hardcover-fiction, hardcover-nonfiction, trade-fiction-paperback, paperback-nonfiction)
-    
+
     Query Parameters:
         limit (int): 返回的图书数量，默认20，最大50
-    
+
     Returns:
         {
             "success": true,
@@ -147,19 +173,19 @@ def get_bestsellers_by_category(category: str):
     """
     try:
         categories = current_app.config.get('CATEGORIES', {})
-        
+
         if category not in categories:
             return PublicAPIResponse.error(
                 f'Invalid category. Available categories: {list(categories.keys())}',
                 400
             )
-        
+
         limit = request.args.get('limit', 20, type=int)
         limit = min(limit, 50)
-        
+
         book_service: BookService = public_api_bp.book_service
         books = book_service.get_books_by_category(category)
-        
+
         return PublicAPIResponse.success(data={
             'category_id': category,
             'category_name': categories[category],
@@ -167,22 +193,22 @@ def get_bestsellers_by_category(category: str):
             'total': len(books),
             'last_updated': book_service.get_latest_cache_time()
         })
-        
+
     except Exception as e:
         logger.error(f"Error in get_bestsellers_by_category: {e}", exc_info=True)
         return PublicAPIResponse.error('Internal server error', 500)
 
 
 @public_api_bp.route('/bestsellers/search')
-@rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=30, window=60)
 def search_bestsellers():
     """
     搜索畅销书
-    
+
     Query Parameters:
         keyword (str): 搜索关键词（必需，至少2个字符）
         limit (int): 返回结果数量，默认20，最大50
-    
+
     Returns:
         {
             "success": true,
@@ -195,25 +221,32 @@ def search_bestsellers():
     """
     try:
         keyword = request.args.get('keyword', '').strip()
-        
+
         if not keyword:
             return PublicAPIResponse.error('Keyword is required', 400)
-        
+
         if len(keyword) < 2:
             return PublicAPIResponse.error('Keyword must be at least 2 characters', 400)
-        
+
+        if len(keyword) > 100:
+            return PublicAPIResponse.error('Keyword must be at most 100 characters', 400)
+
+        # 验证关键词格式
+        if not re.match(r'^[\w\s\-\u4e00-\u9fff]+$', keyword):
+            return PublicAPIResponse.error('Invalid keyword format', 400)
+
         limit = request.args.get('limit', 20, type=int)
         limit = min(limit, 50)
-        
+
         book_service: BookService = public_api_bp.book_service
         results = book_service.search_books(keyword)
-        
+
         return PublicAPIResponse.success(data={
             'keyword': keyword,
             'books': [book.to_dict() for book in results[:limit]],
             'total': len(results)
         })
-        
+
     except Exception as e:
         logger.error(f"Error in search_bestsellers: {e}", exc_info=True)
         return PublicAPIResponse.error('Internal server error', 500)
@@ -413,10 +446,10 @@ def get_award_books_by_year(award_name: str, year: int):
 def get_book_details(isbn: str):
     """
     获取图书详细信息
-    
+
     Path Parameters:
         isbn (str): 图书ISBN-13
-    
+
     Returns:
         {
             "success": true,
@@ -426,32 +459,36 @@ def get_book_details(isbn: str):
         }
     """
     try:
+        # 验证ISBN格式
+        if not validate_isbn(isbn):
+            return PublicAPIResponse.error('Invalid ISBN format', 400)
+
         # 先在畅销书中查找
         book_service: BookService = public_api_bp.book_service
         all_books = []
-        
+
         for cat_id in current_app.config['CATEGORIES'].keys():
             all_books.extend(book_service.get_books_by_category(cat_id))
-        
+
         book = next((b for b in all_books if b.isbn13 == isbn), None)
-        
+
         if book:
             return PublicAPIResponse.success(data={
                 'book': book.to_dict(),
                 'source': 'bestseller'
             })
-        
+
         # 在获奖图书中查找
         award_book = AwardBook.query.filter_by(isbn13=isbn).first()
-        
+
         if award_book:
             return PublicAPIResponse.success(data={
                 'book': award_book.to_dict(),
                 'source': 'award'
             })
-        
+
         return PublicAPIResponse.error('Book not found', 404)
-        
+
     except Exception as e:
         logger.error(f"Error in get_book_details: {e}", exc_info=True)
         return PublicAPIResponse.error('Internal server error', 500)
