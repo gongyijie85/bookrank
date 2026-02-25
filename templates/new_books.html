@@ -1,0 +1,678 @@
+{% extends "base.html" %}
+
+{% block title %}新书速递 - BookRank{% endblock %}
+{% block og_title %}新书速递 - BookRank{% endblock %}
+{% block twitter_title %}新书速递 - BookRank{% endblock %}
+
+{% block extra_css %}
+<style>
+    .new-books-header {
+        padding: var(--spacing-xl);
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .new-books-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: var(--spacing-sm);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .new-books-header h1 i {
+        color: var(--accent-color);
+    }
+
+    .stats-bar {
+        display: flex;
+        gap: var(--spacing-xl);
+        margin-top: var(--spacing-md);
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .stat-item i {
+        color: var(--accent-color);
+    }
+
+    .stat-item strong {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .filter-bar {
+        display: flex;
+        gap: var(--spacing-md);
+        padding: var(--spacing-lg);
+        background: var(--bg-card);
+        border-radius: var(--radius-lg);
+        margin-bottom: var(--spacing-lg);
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .filter-group label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .filter-group select,
+    .filter-group input {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        min-width: 150px;
+    }
+
+    .search-box {
+        flex: 1;
+        min-width: 200px;
+        position: relative;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-light);
+    }
+
+    .toolbar {
+        display: flex;
+        gap: var(--spacing-sm);
+        margin-left: auto;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        border: none;
+    }
+
+    .btn-primary {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        background: var(--bg-secondary);
+    }
+
+    .books-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: var(--spacing-lg);
+    }
+
+    .book-card {
+        background: var(--bg-card);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+        cursor: pointer;
+    }
+
+    .book-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .book-cover {
+        width: 100%;
+        aspect-ratio: 2/3;
+        object-fit: cover;
+        background: var(--bg-secondary);
+    }
+
+    .book-cover-placeholder {
+        width: 100%;
+        aspect-ratio: 2/3;
+        background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-light);
+        font-size: 3rem;
+    }
+
+    .book-info {
+        padding: var(--spacing-md);
+    }
+
+    .book-title {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        margin-bottom: var(--spacing-xs);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        line-height: 1.4;
+    }
+
+    .book-author {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        margin-bottom: var(--spacing-xs);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .book-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+        color: var(--text-light);
+    }
+
+    .book-publisher {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .book-price {
+        font-weight: 600;
+        color: var(--accent-color);
+    }
+
+    .book-category {
+        display: inline-block;
+        padding: 2px 8px;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-sm);
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: var(--spacing-xs);
+    }
+
+    .book-isbn {
+        font-size: 0.75rem;
+        color: var(--text-light);
+        margin-top: var(--spacing-xs);
+        font-family: 'Courier New', monospace;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-xl);
+    }
+
+    .pagination a,
+    .pagination span {
+        padding: 0.5rem 0.75rem;
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        text-decoration: none;
+    }
+
+    .pagination a:hover {
+        background: var(--bg-secondary);
+    }
+
+    .pagination .active {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .pagination .disabled {
+        color: var(--text-light);
+        cursor: not-allowed;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: var(--spacing-2xl);
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: var(--spacing-lg);
+        color: var(--text-light);
+    }
+
+    .empty-state h3 {
+        font-size: 1.25rem;
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .sync-status {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-md);
+        background: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        margin-bottom: var(--spacing-lg);
+        font-size: 0.875rem;
+    }
+
+    .sync-status.syncing {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .sync-status.success {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .sync-status.error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    @media (max-width: 768px) {
+        .filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .filter-group {
+            width: 100%;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            flex: 1;
+        }
+
+        .toolbar {
+            margin-left: 0;
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+        .books-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block sidebar %}
+<div class="sidebar-section">
+    <h3 class="sidebar-title">导航</h3>
+    <ul class="sidebar-menu" role="menu">
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.index') }}" class="sidebar-link" role="menuitem">
+                <i class="fa-solid fa-fire" aria-hidden="true"></i>
+                <span>畅销书榜</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards') }}" class="sidebar-link" role="menuitem">
+                <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+                <span>获奖书单</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.new_books') }}" class="sidebar-link active" role="menuitem" aria-current="page">
+                <i class="fa-solid fa-sparkles" aria-hidden="true"></i>
+                <span>新书速递</span>
+            </a>
+        </li>
+    </ul>
+</div>
+
+<div class="sidebar-section">
+    <h3 class="sidebar-title">出版社</h3>
+    <ul class="sidebar-menu" role="menu">
+        {% for pub in publishers %}
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.new_books', publisher=pub.id) }}"
+               class="sidebar-link {% if selected_publisher == pub.id %}active{% endif %}"
+               role="menuitem">
+                <i class="fa-solid fa-building" aria-hidden="true"></i>
+                <span>{{ pub.name }}</span>
+                <span class="badge">{{ pub.books.count() }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="new-books-header">
+    <h1><i class="fa-solid fa-sparkles"></i> 新书速递</h1>
+    <p style="color: var(--text-secondary);">追踪国际大型出版社最新出版物</p>
+    
+    <div class="stats-bar">
+        <div class="stat-item">
+            <i class="fa-solid fa-book"></i>
+            <span>共 <strong>{{ stats.total_books }}</strong> 本新书</span>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-building"></i>
+            <span><strong>{{ stats.active_publishers }}</strong> 家出版社</span>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-calendar"></i>
+            <span>近7天新增 <strong>{{ stats.recent_books_7d }}</strong> 本</span>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="filter-group">
+        <label>出版社：</label>
+        <select id="publisher-filter" onchange="applyFilter()">
+            <option value="">全部出版社</option>
+            {% for pub in publishers %}
+            <option value="{{ pub.id }}" {% if selected_publisher == pub.id %}selected{% endif %}>{{ pub.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label>分类：</label>
+        <select id="category-filter" onchange="applyFilter()">
+            <option value="">全部分类</option>
+            {% for cat in categories %}
+            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name }} ({{ cat.count }})</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label>时间：</label>
+        <select id="days-filter" onchange="applyFilter()">
+            <option value="7" {% if selected_days == 7 %}selected{% endif %}>最近7天</option>
+            <option value="30" {% if selected_days == 30 %}selected{% endif %}>最近30天</option>
+            <option value="90" {% if selected_days == 90 %}selected{% endif %}>最近90天</option>
+            <option value="180" {% if selected_days == 180 %}selected{% endif %}>最近半年</option>
+            <option value="365" {% if selected_days == 365 %}selected{% endif %}>最近一年</option>
+        </select>
+    </div>
+
+    <div class="search-box">
+        <i class="fa-solid fa-search"></i>
+        <input type="text" id="search-input" placeholder="搜索书名、作者、ISBN..." value="{{ search_query }}" onkeypress="handleSearchKeypress(event)">
+    </div>
+
+    <div class="toolbar">
+        <button class="btn btn-outline" onclick="exportExcel()" title="导出Excel">
+            <i class="fa-solid fa-file-excel"></i>
+            <span class="hide-mobile">导出</span>
+        </button>
+        <button class="btn btn-primary" onclick="syncNewBooks()" id="sync-btn">
+            <i class="fa-solid fa-sync"></i>
+            <span class="hide-mobile">同步新书</span>
+        </button>
+    </div>
+</div>
+
+<div id="sync-status" class="sync-status" style="display: none;"></div>
+
+{% if books %}
+<div class="books-grid">
+    {% for book in books %}
+    <div class="book-card" onclick="showBookDetail({{ book.id }})">
+        {% if book.cover_url %}
+        <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="book-cover" loading="lazy" onerror="this.outerHTML='<div class=\'book-cover-placeholder\'><i class=\'fa-solid fa-book\'></i></div>'">
+        {% else %}
+        <div class="book-cover-placeholder">
+            <i class="fa-solid fa-book"></i>
+        </div>
+        {% endif %}
+        <div class="book-info">
+            <div class="book-title" title="{{ book.title_zh or book.title }}">{{ book.title_zh or book.title }}</div>
+            <div class="book-author">{{ book.author }}</div>
+            <div class="book-meta">
+                <span class="book-publisher">
+                    <i class="fa-solid fa-building"></i>
+                    {{ book.publisher.name if book.publisher else '未知' }}
+                </span>
+                {% if book.price %}
+                <span class="book-price">{{ book.price }}</span>
+                {% endif %}
+            </div>
+            {% if book.category %}
+            <span class="book-category">{{ book.category }}</span>
+            {% endif %}
+            {% if book.isbn13 %}
+            <p class="book-isbn">ISBN: {{ book.isbn13 }}</p>
+            {% elif book.isbn10 %}
+            <p class="book-isbn">ISBN: {{ book.isbn10 }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="{{ url_for('main.new_books', publisher=selected_publisher, category=selected_category, days=selected_days, search=search_query, page=page-1) }}">
+        <i class="fa-solid fa-chevron-left"></i> 上一页
+    </a>
+    {% else %}
+    <span class="disabled"><i class="fa-solid fa-chevron-left"></i> 上一页</span>
+    {% endif %}
+
+    {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+        <span class="active">{{ p }}</span>
+        {% elif p <= 3 or p > total_pages - 3 or (p >= page - 2 and p <= page + 2) %}
+        <a href="{{ url_for('main.new_books', publisher=selected_publisher, category=selected_category, days=selected_days, search=search_query, page=p) }}">{{ p }}</a>
+        {% elif p == 4 or p == total_pages - 3 %}
+        <span>...</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if page < total_pages %}
+    <a href="{{ url_for('main.new_books', publisher=selected_publisher, category=selected_category, days=selected_days, search=search_query, page=page+1) }}">
+        下一页 <i class="fa-solid fa-chevron-right"></i>
+    </a>
+    {% else %}
+    <span class="disabled">下一页 <i class="fa-solid fa-chevron-right"></i></span>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <i class="fa-solid fa-book-open"></i>
+    <h3>暂无新书数据</h3>
+    <p>点击"同步新书"按钮从出版社获取最新数据</p>
+    <button class="btn btn-primary" onclick="syncNewBooks()" style="margin-top: 1rem;">
+        <i class="fa-solid fa-sync"></i> 同步新书
+    </button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function applyFilter() {
+        const publisher = document.getElementById('publisher-filter').value;
+        const category = document.getElementById('category-filter').value;
+        const days = document.getElementById('days-filter').value;
+        const search = document.getElementById('search-input').value;
+        
+        let url = '{{ url_for("main.new_books") }}?';
+        if (publisher) url += `publisher=${publisher}&`;
+        if (category) url += `category=${encodeURIComponent(category)}&`;
+        if (days) url += `days=${days}&`;
+        if (search) url += `search=${encodeURIComponent(search)}&`;
+        
+        window.location.href = url;
+    }
+
+    function handleSearchKeypress(e) {
+        if (e.key === 'Enter') {
+            applyFilter();
+        }
+    }
+
+    function exportExcel() {
+        const publisher = document.getElementById('publisher-filter').value;
+        const category = document.getElementById('category-filter').value;
+        const days = document.getElementById('days-filter').value;
+        
+        let url = '/api/new-books/export/excel?';
+        if (publisher) url += `publisher_id=${publisher}&`;
+        if (category) url += `category=${encodeURIComponent(category)}&`;
+        if (days) url += `days=${days}&`;
+        
+        window.location.href = url;
+    }
+
+    function syncNewBooks() {
+        const btn = document.getElementById('sync-btn');
+        const statusDiv = document.getElementById('sync-status');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 同步中...';
+        
+        statusDiv.style.display = 'flex';
+        statusDiv.className = 'sync-status syncing';
+        statusDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在从出版社获取新书数据...';
+
+        fetch('/api/new-books/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const summary = data.data.summary;
+                statusDiv.className = 'sync-status success';
+                statusDiv.innerHTML = `
+                    <i class="fa-solid fa-check-circle"></i>
+                    同步完成！新增 ${summary.total_added} 本，更新 ${summary.total_updated} 本
+                `;
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                throw new Error(data.message);
+            }
+        })
+        .catch(error => {
+            statusDiv.className = 'sync-status error';
+            statusDiv.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i> 同步失败: ${error.message}`;
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-sync"></i> <span class="hide-mobile">同步新书</span>';
+        });
+    }
+
+    function showBookDetail(bookId) {
+        fetch(`/api/new-books/${bookId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const book = data.data.book;
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 600px;">
+                        <div class="modal-header">
+                            <h2>${book.title_zh || book.title}</h2>
+                            <button class="btn btn-icon" onclick="this.closest('.modal-overlay').remove()">
+                                <i class="fa-solid fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="display: flex; gap: 1.5rem;">
+                            <div style="flex-shrink: 0;">
+                                ${book.cover_url 
+                                    ? `<img src="${book.cover_url}" alt="${book.title}" style="width: 150px; border-radius: 8px;">` 
+                                    : `<div style="width: 150px; height: 225px; background: var(--bg-secondary); border-radius: 8px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-book" style="font-size: 3rem; color: var(--text-light);"></i></div>`
+                                }
+                            </div>
+                            <div style="flex: 1;">
+                                ${book.title_zh ? `<p style="color: var(--text-secondary); margin-bottom: 0.5rem;">${book.title}</p>` : ''}
+                                <p><strong>作者：</strong>${book.author}</p>
+                                <p><strong>出版社：</strong>${book.publisher_name || '未知'}</p>
+                                ${book.category ? `<p><strong>分类：</strong>${book.category}</p>` : ''}
+                                ${book.publication_date ? `<p><strong>出版日期：</strong>${book.publication_date}</p>` : ''}
+                                ${book.isbn13 ? `<p><strong>ISBN：</strong>${book.isbn13}</p>` : ''}
+                                ${book.price ? `<p><strong>价格：</strong>${book.price}</p>` : ''}
+                                ${book.page_count ? `<p><strong>页数：</strong>${book.page_count}</p>` : ''}
+                            </div>
+                        </div>
+                        ${book.description ? `
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <h4 style="margin-bottom: 0.5rem;">简介</h4>
+                            <p style="color: var(--text-secondary); line-height: 1.6;">${book.description_zh || book.description}</p>
+                        </div>
+                        ` : ''}
+                        ${book.buy_links && book.buy_links.length > 0 ? `
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <h4 style="margin-bottom: 0.5rem;">购买链接</h4>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                ${book.buy_links.map(link => `<a href="${link.url}" target="_blank" class="btn btn-outline">${link.name}</a>`).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+            }
+        });
+    }
+</script>
+{% endblock %}
