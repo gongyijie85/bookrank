@@ -174,3 +174,80 @@ def awards():
                           search_query=search_query,
                           view_mode=view_mode,
                           total_books=len(books_data))
+
+
+@main_bp.route('/new-books')
+def new_books():
+    """新书速递页面"""
+    from ..models.new_book import Publisher, NewBook
+    from ..services.new_book_service import NewBookService
+    from ..models.database import db
+    from sqlalchemy import func
+    from sqlalchemy.exc import OperationalError
+
+    service = NewBookService()
+
+    # 尝试获取出版社列表，如果失败则初始化数据库
+    try:
+        publishers = service.get_publishers(active_only=True)
+    except OperationalError as e:
+        error_msg = str(e).lower()
+        if "no such table" in error_msg or "no such column" in error_msg:
+            current_app.logger.warning(f"⚠️ 数据库表不存在，正在初始化: {e}")
+            db.create_all()
+            service.init_publishers()
+            publishers = service.get_publishers(active_only=True)
+        else:
+            raise
+
+    # 获取筛选参数
+    selected_publisher = request.args.get('publisher', '', type=int)
+    selected_category = request.args.get('category', '')
+    selected_days = request.args.get('days', 30, type=int)
+    search_query = request.args.get('search', '').strip()[:100]
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+
+    # 验证参数
+    selected_days = min(max(1, selected_days), 365)
+    page = min(max(1, page), 10000)
+
+    view_mode = request.args.get('view', 'grid')
+    if view_mode not in ['grid', 'list']:
+        view_mode = 'grid'
+
+    # 获取分类列表
+    categories = service.get_categories()
+
+    # 获取统计数据
+    stats = service.get_statistics()
+
+    # 获取书籍数据
+    if search_query:
+        books, total = service.search_books(search_query, page, per_page)
+    else:
+        books, total = service.get_new_books(
+            publisher_id=selected_publisher if selected_publisher else None,
+            category=selected_category if selected_category else None,
+            days=selected_days,
+            page=page,
+            per_page=per_page
+        )
+
+    # 计算分页信息
+    total_pages = (total + per_page - 1) // per_page
+
+    return render_template('new_books.html',
+                          publishers=publishers,
+                          categories=categories,
+                          books=books,
+                          stats=stats,
+                          selected_publisher=selected_publisher,
+                          selected_category=selected_category,
+                          selected_days=selected_days,
+                          search_query=search_query,
+                          view_mode=view_mode,
+                          page=page,
+                          total=total,
+                          total_pages=total_pages,
+                          per_page=per_page)
