@@ -52,10 +52,8 @@ def validate_isbn(isbn: str) -> bool:
 
 def validate_pagination_params(page: int, limit: int) -> tuple[int, int]:
     """验证并规范化分页参数"""
-    # 确保 page 至少为 1
-    page = max(1, page)
-    # 限制每页最大数量，防止滥用
-    limit = min(max(1, limit), 100)
+    page = min(max(1, page), 10000)
+    limit = min(max(1, limit), 50)
     return page, limit
 
 
@@ -626,12 +624,11 @@ def get_all_award_books():
         if category:
             query = query.filter_by(category=category)
         if keyword:
-            # 防止 SQL 注入
             escaped_keyword = keyword.replace('%', r'\%').replace('_', r'\_')
             query = query.filter(
                 db.or_(
-                    AwardBook.title.ilike(f'%{escaped_keyword}%'),
-                    AwardBook.author.ilike(f'%{escaped_keyword}%')
+                    AwardBook.title.ilike(f'%{escaped_keyword}%', escape='\\'),
+                    AwardBook.author.ilike(f'%{escaped_keyword}%', escape='\\')
                 )
             )
 
@@ -687,19 +684,17 @@ def search_award_books():
         if len(keyword) > 100:
             return APIResponse.error('关键词长度不能超过100个字符', 400)
 
-        # 防止 SQL 注入
         escaped_keyword = keyword.replace('%', r'\%').replace('_', r'\_')
 
-        # 验证并规范化分页参数
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 20, type=int)
         page, limit = validate_pagination_params(page, limit)
 
         query = AwardBook.query.filter(
             db.or_(
-                AwardBook.title.ilike(f'%{escaped_keyword}%'),
-                AwardBook.author.ilike(f'%{escaped_keyword}%'),
-                AwardBook.title_zh.ilike(f'%{escaped_keyword}%')
+                AwardBook.title.ilike(f'%{escaped_keyword}%', escape='\\'),
+                AwardBook.author.ilike(f'%{escaped_keyword}%', escape='\\'),
+                AwardBook.title_zh.ilike(f'%{escaped_keyword}%', escape='\\')
             )
         )
 

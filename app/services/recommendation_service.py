@@ -367,7 +367,7 @@ class RecommendationService:
         # 排除目标图书本身
         query = AwardBook.query.filter(
             AwardBook.id != target_book.id,
-            AwardBook.is_displayable == True,
+            AwardBook.is_displayable.is_(True),
             db.or_(*conditions)
         )
 

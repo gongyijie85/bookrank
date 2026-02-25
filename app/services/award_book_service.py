@@ -275,7 +275,7 @@ class AwardBookService:
         book_details = self.openlib_client.fetch_book_by_isbn(isbn)
         
         # 获取 Google Books 数据（详细信息和购买链接）
-        google_books_data = self.google_books_client.search_by_isbn(isbn)
+        google_books_data = self.google_books_client.fetch_book_details(isbn)
         
         # 获取封面（优先 Open Library，后补 Google Books）
         cover_url = self._get_cover_url(isbn)

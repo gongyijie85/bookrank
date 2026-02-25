@@ -6,7 +6,7 @@
 import json
 import re
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from flask import current_app
 
@@ -194,8 +194,8 @@ class BookVerificationService:
                     check['passed'] = True
                     check['details'].append('✅ Open Library 封面可用')
                     return check
-            except:
-                pass
+            except Exception as e:
+                current_app.logger.warning(f"Open Library 封面检查失败: {e}")
         
         self.warnings.append('封面不可用，将使用默认封面')
         check['details'].append('⚠️ 封面不可用（将使用默认封面）')
@@ -315,7 +315,7 @@ class BookVerificationService:
                 
                 # 更新图书验证状态
                 book.verification_status = result['status']
-                book.verification_checked_at = datetime.utcnow()
+                book.verification_checked_at = datetime.now(timezone.utc)
                 book.verification_errors = json.dumps({
                     'errors': self.errors,
                     'warnings': self.warnings,

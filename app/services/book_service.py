@@ -1,8 +1,8 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from ..models.schemas import Book, BookMetadata, db
-from ..models.database import db
 from .cache_service import CacheService
 from .api_client import NYTApiClient, GoogleBooksClient, ImageCacheService
 from ..utils.exceptions import APIRateLimitException, APIException
@@ -76,7 +76,7 @@ class BookService:
                 return [Book(**book_data) for book_data in cached_data]
             return []
     
-    def _process_api_response(self, api_data: dict[str, any], category_id: str) -> list[Book]:
+    def _process_api_response(self, api_data: dict[str, Any], category_id: str) -> list[Book]:
         """
         处理API响应数据
         
@@ -121,7 +121,7 @@ class BookService:
     
     def _process_single_book(
         self,
-        book_data: dict[str, any],
+        book_data: dict[str, Any],
         category_id: str,
         category_name: str,
         list_name: str,
@@ -223,7 +223,7 @@ class BookService:
             db.session.rollback()
             return False
     
-    def _get_book_supplement(self, isbn: str, book_data: dict[str, any]) -> dict[str, any]:
+    def _get_book_supplement(self, isbn: str, book_data: dict[str, Any]) -> dict[str, Any]:
         """
         获取图书补充信息
         

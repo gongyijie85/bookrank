@@ -71,7 +71,7 @@ class SmartSearchService:
             offset = max(0, offset)
 
             # 构建查询
-            query = AwardBook.query.filter(AwardBook.is_displayable == True)
+            query = AwardBook.query.filter(AwardBook.is_displayable.is_(True))
 
             # 应用搜索条件
             query = self._apply_search_conditions(query, keyword, search_type)

@@ -35,7 +35,7 @@ def validate_isbn(isbn: str) -> bool:
 
 def validate_pagination(page: int, limit: int, max_limit: int = 50) -> tuple[int, int]:
     """验证并规范化分页参数"""
-    page = max(1, page)
+    page = min(max(1, page), 10000)
     limit = min(max(1, limit), max_limit)
     return page, limit
 
