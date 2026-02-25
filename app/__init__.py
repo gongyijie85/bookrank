@@ -9,7 +9,7 @@ from flask_talisman import Talisman
 
 from .config import config
 from .models import db, init_db
-from .routes import api_bp, main_bp, public_api_bp
+from .routes import api_bp, main_bp, public_api_bp, new_books_bp
 from .services import (
     CacheService, MemoryCache, FileCache,
     NYTApiClient, GoogleBooksClient, ImageCacheService,
@@ -149,6 +149,7 @@ def _register_blueprints(app):
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(public_api_bp)
+    app.register_blueprint(new_books_bp)
 
 
 def _register_error_handlers(app):
