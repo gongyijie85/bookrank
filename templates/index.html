@@ -99,7 +99,7 @@
 <section class="books-grid" id="books-grid" style="display: {% if view_mode == 'grid' %}grid{% else %}none{% endif %}" aria-label="图书网格视图">
     {% for book in books %}
     <article class="card card-animate" style="animation-delay: {{ loop.index * 0.05 }}s"
-             onclick="openBookModal({{ loop.index - 1 })"
+             onclick="openBookModal({{ loop.index - 1 }})"
              role="button"
              tabindex="0"
              aria-label="{{ book.title }} - 第{{ loop.index }}名">
