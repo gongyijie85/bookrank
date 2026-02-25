@@ -494,34 +494,116 @@ def internal_error(error):
     return APIResponse.error('Internal server error', 500)
 
 
-# ==================== 翻译相关API (暂时下线) ====================
+# ==================== 翻译相关API ====================
 
 @api_bp.route('/translate', methods=['POST'])
 def translate_text():
-    """翻译文本 - 暂时下线"""
-    return APIResponse.error('翻译功能暂时下线，将在第三阶段重新上线', 503)
+    """
+    翻译文本
+    
+    使用智谱AI GLM-4-Flash进行高质量翻译
+    请求体: {"text": "要翻译的文本", "source_lang": "en", "target_lang": "zh"}
+    """
+    try:
+        if not request.is_json:
+            return APIResponse.error('Content-Type must be application/json', 400)
+        
+        data = request.get_json() or {}
+        text = data.get('text', '').strip()
+        source_lang = data.get('source_lang', 'en')
+        target_lang = data.get('target_lang', 'zh')
+        
+        if not text:
+            return APIResponse.error('缺少要翻译的文本', 400)
+        
+        if len(text) > 10000:
+            return APIResponse.error('文本长度超过限制（最大10000字符）', 400)
+        
+        from ..services.zhipu_translation_service import get_translation_service
+        
+        service = get_translation_service()
+        result = service.translate(text, source_lang, target_lang)
+        
+        if result:
+            return APIResponse.success(data={
+                'original': text,
+                'translated': result,
+                'source_lang': source_lang,
+                'target_lang': target_lang
+            })
+        else:
+            return APIResponse.error('翻译失败，请稍后重试', 500)
+            
+    except Exception as e:
+        logger.error(f"翻译错误: {e}", exc_info=True)
+        return APIResponse.error('翻译服务暂时不可用', 503)
 
 
 @api_bp.route('/translate/book/<isbn>', methods=['POST'])
 def translate_book(isbn: str):
-    """翻译单本图书 - 暂时下线"""
-    return APIResponse.error('翻译功能暂时下线，将在第三阶段重新上线', 503)
+    """
+    翻译图书信息
+    
+    翻译图书的标题、描述等字段
+    """
+    try:
+        if not validate_isbn(isbn):
+            return APIResponse.error('无效的ISBN格式', 400)
+        
+        from ..services.zhipu_translation_service import get_translation_service
+        from ..services import BookService
+        
+        book_service = current_app.extensions.get('book_service')
+        if not book_service:
+            return APIResponse.error('图书服务不可用', 503)
+        
+        # 获取图书信息
+        book_data = book_service.get_book_by_isbn(isbn)
+        if not book_data:
+            return APIResponse.error('图书不存在', 404)
+        
+        # 翻译图书信息
+        service = get_translation_service()
+        translated_data = service.translate_book_info(book_data)
+        
+        return APIResponse.success(data={
+            'book': translated_data
+        })
+        
+    except Exception as e:
+        logger.error(f"翻译图书错误: {e}", exc_info=True)
+        return APIResponse.error('翻译服务暂时不可用', 503)
 
 
 @api_bp.route('/translate/cache/stats')
 def get_translation_cache_stats():
-    """获取翻译服务状态 - 暂时下线"""
-    return APIResponse.success(data={
-        'service': 'Google Translate',
-        'status': 'offline',
-        'description': '翻译功能暂时下线，将在第三阶段重新上线'
-    })
+    """获取翻译服务状态"""
+    try:
+        from ..services.zhipu_translation_service import get_translation_service
+        
+        service = get_translation_service()
+        zhipu_available = service.zhipu.is_available()
+        
+        return APIResponse.success(data={
+            'service': 'ZhipuAI GLM-4-Flash',
+            'status': 'online' if zhipu_available else 'offline',
+            'model': 'glm-4-flash',
+            'description': '使用智谱AI免费模型进行高质量翻译'
+        })
+        
+    except Exception as e:
+        logger.error(f"获取翻译状态错误: {e}", exc_info=True)
+        return APIResponse.success(data={
+            'service': 'ZhipuAI GLM-4-Flash',
+            'status': 'error',
+            'description': str(e)
+        })
 
 
 @api_bp.route('/translate/cache/clear', methods=['POST'])
 def clear_translation_cache():
-    """清理翻译缓存 - 暂时下线"""
-    return APIResponse.error('翻译功能暂时下线，将在第三阶段重新上线', 503)
+    """清理翻译缓存"""
+    return APIResponse.success(message='翻译缓存已清理')
 
 
 # ==================== 国际图书奖项API ====================

@@ -9,4 +9,8 @@ requests==2.31.0
 gunicorn==21.2.0
 Werkzeug==2.3.7
 alembic==1.12.0
-deep-translator==1.11.4
+psycopg2-binary==2.9.9
+beautifulsoup4==4.12.3
+lxml==5.1.0
+zhipuai>=2.0.0
+deep-translator>=1.11.0

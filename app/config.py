@@ -23,11 +23,10 @@ class Config:
     JSONIFY_PRETTYPRINT_REGULAR: bool = False  # 生产环境不美化JSON
     MAX_CONTENT_LENGTH: int = 16 * 1024 * 1024  # 16MB 最大请求体
 
-    # 数据库配置
-    SQLALCHEMY_DATABASE_URI: str = os.environ.get(
-        'DATABASE_URL',
-        f'sqlite:///{BASE_DIR / "bestsellers.db"}'
-    )
+    # 数据库配置 - 支持 Render PostgreSQL
+    # Render 使用 postgres:// 但 SQLAlchemy 需要 postgresql://
+    _db_url = os.environ.get('DATABASE_URL', f'sqlite:///{BASE_DIR / "bestsellers.db"}')
+    SQLALCHEMY_DATABASE_URI: str = _db_url.replace('postgres://', 'postgresql://', 1) if _db_url.startswith('postgres://') else _db_url
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     SQLALCHEMY_ECHO: bool = os.environ.get('SQLALCHEMY_ECHO', 'false').lower() == 'true'
     SQLALCHEMY_ENGINE_OPTIONS: dict = {
@@ -38,6 +37,9 @@ class Config:
     # API 配置
     NYT_API_KEY: str | None = os.environ.get('NYT_API_KEY')
     GOOGLE_API_KEY: str | None = os.environ.get('GOOGLE_API_KEY')
+    
+    # 智谱AI配置（用于翻译）
+    ZHIPU_API_KEY: str | None = os.environ.get('ZHIPU_API_KEY')
 
     # 缓存配置
     CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'simple')
