@@ -91,14 +91,16 @@ class GoogleBooksCrawler(BaseCrawler):
 
         logger.info(f"📚 正在从 Google Books 获取 {subject} 类新书 ({min_year}-{current_year})...")
 
-        # 使用日期范围查询来筛选新书
-        date_range = f"{min_year}:{current_year}"
+        # 使用更简单的日期查询格式
         params = {
-            'q': f'subject:{subject}+publishedDate:{date_range}',
+            'q': f'publishedDate:{min_year}',
             'maxResults': min(max_books * 3, 40),
             'printType': 'books',
             'langRestrict': 'en',
         }
+
+        if subject and subject != 'general':
+            params['q'] += f' subject:{subject}'
 
         if self._api_key:
             params['key'] = self._api_key

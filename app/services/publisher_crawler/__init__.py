@@ -54,48 +54,24 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-# 爬虫注册表
 CRAWLER_REGISTRY: dict[str, type[BaseCrawler]] = {}
 
 
 def register_crawler(crawler_class: type[BaseCrawler]) -> None:
-    """
-    注册爬虫类
-
-    Args:
-        crawler_class: 爬虫类
-    """
     CRAWLER_REGISTRY[crawler_class.CRAWLER_CLASS_NAME] = crawler_class
 
 
 def get_crawler_class(name: str) -> type[BaseCrawler] | None:
-    """
-    获取爬虫类
-
-    Args:
-        name: 爬虫类名
-
-    Returns:
-        爬虫类或None
-    """
-    # 确保已加载所有爬虫
     _load_all_crawlers()
     return CRAWLER_REGISTRY.get(name)
 
 
 def get_all_crawlers() -> dict[str, type[BaseCrawler]]:
-    """
-    获取所有已注册的爬虫
-
-    Returns:
-        爬虫注册表
-    """
     _load_all_crawlers()
     return CRAWLER_REGISTRY.copy()
 
 
 def _load_all_crawlers() -> None:
-    """加载所有爬虫"""
     if CRAWLER_REGISTRY:
         return
 
