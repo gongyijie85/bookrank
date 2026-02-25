@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookRank - 专业图书排行榜</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1a1a1a',
+                        secondary: '#666666',
+                        accent: '#2563eb',
+                        surface: '#f5f5f5',
+                        border: '#e5e5e5',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f5f5f5;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c4c4c4;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a0a0a0;
+        }
+        
+        /* 暗黑模式滚动条 */
+        .dark ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #404040;
+        }
+        
+        /* 卡片悬停动画 */
+        .book-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .book-card:hover {
+            transform: translateY(-4px);
+        }
+        
+        /* 模态框动画 */
+        .modal-overlay {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .modal-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .modal-overlay.hidden .modal-content {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+        
+        /* 骨架屏动画 */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        .dark .skeleton {
+            background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+            background-size: 200% 100%;
+        }
+        
+        /* 徽章渐变 */
+        .badge-gold {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+        }
+        .badge-silver {
+            background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%);
+        }
+        .badge-bronze {
+            background: linear-gradient(135deg, #CD7F32 0%, #B87333 100%);
+        }
+        
+        /* 页面切换动画 */
+        .page-transition {
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 卡片入场动画 */
+        .card-animate {
+            animation: cardSlideIn 0.5s ease forwards;
+            opacity: 0;
+        }
+        @keyframes cardSlideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-surface dark:bg-primary font-sans antialiased transition-colors duration-300">
+    
+    <!-- ========== 顶部导航 ========== -->
+    <header class="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-primary border-b border-border dark:border-gray-800 z-50 transition-colors duration-300">
+        <div class="max-w-7xl mx-auto h-full px-4 flex items-center justify-between">
+            <!-- Logo -->
+            <a href="#" class="flex items-center gap-2 group" onclick="showPage('home')">
+                <div class="w-8 h-8 bg-primary dark:bg-white rounded-lg flex items-center justify-center transition-transform group-hover:scale-110">
+                    <i class="fa fa-book text-white dark:text-primary text-sm"></i>
+                </div>
+                <span class="text-xl font-semibold text-primary dark:text-white tracking-tight">BookRank</span>
+            </a>
+            
+            <!-- 分类导航 -->
+            <nav class="hidden md:flex items-center gap-1">
+                <button onclick="showPage('home')" class="nav-link px-4 py-2 rounded-lg text-secondary dark:text-gray-400 hover:text-primary dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-all" data-page="home">
+                    <i class="fa fa-fire mr-2"></i>畅销榜
+                </button>
+                <button onclick="showPage('awards')" class="nav-link px-4 py-2 rounded-lg text-secondary dark:text-gray-400 hover:text-primary dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-all" data-page="awards">
+                    <i class="fa fa-trophy mr-2"></i>奖项榜
+                </button>
+            </nav>
+            
+            <!-- 右侧操作区 -->
+            <div class="flex items-center gap-3">
+                <!-- 搜索框 -->
+                <div class="relative hidden sm:block">
+                    <input type="text" 
+                           id="searchInput"
+                           placeholder="搜索书名、作者..." 
+                           class="w-64 h-10 pl-10 pr-4 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm text-primary dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                           onkeyup="handleSearch(event)">
+                    <i class="fa fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+                
+                <!-- 暗黑模式切换 -->
+                <button onclick="toggleDarkMode()" 
+                        class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        aria-label="切换主题">
+                    <i class="fa fa-moon dark:hidden"></i>
+                    <i class="fa fa-sun hidden dark:block"></i>
+                </button>
+                
+                <!-- 移动端菜单按钮 -->
+                <button onclick="toggleMobileMenu()" 
+                        class="md:hidden w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-secondary dark:text-gray-400"
+                        aria-label="菜单">
+                    <i class="fa fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <!-- ========== 移动端导航菜单 ========== -->
+    <div id="mobileMenu" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="toggleMobileMenu()">
+        <div class="absolute top-16 right-4 w-56 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-border dark:border-gray-800 overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-2">
+                <button onclick="showPage('home'); toggleMobileMenu();" class="w-full px-4 py-3 text-left rounded-lg text-secondary dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <i class="fa fa-fire mr-3 w-5"></i>畅销榜
+                </button>
+                <button onclick="showPage('awards'); toggleMobileMenu();" class="w-full px-4 py-3 text-left rounded-lg text-secondary dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <i class="fa fa-trophy mr-3 w-5"></i>奖项榜
+                </button>
+            </div>
+            <div class="border-t border-border dark:border-gray-800 p-2">
+                <input type="text" 
+                       placeholder="搜索..." 
+                       class="w-full h-10 px-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm text-primary dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent">
+            </div>
+        </div>
+    </div>
+    
+    <!-- ========== 主内容区 ========== -->
+    <main class="pt-16 min-h-screen">
+        
+        <!-- ========== 首页 - 畅销榜 ========== -->
+        <div id="page-home" class="page-transition">
+            <!-- 页面标题 -->
+            <div class="bg-white dark:bg-gray-900 border-b border-border dark:border-gray-800">
+                <div class="max-w-7xl mx-auto px-4 py-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 class="text-2xl font-bold text-primary dark:text-white flex items-center gap-2">
+                                <i class="fa fa-fire text-orange-500"></i>
+                                纽约时报畅销书排行榜
+                            </h1>
+                            <p class="text-secondary dark:text-gray-400 mt-1 text-sm">
+                                <i class="fa fa-clock-o mr-1"></i>
+                                更新于: 2026-02-25 10:30
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-secondary dark:text-gray-400">共 <strong class="text-primary dark:text-white">15</strong> 本图书</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 筛选栏 -->
+            <div class="bg-white dark:bg-gray-900 border-b border-border dark:border-gray-800 sticky top-16 z-30">
+                <div class="max-w-7xl mx-auto px-4 py-3">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- 分类选择 -->
+                        <select class="h-10 px-4 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer">
+                            <option>精装小说</option>
+                            <option>精装非虚构</option>
+                            <option>平装小说</option>
+                            <option>平装非虚构</option>
+                        </select>
+                        
+                        <!-- 视图切换 -->
+                        <div class="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 ml-auto">
+                            <button onclick="setView('grid')" class="view-btn w-8 h-8 rounded-lg flex items-center justify-center text-secondary dark:text-gray-400 hover:bg-white dark:hover:bg-gray-700 transition-colors" data-view="grid">
+                                <i class="fa fa-th"></i>
+                            </button>
+                            <button onclick="setView('list')" class="view-btn w-8 h-8 rounded-lg flex items-center justify-center text-secondary dark:text-gray-400 hover:bg-white dark:hover:bg-gray-700 transition-colors" data-view="list">
+                                <i class="fa fa-list"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- 导出按钮 -->
+                        <button class="h-10 px-4 bg-primary dark:bg-white text-white dark:text-primary rounded-xl text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
+                            <i class="fa fa-download"></i>
+                            <span class="hidden sm:inline">导出CSV</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 图书网格视图 -->
+            <div id="booksGridView" class="max-w-7xl mx-auto px-4 py-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <!-- 图书卡片 1 -->
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(0)" style="animation-delay: 0.05s">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <img src="https://covers.openlibrary.org/b/isbn/9780593491227-L.jpg" 
+                                 alt="图书封面" 
+                                 class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                 onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22><rect fill=%22%23e5e5e5%22 width=%22300%22 height=%22400%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2216%22>No Cover</text></svg>'">
+                            <!-- 排名徽章 -->
+                            <div class="absolute top-3 left-3 badge-gold w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                1
+                            </div>
+                            <!-- NEW 标签 -->
+                            <div class="absolute top-3 right-3 bg-accent text-white text-xs font-semibold px-2 py-1 rounded-full">
+                                NEW
+                            </div>
+                            <!-- 分类标签 -->
+                            <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                                精装小说
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent">NO.1</span>
+                                <span class="text-xs text-gray-400">
+                                    <i class="fa fa-clock-o mr-1"></i>12周
+                                </span>
+                            </div>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mb-1 line-clamp-2">
+                                THE HOUSEMAID
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Freida McFadden</p>
+                        </div>
+                    </article>
+                    
+                    <!-- 图书卡片 2 -->
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(1)" style="animation-delay: 0.1s">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <img src="https://covers.openlibrary.org/b/isbn/9780593491227-L.jpg" 
+                                 alt="图书封面" 
+                                 class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                 onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22><rect fill=%22%23e5e5e5%22 width=%22300%22 height=%22400%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2216%22>No Cover</text></svg>'">
+                            <div class="absolute top-3 left-3 badge-silver w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                2
+                            </div>
+                            <div class="absolute top-3 right-3 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                                +3
+                            </div>
+                            <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                                精装小说
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent">NO.2</span>
+                                <span class="text-xs text-gray-400">
+                                    <i class="fa fa-clock-o mr-1"></i>8周
+                                </span>
+                            </div>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mb-1 line-clamp-2">
+                                FOURTH WING
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Rebecca Yarros</p>
+                        </div>
+                    </article>
+                    
+                    <!-- 图书卡片 3 -->
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(2)" style="animation-delay: 0.15s">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <img src="https://covers.openlibrary.org/b/isbn/9780593491227-L.jpg" 
+                                 alt="图书封面" 
+                                 class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                 onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22><rect fill=%22%23e5e5e5%22 width=%22300%22 height=%22400%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2216%22>No Cover</text></svg>'">
+                            <div class="absolute top-3 left-3 badge-bronze w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                3
+                            </div>
+                            <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                                精装小说
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent">NO.3</span>
+                                <span class="text-xs text-gray-400">
+                                    <i class="fa fa-clock-o mr-1"></i>24周
+                                </span>
+                            </div>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mb-1 line-clamp-2">
+                                LESSONS IN CHEMISTRY
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Bonnie Garmus</p>
+                        </div>
+                    </article>
+                    
+                    <!-- 图书卡片 4-8 (简化展示) -->
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(3)" style="animation-delay: 0.2s">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-gray-400 dark:text-gray-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                4
+                            </div>
+                            <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                                精装小说
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent">NO.4</span>
+                                <span class="text-xs text-gray-400">
+                                    <i class="fa fa-clock-o mr-1"></i>6周
+                                </span>
+                            </div>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mb-1 line-clamp-2">
+                                HAPPY PLACE
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Emily Henry</p>
+                        </div>
+                    </article>
+                    
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(4)" style="animation-delay: 0.25s">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-blue-400 dark:text-blue-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                5
+                            </div>
+                            <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                                精装小说
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent">NO.5</span>
+                                <span class="text-xs text-gray-400">
+                                    <i class="fa fa-clock-o mr-1"></i>3周
+                                </span>
+                            </div>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mb-1 line-clamp-2">
+                                DEMON COPPERHEAD
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Barbara Kingsolver</p>
+                        </div>
+                    </article>
+                    
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(5)" style="animation-delay: 0.3s">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900 dark:to-purple-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-purple-400 dark:text-purple-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                6
+                            </div>
+                            <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                                精装小说
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent">NO.6</span>
+                                <span class="text-xs text-gray-400">
+                                    <i class="fa fa-clock-o mr-1"></i>15周
+                                </span>
+                            </div>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mb-1 line-clamp-2">
+                                THE SEVEN HUSBANDS
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Taylor Jenkins Reid</p>
+                        </div>
+                    </article>
+                    
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(6)" style="animation-delay: 0.35s">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-green-400 dark:text-green-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                7
+                            </div>
+                            <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+                                精装小说
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent">NO.7</span>
+                                <span class="text-xs text-gray-400">
+                                    <i class="fa fa-clock-o mr-1"></i>52周
+                                </span>
+                            </div>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mb-1 line-clamp-2">
+                                WHERE THE CRAWDADS SING
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Delia Owens</p>
+                        </div>
+                    </article>
+                </div>
+            </div>
+            
+            <!-- 图书列表视图 (默认隐藏) -->
+            <div id="booksListView" class="max-w-7xl mx-auto px-4 py-6 hidden">
+                <!-- 列表项 1 -->
+                <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 mb-4 cursor-pointer flex" onclick="openBookModal(0)">
+                    <div class="w-24 sm:w-32 flex-shrink-0 bg-gray-100 dark:bg-gray-800">
+                        <img src="https://covers.openlibrary.org/b/isbn/9780593491227-M.jpg" 
+                             alt="图书封面" 
+                             class="w-full h-full object-cover"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 180%22><rect fill=%22%23e5e5e5%22 width=%22120%22 height=%22180%22/></svg>'">
+                    </div>
+                    <div class="flex-1 p-4 flex flex-col justify-center">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="badge-gold text-white text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">1</span>
+                            <span class="text-xs font-semibold text-accent">NO.1</span>
+                            <span class="bg-accent text-white text-xs px-2 py-0.5 rounded-full">NEW</span>
+                        </div>
+                        <h3 class="font-semibold text-primary dark:text-white text-lg mb-1">THE HOUSEMAID</h3>
+                        <p class="text-secondary dark:text-gray-400 text-sm mb-2">Freida McFadden</p>
+                        <p class="text-gray-500 dark:text-gray-500 text-sm line-clamp-2">A twisted psychological thriller about a woman who takes a job as a housemaid for a wealthy couple...</p>
+                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                            <span><i class="fa fa-clock-o mr-1"></i>12周</span>
+                            <span><i class="fa fa-tag mr-1"></i>精装小说</span>
+                            <span><i class="fa fa-building mr-1"></i>Podium Publishing</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center pr-4">
+                        <button class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors" onclick="event.stopPropagation()">
+                            <i class="fa fa-heart-o"></i>
+                        </button>
+                    </div>
+                </article>
+                
+                <!-- 列表项 2 -->
+                <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 mb-4 cursor-pointer flex" onclick="openBookModal(1)">
+                    <div class="w-24 sm:w-32 flex-shrink-0 bg-gray-100 dark:bg-gray-800">
+                        <div class="w-full h-full bg-gradient-to-br from-blue-200 to-blue-300 dark:from-blue-800 dark:to-blue-900 flex items-center justify-center">
+                            <i class="fa fa-book text-2xl text-blue-400"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 p-4 flex flex-col justify-center">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="badge-silver text-white text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">2</span>
+                            <span class="text-xs font-semibold text-accent">NO.2</span>
+                            <span class="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">+3</span>
+                        </div>
+                        <h3 class="font-semibold text-primary dark:text-white text-lg mb-1">FOURTH WING</h3>
+                        <p class="text-secondary dark:text-gray-400 text-sm mb-2">Rebecca Yarros</p>
+                        <p class="text-gray-500 dark:text-gray-500 text-sm line-clamp-2">A fantasy romance novel set in a brutal war college for dragon riders...</p>
+                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                            <span><i class="fa fa-clock-o mr-1"></i>8周</span>
+                            <span><i class="fa fa-tag mr-1"></i>精装小说</span>
+                            <span><i class="fa fa-building mr-1"></i>Entangled Publishing</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center pr-4">
+                        <button class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors" onclick="event.stopPropagation()">
+                            <i class="fa fa-heart-o"></i>
+                        </button>
+                    </div>
+                </article>
+            </div>
+            
+            <!-- 快速链接到奖项页 -->
+            <div class="max-w-7xl mx-auto px-4 pb-8">
+                <a href="#" onclick="showPage('awards')" class="block bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border dark:border-gray-800 hover:shadow-lg transition-shadow group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center text-white text-2xl">
+                            <i class="fa fa-trophy"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-semibold text-primary dark:text-white text-lg">查看国际图书奖项榜单</h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">诺贝尔文学奖、布克奖、普利策奖等</p>
+                        </div>
+                        <i class="fa fa-arrow-right text-gray-400 group-hover:text-accent group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                </a>
+            </div>
+        </div>
+        
+        <!-- ========== 奖项页 ========== -->
+        <div id="page-awards" class="page-transition hidden">
+            <!-- 页面标题 -->
+            <div class="bg-white dark:bg-gray-900 border-b border-border dark:border-gray-800">
+                <div class="max-w-7xl mx-auto px-4 py-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 class="text-2xl font-bold text-primary dark:text-white flex items-center gap-2">
+                                <i class="fa fa-trophy text-yellow-500"></i>
+                                国际图书奖项榜单
+                            </h1>
+                            <p class="text-secondary dark:text-gray-400 mt-1 text-sm">
+                                汇集全球最具影响力的图书奖项
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-secondary dark:text-gray-400">共 <strong class="text-primary dark:text-white">180</strong> 本图书 · <strong class="text-primary dark:text-white">5</strong> 个奖项</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 筛选栏 -->
+            <div class="bg-white dark:bg-gray-900 border-b border-border dark:border-gray-800 sticky top-16 z-30">
+                <div class="max-w-7xl mx-auto px-4 py-3">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- 奖项选择 -->
+                        <select class="h-10 px-4 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer">
+                            <option>全部奖项</option>
+                            <option>普利策奖</option>
+                            <option>布克奖</option>
+                            <option>诺贝尔文学奖</option>
+                            <option>雨果奖</option>
+                            <option>美国国家图书奖</option>
+                        </select>
+                        
+                        <!-- 年份选择 -->
+                        <select class="h-10 px-4 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer">
+                            <option>全部年份</option>
+                            <option>2026年</option>
+                            <option>2025年</option>
+                            <option>2024年</option>
+                            <option>2023年</option>
+                        </select>
+                        
+                        <!-- 类别选择 -->
+                        <select class="h-10 px-4 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer">
+                            <option>全部类别</option>
+                            <option>小说</option>
+                            <option>非虚构</option>
+                            <option>诗歌</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 奖项卡片网格 -->
+            <div class="max-w-7xl mx-auto px-4 py-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <!-- 普利策奖 -->
+                    <a href="#" class="book-card bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border dark:border-gray-800 hover:shadow-xl transition-all group">
+                        <div class="flex items-start gap-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0">
+                                <i class="fa fa-trophy"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-primary dark:text-white text-lg mb-1 group-hover:text-accent transition-colors">普利策奖</h3>
+                                <p class="text-secondary dark:text-gray-400 text-sm mb-3 line-clamp-2">美国新闻界最高荣誉，涵盖新闻、文学、音乐等领域</p>
+                                <div class="flex items-center gap-3 text-xs text-gray-400">
+                                    <span class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">美国</span>
+                                    <span>54本图书</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <!-- 布克奖 -->
+                    <a href="#" class="book-card bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border dark:border-gray-800 hover:shadow-xl transition-all group">
+                        <div class="flex items-start gap-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0">
+                                <i class="fa fa-award"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-primary dark:text-white text-lg mb-1 group-hover:text-accent transition-colors">布克奖</h3>
+                                <p class="text-secondary dark:text-gray-400 text-sm mb-3 line-clamp-2">英国最具影响力的文学奖项，奖励年度最佳英文小说</p>
+                                <div class="flex items-center gap-3 text-xs text-gray-400">
+                                    <span class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">英国</span>
+                                    <span>18本图书</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <!-- 诺贝尔文学奖 -->
+                    <a href="#" class="book-card bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border dark:border-gray-800 hover:shadow-xl transition-all group">
+                        <div class="flex items-start gap-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0">
+                                <i class="fa fa-star"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-primary dark:text-white text-lg mb-1 group-hover:text-accent transition-colors">诺贝尔文学奖</h3>
+                                <p class="text-secondary dark:text-gray-400 text-sm mb-3 line-clamp-2">世界最高文学荣誉，表彰具有理想主义倾向的杰出文学作品</p>
+                                <div class="flex items-center gap-3 text-xs text-gray-400">
+                                    <span class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">瑞典</span>
+                                    <span>3本图书</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <!-- 雨果奖 -->
+                    <a href="#" class="book-card bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border dark:border-gray-800 hover:shadow-xl transition-all group">
+                        <div class="flex items-start gap-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0">
+                                <i class="fa fa-rocket"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-primary dark:text-white text-lg mb-1 group-hover:text-accent transition-colors">雨果奖</h3>
+                                <p class="text-secondary dark:text-gray-400 text-sm mb-3 line-clamp-2">科幻文学最高奖项，由世界科幻协会颁发</p>
+                                <div class="flex items-center gap-3 text-xs text-gray-400">
+                                    <span class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">美国</span>
+                                    <span>45本图书</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <!-- 美国国家图书奖 -->
+                    <a href="#" class="book-card bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border dark:border-gray-800 hover:shadow-xl transition-all group">
+                        <div class="flex items-start gap-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-red-400 to-rose-500 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0">
+                                <i class="fa fa-bookmark"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-primary dark:text-white text-lg mb-1 group-hover:text-accent transition-colors">美国国家图书奖</h3>
+                                <p class="text-secondary dark:text-gray-400 text-sm mb-3 line-clamp-2">美国最重要的文学奖项之一，表彰美国作家杰出作品</p>
+                                <div class="flex items-center gap-3 text-xs text-gray-400">
+                                    <span class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">美国</span>
+                                    <span>60本图书</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                
+                <!-- 获奖图书展示 -->
+                <h2 class="text-xl font-bold text-primary dark:text-white mb-4 flex items-center gap-2">
+                    <i class="fa fa-book text-accent"></i>
+                    获奖图书
+                </h2>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <!-- 获奖图书卡片 -->
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(0)">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-yellow-100 to-orange-200 dark:from-yellow-900 dark:to-orange-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-yellow-500 dark:text-yellow-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-yellow-500 text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1">
+                                <i class="fa fa-trophy text-xs"></i>
+                                普利策奖
+                            </div>
+                            <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                                2025
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <span class="text-xs text-accent font-medium">小说类</span>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mt-1 mb-1 line-clamp-2">
+                                DEMON COPPERHEAD
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Barbara Kingsolver</p>
+                        </div>
+                    </article>
+                    
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(1)">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-200 dark:from-blue-900 dark:to-indigo-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-blue-500 dark:text-blue-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-blue-500 text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1">
+                                <i class="fa fa-award text-xs"></i>
+                                布克奖
+                            </div>
+                            <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                                2025
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <span class="text-xs text-accent font-medium">小说类</span>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mt-1 mb-1 line-clamp-2">
+                                THE PROMISED LAND
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Paul Lynch</p>
+                        </div>
+                    </article>
+                    
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(2)">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-purple-100 to-pink-200 dark:from-purple-900 dark:to-pink-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-purple-500 dark:text-purple-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-purple-500 text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1">
+                                <i class="fa fa-star text-xs"></i>
+                                诺贝尔文学奖
+                            </div>
+                            <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                                2025
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <span class="text-xs text-accent font-medium">文学类</span>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mt-1 mb-1 line-clamp-2">
+                                THE POETRY OF SILENCE
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Jon Fosse</p>
+                        </div>
+                    </article>
+                    
+                    <article class="book-card bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-border dark:border-gray-800 cursor-pointer" onclick="openBookModal(3)">
+                        <div class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div class="w-full h-full bg-gradient-to-br from-cyan-100 to-blue-200 dark:from-cyan-900 dark:to-blue-800 flex items-center justify-center">
+                                <i class="fa fa-book text-4xl text-cyan-500 dark:text-cyan-600"></i>
+                            </div>
+                            <div class="absolute top-3 left-3 bg-cyan-500 text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1">
+                                <i class="fa fa-rocket text-xs"></i>
+                                雨果奖
+                            </div>
+                            <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                                2025
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <span class="text-xs text-accent font-medium">科幻类</span>
+                            <h3 class="font-semibold text-primary dark:text-white text-base leading-tight mt-1 mb-1 line-clamp-2">
+                                STATION ETERNITY
+                            </h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">Megan Mackie</p>
+                        </div>
+                    </article>
+                </div>
+            </div>
+            
+            <!-- 快速链接到畅销榜 -->
+            <div class="max-w-7xl mx-auto px-4 pb-8">
+                <a href="#" onclick="showPage('home')" class="block bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border dark:border-gray-800 hover:shadow-lg transition-shadow group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center text-white text-2xl">
+                            <i class="fa fa-fire"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-semibold text-primary dark:text-white text-lg">查看纽约时报畅销书榜</h3>
+                            <p class="text-secondary dark:text-gray-400 text-sm">实时更新的畅销图书排行榜</p>
+                        </div>
+                        <i class="fa fa-arrow-right text-gray-400 group-hover:text-accent group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                </a>
+            </div>
+        </div>
+        
+    </main>
+    
+    <!-- ========== 图书详情模态框 ========== -->
+    <div id="bookModal" class="modal-overlay fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" onclick="closeBookModal(event)">
+        <div class="modal-content bg-white dark:bg-gray-900 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+            <!-- 关闭按钮 -->
+            <button onclick="closeBookModal()" class="absolute top-4 right-4 w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors z-10">
+                <i class="fa fa-times"></i>
+            </button>
+            
+            <div class="flex flex-col md:flex-row h-full">
+                <!-- 左侧封面区 -->
+                <div class="md:w-2/5 p-6 bg-gray-50 dark:bg-gray-800 flex flex-col items-center justify-center">
+                    <div class="relative">
+                        <img id="modalCover" 
+                             src="https://covers.openlibrary.org/b/isbn/9780593491227-L.jpg" 
+                             alt="图书封面" 
+                             class="w-48 md:w-56 rounded-xl shadow-2xl"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22><rect fill=%22%23e5e5e5%22 width=%22300%22 height=%22400%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2216%22>No Cover</text></svg>'">
+                        <div class="absolute -top-3 -left-3 badge-gold w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                            1
+                        </div>
+                    </div>
+                    
+                    <!-- 购买链接 -->
+                    <div class="mt-6 w-full">
+                        <h4 class="text-sm font-semibold text-primary dark:text-white mb-3">购买链接</h4>
+                        <div class="flex flex-wrap gap-2">
+                            <a href="#" class="flex-1 min-w-[100px] h-10 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+                                <i class="fa fa-amazon"></i>
+                                Amazon
+                            </a>
+                            <a href="#" class="flex-1 min-w-[100px] h-10 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+                                <i class="fa fa-book"></i>
+                                Google Books
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧信息区 -->
+                <div class="md:w-3/5 p-6 overflow-y-auto">
+                    <!-- 标题区 -->
+                    <div class="mb-6">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-accent font-semibold text-sm">NO.1</span>
+                            <span class="bg-accent/10 text-accent text-xs px-2 py-0.5 rounded-full">精装小说</span>
+                        </div>
+                        <h2 id="modalTitle" class="text-2xl font-bold text-primary dark:text-white mb-2">THE HOUSEMAID</h2>
+                        <p id="modalAuthor" class="text-secondary dark:text-gray-400">Freida McFadden</p>
+                    </div>
+                    
+                    <!-- 元信息 -->
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                            <span class="text-xs text-gray-400 block mb-1">出版社</span>
+                            <span id="modalPublisher" class="text-sm font-medium text-primary dark:text-white">Podium Publishing</span>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                            <span class="text-xs text-gray-400 block mb-1">出版日期</span>
+                            <span id="modalDate" class="text-sm font-medium text-primary dark:text-white">2022-04-26</span>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                            <span class="text-xs text-gray-400 block mb-1">页数</span>
+                            <span id="modalPages" class="text-sm font-medium text-primary dark:text-white">336</span>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                            <span class="text-xs text-gray-400 block mb-1">语言</span>
+                            <span id="modalLanguage" class="text-sm font-medium text-primary dark:text-white">English</span>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                            <span class="text-xs text-gray-400 block mb-1">上榜周数</span>
+                            <span id="modalWeeks" class="text-sm font-medium text-primary dark:text-white">12周</span>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                            <span class="text-xs text-gray-400 block mb-1">ISBN-13</span>
+                            <span id="modalISBN" class="text-sm font-medium text-primary dark:text-white">978-0593491227</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 标签页 -->
+                    <div class="border-b border-border dark:border-gray-700 mb-4">
+                        <nav class="flex gap-4">
+                            <button onclick="switchTab('description')" class="tab-btn py-2 text-sm font-medium text-accent border-b-2 border-accent" data-tab="description">
+                                图书简介
+                            </button>
+                            <button onclick="switchTab('reviews')" class="tab-btn py-2 text-sm font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" data-tab="reviews">
+                                读者评论
+                            </button>
+                        </nav>
+                    </div>
+                    
+                    <!-- 标签页内容 -->
+                    <div id="tabDescription" class="tab-content">
+                        <p id="modalDescription" class="text-secondary dark:text-gray-400 text-sm leading-relaxed">
+                            A twisted psychological thriller about a woman who takes a job as a housemaid for a wealthy couple, discovering dark secrets lurking beneath their perfect facade. As she navigates the complexities of her new position, she finds herself entangled in a dangerous web of lies, manipulation, and hidden motives. The story unfolds with unexpected twists that will keep readers guessing until the very end.
+                        </p>
+                    </div>
+                    <div id="tabReviews" class="tab-content hidden">
+                        <p class="text-secondary dark:text-gray-400 text-sm leading-relaxed">
+                            "An absolutely gripping read! I couldn't put it down." - The New York Times<br><br>
+                            "McFadden has crafted a masterpiece of suspense." - Publishers Weekly<br><br>
+                            "Twists and turns that will leave you breathless." - Booklist
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ========== 页脚 ========== -->
+    <footer class="bg-white dark:bg-gray-900 border-t border-border dark:border-gray-800 py-8 mt-auto">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-primary dark:bg-white rounded-lg flex items-center justify-center">
+                        <i class="fa fa-book text-white dark:text-primary text-sm"></i>
+                    </div>
+                    <span class="font-semibold text-primary dark:text-white">BookRank</span>
+                </div>
+                <p class="text-secondary dark:text-gray-400 text-sm text-center">
+                    数据来源: 纽约时报畅销书排行榜 | 国际图书奖项数据库
+                </p>
+                <p class="text-gray-400 text-sm">
+                    &copy; 2026 BookRank. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- ========== 加载状态 ========== -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white/90 dark:bg-gray-900/90 z-[100] flex items-center justify-center hidden">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-gray-200 dark:border-gray-700 border-t-accent rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="text-secondary dark:text-gray-400">加载中...</p>
+        </div>
+    </div>
+    
+    <!-- ========== Toast 通知 ========== -->
+    <div id="toastContainer" class="fixed top-20 right-4 z-[200] flex flex-col gap-2"></div>
+    
+    <!-- ========== JavaScript ========== -->
+    <script>
+        // ========== 暗黑模式 ==========
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
+        }
+        
+        // 初始化暗黑模式
+        if (localStorage.getItem('darkMode') === 'true' || 
+            (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        // ========== 移动端菜单 ==========
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            menu.classList.toggle('hidden');
+        }
+        
+        // ========== 页面切换 ==========
+        function showPage(page) {
+            // 隐藏所有页面
+            document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
+            // 显示目标页面
+            document.getElementById('page-' + page).classList.remove('hidden');
+            // 更新导航状态
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('text-primary', 'dark:text-white', 'bg-gray-100', 'dark:bg-gray-800');
+                if (link.dataset.page === page) {
+                    link.classList.add('text-primary', 'dark:text-white', 'bg-gray-100', 'dark:bg-gray-800');
+                }
+            });
+            // 滚动到顶部
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // ========== 视图切换 ==========
+        function setView(view) {
+            const gridView = document.getElementById('booksGridView');
+            const listView = document.getElementById('booksListView');
+            
+            if (view === 'grid') {
+                gridView.classList.remove('hidden');
+                listView.classList.add('hidden');
+            } else {
+                gridView.classList.add('hidden');
+                listView.classList.remove('hidden');
+            }
+            
+            // 更新按钮状态
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'dark:bg-gray-700', 'text-primary', 'dark:text-white');
+                if (btn.dataset.view === view) {
+                    btn.classList.add('bg-white', 'dark:bg-gray-700', 'text-primary', 'dark:text-white');
+                }
+            });
+        }
+        
+        // ========== 搜索处理 ==========
+        function handleSearch(event) {
+            if (event.key === 'Enter') {
+                const query = event.target.value.trim();
+                if (query) {
+                    showToast('搜索: ' + query, 'info');
+                    // 实际项目中这里会发起搜索请求
+                }
+            }
+        }
+        
+        // ========== 图书详情模态框 ==========
+        function openBookModal(bookIndex) {
+            const modal = document.getElementById('bookModal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeBookModal(event) {
+            if (!event || event.target.id === 'bookModal') {
+                const modal = document.getElementById('bookModal');
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        }
+        
+        // ESC 关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeBookModal();
+            }
+        });
+        
+        // ========== 标签页切换 ==========
+        function switchTab(tabName) {
+            // 更新按钮状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('text-accent', 'border-b-2', 'border-accent');
+                btn.classList.add('text-gray-400');
+                if (btn.dataset.tab === tabName) {
+                    btn.classList.add('text-accent', 'border-b-2', 'border-accent');
+                    btn.classList.remove('text-gray-400');
+                }
+            });
+            
+            // 更新内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
+        }
+        
+        // ========== Toast 通知 ==========
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-accent'
+            };
+            
+            toast.className = `${colors[type]} text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 transform translate-x-full opacity-0 transition-all duration-300`;
+            toast.innerHTML = `
+                <i class="fa fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : type === 'warning' ? 'exclamation' : 'info'}-circle"></i>
+                <span class="text-sm font-medium">${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            // 动画显示
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            }, 10);
+            
+            // 自动消失
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // ========== 加载状态 ==========
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+        
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+        
+        // ========== 初始化 ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置默认视图
+            setView('grid');
+            
+            // 设置默认页面
+            showPage('home');
+            
+            // 触发卡片动画
+            document.querySelectorAll('.card-animate').forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.05}s`;
+            });
+        });
+    </script>
+</body>
+</html>
