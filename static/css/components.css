@@ -603,7 +603,7 @@
     backdrop-filter: blur(4px);
     z-index: 1000;
     padding: var(--spacing-lg);
-    overflow-y: auto;
+    overflow: hidden;
     align-items: center;
     justify-content: center;
 }

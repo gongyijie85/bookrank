@@ -434,7 +434,7 @@
 }
 
 .card:hover {
-    animation: cardHoverLift 0.3s ease forwards;
+    transform: translateY(-4px);
     will-change: transform;
 }
 
