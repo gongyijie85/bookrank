@@ -1,13 +1,12 @@
 """
 Gunicorn 配置文件
-用于生产环境部署
+用于生产环境部署（Render/ Railway/ Heroku）
 """
 
 import os
-import multiprocessing
 
-# 服务器绑定
-bind = "0.0.0.0:" + os.environ.get("PORT", "8000")
+# 服务器绑定 - Render 使用 PORT 环境变量，默认为 10000
+bind = "0.0.0.0:" + os.environ.get("PORT", "10000")
 
 # 工作进程数
 # 使用 2-4 个 workers（免费套餐通常有内存限制）

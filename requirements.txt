@@ -3,6 +3,7 @@ Flask-SQLAlchemy==3.0.5
 Flask-Migrate==4.0.4
 Flask-CORS==4.0.0
 Flask-Caching==2.0.2
+Flask-Talisman==1.0.0
 python-dotenv==1.0.0
 requests==2.31.0
 gunicorn==21.2.0
