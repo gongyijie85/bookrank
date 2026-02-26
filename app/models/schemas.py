@@ -306,7 +306,10 @@ class APICache(db.Model):
         """检查缓存是否过期"""
         if self.expires_at is None:
             return False
-        return datetime.now(timezone.utc) > self.expires_at
+        now = datetime.now(timezone.utc)
+        if self.expires_at.tzinfo is None:
+            return now.replace(tzinfo=None) > self.expires_at
+        return now > self.expires_at
     
     def to_dict(self) -> dict:
         return {

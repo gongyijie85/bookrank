@@ -1,5 +1,4 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from ..models.schemas import Book, BookMetadata, db
@@ -96,29 +95,24 @@ class BookService:
         
         isbns = [b.get('primary_isbn13') or b.get('primary_isbn10', '') for b in raw_books]
         translations = self._batch_get_translations(isbns)
+        supplements = self._batch_get_supplements(isbns)
         
         processed_books = []
-        with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-            future_to_book = {
-                executor.submit(
-                    self._process_single_book,
+        for book_data in raw_books:
+            try:
+                book = self._process_single_book(
                     book_data,
                     category_id,
                     category_name,
                     list_name,
                     published_date,
-                    translations
-                ): book_data
-                for book_data in raw_books
-            }
-            
-            for future in future_to_book:
-                try:
-                    book = future.result()
-                    if book:
-                        processed_books.append(book)
-                except Exception as e:
-                    logger.error(f"Error processing book: {e}")
+                    translations,
+                    supplements
+                )
+                if book:
+                    processed_books.append(book)
+            except Exception as e:
+                logger.error(f"Error processing book: {e}")
         
         processed_books.sort(key=lambda x: x.rank)
         return processed_books
@@ -126,22 +120,33 @@ class BookService:
     def _batch_get_translations(self, isbns: list[str]) -> dict[str, dict]:
         """批量获取翻译数据，避免在子线程中访问数据库"""
         translations = {}
+        if not isbns:
+            return translations
         try:
-            from flask import current_app
-            app = current_app._get_current_object()
-            with app.app_context():
-                from ..models.schemas import BookMetadata
-                records = BookMetadata.query.filter(
-                    BookMetadata.isbn.in_(isbns)
-                ).all()
-                for r in records:
-                    translations[r.isbn] = {
-                        'description_zh': r.description_zh,
-                        'details_zh': r.details_zh
-                    }
+            from ..models.schemas import BookMetadata
+            records = BookMetadata.query.filter(
+                BookMetadata.isbn.in_(isbns)
+            ).all()
+            for r in records:
+                translations[r.isbn] = {
+                    'description_zh': r.description_zh,
+                    'details_zh': r.details_zh
+                }
         except Exception as e:
             logger.debug(f"批量获取翻译失败: {e}")
         return translations
+    
+    def _batch_get_supplements(self, isbns: list[str]) -> dict[str, dict]:
+        """批量获取Google Books补充信息"""
+        supplements = {}
+        for isbn in isbns:
+            if isbn:
+                try:
+                    supplements[isbn] = self._google_client.fetch_book_details(isbn)
+                except Exception as e:
+                    logger.debug(f"获取补充信息失败 {isbn}: {e}")
+                    supplements[isbn] = {}
+        return supplements
     
     def _process_single_book(
         self,
@@ -150,7 +155,8 @@ class BookService:
         category_name: str,
         list_name: str,
         published_date: str,
-        translations: dict[str, dict]
+        translations: dict[str, dict],
+        supplements: dict[str, dict]
     ) -> Book | None:
         """
         处理单本图书数据
@@ -161,13 +167,15 @@ class BookService:
             category_name: 分类名称
             list_name: 榜单名称
             published_date: 发布日期
+            translations: 翻译数据字典
+            supplements: 补充信息字典
             
         Returns:
             处理后的Book对象
         """
         isbn = book_data.get('primary_isbn13') or book_data.get('primary_isbn10', '')
         
-        supplement = self._get_book_supplement(isbn, book_data)
+        supplement = supplements.get(isbn, {})
         
         book = Book.from_api_response(
             book_data=book_data,
