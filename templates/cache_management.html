@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+
+{% block title %}缓存管理 - BookRank{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cache-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: var(--card-bg, #fff);
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+    }
+    
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color, #3498db);
+    }
+    
+    .stat-card .stat-label {
+        font-size: 0.875rem;
+        color: var(--text-muted, #666);
+        margin-top: 0.5rem;
+    }
+    
+    .cache-list {
+        background: var(--card-bg, #fff);
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+    
+    .cache-item {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+        display: grid;
+        grid-template-columns: 1fr 1fr 100px 80px;
+        gap: 1rem;
+        align-items: center;
+    }
+    
+    .cache-item:last-child {
+        border-bottom: none;
+    }
+    
+    .cache-text {
+        font-size: 0.875rem;
+        max-height: 60px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .cache-text.source {
+        color: var(--text-primary, #333);
+    }
+    
+    .cache-text.translated {
+        color: var(--primary-color, #3498db);
+    }
+    
+    .cache-lang {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background: var(--bg-secondary, #f5f5f5);
+        border-radius: 4px;
+        font-size: 0.75rem;
+        color: var(--text-muted, #666);
+    }
+    
+    .cache-usage {
+        font-size: 0.875rem;
+        color: var(--text-muted, #666);
+        text-align: center;
+    }
+    
+    .clear-form {
+        background: var(--card-bg, #fff);
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .clear-form h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .clear-form .form-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+    
+    .clear-form .form-group {
+        flex: 1;
+        min-width: 150px;
+    }
+    
+    .clear-form label {
+        display: block;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-muted, #666);
+    }
+    
+    .clear-form input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 4px;
+    }
+    
+    .tabs {
+        display: flex;
+        border-bottom: 2px solid var(--border-color, #e0e0e0);
+        margin-bottom: 1.5rem;
+    }
+    
+    .tab-btn {
+        padding: 0.75rem 1.5rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+        color: var(--text-muted, #666);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+    }
+    
+    .tab-btn.active {
+        color: var(--primary-color, #3498db);
+        border-bottom-color: var(--primary-color, #3498db);
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    .api-source-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .api-source-badge.nyt {
+        background: #f5f5dc;
+        color: #8b4513;
+    }
+    
+    .api-source-badge.google_books {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    
+    .api-source-badge.open_library {
+        background: #fce4ec;
+        color: #c2185b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fa-solid fa-database" aria-hidden="true"></i> 缓存管理</h1>
+    <p class="page-description">统一管理翻译缓存和API缓存，提高系统性能</p>
+</div>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('translation')">
+        <i class="fa-solid fa-language" aria-hidden="true"></i> 翻译缓存
+    </button>
+    <button class="tab-btn" onclick="switchTab('api')">
+        <i class="fa-solid fa-cloud" aria-hidden="true"></i> API缓存
+    </button>
+</div>
+
+<div id="translation-tab" class="tab-content active">
+    <div class="cache-stats">
+        <div class="stat-card">
+            <div class="stat-value" id="trans-total-count">-</div>
+            <div class="stat-label">总缓存数</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="trans-en-zh-count">-</div>
+            <div class="stat-label">英译中</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="trans-zh-en-count">-</div>
+            <div class="stat-label">中译英</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="trans-recent-count">-</div>
+            <div class="stat-label">24小时内新增</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="trans-usage-count">-</div>
+            <div class="stat-label">总调用次数</div>
+        </div>
+    </div>
+
+    <div class="section-header">
+        <h2><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> 最近翻译记录</h2>
+        <button class="btn btn-outline" onclick="loadTranslationRecords()">
+            <i class="fa-solid fa-refresh" aria-hidden="true"></i> 刷新
+        </button>
+    </div>
+
+    <div class="cache-list" id="translation-list">
+        <div class="loading-state">
+            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            <p>加载中...</p>
+        </div>
+    </div>
+
+    <div class="clear-form">
+        <h3><i class="fa-solid fa-trash" aria-hidden="true"></i> 清理翻译缓存</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="trans-older-than">清理N天前的记录</label>
+                <input type="number" id="trans-older-than" min="1" max="365" placeholder="天数">
+            </div>
+            <div class="form-group">
+                <label for="trans-min-usage">使用次数少于</label>
+                <input type="number" id="trans-min-usage" min="0" max="1000" placeholder="次数">
+            </div>
+            <div class="form-group">
+                <button class="btn btn-warning" onclick="clearTranslationCache()">
+                    <i class="fa-solid fa-trash" aria-hidden="true"></i> 清理
+                </button>
+                <button class="btn btn-danger" onclick="clearAllTranslationCache()">
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i> 清空全部
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="api-tab" class="tab-content">
+    <div class="cache-stats">
+        <div class="stat-card">
+            <div class="stat-value" id="api-total-count">-</div>
+            <div class="stat-label">总缓存数</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="api-expired-count">-</div>
+            <div class="stat-label">已过期</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="api-usage-count">-</div>
+            <div class="stat-label">总调用次数</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="api-nyt-count">-</div>
+            <div class="stat-label">NYT</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="api-gb-count">-</div>
+            <div class="stat-label">Google Books</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="api-ol-count">-</div>
+            <div class="stat-label">Open Library</div>
+        </div>
+    </div>
+
+    <div class="section-header">
+        <h2><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> 最近API调用记录</h2>
+        <button class="btn btn-outline" onclick="loadAPIRecords()">
+            <i class="fa-solid fa-refresh" aria-hidden="true"></i> 刷新
+        </button>
+    </div>
+
+    <div class="cache-list" id="api-list">
+        <div class="loading-state">
+            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            <p>加载中...</p>
+        </div>
+    </div>
+
+    <div class="clear-form">
+        <h3><i class="fa-solid fa-trash" aria-hidden="true"></i> 清理API缓存</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="api-older-than">清理N天前的记录</label>
+                <input type="number" id="api-older-than" min="1" max="365" placeholder="天数">
+            </div>
+            <div class="form-group">
+                <button class="btn btn-warning" onclick="clearAPICache()">
+                    <i class="fa-solid fa-trash" aria-hidden="true"></i> 清理
+                </button>
+                <button class="btn btn-danger" onclick="clearExpiredCache()">
+                    <i class="fa-solid fa-clock" aria-hidden="true"></i> 清理过期
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (tab === 'translation') {
+        document.querySelector('.tab-btn:first-child').classList.add('active');
+        document.getElementById('translation-tab').classList.add('active');
+    } else {
+        document.querySelector('.tab-btn:last-child').classList.add('active');
+        document.getElementById('api-tab').classList.add('active');
+    }
+}
+
+async function loadTranslationStats() {
+    try {
+        const response = await fetch('/api/translate/cache/stats');
+        const result = await response.json();
+        
+        if (result.success && result.data.cache) {
+            const cache = result.data.cache;
+            document.getElementById('trans-total-count').textContent = cache.total_count || 0;
+            document.getElementById('trans-en-zh-count').textContent = cache.en_to_zh_count || 0;
+            document.getElementById('trans-zh-en-count').textContent = cache.zh_to_en_count || 0;
+            document.getElementById('trans-recent-count').textContent = cache.recent_24h_count || 0;
+            document.getElementById('trans-usage-count').textContent = cache.total_usage_count || 0;
+        }
+    } catch (error) {
+        console.error('加载翻译缓存统计失败:', error);
+    }
+}
+
+async function loadTranslationRecords() {
+    const listEl = document.getElementById('translation-list');
+    listEl.innerHTML = '<div class="loading-state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><p>加载中...</p></div>';
+    
+    try {
+        const response = await fetch('/api/translate/cache/recent?limit=30');
+        const result = await response.json();
+        
+        if (result.success && result.data.records && result.data.records.length > 0) {
+            let html = '';
+            result.data.records.forEach(record => {
+                html += `
+                    <div class="cache-item">
+                        <div class="cache-text source">${escapeHtml(record.source_text)}</div>
+                        <div class="cache-text translated">${escapeHtml(record.translated_text)}</div>
+                        <div>
+                            <span class="cache-lang">${record.source_lang} → ${record.target_lang}</span>
+                        </div>
+                        <div class="cache-usage">${record.usage_count}次</div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        } else {
+            listEl.innerHTML = '<div class="empty-state"><p>暂无翻译缓存记录</p></div>';
+        }
+    } catch (error) {
+        console.error('加载翻译缓存记录失败:', error);
+        listEl.innerHTML = '<div class="error-state"><p>加载失败，请稍后重试</p></div>';
+    }
+}
+
+async function clearTranslationCache() {
+    const olderThan = document.getElementById('trans-older-than').value;
+    const minUsage = document.getElementById('trans-min-usage').value;
+    
+    const body = {};
+    if (olderThan) body.older_than_days = parseInt(olderThan);
+    if (minUsage) body.min_usage = parseInt(minUsage);
+    
+    if (Object.keys(body).length === 0) {
+        showToast('请选择清理条件', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/translate/cache/clear', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            loadTranslationStats();
+            loadTranslationRecords();
+        } else {
+            showToast(result.message || '清理失败', 'error');
+        }
+    } catch (error) {
+        console.error('清理翻译缓存失败:', error);
+        showToast('清理失败，请稍后重试', 'error');
+    }
+}
+
+async function clearAllTranslationCache() {
+    if (!confirm('确定要清空所有翻译缓存吗？此操作不可恢复！')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/translate/cache/clear', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            loadTranslationStats();
+            loadTranslationRecords();
+        } else {
+            showToast(result.message || '清空失败', 'error');
+        }
+    } catch (error) {
+        console.error('清空翻译缓存失败:', error);
+        showToast('清空失败，请稍后重试', 'error');
+    }
+}
+
+async function loadAPIStats() {
+    try {
+        const response = await fetch('/api/cache/stats');
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const cache = result.data;
+            document.getElementById('api-total-count').textContent = cache.total_count || 0;
+            document.getElementById('api-expired-count').textContent = cache.expired_count || 0;
+            document.getElementById('api-usage-count').textContent = cache.total_usage_count || 0;
+            document.getElementById('api-nyt-count').textContent = cache.nyt_count || 0;
+            document.getElementById('api-gb-count').textContent = cache.google_books_count || 0;
+            document.getElementById('api-ol-count').textContent = cache.open_library_count || 0;
+        }
+    } catch (error) {
+        console.error('加载API缓存统计失败:', error);
+    }
+}
+
+async function loadAPIRecords() {
+    const listEl = document.getElementById('api-list');
+    listEl.innerHTML = '<div class="loading-state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><p>加载中...</p></div>';
+    
+    try {
+        const response = await fetch('/api/cache/recent?limit=30');
+        const result = await response.json();
+        
+        if (result.success && result.data.records && result.data.records.length > 0) {
+            let html = '';
+            result.data.records.forEach(record => {
+                const badgeClass = record.api_source.replace('_', '-');
+                html += `
+                    <div class="cache-item">
+                        <div class="cache-text source">${escapeHtml(record.request_key)}</div>
+                        <div class="cache-text translated">状态: ${record.status_code}</div>
+                        <div>
+                            <span class="api-source-badge ${badgeClass}">${record.api_source}</span>
+                        </div>
+                        <div class="cache-usage">${record.usage_count}次</div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        } else {
+            listEl.innerHTML = '<div class="empty-state"><p>暂无API缓存记录</p></div>';
+        }
+    } catch (error) {
+        console.error('加载API缓存记录失败:', error);
+        listEl.innerHTML = '<div class="error-state"><p>加载失败，请稍后重试</p></div>';
+    }
+}
+
+async function clearAPICache() {
+    const olderThan = document.getElementById('api-older-than').value;
+    
+    const body = {};
+    if (olderThan) body.older_than_days = parseInt(olderThan);
+    
+    if (!olderThan) {
+        showToast('请输入要清理的天数', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/cache/clear', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            loadAPIStats();
+            loadAPIRecords();
+        } else {
+            showToast(result.message || '清理失败', 'error');
+        }
+    } catch (error) {
+        console.error('清理API缓存失败:', error);
+        showToast('清理失败，请稍后重试', 'error');
+    }
+}
+
+async function clearExpiredCache() {
+    try {
+        const response = await fetch('/api/cache/clear-expired', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            loadAPIStats();
+            loadAPIRecords();
+        } else {
+            showToast(result.message || '清理失败', 'error');
+        }
+    } catch (error) {
+        console.error('清理过期缓存失败:', error);
+        showToast('清理失败，请稍后重试', 'error');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<span>${message}</span>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadTranslationStats();
+    loadTranslationRecords();
+    loadAPIStats();
+    loadAPIRecords();
+});
+</script>
+{% endblock %}

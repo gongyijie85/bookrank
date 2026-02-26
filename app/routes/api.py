@@ -31,6 +31,33 @@ def get_session_id() -> str:
     return session['session_id']
 
 
+def get_csrf_token() -> str:
+    """获取或生成CSRF令牌"""
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+
+def validate_csrf_token() -> bool:
+    """验证CSRF令牌"""
+    token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
+    if not token:
+        return False
+    return secrets.compare_digest(token, session.get('csrf_token', ''))
+
+
+def csrf_protect(f):
+    """CSRF保护装饰器"""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
+            if not validate_csrf_token():
+                logger.warning(f"CSRF验证失败: {request.remote_addr}")
+                return APIResponse.error('CSRF token invalid', 403)
+        return f(*args, **kwargs)
+    return wrapped
+
+
 def validate_category(category: str) -> bool:
     """验证分类ID是否有效"""
     categories = current_app.config.get('CATEGORIES', {})
@@ -116,11 +143,19 @@ def api_rate_limit(max_requests: int = 60, window: int = 60):
 
 @api_bp.route('/health')
 def health_check():
-    """健康检查端点"""
+    """健康检查端点 - 不暴露版本信息"""
     return APIResponse.success(data={
         'status': 'healthy',
-        'service': 'book-rank-api',
-        'version': '2.0.0'
+        'service': 'book-rank-api'
+    })
+
+
+@api_bp.route('/csrf-token')
+def get_csrf_token_endpoint():
+    """获取CSRF令牌端点"""
+    token = get_csrf_token()
+    return APIResponse.success(data={
+        'csrf_token': token
     })
 
 
@@ -497,6 +532,7 @@ def internal_error(error):
 # ==================== 翻译相关API ====================
 
 @api_bp.route('/translate', methods=['POST'])
+@csrf_protect
 def translate_text():
     """
     翻译文本
@@ -540,6 +576,7 @@ def translate_text():
 
 
 @api_bp.route('/translate/book/<isbn>', methods=['POST'])
+@csrf_protect
 def translate_book(isbn: str):
     """
     翻译图书信息
@@ -577,18 +614,21 @@ def translate_book(isbn: str):
 
 @api_bp.route('/translate/cache/stats')
 def get_translation_cache_stats():
-    """获取翻译服务状态"""
+    """获取翻译缓存统计信息"""
     try:
         from ..services.zhipu_translation_service import get_translation_service
         
         service = get_translation_service()
         zhipu_available = service.zhipu.is_available()
         
+        cache_stats = service.get_cache_stats()
+        
         return APIResponse.success(data={
             'service': 'ZhipuAI GLM-4-Flash',
             'status': 'online' if zhipu_available else 'offline',
             'model': 'glm-4-flash',
-            'description': '使用智谱AI免费模型进行高质量翻译'
+            'description': '使用智谱AI免费模型进行高质量翻译',
+            'cache': cache_stats
         })
         
     except Exception as e:
@@ -600,10 +640,173 @@ def get_translation_cache_stats():
         })
 
 
+@api_bp.route('/translate/cache/recent')
+def get_translation_cache_recent():
+    """获取最近的翻译缓存记录"""
+    try:
+        from ..services.translation_cache_service import get_translation_cache_service
+        
+        limit = request.args.get('limit', 20, type=int)
+        limit = min(max(1, limit), 100)
+        
+        source_lang = request.args.get('source_lang')
+        target_lang = request.args.get('target_lang')
+        
+        cache_service = get_translation_cache_service()
+        recent = cache_service.get_recent(limit, source_lang, target_lang)
+        
+        return APIResponse.success(data={
+            'records': [
+                {
+                    'id': r.id,
+                    'source_text': r.source_text[:100] + '...' if len(r.source_text) > 100 else r.source_text,
+                    'translated_text': r.translated_text[:100] + '...' if len(r.translated_text) > 100 else r.translated_text,
+                    'source_lang': r.source_lang,
+                    'target_lang': r.target_lang,
+                    'usage_count': r.usage_count,
+                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'last_used_at': r.last_used_at.isoformat() if r.last_used_at else None
+                }
+                for r in recent
+            ],
+            'count': len(recent)
+        })
+        
+    except Exception as e:
+        logger.error(f"获取缓存记录错误: {e}", exc_info=True)
+        return APIResponse.error('获取缓存记录失败', 500)
+
+
 @api_bp.route('/translate/cache/clear', methods=['POST'])
+@csrf_protect
 def clear_translation_cache():
     """清理翻译缓存"""
-    return APIResponse.success(message='翻译缓存已清理')
+    try:
+        from ..services.translation_cache_service import get_translation_cache_service
+        
+        data = request.get_json() or {}
+        
+        cache_id = data.get('cache_id')
+        older_than_days = data.get('older_than_days')
+        min_usage = data.get('min_usage')
+        
+        cache_service = get_translation_cache_service()
+        
+        if older_than_days or min_usage is not None:
+            deleted = cache_service.delete(older_than_days=older_than_days, min_usage=min_usage)
+            message = f'已清理 {deleted} 条翻译缓存'
+        elif cache_id:
+            deleted = cache_service.delete(cache_id=cache_id)
+            message = f'已删除缓存记录 #{cache_id}'
+        else:
+            deleted = cache_service.clear_all()
+            message = f'已清空所有翻译缓存（{deleted}条）'
+        
+        return APIResponse.success(message=message)
+        
+    except Exception as e:
+        logger.error(f"清理缓存错误: {e}", exc_info=True)
+        return APIResponse.error('清理缓存失败', 500)
+
+
+@api_bp.route('/cache/stats')
+def get_api_cache_stats():
+    """获取API缓存统计信息"""
+    try:
+        from ..services.api_cache_service import get_api_cache_service
+        
+        cache_service = get_api_cache_service()
+        stats = cache_service.get_stats()
+        
+        return APIResponse.success(data=stats)
+        
+    except Exception as e:
+        logger.error(f"获取API缓存统计错误: {e}", exc_info=True)
+        return APIResponse.error('获取统计失败', 500)
+
+
+@api_bp.route('/cache/recent')
+def get_api_cache_recent():
+    """获取最近的API缓存记录"""
+    try:
+        from ..services.api_cache_service import get_api_cache_service
+        
+        limit = request.args.get('limit', 20, type=int)
+        limit = min(max(1, limit), 100)
+        
+        api_source = request.args.get('api_source')
+        
+        cache_service = get_api_cache_service()
+        
+        query = cache_service._query if hasattr(cache_service, '_query') else None
+        
+        from ..models.schemas import APICache
+        query = APICache.query
+        
+        if api_source:
+            query = query.filter_by(api_source=api_source)
+        
+        records = query.order_by(APICache.last_used_at.desc()).limit(limit).all()
+        
+        return APIResponse.success(data={
+            'records': [
+                {
+                    'id': r.id,
+                    'api_source': r.api_source,
+                    'request_key': r.request_key,
+                    'status_code': r.status_code,
+                    'usage_count': r.usage_count,
+                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'expires_at': r.expires_at.isoformat() if r.expires_at else None
+                }
+                for r in records
+            ],
+            'count': len(records)
+        })
+        
+    except Exception as e:
+        logger.error(f"获取API缓存记录错误: {e}", exc_info=True)
+        return APIResponse.error('获取缓存记录失败', 500)
+
+
+@api_bp.route('/cache/clear', methods=['POST'])
+@csrf_protect
+def clear_api_cache():
+    """清理API缓存"""
+    try:
+        from ..services.api_cache_service import get_api_cache_service
+        
+        data = request.get_json() or {}
+        
+        older_than_days = data.get('older_than_days')
+        
+        cache_service = get_api_cache_service()
+        
+        deleted = cache_service.delete(older_than_days=older_than_days)
+        
+        return APIResponse.success(message=f'已清理 {deleted} 条API缓存')
+        
+    except Exception as e:
+        logger.error(f"清理API缓存错误: {e}", exc_info=True)
+        return APIResponse.error('清理缓存失败', 500)
+
+
+@api_bp.route('/cache/clear-expired', methods=['POST'])
+@csrf_protect
+def clear_expired_api_cache():
+    """清理过期API缓存"""
+    try:
+        from ..services.api_cache_service import get_api_cache_service
+        
+        cache_service = get_api_cache_service()
+        
+        deleted = cache_service.clear_expired()
+        
+        return APIResponse.success(message=f'已清理 {deleted} 条过期缓存')
+        
+    except Exception as e:
+        logger.error(f"清理过期缓存错误: {e}", exc_info=True)
+        return APIResponse.error('清理缓存失败', 500)
 
 
 # ==================== 国际图书奖项API ====================

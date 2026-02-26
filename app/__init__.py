@@ -56,13 +56,20 @@ def create_app(config_name='default'):
 
 def _init_extensions(app, config_name: str):
     """初始化Flask扩展"""
-    # CORS 配置优化
+    # CORS 配置 - 根据环境调整
+    if config_name == 'production':
+        cors_origins = app.config.get('CORS_ORIGINS', [])
+        cors_methods = ['GET', 'POST', 'OPTIONS']
+    else:
+        cors_origins = '*'
+        cors_methods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    
     CORS(
         app,
         resources={
             r"/api/*": {
-                "origins": "*",
-                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "origins": cors_origins,
+                "methods": cors_methods,
                 "allow_headers": ["Content-Type", "Authorization"],
                 "max_age": 3600,
             }

@@ -102,6 +102,9 @@ class ProductionConfig(Config):
     # 生产环境强制使用安全会话
     SESSION_COOKIE_SECURE: bool = True
 
+    # CORS 配置 - 生产环境限制允许的来源
+    CORS_ORIGINS: list = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
+
     # 缓存优化
     CACHE_TYPE: str = 'simple'
 

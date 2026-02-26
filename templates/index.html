@@ -725,6 +725,14 @@
         window.location.href = `/api/export/${encodeURIComponent(category)}`;
     }
 
+    // Helper function: Escape HTML to prevent XSS
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // Helper function: Get best description
     function getBestDescription(book) {
         const hasDetails = book.details && book.details.length > 50;
@@ -740,12 +748,12 @@
         return '暂无详细描述';
     }
 
-    // Helper function: Build detail item HTML
+    // Helper function: Build detail item HTML (with XSS protection)
     function buildDetailItem(label, value) {
         return `
             <div class="detail-item">
-                <span class="detail-label">${label}</span>
-                <span class="detail-value">${value || '暂无'}</span>
+                <span class="detail-label">${escapeHtml(label)}</span>
+                <span class="detail-value">${escapeHtml(value) || '暂无'}</span>
             </div>
         `;
     }
@@ -796,11 +804,11 @@
         // Description tab
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
 
-        // Details tab
+        // Details tab (with XSS protection)
         const detailsContent = document.getElementById('modal-details-content');
         detailsContent.innerHTML = `
             <div class="details-section">
-                <p id="modal-detail-description" class="book-full-description">${getBestDescription(book)}</p>
+                <p id="modal-detail-description" class="book-full-description">${escapeHtml(getBestDescription(book))}</p>
                 <p id="modal-detail-loading" class="loading-text" style="display: none; color: #999; font-style: italic;">正在获取详细介绍...</p>
             </div>
         `;

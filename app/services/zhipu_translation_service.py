@@ -3,6 +3,7 @@
 
 使用智谱AI免费模型进行高质量翻译
 支持批量翻译和流式输出
+内置翻译缓存系统避免重复翻译
 """
 
 import logging
@@ -119,7 +120,7 @@ class ZhipuTranslationService:
                        target_lang: str = 'zh', 
                        progress_callback=None) -> List[str]:
         """
-        批量翻译
+        批量翻译，使用缓存避免重复翻译
         
         Args:
             texts: 文本列表
@@ -132,14 +133,31 @@ class ZhipuTranslationService:
         """
         results = []
         total = len(texts)
+        cache_hits = 0
+        
+        cache_service = self._get_cache_service()
         
         for i, text in enumerate(texts):
             if progress_callback:
                 progress_callback(i + 1, total)
             
+            if not text or not text.strip():
+                results.append(text)
+                continue
+            
+            # 检查缓存
+            if cache_service:
+                cached = cache_service.get(text, source_lang, target_lang)
+                if cached:
+                    results.append(cached.translated_text)
+                    cache_hits += 1
+                    continue
+            
+            # 调用翻译
             result = self.translate(text, source_lang, target_lang)
             results.append(result if result else text)
         
+        logger.info(f"批量翻译完成: 共{total}条, 缓存命中{cache_hits}条")
         return results
     
     def translate_book_info(self, book_data: Dict[str, Any], 
@@ -176,6 +194,13 @@ class ZhipuTranslationService:
         
         return result
     
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计信息"""
+        cache_service = self._get_cache_service()
+        if cache_service:
+            return cache_service.get_stats()
+        return {'total_count': 0, 'message': '缓存服务不可用'}
+    
     def is_available(self) -> bool:
         """检查服务是否可用"""
         return self._get_client() is not None
@@ -186,6 +211,7 @@ class HybridTranslationService:
     混合翻译服务
     
     优先使用智谱AI，失败时回退到其他免费翻译服务
+    内置缓存系统避免重复翻译相同内容
     """
     
     def __init__(self, zhipu_api_key: Optional[str] = None):
@@ -197,6 +223,17 @@ class HybridTranslationService:
         """
         self.zhipu = ZhipuTranslationService(api_key=zhipu_api_key)
         self._fallback = None
+        self._cache_service = None
+    
+    def _get_cache_service(self):
+        """获取缓存服务"""
+        if self._cache_service is None:
+            try:
+                from .translation_cache_service import get_translation_cache_service
+                self._cache_service = get_translation_cache_service()
+            except Exception as e:
+                logger.warning(f"翻译缓存服务初始化失败: {e}")
+        return self._cache_service
         
     def _get_fallback(self):
         """获取备用翻译服务"""
@@ -211,7 +248,7 @@ class HybridTranslationService:
     def translate(self, text: str, source_lang: str = 'en', 
                   target_lang: str = 'zh') -> Optional[str]:
         """
-        翻译文本，自动选择可用的翻译服务
+        翻译文本，自动选择可用的翻译服务并使用缓存
         
         Args:
             text: 要翻译的文本
@@ -224,22 +261,42 @@ class HybridTranslationService:
         if not text or not text.strip():
             return text
         
+        # 1. 首先检查缓存
+        cache_service = self._get_cache_service()
+        if cache_service:
+            cached = cache_service.get(text, source_lang, target_lang)
+            if cached:
+                logger.debug(f"缓存命中，返回翻译结果")
+                return cached.translated_text
+        
+        # 2. 缓存未命中，调用翻译服务
+        translated = None
+        
         # 首先尝试智谱AI
         if self.zhipu.is_available():
             logger.info("使用智谱AI翻译...")
-            result = self.zhipu.translate(text, source_lang, target_lang)
-            if result:
-                return result
-            logger.warning("智谱AI翻译失败，尝试备用服务...")
+            translated = self.zhipu.translate(text, source_lang, target_lang)
         
-        # 回退到其他免费服务
-        fallback = self._get_fallback()
-        if fallback:
-            logger.info("使用备用翻译服务...")
-            return fallback.translate(text, source_lang, target_lang)
+        if not translated:
+            # 回退到其他免费服务
+            fallback = self._get_fallback()
+            if fallback:
+                logger.info("使用备用翻译服务...")
+                translated = fallback.translate(text, source_lang, target_lang)
         
-        logger.error("所有翻译服务都不可用")
-        return None
+        # 3. 保存到缓存
+        if translated and cache_service:
+            try:
+                cache_service.set(text, translated, source_lang, target_lang, 
+                                model_name='glm-4-flash')
+                logger.info(f"翻译结果已缓存")
+            except Exception as e:
+                logger.warning(f"缓存翻译结果失败: {e}")
+        
+        if not translated:
+            logger.error("所有翻译服务都不可用")
+        
+        return translated
     
     def translate_batch(self, texts: List[str], source_lang: str = 'en',
                        target_lang: str = 'zh', 

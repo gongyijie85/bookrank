@@ -157,6 +157,15 @@
                         <span>关于我们</span>
                     </a>
                 </li>
+                <li class="sidebar-item" role="none">
+                    <a href="{{ url_for('main.cache_management') }}"
+                       class="sidebar-link {% if request.endpoint == 'main.cache_management' %}active{% endif %}"
+                       role="menuitem"
+                       aria-current="{% if request.endpoint == 'main.cache_management' %}page{% endif %}">
+                        <i class="fa-solid fa-database" aria-hidden="true"></i>
+                        <span>翻译缓存</span>
+                    </a>
+                </li>
             </ul>
         </div>
         {% endblock %}
@@ -180,6 +189,40 @@
 
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container" role="region" aria-label="通知提示" aria-live="polite"></div>
+
+    <!-- CSRF Token for API requests -->
+    <script>
+        // CSRF Token management
+        let csrfToken = null;
+        
+        async function getCsrfToken() {
+            if (csrfToken) return csrfToken;
+            try {
+                const response = await fetch('/api/csrf-token');
+                const result = await response.json();
+                if (result.success && result.data.csrf_token) {
+                    csrfToken = result.data.csrf_token;
+                    return csrfToken;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch CSRF token:', e);
+            }
+            return null;
+        }
+        
+        // Add CSRF token to all POST requests
+        const originalFetch = window.fetch;
+        window.fetch = async function(url, options = {}) {
+            if (options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
+                const token = await getCsrfToken();
+                if (token) {
+                    options.headers = options.headers || {};
+                    options.headers['X-CSRF-Token'] = token;
+                }
+            }
+            return originalFetch(url, options);
+        };
+    </script>
 
     <!-- Base JavaScript -->
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>

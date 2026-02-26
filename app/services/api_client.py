@@ -76,36 +76,64 @@ def create_session_with_retry(max_retries: int = 3, backoff_factor: float = 0.5)
 
 class NYTApiClient:
     """纽约时报API客户端"""
-
+    
+    CACHE_TTL = 86400 * 7
+    
     def __init__(self, api_key: str, base_url: str, rate_limiter: RateLimiter, timeout: int = 15):
         self._api_key = api_key
         self._base_url = base_url
         self._rate_limiter = rate_limiter
         self._timeout = timeout
-        # 使用配置了重试机制的 Session
         self._session = create_session_with_retry(max_retries=3)
-
+        self._api_cache = None
+    
+    def _get_cache_service(self):
+        """获取API缓存服务"""
+        if self._api_cache is None:
+            try:
+                from .api_cache_service import get_api_cache_service
+                self._api_cache = get_api_cache_service()
+            except Exception as e:
+                logger.warning(f"API缓存服务初始化失败: {e}")
+        return self._api_cache
+    
     @retry(max_attempts=3, backoff_factor=2.0)
     def fetch_books(self, category_id: str) -> dict[str, Any]:
         """
         获取指定分类的图书数据
-
+        
         Args:
             category_id: 分类ID
-
+            
         Returns:
             API响应数据
-
+            
         Raises:
             APIRateLimitException: 当API限流时
             APIException: 当API调用失败时
         """
         if not self._api_key:
             raise APIException("NYT API key not configured", 500)
-
-        # 检查限流
+        
+        cache_service = self._get_cache_service()
+        
+        if cache_service:
+            cached = cache_service.get('nyt', category_id)
+            if cached:
+                logger.info(f"返回NYT缓存数据: {category_id}")
+                return cached
+        
         if not self._rate_limiter.is_allowed():
             retry_after = self._rate_limiter.get_retry_after()
+            
+            if cache_service:
+                try:
+                    cache_service.set('nyt', category_id, {'error': 'rate_limit_exceeded'},
+                                     ttl_seconds=300, is_error=True,
+                                     error_message=f'Rate limited, retry after {retry_after}s')
+                except Exception:
+                    pass
+            
             raise APIRateLimitException(
                 f"API rate limit exceeded. Retry after {retry_after}s",
                 retry_after
@@ -120,61 +148,91 @@ class NYTApiClient:
                 timeout=self._timeout
             )
 
-            # 处理限流响应
             if response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', 60))
                 raise APIRateLimitException("API rate limited", retry_after)
 
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            
+            if cache_service:
+                try:
+                    cache_service.set('nyt', category_id, data, ttl_seconds=self.CACHE_TTL)
+                except Exception as e:
+                    logger.warning(f"保存NYT缓存失败: {e}")
+            
+            return data
 
         except requests.Timeout:
             raise APIException(f"Request timeout for {category_id}", 504)
         except requests.RequestException as e:
+            if cache_service:
+                try:
+                    cache_service.set('nyt', category_id, {'error': str(e)},
+                                   ttl_seconds=60, is_error=True,
+                                   error_message=str(e))
+                except Exception:
+                    pass
             raise APIException(f"API request failed: {str(e)}", 502)
 
 
 class GoogleBooksClient:
     """Google Books API客户端"""
-
+    
+    CACHE_TTL = 86400
+    
     def __init__(self, api_key: str | None, base_url: str, timeout: int = 8):
         self._api_key = api_key
         self._base_url = base_url
         self._timeout = timeout
-        # 使用配置了重试机制的 Session
         self._session = create_session_with_retry(max_retries=2)
-        # 本地缓存，减少重复API调用
-        self._cache = {}
-        self._cache_ttl = 86400  # 缓存1天
+        self._api_cache = None
+    
+    def _get_cache_service(self):
+        """获取API缓存服务"""
+        if self._api_cache is None:
+            try:
+                from .api_cache_service import get_api_cache_service
+                self._api_cache = get_api_cache_service()
+            except Exception as e:
+                logger.warning(f"API缓存服务初始化失败: {e}")
+        return self._api_cache
+    
+    def _make_cache_key(self, isbn: str = None, title: str = None, author: str = None) -> str:
+        """生成缓存键"""
+        if isbn:
+            return f"isbn:{isbn}"
+        elif title:
+            return f"title:{title}:{author or 'none'}"
+        return ""
 
     @retry(max_attempts=2, backoff_factor=1.5)
     def fetch_book_details(self, isbn: str) -> dict[str, Any]:
         """
         获取图书详细信息
-
+        
         Args:
             isbn: 图书ISBN
-
+            
         Returns:
             图书详细信息字典
         """
         if not isbn:
             return {}
 
-        # 检查缓存
+        cache_service = self._get_cache_service()
         cache_key = f"isbn_{isbn}"
-        current_time = time.time()
-        if cache_key in self._cache:
-            cached_data, timestamp = self._cache[cache_key]
-            if current_time - timestamp < self._cache_ttl:
-                logger.info(f"Returning cached Google Books data for ISBN {isbn}")
-                return cached_data
+        
+        if cache_service:
+            cached = cache_service.get('google_books', cache_key)
+            if cached:
+                logger.info(f"返回Google Books缓存数据: ISBN {isbn}")
+                return cached
 
         url = f"{self._base_url}"
         params = {
             'q': f'isbn:{isbn}'
         }
-        # API Key 是可选的
         if self._api_key:
             params['key'] = self._api_key
 
@@ -188,47 +246,59 @@ class GoogleBooksClient:
             data = response.json()
 
             if 'items' not in data or len(data['items']) == 0:
-                # 缓存空结果，避免重复请求
-                self._cache[cache_key] = ({}, current_time)
+                if cache_service:
+                    try:
+                        cache_service.set('google_books', cache_key, {}, ttl_seconds=self.CACHE_TTL)
+                    except Exception:
+                        pass
                 return {}
 
             result = self._parse_volume_info(data['items'][0]['volumeInfo'])
-            # 缓存结果
-            self._cache[cache_key] = (result, current_time)
+            
+            if cache_service:
+                try:
+                    cache_service.set('google_books', cache_key, result, ttl_seconds=self.CACHE_TTL)
+                except Exception as e:
+                    logger.warning(f"保存Google Books缓存失败: {e}")
+            
             return result
 
         except requests.RequestException as e:
             logger.warning(f"Failed to fetch Google Books data for ISBN {isbn}: {e}")
-            # 缓存错误结果，避免重复请求
-            self._cache[cache_key] = ({}, current_time)
+            if cache_service:
+                try:
+                    cache_service.set('google_books', cache_key, {},
+                                   ttl_seconds=300, is_error=True,
+                                   error_message=str(e))
+                except Exception:
+                    pass
             return {}
 
     @retry(max_attempts=2, backoff_factor=1.5)
     def search_book_by_title(self, title: str, author: str = None) -> dict[str, Any]:
         """
         根据书名搜索图书
-
+        
         Args:
             title: 图书标题
             author: 作者（可选，用于提高搜索精度）
-
+            
         Returns:
             图书详细信息字典
         """
         if not title:
             return {}
 
-        # 检查缓存
         cache_key = f"title_{title.lower()}_{author.lower() if author else 'none'}"
-        current_time = time.time()
-        if cache_key in self._cache:
-            cached_data, timestamp = self._cache[cache_key]
-            if current_time - timestamp < self._cache_ttl:
-                logger.info(f"Returning cached Google Books search for '{title}'")
-                return cached_data
+        cache_service = self._get_cache_service()
+        
+        if cache_service:
+            cached = cache_service.get('google_books', cache_key)
+            if cached:
+                logger.info(f"返回Google Books缓存搜索结果: '{title}'")
+                return cached
 
         url = f"{self._base_url}"
-        # 构建搜索查询
         query = f'intitle:{title}'
         if author:
             query += f' inauthor:{author}'
@@ -250,19 +320,32 @@ class GoogleBooksClient:
             data = response.json()
 
             if 'items' not in data or len(data['items']) == 0:
-                # 缓存空结果，避免重复请求
-                self._cache[cache_key] = ({}, current_time)
+                if cache_service:
+                    try:
+                        cache_service.set('google_books', cache_key, {}, ttl_seconds=self.CACHE_TTL)
+                    except Exception:
+                        pass
                 return {}
 
             result = self._parse_volume_info(data['items'][0]['volumeInfo'])
-            # 缓存结果
-            self._cache[cache_key] = (result, current_time)
+            
+            if cache_service:
+                try:
+                    cache_service.set('google_books', cache_key, result, ttl_seconds=self.CACHE_TTL)
+                except Exception as e:
+                    logger.warning(f"保存Google Books缓存失败: {e}")
+            
             return result
 
         except requests.RequestException as e:
             logger.warning(f"Failed to search Google Books for '{title}': {e}")
-            # 缓存错误结果，避免重复请求
-            self._cache[cache_key] = ({}, current_time)
+            if cache_service:
+                try:
+                    cache_service.set('google_books', cache_key, {},
+                                   ttl_seconds=300, is_error=True,
+                                   error_message=str(e))
+                except Exception:
+                    pass
             return {}
     
     def _parse_volume_info(self, volume_info: dict[str, Any]) -> dict[str, Any]:
@@ -335,23 +418,34 @@ class GoogleBooksClient:
 class OpenLibraryClient:
     """
     Open Library API 客户端
-
+    
     Open Library 是由 Internet Archive 维护的免费图书数据库
     优势：完全免费，无需 API Key，支持 ISBN 查询和封面图片
-
+    
     API 文档：https://openlibrary.org/dev/docs/api/books
     """
-
+    
+    CACHE_TTL = 86400 * 3
+    
     def __init__(self, timeout: int = 10):
         self._base_url = 'https://openlibrary.org'
         self._covers_url = 'https://covers.openlibrary.org'
         self._timeout = timeout
-        # 使用配置了重试机制的 Session
         self._session = create_session_with_retry(max_retries=2)
-        # 设置请求头，避免被阻止
         self._session.headers.update({
             'User-Agent': 'BookRank/2.0 (bookrank@example.com)'
         })
+        self._api_cache = None
+    
+    def _get_cache_service(self):
+        """获取API缓存服务"""
+        if self._api_cache is None:
+            try:
+                from .api_cache_service import get_api_cache_service
+                self._api_cache = get_api_cache_service()
+            except Exception as e:
+                logger.warning(f"API缓存服务初始化失败: {e}")
+        return self._api_cache
     
     @retry(max_attempts=2, backoff_factor=1.5)
     def fetch_book_by_isbn(self, isbn: str) -> dict[str, Any]:
@@ -367,7 +461,15 @@ class OpenLibraryClient:
         if not isbn:
             return {}
         
-        # 清理 ISBN（移除连字符和空格）
+        cache_service = self._get_cache_service()
+        cache_key = f"isbn_{isbn}"
+        
+        if cache_service:
+            cached = cache_service.get('open_library', cache_key)
+            if cached:
+                logger.info(f"返回Open Library缓存数据: ISBN {isbn}")
+                return cached
+        
         clean_isbn = isbn.replace('-', '').replace(' ', '')
         
         url = f"{self._base_url}/api/books"
@@ -393,10 +495,25 @@ class OpenLibraryClient:
                 return {}
             
             book_data = data[key]
-            return self._parse_book_data(book_data, clean_isbn)
+            result = self._parse_book_data(book_data, clean_isbn)
+            
+            if cache_service:
+                try:
+                    cache_service.set('open_library', cache_key, result, ttl_seconds=self.CACHE_TTL)
+                except Exception as e:
+                    logger.warning(f"保存Open Library缓存失败: {e}")
+            
+            return result
             
         except requests.RequestException as e:
             logger.warning(f"Failed to fetch Open Library data for ISBN {isbn}: {e}")
+            if cache_service:
+                try:
+                    cache_service.set('open_library', cache_key, {},
+                                   ttl_seconds=300, is_error=True,
+                                   error_message=str(e))
+                except Exception:
+                    pass
             return {}
     
     def _parse_book_data(self, book_data: dict[str, Any], isbn: str) -> dict[str, Any]:

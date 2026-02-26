@@ -1,0 +1,2398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新书速递 - BookRank 原型</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        /* ============================================
+           CSS Custom Properties - Design Tokens
+           ============================================ */
+        :root {
+            /* Primary Colors */
+            --primary-color: #1a1a1a;
+            --primary-dark: #000000;
+            --primary-light: #333333;
+            --primary-gradient: linear-gradient(135deg, #1a1a1a 0%, #333333 100%);
+            --accent-color: #2563eb;
+            
+            /* Background Colors - Light Mode */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e5e5e5;
+            --bg-light: #f5f5f5;
+            --bg-white: #ffffff;
+            --bg-card: #ffffff;
+            --card-bg: #ffffff;
+            
+            /* Text Colors - Light Mode */
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-light: #999999;
+            --text-white: #ffffff;
+            --text-muted: #9ca3af;
+            
+            /* Border Colors */
+            --border-color: #e5e5e5;
+            --border-light: #f0f0f0;
+            
+            /* Accent Colors */
+            --accent-gold: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            --accent-green: #27ae60;
+            --accent-blue: #2563eb;
+            --accent-red: #e74c3c;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+            --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+            --shadow-xl: 0 20px 25px rgba(0,0,0,0.15);
+            --shadow-hover: 0 10px 40px rgba(0,0,0,0.12);
+            
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+            
+            /* Border Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            --radius-full: 9999px;
+            
+            /* Transitions */
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.3s ease;
+            --transition-slow: 0.5s ease;
+            
+            /* Layout */
+            --sidebar-width: 260px;
+            --top-nav-height: 64px;
+        }
+        
+        /* Dark Theme - System Preference */
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg-primary: #0a0a0a;
+                --bg-secondary: #1a1a1a;
+                --bg-tertiary: #2a2a2a;
+                --bg-light: #0a0a0a;
+                --bg-white: #1a1a1a;
+                --bg-card: #1a1a1a;
+                --card-bg: #1a1a1a;
+                --text-primary: #ffffff;
+                --text-secondary: #a0a0a0;
+                --text-light: #666666;
+                --text-muted: #666666;
+                --border-color: #2a2a2a;
+                --border-light: #333333;
+                --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+                --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+                --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+            }
+        }
+        
+        /* Manual Dark Theme Override */
+        [data-theme="dark"] {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --bg-light: #0a0a0a;
+            --bg-white: #1a1a1a;
+            --bg-card: #1a1a1a;
+            --card-bg: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-light: #666666;
+            --text-muted: #666666;
+            --border-color: #2a2a2a;
+            --border-light: #333333;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+            --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+        }
+        
+        /* ============================================
+           Reset & Base Styles
+           ============================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background-color: var(--bg-light);
+            min-height: 100vh;
+        }
+        
+        a {
+            text-decoration: none;
+            color: inherit;
+            transition: color var(--transition-fast);
+        }
+        
+        button {
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            line-height: 1.3;
+            color: var(--text-primary);
+        }
+        
+        /* ============================================
+           Layout
+           ============================================ */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: var(--spacing-lg);
+            padding-top: calc(var(--top-nav-height) + var(--spacing-lg));
+            transition: margin-left var(--transition-normal);
+            background-color: var(--bg-light);
+        }
+        
+        @media (max-width: 1024px) {
+            .main-content {
+                margin-left: 0;
+                padding: var(--spacing-md);
+                padding-top: calc(var(--top-nav-height) + var(--spacing-md));
+            }
+        }
+        
+        /* ============================================
+           Top Navigation
+           ============================================ */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--top-nav-height);
+            background-color: var(--bg-white);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            padding: 0 var(--spacing-lg);
+            z-index: 1000;
+            transition: background-color var(--transition-normal);
+        }
+        
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .nav-brand i {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-left: var(--spacing-xl);
+        }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+            color: var(--text-secondary);
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            color: var(--primary-color);
+            background-color: var(--bg-tertiary);
+        }
+        
+        .nav-actions {
+            margin-left: auto;
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+        
+        /* ============================================
+           Buttons
+           ============================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-lg);
+            font-size: 0.95rem;
+            font-weight: 500;
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+            cursor: pointer;
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: var(--text-white);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+        
+        .btn-outline:hover {
+            background: var(--primary-color);
+            color: var(--text-white);
+        }
+        
+        .btn-sm {
+            padding: var(--spacing-xs) var(--spacing-md);
+            font-size: 0.875rem;
+        }
+        
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border-radius: var(--radius-lg);
+        }
+        
+        /* ============================================
+           Sidebar
+           ============================================ */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: var(--top-nav-height);
+            bottom: 0;
+            width: var(--sidebar-width);
+            background-color: var(--bg-white);
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            padding: var(--spacing-lg);
+            overflow-y: auto;
+            transition: transform var(--transition-normal), background-color var(--transition-normal);
+            z-index: 999;
+        }
+        
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: 240px;
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+        }
+        
+        .sidebar-section {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .sidebar-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .sidebar-menu {
+            list-style: none;
+        }
+        
+        .sidebar-item {
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+            color: var(--text-secondary);
+        }
+        
+        .sidebar-link:hover, .sidebar-link.active {
+            background-color: var(--bg-tertiary);
+            color: var(--primary-color);
+        }
+        
+        .sidebar-link i {
+            font-size: 1.125rem;
+            width: 20px;
+        }
+        
+        .sidebar-toggle {
+            position: fixed;
+            left: var(--spacing-lg);
+            top: calc(var(--top-nav-height) + var(--spacing-md));
+            z-index: 998;
+            background-color: var(--bg-white);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-full);
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-fast);
+        }
+        
+        .sidebar-toggle:hover {
+            background-color: var(--bg-tertiary);
+            box-shadow: var(--shadow-md);
+        }
+        
+        @media (min-width: 1025px) {
+            .sidebar-toggle {
+                display: none;
+            }
+        }
+        
+        /* ============================================
+           Page Header
+           ============================================ */
+        .page-header {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-xs);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .page-title i {
+            color: var(--accent-blue);
+        }
+        
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+        
+        .new-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #1d4ed8 100%);
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: var(--radius-full);
+            margin-left: var(--spacing-sm);
+        }
+        
+        /* ============================================
+           Filter Bar
+           ============================================ */
+        .filter-bar {
+            display: flex;
+            gap: var(--spacing-lg);
+            align-items: flex-end;
+            flex-wrap: wrap;
+            margin-bottom: var(--spacing-lg);
+            padding: var(--spacing-lg);
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+        
+        .filter-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        .filter-select,
+        .filter-input {
+            padding: var(--spacing-sm) var(--spacing-md);
+            font-size: 0.95rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            min-width: 160px;
+            transition: all var(--transition-fast);
+        }
+        
+        .filter-select:focus,
+        .filter-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        
+        .filter-select[multiple] {
+            min-width: 200px;
+            min-height: 80px;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .search-input-wrapper {
+            position: relative;
+        }
+        
+        .search-input-wrapper i {
+            position: absolute;
+            right: var(--spacing-md);
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        
+        .search-input-wrapper .filter-input {
+            padding-right: 40px;
+            width: 100%;
+        }
+        
+        .filter-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+        
+        .date-range {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .date-range span {
+            color: var(--text-muted);
+        }
+        
+        /* ============================================
+           Toolbar
+           ============================================ */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--spacing-lg);
+            padding: var(--spacing-md) var(--spacing-lg);
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--spacing-lg);
+            border: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+        
+        .toolbar-info {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+        
+        .toolbar-info strong {
+            color: var(--text-primary);
+        }
+        
+        .toolbar-actions {
+            display: flex;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+        
+        .view-toggle {
+            display: flex;
+            gap: var(--spacing-xs);
+            margin-left: auto;
+        }
+        
+        .view-toggle .btn-icon {
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .view-toggle .btn-icon.active,
+        .view-toggle .btn-icon:hover {
+            background: var(--primary-color);
+            color: var(--text-white);
+            border-color: var(--primary-color);
+        }
+        
+        /* ============================================
+           Books Grid
+           ============================================ */
+        .books-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--spacing-lg);
+        }
+        
+        .books-list {
+            display: none;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+        
+        .books-list.active {
+            display: flex;
+        }
+        
+        .books-grid.hidden {
+            display: none;
+        }
+        
+        /* Card Styles */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: all var(--transition-normal);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--accent-blue);
+        }
+        
+        .card-image {
+            position: relative;
+            height: 250px;
+            overflow: hidden;
+            background: var(--bg-tertiary);
+        }
+        
+        .card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-slow);
+        }
+        
+        .card:hover .card-image img {
+            transform: scale(1.05);
+        }
+        
+        .card-category-tag {
+            position: absolute;
+            top: var(--spacing-sm);
+            left: var(--spacing-sm);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 10px;
+            border-radius: var(--radius-md);
+            font-size: 0.8rem;
+            font-weight: 600;
+            z-index: 5;
+            backdrop-filter: blur(4px);
+        }
+        
+        .card-new-badge {
+            position: absolute;
+            top: var(--spacing-sm);
+            right: var(--spacing-sm);
+            background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: var(--radius-md);
+            font-size: 0.75rem;
+            font-weight: 700;
+            z-index: 5;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+        }
+        
+        .card-content {
+            padding: var(--spacing-md);
+        }
+        
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-xs);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .card-title-en {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: var(--spacing-sm);
+            font-style: italic;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .card-author {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .card-meta {
+            display: flex;
+            gap: var(--spacing-sm);
+            flex-wrap: wrap;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .card-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            border-radius: var(--radius-sm);
+        }
+        
+        .card-price {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-sm);
+        }
+        
+        .price-current {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent-red);
+        }
+        
+        .price-original {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+        
+        .card-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-md);
+        }
+        
+        /* List Item Styles */
+        .list-item {
+            display: flex;
+            gap: var(--spacing-lg);
+            padding: var(--spacing-lg);
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            transition: all var(--transition-normal);
+            cursor: pointer;
+        }
+        
+        .list-item:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--accent-blue);
+        }
+        
+        .list-item-image {
+            width: 100px;
+            min-width: 100px;
+            aspect-ratio: 2/3;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        
+        .list-item-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .list-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .list-item-header {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .list-item-new-badge {
+            display: inline-flex;
+            padding: 2px 8px;
+            background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border-radius: var(--radius-sm);
+            flex-shrink: 0;
+        }
+        
+        .list-item-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+        
+        .list-item-title-en {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .list-item-author {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .list-item-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: var(--spacing-md);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .list-item-meta {
+            display: flex;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .list-item-actions {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--spacing-sm);
+            flex-shrink: 0;
+        }
+        
+        /* ============================================
+           Pagination
+           ============================================ */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-xl);
+            padding: var(--spacing-lg);
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-right: auto;
+        }
+        
+        .pagination-pages {
+            display: flex;
+            gap: var(--spacing-xs);
+        }
+        
+        .page-btn {
+            min-width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            transition: all var(--transition-fast);
+        }
+        
+        .page-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .page-btn.active {
+            background: var(--primary-color);
+            color: var(--text-white);
+            border-color: var(--primary-color);
+        }
+        
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .page-size-select {
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+        
+        .page-jump {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .page-jump input {
+            width: 60px;
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            text-align: center;
+        }
+        
+        /* ============================================
+           Modal
+           ============================================ */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            padding: var(--spacing-lg);
+            overflow: hidden;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: var(--radius-xl);
+            max-width: 900px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: modalOpen 0.4s ease;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        @keyframes modalOpen {
+            from {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: var(--spacing-lg);
+            right: var(--spacing-lg);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+            z-index: 10;
+        }
+        
+        .modal-close:hover {
+            background: var(--primary-color);
+            color: var(--text-white);
+            transform: rotate(90deg);
+        }
+        
+        .modal-body {
+            overflow-y: auto;
+            flex: 1;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: var(--spacing-xl);
+            padding: var(--spacing-xl);
+        }
+        
+        .modal-left {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+        
+        .modal-cover {
+            position: relative;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .modal-cover img {
+            width: 100%;
+            aspect-ratio: 2/3;
+            object-fit: cover;
+        }
+        
+        .modal-right {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .modal-header {
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .modal-header h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-xs);
+            line-height: 1.3;
+        }
+        
+        .modal-title-en {
+            font-size: 1rem;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .modal-author {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+        }
+        
+        .modal-meta {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+            padding: var(--spacing-lg);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+        }
+        
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .meta-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .meta-value {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .modal-description {
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .modal-description h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .modal-description p {
+            font-size: 0.95rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+        
+        .modal-buy-links {
+            padding: var(--spacing-md);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+        }
+        
+        .modal-buy-links h4 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .buy-links-list {
+            display: flex;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+        
+        .buy-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-lg);
+            background: var(--primary-gradient);
+            color: white;
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all var(--transition-fast);
+        }
+        
+        .buy-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* ============================================
+           Empty State
+           ============================================ */
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-2xl) var(--spacing-xl);
+            color: var(--text-secondary);
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--border-color);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .empty-state h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .empty-state p {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        /* ============================================
+           Toast Notifications
+           ============================================ */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: var(--spacing-lg);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+        }
+        
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-md);
+            background-color: var(--bg-white);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            border-left: 4px solid var(--accent-blue);
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all var(--transition-normal);
+            min-width: 300px;
+            max-width: 400px;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        
+        .toast-success { border-left-color: var(--accent-green); }
+        .toast-error { border-left-color: var(--accent-red); }
+        .toast-warning { border-left-color: #f59e0b; }
+        .toast-info { border-left-color: var(--accent-blue); }
+        
+        /* ============================================
+           Loading Overlay
+           ============================================ */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        
+        [data-theme="dark"] .loading-overlay {
+            background-color: rgba(26, 26, 26, 0.9);
+        }
+        
+        .loading-overlay.active {
+            display: flex;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: var(--spacing-md);
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+        
+        /* ============================================
+           Responsive Styles
+           ============================================ */
+        @media (max-width: 1024px) {
+            .modal-body {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal-left {
+                max-width: 250px;
+                margin: 0 auto;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .filter-group {
+                width: 100%;
+            }
+            
+            .filter-select,
+            .filter-input {
+                width: 100%;
+            }
+            
+            .search-box {
+                min-width: 100%;
+            }
+            
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: var(--spacing-md);
+            }
+            
+            .view-toggle {
+                margin-left: 0;
+                justify-content: center;
+            }
+            
+            .list-item {
+                flex-direction: column;
+            }
+            
+            .list-item-image {
+                width: 100%;
+                max-width: 150px;
+                margin: 0 auto;
+            }
+            
+            .books-grid {
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                gap: var(--spacing-md);
+            }
+            
+            .card-image {
+                height: 200px;
+            }
+            
+            .modal-content {
+                margin: var(--spacing-sm);
+                max-height: calc(100vh - var(--spacing-lg));
+            }
+            
+            .modal-body {
+                padding: var(--spacing-lg);
+            }
+            
+            .modal-meta {
+                grid-template-columns: 1fr;
+            }
+            
+            .pagination {
+                flex-direction: column;
+                gap: var(--spacing-md);
+            }
+            
+            .pagination-info {
+                margin-right: 0;
+                text-align: center;
+            }
+            
+            .nav-link span {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .books-grid {
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                gap: var(--spacing-sm);
+            }
+            
+            .card-image {
+                height: 180px;
+            }
+            
+            .card-content {
+                padding: var(--spacing-sm);
+            }
+            
+            .card-title {
+                font-size: 0.875rem;
+            }
+            
+            .page-title {
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* ============================================
+           Animation Classes
+           ============================================ */
+        .card-animate {
+            animation: cardSlideIn 0.5s ease forwards;
+            opacity: 0;
+        }
+        
+        @keyframes cardSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Skip Link for Accessibility */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--primary-color);
+            color: var(--text-white);
+            padding: var(--spacing-sm) var(--spacing-md);
+            z-index: 10000;
+            transition: top var(--transition-fast);
+        }
+        
+        .skip-link:focus {
+            top: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Skip Link for Accessibility -->
+    <a href="#main-content" class="skip-link">跳转到主要内容</a>
+    
+    <!-- Top Navigation -->
+    <nav class="top-nav" role="navigation" aria-label="主导航">
+        <a href="#" class="nav-brand" aria-label="BookRank 首页">
+            <i class="fa-solid fa-book" aria-hidden="true"></i>
+            <span>BookRank</span>
+        </a>
+        
+        <div class="nav-links" role="menubar">
+            <a href="#" class="nav-link" role="menuitem">
+                <i class="fa-solid fa-home" aria-hidden="true"></i>
+                <span>首页</span>
+            </a>
+            <a href="#" class="nav-link" role="menuitem">
+                <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+                <span>获奖书单</span>
+            </a>
+            <a href="#" class="nav-link active" role="menuitem" aria-current="page">
+                <i class="fa-solid fa-sparkles" aria-hidden="true"></i>
+                <span>新书速递</span>
+            </a>
+        </div>
+        
+        <div class="nav-actions">
+            <button class="btn btn-icon btn-outline" id="theme-toggle" title="切换主题" aria-label="切换明暗主题">
+                <i class="fa-solid fa-moon" aria-hidden="true"></i>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar" role="complementary" aria-label="侧边导航">
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">导航</h3>
+            <ul class="sidebar-menu" role="menu">
+                <li class="sidebar-item" role="none">
+                    <a href="#" class="sidebar-link" role="menuitem">
+                        <i class="fa-solid fa-fire" aria-hidden="true"></i>
+                        <span>畅销书榜</span>
+                    </a>
+                </li>
+                <li class="sidebar-item" role="none">
+                    <a href="#" class="sidebar-link" role="menuitem">
+                        <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+                        <span>获奖书单</span>
+                    </a>
+                </li>
+                <li class="sidebar-item" role="none">
+                    <a href="#" class="sidebar-link active" role="menuitem" aria-current="page">
+                        <i class="fa-solid fa-sparkles" aria-hidden="true"></i>
+                        <span>新书速递</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">关于</h3>
+            <ul class="sidebar-menu" role="menu">
+                <li class="sidebar-item" role="none">
+                    <a href="#" class="sidebar-link" role="menuitem">
+                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                        <span>关于我们</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </aside>
+    
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="切换侧边栏" aria-expanded="false" aria-controls="sidebar">
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+    </button>
+    
+    <!-- Main Content -->
+    <main class="main-content" id="main-content" role="main" tabindex="-1">
+        <!-- Page Header -->
+        <header class="page-header">
+            <h1 class="page-title">
+                <i class="fa-solid fa-sparkles" aria-hidden="true"></i>
+                新书速递
+                <span class="new-badge">NEW</span>
+            </h1>
+            <p class="page-subtitle">
+                <i class="fa fa-clock-o" aria-hidden="true"></i>
+                更新于: 2026-02-25
+                <span style="margin-left: 1rem;">
+                    <i class="fa fa-building" aria-hidden="true"></i>
+                    已收录 7 家出版社
+                </span>
+            </p>
+        </header>
+        
+        <!-- Filter Bar -->
+        <section class="filter-bar" aria-label="筛选选项">
+            <div class="filter-group">
+                <label class="filter-label" for="publisher-select">出版社</label>
+                <select class="filter-select" id="publisher-select" multiple size="3">
+                    <option value="PRH" selected>Penguin Random House</option>
+                    <option value="HC">HarperCollins</option>
+                    <option value="S&S">Simon & Schuster</option>
+                    <option value="HBG">Hachette Book Group</option>
+                    <option value="MP">Macmillan Publishers</option>
+                    <option value="OUP">Oxford University Press</option>
+                    <option value="CUP">Cambridge University Press</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label class="filter-label" for="category-select">图书类别</label>
+                <select class="filter-select" id="category-select">
+                    <option value="">全部类别</option>
+                    <option value="fiction">虚构类</option>
+                    <option value="nonfiction">非虚构类</option>
+                    <option value="mystery">悬疑/推理</option>
+                    <option value="romance">言情</option>
+                    <option value="scifi">科幻</option>
+                    <option value="biography">传记</option>
+                    <option value="history">历史</option>
+                    <option value="science">科学</option>
+                    <option value="business">商业</option>
+                    <option value="selfhelp">自我提升</option>
+                    <option value="children">儿童读物</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label class="filter-label">出版日期</label>
+                <div class="date-range">
+                    <input type="date" class="filter-input" id="start-date" value="2026-01-25" style="min-width: 130px;">
+                    <span>至</span>
+                    <input type="date" class="filter-input" id="end-date" value="2026-02-25" style="min-width: 130px;">
+                </div>
+            </div>
+            
+            <div class="filter-group search-box">
+                <label class="filter-label" for="search-input">关键词搜索</label>
+                <div class="search-input-wrapper">
+                    <input type="search"
+                           class="filter-input"
+                           id="search-input"
+                           placeholder="搜索书名、作者或ISBN..."
+                           aria-label="搜索书名、作者或ISBN">
+                    <i class="fa fa-search" aria-hidden="true"></i>
+                </div>
+            </div>
+            
+            <div class="filter-actions">
+                <button class="btn btn-primary" onclick="applyFilters()" aria-label="应用筛选">
+                    <i class="fa fa-filter" aria-hidden="true"></i>
+                    筛选
+                </button>
+                <button class="btn btn-secondary" onclick="clearFilters()" aria-label="重置筛选">
+                    <i class="fa fa-refresh" aria-hidden="true"></i>
+                    重置
+                </button>
+            </div>
+        </section>
+        
+        <!-- Toolbar -->
+        <section class="toolbar" aria-label="工具栏">
+            <span class="toolbar-info">共 <strong id="total-count">48</strong> 本新书</span>
+            
+            <div class="toolbar-actions">
+                <button class="btn btn-primary btn-sm" onclick="exportData('excel')" aria-label="导出Excel">
+                    <i class="fa fa-file-excel" aria-hidden="true"></i>
+                    导出Excel
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="exportData('pdf')" aria-label="导出PDF">
+                    <i class="fa fa-file-pdf" aria-hidden="true"></i>
+                    导出PDF
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="syncNewBooks()" aria-label="同步新书">
+                    <i class="fa fa-sync" aria-hidden="true"></i>
+                    同步新书
+                </button>
+            </div>
+            
+            <div class="view-toggle" role="group" aria-label="视图切换">
+                <button class="btn btn-icon active"
+                        id="view-grid"
+                        onclick="toggleView('grid')"
+                        title="网格视图"
+                        aria-label="切换到网格视图"
+                        aria-pressed="true">
+                    <i class="fa fa-th" aria-hidden="true"></i>
+                </button>
+                <button class="btn btn-icon"
+                        id="view-list"
+                        onclick="toggleView('list')"
+                        title="列表视图"
+                        aria-label="切换到列表视图"
+                        aria-pressed="false">
+                    <i class="fa fa-list" aria-hidden="true"></i>
+                </button>
+            </div>
+        </section>
+        
+        <!-- Books Grid View -->
+        <section class="books-grid" id="books-grid" aria-label="图书网格视图">
+            <!-- Card 1 -->
+            <article class="card card-animate" style="animation-delay: 0.05s" onclick="openBookModal(0)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop" alt="The Midnight Library 封面" loading="lazy">
+                    <span class="card-category-tag">虚构类</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">午夜图书馆</h3>
+                    <p class="card-title-en">The Midnight Library</p>
+                    <p class="card-author">Matt Haig</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> Penguin</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-20</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$18.99</span>
+                        <span class="price-original">$24.99</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(0)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- Card 2 -->
+            <article class="card card-animate" style="animation-delay: 0.1s" onclick="openBookModal(1)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&h=600&fit=crop" alt="Atomic Habits 封面" loading="lazy">
+                    <span class="card-category-tag">自我提升</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">原子习惯</h3>
+                    <p class="card-title-en">Atomic Habits</p>
+                    <p class="card-author">James Clear</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> HarperCollins</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-18</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$16.99</span>
+                        <span class="price-original">$22.00</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(1)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- Card 3 -->
+            <article class="card card-animate" style="animation-delay: 0.15s" onclick="openBookModal(2)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=400&h=600&fit=crop" alt="Project Hail Mary 封面" loading="lazy">
+                    <span class="card-category-tag">科幻</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">万福玛利亚计划</h3>
+                    <p class="card-title-en">Project Hail Mary</p>
+                    <p class="card-author">Andy Weir</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> S&S</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-15</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$21.99</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(2)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- Card 4 -->
+            <article class="card card-animate" style="animation-delay: 0.2s" onclick="openBookModal(3)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=400&h=600&fit=crop" alt="The Silent Patient 封面" loading="lazy">
+                    <span class="card-category-tag">悬疑/推理</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">沉默的病人</h3>
+                    <p class="card-title-en">The Silent Patient</p>
+                    <p class="card-author">Alex Michaelides</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> HBG</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-12</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$14.99</span>
+                        <span class="price-original">$19.99</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(3)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- Card 5 -->
+            <article class="card card-animate" style="animation-delay: 0.25s" onclick="openBookModal(4)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=400&h=600&fit=crop" alt="Educated 封面" loading="lazy">
+                    <span class="card-category-tag">传记</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">你当像鸟飞往你的山</h3>
+                    <p class="card-title-en">Educated</p>
+                    <p class="card-author">Tara Westover</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> MP</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-10</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$15.99</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(4)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- Card 6 -->
+            <article class="card card-animate" style="animation-delay: 0.3s" onclick="openBookModal(5)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=400&h=600&fit=crop" alt="Sapiens 封面" loading="lazy">
+                    <span class="card-category-tag">历史</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">人类简史</h3>
+                    <p class="card-title-en">Sapiens: A Brief History of Humankind</p>
+                    <p class="card-author">Yuval Noah Harari</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> OUP</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-08</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$19.99</span>
+                        <span class="price-original">$25.00</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(5)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- Card 7 -->
+            <article class="card card-animate" style="animation-delay: 0.35s" onclick="openBookModal(6)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1589998059171-988d887df646?w=400&h=600&fit=crop" alt="Thinking, Fast and Slow 封面" loading="lazy">
+                    <span class="card-category-tag">科学</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">思考，快与慢</h3>
+                    <p class="card-title-en">Thinking, Fast and Slow</p>
+                    <p class="card-author">Daniel Kahneman</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> CUP</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-05</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$17.99</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(6)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+            
+            <!-- Card 8 -->
+            <article class="card card-animate" style="animation-delay: 0.4s" onclick="openBookModal(7)" role="button" tabindex="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400&h=600&fit=crop" alt="The Psychology of Money 封面" loading="lazy">
+                    <span class="card-category-tag">商业</span>
+                    <span class="card-new-badge">NEW</span>
+                </div>
+                <div class="card-content">
+                    <h3 class="card-title">金钱心理学</h3>
+                    <p class="card-title-en">The Psychology of Money</p>
+                    <p class="card-author">Morgan Housel</p>
+                    <div class="card-meta">
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> HarperCollins</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-01</span>
+                    </div>
+                    <div class="card-price">
+                        <span class="price-current">$13.99</span>
+                        <span class="price-original">$18.00</span>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBookModal(7)">
+                            <i class="fa fa-info-circle" aria-hidden="true"></i> 详情
+                        </button>
+                    </div>
+                </div>
+            </article>
+        </section>
+        
+        <!-- Books List View -->
+        <section class="books-list" id="books-list" aria-label="图书列表视图">
+            <!-- List Item 1 -->
+            <article class="list-item card-animate" style="animation-delay: 0.05s" onclick="openBookModal(0)" role="button" tabindex="0">
+                <div class="list-item-image">
+                    <img src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop" alt="The Midnight Library 封面" loading="lazy">
+                </div>
+                <div class="list-item-content">
+                    <div class="list-item-header">
+                        <span class="list-item-new-badge">NEW</span>
+                        <h3 class="list-item-title">午夜图书馆</h3>
+                    </div>
+                    <p class="list-item-title-en">The Midnight Library</p>
+                    <p class="list-item-author">Matt Haig</p>
+                    <p class="list-item-desc">在午夜图书馆里，每一本书都代表着一种可能的人生。诺拉·希德有机会重新选择，体验那些她曾经放弃的人生道路...</p>
+                    <div class="list-item-meta">
+                        <span class="card-tag">虚构类</span>
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> Penguin Random House</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-20</span>
+                        <span class="card-tag" style="color: var(--accent-red); font-weight: 600;">$18.99</span>
+                    </div>
+                </div>
+                <div class="list-item-actions">
+                    <button class="btn btn-icon btn-outline" aria-label="收藏">
+                        <i class="fa fa-heart-o" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </article>
+            
+            <!-- List Item 2 -->
+            <article class="list-item card-animate" style="animation-delay: 0.1s" onclick="openBookModal(1)" role="button" tabindex="0">
+                <div class="list-item-image">
+                    <img src="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&h=600&fit=crop" alt="Atomic Habits 封面" loading="lazy">
+                </div>
+                <div class="list-item-content">
+                    <div class="list-item-header">
+                        <span class="list-item-new-badge">NEW</span>
+                        <h3 class="list-item-title">原子习惯</h3>
+                    </div>
+                    <p class="list-item-title-en">Atomic Habits</p>
+                    <p class="list-item-author">James Clear</p>
+                    <p class="list-item-desc">无论你的目标是什么，原子习惯都能给你提供一个框架来每天进步1%。微小改变，显著成果...</p>
+                    <div class="list-item-meta">
+                        <span class="card-tag">自我提升</span>
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> HarperCollins</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-18</span>
+                        <span class="card-tag" style="color: var(--accent-red); font-weight: 600;">$16.99</span>
+                    </div>
+                </div>
+                <div class="list-item-actions">
+                    <button class="btn btn-icon btn-outline" aria-label="收藏">
+                        <i class="fa fa-heart-o" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </article>
+            
+            <!-- List Item 3 -->
+            <article class="list-item card-animate" style="animation-delay: 0.15s" onclick="openBookModal(2)" role="button" tabindex="0">
+                <div class="list-item-image">
+                    <img src="https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=400&h=600&fit=crop" alt="Project Hail Mary 封面" loading="lazy">
+                </div>
+                <div class="list-item-content">
+                    <div class="list-item-header">
+                        <span class="list-item-new-badge">NEW</span>
+                        <h3 class="list-item-title">万福玛利亚计划</h3>
+                    </div>
+                    <p class="list-item-title-en">Project Hail Mary</p>
+                    <p class="list-item-author">Andy Weir</p>
+                    <p class="list-item-desc">一位中学老师醒来发现自己在一艘飞船上，距离地球数光年，他必须拯救地球免于灭绝...</p>
+                    <div class="list-item-meta">
+                        <span class="card-tag">科幻</span>
+                        <span class="card-tag"><i class="fa fa-building" aria-hidden="true"></i> Simon & Schuster</span>
+                        <span class="card-tag"><i class="fa fa-calendar" aria-hidden="true"></i> 2026-02-15</span>
+                        <span class="card-tag" style="color: var(--accent-red); font-weight: 600;">$21.99</span>
+                    </div>
+                </div>
+                <div class="list-item-actions">
+                    <button class="btn btn-icon btn-outline" aria-label="收藏">
+                        <i class="fa fa-heart-o" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </article>
+        </section>
+        
+        <!-- Pagination -->
+        <nav class="pagination" aria-label="分页导航">
+            <span class="pagination-info">显示 1-8 条，共 48 条</span>
+            
+            <div class="pagination-pages">
+                <button class="page-btn" disabled aria-label="上一页">
+                    <i class="fa fa-chevron-left" aria-hidden="true"></i>
+                </button>
+                <button class="page-btn active" aria-label="第1页" aria-current="page">1</button>
+                <button class="page-btn" aria-label="第2页">2</button>
+                <button class="page-btn" aria-label="第3页">3</button>
+                <button class="page-btn" aria-label="第4页">4</button>
+                <button class="page-btn" aria-label="第5页">5</button>
+                <button class="page-btn" aria-label="第6页">6</button>
+                <button class="page-btn" aria-label="下一页">
+                    <i class="fa fa-chevron-right" aria-hidden="true"></i>
+                </button>
+            </div>
+            
+            <select class="page-size-select" aria-label="每页显示条数">
+                <option value="10">10条/页</option>
+                <option value="20" selected>20条/页</option>
+                <option value="50">50条/页</option>
+            </select>
+            
+            <div class="page-jump">
+                <span>跳至</span>
+                <input type="number" min="1" max="6" value="1" aria-label="页码">
+                <span>页</span>
+                <button class="btn btn-sm btn-secondary">确定</button>
+            </div>
+        </nav>
+    </main>
+    
+    <!-- Book Detail Modal -->
+    <div class="modal" id="book-modal" onclick="closeBookModal(event)" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-hidden="true">
+        <div class="modal-content" onclick="event.stopPropagation()" role="document">
+            <button class="modal-close" onclick="closeBookModal()" aria-label="关闭详情">
+                <i class="fa fa-times" aria-hidden="true"></i>
+            </button>
+            
+            <div class="modal-body">
+                <div class="modal-left">
+                    <div class="modal-cover">
+                        <img id="modal-cover-img" src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop" alt="封面" width="300" height="450">
+                    </div>
+                    
+                    <div class="modal-buy-links">
+                        <h4>购买链接</h4>
+                        <div class="buy-links-list">
+                            <a href="#" class="buy-link">
+                                <i class="fa fa-external-link" aria-hidden="true"></i> Amazon
+                            </a>
+                            <a href="#" class="buy-link">
+                                <i class="fa fa-external-link" aria-hidden="true"></i> Barnes & Noble
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-right">
+                    <div class="modal-header">
+                        <h2 id="modal-title">午夜图书馆</h2>
+                        <p class="modal-title-en">The Midnight Library</p>
+                        <p class="modal-author">Matt Haig</p>
+                    </div>
+                    
+                    <dl class="modal-meta">
+                        <div class="meta-item">
+                            <dt class="meta-label">出版社</dt>
+                            <dd class="meta-value">Penguin Random House</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt class="meta-label">出版日期</dt>
+                            <dd class="meta-value">2026-02-20</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt class="meta-label">ISBN</dt>
+                            <dd class="meta-value">978-0-525-55947-4</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt class="meta-label">价格</dt>
+                            <dd class="meta-value">$18.99 <span style="text-decoration: line-through; color: var(--text-muted);">$24.99</span></dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt class="meta-label">类别</dt>
+                            <dd class="meta-value">虚构类</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt class="meta-label">页数</dt>
+                            <dd class="meta-value">304页</dd>
+                        </div>
+                    </dl>
+                    
+                    <div class="modal-description">
+                        <h4>图书简介</h4>
+                        <p>在午夜图书馆里，每一本书都代表着一种可能的人生。诺拉·希德有机会重新选择，体验那些她曾经放弃的人生道路。这是一个关于选择、遗憾和希望的故事，探讨了人生的无限可能性。</p>
+                        <p style="margin-top: 1rem;">当诺拉在绝望中找到这个神秘的图书馆时，她发现每打开一本书，就能进入一个平行世界，体验如果她做出了不同选择会怎样的人生。从成为奥运游泳选手到成为冰川学家，从继续乐队生涯到留在未婚夫身边，诺拉尝试了无数种可能...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay" role="status" aria-live="polite">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <p class="loading-text">加载中...</p>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container" role="region" aria-label="通知提示" aria-live="polite"></div>
+    
+    <script>
+        // ============================================
+        // 模拟数据
+        // ============================================
+        const booksData = [
+            {
+                id: 1,
+                title_cn: '午夜图书馆',
+                title_en: 'The Midnight Library',
+                author: 'Matt Haig',
+                publisher: 'Penguin Random House',
+                publish_date: '2026-02-20',
+                isbn: '978-0-525-55947-4',
+                price: '$18.99',
+                original_price: '$24.99',
+                category: '虚构类',
+                cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop',
+                description: '在午夜图书馆里，每一本书都代表着一种可能的人生。诺拉·希德有机会重新选择，体验那些她曾经放弃的人生道路。这是一个关于选择、遗憾和希望的故事，探讨了人生的无限可能性。'
+            },
+            {
+                id: 2,
+                title_cn: '原子习惯',
+                title_en: 'Atomic Habits',
+                author: 'James Clear',
+                publisher: 'HarperCollins',
+                publish_date: '2026-02-18',
+                isbn: '978-0-7352-1129-2',
+                price: '$16.99',
+                original_price: '$22.00',
+                category: '自我提升',
+                cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&h=600&fit=crop',
+                description: '无论你的目标是什么，原子习惯都能给你提供一个框架来每天进步1%。微小改变，显著成果。'
+            },
+            {
+                id: 3,
+                title_cn: '万福玛利亚计划',
+                title_en: 'Project Hail Mary',
+                author: 'Andy Weir',
+                publisher: 'Simon & Schuster',
+                publish_date: '2026-02-15',
+                isbn: '978-0-593-13647-5',
+                price: '$21.99',
+                category: '科幻',
+                cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=400&h=600&fit=crop',
+                description: '一位中学老师醒来发现自己在一艘飞船上，距离地球数光年，他必须拯救地球免于灭绝。'
+            },
+            {
+                id: 4,
+                title_cn: '沉默的病人',
+                title_en: 'The Silent Patient',
+                author: 'Alex Michaelides',
+                publisher: 'Hachette Book Group',
+                publish_date: '2026-02-12',
+                isbn: '978-1-250-30169-7',
+                price: '$14.99',
+                original_price: '$19.99',
+                category: '悬疑/推理',
+                cover: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=400&h=600&fit=crop',
+                description: '一个女人的枪杀丈夫后不再说话，心理治疗师试图揭开真相。'
+            },
+            {
+                id: 5,
+                title_cn: '你当像鸟飞往你的山',
+                title_en: 'Educated',
+                author: 'Tara Westover',
+                publisher: 'Macmillan Publishers',
+                publish_date: '2026-02-10',
+                isbn: '978-0-399-59050-4',
+                price: '$15.99',
+                category: '传记',
+                cover: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=400&h=600&fit=crop',
+                description: '一个关于教育、家庭和自我发现的震撼人心的回忆录。'
+            },
+            {
+                id: 6,
+                title_cn: '人类简史',
+                title_en: 'Sapiens: A Brief History of Humankind',
+                author: 'Yuval Noah Harari',
+                publisher: 'Oxford University Press',
+                publish_date: '2026-02-08',
+                isbn: '978-0-06-231609-7',
+                price: '$19.99',
+                original_price: '$25.00',
+                category: '历史',
+                cover: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=400&h=600&fit=crop',
+                description: '从认知革命到科学革命，探索人类如何成为地球的主宰。'
+            },
+            {
+                id: 7,
+                title_cn: '思考，快与慢',
+                title_en: 'Thinking, Fast and Slow',
+                author: 'Daniel Kahneman',
+                publisher: 'Cambridge University Press',
+                publish_date: '2026-02-05',
+                isbn: '978-0-374-53355-5',
+                price: '$17.99',
+                category: '科学',
+                cover: 'https://images.unsplash.com/photo-1589998059171-988d887df646?w=400&h=600&fit=crop',
+                description: '诺贝尔经济学奖得主的经典之作，揭示人类思维的两种模式。'
+            },
+            {
+                id: 8,
+                title_cn: '金钱心理学',
+                title_en: 'The Psychology of Money',
+                author: 'Morgan Housel',
+                publisher: 'HarperCollins',
+                publish_date: '2026-02-01',
+                isbn: '978-0-85719-768-9',
+                price: '$13.99',
+                original_price: '$18.00',
+                category: '商业',
+                cover: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400&h=600&fit=crop',
+                description: '关于财富、贪婪和幸福的永恒教训。'
+            }
+        ];
+        
+        // ============================================
+        // 主题切换
+        // ============================================
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        
+        // 检查本地存储的主题
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            html.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        });
+        
+        function updateThemeIcon(theme) {
+            const icon = themeToggle.querySelector('i');
+            icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        }
+        
+        // ============================================
+        // 侧边栏切换
+        // ============================================
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+            const isOpen = sidebar.classList.contains('open');
+            sidebarToggle.setAttribute('aria-expanded', isOpen);
+        });
+        
+        // ============================================
+        // 视图切换
+        // ============================================
+        function toggleView(view) {
+            const gridView = document.getElementById('books-grid');
+            const listView = document.getElementById('books-list');
+            const gridBtn = document.getElementById('view-grid');
+            const listBtn = document.getElementById('view-list');
+            
+            if (view === 'grid') {
+                gridView.classList.remove('hidden');
+                listView.classList.remove('active');
+                gridBtn.classList.add('active');
+                listBtn.classList.remove('active');
+                gridBtn.setAttribute('aria-pressed', 'true');
+                listBtn.setAttribute('aria-pressed', 'false');
+            } else {
+                gridView.classList.add('hidden');
+                listView.classList.add('active');
+                gridBtn.classList.remove('active');
+                listBtn.classList.add('active');
+                gridBtn.setAttribute('aria-pressed', 'false');
+                listBtn.setAttribute('aria-pressed', 'true');
+            }
+        }
+        
+        // ============================================
+        // 筛选功能
+        // ============================================
+        function applyFilters() {
+            showLoading('筛选中...');
+            
+            // 模拟异步操作
+            setTimeout(() => {
+                hideLoading();
+                showToast('筛选完成', 'success');
+            }, 1000);
+        }
+        
+        function clearFilters() {
+            document.getElementById('publisher-select').selectedIndex = 0;
+            document.getElementById('category-select').value = '';
+            document.getElementById('search-input').value = '';
+            document.getElementById('start-date').value = '';
+            document.getElementById('end-date').value = '';
+            
+            showToast('筛选条件已重置', 'info');
+        }
+        
+        // ============================================
+        // 导出功能
+        // ============================================
+        function exportData(format) {
+            showLoading(`正在导出${format.toUpperCase()}...`);
+            
+            setTimeout(() => {
+                hideLoading();
+                showToast(`${format.toUpperCase()} 导出成功`, 'success');
+            }, 1500);
+        }
+        
+        // ============================================
+        // 同步新书
+        // ============================================
+        function syncNewBooks() {
+            showLoading('正在同步新书数据...');
+            
+            setTimeout(() => {
+                hideLoading();
+                showToast('同步完成，新增 12 本新书', 'success');
+            }, 2000);
+        }
+        
+        // ============================================
+        // 图书详情弹窗
+        // ============================================
+        function openBookModal(bookIndex) {
+            const book = booksData[bookIndex];
+            if (!book) return;
+            
+            // 填充弹窗内容
+            document.getElementById('modal-cover-img').src = book.cover;
+            document.getElementById('modal-title').textContent = book.title_cn;
+            document.querySelector('.modal-title-en').textContent = book.title_en;
+            document.querySelector('.modal-author').textContent = book.author;
+            
+            // 更新meta信息
+            const metaItems = document.querySelectorAll('.meta-item .meta-value');
+            metaItems[0].textContent = book.publisher;
+            metaItems[1].textContent = book.publish_date;
+            metaItems[2].textContent = book.isbn;
+            metaItems[3].innerHTML = book.original_price 
+                ? `${book.price} <span style="text-decoration: line-through; color: var(--text-muted);">${book.original_price}</span>`
+                : book.price;
+            metaItems[4].textContent = book.category;
+            
+            // 更新描述
+            document.querySelector('.modal-description p').textContent = book.description;
+            
+            // 显示弹窗
+            const modal = document.getElementById('book-modal');
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            
+            // 聚焦关闭按钮
+            modal.querySelector('.modal-close').focus();
+        }
+        
+        function closeBookModal(event) {
+            const modal = document.getElementById('book-modal');
+            if (!event || event.target.id === 'book-modal' || event.target.closest('.modal-close')) {
+                modal.classList.remove('active');
+                modal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+            }
+        }
+        
+        // ESC键关闭弹窗
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeBookModal();
+            }
+        });
+        
+        // ============================================
+        // 加载状态
+        // ============================================
+        function showLoading(text = '加载中...') {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.querySelector('.loading-text').textContent = text;
+            overlay.classList.add('active');
+        }
+        
+        function hideLoading() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('active');
+        }
+        
+        // ============================================
+        // Toast 通知
+        // ============================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-circle',
+                info: 'fa-info-circle'
+            };
+            
+            toast.innerHTML = `
+                <i class="fa ${icons[type]}" aria-hidden="true"></i>
+                <span>${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            // 触发动画
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // 自动关闭
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // ============================================
+        // 卡片键盘可访问性
+        // ============================================
+        document.querySelectorAll('.card, .list-item').forEach(item => {
+            item.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    item.click();
+                }
+            });
+        });
+        
+        // ============================================
+        // 分页功能
+        // ============================================
+        document.querySelectorAll('.page-btn:not(:disabled)').forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (this.textContent.trim() && !isNaN(this.textContent.trim())) {
+                    document.querySelectorAll('.page-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

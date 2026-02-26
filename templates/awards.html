@@ -454,6 +454,14 @@
         });
     }
 
+    // Helper function: Escape HTML to prevent XSS
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // Book Modal Functions
     async function openBookModal(bookIndex) {
         const book = window.booksData[bookIndex];
@@ -477,12 +485,12 @@
         // Description tab
         document.getElementById('modal-description').textContent = book.description || '暂无简介';
 
-        // Details tab
+        // Details tab (with XSS protection)
         const detailsContent = document.getElementById('modal-details-content');
         if (detailsContent) {
             detailsContent.innerHTML = `
                 <div class="details-section">
-                    <p id="modal-detail-description" class="book-full-description">${book.details || book.description || '暂无详细简介'}</p>
+                    <p id="modal-detail-description" class="book-full-description">${escapeHtml(book.details || book.description || '暂无详细简介')}</p>
                     <p id="modal-detail-loading" class="loading-text" style="display: none; color: #999; font-style: italic; margin-top: 10px;">正在获取详细介绍...</p>
                 </div>
             `;

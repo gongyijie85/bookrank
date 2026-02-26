@@ -251,3 +251,9 @@ def new_books():
                           total=total,
                           total_pages=total_pages,
                           per_page=per_page)
+
+
+@main_bp.route('/cache-management')
+def cache_management():
+    """翻译缓存管理页面"""
+    return render_template('cache_management.html')

@@ -226,6 +226,103 @@ class AwardBook(db.Model):
         return data
 
 
+class TranslationCache(db.Model):
+    """翻译内容缓存表"""
+    __tablename__ = 'translation_cache'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    # 源文本哈希（用于快速查找）
+    source_hash = db.Column(db.String(64), nullable=False, index=True)
+    # 源文本
+    source_text = db.Column(db.Text, nullable=False)
+    # 源语言
+    source_lang = db.Column(db.String(10), nullable=False, default='en')
+    # 目标语言
+    target_lang = db.Column(db.String(10), nullable=False, default='zh')
+    # 翻译结果
+    translated_text = db.Column(db.Text, nullable=False)
+    # 使用的模型
+    model_name = db.Column(db.String(100), default='glm-4-flash')
+    # 模型版本
+    model_version = db.Column(db.String(50))
+    # 翻译质量评分（0-1）
+    quality_score = db.Column(db.Float)
+    # 使用次数
+    usage_count = db.Column(db.Integer, default=0)
+    # 最后使用时间
+    last_used_at = db.Column(db.DateTime, index=True)
+    # 创建时间
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    
+    __table_args__ = (
+        # 唯一约束：相同的源文本+源语言+目标语言只能有一条记录
+        db.UniqueConstraint('source_hash', 'source_lang', 'target_lang', 
+                          name='uix_translation_source_target'),
+        # 复合索引，用于高效查询
+        db.Index('idx_translation_lang_usage', 'source_lang', 'target_lang', 'usage_count'),
+        db.Index('idx_translation_created', 'created_at'),
+    )
+    
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'source_hash': self.source_hash,
+            'source_text': self.source_text,
+            'source_lang': self.source_lang,
+            'target_lang': self.target_lang,
+            'translated_text': self.translated_text,
+            'model_name': self.model_name,
+            'model_version': self.model_version,
+            'quality_score': self.quality_score,
+            'usage_count': self.usage_count,
+            'last_used_at': self.last_used_at.isoformat() if self.last_used_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class APICache(db.Model):
+    """外部API缓存表 - 用于缓存NYT、Google Books等API调用结果"""
+    __tablename__ = 'api_cache'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    api_source = db.Column(db.String(50), nullable=False, index=True)
+    request_key = db.Column(db.String(255), nullable=False, index=True)
+    request_hash = db.Column(db.String(64), nullable=False, index=True)
+    response_data = db.Column(db.Text, nullable=False)
+    status_code = db.Column(db.Integer, default=200)
+    error_message = db.Column(db.Text)
+    ttl_seconds = db.Column(db.Integer, default=86400)
+    usage_count = db.Column(db.Integer, default=0)
+    last_used_at = db.Column(db.DateTime, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    expires_at = db.Column(db.DateTime, index=True)
+    
+    __table_args__ = (
+        db.UniqueConstraint('api_source', 'request_hash', name='uix_api_cache_source_hash'),
+        db.Index('idx_api_cache_expiry', 'api_source', 'expires_at'),
+    )
+    
+    def is_expired(self) -> bool:
+        """检查缓存是否过期"""
+        if self.expires_at is None:
+            return False
+        return datetime.now(timezone.utc) > self.expires_at
+    
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'api_source': self.api_source,
+            'request_key': self.request_key,
+            'response_data': self.response_data,
+            'status_code': self.status_code,
+            'error_message': self.error_message,
+            'usage_count': self.usage_count,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'is_expired': self.is_expired()
+        }
+
+
 class SystemConfig(db.Model):
     """系统配置表"""
     __tablename__ = 'system_config'
