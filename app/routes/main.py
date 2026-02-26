@@ -34,7 +34,12 @@ def index():
             books = book_service.get_books_by_category(category)
             if books:
                 books_data = [book.to_dict() for book in books]
-                update_time = book_service._cache.get_cache_time(f"books_{category}")
+                try:
+                    update_time = book_service._cache.get_cache_time(f"books_{category}")
+                except Exception as te:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Failed to get cache time: {te}")
+                    update_time = None
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Failed to get cached books: {e}")
