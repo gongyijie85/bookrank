@@ -231,20 +231,24 @@ def init_sample_books(app):
         
         app.logger.info("⏭️ 跳过自动封面获取，将在用户查看详情时按需获取")
         
-        app.logger.info("🔍 开始自动验证图书...")
-        try:
-            from ..services.book_verification_service import BookVerificationService
-            verifier = BookVerificationService()
-            results = verifier.verify_all_pending(limit=20)
-            
-            summary = verifier.get_verification_summary()
-            app.logger.info(f"✅ 图书验证完成: 总计 {summary['total']}, "
-                          f"已验证 {summary['verified']}, "
-                          f"待验证 {summary['pending']}, "
-                          f"失败 {summary['failed']}, "
-                          f"可展示 {summary['displayable']}")
-        except Exception as verify_error:
-            app.logger.error(f"❌ 图书验证失败: {verify_error}")
+        # 开发环境跳过图书验证，加快启动速度
+        if app.config.get('DEBUG'):
+            app.logger.info("⏭️ 开发环境：跳过图书验证")
+        else:
+            app.logger.info("🔍 开始自动验证图书...")
+            try:
+                from ..services.book_verification_service import BookVerificationService
+                verifier = BookVerificationService()
+                results = verifier.verify_all_pending(limit=20)
+                
+                summary = verifier.get_verification_summary()
+                app.logger.info(f"✅ 图书验证完成: 总计 {summary['total']}, "
+                              f"已验证 {summary['verified']}, "
+                              f"待验证 {summary['pending']}, "
+                              f"失败 {summary['failed']}, "
+                              f"可展示 {summary['displayable']}")
+            except Exception as verify_error:
+                app.logger.error(f"❌ 图书验证失败: {verify_error}")
         
     except Exception as e:
         app.logger.error(f"❌ 初始化示例图书失败: {e}", exc_info=True)

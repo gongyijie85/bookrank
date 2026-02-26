@@ -304,10 +304,11 @@ def publishers():
         {
             "category": "4. 学术与教育出版",
             "publishers": [
-                {"name": "剑桥大学出版社", "name_en": "Cambridge University Press", "url": "https://www.cambridge.org", "description": "顶尖学术出版社，学术著作、教材类新书，侧重高等教育"},
-                {"name": "麦克米伦教育", "name_en": "Macmillan Education", "url": "https://www.macmillaneducation.com", "description": "全球教育出版服务商，K12、高等教育教材新书"},
-                {"name": "洞察出版", "name_en": "Insight Editions", "url": "https://www.insighteditions.com", "description": "流行文化、艺术、教育类图文新书，侧重文创类"},
-                {"name": "DC加拿大教育出版", "name_en": "DC Canada Education Publishing", "url": "https://www.dccanada.com", "description": "加拿大教育/儿童图书出版社，本土教材、童书新书"},
+                {"name": "剑桥大学出版社", "name_en": "Cambridge University Press", "url": "https://www.cambridge.org", "description": "顶尖学术出版社，学术著作、教材类新书"},
+                {"name": "剑桥在线教育平台", "name_en": "Cambridge LMS", "url": "https://www.cambridge.org/education", "description": "剑桥在线教育平台，教材类新书/学习资源"},
+                {"name": "麦克米伦教育", "name_en": "Macmillan Education", "url": "https://www.macmillaneducation.com", "description": "麦克米伦教育，K12/高等教育教材新书"},
+                {"name": "洞察出版", "name_en": "Insight Editions", "url": "https://www.insighteditions.com", "description": "流行文化/艺术/教育类图文新书"},
+                {"name": "DC加拿大教育出版", "name_en": "DC Canada Education Publishing", "url": "https://www.dccanada.com", "description": "加拿大教育/儿童图书，本土教材/童书新书"},
             ]
         },
         {
