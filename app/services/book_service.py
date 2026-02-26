@@ -94,6 +94,9 @@ class BookService:
         
         category_name = self._categories.get(category_id, category_id)
         
+        isbns = [b.get('primary_isbn13') or b.get('primary_isbn10', '') for b in raw_books]
+        translations = self._batch_get_translations(isbns)
+        
         processed_books = []
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             future_to_book = {
@@ -103,7 +106,8 @@ class BookService:
                     category_id,
                     category_name,
                     list_name,
-                    published_date
+                    published_date,
+                    translations
                 ): book_data
                 for book_data in raw_books
             }
@@ -119,13 +123,34 @@ class BookService:
         processed_books.sort(key=lambda x: x.rank)
         return processed_books
     
+    def _batch_get_translations(self, isbns: list[str]) -> dict[str, dict]:
+        """批量获取翻译数据，避免在子线程中访问数据库"""
+        translations = {}
+        try:
+            from flask import current_app
+            app = current_app._get_current_object()
+            with app.app_context():
+                from ..models.schemas import BookMetadata
+                records = BookMetadata.query.filter(
+                    BookMetadata.isbn.in_(isbns)
+                ).all()
+                for r in records:
+                    translations[r.isbn] = {
+                        'description_zh': r.description_zh,
+                        'details_zh': r.details_zh
+                    }
+        except Exception as e:
+            logger.debug(f"批量获取翻译失败: {e}")
+        return translations
+    
     def _process_single_book(
         self,
         book_data: dict[str, Any],
         category_id: str,
         category_name: str,
         list_name: str,
-        published_date: str
+        published_date: str,
+        translations: dict[str, dict]
     ) -> Book | None:
         """
         处理单本图书数据
@@ -157,7 +182,10 @@ class BookService:
             book_data.get('book_image')
         )
         
-        self._attach_translation(book, isbn)
+        if isbn in translations:
+            trans = translations[isbn]
+            book.description_zh = trans.get('description_zh')
+            book.details_zh = trans.get('details_zh')
         
         return book
     
