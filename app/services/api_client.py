@@ -663,11 +663,11 @@ class WikidataClient:
         'nobel_literature': 'Q37922',  # 诺贝尔文学奖
     }
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = 60):
         self._base_url = 'https://query.wikidata.org/sparql'
         self._timeout = timeout
         # 使用配置了重试机制的 Session
-        self._session = create_session_with_retry(max_retries=2)
+        self._session = create_session_with_retry(max_retries=1)
         self._session.headers.update({
             'User-Agent': 'BookRank/2.0 (bookrank@example.com)',
             'Accept': 'application/sparql-results+json'
