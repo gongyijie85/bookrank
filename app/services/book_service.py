@@ -174,7 +174,8 @@ class BookService:
         
         try:
             from flask import current_app
-            with current_app.app_context():
+            app = current_app._get_current_object()
+            with app.app_context():
                 metadata = BookMetadata.query.get(isbn)
                 if metadata:
                     book.description_zh = metadata.description_zh
