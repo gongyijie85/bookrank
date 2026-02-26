@@ -174,22 +174,9 @@ def init_sample_books(app):
         
         service = AwardBookService(app)
         
-        try:
-            if service.should_refresh():
-                app.logger.info("🔄 检测到需要刷新获奖图书数据...")
-                stats = service.refresh_award_books(
-                    award_keys=['nebula', 'hugo', 'booker', 'international_booker', 
-                               'pulitzer_fiction', 'edgar', 'nobel_literature'],
-                    start_year=2020,
-                    end_year=2025,
-                    force=False
-                )
-                app.logger.info(f"✅ API刷新完成: {stats}")
-            else:
-                status = service.get_refresh_status()
-                app.logger.info(f"⏭️ 跳过API刷新，上次刷新: {status.get('days_since_last', 'unknown')} 天前")
-        except Exception as api_error:
-            app.logger.warning(f"⚠️ API刷新失败，使用硬编码数据: {api_error}")
+        # Render 启动优化：跳过 Wikidata API 调用，使用本地数据
+        # API 刷新将在用户访问奖项页面时按需执行
+        app.logger.info("⏭️ 跳过启动时API刷新，将在用户访问时按需获取数据")
         
         try:
             service.fetch_missing_covers(batch_size=20)
