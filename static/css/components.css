@@ -1475,3 +1475,36 @@
         display: none !important;
     }
 }
+
+/* Translation Styles */
+.book-full-description {
+    line-height: 1.8;
+    color: var(--text-primary);
+    transition: opacity var(--transition-fast);
+}
+
+.book-full-description.updated {
+    animation: fadeIn 0.3s ease;
+}
+
+.book-full-description.translated {
+    position: relative;
+}
+
+.book-full-description.translated::after {
+    content: '译';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--accent-gold);
+    color: white;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

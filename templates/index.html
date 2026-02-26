@@ -487,6 +487,7 @@
         try {
             let translatedTitle = book.title;
             let translatedDesc = book.description;
+            let translatedDetails = book.details || book.description;
             
             // 翻译标题
             if (book.title) {
@@ -512,11 +513,29 @@
                 }
             }
             
+            // 翻译详细内容（如果与描述不同）
+            const bestDescription = getBestDescription(book);
+            if (bestDescription && bestDescription !== book.description) {
+                try {
+                    const result = await api.translateText(bestDescription);
+                    if (result.success) {
+                        translatedDetails = result.data.translated;
+                    }
+                } catch (e) {
+                    console.log('详细内容翻译失败:', e);
+                    translatedDetails = translatedDesc; // 如果翻译失败，使用描述翻译
+                }
+            } else {
+                translatedDetails = translatedDesc; // 如果与描述相同，使用描述翻译
+            }
+            
             const translatedData = {
                 title_zh: translatedTitle,
                 desc_zh: translatedDesc,
+                details_zh: translatedDetails,
                 original_title: book.title,
-                original_desc: book.description
+                original_desc: book.description,
+                original_details: bestDescription
             };
             
             // 保存到缓存
@@ -620,6 +639,21 @@
                 }
             }
         }
+        
+        // 恢复模态框内容（如果打开着）
+        const modalTitle = document.getElementById('modal-title');
+        const modalDesc = document.getElementById('modal-description');
+        const modalDetailDesc = document.getElementById('modal-detail-description');
+        
+        if (currentModalBookIndex >= 0 && currentModalBookIndex < books.length) {
+            const book = books[currentModalBookIndex];
+            if (modalTitle) modalTitle.textContent = book.title || '';
+            if (modalDesc) modalDesc.textContent = book.description || '暂无简介';
+            if (modalDetailDesc) {
+                modalDetailDesc.textContent = getBestDescription(book);
+                modalDetailDesc.classList.remove('translated');
+            }
+        }
     }
     
     // ========== 模态框翻译 ==========
@@ -664,12 +698,18 @@
         if (translatedData) {
             const titleEl = document.getElementById('modal-title');
             const descEl = document.getElementById('modal-description');
+            const detailDescEl = document.getElementById('modal-detail-description');
             
             if (titleEl) {
                 titleEl.textContent = translatedData.title_zh;
             }
             if (descEl && translatedData.desc_zh) {
                 descEl.textContent = translatedData.desc_zh;
+            }
+            // 应用详细内容翻译
+            if (detailDescEl && translatedData.details_zh) {
+                detailDescEl.textContent = translatedData.details_zh;
+                detailDescEl.classList.add('translated');
             }
         }
     }
@@ -847,8 +887,47 @@
 
                 // Update description if more detailed content available
                 if (googleData.details && googleData.details.length > 50) {
-                    descriptionEl.textContent = googleData.details;
-                    descriptionEl.classList.add('updated');
+                    // 如果当前是中文模式，尝试翻译新获取的详细内容
+                    if (currentLanguage === 'zh') {
+                        const book = window.booksData[bookIndex];
+                        const cacheKey = book.isbn13 || book.isbn10;
+                        let cachedData = cacheKey ? translationCache.getBook(cacheKey) : null;
+                        
+                        // 检查缓存中是否已有此详细内容的翻译
+                        if (cachedData && cachedData.original_details === googleData.details && cachedData.details_zh) {
+                            descriptionEl.textContent = cachedData.details_zh;
+                            descriptionEl.classList.add('updated', 'translated');
+                        } else {
+                            // 需要翻译新内容
+                            descriptionEl.textContent = googleData.details;
+                            descriptionEl.classList.add('updated');
+                            
+                            // 异步翻译并缓存
+                            try {
+                                const result = await api.translateText(googleData.details);
+                                if (result.success) {
+                                    descriptionEl.textContent = result.data.translated;
+                                    descriptionEl.classList.add('translated');
+                                    
+                                    // 更新缓存
+                                    if (cacheKey) {
+                                        const updatedData = {
+                                            ...cachedData,
+                                            details_zh: result.data.translated,
+                                            original_details: googleData.details
+                                        };
+                                        translationCache.setBook(cacheKey, updatedData);
+                                    }
+                                }
+                            } catch (e) {
+                                console.log('详细内容翻译失败:', e);
+                            }
+                        }
+                    } else {
+                        // 英文模式，直接显示
+                        descriptionEl.textContent = googleData.details;
+                        descriptionEl.classList.add('updated');
+                    }
                 }
 
                 // Update buy links
