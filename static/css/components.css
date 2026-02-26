@@ -88,6 +88,95 @@
     border-radius: var(--radius-lg);
 }
 
+/* Card Actions (for translate button) */
+.card-actions {
+    position: absolute;
+    bottom: var(--spacing-sm);
+    left: var(--spacing-sm);
+    z-index: 10;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all var(--transition-fast);
+}
+
+.card:hover .card-actions,
+.card:focus-within .card-actions {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.btn-translate {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-translate:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: scale(1.1) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Language Switcher */
+.language-switcher {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.lang-btn {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.lang-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.lang-btn.active {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: var(--shadow-sm);
+}
+
+.lang-divider {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    user-select: none;
+}
+
+/* Translated content indicator */
+.translated-content {
+    position: relative;
+}
+
+.translation-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 0.625rem;
+    border-radius: 4px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
 /* Cards - Enhanced */
 .card {
     background: var(--card-bg);
@@ -358,6 +447,13 @@
     font-size: 0.875rem;
     color: var(--text-secondary);
     margin-bottom: var(--spacing-sm);
+}
+
+.card-isbn {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-bottom: var(--spacing-sm);
+    font-family: 'Courier New', monospace;
 }
 
 .card-meta {

@@ -135,6 +135,43 @@ class ApiClient {
         const url = `/api/export/${category}?session_id=${this.sessionId}`;
         window.location.href = url;
     }
+
+    /**
+     * 翻译文本
+     * @param {string} text - 要翻译的文本
+     * @param {string} sourceLang - 源语言（默认：en）
+     * @param {string} targetLang - 目标语言（默认：zh）
+     * @returns {Promise<Object>} 翻译结果
+     */
+    async translateText(text, sourceLang = 'en', targetLang = 'zh') {
+        return this.request('/api/translate', {
+            method: 'POST',
+            body: JSON.stringify({
+                text: text,
+                source_lang: sourceLang,
+                target_lang: targetLang
+            })
+        });
+    }
+
+    /**
+     * 翻译图书信息
+     * @param {string} isbn - 图书ISBN
+     * @returns {Promise<Object>} 翻译结果
+     */
+    async translateBook(isbn) {
+        return this.request(`/api/translate/book/${isbn}`, {
+            method: 'POST'
+        });
+    }
+
+    /**
+     * 获取翻译服务状态
+     * @returns {Promise<Object>} 服务状态
+     */
+    async getTranslationStatus() {
+        return this.request('/api/translate/cache/stats');
+    }
 }
 
 // 导出单例

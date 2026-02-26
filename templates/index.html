@@ -144,6 +144,11 @@
             </div>
             <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
             <p class="card-author">{{ book.author }}</p>
+            {% if book.isbn13 %}
+            <p class="card-isbn">ISBN: {{ book.isbn13 }}</p>
+            {% elif book.isbn10 %}
+            <p class="card-isbn">ISBN: {{ book.isbn10 }}</p>
+            {% endif %}
 
             {% if book.description %}
             <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
@@ -335,9 +340,357 @@
 {% endblock %}
 
 {% block extra_js %}
+<script type="module">
+    import { api } from '{{ url_for('static', filename='js/api.js') }}';
+    window.api = api;
+</script>
 <script>
     // Parse books data safely
     window.booksData = JSON.parse(document.getElementById('books-data').textContent);
+
+    // ========== 无感翻译系统 ==========
+    
+    // 当前语言偏好
+    let currentLanguage = localStorage.getItem('bookrank_language') || 'en';
+    
+    // 翻译缓存系统
+    let translationCache = {
+        // 格式: { isbn: { title_zh: "...", desc_zh: "...", original: {...} } }
+        books: {},
+        // 保存到 localStorage
+        save() {
+            try {
+                localStorage.setItem('bookrank_translation_cache', JSON.stringify(this.books));
+            } catch (e) {
+                console.warn('无法保存翻译缓存:', e);
+            }
+        },
+        // 从 localStorage 加载
+        load() {
+            try {
+                const cached = localStorage.getItem('bookrank_translation_cache');
+                if (cached) {
+                    this.books = JSON.parse(cached);
+                }
+            } catch (e) {
+                console.warn('无法加载翻译缓存:', e);
+            }
+        },
+        // 获取图书的翻译
+        getBook(isbn) {
+            return this.books[isbn];
+        },
+        // 保存图书的翻译
+        setBook(isbn, data) {
+            this.books[isbn] = {
+                ...data,
+                timestamp: Date.now()
+            };
+            this.save();
+        }
+    };
+    
+    // 页面加载时加载翻译缓存
+    translationCache.load();
+    
+    // ========== 语言切换器 ==========
+    
+    /**
+     * 切换语言
+     * @param {string} lang - 'en' 或 'zh'
+     */
+    async function switchLanguage(lang) {
+        if (lang === currentLanguage) return;
+        
+        // 更新按钮状态
+        updateLanguageButtons(lang);
+        
+        // 保存到 localStorage
+        currentLanguage = lang;
+        localStorage.setItem('bookrank_language', lang);
+        
+        if (lang === 'zh') {
+            showToast('正在切换到中文...', 'info');
+            await translateAllBooks();
+        } else {
+            showToast('已切换到英文', 'success');
+            restoreAllBooks();
+        }
+    }
+    
+    /**
+     * 更新语言按钮状态
+     */
+    function updateLanguageButtons(activeLang) {
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.getElementById(`lang-${activeLang}`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+    }
+    
+    // ========== 翻译核心功能 ==========
+    
+    /**
+     * 批量翻译所有图书
+     */
+    async function translateAllBooks() {
+        const books = window.booksData;
+        let translatedCount = 0;
+        
+        // 先应用已缓存的翻译
+        for (let i = 0; i < books.length; i++) {
+            const book = books[i];
+            const isbn = book.isbn13 || book.isbn10;
+            
+            if (isbn) {
+                const cached = translationCache.getBook(isbn);
+                if (cached && cached.title_zh) {
+                    applyTranslationToCard(i, cached);
+                    translatedCount++;
+                }
+            }
+        }
+        
+        if (translatedCount > 0) {
+            showToast(`已加载 ${translatedCount} 本缓存翻译`, 'info');
+        }
+        
+        // 批量翻译未缓存的图书（最多10本，避免API限制）
+        let toTranslate = [];
+        for (let i = 0; i < books.length && toTranslate.length < 10; i++) {
+            const book = books[i];
+            const isbn = book.isbn13 || book.isbn10;
+            
+            if (isbn) {
+                const cached = translationCache.getBook(isbn);
+                if (!cached || !cached.title_zh) {
+                    toTranslate.push({ index: i, book, isbn });
+                }
+            }
+        }
+        
+        // 逐个翻译剩余的
+        for (const { index, book, isbn } of toTranslate) {
+            await translateSingleBook(index, book, isbn);
+        }
+        
+        showToast('中文翻译已准备好！', 'success');
+    }
+    
+    /**
+     * 翻译单本图书
+     */
+    async function translateSingleBook(index, book, isbn) {
+        try {
+            let translatedTitle = book.title;
+            let translatedDesc = book.description;
+            
+            // 翻译标题
+            if (book.title) {
+                try {
+                    const result = await api.translateText(book.title);
+                    if (result.success) {
+                        translatedTitle = result.data.translated;
+                    }
+                } catch (e) {
+                    console.log('标题翻译失败:', e);
+                }
+            }
+            
+            // 翻译描述
+            if (book.description) {
+                try {
+                    const result = await api.translateText(book.description);
+                    if (result.success) {
+                        translatedDesc = result.data.translated;
+                    }
+                } catch (e) {
+                    console.log('描述翻译失败:', e);
+                }
+            }
+            
+            const translatedData = {
+                title_zh: translatedTitle,
+                desc_zh: translatedDesc,
+                original_title: book.title,
+                original_desc: book.description
+            };
+            
+            // 保存到缓存
+            if (isbn) {
+                translationCache.setBook(isbn, translatedData);
+            }
+            
+            // 应用到卡片
+            applyTranslationToCard(index, translatedData);
+            
+        } catch (error) {
+            console.error('翻译失败:', error);
+        }
+    }
+    
+    /**
+     * 应用翻译到单个卡片
+     */
+    function applyTranslationToCard(index, data) {
+        const cards = document.querySelectorAll('.card');
+        const listItems = document.querySelectorAll('.list-item');
+        
+        // 更新网格视图
+        if (cards[index]) {
+            const titleEl = cards[index].querySelector('.card-title');
+            const descEl = cards[index].querySelector('.card-desc');
+            
+            if (titleEl) {
+                titleEl.textContent = data.title_zh;
+                titleEl.title = data.title_zh;
+                // 添加翻译标识
+                if (!titleEl.querySelector('.translation-badge')) {
+                    titleEl.insertAdjacentHTML('beforeend', '<span class="translation-badge">译</span>');
+                }
+            }
+            if (descEl && data.desc_zh) {
+                const shortDesc = data.desc_zh.slice(0, 100) + 
+                    (data.desc_zh.length > 100 ? '...' : '');
+                descEl.textContent = shortDesc;
+            }
+        }
+        
+        // 更新列表视图
+        if (listItems[index]) {
+            const titleEl = listItems[index].querySelector('.list-item-title');
+            const descEl = listItems[index].querySelector('.list-item-desc');
+            
+            if (titleEl) {
+                titleEl.textContent = data.title_zh;
+            }
+            if (descEl && data.desc_zh) {
+                const shortDesc = data.desc_zh.slice(0, 200) + 
+                    (data.desc_zh.length > 200 ? '...' : '');
+                descEl.textContent = shortDesc;
+            }
+        }
+    }
+    
+    /**
+     * 恢复所有图书到原始版本
+     */
+    function restoreAllBooks() {
+        const books = window.booksData;
+        
+        for (let i = 0; i < books.length; i++) {
+            const book = books[i];
+            const cards = document.querySelectorAll('.card');
+            const listItems = document.querySelectorAll('.list-item');
+            
+            // 恢复网格视图
+            if (cards[i]) {
+                const titleEl = cards[i].querySelector('.card-title');
+                const descEl = cards[i].querySelector('.card-desc');
+                
+                if (titleEl) {
+                    titleEl.textContent = book.title;
+                    titleEl.title = book.title;
+                    // 移除翻译标识
+                    const badge = titleEl.querySelector('.translation-badge');
+                    if (badge) badge.remove();
+                }
+                if (descEl && book.description) {
+                    const shortDesc = book.description.slice(0, 100) + 
+                        (book.description.length > 100 ? '...' : '');
+                    descEl.textContent = shortDesc;
+                }
+            }
+            
+            // 恢复列表视图
+            if (listItems[i]) {
+                const titleEl = listItems[i].querySelector('.list-item-title');
+                const descEl = listItems[i].querySelector('.list-item-desc');
+                
+                if (titleEl) {
+                    titleEl.textContent = book.title;
+                }
+                if (descEl && book.description) {
+                    const shortDesc = book.description.slice(0, 200) + 
+                        (book.description.length > 200 ? '...' : '');
+                    descEl.textContent = shortDesc;
+                }
+            }
+        }
+    }
+    
+    // ========== 模态框翻译 ==========
+    
+    // 保存当前打开的图书索引
+    let currentModalBookIndex = -1;
+    
+    // 重写 openBookModal
+    const originalOpenBookModal = openBookModal;
+    window.openBookModal = function(bookIndex) {
+        currentModalBookIndex = bookIndex;
+        originalOpenBookModal(bookIndex);
+        
+        // 如果是中文模式，自动翻译模态框内容
+        if (currentLanguage === 'zh') {
+            translateModalContent(bookIndex);
+        }
+    };
+    
+    /**
+     * 翻译模态框内容
+     */
+    async function translateModalContent(bookIndex) {
+        const book = window.booksData[bookIndex];
+        if (!book) return;
+        
+        const isbn = book.isbn13 || book.isbn10;
+        
+        // 检查缓存
+        let translatedData = null;
+        if (isbn) {
+            translatedData = translationCache.getBook(isbn);
+        }
+        
+        // 如果没有缓存，就翻译
+        if (!translatedData || !translatedData.title_zh) {
+            await translateSingleBook(bookIndex, book, isbn);
+            translatedData = isbn ? translationCache.getBook(isbn) : null;
+        }
+        
+        // 应用翻译到模态框
+        if (translatedData) {
+            const titleEl = document.getElementById('modal-title');
+            const descEl = document.getElementById('modal-description');
+            
+            if (titleEl) {
+                titleEl.textContent = translatedData.title_zh;
+            }
+            if (descEl && translatedData.desc_zh) {
+                descEl.textContent = translatedData.desc_zh;
+            }
+        }
+    }
+    
+    // ========== 初始化 ==========
+    
+    // 页面加载时应用保存的语言偏好
+    document.addEventListener('DOMContentLoaded', function() {
+        // 更新语言按钮
+        updateLanguageButtons(currentLanguage);
+        
+        // 如果是中文模式，自动翻译
+        if (currentLanguage === 'zh') {
+            // 延迟一点，确保 DOM 完全加载
+            setTimeout(() => {
+                translateAllBooks();
+            }, 500);
+        }
+    });
+
+    // ========== 原有功能保持不变 ==========
 
     // Change category
     function changeCategory(category) {
@@ -539,6 +892,7 @@
         }
     });
 
+    // 移除之前的单个翻译按钮功能，改用批量翻译
     // Keyboard accessibility for cards
     document.querySelectorAll('.card, .list-item').forEach(item => {
         item.addEventListener('keydown', function(e) {
