@@ -173,10 +173,12 @@ class BookService:
             return
         
         try:
-            metadata = BookMetadata.query.get(isbn)
-            if metadata:
-                book.description_zh = metadata.description_zh
-                book.details_zh = metadata.details_zh
+            from flask import current_app
+            with current_app.app_context():
+                metadata = BookMetadata.query.get(isbn)
+                if metadata:
+                    book.description_zh = metadata.description_zh
+                    book.details_zh = metadata.details_zh
         except Exception as e:
             logger.debug(f"获取翻译失败 for {isbn}: {e}")
     
