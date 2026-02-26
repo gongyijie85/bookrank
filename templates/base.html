@@ -91,6 +91,13 @@
                 <i class="fa-solid fa-trophy" aria-hidden="true"></i>
                 <span>获奖书单</span>
             </a>
+            <a href="{{ url_for('main.publishers') }}"
+               class="nav-link {% if request.endpoint == 'main.publishers' %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if request.endpoint == 'main.publishers' %}page{% endif %}">
+                <i class="fa-solid fa-building" aria-hidden="true"></i>
+                <span>出版社</span>
+            </a>
             <a href="{{ url_for('main.new_books') }}"
                class="nav-link {% if request.endpoint == 'main.new_books' %}active{% endif %}"
                role="menuitem"

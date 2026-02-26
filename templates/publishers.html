@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block title %}出版社导航 - BookRank{% endblock %}
+{% block og_title %}出版社导航 - BookRank{% endblock %}
+{% block twitter_title %}出版社导航 - BookRank{% endblock %}
+
+{% block extra_css %}
+<style>
+    .publishers-header {
+        padding: var(--spacing-xl);
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .publishers-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: var(--spacing-sm);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .publishers-header h1 i {
+        color: var(--accent-color);
+    }
+
+    .publishers-header p {
+        color: var(--text-secondary);
+    }
+
+    .stats-bar {
+        display: flex;
+        gap: var(--spacing-xl);
+        margin-top: var(--spacing-md);
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .stat-item i {
+        color: var(--accent-color);
+    }
+
+    .stat-item strong {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .search-box {
+        margin-top: var(--spacing-md);
+        max-width: 400px;
+        position: relative;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 2.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+    }
+
+    .search-box input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 0.875rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-light);
+    }
+
+    .publisher-category {
+        background: var(--bg-card);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+        border: 1px solid var(--border-color);
+    }
+
+    .publisher-category h2 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: var(--spacing-md);
+        padding-bottom: var(--spacing-sm);
+        border-bottom: 2px solid var(--accent-color);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .publisher-category h2 i {
+        color: var(--accent-color);
+    }
+
+    .publishers-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .publishers-table th {
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: var(--bg-secondary);
+        border-bottom: 2px solid var(--border-color);
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+    }
+
+    .publishers-table th:first-child {
+        width: 20%;
+    }
+
+    .publishers-table th:nth-child(2) {
+        width: 25%;
+    }
+
+    .publishers-table th:last-child {
+        width: 55%;
+    }
+
+    .publishers-table td {
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-bottom: 1px solid var(--border-color);
+        vertical-align: top;
+        font-size: 0.9375rem;
+    }
+
+    .publishers-table tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .publishers-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .publisher-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .publisher-name-en {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        margin-top: 2px;
+    }
+
+    .publisher-link {
+        color: var(--accent-color);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color var(--transition-fast);
+    }
+
+    .publisher-link:hover {
+        color: #1d4ed8;
+        text-decoration: underline;
+    }
+
+    .publisher-description {
+        color: var(--text-secondary);
+        line-height: 1.5;
+        font-size: 0.875rem;
+    }
+
+    .external-link-icon {
+        font-size: 0.75rem;
+        margin-left: 4px;
+        opacity: 0.7;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: var(--spacing-2xl);
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: var(--spacing-lg);
+        color: var(--text-light);
+    }
+
+    .no-results {
+        text-align: center;
+        padding: var(--spacing-xl);
+        color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+        .publishers-table th:first-child,
+        .publishers-table td:first-child {
+            width: 30%;
+        }
+
+        .publishers-table th:nth-child(2),
+        .publishers-table td:nth-child(2) {
+            display: none;
+        }
+
+        .publishers-table th:last-child,
+        .publishers-table td:last-child {
+            width: 70%;
+        }
+
+        .stats-bar {
+            flex-direction: column;
+            gap: var(--spacing-sm);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block sidebar %}
+<div class="sidebar-section">
+    <h3 class="sidebar-title">导航</h3>
+    <ul class="sidebar-menu" role="menu">
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.index') }}" class="sidebar-link" role="menuitem">
+                <i class="fa-solid fa-fire" aria-hidden="true"></i>
+                <span>畅销书榜</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards') }}" class="sidebar-link" role="menuitem">
+                <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+                <span>获奖书单</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.publishers') }}" class="sidebar-link active" role="menuitem" aria-current="page">
+                <i class="fa-solid fa-building" aria-hidden="true"></i>
+                <span>出版社导航</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.new_books') }}" class="sidebar-link" role="menuitem">
+                <i class="fa-solid fa-sparkles" aria-hidden="true"></i>
+                <span>新书速递</span>
+            </a>
+        </li>
+    </ul>
+</div>
+
+<div class="sidebar-section">
+    <h3 class="sidebar-title">快速链接</h3>
+    <ul class="sidebar-menu" role="menu">
+        {% for cat in publishers_data[:3] %}
+        <li class="sidebar-item" role="none">
+            <a href="#cat-{{ loop.index }}" class="sidebar-link" role="menuitem">
+                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                <span>{{ cat.category }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="publishers-header">
+    <h1><i class="fa-solid fa-building text-primary"></i> 出版社导航</h1>
+    <p>汇集全球知名出版社与图书行业网站，点击即可访问</p>
+    
+    <div class="stats-bar">
+        <div class="stat-item">
+            <i class="fa-solid fa-globe"></i>
+            <span>共 <strong>{{ total_publishers }}</strong> 个网站</span>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-folder"></i>
+            <span><strong>{{ publishers_data|length }}</strong> 个分类</span>
+        </div>
+    </div>
+
+    <div class="search-box">
+        <i class="fa-solid fa-search"></i>
+        <input type="text" id="search-input" placeholder="搜索出版社名称..." onkeyup="filterPublishers()">
+    </div>
+</div>
+
+<div id="publishers-container">
+    {% for cat in publishers_data %}
+    <div class="publisher-category" id="cat-{{ loop.index }}" data-category="{{ cat.category }}">
+        <h2><i class="fa-solid fa-folder-open"></i> {{ cat.category }}</h2>
+        <table class="publishers-table">
+            <thead>
+                <tr>
+                    <th>中文名称</th>
+                    <th>英文名称</th>
+                    <th>核心定位</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pub in cat.publishers %}
+                <tr data-name="{{ pub.name }}" data-name-en="{{ pub.name_en }}" data-description="{{ pub.description }}">
+                    <td>
+                        <div class="publisher-name">{{ pub.name }}</div>
+                    </td>
+                    <td>
+                        <a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer" class="publisher-link">
+                            {{ pub.name_en }}
+                            <i class="fa-solid fa-external-link-alt external-link-icon"></i>
+                        </a>
+                    </td>
+                    <td>
+                        <span class="publisher-description">{{ pub.description }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="no-results" class="no-results" style="display: none;">
+    <i class="fa-solid fa-search"></i>
+    <p>没有找到匹配的出版社</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterPublishers() {
+        const searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
+        const categories = document.querySelectorAll('.publisher-category');
+        const noResults = document.getElementById('no-results');
+        let hasResults = false;
+
+        categories.forEach(cat => {
+            const rows = cat.querySelectorAll('tbody tr');
+            let visibleRows = 0;
+
+            rows.forEach(row => {
+                const name = row.dataset.name.toLowerCase();
+                const nameEn = row.dataset.nameEn.toLowerCase();
+                const description = row.dataset.description.toLowerCase();
+
+                if (searchTerm === '' || 
+                    name.includes(searchTerm) || 
+                    nameEn.includes(searchTerm) || 
+                    description.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleRows++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (visibleRows > 0) {
+                cat.style.display = '';
+                hasResults = true;
+            } else {
+                cat.style.display = 'none';
+            }
+        });
+
+        noResults.style.display = hasResults ? 'none' : 'block';
+    }
+</script>
+{% endblock %}
