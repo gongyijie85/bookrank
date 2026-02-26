@@ -239,11 +239,12 @@ class CacheService:
         if not cache_path.exists():
             return None
 
-        from datetime import datetime
         try:
             mtime = cache_path.stat().st_mtime
-            return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
-        except OSError:
+            from datetime import datetime, timezone
+            dt = datetime.fromtimestamp(mtime, timezone.utc)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
             return None
 
     def get_stats(self) -> dict:

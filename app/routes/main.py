@@ -36,13 +36,13 @@ def index():
                 books_data = [book.to_dict() for book in books]
                 try:
                     update_time = book_service._cache.get_cache_time(f"books_{category}")
-                except Exception as te:
-                    import logging
-                    logging.getLogger(__name__).warning(f"Failed to get cache time: {te}")
+                except Exception:
                     update_time = None
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Failed to get cached books: {e}")
+        books_data = []
+        update_time = None
 
     # 简单的搜索过滤（内存中）
     if search_query and books_data:
