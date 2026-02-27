@@ -261,7 +261,7 @@ def new_books():
 
 @main_bp.route('/publishers')
 def publishers():
-    """出版社导航页面 - 显示44个出版社链接"""
+    """出版社导航页面 - 显示45个出版社链接"""
     publishers_data = [
         {
             "category": "1. 综合大型出版集团",
@@ -314,15 +314,14 @@ def publishers():
         {
             "category": "5. 图书行业资讯、批发、目录",
             "publishers": [
-                {"name": "出版人周刊", "name_en": "Publishers Weekly", "url": "https://www.publishersweekly.com", "description": "美国权威出版行业媒体，全球新书动态、行业资讯汇总"},
-                {"name": "加德纳图书批发", "name_en": "Gardners Books", "url": "https://www.gardners.com", "description": "英国最大图书批发商，全品类图书目录、新书批发信息"},
-                {"name": "沃克曼出版", "name_en": "Workman Publishing", "url": "https://www.workman.com", "description": "美国出版社，实用类、生活方式、童书目录及新书"},
-                {"name": "21世纪阅读", "name_en": "21st Century Reading", "url": "https://21stcenturyreading.com", "description": "在线电子书资源平台，新书电子版首发、阅读资源"},
-                {"name": "足迹读者图书馆", "name_en": "Footprint Reader Library", "url": "https://footprintreaders.com", "description": "在线阅读图书馆，新书借阅、电子图书目录"},
-                {"name": "国家地理连接", "name_en": "my NG connect", "url": "https://myngconnect.com", "description": "国家地理教育资源平台，科普类新书、教学资源"},
-                {"name": "剑桥学习平台", "name_en": "Cambridge LMS", "url": "https://www.cambridge.org/education", "description": "剑桥大学出版社在线教育平台，教材类新书、学习资源"},
-                {"name": "本屋俱乐部", "name_en": "Honyaclub", "url": "https://www.honyaclub.com", "description": "日本在线书店，日系新书、进口图书目录"},
-                {"name": "未来屋书店", "name_en": "mibon.jp", "url": "https://www.mibon.jp", "description": "日本大型连锁书店在线平台，日文/外文新书资讯"},
+                {"name": "出版人周刊", "name_en": "Publishers Weekly", "url": "https://www.publishersweekly.com", "description": "美国权威出版媒体，全球新书动态行业资讯"},
+                {"name": "加德纳图书批发", "name_en": "Gardners Books", "url": "https://www.gardners.com", "description": "英国最大图书批发商，全品类新书批发目录"},
+                {"name": "沃克曼出版", "name_en": "Workman Publishing", "url": "https://www.workman.com", "description": "美国出版社，实用类生活方式童书目录及新书"},
+                {"name": "21世纪阅读", "name_en": "21st Century Reading", "url": "https://21stcenturyreading.com", "description": "在线电子书平台，新书电子版首发阅读资源"},
+                {"name": "足迹读者图书馆", "name_en": "Footprint Reader Library", "url": "https://footprintreaders.com", "description": "在线阅读图书馆，新书借阅电子图书目录"},
+                {"name": "国家地理连接", "name_en": "my NG connect", "url": "https://myngconnect.com", "description": "国家地理教育资源平台，科普类新书教学资源"},
+                {"name": "本屋俱乐部", "name_en": "Honyaclub", "url": "https://www.honyaclub.com", "description": "日本在线书店，日系新书进口图书目录"},
+                {"name": "未来屋书店", "name_en": "mibon.jp", "url": "https://www.mibon.jp", "description": "日本连锁书店在线平台，日文外文新书资讯"},
             ]
         },
     ]
