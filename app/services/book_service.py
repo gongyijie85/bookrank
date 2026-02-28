@@ -53,9 +53,9 @@ class BookService:
             api_data = self._nyt_client.fetch_books(category_id)
             books = self._process_api_response(api_data, category_id)
             
-            # 缓存结果
+            # 缓存结果 - NYT数据每周更新，缓存24小时
             books_data = [book.to_dict() for book in books]
-            self._cache.set(cache_key, books_data)
+            self._cache.set(cache_key, books_data, ttl=86400)  # 24小时
             
             logger.info(f"Fetched and cached {len(books)} books for {category_id}")
             return books

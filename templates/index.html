@@ -732,11 +732,75 @@
 
     // ========== 原有功能保持不变 ==========
 
-    // Change category
+    // 前端缓存 - 存储分类数据
+    const categoryCache = {
+        get: function(category) {
+            try {
+                const key = `bookrank_category_${category}`;
+                const data = localStorage.getItem(key);
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    // 检查是否过期（24小时）
+                    if (Date.now() - parsed.timestamp < 86400000) {
+                        return parsed.books;
+                    }
+                }
+            } catch (e) {
+                console.log('Cache read error:', e);
+            }
+            return null;
+        },
+        set: function(category, books) {
+            try {
+                const key = `bookrank_category_${category}`;
+                const data = {
+                    timestamp: Date.now(),
+                    books: books
+                };
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (e) {
+                console.log('Cache write error:', e);
+            }
+        },
+        // 预加载其他分类数据
+        preload: function(categories, currentCategory) {
+            categories.forEach(cat => {
+                if (cat !== currentCategory && !this.get(cat)) {
+                    // 后台静默加载
+                    fetch(`/?category=${encodeURIComponent(cat)}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    }).then(() => {
+                        console.log(`Preloaded ${cat}`);
+                    }).catch(() => {});
+                }
+            });
+        }
+    };
+
+    // Change category - 先检查前端缓存
     function changeCategory(category) {
-        showLoading('加载中...');
-        window.location.href = `/?category=${encodeURIComponent(category)}`;
+        // 检查是否有前端缓存
+        const cached = categoryCache.get(category);
+        if (cached) {
+            // 如果有缓存，直接跳转（页面会从服务器获取最新数据，但如果有后端缓存会更快）
+            showLoading('加载中...');
+            window.location.href = `/?category=${encodeURIComponent(category)}`;
+        } else {
+            showLoading('首次加载，请稍候...');
+            window.location.href = `/?category=${encodeURIComponent(category)}`;
+        }
     }
+
+    // 页面加载完成后预加载其他分类
+    document.addEventListener('DOMContentLoaded', function() {
+        const categories = Array.from(document.querySelectorAll('#category-select option')).map(opt => opt.value);
+        const currentCategory = document.getElementById('category-select').value;
+        
+        // 延迟5秒后预加载其他分类
+        setTimeout(() => {
+            categoryCache.preload(categories, currentCategory);
+        }, 5000);
+    });
 
     // Apply filters
     function applyFilters() {
