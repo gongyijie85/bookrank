@@ -135,6 +135,15 @@
                     </a>
                 </li>
                 <li class="sidebar-item" role="none">
+                    <a href="{{ url_for('main.publishers') }}"
+                       class="sidebar-link {% if request.endpoint == 'main.publishers' %}active{% endif %}"
+                       role="menuitem"
+                       aria-current="{% if request.endpoint == 'main.publishers' %}page{% endif %}">
+                        <i class="fa-solid fa-building" aria-hidden="true"></i>
+                        <span>出版社导航</span>
+                    </a>
+                </li>
+                <li class="sidebar-item" role="none">
                     <a href="{{ url_for('main.awards') }}"
                        class="sidebar-link {% if request.endpoint == 'main.awards' %}active{% endif %}"
                        role="menuitem"

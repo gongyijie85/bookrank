@@ -62,13 +62,15 @@ class Config:
 
     # 分类配置
     CATEGORIES: dict[str, str] = {
-        # 成人书籍分类
+        # 成人小说类
         'hardcover-fiction': '精装小说',
+        'trade-fiction-paperback': '平装小说',
+        # 成人非虚构类
         'hardcover-nonfiction': '精装非虚构',
         'paperback-nonfiction': '平装非虚构',
-        'trade-fiction-paperback': '平装小说',
-        'advice-how-to-and-miscellaneous': '建议、方法与杂项',
+        # 其他成人分类
         'graphic-books-and-manga': '漫画与绘本',
+        'advice-how-to-and-miscellaneous': '建议、方法与杂项',
         # 儿童书籍分类
         'childrens-middle-grade-hardcover': '儿童中级精装本',
         'young-adult-hardcover': '青少年精装本',
