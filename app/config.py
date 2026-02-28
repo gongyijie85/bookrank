@@ -65,9 +65,9 @@ class Config:
         # 成人书籍分类
         'hardcover-fiction': '精装小说',
         'hardcover-nonfiction': '精装非虚构',
-        'paperback-trade-fiction': '平装小说',
         'paperback-nonfiction': '平装非虚构',
         'advice-how-to-and-miscellaneous': '建议、方法与杂项',
+        'graphic-books-and-manga': '漫画与绘本',
         # 儿童书籍分类
         'childrens-middle-grade-hardcover': '儿童中级精装本',
         'young-adult-hardcover': '青少年精装本',
