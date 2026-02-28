@@ -63,20 +63,14 @@ class Config:
     # 分类配置
     CATEGORIES: dict[str, str] = {
         # 成人书籍分类（4 个）
-        'combined-print-and-e-book-fiction': '综合印刷与电子书小说',
-        'combined-print-and-e-book-nonfiction': '综合印刷与电子书非虚构',
         'hardcover-fiction': '精装小说',
         'hardcover-nonfiction': '精装非虚构',
         'paperback-trade-fiction': '平装小说',
         'paperback-nonfiction': '平装非虚构',
         'advice-how-to-and-miscellaneous': '建议、方法与杂项',
-        # 儿童书籍分类（6 个）
+        # 儿童书籍分类（2 个）
         'childrens-middle-grade-hardcover': '儿童中级精装本',
-        'childrens-picture-books': '儿童图画书',
-        'childrens-and-young-adult-series': '儿童与青少年系列',
         'young-adult-hardcover': '青少年精装本',
-        'middle-grade-paperback': '儿童中级平装本',
-        'young-adult-paperback': '青少年平装本',
     }
 
     # API 端点配置
