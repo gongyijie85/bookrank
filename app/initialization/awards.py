@@ -172,5 +172,10 @@ def init_awards_data(app):
         publisher_count = service.init_publishers()
         app.logger.info(f"✅ 已初始化 {publisher_count} 个出版社")
         
+        # 初始化预置获奖图书数据（Render 免费版优化）
+        app.logger.info("📚 检查预置获奖图书...")
+        from .sample_award_books import init_sample_award_books
+        init_sample_award_books(app)
+        
     except Exception as e:
         app.logger.error(f"❌ 初始化奖项数据失败: {e}", exc_info=True)
