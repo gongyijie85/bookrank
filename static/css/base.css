@@ -2,34 +2,34 @@
 
 /* CSS Custom Properties - Design Tokens */
 :root {
-    /* Primary Colors - Deep Blue + Light Blue + Gold Accent */
-    --primary-color: #1e3a5f;
-    --primary-dark: #0f2744;
-    --primary-light: #2d5a8a;
-    --primary-gradient: linear-gradient(135deg, #1e3a5f 0%, #2d5a8a 100%);
-    --accent-color: #3b82f6;
-    --accent-gold: #d4a853;
-    --accent-gold-gradient: linear-gradient(135deg, #d4a853 0%, #c9953a 100%);
+    /* Primary Colors - White + Orange */
+    --primary-color: #ff6b35;
+    --primary-dark: #e55a2b;
+    --primary-light: #ff8a5c;
+    --primary-gradient: linear-gradient(135deg, #ff6b35 0%, #ff8a5c 100%);
+    --accent-color: #ff6b35;
+    --accent-orange: #ff6b35;
+    --accent-orange-gradient: linear-gradient(135deg, #ff6b35 0%, #e55a2b 100%);
 
     /* Background Colors - Light Mode */
-    --bg-primary: #f8fafc;
-    --bg-secondary: #f1f5f9;
-    --bg-tertiary: #e2e8f0;
-    --bg-light: #f8fafc;
+    --bg-primary: #ffffff;
+    --bg-secondary: #fafafa;
+    --bg-tertiary: #f5f5f5;
+    --bg-light: #ffffff;
     --bg-white: #ffffff;
     --bg-card: #ffffff;
     --card-bg: #ffffff;
 
     /* Text Colors - Light Mode */
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --text-light: #94a3b8;
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --text-light: #999999;
     --text-white: #ffffff;
-    --text-muted: #94a3b8;
+    --text-muted: #999999;
 
     /* Border Colors */
-    --border-color: #e2e8f0;
-    --border-light: #f1f5f9;
+    --border-color: #e8e8e8;
+    --border-light: #f5f5f5;
 
     /* Accent Colors - Badge Colors */
     --accent-silver: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
@@ -39,11 +39,11 @@
     --accent-blue: #3b82f6;
 
     /* Shadows - Softer and more refined */
-    --shadow-sm: 0 1px 3px rgba(30, 58, 95, 0.08);
-    --shadow-md: 0 4px 12px rgba(30, 58, 95, 0.1);
-    --shadow-lg: 0 10px 25px rgba(30, 58, 95, 0.12);
-    --shadow-xl: 0 20px 40px rgba(30, 58, 95, 0.15);
-    --shadow-hover: 0 12px 45px rgba(30, 58, 95, 0.18);
+    --shadow-sm: 0 1px 3px rgba(255, 107, 53, 0.08);
+    --shadow-md: 0 4px 12px rgba(255, 107, 53, 0.1);
+    --shadow-lg: 0 10px 25px rgba(255, 107, 53, 0.12);
+    --shadow-xl: 0 20px 40px rgba(255, 107, 53, 0.15);
+    --shadow-hover: 0 12px 45px rgba(255, 107, 53, 0.18);
 
     /* Spacing - More generous */
     --spacing-xs: 0.375rem;
@@ -557,8 +557,8 @@ h4 { font-size: 1.125rem; }
 
 .form-control:focus {
     outline: none;
-    border-color: var(--accent-gold);
-    box-shadow: 0 0 0 0.25rem rgba(212, 168, 83, 0.2);
+    border-color: var(--accent-orange);
+    box-shadow: 0 0 0 0.25rem rgba(255, 107, 53, 0.2);
 }
 
 .form-control::placeholder {
@@ -595,8 +595,8 @@ h4 { font-size: 1.125rem; }
     color: var(--text-white);
 }
 
-.badge-gold {
-    background: var(--accent-gold-gradient);
+.badge-orange {
+    background: var(--accent-orange-gradient);
     color: #ffffff;
 }
 
@@ -724,7 +724,7 @@ h4 { font-size: 1.125rem; }
 }
 
 .toast-warning {
-    border-left-color: var(--accent-gold);
+    border-left-color: var(--accent-orange);
 }
 
 .toast-info {
