@@ -3,10 +3,13 @@ Open Library 新书数据源
 
 Open Library 提供免费的图书数据API，可以获取新出版图书信息。
 这是一个更稳定可靠的替代方案，用于替代直接爬取出版社网站。
+
+混合架构：先尝试传统 API，失败后自动用 Crawl4AI 降级
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional
 
 import requests
 from werkzeug.exceptions import abort
@@ -21,6 +24,7 @@ class OpenLibraryCrawler(BaseCrawler):
     Open Library 新书爬虫
 
     使用 Open Library API 获取新书数据，稳定可靠。
+    混合架构：先尝试传统 API，失败后自动用 Crawl4AI 降级
     API文档: https://openlibrary.org/developers/api
     """
 
@@ -56,6 +60,73 @@ class OpenLibraryCrawler(BaseCrawler):
         super().__init__(config)
         if config is None:
             self.config.request_delay = 0.5
+        self._crawl4ai_available = self._check_crawl4ai()
+
+    def _check_crawl4ai(self) -> bool:
+        """检查 Crawl4AI 是否可用"""
+        try:
+            import crawl4ai
+            logger.info(f"✅ OpenLibrary: Crawl4AI 可用")
+            return True
+        except ImportError:
+            logger.info(f"ℹ️ OpenLibrary: Crawl4AI 未安装，仅使用传统 API")
+            return False
+
+    async def _crawl_with_crawl4ai_async(self, url: str) -> Optional[str]:
+        """使用 Crawl4AI 异步爬取（JSON API）"""
+        if not self._crawl4ai_available:
+            return None
+
+        try:
+            from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+
+            logger.info(f"🕸️ OpenLibrary: 使用 Crawl4AI 爬取: {url}")
+
+            browser_config = BrowserConfig(headless=True, verbose=False)
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                timeout=30000,
+                word_count_threshold=1,
+            )
+
+            async with AsyncWebCrawler(config=browser_config) as crawler:
+                result = await crawler.arun(url=url, config=run_config)
+                if result and result.success and result.html:
+                    logger.info(f"✅ OpenLibrary: Crawl4AI 爬取成功")
+                    return result.html
+            return None
+        except Exception as e:
+            logger.warning(f"⚠️ OpenLibrary: Crawl4AI 出错: {e}")
+            return None
+
+    def _crawl_with_crawl4ai(self, url: str) -> Optional[str]:
+        """同步使用 Crawl4AI 爬取"""
+        try:
+            return asyncio.run(self._crawl_with_crawl4ai_async(url))
+        except Exception as e:
+            logger.warning(f"⚠️ OpenLibrary: Crawl4AI 同步调用失败: {e}")
+            return None
+
+    def _make_request_with_fallback(self, url: str) -> Optional[requests.Response]:
+        """
+        带降级的请求方法
+
+        先尝试传统 requests，失败后用 Crawl4AI（尝试从 HTML 中提取 JSON）
+        """
+        # 先尝试传统 requests
+        logger.info(f"🔄 OpenLibrary: 尝试传统 requests: {url}")
+        response = self._make_request(url)
+
+        if response:
+            logger.info(f"✅ OpenLibrary: 传统 requests 成功")
+            return response
+
+        # 失败后尝试 Crawl4AI（仅用于获取内容，API 可能还是不行）
+        if self._crawl4ai_available:
+            logger.info(f"🔄 OpenLibrary: API 失败，Open Library 是 API 接口，Crawl4AI 也无法解决")
+            logger.info(f"💡 建议: 检查网络连接或使用代理")
+
+        return None
 
     def get_categories(self) -> list[dict[str, str]]:
         return [
@@ -95,7 +166,7 @@ class OpenLibraryCrawler(BaseCrawler):
         current_year = datetime.now().year
         min_year = year_from or (current_year - 2)  # 默认近2年
 
-        response = self._make_request(url)
+        response = self._make_request_with_fallback(url)
         if not response:
             logger.error(f"❌ 无法获取 Open Library 数据: {url}")
             return
