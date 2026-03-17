@@ -9,6 +9,8 @@ from flask_talisman import Talisman
 
 from .config import config
 from .models import db, init_db
+from .models.schemas import UserPreference, SearchHistory, BookMetadata, Award, AwardBook, TranslationCache, APICache, SystemConfig
+from .models.new_book import Publisher, NewBook
 from .routes import api_bp, main_bp, public_api_bp, new_books_bp
 from .services import (
     CacheService, MemoryCache, FileCache,

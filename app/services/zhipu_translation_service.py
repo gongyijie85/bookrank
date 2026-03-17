@@ -358,6 +358,13 @@ class HybridTranslationService:
                 result['details_zh'] = translated_details
         
         return result
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计信息"""
+        cache_service = self._get_cache_service()
+        if cache_service:
+            return cache_service.get_stats()
+        return {'total_count': 0, 'message': '缓存服务不可用'}
 
 
 # 全局混合翻译服务实例

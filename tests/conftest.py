@@ -13,6 +13,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # 设置测试环境变量
 os.environ['FLASK_ENV'] = 'testing'
 
+# 导入所有模型类，确保它们被 SQLAlchemy 注册
+from app.models.schemas import UserPreference, SearchHistory, BookMetadata, Award, AwardBook, TranslationCache, APICache, SystemConfig
+from app.models.new_book import Publisher, NewBook
+
 from app import create_app
 from app.models.database import db as _db
 

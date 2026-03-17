@@ -1,5 +1,5 @@
 from .database import db, init_db
-from .schemas import Book, UserPreference, SearchHistory, BookMetadata
+from .schemas import Book, UserPreference, SearchHistory, BookMetadata, Award, AwardBook, TranslationCache, APICache, SystemConfig
 from .new_book import Publisher, NewBook
 
 __all__ = [
@@ -9,6 +9,11 @@ __all__ = [
     'UserPreference',
     'SearchHistory',
     'BookMetadata',
+    'Award',
+    'AwardBook',
+    'TranslationCache',
+    'APICache',
+    'SystemConfig',
     'Publisher',
     'NewBook',
 ]
