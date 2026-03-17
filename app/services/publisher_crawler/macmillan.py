@@ -223,34 +223,78 @@ class MacmillanCrawler(BaseCrawler):
         """解析书籍列表页"""
         books = []
 
-        # Macmillan 书籍列表选择器
-        book_items = soup.select('.book-item, .product-card, [data-book-id], .book-card, .book-tile')
+        # 尝试多种选择器匹配 Macmillan 网站结构
+        book_selectors = [
+            '.product', '.product-item', '.book', 
+            '.release-item', '.new-release', '.book-card',
+            'article', 'li.product', 'div.product',
+            '.item', '.card', '.product-card'
+        ]
+        
+        book_items = []
+        for selector in book_selectors:
+            items = soup.select(selector)
+            if items:
+                book_items.extend(items)
+                logger.info(f"📖 找到 {len(items)} 个书籍项 (选择器: {selector})")
 
-        if not book_items:
-            book_items = soup.select('article.book, li.book, div.book')
-
+        # 去重
+        seen_urls = set()
+        unique_items = []
         for item in book_items:
+            link = item.select_one('a[href*="/books/"], a[href*="/book/"]')
+            if link:
+                href = link.get('href', '')
+                if href not in seen_urls:
+                    seen_urls.add(href)
+                    unique_items.append(item)
+
+        logger.info(f"📖 去重后剩余 {len(unique_items)} 个书籍项")
+
+        for item in unique_items:
             try:
                 book_data = {}
 
-                # 提取详情链接
-                link = item.select_one('a[href*="/books/"], a[href*="/book/"]')
-                if link:
-                    href = link.get('href', '')
-                    book_data['url'] = urljoin(self.PUBLISHER_WEBSITE, href)
+                # 提取详情链接 - 尝试多种可能的链接选择器
+                link_selectors = [
+                    'a[href*="/books/"], a[href*="/book/"], a.product-link, a.book-link',
+                    'a[href^="/books/"], a[href^="/book/"], a[href*="/title/"], a[href*="/book-details/"]'
+                ]
+                
+                for link_selector in link_selectors:
+                    link = item.select_one(link_selector)
+                    if link:
+                        href = link.get('href', '')
+                        book_data['url'] = urljoin(self.PUBLISHER_WEBSITE, href)
+                        break
 
-                # 提取书名
-                title_elem = item.select_one('.title, .book-title, h2, h3')
-                if title_elem:
-                    book_data['title'] = self._clean_text(title_elem.get_text())
+                # 提取书名 - 尝试多种可能的标题选择器
+                title_selectors = [
+                    '.product-title, .book-title, h2, h3, .title, .book-name, .product-name',
+                    'h2.product-title, h3.product-title, h2.book-title, h3.book-title'
+                ]
+                
+                for title_selector in title_selectors:
+                    title_elem = item.select_one(title_selector)
+                    if title_elem:
+                        book_data['title'] = self._clean_text(title_elem.get_text())
+                        break
 
-                # 提取作者
-                author_elem = item.select_one('.author, .book-author, .contributor')
-                if author_elem:
-                    book_data['author'] = self._clean_text(author_elem.get_text())
+                # 提取作者 - 尝试多种可能的作者选择器
+                author_selectors = [
+                    '.author, .book-author, .contributor, .author-name, .by-author, .book-by',
+                    'p.author, span.author, div.author, .product-author, .book-author-name'
+                ]
+                
+                for author_selector in author_selectors:
+                    author_elem = item.select_one(author_selector)
+                    if author_elem:
+                        book_data['author'] = self._clean_text(author_elem.get_text())
+                        break
 
-                if book_data.get('url'):
+                if book_data.get('url') and book_data.get('title'):
                     books.append(book_data)
+                    logger.info(f"📖 找到书籍: {book_data['title']} by {book_data.get('author', 'Unknown Author')}")
 
             except Exception as e:
                 logger.warning(f"⚠️ 解析书籍项失败: {e}")
