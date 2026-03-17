@@ -215,25 +215,52 @@ class BaseCrawler(ABC):
         # 设置超时
         kwargs.setdefault('timeout', self.config.timeout)
 
-        try:
-            # 请求前延迟
-            time.sleep(self.config.request_delay)
+        # 添加更多的请求头
+        headers = kwargs.get('headers', {})
+        headers.update({
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Pragma': 'no-cache',
+        })
+        kwargs['headers'] = headers
 
-            response = self._session.request(method, url, **kwargs)
-            response.raise_for_status()
+        # 多次重试
+        for attempt in range(self.config.max_retries + 1):
+            try:
+                # 请求前延迟
+                time.sleep(self.config.request_delay * (attempt + 1))
 
-            logger.info(f"✅ 请求成功: {url} (状态码: {response.status_code})")
-            return response
+                response = self._session.request(method, url, **kwargs)
+                
+                # 处理常见的反爬响应
+                if response.status_code == 403:
+                    logger.warning(f"⚠️ 403 禁止访问: {url}")
+                    # 尝试使用不同的 User-Agent
+                    headers['User-Agent'] = f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{90 + attempt}.0.4430.212 Safari/537.36'
+                    kwargs['headers'] = headers
+                    continue
+                
+                response.raise_for_status()
 
-        except requests.Timeout:
-            logger.error(f"❌ 请求超时: {url}")
-            return None
-        except requests.HTTPError as e:
-            logger.error(f"❌ HTTP错误: {url} - {e}")
-            return None
-        except requests.RequestException as e:
-            logger.error(f"❌ 请求失败: {url} - {e}")
-            return None
+                logger.info(f"✅ 请求成功: {url} (状态码: {response.status_code}, 尝试: {attempt + 1})")
+                return response
+
+            except requests.Timeout:
+                logger.error(f"❌ 请求超时: {url} (尝试: {attempt + 1})")
+                if attempt >= self.config.max_retries:
+                    return None
+            except requests.HTTPError as e:
+                logger.error(f"❌ HTTP错误: {url} - {e} (尝试: {attempt + 1})")
+                if attempt >= self.config.max_retries:
+                    return None
+            except requests.RequestException as e:
+                logger.error(f"❌ 请求失败: {url} - {e} (尝试: {attempt + 1})")
+                if attempt >= self.config.max_retries:
+                    return None
+
+        return None
 
     def _parse_html(self, html: str, parser: str = 'html.parser') -> BeautifulSoup:
         """

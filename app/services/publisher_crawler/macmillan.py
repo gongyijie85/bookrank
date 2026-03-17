@@ -92,7 +92,6 @@ class MacmillanCrawler(BaseCrawler):
 
             run_config = CrawlerRunConfig(
                 cache_mode=CacheMode.BYPASS,
-                timeout=30000,
                 word_count_threshold=1,
             )
 

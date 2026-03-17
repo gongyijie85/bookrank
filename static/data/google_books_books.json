@@ -14,10 +14,10 @@
     "buy_links": [
       {
         "name": "Google Books",
-        "url": "https://books.google.com/books/about/Learn_English_with_Stories_5000_Words_in.html?hl=&id=ULMBEQAAQBAJ"
+        "url": "https://play.google.com/store/books/details?id=ULMBEQAAQBAJ"
       }
     ],
-    "source_url": "https://books.google.com/books/about/Learn_English_with_Stories_5000_Words_in.html?hl=&id=ULMBEQAAQBAJ"
+    "source_url": "https://play.google.com/store/books/details?id=ULMBEQAAQBAJ"
   },
   {
     "title": "Ishlam",
@@ -34,9 +34,9 @@
     "buy_links": [
       {
         "name": "Google Books",
-        "url": "https://books.google.com/books/about/Ishlam.html?hl=&id=SPaZEQAAQBAJ"
+        "url": "https://play.google.com/store/books/details?id=SPaZEQAAQBAJ"
       }
     ],
-    "source_url": "https://books.google.com/books/about/Ishlam.html?hl=&id=SPaZEQAAQBAJ"
+    "source_url": "https://play.google.com/store/books/details?id=SPaZEQAAQBAJ"
   }
 ]
