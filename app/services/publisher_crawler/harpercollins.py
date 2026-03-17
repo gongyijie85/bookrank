@@ -4,14 +4,19 @@ HarperCollins（哈珀柯林斯）出版社爬虫
 哈珀柯林斯是全球最大的出版商之一，
 总部位于美国，是新闻集团的子公司。
 
+混合架构：先尝试传统 requests，失败后自动用 Crawl4AI 降级
+
 网站特点：
 - 提供新书预告和发布日历
 - 按品牌/印记分类
 - 丰富的书籍元数据
 """
+import asyncio
 import logging
-from typing import Any, Generator
+from typing import Any, Generator, Optional
 from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
 
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
 
@@ -21,6 +26,8 @@ logger = logging.getLogger(__name__)
 class HarperCollinsCrawler(BaseCrawler):
     """
     HarperCollins 出版社爬虫
+
+    混合架构：先尝试传统 requests，失败后自动用 Crawl4AI 降级
 
     官方网站：https://www.harpercollins.com/
     新书页面：https://www.harpercollins.com/pages/new-releases
@@ -56,6 +63,81 @@ class HarperCollinsCrawler(BaseCrawler):
         super().__init__(config)
         if config is None:
             self.config.request_delay = 1.2
+        self._crawl4ai_available = self._check_crawl4ai()
+
+    def _check_crawl4ai(self) -> bool:
+        """检查 Crawl4AI 是否可用"""
+        try:
+            import crawl4ai
+            logger.info(f"✅ HarperCollins: Crawl4AI 可用")
+            return True
+        except ImportError:
+            logger.info(f"ℹ️ HarperCollins: Crawl4AI 未安装，仅使用传统 requests")
+            return False
+
+    async def _crawl_with_crawl4ai_async(self, url: str) -> Optional[str]:
+        """使用 Crawl4AI 异步爬取网页"""
+        if not self._crawl4ai_available:
+            return None
+
+        try:
+            from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+
+            logger.info(f"🕸️ HarperCollins: 使用 Crawl4AI 爬取: {url}")
+
+            browser_config = BrowserConfig(
+                headless=True,
+                verbose=False,
+            )
+
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                timeout=30000,
+                word_count_threshold=1,
+            )
+
+            async with AsyncWebCrawler(config=browser_config) as crawler:
+                result = await crawler.arun(url=url, config=run_config)
+                if result and result.success and result.html:
+                    logger.info(f"✅ HarperCollins: Crawl4AI 爬取成功")
+                    return result.html
+            return None
+        except Exception as e:
+            logger.warning(f"⚠️ HarperCollins: Crawl4AI 出错: {e}")
+            return None
+
+    def _crawl_with_crawl4ai(self, url: str) -> Optional[str]:
+        """同步使用 Crawl4AI 爬取"""
+        try:
+            return asyncio.run(self._crawl_with_crawl4ai_async(url))
+        except Exception as e:
+            logger.warning(f"⚠️ HarperCollins: Crawl4AI 同步调用失败: {e}")
+            return None
+
+    def _make_request_with_fallback(self, url: str) -> tuple[Optional[BeautifulSoup], Optional[str]]:
+        """
+        带降级的请求方法
+
+        先尝试传统 requests，失败后用 Crawl4AI
+        返回 (soup, source)，source 是 'requests' 或 'crawl4ai'
+        """
+        logger.info(f"🔄 HarperCollins: 尝试传统 requests: {url}")
+        response = self._make_request(url)
+
+        if response:
+            logger.info(f"✅ HarperCollins: 传统 requests 成功")
+            return self._parse_html(response.text), 'requests'
+
+        if self._crawl4ai_available:
+            logger.info(f"🔄 HarperCollins: 降级到 Crawl4AI")
+            html = self._crawl_with_crawl4ai(url)
+
+            if html:
+                logger.info(f"✅ HarperCollins: Crawl4AI 成功")
+                return BeautifulSoup(html, 'html.parser'), 'crawl4ai'
+
+        logger.warning(f"❌ HarperCollins: 所有方法都失败: {url}")
+        return None, None
 
     def get_categories(self) -> list[dict[str, str]]:
         """获取支持的分类列表"""
@@ -81,7 +163,18 @@ class HarperCollinsCrawler(BaseCrawler):
         category: str | None = None,
         max_books: int = 100
     ) -> Generator[BookInfo, None, None]:
-        """获取新书列表"""
+        """
+        获取新书列表（混合架构）
+
+        先尝试传统 requests，失败后用 Crawl4AI 降级
+
+        Args:
+            category: 分类ID
+            max_books: 最大获取数量
+
+        Yields:
+            BookInfo 对象
+        """
         page = 1
         count = 0
 
@@ -89,11 +182,13 @@ class HarperCollinsCrawler(BaseCrawler):
             url = self._build_list_url(category, page)
             logger.info(f"📄 正在爬取第 {page} 页: {url}")
 
-            response = self._make_request(url)
-            if not response:
+            soup, source = self._make_request_with_fallback(url)
+            if not soup:
+                logger.warning(f"⚠️ 无法获取页面内容，停止爬取")
                 break
 
-            soup = self._parse_html(response.text)
+            logger.info(f"✅ 使用 {source} 获取页面成功")
+
             books_on_page = self._parse_book_list(soup)
 
             if not books_on_page:
@@ -166,12 +261,22 @@ class HarperCollinsCrawler(BaseCrawler):
         return books
 
     def get_book_details(self, book_url: str) -> BookInfo | None:
-        """获取书籍详情"""
-        response = self._make_request(book_url)
-        if not response:
+        """
+        获取书籍详情（混合架构）
+
+        先尝试传统 requests，失败后用 Crawl4AI 降级
+
+        Args:
+            book_url: 书籍详情页URL
+
+        Returns:
+            BookInfo 对象或 None
+        """
+        soup, source = self._make_request_with_fallback(book_url)
+        if not soup:
             return None
 
-        soup = self._parse_html(response.text)
+        logger.info(f"✅ 使用 {source} 获取书籍详情成功")
 
         try:
             book_info = BookInfo(

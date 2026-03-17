@@ -3,6 +3,8 @@
 
 提供新书数据的查询、同步、导出等功能。
 """
+import os
+import json
 import csv
 import logging
 from io import StringIO, BytesIO
@@ -19,6 +21,37 @@ from ..services.new_book_service import NewBookService
 logger = logging.getLogger(__name__)
 
 new_books_bp = Blueprint('new_books', __name__, url_prefix='/api/new-books')
+
+# 静态数据目录
+STATIC_DATA_DIR = os.path.join('static', 'data')
+
+
+def load_static_books():
+    """加载静态书籍数据"""
+    try:
+        all_books_path = os.path.join(STATIC_DATA_DIR, 'all_books.json')
+        if not os.path.exists(all_books_path):
+            return {}
+        
+        with open(all_books_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"加载静态数据失败: {e}")
+        return {}
+
+
+def load_update_time():
+    """加载更新时间"""
+    try:
+        update_time_path = os.path.join(STATIC_DATA_DIR, 'update_time.json')
+        if not os.path.exists(update_time_path):
+            return None
+        
+        with open(update_time_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"加载更新时间失败: {e}")
+        return None
 
 
 class APIResponse:
@@ -55,13 +88,24 @@ def get_new_book_service() -> NewBookService:
 def get_publishers():
     """获取出版社列表"""
     try:
-        service = get_new_book_service()
-        active_only = request.args.get('active_only', 'true').lower() == 'true'
+        # 加载静态数据
+        static_books = load_static_books()
         
-        publishers = service.get_publishers(active_only=active_only)
+        # 生成出版社列表
+        publishers = []
+        for publisher_name in static_books.keys():
+            # 统计该出版社的书籍数量
+            book_count = len(static_books[publisher_name])
+            
+            publishers.append({
+                'id': hash(publisher_name) % 10000,  # 生成一个简单的ID
+                'name': publisher_name,
+                'is_active': True,
+                'book_count': book_count
+            })
         
         return APIResponse.success(data={
-            'publishers': [p.to_dict() for p in publishers]
+            'publishers': publishers
         })
     
     except Exception as e:
@@ -121,36 +165,44 @@ def update_publisher_status(publisher_id: int):
 def get_new_books():
     """获取新书列表"""
     try:
-        service = get_new_book_service()
+        # 加载静态数据
+        static_books = load_static_books()
         
         # 获取筛选参数
-        publisher_id = request.args.get('publisher_id', type=int)
+        publisher_name = request.args.get('publisher')
         category = request.args.get('category')
-        days = request.args.get('days', 30, type=int)
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         
         # 限制参数范围
-        days = min(max(1, days), 365)
         page = min(max(1, page), 10000)
         per_page = min(max(1, per_page), 50)
         
-        books, total = service.get_new_books(
-            publisher_id=publisher_id,
-            category=category,
-            days=days,
-            page=page,
-            per_page=per_page
-        )
+        # 收集所有书籍
+        all_books = []
+        for pub_name, books in static_books.items():
+            if publisher_name and pub_name != publisher_name:
+                continue
+            for book in books:
+                if category and book.get('category') != category:
+                    continue
+                all_books.append(book)
+        
+        # 分页
+        total = len(all_books)
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated_books = all_books[start:end]
         
         return APIResponse.success(data={
-            'books': [b.to_dict() for b in books],
+            'books': paginated_books,
             'pagination': {
                 'page': page,
                 'per_page': per_page,
                 'total': total,
                 'pages': (total + per_page - 1) // per_page
-            }
+            },
+            'update_time': load_update_time()
         })
     
     except Exception as e:
