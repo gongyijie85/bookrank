@@ -31,39 +31,31 @@ def detailed_health_check():
     checks = {
         'database': False,
         'cache': False,
-        'awards_count': 0,
-        'books_count': 0,
-        'publishers_count': 0,
         'memory_usage': 'unknown'
     }
     
     try:
-        # 检查数据库连接
+        # 检查数据库连接（轻量级检查）
         from ..models.database import db
         db.session.execute('SELECT 1')
         checks['database'] = True
         
-        # 检查数据量
-        from ..models.schemas import Award, BookMetadata
-        from ..models.new_book import Publisher
-        
-        checks['awards_count'] = Award.query.count()
-        checks['books_count'] = BookMetadata.query.count()
-        checks['publishers_count'] = Publisher.query.count()
-        
-        # 检查缓存服务
-        cache_service = current_app.extensions.get('book_service')
-        if cache_service and hasattr(cache_service, '_cache'):
+        # 检查缓存服务（简化检查）
+        if 'book_service' in current_app.extensions:
             checks['cache'] = True
         
-        # 检查内存使用
+        # 检查内存使用（可选，不影响整体状态）
         try:
-            import psutil
-            process = psutil.Process()
-            memory_mb = process.memory_info().rss / 1024 / 1024
-            checks['memory_usage'] = f"{memory_mb:.2f} MB"
+            import os
+            # 使用更轻量级的方式获取内存信息
+            if os.name == 'posix':
+                import resource
+                memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+                checks['memory_usage'] = f"{memory_mb:.2f} MB"
+            else:
+                checks['memory_usage'] = "memory check not available on Windows"
         except ImportError:
-            checks['memory_usage'] = "psutil not installed"
+            checks['memory_usage'] = "memory check not available"
         except Exception as e:
             checks['memory_usage'] = str(e)
         
