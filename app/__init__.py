@@ -11,7 +11,7 @@ from .config import config
 from .models import db, init_db
 from .models.schemas import UserPreference, SearchHistory, BookMetadata, Award, AwardBook, TranslationCache, APICache, SystemConfig
 from .models.new_book import Publisher, NewBook
-from .routes import api_bp, main_bp, public_api_bp, new_books_bp
+from .routes import api_bp, main_bp, public_api_bp, new_books_bp, health_bp
 from .services import (
     CacheService, MemoryCache, FileCache,
     NYTApiClient, GoogleBooksClient, ImageCacheService,
@@ -97,8 +97,8 @@ def _init_services(app):
     """初始化业务服务"""
     cfg = app.config
 
-    # 内存缓存配置（增大缓存容量）
-    memory_cache = MemoryCache(default_ttl=cfg['MEMORY_CACHE_TTL'])
+    # 内存缓存配置（Render 免费版优化：增大缓存容量）
+    memory_cache = MemoryCache(default_ttl=cfg['MEMORY_CACHE_TTL'], max_size=2000)
 
     # 文件缓存配置
     file_cache = FileCache(
@@ -159,6 +159,7 @@ def _register_blueprints(app):
     app.register_blueprint(api_bp)
     app.register_blueprint(public_api_bp)
     app.register_blueprint(new_books_bp)
+    app.register_blueprint(health_bp)
 
 
 def _register_error_handlers(app):

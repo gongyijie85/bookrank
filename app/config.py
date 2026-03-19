@@ -41,10 +41,11 @@ class Config:
     # 智谱AI配置（用于翻译）
     ZHIPU_API_KEY: str | None = os.environ.get('ZHIPU_API_KEY')
 
-    # 缓存配置
+    # 缓存配置 - Render 免费版优化
+    # 增加缓存时间，减少数据库访问
     CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'simple')
-    CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_TTL', 3600))
-    MEMORY_CACHE_TTL: int = int(os.environ.get('MEMORY_CACHE_TTL', 300))
+    CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_TTL', 7200))  # 从 3600 改为 7200（2小时）
+    MEMORY_CACHE_TTL: int = int(os.environ.get('MEMORY_CACHE_TTL', 600))  # 从 300 改为 600（10分钟）
 
     CACHE_DIR: Path = BASE_DIR / 'cache'
     IMAGE_CACHE_DIR: Path = CACHE_DIR / 'images'
@@ -116,12 +117,13 @@ class ProductionConfig(Config):
     # 缓存优化
     CACHE_TYPE: str = 'simple'
 
-    # 数据库连接池优化
+    # Render 免费版 PostgreSQL 连接池优化
+    # 免费版连接数有限，保守配置
     SQLALCHEMY_ENGINE_OPTIONS: dict = {
-        'pool_size': 5,
-        'max_overflow': 10,
-        'pool_timeout': 30,
-        'pool_recycle': 1800,
+        'pool_size': 2,
+        'max_overflow': 2,
+        'pool_timeout': 10,
+        'pool_recycle': 600,
         'pool_pre_ping': True,
         'echo': False,
     }
