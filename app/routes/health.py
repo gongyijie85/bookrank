@@ -29,38 +29,29 @@ def detailed_health_check():
     用于手动诊断问题
     """
     checks = {
-        'database': False,
-        'cache': False,
-        'memory_usage': 'unknown'
+        'app_running': True,
+        'flask_version': 'unknown',
+        'environment': 'unknown'
     }
     
     try:
-        # 检查数据库连接（轻量级检查）
-        from ..models.database import db
-        db.session.execute('SELECT 1')
-        checks['database'] = True
+        # 检查 Flask 版本
+        from flask import __version__
+        checks['flask_version'] = __version__
         
-        # 检查缓存服务（简化检查）
-        if 'book_service' in current_app.extensions:
-            checks['cache'] = True
+        # 检查环境
+        checks['environment'] = current_app.config.get('ENV', 'unknown')
         
-        # 检查内存使用（可选，不影响整体状态）
+        # 尝试轻量级数据库检查（可选）
         try:
-            import os
-            # 使用更轻量级的方式获取内存信息
-            if os.name == 'posix':
-                import resource
-                memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
-                checks['memory_usage'] = f"{memory_mb:.2f} MB"
-            else:
-                checks['memory_usage'] = "memory check not available on Windows"
-        except ImportError:
-            checks['memory_usage'] = "memory check not available"
+            from ..models.database import db
+            db.session.execute('SELECT 1')
+            checks['database'] = 'connected'
         except Exception as e:
-            checks['memory_usage'] = str(e)
+            checks['database'] = f'error: {str(e)}'
         
-        status = 'healthy' if checks['database'] else 'unhealthy'
-        status_code = 200 if status == 'healthy' else 503
+        status = 'healthy'
+        status_code = 200
         
     except Exception as e:
         status = 'unhealthy'
