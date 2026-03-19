@@ -37,7 +37,7 @@ errorlog = "-"
 loglevel = "info"
 
 # 日志格式优化（适合 Render 日志查看
-access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"
+access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
 
 # 进程名称
 proc_name = "book-rank-app"
