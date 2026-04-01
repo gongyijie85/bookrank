@@ -9,11 +9,11 @@
 <!-- Page Header -->
 <header class="page-header">
     <h1 class="page-title">
-        <i class="fa fa-fire text-gold" aria-hidden="true"></i>
+        <svg class="icon text-gold" width="24" height="24"><use href="#icon-fire"/></svg>
         纽约时报畅销书排行榜
     </h1>
     <p class="page-subtitle">
-        <i class="fa fa-clock-o" aria-hidden="true"></i>
+        <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
         <time datetime="{{ update_time if update_time else '' }}">更新于: {{ update_time if update_time else '刚刚' }}</time>
         {% if is_cached %}
         <span class="cache-badge">缓存数据</span>
@@ -43,17 +43,17 @@
                    placeholder="搜索书名或作者..."
                    value="{{ search_query if search_query else '' }}"
                    aria-label="搜索书名或作者">
-            <i class="fa fa-search" aria-hidden="true"></i>
+            <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
         </div>
     </div>
 
     <div class="filter-actions">
         <button class="btn btn-primary" onclick="applyFilters()" aria-label="应用筛选">
-            <i class="fa fa-filter" aria-hidden="true"></i>
+            <svg class="icon" width="16" height="16"><use href="#icon-filter"/></svg>
             筛选
         </button>
         <button class="btn btn-secondary" onclick="clearFilters()" aria-label="重置筛选">
-            <i class="fa fa-refresh" aria-hidden="true"></i>
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
             重置
         </button>
     </div>
@@ -65,7 +65,7 @@
                 title="网格视图"
                 aria-label="切换到网格视图"
                 aria-pressed="{% if view_mode == 'grid' %}true{% else %}false{% endif %}">
-            <i class="fa fa-th" aria-hidden="true"></i>
+            <svg class="icon" width="18" height="18"><use href="#icon-grid"/></svg>
         </button>
         <button class="btn btn-icon {% if view_mode == 'list' or not view_mode %}active{% endif %}"
                 id="view-list"
@@ -73,7 +73,7 @@
                 title="列表视图"
                 aria-label="切换到列表视图"
                 aria-pressed="{% if view_mode == 'list' or not view_mode %}true{% else %}false{% endif %}">
-            <i class="fa fa-list" aria-hidden="true"></i>
+            <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
         </button>
     </div>
 </section>
@@ -84,11 +84,11 @@
     <span class="export-info">共 <strong>{{ books|length }}</strong> 本图书</span>
     <div class="export-buttons">
         <button class="btn btn-primary btn-sm" onclick="exportBooks('{{ current_category }}')" aria-label="导出当前分类">
-            <i class="fa fa-download" aria-hidden="true"></i>
+            <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
             导出当前分类
         </button>
         <button class="btn btn-secondary btn-sm" onclick="exportBooks('all')" aria-label="导出全部">
-            <i class="fa fa-download" aria-hidden="true"></i>
+            <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
             导出全部
         </button>
     </div>
@@ -138,7 +138,7 @@
                 <span class="card-rank-badge">第{{ loop.index }}名</span>
                 {% if book.weeks_on_list %}
                 <span class="card-weeks">
-                    <i class="fa fa-clock-o" aria-hidden="true"></i> {{ book.weeks_on_list }}周
+                    <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}周
                 </span>
                 {% endif %}
             </div>
@@ -207,12 +207,12 @@
                 <span class="card-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
                 {% if book.weeks_on_list %}
                 <span class="card-tag">
-                    <i class="fa fa-clock-o" aria-hidden="true"></i> {{ book.weeks_on_list }}周
+                    <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}周
                 </span>
                 {% endif %}
                 {% if book.publisher %}
                 <span class="card-tag">
-                    <i class="fa fa-building" aria-hidden="true"></i> {{ book.publisher }}
+                    <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> {{ book.publisher }}
                 </span>
                 {% endif %}
             </div>
@@ -223,7 +223,7 @@
                     onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.isbn13 }}')"
                     aria-label="收藏 {{ book.title }}"
                     aria-pressed="false">
-                <i class="fa fa-heart-o" aria-hidden="true"></i>
+                <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
             </button>
         </div>
     </article>
@@ -233,7 +233,7 @@
 <!-- Empty State -->
 {% if not books %}
 <section class="empty-state" aria-label="暂无数据">
-    <i class="fa fa-inbox" aria-hidden="true"></i>
+    <svg class="icon" width="48" height="48"><use href="#icon-inbox"/></svg>
     <h2>暂无数据</h2>
     <p>请尝试切换分类或稍后重试</p>
     {% if is_cached %}
@@ -245,12 +245,12 @@
 <!-- Quick Link to Awards -->
 <nav class="quick-link-section" aria-label="快速链接">
     <a href="{{ url_for('main.awards') }}" class="quick-link-card">
-        <i class="fa fa-trophy" aria-hidden="true"></i>
+        <svg class="icon" width="32" height="32"><use href="#icon-trophy"/></svg>
         <div>
             <h3>查看国际图书奖项榜单</h3>
             <p>诺贝尔文学奖、布克奖、普利策奖等</p>
         </div>
-        <i class="fa fa-arrow-right" aria-hidden="true"></i>
+        <svg class="icon" width="20" height="20"><use href="#icon-arrow-right"/></svg>
     </a>
 </nav>
 
@@ -258,7 +258,7 @@
 <div class="modal" id="book-modal" onclick="closeBookModal(event)" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-hidden="true">
     <div class="modal-content" onclick="event.stopPropagation()" role="document">
         <button class="modal-close" onclick="closeBookModal()" aria-label="关闭详情">
-            <i class="fa fa-times" aria-hidden="true"></i>
+            <svg class="icon" width="20" height="20"><use href="#icon-x"/></svg>
         </button>
 
         <div class="modal-body">
@@ -877,7 +877,7 @@
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
             a.className = 'buy-link';
-            a.innerHTML = `<i class="fa fa-external-link" aria-hidden="true"></i> ${link.name || '购买链接'}`;
+            a.innerHTML = `<svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg> ${link.name || '购买链接'}`;
             a.setAttribute('aria-label', `在 ${link.name} 上购买`);
             container.appendChild(a);
         });

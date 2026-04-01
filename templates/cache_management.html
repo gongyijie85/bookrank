@@ -178,16 +178,16 @@
 
 {% block content %}
 <div class="page-header">
-    <h1><i class="fa-solid fa-database" aria-hidden="true"></i> 缓存管理</h1>
+    <h1><svg class="icon" width="24" height="24"><use href="#icon-database"/></svg> 缓存管理</h1>
     <p class="page-description">统一管理翻译缓存和API缓存，提高系统性能</p>
 </div>
 
 <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('translation')">
-        <i class="fa-solid fa-language" aria-hidden="true"></i> 翻译缓存
+        <svg class="icon" width="18" height="18"><use href="#icon-language"/></svg> 翻译缓存
     </button>
     <button class="tab-btn" onclick="switchTab('api')">
-        <i class="fa-solid fa-cloud" aria-hidden="true"></i> API缓存
+        <svg class="icon" width="18" height="18"><use href="#icon-cloud"/></svg> API缓存
     </button>
 </div>
 
@@ -216,21 +216,21 @@
     </div>
 
     <div class="section-header">
-        <h2><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> 最近翻译记录</h2>
+        <h2><svg class="icon" width="20" height="20"><use href="#icon-history"/></svg> 最近翻译记录</h2>
         <button class="btn btn-outline" onclick="loadTranslationRecords()">
-            <i class="fa-solid fa-refresh" aria-hidden="true"></i> 刷新
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> 刷新
         </button>
     </div>
 
     <div class="cache-list" id="translation-list">
         <div class="loading-state">
-            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            <svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg>
             <p>加载中...</p>
         </div>
     </div>
 
     <div class="clear-form">
-        <h3><i class="fa-solid fa-trash" aria-hidden="true"></i> 清理翻译缓存</h3>
+        <h3><svg class="icon" width="20" height="20"><use href="#icon-trash"/></svg> 清理翻译缓存</h3>
         <div class="form-row">
             <div class="form-group">
                 <label for="trans-older-than">清理N天前的记录</label>
@@ -242,10 +242,10 @@
             </div>
             <div class="form-group">
                 <button class="btn btn-warning" onclick="clearTranslationCache()">
-                    <i class="fa-solid fa-trash" aria-hidden="true"></i> 清理
+                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清理
                 </button>
                 <button class="btn btn-danger" onclick="clearAllTranslationCache()">
-                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i> 清空全部
+                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清空全部
                 </button>
             </div>
         </div>
@@ -281,21 +281,21 @@
     </div>
 
     <div class="section-header">
-        <h2><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> 最近API调用记录</h2>
+        <h2><svg class="icon" width="20" height="20"><use href="#icon-history"/></svg> 最近API调用记录</h2>
         <button class="btn btn-outline" onclick="loadAPIRecords()">
-            <i class="fa-solid fa-refresh" aria-hidden="true"></i> 刷新
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> 刷新
         </button>
     </div>
 
     <div class="cache-list" id="api-list">
         <div class="loading-state">
-            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            <svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg>
             <p>加载中...</p>
         </div>
     </div>
 
     <div class="clear-form">
-        <h3><i class="fa-solid fa-trash" aria-hidden="true"></i> 清理API缓存</h3>
+        <h3><svg class="icon" width="20" height="20"><use href="#icon-trash"/></svg> 清理API缓存</h3>
         <div class="form-row">
             <div class="form-group">
                 <label for="api-older-than">清理N天前的记录</label>
@@ -303,10 +303,10 @@
             </div>
             <div class="form-group">
                 <button class="btn btn-warning" onclick="clearAPICache()">
-                    <i class="fa-solid fa-trash" aria-hidden="true"></i> 清理
+                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清理
                 </button>
                 <button class="btn btn-danger" onclick="clearExpiredCache()">
-                    <i class="fa-solid fa-clock" aria-hidden="true"></i> 清理过期
+                    <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg> 清理过期
                 </button>
             </div>
         </div>
@@ -349,7 +349,7 @@ async function loadTranslationStats() {
 
 async function loadTranslationRecords() {
     const listEl = document.getElementById('translation-list');
-    listEl.innerHTML = '<div class="loading-state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><p>加载中...</p></div>';
+    listEl.innerHTML = '<div class="loading-state"><svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg><p>加载中...</p></div>';
     
     try {
         const response = await fetch('/api/translate/cache/recent?limit=30');
@@ -460,7 +460,7 @@ async function loadAPIStats() {
 
 async function loadAPIRecords() {
     const listEl = document.getElementById('api-list');
-    listEl.innerHTML = '<div class="loading-state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><p>加载中...</p></div>';
+    listEl.innerHTML = '<div class="loading-state"><svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg><p>加载中...</p></div>';
     
     try {
         const response = await fetch('/api/cache/recent?limit=30');

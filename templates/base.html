@@ -33,8 +33,8 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Font Awesome - CDN version (guaranteed compatibility) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <!-- Icons - Local SVG Sprite (Zero Dependency) -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
 
     <!-- Main Stylesheets -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
@@ -72,7 +72,7 @@
     <!-- Top Navigation -->
     <nav class="top-nav" role="navigation" aria-label="主导航">
         <a href="{{ url_for('main.index') }}" class="nav-brand" aria-label="BookRank 首页">
-            <i class="fa-solid fa-book" aria-hidden="true"></i>
+            <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
             <span>BookRank</span>
         </a>
 
@@ -81,28 +81,28 @@
                class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.index' %}page{% endif %}">
-                <i class="fa-solid fa-home" aria-hidden="true"></i>
+                <svg class="icon" width="18" height="18"><use href="#icon-home"/></svg>
                 <span>首页</span>
             </a>
             <a href="{{ url_for('main.awards') }}"
                class="nav-link {% if request.endpoint == 'main.awards' %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.awards' %}page{% endif %}">
-                <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+                <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
                 <span>获奖书单</span>
             </a>
             <a href="{{ url_for('main.publishers') }}"
                class="nav-link {% if request.endpoint == 'main.publishers' %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.publishers' %}page{% endif %}">
-                <i class="fa-solid fa-building" aria-hidden="true"></i>
+                <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
                 <span>出版社</span>
             </a>
             <a href="{{ url_for('main.new_books') }}"
                class="nav-link {% if request.endpoint == 'main.new_books' %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.new_books' %}page{% endif %}">
-                <i class="fa-solid fa-star" aria-hidden="true"></i>
+                <svg class="icon" width="18" height="18"><use href="#icon-star"/></svg>
                 <span>新书速递</span>
             </a>
         </div>
@@ -114,7 +114,7 @@
                 <button class="lang-btn" id="lang-zh" onclick="switchLanguage('zh')" title="显示中文">中</button>
             </div>
             <button class="btn btn-icon btn-outline" id="theme-toggle" title="切换主题" aria-label="切换明暗主题">
-                <i class="fa-solid fa-moon" aria-hidden="true"></i>
+                <svg class="icon" width="18" height="18"><use href="#icon-moon"/></svg>
             </button>
         </div>
     </nav>
@@ -130,7 +130,7 @@
                        class="sidebar-link {% if request.endpoint == 'main.index' %}active{% endif %}"
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.index' %}page{% endif %}">
-                        <i class="fa-solid fa-fire" aria-hidden="true"></i>
+                        <svg class="icon" width="18" height="18"><use href="#icon-fire"/></svg>
                         <span>畅销书榜</span>
                     </a>
                 </li>
@@ -139,7 +139,7 @@
                        class="sidebar-link {% if request.endpoint == 'main.awards' %}active{% endif %}"
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.awards' %}page{% endif %}">
-                        <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+                        <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
                         <span>获奖书单</span>
                     </a>
                 </li>
@@ -148,7 +148,7 @@
                        class="sidebar-link {% if request.endpoint == 'main.publishers' %}active{% endif %}"
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.publishers' %}page{% endif %}">
-                        <i class="fa-solid fa-building" aria-hidden="true"></i>
+                        <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
                         <span>出版社导航</span>
                     </a>
                 </li>
@@ -157,7 +157,7 @@
                        class="sidebar-link {% if request.endpoint == 'main.new_books' %}active{% endif %}"
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.new_books' %}page{% endif %}">
-                        <i class="fa-solid fa-star" aria-hidden="true"></i>
+                        <svg class="icon" width="18" height="18"><use href="#icon-star"/></svg>
                         <span>新书速递</span>
                     </a>
                 </li>
@@ -169,7 +169,7 @@
             <ul class="sidebar-menu" role="menu">
                 <li class="sidebar-item" role="none">
                     <a href="#" class="sidebar-link" role="menuitem" onclick="showAboutModal(); return false;">
-                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                        <svg class="icon" width="18" height="18"><use href="#icon-info"/></svg>
                         <span>关于我们</span>
                     </a>
                 </li>
@@ -178,7 +178,7 @@
                        class="sidebar-link {% if request.endpoint == 'main.cache_management' %}active{% endif %}"
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.cache_management' %}page{% endif %}">
-                        <i class="fa-solid fa-database" aria-hidden="true"></i>
+                        <svg class="icon" width="18" height="18"><use href="#icon-database"/></svg>
                         <span>翻译缓存</span>
                     </a>
                 </li>
@@ -189,7 +189,7 @@
 
     <!-- Sidebar Toggle Button -->
     <button class="sidebar-toggle" id="sidebar-toggle" aria-label="切换侧边栏" aria-expanded="false" aria-controls="sidebar">
-        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        <svg class="icon" width="20" height="20"><use href="#icon-menu"/></svg>
     </button>
 
     <!-- Main Content -->
@@ -244,5 +244,24 @@
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>
 
     {% block extra_js %}{% endblock %}
+
+    <!-- Load SVG Icons Sprite (Modern Zero-Dependency Approach) -->
+    <script>
+        (function() {
+            if (document.getElementById('svg-icons-sprite')) return;
+
+            const spriteUrl = "{{ url_for('static', filename='icons.svg') }}";
+            fetch(spriteUrl)
+                .then(response => response.text())
+                .then(svgContent => {
+                    const div = document.createElement('div');
+                    div.id = 'svg-icons-sprite';
+                    div.style.display = 'none';
+                    div.innerHTML = svgContent;
+                    document.body.insertBefore(div, document.body.firstChild);
+                })
+                .catch(err => console.error('Failed to load SVG icons:', err));
+        })();
+    </script>
 </body>
 </html>
