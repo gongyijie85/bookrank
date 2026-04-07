@@ -595,14 +595,14 @@
 /* Grid and List Layouts */
 .books-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: var(--spacing-md);
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--spacing-sm);
 }
 
 .awards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: var(--spacing-lg);
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--spacing-sm);
 }
 
 .books-list {
@@ -1498,8 +1498,8 @@
 /* Large Desktop (1400px+) - Optimize for wide screens */
 @media (min-width: 1400px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: var(--spacing-xl);
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: var(--spacing-sm);
     }
 
     .modal-content {
@@ -1547,20 +1547,20 @@
 /* Desktop (1025px-1399px) - Standard desktop layout */
 @media (min-width: 1025px) and (max-width: 1399px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     }
 }
 
 /* Tablet Landscape (768px-1024px) - Optimize for tablets */
 @media (min-width: 769px) and (max-width: 1024px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: var(--spacing-md);
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: var(--spacing-sm);
     }
 
     .awards-grid {
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: var(--spacing-lg);
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: var(--spacing-sm);
     }
 
     .card-title {
