@@ -58,6 +58,10 @@ class BookService:
             self._cache.set(cache_key, books_data, ttl=86400)  # 24小时
             
             logger.info(f"Fetched and cached {len(books)} books for {category_id}")
+
+            # 启动后台预翻译（不阻塞响应）
+            self._auto_translate_books(books)
+
             return books
             
         except APIRateLimitException:
@@ -129,6 +133,7 @@ class BookService:
             ).all()
             for r in records:
                 translations[r.isbn] = {
+                    'title_zh': r.title_zh,
                     'description_zh': r.description_zh,
                     'details_zh': r.details_zh
                 }
@@ -192,6 +197,7 @@ class BookService:
         
         if isbn in translations:
             trans = translations[isbn]
+            book.title_zh = trans.get('title_zh')
             book.description_zh = trans.get('description_zh')
             book.details_zh = trans.get('details_zh')
         
@@ -219,21 +225,22 @@ class BookService:
         except Exception as e:
             logger.debug(f"获取翻译失败 for {isbn}: {e}")
     
-    def save_book_translation(self, isbn: str, description_zh: str = None, details_zh: str = None) -> bool:
+    def save_book_translation(self, isbn: str, title_zh: str = None, description_zh: str = None, details_zh: str = None) -> bool:
         """
         保存图书翻译到数据库
-        
+
         Args:
             isbn: 图书ISBN
+            title_zh: 翻译后的书名
             description_zh: 翻译后的描述
             details_zh: 翻译后的详情
-            
+
         Returns:
             是否保存成功
         """
         if not isbn:
             return False
-        
+
         try:
             metadata = BookMetadata.query.get(isbn)
             if not metadata:
@@ -244,7 +251,9 @@ class BookService:
                     author=''
                 )
                 db.session.add(metadata)
-            
+
+            if title_zh:
+                metadata.title_zh = title_zh
             if description_zh:
                 metadata.description_zh = description_zh
             if details_zh:
@@ -261,6 +270,81 @@ class BookService:
             logger.error(f"保存翻译失败: {e}")
             db.session.rollback()
             return False
+
+    def _auto_translate_books(self, books: list[Book]) -> None:
+        """
+        自动预翻译图书信息（后台异步执行）
+
+        在后台线程中自动翻译图书的标题和描述，
+        并保存到数据库，下次访问时直接读取已翻译内容
+
+        Args:
+            books: 图书列表
+        """
+        import threading
+        import time
+
+        def translate_in_background():
+            """后台线程执行翻译任务"""
+            try:
+                from .zhipu_translation_service import get_translation_service
+
+                service = get_translation_service()
+                if not service or not service.zhipu.is_available():
+                    logger.warning("智谱AI不可用，跳过预翻译")
+                    return
+
+                translated_count = 0
+                for book in books:
+                    isbn = book.isbn13 or book.isbn10
+                    if not isbn:
+                        continue
+
+                    # 跳过已有完整翻译的图书
+                    if book.title_zh and book.description_zh:
+                        continue
+
+                    try:
+                        # 翻译书名（最重要）
+                        title_zh = None
+                        if not book.title_zh and book.title:
+                            title_zh = service.translate(book.title)
+                            if title_zh:
+                                logger.info(f"预翻译书名: {book.title[:30]}... -> {title_zh[:30]}...")
+
+                        # 翻译描述
+                        desc_zh = None
+                        if book.description:
+                            desc_zh = service.translate(book.description)
+                            if desc_zh:
+                                logger.debug(f"预翻译描述: {isbn}")
+
+                        # 保存到数据库
+                        if title_zh or desc_zh:
+                            self.save_book_translation(
+                                isbn=isbn,
+                                title_zh=title_zh,
+                                description_zh=desc_zh,
+                                details_zh=book.details_zh
+                            )
+                            translated_count += 1
+
+                        # 添加延迟避免API限流（0.2秒间隔）
+                        time.sleep(0.2)
+
+                    except Exception as e:
+                        logger.error(f"预翻译失败 {isbn}: {e}")
+                        continue
+
+                logger.info(f"批量预翻译完成: 共翻译 {translated_count} 本图书")
+
+            except Exception as e:
+                logger.error(f"后台翻译线程异常: {e}")
+
+        # 启动守护线程（主进程退出时自动结束）
+        thread = threading.Thread(target=translate_in_background, daemon=True)
+        thread.start()
+        logger.info(f"已启动后台预翻译线程，共 {len(books)} 本图书待处理")
     
     def _get_book_supplement(self, isbn: str, book_data: dict[str, Any]) -> dict[str, Any]:
         """

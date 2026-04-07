@@ -261,6 +261,56 @@
 <script type="application/json" id="books-data">
 {{ books|tojson }}
 </script>
+
+<!-- 翻译进度指示器 -->
+<div id="translation-progress" class="translation-progress" style="display: none;">
+    <div class="progress-bar">
+        <div class="progress-fill"></div>
+    </div>
+    <span class="progress-text">正在翻译... (0/0)</span>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 翻译进度指示器样式 */
+.translation-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 10px 20px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.progress-bar {
+    flex: 1;
+    max-width: 300px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b35, #f7931a);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.progress-text {
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -273,9 +323,12 @@
     window.booksData = JSON.parse(document.getElementById('books-data').textContent);
 
     // ========== 无感翻译系统 ==========
-    
-    // 当前语言偏好
-    let currentLanguage = localStorage.getItem('bookrank_language') || 'en';
+
+    // 智能默认语言检测：浏览器语言 > 用户偏好 > 默认英文
+    const browserLang = navigator.language || navigator.userLanguage || '';
+    const userPreference = localStorage.getItem('bookrank_language');
+    const defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
+    let currentLanguage = userPreference || defaultLang;
     
     // 翻译缓存系统
     let translationCache = {
@@ -316,6 +369,15 @@
     
     // 页面加载时加载翻译缓存
     translationCache.load();
+
+    // 页面加载完成后，如果用户偏好是中文或浏览器是中文环境，自动翻译
+    document.addEventListener('DOMContentLoaded', () => {
+        if (currentLanguage === 'zh') {
+            updateLanguageButtons('zh');
+            // 使用setTimeout确保DOM已渲染完成
+            setTimeout(() => translateAllBooks(), 100);
+        }
+    });
     
     // ========== 语言切换器 ==========
     
@@ -355,46 +417,97 @@
     }
     
     // ========== 翻译核心功能 ==========
-    
+
     /**
-     * 批量翻译所有图书（静默模式）
+     * 显示/更新翻译进度
+     */
+    function showTranslationProgress(current, total) {
+        const progressEl = document.getElementById('translation-progress');
+        if (!progressEl) return;
+
+        const fillEl = progressEl.querySelector('.progress-fill');
+        const textEl = progressEl.querySelector('.progress-text');
+
+        progressEl.style.display = 'flex';
+        if (total > 0) {
+            const percentage = (current / total) * 100;
+            fillEl.style.width = `${percentage}%`;
+        }
+        textEl.textContent = `正在翻译... (${current}/${total})`;
+
+        // 全部完成时自动隐藏
+        if (current >= total && total > 0) {
+            setTimeout(() => {
+                progressEl.style.display = 'none';
+            }, 1000);
+        }
+    }
+
+    /**
+     * 隐藏翻译进度
+     */
+    function hideTranslationProgress() {
+        const progressEl = document.getElementById('translation-progress');
+        if (progressEl) {
+            progressEl.style.display = 'none';
+        }
+    }
+
+    /**
+     * 批量翻译所有图书（优化版：优先使用后端数据）
      */
     async function translateAllBooks() {
         const books = window.booksData;
-        
-        // 先应用已缓存的翻译
+        let toTranslate = [];
+        let appliedCount = 0;
+
+        // 显示进度条
+        if (toTranslate.length > 0 || books.length > 0) {
+            showTranslationProgress(0, books.length);
+        }
+
         for (let i = 0; i < books.length; i++) {
             const book = books[i];
             const isbn = book.isbn13 || book.isbn10;
-            
-            if (isbn) {
-                const cached = translationCache.getBook(isbn);
-                if (cached && cached.title_zh) {
-                    applyTranslationToCard(i, cached);
-                }
+
+            if (!isbn) continue;
+
+            // 优先级1: 使用后端返回的翻译数据（最快，无需API调用）
+            if (book.title_zh || book.description_zh) {
+                applyTranslationToCard(i, {
+                    title_zh: book.title_zh,
+                    desc_zh: book.description_zh,
+                    details_zh: book.details_zh
+                });
+                appliedCount++;
+                showTranslationProgress(appliedCount, books.length);
+                continue;
             }
-        }
-        
-        // 批量翻译未缓存的图书（最多5本，避免API限制）
-        let toTranslate = [];
-        for (let i = 0; i < books.length && toTranslate.length < 5; i++) {
-            const book = books[i];
-            const isbn = book.isbn13 || book.isbn10;
-            
-            if (isbn) {
-                const cached = translationCache.getBook(isbn);
-                if (!cached || !cached.title_zh) {
-                    toTranslate.push({ index: i, book, isbn });
-                }
+
+            // 优先级2: 使用 localStorage 缓存
+            const cached = translationCache.getBook(isbn);
+            if (cached && cached.title_zh) {
+                applyTranslationToCard(i, cached);
+                appliedCount++;
+                showTranslationProgress(appliedCount, books.length);
+                continue;
             }
+
+            // 优先级3: 需要调用API翻译（最后手段）
+            toTranslate.push({ index: i, book, isbn });
         }
-        
-        // 逐个翻译剩余的（静默执行，不显示提示）
+
+        console.log(`翻译应用完成: ${appliedCount}本使用缓存, ${toTranslate.length}本需要API翻译`);
+
+        // 异步翻译剩余的图书（不阻塞UI）
+        let translatedCount = appliedCount;
         for (const { index, book, isbn } of toTranslate) {
             await translateSingleBook(index, book, isbn);
+            translatedCount++;
+            showTranslationProgress(translatedCount, books.length);
         }
     }
-    
+
     /**
      * 翻译单本图书
      */
