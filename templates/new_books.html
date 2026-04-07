@@ -474,8 +474,13 @@
         </div>
         {% endif %}
         <div class="book-info">
-            <div class="book-title" title="{{ book.title_zh or book.title }}">{{ book.title_zh or book.title }}</div>
-            <div class="book-author">{{ book.author }}</div>
+            <div class="book-title"
+                 title="{{ book.title_zh or book.title }}"
+                 data-en="{{ book.title }}"
+                 data-zh="{{ book.title_zh or book.title }}">
+                {{ book.title_zh or book.title }}
+            </div>
+            <div class="book-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</div>
             <div class="book-meta">
                 <span class="book-publisher">
                     <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg>

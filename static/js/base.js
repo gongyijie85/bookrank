@@ -450,47 +450,91 @@
     // ===== Language Functions =====
 
     /**
-     * Switch language and save preference
+     * Switch language and save preference (Enhanced Global Version)
      * @param {string} lang - Language code (en, zh)
      */
     function switchLanguage(lang) {
-        // Save language preference to localStorage
+        // Save language preference to localStorage (use both keys for compatibility)
         localStorage.setItem('app_language', lang);
-        
+        localStorage.setItem('bookrank_language', lang);
+
         // Update UI elements
         const langEnBtn = document.getElementById('lang-en');
         const langZhBtn = document.getElementById('lang-zh');
-        
+
         if (langEnBtn && langZhBtn) {
             langEnBtn.classList.toggle('active', lang === 'en');
             langZhBtn.classList.toggle('active', lang === 'zh');
         }
-        
+
         // Show toast notification
         const langName = lang === 'zh' ? '中文' : 'English';
         showToast(`已切换到${langName}`, 'success');
-        
-        // If app instance exists, update it
-        if (window.app && window.app.getCurrentLanguage) {
-            window.app.currentLang = lang;
-            window.app._updateLanguageUI();
+
+        // Strategy 1: Check if page has index.html's translation system
+        if (typeof translateAllBooks === 'function' && typeof updateLanguageButtons === 'function') {
+            console.log('[Global Lang] Using index.html translation system');
+            updateLanguageButtons(lang);
+            if (lang === 'zh') {
+                translateAllBooks();
+            } else if (typeof restoreAllBooks === 'function') {
+                restoreAllBooks();
+            }
+            return;
         }
-        
-        // Reload the current page to apply language changes
-        window.location.reload();
+
+        // Strategy 2: Check if page has detail page's language switch
+        if (typeof switchDetailLang === 'function') {
+            console.log('[Global Lang] Using detail page translation');
+            switchDetailLang(lang);
+            return;
+        }
+
+        // Strategy 3: Generic text replacement for other pages
+        console.log('[Global Lang] Using generic translation approach');
+        applyGenericTranslation(lang);
     }
 
     /**
-     * Initialize language based on saved preference
+     * Apply generic translation for pages without custom translation logic
+     * @param {string} lang - Language code (en, zh)
+     */
+    function applyGenericTranslation(lang) {
+        // Find all elements with data attributes for translation
+        const translatableElements = document.querySelectorAll('[data-zh][data-en]');
+
+        translatableElements.forEach(el => {
+            el.textContent = lang === 'zh' ? el.getAttribute('data-zh') : el.getAttribute('data-en');
+        });
+
+        // If no translatable elements found, show message
+        if (translatableElements.length === 0 && lang === 'zh') {
+            showToast('此页面暂无完整翻译，部分内容仍为英文', 'info');
+        }
+    }
+
+    /**
+     * Initialize language based on saved preference or browser detection
      */
     function initLanguage() {
-        const savedLang = localStorage.getItem('app_language') || 'zh';
+        // Smart detection: browser language > saved preference > default Chinese
+        const browserLang = navigator.language || navigator.userLanguage || '';
+        const savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        const defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
+        const currentLang = savedLang || defaultLang;
+
+        // Update button states
         const langEnBtn = document.getElementById('lang-en');
         const langZhBtn = document.getElementById('lang-zh');
-        
+
         if (langEnBtn && langZhBtn) {
-            langEnBtn.classList.toggle('active', savedLang === 'en');
-            langZhBtn.classList.toggle('active', savedLang === 'zh');
+            langEnBtn.classList.toggle('active', currentLang === 'en');
+            langZhBtn.classList.toggle('active', currentLang === 'zh');
+        }
+
+        // Auto-apply Chinese for Chinese users on page load
+        if (currentLang === 'zh') {
+            setTimeout(() => switchLanguage('zh'), 500);
         }
     }
 

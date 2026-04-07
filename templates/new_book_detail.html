@@ -8,7 +8,11 @@
     <button class="back-button" onclick="window.location.href = '{{ back_url }}'" aria-label="返回">
         <svg class="icon" width="24" height="24"><use href="#icon-arrow-left"/></svg>
     </button>
-    <h1 class="page-title">{{ book.title_zh or book.title }}</h1>
+    <h1 class="page-title"
+        data-en="{{ book.title }}"
+        data-zh="{{ book.title_zh or book.title }}">
+        {{ book.title_zh or book.title }}
+    </h1>
 </header>
 
 <!-- Book Detail Content -->
@@ -46,11 +50,13 @@
     <!-- 右侧：书籍信息 -->
     <div class="detail-info-section">
         <div class="detail-header-info">
-            <h2>{{ book.title_zh or book.title }}</h2>
+            <h2 data-en="{{ book.title }}" data-zh="{{ book.title_zh or book.title }}">
+                {{ book.title_zh or book.title }}
+            </h2>
             {% if book.title_zh and book.title != book.title_zh %}
-            <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">{{ book.title }}</p>
+            <p style="color: var(--text-secondary); margin-bottom: 0.5rem;" data-en="{{ book.title }}">{{ book.title }}</p>
             {% endif %}
-            <p class="detail-author">{{ book.author }}</p>
+            <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
         </div>
 
         <!-- 元信息 -->
