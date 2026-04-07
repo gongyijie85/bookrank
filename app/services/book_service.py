@@ -27,6 +27,9 @@ class BookService:
         self._image_cache = image_cache
         self._max_workers = max_workers
         self._categories = categories or {}
+        
+        # 线程安全：防止重复启动预翻译线程
+        self._translation_thread_active = False
     
     def get_books_by_category(self, category_id: str, force_refresh: bool = False) -> list[Book]:
         """
@@ -281,6 +284,15 @@ class BookService:
         Args:
             books: 图书列表
         """
+        # 线程安全检查：如果已有翻译线程在运行，跳过
+        if self._translation_thread_active:
+            logger.info("预翻译线程已在运行中，跳过重复启动")
+            return
+
+        if not books or len(books) == 0:
+            logger.debug("无图书数据，跳过预翻译")
+            return
+
         import threading
         import time
 
@@ -340,6 +352,12 @@ class BookService:
 
             except Exception as e:
                 logger.error(f"后台翻译线程异常: {e}")
+            finally:
+                # 无论成功失败，都清除线程活动标志
+                self._translation_thread_active = False
+
+        # 设置线程活动标志
+        self._translation_thread_active = True
 
         # 启动守护线程（主进程退出时自动结束）
         thread = threading.Thread(target=translate_in_background, daemon=True)

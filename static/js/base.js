@@ -523,7 +523,7 @@
         const defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
         const currentLang = savedLang || defaultLang;
 
-        // Update button states
+        // Update button states only (don't auto-translate to avoid performance issues)
         const langEnBtn = document.getElementById('lang-en');
         const langZhBtn = document.getElementById('lang-zh');
 
@@ -532,10 +532,8 @@
             langZhBtn.classList.toggle('active', currentLang === 'zh');
         }
 
-        // Auto-apply Chinese for Chinese users on page load
-        if (currentLang === 'zh') {
-            setTimeout(() => switchLanguage('zh'), 500);
-        }
+        // Note: Auto-translation is handled by individual pages (index.html, book_detail.html, etc.)
+        // This function only sets the initial button state based on user preference
     }
 
     // ===== Expose Public API =====

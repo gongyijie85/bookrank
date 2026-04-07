@@ -223,6 +223,7 @@ class ZhipuTranslationService:
         翻译作者名（带内存缓存）
 
         避免同一作者的多个作品重复调用API翻译作者名
+        使用LRU策略管理缓存大小，防止内存泄漏
 
         Args:
             author: 原始作者名（英文）
@@ -236,6 +237,13 @@ class ZhipuTranslationService:
         # 检查内存缓存
         if author in self._author_name_cache:
             return self._author_name_cache[author]
+
+        # 缓存大小检查：如果超过最大值，清除最早的20%条目
+        if len(self._author_name_cache) >= self._author_name_cache_max_size:
+            keys_to_remove = list(self._author_name_cache.keys())[:int(self._author_name_cache_max_size * 0.2)]
+            for key in keys_to_remove:
+                del self._author_name_cache[key]
+            logger.debug(f"作者名缓存已清理 {len(keys_to_remove)} 条，当前大小: {len(self._author_name_cache)}")
 
         # 调用翻译服务
         translated = self.translate(author)
@@ -279,6 +287,8 @@ class HybridTranslationService:
         self._cache_service = None
         # 作者名翻译缓存（避免同一作者的多个作品重复翻译）
         self._author_name_cache = {}
+        # 缓存大小限制（防止内存泄漏）
+        self._author_name_cache_max_size = 1000
     
     def _get_cache_service(self):
         """获取缓存服务"""

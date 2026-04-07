@@ -210,22 +210,48 @@
     }
 
     /**
-     * 获取并翻译详情页内容
+     * 获取并翻译详情页内容（带防抖和错误处理）
      */
+    let _translateDetailFetchTime = 0;
+    const TRANSLATE_DETAIL_DEBOUNCE_MS = 1000; // 防抖1秒
+
     async function fetchAndTranslateDetail() {
+        // 防抖：避免短时间内重复请求
+        const now = Date.now();
+        if (now - _translateDetailFetchTime < TRANSLATE_DETAIL_DEBOUNCE_MS) {
+            console.log('[Translation] 防抖跳过重复请求');
+            return;
+        }
+        _translateDetailFetchTime = now;
+
         const isbn = '{{ book.isbn13 }}';
-        if (!isbn) return;
+        if (!isbn) {
+            console.warn('[Translation] 无ISBN，跳过翻译请求');
+            return;
+        }
 
         try {
             const response = await fetch(`/api/translate/book/${isbn}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': await getCsrfToken()
                 }
             });
 
+            // 检查HTTP状态码
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const data = await response.json();
-            if (data.success && data.data.book) {
+
+            // 检查业务逻辑是否成功
+            if (!data.success) {
+                throw new Error(data.message || '翻译服务返回错误');
+            }
+
+            if (data.data && data.data.book) {
                 const book = data.data.book;
 
                 // 更新中文标题
@@ -245,9 +271,26 @@
                 if (detailsEl && book.details_zh) {
                     detailsEl.textContent = book.details_zh;
                 }
+
+                console.log('[Translation] 详情页翻译成功:', isbn);
+            } else {
+                console.warn('[Translation] 返回数据为空:', data);
             }
         } catch (error) {
-            console.error('获取翻译失败:', error);
+            console.error('[Translation] 获取翻译失败:', error);
+
+            // 用户友好的错误提示（如果 showToast 可用）
+            if (typeof window.showToast === 'function') {
+                window.showToast('翻译加载失败，请稍后重试', 'warning');
+            }
+
+            // 显示原始英文作为降级方案
+            const titleZh = document.getElementById('detail-title-zh');
+            if (titleZh && !titleZh.textContent.trim()) {
+                titleZh.textContent = '{{ book.title }}';
+                titleZh.style.fontStyle = 'italic';
+                titleZh.style.color = 'var(--text-secondary)';
+            }
         }
     }
 
