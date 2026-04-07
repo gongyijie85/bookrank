@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title }} - BookRank{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<header class="page-header">
+    <button class="back-button" onclick="window.location.href = '{{ back_url }}'" aria-label="返回">
+        <svg class="icon" width="24" height="24"><use href="#icon-arrow-left"/></svg>
+    </button>
+    <h1 class="page-title">{{ book.title }}</h1>
+</header>
+
+<!-- Book Detail Content -->
+<div class="book-detail-content">
+    <!-- 左侧：封面 + 购买链接 -->
+    <div class="detail-left-section">
+        <div class="detail-cover">
+            {% if book.cover_local_path %}
+            <img src="{{ url_for('main.cached_image', filename=book.cover_local_path.split('/')[-1]) }}" 
+                 alt="{{ book.title }} 封面" 
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            {% elif book.cover_original_url %}
+            <img src="{{ book.cover_original_url }}" 
+                 alt="{{ book.title }} 封面" 
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            {% else %}
+            <div style="width: 100%; height: 100%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
+                <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 购买链接 -->
+        {% if book.buy_links %}
+        <div class="detail-buy-links">
+            <h3>购买链接</h3>
+            <div class="buy-links-list">
+                {% for link in book.buy_links %}
+                <a href="{{ link.url }}" class="buy-link" target="_blank" rel="noopener noreferrer">
+                    <svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg>
+                    {{ link.name }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 右侧：书籍信息 -->
+    <div class="detail-info-section">
+        <div class="detail-header-info">
+            <h2>{{ book.title }}</h2>
+            <p class="detail-author">{{ book.author }}</p>
+        </div>
+
+        <!-- 元信息 -->
+        <div class="detail-meta">
+            {% if book.award %}
+            <div class="meta-item">
+                <span class="meta-label">奖项</span>
+                <span class="meta-value">{{ book.award.name }}</span>
+            </div>
+            {% endif %}
+            {% if book.year %}
+            <div class="meta-item">
+                <span class="meta-label">获奖年份</span>
+                <span class="meta-value">{{ book.year }}</span>
+            </div>
+            {% endif %}
+            {% if book.category %}
+            <div class="meta-item">
+                <span class="meta-label">类别</span>
+                <span class="meta-value">{{ book.category }}</span>
+            </div>
+            {% endif %}
+            {% if book.publisher %}
+            <div class="meta-item">
+                <span class="meta-label">出版社</span>
+                <span class="meta-value">{{ book.publisher }}</span>
+            </div>
+            {% endif %}
+            {% if book.publication_year %}
+            <div class="meta-item">
+                <span class="meta-label">出版年份</span>
+                <span class="meta-value">{{ book.publication_year }}</span>
+            </div>
+            {% endif %}
+            {% if book.isbn13 %}
+            <div class="meta-item">
+                <span class="meta-label">ISBN</span>
+                <span class="meta-value">{{ book.isbn13 }}</span>
+            </div>
+            {% elif book.isbn10 %}
+            <div class="meta-item">
+                <span class="meta-label">ISBN</span>
+                <span class="meta-value">{{ book.isbn10 }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 标签页 -->
+        <div class="detail-tabs">
+            <button class="tab-btn active" onclick="switchTab('description')" data-tab="description">
+                图书简介
+            </button>
+            <button class="tab-btn" onclick="switchTab('details')" data-tab="details">
+                详细信息
+            </button>
+        </div>
+
+        <!-- 标签页内容 -->
+        <div class="tab-content">
+            <!-- 简介 -->
+            <div class="tab-panel active" id="tab-description">
+                <p>{{ book.description or '暂无简介' }}</p>
+            </div>
+            
+            <!-- 详细信息 -->
+            <div class="tab-panel" id="tab-details">
+                <p>{{ book.details or book.description or '暂无详细介绍' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 标签页切换
+    function switchTab(tabName) {
+        // 更新标签按钮
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        
+        // 更新内容面板
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+</script>
+
+<style>
+/* 页面头部 */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.page-header .back-button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.page-header .back-button:hover,
+.page-header .back-button:active {
+    background: rgba(255,255,255,0.2);
+    transform: scale(1.05);
+}
+
+.page-header .page-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    flex: 1;
+}
+
+/* 内容区域 - 左右分栏 */
+.book-detail-content {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+/* 左侧：封面 + 购买链接 */
+.detail-left-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 280px;
+    flex-shrink: 0;
+}
+
+.detail-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2/3;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.detail-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.detail-buy-links {
+    width: 100%;
+    max-width: 320px;
+}
+
+.detail-buy-links h3 {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.buy-links-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.buy-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    text-decoration: none;
+    color: white;
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931a 100%);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.buy-link:hover,
+.buy-link:active {
+    transform: scale(0.98);
+    box-shadow: 0 4px 16px rgba(255,107,53,0.3);
+}
+
+/* 右侧：书籍信息 */
+.detail-info-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.detail-header-info {
+    text-align: left;
+}
+
+.detail-header-info h2 {
+    font-size: 1.3rem;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+}
+
+.detail-author {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* 元信息 */
+.detail-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem 1rem;
+    padding: 1.5rem;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.meta-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.meta-value {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+/* 标签页 */
+.detail-tabs {
+    display: flex;
+    gap: 0;
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+    padding: 0.25rem;
+    border: 1px solid var(--border-color);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* 标签页内容 */
+.tab-content {
+    margin-top: 0.5rem;
+}
+
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+.tab-panel p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .book-detail-content {
+        flex-direction: column;
+        gap: 1.5rem;
+        align-items: center;
+    }
+    
+    .detail-left-section {
+        width: 100%;
+        max-width: 280px;
+        margin: 0 auto;
+    }
+    
+    .detail-cover {
+        max-width: 240px;
+        margin: 0 auto;
+    }
+    
+    .detail-header-info {
+        text-align: center;
+    }
+    
+    .detail-meta {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+    
+    .page-header .page-title {
+        font-size: 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .detail-left-section {
+        max-width: 200px;
+    }
+    
+    .detail-cover {
+        max-width: 200px;
+    }
+    
+    .detail-header-info h2 {
+        font-size: 1.1rem;
+    }
+    
+    .buy-link {
+        padding: 0.65rem 0.8rem;
+        font-size: 0.85rem;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}

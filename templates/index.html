@@ -1,0 +1,744 @@
+{% extends "base.html" %}
+
+{% block og_title %}纽约时报畅销书排行榜 - BookRank{% endblock %}
+{% block twitter_title %}纽约时报畅销书排行榜 - BookRank{% endblock %}
+
+{% block title %}纽约时报畅销书排行榜 - BookRank{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<header class="page-header">
+    <h1 class="page-title">
+        <svg class="icon text-gold" width="24" height="24"><use href="#icon-fire"/></svg>
+        纽约时报畅销书排行榜
+    </h1>
+    <p class="page-subtitle">
+        <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
+        <time datetime="{{ update_time if update_time else '' }}">更新于: {{ update_time if update_time else '刚刚' }}</time>
+        {% if is_cached %}
+        <span class="cache-badge">缓存数据</span>
+        {% endif %}
+    </p>
+</header>
+
+<!-- Filter Bar -->
+<section class="filter-bar" aria-label="筛选选项">
+    <div class="filter-group">
+        <label class="filter-label" for="category-select">图书分类</label>
+        <select class="filter-select" id="category-select" onchange="changeCategory(this.value)">
+            {% for key, label in categories.items() %}
+            <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
+                {{ label }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group search-box">
+        <label class="filter-label" for="search-input">搜索</label>
+        <div class="search-input-wrapper">
+            <input type="search"
+                   class="filter-input"
+                   id="search-input"
+                   placeholder="搜索书名或作者..."
+                   value="{{ search_query if search_query else '' }}"
+                   aria-label="搜索书名或作者">
+            <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
+        </div>
+    </div>
+
+    <div class="filter-actions">
+        <button class="btn btn-primary" onclick="applyFilters()" aria-label="应用筛选">
+            <svg class="icon" width="16" height="16"><use href="#icon-filter"/></svg>
+            筛选
+        </button>
+        <button class="btn btn-secondary" onclick="clearFilters()" aria-label="重置筛选">
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
+            重置
+        </button>
+    </div>
+
+    <div class="view-toggle" role="group" aria-label="视图切换">
+        <button class="btn btn-icon {% if view_mode == 'grid' %}active{% endif %}"
+                id="view-grid"
+                onclick="toggleView('grid')"
+                title="网格视图"
+                aria-label="切换到网格视图"
+                aria-pressed="{% if view_mode == 'grid' %}true{% else %}false{% endif %}">
+            <svg class="icon" width="18" height="18"><use href="#icon-grid"/></svg>
+        </button>
+        <button class="btn btn-icon {% if view_mode == 'list' or not view_mode %}active{% endif %}"
+                id="view-list"
+                onclick="toggleView('list')"
+                title="列表视图"
+                aria-label="切换到列表视图"
+                aria-pressed="{% if view_mode == 'list' or not view_mode %}true{% else %}false{% endif %}">
+            <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
+        </button>
+    </div>
+</section>
+
+<!-- Export Actions Bar -->
+{% if books %}
+<section class="export-actions-bar" aria-label="导出选项">
+    <span class="export-info">共 <strong>{{ books|length }}</strong> 本图书</span>
+    <div class="export-buttons">
+        <button class="btn btn-primary btn-sm" onclick="exportBooks('{{ current_category }}')" aria-label="导出当前分类">
+            <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
+            导出当前分类
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="exportBooks('all')" aria-label="导出全部">
+            <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
+            导出全部
+        </button>
+    </div>
+</section>
+{% endif %}
+
+<!-- Books Grid View -->
+<section class="books-grid" id="books-grid" aria-label="图书网格视图">
+    {% for book in books %}
+    <article class="card card-animate"
+             onclick="window.location.href = '/book/{{ loop.index - 1 }}?category={{ current_category }}'"
+             role="button"
+             tabindex="0"
+             aria-label="{{ book.title }} - 第{{ loop.index }}名">
+        <div class="card-image">
+            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+                 alt="{{ book.title }}封面"
+                 loading="lazy"
+                 width="280"
+                 height="240"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+
+            <!-- Category Tag -->
+            <span class="card-category-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
+
+            <!-- Rank Badge -->
+            <span class="card-badge {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% else %}other{% endif %}"
+                  aria-label="排名: 第{{ loop.index }}名">
+                {{ loop.index }}
+            </span>
+
+            <!-- Rank Change Badge -->
+            {% if book.rank_last_week and book.rank_last_week != '0' %}
+                {% set rank_change = book.rank_last_week|int - loop.index %}
+                {% if rank_change > 0 %}
+                <span class="rank-change up" aria-label="排名上升{{ rank_change }}名">+{{ rank_change }}</span>
+                {% elif rank_change < 0 %}
+                <span class="rank-change down" aria-label="排名下降{{ rank_change|abs }}名">-{{ rank_change|abs }}</span>
+                {% endif %}
+            {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+                <span class="rank-change new" aria-label="新书上榜">NEW</span>
+            {% endif %}
+        </div>
+
+        <div class="card-content">
+            <div class="card-rank-row">
+                <span class="card-rank-badge">第{{ loop.index }}名</span>
+                {% if book.weeks_on_list %}
+                <span class="card-weeks">
+                    <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}周
+                </span>
+                {% endif %}
+            </div>
+            <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
+            <p class="card-author">{{ book.author }}</p>
+            {% if book.isbn13 %}
+            <p class="card-isbn">ISBN: {{ book.isbn13 }}</p>
+            {% elif book.isbn10 %}
+            <p class="card-isbn">ISBN: {{ book.isbn10 }}</p>
+            {% endif %}
+
+            {% if book.description %}
+            <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</section>
+
+<!-- Books List View -->
+<section class="books-list" id="books-list" aria-label="图书列表视图">
+    {% for book in books %}
+    <article class="list-item card-animate"
+             onclick="window.location.href = '/book/{{ loop.index - 1 }}?category={{ current_category }}'"
+             role="button"
+             tabindex="0"
+             aria-label="{{ book.title }} - 第{{ loop.index }}名">
+        <div class="list-item-image">
+            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+                 alt="{{ book.title }}封面"
+                 loading="lazy"
+                 width="100"
+                 height="150"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+
+        <div class="list-item-content">
+            <div class="list-item-header">
+                <span class="list-item-rank {% if loop.index == 1 %}rank-gold{% elif loop.index == 2 %}rank-silver{% elif loop.index == 3 %}rank-bronze{% endif %}"
+                      aria-label="第{{ loop.index }}名">
+                    {{ loop.index }}
+                </span>
+
+                <!-- Rank Change -->
+                {% if book.rank_last_week and book.rank_last_week != '0' %}
+                    {% set rank_change = book.rank_last_week|int - loop.index %}
+                    {% if rank_change > 0 %}
+                    <span class="rank-change-badge up" aria-label="上升{{ rank_change }}名">+{{ rank_change }}</span>
+                    {% elif rank_change < 0 %}
+                    <span class="rank-change-badge down" aria-label="下降{{ rank_change|abs }}名">-{{ rank_change|abs }}</span>
+                    {% endif %}
+                {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+                    <span class="rank-change-badge new" aria-label="新书上榜">NEW</span>
+                {% endif %}
+
+                <h3 class="list-item-title">{{ book.title }}</h3>
+            </div>
+
+            <p class="list-item-author">{{ book.author }}</p>
+
+            {% if book.description %}
+            <p class="list-item-desc">{{ book.description[:200] }}{% if book.description|length > 200 %}...{% endif %}</p>
+            {% endif %}
+
+            <div class="list-item-meta">
+                <span class="card-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
+                {% if book.weeks_on_list %}
+                <span class="card-tag">
+                    <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}周
+                </span>
+                {% endif %}
+                {% if book.publisher %}
+                <span class="card-tag">
+                    <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> {{ book.publisher }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="list-item-actions">
+            <button class="btn btn-icon btn-outline"
+                    onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.isbn13 }}')"
+                    aria-label="收藏 {{ book.title }}"
+                    aria-pressed="false">
+                <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
+            </button>
+        </div>
+    </article>
+    {% endfor %}
+</section>
+
+<!-- Empty State -->
+{% if not books %}
+<section class="empty-state" aria-label="暂无数据">
+    <svg class="icon" width="48" height="48"><use href="#icon-inbox"/></svg>
+    <h2>暂无数据</h2>
+    <p>请尝试切换分类或稍后重试</p>
+    {% if is_cached %}
+    <p class="cache-hint">当前展示为缓存数据，<a href="javascript:void(0)" onclick="refreshData()">点击刷新</a>获取最新榜单</p>
+    {% endif %}
+</section>
+{% endif %}
+
+<!-- Quick Link to Awards -->
+<nav class="quick-link-section" aria-label="快速链接">
+    <a href="{{ url_for('main.awards') }}" class="quick-link-card">
+        <svg class="icon" width="32" height="32"><use href="#icon-trophy"/></svg>
+        <div>
+            <h3>查看国际图书奖项榜单</h3>
+            <p>诺贝尔文学奖、布克奖、普利策奖等</p>
+        </div>
+        <svg class="icon" width="20" height="20"><use href="#icon-arrow-right"/></svg>
+    </a>
+</nav>
+
+<!-- Book Detail Modal -->
+
+
+<!-- Books Data for JavaScript -->
+<script type="application/json" id="books-data">
+{{ books|tojson }}
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module">
+    import { api } from '{{ url_for('static', filename='js/api.js') }}';
+    window.api = api;
+</script>
+<script>
+    // Parse books data safely
+    window.booksData = JSON.parse(document.getElementById('books-data').textContent);
+
+    // ========== 无感翻译系统 ==========
+    
+    // 当前语言偏好
+    let currentLanguage = localStorage.getItem('bookrank_language') || 'en';
+    
+    // 翻译缓存系统
+    let translationCache = {
+        // 格式: { isbn: { title_zh: "...", desc_zh: "...", original: {...} } }
+        books: {},
+        // 保存到 localStorage
+        save() {
+            try {
+                localStorage.setItem('bookrank_translation_cache', JSON.stringify(this.books));
+            } catch (e) {
+                console.warn('无法保存翻译缓存:', e);
+            }
+        },
+        // 从 localStorage 加载
+        load() {
+            try {
+                const cached = localStorage.getItem('bookrank_translation_cache');
+                if (cached) {
+                    this.books = JSON.parse(cached);
+                }
+            } catch (e) {
+                console.warn('无法加载翻译缓存:', e);
+            }
+        },
+        // 获取图书的翻译
+        getBook(isbn) {
+            return this.books[isbn];
+        },
+        // 保存图书的翻译
+        setBook(isbn, data) {
+            this.books[isbn] = {
+                ...data,
+                timestamp: Date.now()
+            };
+            this.save();
+        }
+    };
+    
+    // 页面加载时加载翻译缓存
+    translationCache.load();
+    
+    // ========== 语言切换器 ==========
+    
+    /**
+     * 切换语言
+     * @param {string} lang - 'en' 或 'zh'
+     */
+    async function switchLanguage(lang) {
+        if (lang === currentLanguage) return;
+        
+        // 更新按钮状态
+        updateLanguageButtons(lang);
+        
+        // 保存到 localStorage
+        currentLanguage = lang;
+        localStorage.setItem('bookrank_language', lang);
+        
+        if (lang === 'zh') {
+            // 静默翻译，不显示提示
+            await translateAllBooks();
+        } else {
+            restoreAllBooks();
+        }
+    }
+    
+    /**
+     * 更新语言按钮状态
+     */
+    function updateLanguageButtons(activeLang) {
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.getElementById(`lang-${activeLang}`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+    }
+    
+    // ========== 翻译核心功能 ==========
+    
+    /**
+     * 批量翻译所有图书（静默模式）
+     */
+    async function translateAllBooks() {
+        const books = window.booksData;
+        
+        // 先应用已缓存的翻译
+        for (let i = 0; i < books.length; i++) {
+            const book = books[i];
+            const isbn = book.isbn13 || book.isbn10;
+            
+            if (isbn) {
+                const cached = translationCache.getBook(isbn);
+                if (cached && cached.title_zh) {
+                    applyTranslationToCard(i, cached);
+                }
+            }
+        }
+        
+        // 批量翻译未缓存的图书（最多5本，避免API限制）
+        let toTranslate = [];
+        for (let i = 0; i < books.length && toTranslate.length < 5; i++) {
+            const book = books[i];
+            const isbn = book.isbn13 || book.isbn10;
+            
+            if (isbn) {
+                const cached = translationCache.getBook(isbn);
+                if (!cached || !cached.title_zh) {
+                    toTranslate.push({ index: i, book, isbn });
+                }
+            }
+        }
+        
+        // 逐个翻译剩余的（静默执行，不显示提示）
+        for (const { index, book, isbn } of toTranslate) {
+            await translateSingleBook(index, book, isbn);
+        }
+    }
+    
+    /**
+     * 翻译单本图书
+     */
+    async function translateSingleBook(index, book, isbn) {
+        try {
+            let translatedTitle = book.title;
+            let translatedDesc = book.description;
+            let translatedDetails = book.details || book.description;
+            
+            // 翻译标题
+            if (book.title) {
+                try {
+                    const result = await api.translateText(book.title);
+                    if (result.success) {
+                        translatedTitle = result.data.translated;
+                    }
+                } catch (e) {
+                    console.log('标题翻译失败:', e);
+                }
+            }
+            
+            // 翻译描述
+            if (book.description) {
+                try {
+                    const result = await api.translateText(book.description);
+                    if (result.success) {
+                        translatedDesc = result.data.translated;
+                    }
+                } catch (e) {
+                    console.log('描述翻译失败:', e);
+                }
+            }
+            
+            // 翻译详细内容（如果与描述不同）
+            const bestDescription = getBestDescription(book);
+            if (bestDescription && bestDescription !== book.description) {
+                try {
+                    const result = await api.translateText(bestDescription);
+                    if (result.success) {
+                        translatedDetails = result.data.translated;
+                    }
+                } catch (e) {
+                    console.log('详细内容翻译失败:', e);
+                    translatedDetails = translatedDesc; // 如果翻译失败，使用描述翻译
+                }
+            } else {
+                translatedDetails = translatedDesc; // 如果与描述相同，使用描述翻译
+            }
+            
+            const translatedData = {
+                title_zh: translatedTitle,
+                desc_zh: translatedDesc,
+                details_zh: translatedDetails,
+                original_title: book.title,
+                original_desc: book.description,
+                original_details: bestDescription
+            };
+            
+            // 保存到缓存
+            if (isbn) {
+                translationCache.setBook(isbn, translatedData);
+            }
+            
+            // 应用到卡片
+            applyTranslationToCard(index, translatedData);
+            
+        } catch (error) {
+            console.error('翻译失败:', error);
+        }
+    }
+    
+    /**
+     * 应用翻译到单个卡片
+     */
+    function applyTranslationToCard(index, data) {
+        const cards = document.querySelectorAll('.card');
+        const listItems = document.querySelectorAll('.list-item');
+        
+        // 更新网格视图
+        if (cards[index]) {
+            const titleEl = cards[index].querySelector('.card-title');
+            const descEl = cards[index].querySelector('.card-desc');
+            
+            if (titleEl) {
+                titleEl.textContent = data.title_zh;
+                titleEl.title = data.title_zh;
+                // 添加翻译标识
+                if (!titleEl.querySelector('.translation-badge')) {
+                    titleEl.insertAdjacentHTML('beforeend', '<span class="translation-badge">译</span>');
+                }
+            }
+            if (descEl && data.desc_zh) {
+                const shortDesc = data.desc_zh.slice(0, 100) + 
+                    (data.desc_zh.length > 100 ? '...' : '');
+                descEl.textContent = shortDesc;
+            }
+        }
+        
+        // 更新列表视图
+        if (listItems[index]) {
+            const titleEl = listItems[index].querySelector('.list-item-title');
+            const descEl = listItems[index].querySelector('.list-item-desc');
+            
+            if (titleEl) {
+                titleEl.textContent = data.title_zh;
+            }
+            if (descEl && data.desc_zh) {
+                const shortDesc = data.desc_zh.slice(0, 200) + 
+                    (data.desc_zh.length > 200 ? '...' : '');
+                descEl.textContent = shortDesc;
+            }
+        }
+    }
+    
+    /**
+     * 恢复所有图书到原始版本
+     */
+    function restoreAllBooks() {
+        const books = window.booksData;
+        
+        for (let i = 0; i < books.length; i++) {
+            const book = books[i];
+            const cards = document.querySelectorAll('.card');
+            const listItems = document.querySelectorAll('.list-item');
+            
+            // 恢复网格视图
+            if (cards[i]) {
+                const titleEl = cards[i].querySelector('.card-title');
+                const descEl = cards[i].querySelector('.card-desc');
+                
+                if (titleEl) {
+                    titleEl.textContent = book.title;
+                    titleEl.title = book.title;
+                    // 移除翻译标识
+                    const badge = titleEl.querySelector('.translation-badge');
+                    if (badge) badge.remove();
+                }
+                if (descEl && book.description) {
+                    const shortDesc = book.description.slice(0, 100) + 
+                        (book.description.length > 100 ? '...' : '');
+                    descEl.textContent = shortDesc;
+                }
+            }
+            
+            // 恢复列表视图
+            if (listItems[i]) {
+                const titleEl = listItems[i].querySelector('.list-item-title');
+                const descEl = listItems[i].querySelector('.list-item-desc');
+                
+                if (titleEl) {
+                    titleEl.textContent = book.title;
+                }
+                if (descEl && book.description) {
+                    const shortDesc = book.description.slice(0, 200) + 
+                        (book.description.length > 200 ? '...' : '');
+                    descEl.textContent = shortDesc;
+                }
+            }
+        }
+    }
+    
+
+    
+    // ========== 初始化 ==========
+    
+    // 页面加载时应用保存的语言偏好
+    document.addEventListener('DOMContentLoaded', function() {
+        // 更新语言按钮
+        updateLanguageButtons(currentLanguage);
+        
+        // 如果是中文模式，自动翻译
+        if (currentLanguage === 'zh') {
+            // 延迟一点，确保 DOM 完全加载
+            setTimeout(() => {
+                translateAllBooks();
+            }, 500);
+        }
+    });
+
+    // ========== 原有功能保持不变 ==========
+
+    // 前端缓存 - 存储分类数据
+    const categoryCache = {
+        get: function(category) {
+            try {
+                const key = `bookrank_category_${category}`;
+                const data = localStorage.getItem(key);
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    // 检查是否过期（24小时）
+                    if (Date.now() - parsed.timestamp < 86400000) {
+                        return parsed.books;
+                    }
+                }
+            } catch (e) {
+                console.log('Cache read error:', e);
+            }
+            return null;
+        },
+        set: function(category, books) {
+            try {
+                const key = `bookrank_category_${category}`;
+                const data = {
+                    timestamp: Date.now(),
+                    books: books
+                };
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (e) {
+                console.log('Cache write error:', e);
+            }
+        },
+        // 预加载其他分类数据
+        preload: function(categories, currentCategory) {
+            categories.forEach(cat => {
+                if (cat !== currentCategory && !this.get(cat)) {
+                    // 后台静默加载
+                    fetch(`/?category=${encodeURIComponent(cat)}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    }).then(() => {
+                        console.log(`Preloaded ${cat}`);
+                    }).catch(() => {});
+                }
+            });
+        }
+    };
+
+    // Change category - 先检查前端缓存
+    function changeCategory(category) {
+        // 检查是否有前端缓存
+        const cached = categoryCache.get(category);
+        if (cached) {
+            // 如果有缓存，直接跳转（页面会从服务器获取最新数据，但如果有后端缓存会更快）
+            showLoading('加载中...');
+            window.location.href = `/?category=${encodeURIComponent(category)}`;
+        } else {
+            showLoading('首次加载，请稍候...');
+            window.location.href = `/?category=${encodeURIComponent(category)}`;
+        }
+    }
+
+    // 页面加载完成后预加载其他分类
+    document.addEventListener('DOMContentLoaded', function() {
+        const categories = Array.from(document.querySelectorAll('#category-select option')).map(opt => opt.value);
+        const currentCategory = document.getElementById('category-select').value;
+        
+        // 延迟5秒后预加载其他分类
+        setTimeout(() => {
+            categoryCache.preload(categories, currentCategory);
+        }, 5000);
+    });
+
+    // Apply filters (only define if not already defined by base.js)
+    if (!window.applyFilters) {
+        window.applyFilters = function() {
+            const category = document.getElementById('category-select').value;
+            const search = document.getElementById('search-input').value;
+
+            showLoading('搜索中...');
+
+            let url = `/?category=${encodeURIComponent(category)}`;
+            if (search) {
+                url += `&search=${encodeURIComponent(search)}`;
+            }
+
+            window.location.href = url;
+        };
+    }
+
+    // Refresh data
+    function refreshData() {
+        showLoading('刷新中...');
+        window.location.href = window.location.pathname + '?refresh=1';
+    }
+
+    // Export books to CSV
+    function exportBooks(category) {
+        showToast('正在导出...', 'info');
+        window.location.href = `/api/export/${encodeURIComponent(category)}`;
+    }
+
+    // Helper function: Escape HTML to prevent XSS (use base.js version if available)
+    const escapeHtml = window.escapeHtml || function(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+
+    // Helper function: Get best description
+    function getBestDescription(book) {
+        const hasDetails = book.details && book.details.length > 50;
+        const hasDescription = book.description && book.description.length > 50;
+
+        if (hasDetails && hasDescription) {
+            return book.details.length > book.description.length ? book.details : book.description;
+        }
+
+        if (hasDetails) return book.details;
+        if (hasDescription) return book.description;
+
+        return '暂无详细描述';
+    }
+
+    // Helper function: Build detail item HTML (with XSS protection)
+    function buildDetailItem(label, value) {
+        return `
+            <div class="detail-item">
+                <span class="detail-label">${escapeHtml(label)}</span>
+                <span class="detail-value">${escapeHtml(value) || '暂无'}</span>
+            </div>
+        `;
+    }
+
+    // Helper function: Render buy links
+    function renderBuyLinks(container, buyLinks) {
+        container.innerHTML = '';
+        if (!buyLinks || buyLinks.length === 0) {
+            container.innerHTML = '<p class="no-links">暂无购买链接</p>';
+            return;
+        }
+
+        buyLinks.forEach(link => {
+            if (!link.url) return;
+            const a = document.createElement('a');
+            a.href = link.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'buy-link';
+            a.innerHTML = `<svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg> ${link.name || '购买链接'}`;
+            a.setAttribute('aria-label', `在 ${link.name} 上购买`);
+            container.appendChild(a);
+        });
+    }
+
+    // Book Modal Functions
+    // 移除之前的单个翻译按钮功能，改用批量翻译
+    // Keyboard accessibility for cards
+    document.querySelectorAll('.card, .list-item').forEach(item => {
+        item.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.click();
+            }
+        });
+    });
+</script>
+{% endblock %}
