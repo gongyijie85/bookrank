@@ -595,7 +595,7 @@
 /* Grid and List Layouts */
 .books-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(8, 1fr);
     gap: var(--spacing-sm);
 }
 
@@ -1498,7 +1498,7 @@
 /* Large Desktop (1400px+) - Optimize for wide screens */
 @media (min-width: 1400px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        grid-template-columns: repeat(8, 1fr);
         gap: var(--spacing-sm);
     }
 
@@ -1547,19 +1547,19 @@
 /* Desktop (1025px-1399px) - Standard desktop layout */
 @media (min-width: 1025px) and (max-width: 1399px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        grid-template-columns: repeat(6, 1fr);
     }
 }
 
 /* Tablet Landscape (768px-1024px) - Optimize for tablets */
 @media (min-width: 769px) and (max-width: 1024px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        grid-template-columns: repeat(4, 1fr);
         gap: var(--spacing-sm);
     }
 
     .awards-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        grid-template-columns: repeat(4, 1fr);
         gap: var(--spacing-sm);
     }
 
@@ -1988,13 +1988,13 @@
 /* Mobile Landscape/Phablet (481px-768px) */
 @media (min-width: 481px) and (max-width: 768px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: var(--spacing-md);
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--spacing-sm);
     }
 
     .awards-grid {
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: var(--spacing-lg);
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--spacing-sm);
     }
 
     .card-content {
@@ -2024,13 +2024,13 @@
 /* Mobile Portrait (≤480px) - Small phones */
 @media (max-width: 480px) {
     .books-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        grid-template-columns: repeat(2, 1fr);
         gap: var(--spacing-sm);
     }
 
     .awards-grid {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-md);
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-sm);
     }
 
     .card {
