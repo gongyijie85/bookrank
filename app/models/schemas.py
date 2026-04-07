@@ -70,6 +70,7 @@ class BookMetadata(db.Model):
     language = db.Column(db.String(50))
     publication_date = db.Column(db.String(50))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    title_zh = db.Column(db.String(500))
     description_zh = db.Column(db.Text)
     details_zh = db.Column(db.Text)
     translated_at = db.Column(db.DateTime)
@@ -89,6 +90,7 @@ class BookMetadata(db.Model):
             'language': self.language,
             'publication_date': self.publication_date,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'title_zh': self.title_zh,
             'description_zh': self.description_zh,
             'details_zh': self.details_zh,
             'translated_at': self.translated_at.isoformat() if self.translated_at else None
@@ -377,6 +379,7 @@ class Book:
     isbn13: str
     isbn10: str
     price: str
+    title_zh: str | None = None
     description_zh: str | None = None
     details_zh: str | None = None
     

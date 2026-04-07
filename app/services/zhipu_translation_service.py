@@ -40,11 +40,35 @@ class ZhipuTranslationService:
         self._last_request_time = 0
         self._request_interval = 0.1  # 请求间隔（秒）
         
-        # 翻译系统提示词
-        self._system_prompt = (
-            "你是一个专业的翻译助手，将英文翻译成中文。"
-            "要求：1.保持准确流畅 2.不要添加额外解释 3.保留原文格式 4.专业术语保持准确"
-        )
+        # 翻译系统提示词（图书领域专业优化版）
+        self._system_prompt = """你是一位资深的图书翻译专家，专门负责将英文图书信息翻译成中文。
+
+## 翻译规则
+
+### 书名翻译（最重要）
+- 文学性书名：采用意译，体现文学美感
+  - 例："The Night We Met" → "我们相遇的那晚"
+  - 例："The Great Gatsby" → "了不起的盖茨比"
+- 专业书籍：采用直译，保持准确性
+  - 例："Clean Code" → "代码整洁之道"
+- 系列书籍：保持系列名称一致性
+  - 例："Dungeon Crawler Carl Series" → "地下城卡尔·克劳利系列"
+
+### 作者名翻译
+- 使用标准中文译名（参考维基百科、豆瓣）
+- 格式："原名 · 译名" 或仅译名
+  - 例："Abby Jimenez" → "艾比·希门尼斯"
+  - 例："Viola Davis" → "维奥拉·戴维斯"
+
+### 描述文本翻译
+- 流畅自然，符合中文阅读习惯
+- 适当调整语序（英文常倒装，中文为主谓宾）
+- 保留专有名词（地名、机构名）可不译或附原文
+
+### 格式要求
+- 不要添加任何解释、注释或备注
+- 只返回纯翻译结果
+- 保留段落结构"""
         
     def _get_client(self):
         """懒加载客户端"""
@@ -193,7 +217,36 @@ class ZhipuTranslationService:
                 result['details_zh'] = translated_details
         
         return result
-    
+
+    def translate_author_name(self, author: str) -> str | None:
+        """
+        翻译作者名（带内存缓存）
+
+        避免同一作者的多个作品重复调用API翻译作者名
+
+        Args:
+            author: 原始作者名（英文）
+
+        Returns:
+            翻译后的作者名（中文），失败返回None
+        """
+        if not author or not author.strip():
+            return None
+
+        # 检查内存缓存
+        if author in self._author_name_cache:
+            return self._author_name_cache[author]
+
+        # 调用翻译服务
+        translated = self.translate(author)
+
+        # 保存到缓存
+        if translated:
+            self._author_name_cache[author] = translated
+            logger.debug(f"作者名已翻译并缓存: {author} -> {translated}")
+
+        return translated
+
     def get_cache_stats(self) -> Dict[str, Any]:
         """获取缓存统计信息"""
         cache_service = self._get_cache_service()
@@ -217,13 +270,15 @@ class HybridTranslationService:
     def __init__(self, zhipu_api_key: Optional[str] = None):
         """
         初始化混合翻译服务
-        
+
         Args:
             zhipu_api_key: 智谱AI API密钥
         """
         self.zhipu = ZhipuTranslationService(api_key=zhipu_api_key)
         self._fallback = None
         self._cache_service = None
+        # 作者名翻译缓存（避免同一作者的多个作品重复翻译）
+        self._author_name_cache = {}
     
     def _get_cache_service(self):
         """获取缓存服务"""

@@ -45,9 +45,25 @@
 
             <!-- 书籍信息 -->
             <div class="detail-info-section">
+                <!-- 语言切换按钮 -->
+                <div class="detail-lang-switch">
+                    <button onclick="switchDetailLang('en')" id="detail-lang-en" class="lang-btn active">English</button>
+                    <span class="lang-divider">|</span>
+                    <button onclick="switchDetailLang('zh')" id="detail-lang-zh" class="lang-btn">中文</button>
+                </div>
+
                 <div class="detail-header-info">
-                    <h2>{{ book.title }}</h2>
-                    <p class="detail-author">{{ book.author }}</p>
+                    <!-- 英文内容（默认显示） -->
+                    <div id="detail-content-en">
+                        <h2>{{ book.title }}</h2>
+                        <p class="detail-author">{{ book.author }}</p>
+                    </div>
+
+                    <!-- 中文内容（默认隐藏） -->
+                    <div id="detail-content-zh" style="display: none;">
+                        <h2 id="detail-title-zh">{{ book.title_zh or '' }}</h2>
+                        <p class="detail-author" id="detail-author-zh"></p>
+                    </div>
                 </div>
 
                 <!-- 元信息 -->
@@ -110,12 +126,22 @@
                 <div class="tab-content">
                     <!-- 简介 -->
                     <div class="tab-panel active" id="tab-description">
-                        <p>{{ book.description if book.description else '暂无简介' }}</p>
+                        <p class="desc-en">{{ book.description if book.description else '暂无简介' }}</p>
+                        <p class="desc-zh" style="display: none;" id="desc-zh-content">
+                            {{ book.description_zh or '暂无中文简介' }}
+                        </p>
                     </div>
-                    
+
                     <!-- 详细信息 -->
                     <div class="tab-panel" id="tab-details">
-                        <p id="detail-description">{{ book.description if book.description else '暂无详细介绍' }}</p>
+                        <div class="details-en">
+                            <p id="detail-description">{{ book.description if book.description else '暂无详细介绍' }}</p>
+                        </div>
+                        <div class="details-zh" style="display: none;">
+                            <p id="details-zh-content">
+                                {{ book.details_zh or book.description_zh or '暂无中文详情' }}
+                            </p>
+                        </div>
                         <p id="detail-loading" style="display: none; color: var(--text-secondary); font-style: italic;">
                             正在获取详细介绍...
                         </p>
@@ -127,6 +153,9 @@
 </main>
 
 <script>
+    // 当前详情页语言
+    let currentDetailLang = 'en';
+
     // 标签页切换
     function switchTab(tabName) {
         // 更新标签按钮
@@ -134,12 +163,92 @@
             btn.classList.remove('active');
         });
         document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-        
+
         // 更新内容面板
         document.querySelectorAll('.tab-panel').forEach(panel => {
             panel.classList.remove('active');
         });
         document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+
+    /**
+     * 切换详情页语言
+     * @param {string} lang - 'en' 或 'zh'
+     */
+    function switchDetailLang(lang) {
+        if (lang === currentDetailLang) return;
+
+        currentDetailLang = lang;
+
+        // 更新按钮状态
+        document.getElementById('detail-lang-en').classList.toggle('active', lang === 'en');
+        document.getElementById('detail-lang-zh').classList.toggle('active', lang === 'zh');
+
+        // 切换标题和作者
+        document.getElementById('detail-content-en').style.display = lang === 'en' ? 'block' : 'none';
+        document.getElementById('detail-content-zh').style.display = lang === 'zh' ? 'block' : 'none';
+
+        // 切换描述内容
+        const descEn = document.querySelector('.desc-en');
+        const descZh = document.getElementById('desc-zh-content');
+        if (descEn) descEn.style.display = lang === 'en' ? 'block' : 'none';
+        if (descZh) descZh.style.display = lang === 'zh' ? 'block' : 'none';
+
+        // 切换详细信息
+        const detailsEn = document.querySelector('.details-en');
+        const detailsZh = document.querySelector('.details-zh');
+        if (detailsEn) detailsEn.style.display = lang === 'en' ? 'block' : 'none';
+        if (detailsZh) detailsZh.style.display = lang === 'zh' ? 'block' : 'none';
+
+        // 如果切换到中文且没有翻译数据，尝试从API获取
+        if (lang === 'zh') {
+            const titleZh = document.getElementById('detail-title-zh');
+            if (!titleZh || !titleZh.textContent.trim()) {
+                fetchAndTranslateDetail();
+            }
+        }
+    }
+
+    /**
+     * 获取并翻译详情页内容
+     */
+    async function fetchAndTranslateDetail() {
+        const isbn = '{{ book.isbn13 }}';
+        if (!isbn) return;
+
+        try {
+            const response = await fetch(`/api/translate/book/${isbn}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            if (data.success && data.data.book) {
+                const book = data.data.book;
+
+                // 更新中文标题
+                const titleEl = document.getElementById('detail-title-zh');
+                if (titleEl && book.title_zh) {
+                    titleEl.textContent = book.title_zh;
+                }
+
+                // 更新中文描述
+                const descEl = document.getElementById('desc-zh-content');
+                if (descEl && book.description_zh) {
+                    descEl.textContent = book.description_zh;
+                }
+
+                // 更新中文详情
+                const detailsEl = document.getElementById('details-zh-content');
+                if (detailsEl && book.details_zh) {
+                    detailsEl.textContent = book.details_zh;
+                }
+            }
+        } catch (error) {
+            console.error('获取翻译失败:', error);
+        }
     }
 
     // 如果有 ISBN，获取详细信息
@@ -382,6 +491,42 @@
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--text-primary, white);
+}
+
+/* 语言切换器 */
+.detail-lang-switch {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 1rem;
+}
+
+.detail-lang-switch .lang-btn {
+    background: transparent;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.2));
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.detail-lang-switch .lang-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: var(--text-primary, white);
+}
+
+.detail-lang-switch .lang-btn.active {
+    background: linear-gradient(135deg, #ff6b35, #f7931a);
+    color: white;
+    border-color: transparent;
+}
+
+.detail-lang-switch .lang-divider {
+    color: var(--text-secondary, rgba(255,255,255,0.4));
 }
 
 /* 标签页 */
