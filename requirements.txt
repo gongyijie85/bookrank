@@ -17,7 +17,7 @@ python-dotenv==1.0.1
 
 # HTTP 客户端
 requests==2.32.3
-httpx==0.28.1
+httpx==0.29.0
 
 # WSGI 服务器
 gunicorn==23.0.0
