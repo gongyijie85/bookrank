@@ -15,7 +15,7 @@ from typing import Any
 from ..models.database import db
 from ..models.new_book import NewBook, Publisher
 from .cache_service import CacheService
-from .translation_service import TranslationService
+from .zhipu_translation_service import get_translation_service
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class NewBookService:
     def __init__(
         self,
         cache_service: CacheService | None = None,
-        translation_service: TranslationService | None = None
+        translation_service: Any | None = None
     ):
         """
         初始化服务
@@ -141,7 +141,7 @@ class NewBookService:
             translation_service: 翻译服务（可选）
         """
         self._cache = cache_service
-        self._translator = translation_service
+        self._translator = translation_service or get_translation_service()
         _init_crawler_map()
 
     # ==================== 出版社管理 ====================

@@ -141,8 +141,8 @@ def _init_services(app):
     )
 
     # 翻译服务配置
-    from .services.translation_service import TranslationService
-    translation_service = TranslationService()
+    from .services.zhipu_translation_service import get_translation_service
+    translation_service = get_translation_service()
 
     # 图书服务配置
     book_service = BookService(
