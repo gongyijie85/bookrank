@@ -343,7 +343,8 @@ class NewBookService:
         self,
         category: str | None = None,
         max_books_per_publisher: int = 30,
-        translate: bool = True
+        translate: bool = True,
+        batch_size: int = 1
     ) -> list[dict[str, Any]]:
         """
         同步所有启用出版社的新书数据
@@ -352,6 +353,7 @@ class NewBookService:
             category: 分类筛选
             max_books_per_publisher: 每个出版社最大同步数量
             translate: 是否翻译
+            batch_size: 批处理大小，每批处理的出版社数量
 
         Returns:
             各出版社同步结果列表
@@ -360,15 +362,25 @@ class NewBookService:
         publishers = self.get_publishers(active_only=True)
 
         logger.info(f"🔍 开始同步 {len(publishers)} 个出版社...")
+        logger.info(f"📦 批处理大小: {batch_size}")
 
-        for publisher in publishers:
-            result = self.sync_publisher_books(
-                publisher.id,
-                category=category,
-                max_books=max_books_per_publisher,
-                translate=translate
-            )
-            results.append(result)
+        # 分批处理出版社
+        for i in range(0, len(publishers), batch_size):
+            batch = publishers[i:i + batch_size]
+            logger.info(f"🔄 处理批次 {i//batch_size + 1}/{(len(publishers) + batch_size - 1)//batch_size}")
+            
+            for publisher in batch:
+                result = self.sync_publisher_books(
+                    publisher.id,
+                    category=category,
+                    max_books=max_books_per_publisher,
+                    translate=translate
+                )
+                results.append(result)
+                
+                # 每处理完一个出版社，强制垃圾回收，减少内存使用
+                import gc
+                gc.collect()
 
         # 汇总统计
         total_added = sum(r.get('added', 0) for r in results)

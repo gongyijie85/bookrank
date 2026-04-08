@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 from abc import ABC, abstractmethod
 from threading import Lock
+from collections import OrderedDict
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,8 @@ class MemoryCache(CacheStrategy):
     """内存缓存实现 - 带容量限制和 LRU 淘汰"""
 
     def __init__(self, default_ttl: int = 300, max_size: int = 1000):
-        self._cache: dict[str, tuple[float, Any]] = {}
+        # 使用 OrderedDict 实现 LRU 缓存
+        self._cache: OrderedDict[str, tuple[float, Any]] = OrderedDict()
         self._default_ttl = default_ttl
         self._max_size = max_size
         self._lock = Lock()
@@ -53,27 +55,33 @@ class MemoryCache(CacheStrategy):
                 self._misses += 1
                 return None
 
+            # 将访问的项移到末尾（最近使用）
+            self._cache.move_to_end(key)
             self._hits += 1
             return value
 
     def set(self, key: str, value: Any, ttl: int = None) -> None:
         with self._lock:
-            # 如果缓存已满，删除最旧的条目
-            if len(self._cache) >= self._max_size:
-                self._evict_oldest()
+            # 如果键已存在，先删除旧值
+            if key in self._cache:
+                del self._cache[key]
+            # 如果缓存已满，删除最旧的条目（头部）
+            elif len(self._cache) >= self._max_size:
+                self._cache.popitem(last=False)
 
             ttl = ttl or self._default_ttl
             expiry_time = time.time() + ttl
             self._cache[key] = (expiry_time, value)
+            # 将新项移到末尾（最近使用）
+            self._cache.move_to_end(key)
 
     def _evict_oldest(self) -> None:
         """淘汰最旧的缓存条目"""
         if not self._cache:
             return
 
-        # 找到最早过期的条目并删除
-        oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k][0])
-        del self._cache[oldest_key]
+        # 删除最旧的条目（头部）
+        self._cache.popitem(last=False)
 
     def delete(self, key: str) -> None:
         with self._lock:

@@ -17,8 +17,8 @@ workers = int(os.environ.get("WEB_CONCURRENCY", 1))
 worker_class = "sync"
 
 # 每个 worker 的线程数
-# 减少线程数以降低内存使用
-threads = int(os.environ.get("GUNICORN_THREADS", 2))
+# 减少线程数以降低内存使用（Render 免费版优化）
+threads = int(os.environ.get("GUNICORN_THREADS", 1))
 
 # 超时时间（秒）
 # Render 免费版响应可能慢，延长超时

@@ -3,6 +3,7 @@ import logging
 import hashlib
 from pathlib import Path
 from functools import wraps
+from collections import OrderedDict
 from typing import Any
 
 import requests
@@ -944,9 +945,12 @@ class ImageCacheService:
         self._cache_dir = cache_dir
         self._default_cover = default_cover
         self._cache_dir.mkdir(parents=True, exist_ok=True)
-        # 内存缓存，减少文件系统操作
-        self._memory_cache = {}  # key: original_url, value: (cached_path, timestamp)
+        # 使用 OrderedDict 实现 LRU 内存缓存
+        self._memory_cache = OrderedDict()  # key: original_url, value: (cached_path, timestamp)
         self._memory_cache_ttl = 3600  # 内存缓存1小时
+        self._memory_cache_max_size = 1000  # 内存缓存最大条目数
+        # 创建带重试机制的 session
+        self._session = create_session_with_retry(max_retries=2)
     
     def get_cached_image_url(self, original_url: str, ttl: int = 3600) -> str:
         """
@@ -967,8 +971,13 @@ class ImageCacheService:
         if original_url in self._memory_cache:
             cached_path, timestamp = self._memory_cache[original_url]
             if current_time - timestamp < self._memory_cache_ttl:
+                # 将访问的项移到末尾（最近使用）
+                self._memory_cache.move_to_end(original_url)
                 logger.info(f"Returning image from memory cache: {original_url}")
                 return cached_path
+            else:
+                # 缓存已过期，删除
+                del self._memory_cache[original_url]
         
         filename = hashlib.md5(original_url.encode()).hexdigest() + '.jpg'
         cache_path = self._cache_dir / filename
@@ -979,13 +988,14 @@ class ImageCacheService:
                 file_age = time.time() - cache_path.stat().st_mtime
                 if file_age < ttl:
                     # 更新内存缓存
-                    self._memory_cache[original_url] = (relative_path, current_time)
+                    self._update_memory_cache(original_url, relative_path, current_time)
                     return relative_path
-            except OSError:
+            except OSError as e:
+                logger.warning(f"Error checking cache file: {e}")
                 pass
         
         try:
-            response = requests.get(original_url, timeout=10, stream=True)
+            response = self._session.get(original_url, timeout=10, stream=True)
             response.raise_for_status()
             
             with open(cache_path, 'wb') as f:
@@ -993,9 +1003,21 @@ class ImageCacheService:
                     f.write(chunk)
             
             # 更新内存缓存
-            self._memory_cache[original_url] = (relative_path, current_time)
+            self._update_memory_cache(original_url, relative_path, current_time)
             return relative_path
             
         except Exception as e:
             logger.warning(f"Failed to cache image from {original_url}: {e}")
             return self._default_cover
+    
+    def _update_memory_cache(self, key: str, value: str, timestamp: float):
+        """更新内存缓存，确保不超过最大大小"""
+        # 如果键已存在，先删除旧值
+        if key in self._memory_cache:
+            del self._memory_cache[key]
+        # 如果缓存已满，删除最旧的条目
+        elif len(self._memory_cache) >= self._memory_cache_max_size:
+            self._memory_cache.popitem(last=False)
+        # 添加新条目并移到末尾（最近使用）
+        self._memory_cache[key] = (value, timestamp)
+        self._memory_cache.move_to_end(key)

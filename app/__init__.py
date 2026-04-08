@@ -102,8 +102,8 @@ def _init_services(app):
     """初始化业务服务"""
     cfg = app.config
 
-    # 内存缓存配置（Render 免费版优化：增大缓存容量）
-    memory_cache = MemoryCache(default_ttl=cfg['MEMORY_CACHE_TTL'], max_size=2000)
+    # 内存缓存配置（Render 免费版优化：减少缓存容量以降低内存使用）
+    memory_cache = MemoryCache(default_ttl=cfg['MEMORY_CACHE_TTL'], max_size=1000)
 
     # 文件缓存配置
     file_cache = FileCache(
@@ -211,17 +211,36 @@ def _setup_db_event_listeners(app):
     @event.listens_for(Pool, "checkout")
     def handle_checkout(dbapi_connection, connection_record, connection_proxy):
         """连接检出时检查"""
-        pass
+        try:
+            # 测试连接是否有效
+            cursor = dbapi_connection.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            cursor.close()
+        except Exception as e:
+            app.logger.warning(f"数据库连接检查失败: {e}")
+            # 抛出异常，让连接池重新创建连接
+            raise DisconnectionError("Connection check failed")
 
     @event.listens_for(Pool, "checkin")
     def handle_checkin(dbapi_connection, connection_record):
         """连接归还时记录"""
-        pass
+        try:
+            if hasattr(dbapi_connection, 'rollback'):
+                dbapi_connection.rollback()
+        except Exception as e:
+            app.logger.warning(f"连接归还时回滚失败: {e}")
 
     @event.listens_for(Pool, "connect")
     def on_connect(dbapi_connection, connection_record):
         """新连接建立时"""
         app.logger.debug("数据库新连接已建立")
+        # 设置连接参数
+        if hasattr(dbapi_connection, 'set_session'):
+            try:
+                dbapi_connection.set_session(autocommit=False, timezone='UTC')
+            except Exception as e:
+                app.logger.warning(f"设置连接参数失败: {e}")
 
     @event.listens_for(Pool, "reset")
     def on_reset(dbapi_connection, connection_record):
@@ -229,8 +248,8 @@ def _setup_db_event_listeners(app):
         try:
             if hasattr(dbapi_connection, 'rollback'):
                 dbapi_connection.rollback()
-        except Exception:
-            pass
+        except Exception as e:
+            app.logger.warning(f"连接重置时回滚失败: {e}")
 
 
 def _configure_logging(app):
@@ -272,7 +291,7 @@ def _apply_security_headers(app):
 
 
 def _start_auto_sync_thread(app):
-    """启动新书速递自动同步线程（7天一次）"""
+    """启动新书速递自动同步线程（14天一次，优化内存使用）"""
     def auto_sync_task():
         """自动同步任务"""
         with app.app_context():
@@ -280,22 +299,23 @@ def _start_auto_sync_thread(app):
                 from .services.new_book_service import NewBookService
                 service = NewBookService(translation_service=app.extensions.get('translation_service'))
                 
-                # 检查是否需要同步（每7天一次）
+                # 检查是否需要同步（每14天一次）
                 last_sync_key = 'last_auto_sync_time'
                 last_sync = SystemConfig.get_value(last_sync_key)
                 
                 if last_sync:
                     last_sync_time = datetime.fromisoformat(last_sync)
                     days_since_last_sync = (datetime.now() - last_sync_time).days
-                    if days_since_last_sync < 7:
+                    if days_since_last_sync < 14:
                         app.logger.info(f'距离上次同步仅 {days_since_last_sync} 天，跳过自动同步')
                         return
                 
                 app.logger.info('开始自动同步新书数据...')
                 
-                # 静默同步，不显示提示
+                # 静默同步，不显示提示，减少内存使用
                 service.init_publishers()
-                results = service.sync_all_publishers(max_books_per_publisher=20)
+                # 分批同步，每批处理一个出版社，减少内存使用
+                results = service.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
                 
                 # 更新最后同步时间
                 SystemConfig.set_value(last_sync_key, datetime.now().isoformat())
@@ -307,25 +327,33 @@ def _start_auto_sync_thread(app):
                 
             except Exception as e:
                 app.logger.error(f'自动同步失败: {e}', exc_info=True)
+                # 确保即使同步失败也能继续运行
+                try:
+                    # 记录失败时间
+                    SystemConfig.set_value('last_sync_failure', datetime.now().isoformat())
+                except Exception as log_error:
+                    app.logger.error(f'记录同步失败时间失败: {log_error}')
     
     def sync_worker():
         """同步工作线程"""
-        # 首次启动时等待5分钟，避免影响应用启动
-        time.sleep(300)
+        # 首次启动时等待10分钟，避免影响应用启动
+        time.sleep(600)
         
         while True:
             try:
                 auto_sync_task()
             except Exception as e:
-                app.logger.error(f'自动同步线程异常: {e}')
+                app.logger.error(f'自动同步线程异常: {e}', exc_info=True)
+                # 增加延迟，避免频繁失败
+                time.sleep(3600)
             
-            # 每7天执行一次（7 * 24 * 60 * 60 = 604800秒）
-            time.sleep(604800)
+            # 每14天执行一次（14 * 24 * 60 * 60 = 1209600秒）
+            time.sleep(1209600)
     
     # 启动后台线程
     sync_thread = threading.Thread(target=sync_worker, daemon=True)
     sync_thread.start()
-    app.logger.info('新书速递自动同步线程已启动（7天周期）')
+    app.logger.info('新书速递自动同步线程已启动（14天周期）')
 
 
 app = create_app(os.environ.get('FLASK_ENV', 'development'))
