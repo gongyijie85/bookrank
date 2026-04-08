@@ -75,14 +75,6 @@ class MemoryCache(CacheStrategy):
             # 将新项移到末尾（最近使用）
             self._cache.move_to_end(key)
 
-    def _evict_oldest(self) -> None:
-        """淘汰最旧的缓存条目"""
-        if not self._cache:
-            return
-
-        # 删除最旧的条目（头部）
-        self._cache.popitem(last=False)
-
     def delete(self, key: str) -> None:
         with self._lock:
             self._cache.pop(key, None)
@@ -150,8 +142,12 @@ class FileCache(CacheStrategy):
         except IOError as e:
             logger.warning(f"Failed to write cache file {cache_path}: {e}")
 
+    def get_cache_path(self, key: str) -> Path:
+        """获取缓存文件路径（公共接口）"""
+        return self._cache_dir / f"{hashlib.md5(key.encode()).hexdigest()}.json"
+
     def delete(self, key: str) -> None:
-        cache_path = self._get_cache_path(key)
+        cache_path = self.get_cache_path(key)
         try:
             if cache_path.exists():
                 cache_path.unlink()
@@ -164,6 +160,20 @@ class FileCache(CacheStrategy):
                 cache_file.unlink()
             except IOError as e:
                 logger.warning(f"Failed to delete cache file {cache_file}: {e}")
+
+    def get_cache_time(self, key: str) -> str | None:
+        """获取缓存文件的修改时间"""
+        cache_path = self.get_cache_path(key)
+        if not cache_path.exists():
+            return None
+
+        try:
+            mtime = cache_path.stat().st_mtime
+            from datetime import datetime, timezone
+            dt = datetime.fromtimestamp(mtime, timezone.utc)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return None
 
 
 class CacheService:
@@ -243,17 +253,7 @@ class CacheService:
 
     def get_cache_time(self, key: str) -> str | None:
         """获取缓存时间"""
-        cache_path = self._file._get_cache_path(key)
-        if not cache_path.exists():
-            return None
-
-        try:
-            mtime = cache_path.stat().st_mtime
-            from datetime import datetime, timezone
-            dt = datetime.fromtimestamp(mtime, timezone.utc)
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            return None
+        return self._file.get_cache_time(key)
 
     def get_stats(self) -> dict:
         """获取缓存统计信息"""

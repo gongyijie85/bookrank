@@ -206,7 +206,6 @@ def _setup_db_event_listeners(app):
     from sqlalchemy import event
     from sqlalchemy.exc import OperationalError, DisconnectionError
     from sqlalchemy.pool import Pool
-    import time as _time
 
     @event.listens_for(Pool, "checkout")
     def handle_checkout(dbapi_connection, connection_record, connection_proxy):
@@ -305,7 +304,7 @@ def _start_auto_sync_thread(app):
                 
                 if last_sync:
                     last_sync_time = datetime.fromisoformat(last_sync)
-                    days_since_last_sync = (datetime.now() - last_sync_time).days
+                    days_since_last_sync = (datetime.now(timezone.utc) - last_sync_time).days
                     if days_since_last_sync < 14:
                         app.logger.info(f'距离上次同步仅 {days_since_last_sync} 天，跳过自动同步')
                         return
@@ -318,7 +317,7 @@ def _start_auto_sync_thread(app):
                 results = service.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
                 
                 # 更新最后同步时间
-                SystemConfig.set_value(last_sync_key, datetime.now().isoformat())
+                SystemConfig.set_value(last_sync_key, datetime.now(timezone.utc).isoformat())
                 
                 total_added = sum(r.get('added', 0) for r in results)
                 total_updated = sum(r.get('updated', 0) for r in results)
@@ -330,7 +329,7 @@ def _start_auto_sync_thread(app):
                 # 确保即使同步失败也能继续运行
                 try:
                     # 记录失败时间
-                    SystemConfig.set_value('last_sync_failure', datetime.now().isoformat())
+                    SystemConfig.set_value('last_sync_failure', datetime.now(timezone.utc).isoformat())
                 except Exception as log_error:
                     app.logger.error(f'记录同步失败时间失败: {log_error}')
     

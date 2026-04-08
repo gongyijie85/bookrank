@@ -7,9 +7,10 @@
 - 自动翻译书名和简介
 - 缓存封面图片
 """
+import gc
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ..models.database import db
@@ -35,44 +36,44 @@ def _init_crawler_map():
         from .publisher_crawler.open_library import OpenLibraryCrawler
         CRAWLER_MAP['OpenLibraryCrawler'] = OpenLibraryCrawler
     except ImportError:
-        logger.warning("⚠️ 无法导入 OpenLibraryCrawler")
+        logger.warning("无法导入 OpenLibraryCrawler")
 
     try:
         from .publisher_crawler.google_books import GoogleBooksCrawler
         CRAWLER_MAP['GoogleBooksCrawler'] = GoogleBooksCrawler
     except ImportError:
-        logger.warning("⚠️ 无法导入 GoogleBooksCrawler")
+        logger.warning("无法导入 GoogleBooksCrawler")
 
     # 出版社爬虫
     try:
         from .publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
         CRAWLER_MAP['PenguinRandomHouseCrawler'] = PenguinRandomHouseCrawler
     except ImportError:
-        logger.warning("⚠️ 无法导入 PenguinRandomHouseCrawler")
+        logger.warning("无法导入 PenguinRandomHouseCrawler")
 
     try:
         from .publisher_crawler.simon_schuster import SimonSchusterCrawler
         CRAWLER_MAP['SimonSchusterCrawler'] = SimonSchusterCrawler
     except ImportError:
-        logger.warning("⚠️ 无法导入 SimonSchusterCrawler")
+        logger.warning("无法导入 SimonSchusterCrawler")
 
     try:
         from .publisher_crawler.hachette import HachetteCrawler
         CRAWLER_MAP['HachetteCrawler'] = HachetteCrawler
     except ImportError:
-        logger.warning("⚠️ 无法导入 HachetteCrawler")
+        logger.warning("无法导入 HachetteCrawler")
 
     try:
         from .publisher_crawler.harpercollins import HarperCollinsCrawler
         CRAWLER_MAP['HarperCollinsCrawler'] = HarperCollinsCrawler
     except ImportError:
-        logger.warning("⚠️ 无法导入 HarperCollinsCrawler")
+        logger.warning("无法导入 HarperCollinsCrawler")
 
     try:
         from .publisher_crawler.macmillan import MacmillanCrawler
         CRAWLER_MAP['MacmillanCrawler'] = MacmillanCrawler
     except ImportError:
-        logger.warning("⚠️ 无法导入 MacmillanCrawler")
+        logger.warning("无法导入 MacmillanCrawler")
 
 
 class NewBookService:
@@ -159,7 +160,7 @@ class NewBookService:
             # 检查是否已存在
             existing = Publisher.query.filter_by(name_en=pub_data['name_en']).first()
             if existing:
-                logger.info(f"📖 出版社已存在: {pub_data['name_en']}")
+                logger.info(f"出版社已存在: {pub_data['name_en']}")
                 continue
 
             publisher = Publisher(
@@ -172,13 +173,13 @@ class NewBookService:
 
             db.session.add(publisher)
             count += 1
-            logger.info(f"✅ 创建出版社: {pub_data['name_en']}")
+            logger.info(f"创建出版社: {pub_data['name_en']}")
 
         if count > 0:
             db.session.commit()
-            logger.info(f"✅ 成功创建 {count} 个出版社")
+            logger.info(f"成功创建 {count} 个出版社")
         else:
-            logger.info("📖 所有出版社已存在，无需创建")
+            logger.info("所有出版社已存在，无需创建")
 
         return count
 
@@ -228,7 +229,7 @@ class NewBookService:
 
         publisher.is_active = is_active
         db.session.commit()
-        logger.info(f"✅ 更新出版社状态: {publisher.name_en} -> {'启用' if is_active else '禁用'}")
+        logger.info(f"更新出版社状态: {publisher.name_en} -> {'启用' if is_active else '禁用'}")
         return True
 
     # ==================== 爬虫管理 ====================
@@ -245,7 +246,7 @@ class NewBookService:
         """
         crawler_cls = CRAWLER_MAP.get(crawler_class)
         if not crawler_cls:
-            logger.error(f"❌ 未找到爬虫类: {crawler_class}")
+            logger.error(f"未找到爬虫类: {crawler_class}")
             return None
 
         # Google Books 爬虫需要 API key
@@ -300,7 +301,7 @@ class NewBookService:
         }
 
         try:
-            logger.info(f"🔍 开始同步 {publisher.name_en} 新书...")
+            logger.info(f"开始同步 {publisher.name_en} 新书...")
 
             with crawler:
                 for book_info in crawler.get_new_books(category=category, max_books=max_books):
@@ -318,7 +319,7 @@ class NewBookService:
                             result['skipped'] += 1
 
                     except Exception as e:
-                        logger.error(f"❌ 保存书籍失败: {book_info.title} - {e}")
+                        logger.error(f"保存书籍失败: {book_info.title} - {e}")
                         result['errors'] += 1
 
             # 更新同步时间
@@ -327,13 +328,13 @@ class NewBookService:
             db.session.commit()
 
             logger.info(
-                f"✅ 同步完成: {publisher.name_en} - "
+                f"同步完成: {publisher.name_en} - "
                 f"总计 {result['total']}, 新增 {result['added']}, "
                 f"更新 {result['updated']}, 跳过 {result['skipped']}"
             )
 
         except Exception as e:
-            logger.error(f"❌ 同步失败: {e}")
+            logger.error(f"同步失败: {e}")
             result['success'] = False
             result['error'] = str(e)
 
@@ -361,13 +362,13 @@ class NewBookService:
         results = []
         publishers = self.get_publishers(active_only=True)
 
-        logger.info(f"🔍 开始同步 {len(publishers)} 个出版社...")
-        logger.info(f"📦 批处理大小: {batch_size}")
+        logger.info(f"开始同步 {len(publishers)} 个出版社...")
+        logger.info(f"批处理大小: {batch_size}")
 
         # 分批处理出版社
         for i in range(0, len(publishers), batch_size):
             batch = publishers[i:i + batch_size]
-            logger.info(f"🔄 处理批次 {i//batch_size + 1}/{(len(publishers) + batch_size - 1)//batch_size}")
+            logger.info(f"处理批次 {i//batch_size + 1}/{(len(publishers) + batch_size - 1)//batch_size}")
             
             for publisher in batch:
                 result = self.sync_publisher_books(
@@ -379,7 +380,6 @@ class NewBookService:
                 results.append(result)
                 
                 # 每处理完一个出版社，强制垃圾回收，减少内存使用
-                import gc
                 gc.collect()
 
         # 汇总统计
@@ -388,7 +388,7 @@ class NewBookService:
         total_errors = sum(r.get('errors', 0) for r in results)
 
         logger.info(
-            f"✅ 全部同步完成: 新增 {total_added}, 更新 {total_updated}, 错误 {total_errors}"
+            f"全部同步完成: 新增 {total_added}, 更新 {total_updated}, 错误 {total_errors}"
         )
 
         return results
@@ -532,7 +532,7 @@ class NewBookService:
                 )
 
         except Exception as e:
-            logger.warning(f"⚠️ 翻译失败: {book.title} - {e}")
+            logger.warning(f"翻译失败: {book.title} - {e}")
 
     # ==================== 查询接口 ====================
 
@@ -557,11 +557,8 @@ class NewBookService:
         Returns:
             (书籍列表, 总数)
         """
-        from datetime import timedelta
-
         query = NewBook.query.filter(NewBook.is_displayable == True)
 
-        # 时间筛选
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         query = query.filter(NewBook.created_at >= cutoff_date)
 
@@ -671,7 +668,6 @@ class NewBookService:
         active_publishers = Publisher.query.filter_by(is_active=True).count()
 
         # 最近7天新增
-        from datetime import timedelta
         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         recent_books = NewBook.query.filter(NewBook.created_at >= week_ago).count()
 
