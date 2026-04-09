@@ -303,9 +303,9 @@ def _apply_security_headers(app):
             'Content-Security-Policy': (
                 "default-src 'self'; "
                 "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
-                "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
-                "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com; "
-                "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com 'unsafe-inline'; "
+                "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com; "
+                "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; "
                 "connect-src 'self'; "
                 "frame-src 'none'; "
                 "object-src 'none';"
@@ -342,8 +342,10 @@ def _enable_rate_limiting(app):
     @app.before_request
     def rate_limit_requests():
         """速率限制中间件"""
-        # 排除静态文件和健康检查
-        if request.path.startswith('/static/') or request.path.startswith('/health/'):
+        # 排除静态文件、健康检查和前端页面请求
+        if (request.path.startswith('/static/') or 
+            request.path.startswith('/health/') or
+            not request.path.startswith('/api/')):
             return None
         
         # 获取客户端IP
