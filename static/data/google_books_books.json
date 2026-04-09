@@ -100,26 +100,6 @@
     "source_url": "https://books.google.com/books/about/A_Person_is_a_Prayer.html?hl=&id=ttPSEAAAQBAJ"
   },
   {
-    "title": "Help Wanted",
-    "author": "Adelle Waldman",
-    "isbn13": "9781805221647",
-    "isbn10": "1805221647",
-    "description": "A NEW YORK TIMES Book Review Editors' Choice A VOGUE, VULTURE, ELLE, NEW YORKER and ECONOMIST Best Book of the Year A TIME Must-Read Book of 2024 'Filled with an exceptional cast of characters and written with a delicious acid-drop humour' i Paper, Best Paperbacks Out in 2025 'Help Wanted is like a great nineteenth-century novel about now, at once an effervescent workplace comedy and an exploration of the psychic toll exacted by the labour market' Elif Batuman, author of The Idiot 'Help Wanted held me from its first page. Waldman transmits, through narrative tension and beautifully rendered heartbreak, the exact way that capitalism turned on the very lives it was there to boost and instead corroded' Taffy Brodesser-Akner, author of The Long Island Compromise 'Poignant, funny, stealthily ambitious' The New York Times 'Eliot-like ... . It is simultaneously a joke, a homage, and a provocation for our unequal age. Help Wanted washes labour in a stately, almost Steinbeckian light, emphasizing its difficulty but also its dignity' New Yorker Tightly plotted, slyly caustic and often very funny' Daily Mail When the store manager at an upstate New York superstore announces he's leaving, the motley crew members of Team Movement take the news surprisingly well. Overworked and exhausted, they spend their early morning shifts scheming about their jobs and their futures. Now is their only chance to get their hated line manager Meredith promoted up and away from them. And then one of them can replace her - but who will it be?",
-    "cover_url": "https://books.google.com/books/content?id=q7XZEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api",
-    "category": "小说",
-    "publication_date": "2024-03-21",
-    "price": null,
-    "page_count": 299,
-    "language": "en",
-    "buy_links": [
-      {
-        "name": "Google Books",
-        "url": "https://books.google.com/books/about/Help_Wanted.html?hl=&id=q7XZEAAAQBAJ"
-      }
-    ],
-    "source_url": "https://books.google.com/books/about/Help_Wanted.html?hl=&id=q7XZEAAAQBAJ"
-  },
-  {
     "title": "City of Night Birds",
     "author": "Juhea Kim",
     "isbn13": "9780861549955",
@@ -398,5 +378,25 @@
       }
     ],
     "source_url": "https://play.google.com/store/books/details?id=HlrTEAAAQBAJ"
+  },
+  {
+    "title": "TOP DOLL",
+    "author": "Karen McCarthy Woolf",
+    "isbn13": "9780349703442",
+    "isbn10": "0349703442",
+    "description": "'Extraordinarily inventive, witty, moving and profound.' Bernardine Evaristo 'If you read one novel this year, let it be Top Doll. This is innovative, exquisitely crafted storytelling at its finest.' Malika Booker When reclusive billionaire Huguette Clark dies age 104, she leaves behind a suite of New York apartments, a meticulously upkept California mansion, at least one Monet and her vast collection of antique dolls. Having barely been outside for 50 years, the elusive Clark spoke to few--in this highly unreliable, semi-fictional miniature epic, the dolls tell all. Theirs is a tale that takes us from their lavish Park Avenue home back in time to the slave plantations of Virginia and the palaces of Imperial Japan via the addictive hedonism of 1930s queer LA. Joyfully irreverent, Top Doll is a story of love, betrayal, Barbies and ultimately, what it means to be human. 'An astonishing combination of depth, compassion and beauty. A constant series of delicious surprises.' Leone Ross *** Praise for An Aviary of Small Birds: 'Beautiful, painful, pitch-perfect . . . McCarthy Woolf's tuning fork always rings true.' Guardian 'I loved Karen McCarthy Woolf's technically perfect poems of winged heartbreak.' Maggie Gee, The Observer Praise for Seasonal Disturbances: 'A strange and stunning collection from a true writer. Vulnerable, hilarious and wise.' Warsan Shire 'An unclassifiable book, revolutionary in its engagement with form, stunning in its intersectional politics, and an extraordinary achievement . . . It will break you, in a good way.' Poetry School Books of the Year 2017",
+    "cover_url": "https://books.google.com/books/content?id=SrmoEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api",
+    "category": "小说",
+    "publication_date": "2024-01-18",
+    "price": null,
+    "page_count": 173,
+    "language": "en",
+    "buy_links": [
+      {
+        "name": "Google Books",
+        "url": "https://books.google.com/books/about/TOP_DOLL.html?hl=&id=SrmoEAAAQBAJ"
+      }
+    ],
+    "source_url": "https://books.google.com/books/about/TOP_DOLL.html?hl=&id=SrmoEAAAQBAJ"
   }
 ]
