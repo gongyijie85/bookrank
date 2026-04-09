@@ -8,7 +8,7 @@
 <main class="main-content">
     <div class="page-header">
         <h1 class="page-title">
-            <svg class="icon" width="24" height="24"><use href="#icon-chart-bar"/></svg>
+            <svg class="icon text-gold" width="24" height="24"><use href="#icon-chart-bar"/></svg>
             畅销书周报
         </h1>
         <p class="page-description">每周更新，总结纽约时报畅销书榜单的变化趋势</p>
@@ -43,33 +43,77 @@
         {% if reports %}
         <div class="reports-list">
             {% for report in reports %}
-            <div class="report-card" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.title }}" data-summary="{{ report.summary }}">
-                <div class="report-header">
-                    <h3 class="report-title">
-                        <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}">
-                            {{ report.title }}
+            <div class="report-card news-card" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.title }}" data-summary="{{ report.summary }}">
+                <!-- 日期徽章 -->
+                <div class="news-date-badge">
+                    <span class="news-day">{{ report.report_date.strftime('%d') }}</span>
+                    <span class="news-month">{{ report.report_date.strftime('%m月') }}</span>
+                </div>
+                
+                <!-- 新闻卡片内容 -->
+                <div class="news-card-content">
+                    <div class="news-header">
+                        <h3 class="news-title">
+                            <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}">
+                                {{ report.title }}
+                            </a>
+                        </h3>
+                        <div class="news-meta">
+                            <span class="news-period">
+                                <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
+                                {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- 新闻摘要 -->
+                    <div class="news-summary">
+                        {{ report.summary | truncate(200) }}
+                    </div>
+                    
+                    <!-- 新闻亮点 -->
+                    <div class="news-highlights">
+                        <ul class="highlights-list">
+                            {% if report.content %}
+                            {% set content = report.content %}
+                            {% if content.top_changes %}
+                            <li>
+                                <svg class="icon" width="14" height="14"><use href="#icon-arrow-up"/></svg>
+                                排名变化：{{ content.top_changes | length }} 本图书
+                            </li>
+                            {% endif %}
+                            {% if content.new_books %}
+                            <li>
+                                <svg class="icon" width="14" height="14"><use href="#icon-star"/></svg>
+                                新上榜：{{ content.new_books | length }} 本图书
+                            </li>
+                            {% endif %}
+                            {% if content.featured_books %}
+                            <li>
+                                <svg class="icon" width="14" height="14"><use href="#icon-heart"/></svg>
+                                推荐书籍：{{ content.featured_books | length }} 本
+                            </li>
+                            {% endif %}
+                            {% endif %}
+                        </ul>
+                    </div>
+                    
+                    <!-- 操作按钮 -->
+                    <div class="news-actions">
+                        <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}" class="btn btn-primary">
+                            <svg class="icon" width="16" height="16"><use href="#icon-eye"/></svg>
+                            查看详情
                         </a>
-                    </h3>
-                    <span class="report-date">{{ report.report_date.strftime('%Y年%m月%d日') }}</span>
+                        <button class="btn btn-outline share-btn" data-report-date="{{ report.report_date.strftime('%Y-%m-%d') }}">
+                            <svg class="icon" width="16" height="16"><use href="#icon-share"/></svg>
+                            分享
+                        </button>
+                    </div>
                 </div>
-                <div class="report-meta">
-                    <span class="report-period">
-                        <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
-                        {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
-                    </span>
-                </div>
-                <div class="report-summary">
-                    {{ report.summary | truncate(200) }}
-                </div>
-                <div class="report-actions">
-                    <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}" class="btn btn-primary">
-                        <svg class="icon" width="16" height="16"><use href="#icon-eye"/></svg>
-                        查看详情
-                    </a>
-                    <button class="btn btn-outline share-btn" data-report-date="{{ report.report_date.strftime('%Y-%m-%d') }}">
-                        <svg class="icon" width="16" height="16"><use href="#icon-share"/></svg>
-                        分享
-                    </button>
+                
+                <!-- 动画图标容器 -->
+                <div class="animation-container">
+                    <canvas id="animation-{{ loop.index }}" width="80" height="80"></canvas>
                 </div>
             </div>
             {% endfor %}
@@ -246,79 +290,292 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 初始化筛选
     filterReports();
+
+    // Remotion风格动画
+    class BookAnimation {
+        constructor(canvasId) {
+            this.canvas = document.getElementById(canvasId);
+            this.ctx = this.canvas.getContext('2d');
+            this.width = this.canvas.width;
+            this.height = this.canvas.height;
+            this.rotation = 0;
+            this.scale = 1;
+            this.arrowDirection = 1;
+            this.arrowPosition = 0;
+            this.hovered = false;
+            this.animationId = null;
+            this.init();
+        }
+
+        init() {
+            this.canvas.addEventListener('mouseenter', () => {
+                this.hovered = true;
+            });
+
+            this.canvas.addEventListener('mouseleave', () => {
+                this.hovered = false;
+            });
+
+            this.animate();
+        }
+
+        drawBook() {
+            this.ctx.save();
+            this.ctx.translate(this.width / 2, this.height / 2);
+            this.ctx.rotate(this.rotation * Math.PI / 180);
+            this.ctx.scale(this.scale, this.scale);
+
+            // 书的主体
+            this.ctx.fillStyle = '#3b82f6';
+            this.ctx.fillRect(-20, -30, 40, 60);
+
+            // 书脊
+            this.ctx.fillStyle = '#1e40af';
+            this.ctx.fillRect(20, -30, 5, 60);
+
+            // 书页
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillRect(-22, -32, 44, 64);
+
+            // 书的标题
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = '8px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('BOOK', 0, 0);
+
+            this.ctx.restore();
+        }
+
+        drawArrow() {
+            this.ctx.save();
+            this.ctx.translate(this.width / 2, this.height / 2 - 40);
+
+            // 箭头
+            this.ctx.fillStyle = this.arrowDirection > 0 ? '#10b981' : '#ef4444';
+            this.ctx.beginPath();
+            if (this.arrowDirection > 0) {
+                this.ctx.moveTo(0, -10 + this.arrowPosition);
+                this.ctx.lineTo(-5, 0 + this.arrowPosition);
+                this.ctx.lineTo(5, 0 + this.arrowPosition);
+            } else {
+                this.ctx.moveTo(0, 10 + this.arrowPosition);
+                this.ctx.lineTo(-5, 0 + this.arrowPosition);
+                this.ctx.lineTo(5, 0 + this.arrowPosition);
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+
+            this.ctx.restore();
+        }
+
+        animate() {
+            this.ctx.clearRect(0, 0, this.width, this.height);
+
+            // 背景
+            this.ctx.fillStyle = 'rgba(243, 244, 246, 0.8)';
+            this.ctx.fillRect(0, 0, this.width, this.height);
+
+            // 更新动画参数
+            if (this.hovered) {
+                this.rotation += 0.5;
+                this.scale = 1 + Math.sin(Date.now() * 0.002) * 0.1;
+            } else {
+                this.rotation += 0.1;
+                this.scale = 1 + Math.sin(Date.now() * 0.001) * 0.05;
+            }
+
+            // 更新箭头
+            this.arrowPosition = Math.sin(Date.now() * 0.005) * 5;
+            if (Math.random() > 0.995) {
+                this.arrowDirection = -this.arrowDirection;
+            }
+
+            // 绘制
+            this.drawArrow();
+            this.drawBook();
+
+            this.animationId = requestAnimationFrame(() => this.animate());
+        }
+
+        stop() {
+            if (this.animationId) {
+                cancelAnimationFrame(this.animationId);
+            }
+        }
+    }
+
+    // 初始化所有动画
+    document.querySelectorAll('canvas[id^="animation-"]').forEach((canvas, index) => {
+        new BookAnimation(canvas.id);
+    });
 });
 </script>
 {% endblock %}
 
 {% block extra_css %}
 <style>
+    /* 周报列表样式 */
     .reports-list {
         display: grid;
         gap: 1.5rem;
         margin-bottom: 2rem;
     }
 
-    .report-card {
+    /* 新闻卡片样式 */
+    .news-card {
         background: var(--card-bg);
         border: 1px solid var(--card-border);
         border-radius: var(--radius-lg);
         padding: 1.5rem;
         transition: all 0.3s ease;
-    }
-
-    .report-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
-    }
-
-    .report-header {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
+        gap: 1.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .news-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(to bottom, var(--primary), var(--secondary));
+        border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    }
+
+    .news-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    /* 日期徽章 */
+    .news-date-badge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+        padding: 1rem;
+        min-width: 80px;
+        flex-shrink: 0;
+        border: 1px solid var(--card-border);
+    }
+
+    .news-day {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary);
+        line-height: 1;
+    }
+
+    .news-month {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* 新闻卡片内容 */
+    .news-card-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .news-header {
         margin-bottom: 0.75rem;
     }
 
-    .report-title {
-        margin: 0;
-        font-size: 1.125rem;
+    .news-title {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.25rem;
         font-weight: 600;
         color: var(--text-primary);
+        line-height: 1.3;
     }
 
-    .report-title a {
+    .news-title a {
         color: inherit;
         text-decoration: none;
+        transition: color 0.3s ease;
     }
 
-    .report-title a:hover {
-        text-decoration: underline;
+    .news-title a:hover {
+        color: var(--primary);
     }
 
-    .report-date {
+    .news-meta {
         font-size: 0.875rem;
         color: var(--text-secondary);
-        background: var(--bg-secondary);
-        padding: 0.25rem 0.75rem;
-        border-radius: var(--radius-full);
-    }
-
-    .report-meta {
         margin-bottom: 0.75rem;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
     }
 
-    .report-summary {
-        margin-bottom: 1rem;
-        line-height: 1.5;
-        color: var(--text-primary);
-    }
-
-    .report-actions {
+    .news-meta .news-period {
         display: flex;
+        align-items: center;
         gap: 0.5rem;
     }
 
+    /* 新闻摘要 */
+    .news-summary {
+        margin-bottom: 1rem;
+        line-height: 1.5;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+    }
+
+    /* 新闻亮点 */
+    .news-highlights {
+        margin-bottom: 1.25rem;
+    }
+
+    .highlights-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .highlights-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+        padding: 0.5rem 0.75rem;
+        border-radius: var(--radius-full);
+        border: 1px solid var(--card-border);
+    }
+
+    .highlights-list li .icon {
+        color: var(--primary);
+    }
+
+    /* 操作按钮 */
+    .news-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    /* 动画容器 */
+    .animation-container {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .animation-container canvas {
+        border-radius: var(--radius-lg);
+        background: var(--bg-secondary);
+        border: 1px solid var(--card-border);
+    }
+
+    /* 空状态 */
     .empty-state {
         text-align: center;
         padding: 3rem 1rem;
@@ -341,6 +598,7 @@ document.addEventListener('DOMContentLoaded', function() {
         color: var(--text-secondary);
     }
 
+    /* 关于部分 */
     .section-card {
         background: var(--card-bg);
         border: 1px solid var(--card-border);
@@ -514,16 +772,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /* 动画效果 */
-    .report-card {
+    .news-card {
         transition: all 0.3s ease;
     }
 
-    .report-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+    .news-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
     }
 
-    .report-card:active {
+    .news-card:active {
         transform: translateY(0);
     }
 
@@ -539,15 +797,53 @@ document.addEventListener('DOMContentLoaded', function() {
         transform: translateY(0);
     }
 
+    .highlights-list li {
+        transition: all 0.3s ease;
+    }
+
+    .highlights-list li:hover {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+
+    .highlights-list li:hover .icon {
+        color: white;
+    }
+
+    /* 响应式设计 */
     @media (max-width: 768px) {
-        .report-header {
+        .news-card {
             flex-direction: column;
-            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .news-date-badge {
+            flex-direction: row;
+            min-width: auto;
+            padding: 0.5rem 1rem;
+            gap: 1rem;
+        }
+
+        .news-day {
+            font-size: 1.25rem;
+        }
+
+        .news-title {
+            font-size: 1.125rem;
+        }
+
+        .highlights-list {
+            flex-direction: column;
             gap: 0.5rem;
         }
 
-        .report-date {
-            align-self: flex-start;
+        .highlights-list li {
+            padding: 0.5rem;
+        }
+
+        .news-actions {
+            flex-direction: column;
         }
 
         .filter-controls {
@@ -560,10 +856,6 @@ document.addEventListener('DOMContentLoaded', function() {
             width: 100%;
         }
 
-        .report-actions {
-            flex-direction: column;
-        }
-
         .pagination {
             flex-direction: column;
             gap: 0.5rem;
@@ -573,6 +865,40 @@ document.addEventListener('DOMContentLoaded', function() {
             width: 100%;
             justify-content: center;
         }
+
+        .animation-container {
+            order: -1;
+            align-items: center;
+        }
+
+        .animation-container canvas {
+            width: 60px;
+            height: 60px;
+        }
+    }
+
+    /* 金色图标样式 */
+    .text-gold {
+        color: #ffc107;
+    }
+
+    /* 自定义滚动条 */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-sm);
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--text-muted);
+        border-radius: var(--radius-sm);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--text-secondary);
     }
 </style>
 {% endblock %}

@@ -6,25 +6,72 @@
 
 {% block content %}
 <main class="main-content">
-    <div class="page-header">
-        <div class="header-breadcrumb">
-            <a href="{{ url_for('main.weekly_reports') }}">畅销书周报</a>
-            <span class="breadcrumb-separator">/</span>
-            <span>{{ report.report_date.strftime('%Y年%m月%d日') }}</span>
+    <!-- 新闻风格头部 -->
+    <div class="news-hero-section">
+        <div class="news-hero-content">
+            <div class="news-hero-meta">
+                <span class="news-hero-date">{{ report.report_date.strftime('%Y年%m月%d日') }}</span>
+                <span class="news-hero-period">
+                    <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
+                    {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
+                </span>
+            </div>
+            <h1 class="news-hero-title">{{ report.title }}</h1>
+            <div class="news-hero-highlights">
+                {% if report.content %}
+                {% set content = report.content %}
+                <div class="highlights-grid">
+                    {% if content.top_changes %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-arrow-up"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.top_changes | length }}</span>
+                            <span class="highlight-label">排名变化</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if content.new_books %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-star"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.new_books | length }}</span>
+                            <span class="highlight-label">新上榜</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if content.featured_books %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-heart"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.featured_books | length }}</span>
+                            <span class="highlight-label">推荐书籍</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if content.longest_running %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-clock"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.longest_running | length }}</span>
+                            <span class="highlight-label">持续上榜</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
         </div>
-        <h1 class="page-title">
-            <svg class="icon" width="24" height="24"><use href="#icon-file-text"/></svg>
-            {{ report.title }}
-        </h1>
-        <div class="page-meta">
-            <span class="meta-item">
-                <svg class="icon" width="16" height="16"><use href="#icon-calendar"/></svg>
-                发布日期：{{ report.report_date.strftime('%Y年%m月%d日') }}
-            </span>
-            <span class="meta-item">
-                <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
-                统计周期：{{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
-            </span>
+        <!-- 动画图标 -->
+        <div class="news-hero-animation">
+            <canvas id="hero-animation" width="120" height="120"></canvas>
         </div>
     </div>
 
@@ -300,6 +347,132 @@
 
 {% block extra_css %}
 <style>
+    /* 新闻风格头部 */
+    .news-hero-section {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .news-hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(to right, var(--primary), var(--secondary));
+    }
+
+    .news-hero-content {
+        flex: 1;
+    }
+
+    .news-hero-meta {
+        display: flex;
+        gap: 1.5rem;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .news-hero-date {
+        background: var(--primary);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: var(--radius-full);
+        font-weight: 500;
+    }
+
+    .news-hero-period {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .news-hero-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 1.5rem 0;
+        line-height: 1.2;
+    }
+
+    .news-hero-highlights {
+        margin-top: 1.5rem;
+    }
+
+    .highlights-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+    }
+
+    .highlight-item {
+        background: var(--bg-secondary);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .highlight-item:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
+        border-color: var(--primary);
+    }
+
+    .highlight-icon {
+        width: 48px;
+        height: 48px;
+        background: var(--primary);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.75rem;
+        transition: all 0.3s ease;
+    }
+
+    .highlight-item:hover .highlight-icon {
+        transform: scale(1.1);
+        background: var(--secondary);
+    }
+
+    .highlight-number {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .highlight-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .news-hero-animation {
+        flex-shrink: 0;
+    }
+
+    .news-hero-animation canvas {
+        border-radius: var(--radius-lg);
+        background: var(--bg-secondary);
+        border: 1px solid var(--card-border);
+    }
+
     .header-breadcrumb {
         font-size: 0.875rem;
         color: var(--text-secondary);
@@ -1160,6 +1333,124 @@
                 }
             });
         });
+
+        // Remotion风格动画
+        class BookAnimation {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                this.rotation = 0;
+                this.scale = 1;
+                this.arrowDirection = 1;
+                this.arrowPosition = 0;
+                this.hovered = false;
+                this.animationId = null;
+                this.init();
+            }
+
+            init() {
+                this.canvas.addEventListener('mouseenter', () => {
+                    this.hovered = true;
+                });
+
+                this.canvas.addEventListener('mouseleave', () => {
+                    this.hovered = false;
+                });
+
+                this.animate();
+            }
+
+            drawBook() {
+                this.ctx.save();
+                this.ctx.translate(this.width / 2, this.height / 2);
+                this.ctx.rotate(this.rotation * Math.PI / 180);
+                this.ctx.scale(this.scale, this.scale);
+
+                // 书的主体
+                this.ctx.fillStyle = '#3b82f6';
+                this.ctx.fillRect(-30, -45, 60, 90);
+
+                // 书脊
+                this.ctx.fillStyle = '#1e40af';
+                this.ctx.fillRect(30, -45, 8, 90);
+
+                // 书页
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.fillRect(-33, -48, 66, 96);
+
+                // 书的标题
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('BOOK', 0, 0);
+
+                this.ctx.restore();
+            }
+
+            drawArrow() {
+                this.ctx.save();
+                this.ctx.translate(this.width / 2, this.height / 2 - 60);
+
+                // 箭头
+                this.ctx.fillStyle = this.arrowDirection > 0 ? '#10b981' : '#ef4444';
+                this.ctx.beginPath();
+                if (this.arrowDirection > 0) {
+                    this.ctx.moveTo(0, -15 + this.arrowPosition);
+                    this.ctx.lineTo(-8, 0 + this.arrowPosition);
+                    this.ctx.lineTo(8, 0 + this.arrowPosition);
+                } else {
+                    this.ctx.moveTo(0, 15 + this.arrowPosition);
+                    this.ctx.lineTo(-8, 0 + this.arrowPosition);
+                    this.ctx.lineTo(8, 0 + this.arrowPosition);
+                }
+                this.ctx.closePath();
+                this.ctx.fill();
+
+                this.ctx.restore();
+            }
+
+            animate() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+
+                // 背景
+                this.ctx.fillStyle = 'rgba(243, 244, 246, 0.8)';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                // 更新动画参数
+                if (this.hovered) {
+                    this.rotation += 0.5;
+                    this.scale = 1 + Math.sin(Date.now() * 0.002) * 0.1;
+                } else {
+                    this.rotation += 0.1;
+                    this.scale = 1 + Math.sin(Date.now() * 0.001) * 0.05;
+                }
+
+                // 更新箭头
+                this.arrowPosition = Math.sin(Date.now() * 0.005) * 8;
+                if (Math.random() > 0.995) {
+                    this.arrowDirection = -this.arrowDirection;
+                }
+
+                // 绘制
+                this.drawArrow();
+                this.drawBook();
+
+                this.animationId = requestAnimationFrame(() => this.animate());
+            }
+
+            stop() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                }
+            }
+        }
+
+        // 初始化动画
+        if (document.getElementById('hero-animation')) {
+            new BookAnimation('hero-animation');
+        }
     });
 </script>
 {% endblock %}
