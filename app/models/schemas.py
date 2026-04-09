@@ -355,6 +355,89 @@ class SystemConfig(db.Model):
         return config
 
 
+class WeeklyReport(db.Model):
+    """每周畅销书报告"""
+    __tablename__ = 'weekly_reports'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    report_date = db.Column(db.Date, nullable=False, index=True)
+    week_start = db.Column(db.Date, nullable=False)
+    week_end = db.Column(db.Date, nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    summary = db.Column(db.Text)
+    content = db.Column(db.Text)  # JSON格式存储详细内容
+    top_changes = db.Column(db.Text)  # JSON格式存储最大变化
+    featured_books = db.Column(db.Text)  # JSON格式存储推荐书籍
+    view_count = db.Column(db.Integer, default=0)  # 阅读量
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # 关系
+    views = db.relationship('ReportView', back_populates='report', cascade='all, delete-orphan')
+    
+    __table_args__ = (
+        db.Index('idx_weekly_reports_date', 'report_date'),
+        db.Index('idx_weekly_reports_view_count', 'view_count'),
+        db.UniqueConstraint('week_start', 'week_end', name='uix_weekly_report_week'),
+    )
+    
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'report_date': self.report_date.isoformat() if self.report_date else None,
+            'week_start': self.week_start.isoformat() if self.week_start else None,
+            'week_end': self.week_end.isoformat() if self.week_end else None,
+            'title': self.title,
+            'summary': self.summary,
+            'content': self.content,
+            'top_changes': self.top_changes,
+            'featured_books': self.featured_books,
+            'view_count': self.view_count,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class ReportView(db.Model):
+    """周报阅读记录"""
+    __tablename__ = 'report_views'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.Integer, db.ForeignKey('weekly_reports.id'), nullable=False, index=True)
+    session_id = db.Column(db.String(64), nullable=False, index=True)
+    viewed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    user_agent = db.Column(db.String(500))
+    ip_address = db.Column(db.String(50))
+    
+    # 关系
+    report = db.relationship('WeeklyReport', back_populates='views')
+    
+    __table_args__ = (
+        db.Index('idx_report_views_report_session', 'report_id', 'session_id'),
+        db.Index('idx_report_views_viewed_at', 'viewed_at'),
+    )
+
+
+class UserBehavior(db.Model):
+    """用户行为数据"""
+    __tablename__ = 'user_behaviors'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(64), nullable=False, index=True)
+    event_type = db.Column(db.String(50), nullable=False, index=True)  # view_book, view_report, export_report, etc.
+    target_id = db.Column(db.String(100), index=True)  # 目标ID，如书籍ISBN或周报日期
+    target_type = db.Column(db.String(50))  # 目标类型，如 book, report
+    duration = db.Column(db.Integer)  # 停留时间（秒）
+    user_agent = db.Column(db.String(500))
+    ip_address = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    
+    __table_args__ = (
+        db.Index('idx_user_behaviors_session_event', 'session_id', 'event_type'),
+        db.Index('idx_user_behaviors_created_at', 'created_at'),
+    )
+
+
 @dataclass
 class Book:
     """书籍数据类"""

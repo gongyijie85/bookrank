@@ -124,7 +124,10 @@
             
             <!-- 详细信息 -->
             <div class="tab-panel" id="tab-details">
-                <p>{{ book.details or book.description or '暂无详细介绍' }}</p>
+                <p id="detail-description">{{ book.details or book.description or '暂无详细介绍' }}</p>
+                <p id="detail-loading" style="display: none; color: var(--text-secondary); font-style: italic;">
+                    正在获取详细介绍...
+                </p>
             </div>
         </div>
     </div>
@@ -144,7 +147,40 @@
             panel.classList.remove('active');
         });
         document.getElementById(`tab-${tabName}`).classList.add('active');
+        
+        // 如果切换到详细信息标签，尝试获取详细信息
+        if (tabName === 'details') {
+            fetchBookDetails();
+        }
     }
+    
+    // 获取详细信息
+    {% if book.isbn13 or book.isbn10 %}
+    async function fetchBookDetails() {
+        const loadingEl = document.getElementById('detail-loading');
+        const descriptionEl = document.getElementById('detail-description');
+        
+        if (loadingEl && descriptionEl) {
+            loadingEl.style.display = 'block';
+            
+            try {
+                const isbn = '{{ book.isbn13 or book.isbn10 }}';
+                const response = await fetch(`/api/book-details/${isbn}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    if (data.data.details) {
+                        descriptionEl.textContent = data.data.details;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch book details:', error);
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+    }
+    {% endif %}
 </script>
 
 <style>

@@ -1,0 +1,578 @@
+{% extends 'base.html' %}
+
+{% block title %}畅销书周报 - BookRank{% endblock %}
+{% block og_title %}畅销书周报 - BookRank{% endblock %}
+{% block twitter_title %}畅销书周报 - BookRank{% endblock %}
+
+{% block content %}
+<main class="main-content">
+    <div class="page-header">
+        <h1 class="page-title">
+            <svg class="icon" width="24" height="24"><use href="#icon-chart-bar"/></svg>
+            畅销书周报
+        </h1>
+        <p class="page-description">每周更新，总结纽约时报畅销书榜单的变化趋势</p>
+    </div>
+
+    <div class="content-section">
+        <!-- 筛选和搜索功能 -->
+        <div class="filter-section">
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="date-filter">日期筛选</label>
+                    <select id="date-filter" class="form-select">
+                        <option value="all">全部</option>
+                        <option value="this-month">本月</option>
+                        <option value="last-month">上月</option>
+                        <option value="this-year">今年</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="search-input">搜索</label>
+                    <div class="search-box">
+                        <input type="text" id="search-input" placeholder="搜索周报标题或内容" class="form-input">
+                        <button class="search-btn">
+                            <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 周报列表 -->
+        {% if reports %}
+        <div class="reports-list">
+            {% for report in reports %}
+            <div class="report-card" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.title }}" data-summary="{{ report.summary }}">
+                <div class="report-header">
+                    <h3 class="report-title">
+                        <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}">
+                            {{ report.title }}
+                        </a>
+                    </h3>
+                    <span class="report-date">{{ report.report_date.strftime('%Y年%m月%d日') }}</span>
+                </div>
+                <div class="report-meta">
+                    <span class="report-period">
+                        <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
+                        {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
+                    </span>
+                </div>
+                <div class="report-summary">
+                    {{ report.summary | truncate(200) }}
+                </div>
+                <div class="report-actions">
+                    <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}" class="btn btn-primary">
+                        <svg class="icon" width="16" height="16"><use href="#icon-eye"/></svg>
+                        查看详情
+                    </a>
+                    <button class="btn btn-outline share-btn" data-report-date="{{ report.report_date.strftime('%Y-%m-%d') }}">
+                        <svg class="icon" width="16" height="16"><use href="#icon-share"/></svg>
+                        分享
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <button class="btn btn-outline pagination-btn" disabled>
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
+                上一页
+            </button>
+            <span class="pagination-info">第 1 页，共 1 页</span>
+            <button class="btn btn-outline pagination-btn" disabled>
+                下一页
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-right"/></svg>
+            </button>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <svg class="icon" width="48" height="48"><use href="#icon-file-text"/></svg>
+            <h3>暂无周报</h3>
+            <p>周报正在生成中，请稍后再试</p>
+            <button class="btn btn-primary refresh-btn">
+                <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
+                刷新
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="content-section">
+        <div class="section-card">
+            <h3 class="section-title">
+                <svg class="icon" width="18" height="18"><use href="#icon-info"/></svg>
+                关于周报
+            </h3>
+            <div class="section-content">
+                <p>畅销书周报每周自动生成，总结纽约时报畅销书榜单的变化趋势、亮点书籍和值得关注的变动。</p>
+                <ul class="list-disc">
+                    <li>每周一更新上周周报</li>
+                    <li>包含榜单变化分析</li>
+                    <li>推荐值得关注的书籍</li>
+                    <li>提供趋势分析和洞察</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 筛选功能
+    const dateFilter = document.getElementById('date-filter');
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.querySelector('.search-btn');
+    const reportCards = document.querySelectorAll('.report-card');
+    const refreshBtn = document.querySelector('.refresh-btn');
+    const shareBtns = document.querySelectorAll('.share-btn');
+
+    // 筛选逻辑
+    function filterReports() {
+        const dateValue = dateFilter.value;
+        const searchValue = searchInput.value.toLowerCase();
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+
+        reportCards.forEach(card => {
+            const cardDate = new Date(card.dataset.date);
+            const cardTitle = card.dataset.title.toLowerCase();
+            const cardSummary = card.dataset.summary.toLowerCase();
+            const cardMonth = cardDate.getMonth();
+            const cardYear = cardDate.getFullYear();
+
+            // 日期筛选
+            let dateMatch = true;
+            if (dateValue === 'this-month') {
+                dateMatch = (cardMonth === currentMonth && cardYear === currentYear);
+            } else if (dateValue === 'last-month') {
+                const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+                const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+                dateMatch = (cardMonth === lastMonth && cardYear === lastMonthYear);
+            } else if (dateValue === 'this-year') {
+                dateMatch = (cardYear === currentYear);
+            }
+
+            // 搜索筛选
+            const searchMatch = cardTitle.includes(searchValue) || cardSummary.includes(searchValue);
+
+            // 显示或隐藏卡片
+            if (dateMatch && searchMatch) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    // 事件监听
+    dateFilter.addEventListener('change', filterReports);
+    searchInput.addEventListener('input', filterReports);
+    searchBtn.addEventListener('click', filterReports);
+
+    // 回车键搜索
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            filterReports();
+        }
+    });
+
+    // 刷新功能
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            // 显示加载状态
+            this.innerHTML = '<svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> 刷新中...';
+            this.disabled = true;
+
+            // 模拟刷新
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        });
+    }
+
+    // 分享功能
+    shareBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const reportDate = this.dataset.reportDate;
+            const shareUrl = `${window.location.origin}${window.location.pathname.replace('/reports/weekly', '')}/reports/weekly/${reportDate}`;
+            const shareTitle = `畅销书周报 - ${reportDate}`;
+
+            // 检查是否支持原生分享
+            if (navigator.share) {
+                navigator.share({
+                    title: shareTitle,
+                    url: shareUrl
+                }).catch(err => {
+                    console.error('分享失败:', err);
+                    fallbackShare(shareUrl, shareTitle);
+                });
+            } else {
+                // 降级方案
+                fallbackShare(shareUrl, shareTitle);
+            }
+        });
+    });
+
+    // 分享降级方案
+    function fallbackShare(url, title) {
+        // 复制到剪贴板
+        navigator.clipboard.writeText(url).then(() => {
+            alert('链接已复制到剪贴板，可以分享给朋友！');
+        }).catch(err => {
+            console.error('复制失败:', err);
+            // 显示链接
+            prompt('请复制以下链接:', url);
+        });
+    }
+
+    // 卡片悬停效果
+    reportCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-4px)';
+            this.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+        });
+
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+        });
+    });
+
+    // 初始化筛选
+    filterReports();
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .reports-list {
+        display: grid;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .report-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .report-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .report-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .report-title {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .report-title a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .report-title a:hover {
+        text-decoration: underline;
+    }
+
+    .report-date {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+        padding: 0.25rem 0.75rem;
+        border-radius: var(--radius-full);
+    }
+
+    .report-meta {
+        margin-bottom: 0.75rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .report-summary {
+        margin-bottom: 1rem;
+        line-height: 1.5;
+        color: var(--text-primary);
+    }
+
+    .report-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+    }
+
+    .empty-state .icon {
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+        margin: 0 0 0.5rem 0;
+        color: var(--text-primary);
+    }
+
+    .empty-state p {
+        margin: 0;
+        color: var(--text-secondary);
+    }
+
+    .section-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+    }
+
+    .section-title {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-content {
+        color: var(--text-secondary);
+    }
+
+    .section-content p {
+        margin: 0 0 1rem 0;
+    }
+
+    .section-content ul {
+        margin: 0;
+        padding-left: 1.5rem;
+    }
+
+    .section-content li {
+        margin-bottom: 0.5rem;
+    }
+
+    /* 筛选和搜索样式 */
+    .filter-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+    }
+
+    .filter-controls {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-end;
+    }
+
+    .filter-group {
+        flex: 1;
+    }
+
+    .filter-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .form-select {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        transition: border-color 0.3s ease;
+    }
+
+    .form-select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-box {
+        position: relative;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 3rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        transition: border-color 0.3s ease;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-btn {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: var(--radius-sm);
+        transition: all 0.3s ease;
+    }
+
+    .search-btn:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    /* 分页样式 */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .pagination-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .pagination-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .pagination-info {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    /* 分享按钮样式 */
+    .share-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* 刷新按钮样式 */
+    .refresh-btn {
+        margin-top: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* 动画效果 */
+    .report-card {
+        transition: all 0.3s ease;
+    }
+
+    .report-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .report-card:active {
+        transform: translateY(0);
+    }
+
+    .btn {
+        transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn:active {
+        transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+        .report-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .report-date {
+            align-self: flex-start;
+        }
+
+        .filter-controls {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 1rem;
+        }
+
+        .filter-group {
+            width: 100%;
+        }
+
+        .report-actions {
+            flex-direction: column;
+        }
+
+        .pagination {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .pagination-btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
+{% endblock %}

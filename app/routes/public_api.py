@@ -495,6 +495,124 @@ def get_book_details(isbn: str):
 
 
 # ============================================
+# 周报API
+# ============================================
+
+@public_api_bp.route('/reports/weekly')
+@rate_limit(max_requests=60, window=60)
+def get_weekly_reports():
+    """
+    获取周报列表
+    
+    Query Parameters:
+        limit (int): 返回数量，默认10，最大50
+    
+    Returns:
+        {
+            "success": true,
+            "data": {
+                "reports": [...],
+                "total": 10
+            }
+        }
+    """
+    try:
+        from ..services.weekly_report_service import WeeklyReportService
+        
+        limit = request.args.get('limit', 10, type=int)
+        limit = min(limit, 50)
+        
+        book_service: BookService = public_api_bp.book_service
+        report_service = WeeklyReportService(book_service)
+        reports = report_service.get_reports(limit)
+        
+        return PublicAPIResponse.success(data={
+            'reports': [report.to_dict() for report in reports],
+            'total': len(reports)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_weekly_reports: {e}", exc_info=True)
+        return PublicAPIResponse.error('Internal server error', 500)
+
+
+@public_api_bp.route('/reports/weekly/latest')
+@rate_limit(max_requests=60, window=60)
+def get_latest_weekly_report():
+    """
+    获取最新周报
+    
+    Returns:
+        {
+            "success": true,
+            "data": {
+                "report": {...}
+            }
+        }
+    """
+    try:
+        from ..services.weekly_report_service import WeeklyReportService
+        
+        book_service: BookService = public_api_bp.book_service
+        report_service = WeeklyReportService(book_service)
+        report = report_service.get_latest_report()
+        
+        if not report:
+            return PublicAPIResponse.error('No report available', 404)
+        
+        return PublicAPIResponse.success(data={
+            'report': report.to_dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_latest_weekly_report: {e}", exc_info=True)
+        return PublicAPIResponse.error('Internal server error', 500)
+
+
+@public_api_bp.route('/reports/weekly/<date>')
+@rate_limit(max_requests=60, window=60)
+def get_weekly_report_by_date(date: str):
+    """
+    根据日期获取周报
+    
+    Path Parameters:
+        date (str): 报告日期，格式：YYYY-MM-DD
+    
+    Returns:
+        {
+            "success": true,
+            "data": {
+                "report": {...}
+            }
+        }
+    """
+    try:
+        from datetime import datetime
+        from ..services.weekly_report_service import WeeklyReportService
+        
+        # 验证日期格式
+        try:
+            report_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            return PublicAPIResponse.error('Invalid date format. Use YYYY-MM-DD', 400)
+        
+        book_service: BookService = public_api_bp.book_service
+        report_service = WeeklyReportService(book_service)
+        report = report_service.get_report_by_date(report_date)
+        
+        if not report:
+            return PublicAPIResponse.error('Report not found', 404)
+        
+        return PublicAPIResponse.success(data={
+            'report': report.to_dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_weekly_report_by_date: {e}", exc_info=True)
+        return PublicAPIResponse.error('Internal server error', 500)
+
+
+# ============================================
 # API信息
 # ============================================
 
@@ -552,6 +670,21 @@ def api_info():
                 'path': '/api/public/book/<isbn>',
                 'method': 'GET',
                 'description': '获取图书详细信息'
+            },
+            {
+                'path': '/api/public/reports/weekly',
+                'method': 'GET',
+                'description': '获取周报列表'
+            },
+            {
+                'path': '/api/public/reports/weekly/latest',
+                'method': 'GET',
+                'description': '获取最新周报'
+            },
+            {
+                'path': '/api/public/reports/weekly/<date>',
+                'method': 'GET',
+                'description': '根据日期获取周报'
             }
         ],
         'rate_limit': '60 requests per minute per IP',

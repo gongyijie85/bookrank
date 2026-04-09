@@ -38,3 +38,10 @@ sniffio>=1.3.0
 # 工具库
 cachetools==5.5.0
 tenacity==9.0.0
+
+# 邮件功能
+Flask-Mail==0.9.1
+
+# 导出功能
+fpdf2==2.7.9
+openpyxl==3.1.2

@@ -87,6 +87,17 @@ class Config:
         'fr': '法语', 'de': '德语', 'es': '西班牙语', 'ru': '俄语'
     }
 
+    # 邮件配置
+    MAIL_SERVER: str = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    MAIL_PORT: int = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS: bool = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
+    MAIL_USE_SSL: bool = os.environ.get('MAIL_USE_SSL', 'false').lower() == 'true'
+    MAIL_USERNAME: str | None = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD: str | None = os.environ.get('MAIL_PASSWORD')
+    MAIL_DEFAULT_SENDER: str = os.environ.get('MAIL_DEFAULT_SENDER', 'bookrank@example.com')
+    MAIL_MAX_EMAILS: int | None = int(os.environ.get('MAIL_MAX_EMAILS', 100))
+    MAIL_SUPPRESS_SEND: bool = os.environ.get('MAIL_SUPPRESS_SEND', 'false').lower() == 'true'
+
     @classmethod
     def init_app(cls, app):
         """初始化应用配置"""

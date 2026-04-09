@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据统计 - BookRank</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 20px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+        .nav-link {
+            color: #007bff;
+        }
+        .nav-link.active {
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="/">BookRank</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/new-books">新书速递</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/awards">图书奖项</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/analytics">数据统计</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/reports/weekly">畅销书周报</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 仪表盘内容 -->
+    <div class="dashboard-container">
+        <h1 class="mb-4">数据统计仪表盘</h1>
+        
+        <!-- 统计卡片 -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-value" id="total-views">--</div>
+                        <div class="stat-label">总阅读量</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-value" id="total-behaviors">--</div>
+                        <div class="stat-label">总行为数</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-value" id="session-count">--</div>
+                        <div class="stat-label">用户会话数</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-value" id="avg-views">--</div>
+                        <div class="stat-label">平均阅读量</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表区域 -->
+        <div class="row">
+            <!-- 周报阅读量图表 -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">周报阅读量趋势</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="viewsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 用户行为图表 -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">用户行为分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="behaviorChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 每日统计图表 -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">每日活动趋势</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" style="height: 400px;">
+                            <canvas id="dailyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 阅读量最高的周报 -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">阅读量最高的周报</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>标题</th>
+                                    <th>阅读量</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-reports-table">
+                                <tr>
+                                    <td colspan="4" class="text-center">加载中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化图表
+        let viewsChart, behaviorChart, dailyChart;
+
+        // 加载数据
+        async function loadData() {
+            try {
+                // 加载周报阅读统计
+                const viewsResponse = await fetch('/api/analytics/report-views?days=30');
+                const viewsData = await viewsResponse.json();
+                
+                // 加载用户行为统计
+                const behaviorResponse = await fetch('/api/analytics/user-behavior?days=30');
+                const behaviorData = await behaviorResponse.json();
+                
+                // 加载每日统计
+                const dailyResponse = await fetch('/api/analytics/daily-stats?days=30');
+                const dailyData = await dailyResponse.json();
+                
+                // 加载阅读量最高的周报
+                const topResponse = await fetch('/api/analytics/top-reports?limit=10');
+                const topData = await topResponse.json();
+                
+                // 加载会话统计
+                const sessionResponse = await fetch('/api/analytics/session-stats?days=30');
+                const sessionData = await sessionResponse.json();
+
+                if (viewsData.success && behaviorData.success && dailyData.success && topData.success && sessionData.success) {
+                    // 更新统计卡片
+                    document.getElementById('total-views').textContent = viewsData.data.total_views;
+                    document.getElementById('total-behaviors').textContent = behaviorData.data.total_behaviors;
+                    document.getElementById('session-count').textContent = sessionData.data.session_count;
+                    document.getElementById('avg-views').textContent = viewsData.data.average_views;
+
+                    // 渲染周报阅读量图表
+                    renderViewsChart(viewsData.data.view_stats);
+                    
+                    // 渲染用户行为图表
+                    renderBehaviorChart(behaviorData.data.behavior_stats);
+                    
+                    // 渲染每日统计图表
+                    renderDailyChart(dailyData.data.daily_stats);
+                    
+                    // 渲染阅读量最高的周报
+                    renderTopReports(topData.data);
+                }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+            }
+        }
+
+        // 渲染周报阅读量图表
+        function renderViewsChart(data) {
+            const ctx = document.getElementById('viewsChart').getContext('2d');
+            
+            if (viewsChart) {
+                viewsChart.destroy();
+            }
+            
+            const labels = data.map(item => item.date);
+            const values = data.map(item => item.view_count);
+            
+            viewsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '阅读量',
+                        data: values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // 渲染用户行为图表
+        function renderBehaviorChart(data) {
+            const ctx = document.getElementById('behaviorChart').getContext('2d');
+            
+            if (behaviorChart) {
+                behaviorChart.destroy();
+            }
+            
+            const labels = data.map(item => item.event_type);
+            const values = data.map(item => item.count);
+            
+            behaviorChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        // 渲染每日统计图表
+        function renderDailyChart(data) {
+            const ctx = document.getElementById('dailyChart').getContext('2d');
+            
+            if (dailyChart) {
+                dailyChart.destroy();
+            }
+            
+            const labels = data.map(item => item.date);
+            const values = data.map(item => item.count);
+            
+            dailyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '每日活动数',
+                        data: values,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // 渲染阅读量最高的周报
+        function renderTopReports(data) {
+            const tableBody = document.getElementById('top-reports-table');
+            tableBody.innerHTML = '';
+            
+            if (data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="text-center">暂无数据</td></tr>';
+                return;
+            }
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.date}</td>
+                    <td>${item.title}</td>
+                    <td>${item.view_count}</td>
+                    <td><a href="/reports/weekly/${item.date}" class="btn btn-sm btn-primary">查看</a></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // 页面加载完成后加载数据
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

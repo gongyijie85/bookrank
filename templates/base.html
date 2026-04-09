@@ -105,6 +105,13 @@
                 <svg class="icon" width="18" height="18"><use href="#icon-star"/></svg>
                 <span>新书速递</span>
             </a>
+            <a href="{{ url_for('main.weekly_reports') }}"
+               class="nav-link {% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}page{% endif %}">
+                <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
+                <span>畅销书周报</span>
+            </a>
         </div>
 
         <div class="nav-actions">
@@ -159,6 +166,15 @@
                        aria-current="{% if request.endpoint == 'main.new_books' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-star"/></svg>
                         <span>新书速递</span>
+                    </a>
+                </li>
+                <li class="sidebar-item" role="none">
+                    <a href="{{ url_for('main.weekly_reports') }}"
+                       class="sidebar-link {% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}active{% endif %}"
+                       role="menuitem"
+                       aria-current="{% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}page{% endif %}">
+                        <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
+                        <span>畅销书周报</span>
                     </a>
                 </li>
             </ul>

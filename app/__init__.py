@@ -13,7 +13,7 @@ from .config import config
 from .models import db, init_db
 from .models.schemas import UserPreference, SearchHistory, BookMetadata, Award, AwardBook, TranslationCache, APICache, SystemConfig
 from .models.new_book import Publisher, NewBook
-from .routes import api_bp, main_bp, public_api_bp, new_books_bp, health_bp
+from .routes import api_bp, main_bp, public_api_bp, new_books_bp, health_bp, analytics_bp
 from .services import (
     CacheService, MemoryCache, FileCache,
     NYTApiClient, GoogleBooksClient, ImageCacheService,
@@ -51,9 +51,12 @@ def create_app(config_name='default'):
     _register_error_handlers(app)
     _configure_logging(app)
 
-    # 生产环境应用安全头
+    # 应用安全头（所有环境）
+    _apply_security_headers(app)
+    
+    # 启用API速率限制（生产环境）
     if config_name == 'production':
-        _apply_security_headers(app)
+        _enable_rate_limiting(app)
 
     return app
 
@@ -62,9 +65,13 @@ def _init_extensions(app, config_name: str):
     """初始化Flask扩展"""
     # CORS 配置 - 根据环境调整
     if config_name == 'production':
+        # 生产环境使用具体的域名列表
         cors_origins = app.config.get('CORS_ORIGINS', [])
+        if not cors_origins:
+            cors_origins = []
         cors_methods = ['GET', 'POST', 'OPTIONS']
     else:
+        # 开发环境允许所有来源
         cors_origins = '*'
         cors_methods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     
@@ -75,13 +82,19 @@ def _init_extensions(app, config_name: str):
                 "origins": cors_origins,
                 "methods": cors_methods,
                 "allow_headers": ["Content-Type", "Authorization"],
+                "expose_headers": ["Content-Length", "Content-Disposition"],
                 "max_age": 3600,
+                "supports_credentials": True
             }
         },
         supports_credentials=True
     )
 
     init_db(app)
+
+    # 初始化邮件服务
+    from flask_mail import Mail
+    app.extensions['mail'] = Mail(app)
 
     # 设置数据库事件监听器（处理 Render PostgreSQL 休眠恢复）
     _setup_db_event_listeners(app)
@@ -162,8 +175,11 @@ def _init_services(app):
     api_bp.book_service = book_service
     public_api_bp.book_service = book_service
 
-    # 启动新书速递自动同步线程（7天一次）
+    # 启动新书速递自动同步线程（14天一次）
     _start_auto_sync_thread(app)
+    
+    # 启动周报自动生成线程（每周一次）
+    _start_weekly_report_thread(app)
 
 
 def _register_blueprints(app):
@@ -173,6 +189,7 @@ def _register_blueprints(app):
     app.register_blueprint(public_api_bp)
     app.register_blueprint(new_books_bp)
     app.register_blueprint(health_bp)
+    app.register_blueprint(analytics_bp)
 
 
 def _register_error_handlers(app):
@@ -276,17 +293,70 @@ def _apply_security_headers(app):
     """应用安全响应头"""
     @app.after_request
     def add_security_headers(response):
-        # 防止点击劫持
-        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        # XSS 防护
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        # 内容类型 sniffing 防护
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        # 引用来源策略
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        # 移除服务器版本信息
-        response.headers['Server'] = 'BookRank'
+        # 安全响应头配置
+        security_headers = {
+            'X-Frame-Options': 'SAMEORIGIN',
+            'X-XSS-Protection': '1; mode=block',
+            'X-Content-Type-Options': 'nosniff',
+            'Referrer-Policy': 'strict-origin-when-cross-origin',
+            'Server': 'BookRank',
+            'Content-Security-Policy': (
+                "default-src 'self'; "
+                "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
+                "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com; "
+                "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "connect-src 'self'; "
+                "frame-src 'none'; "
+                "object-src 'none';"
+            ),
+            'Feature-Policy': (
+                "camera 'none'; "
+                "microphone 'none'; "
+                "geolocation 'none'; "
+                "payment 'none';"
+            )
+        }
+        
+        # 应用安全响应头
+        for header, value in security_headers.items():
+            response.headers[header] = value
+        
+        # 严格传输安全（仅在生产环境）
+        if app.config.get('ENV') == 'production':
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+        
         return response
+
+
+def _enable_rate_limiting(app):
+    """启用API速率限制"""
+    from flask import request, make_response
+    from .utils.rate_limiter import get_rate_limiter
+    
+    rate_limiter = get_rate_limiter(
+        max_requests=app.config.get('API_RATE_LIMIT', 60),
+        window_seconds=app.config.get('API_RATE_LIMIT_WINDOW', 60)
+    )
+    
+    @app.before_request
+    def rate_limit_requests():
+        """速率限制中间件"""
+        # 排除静态文件和健康检查
+        if request.path.startswith('/static/') or request.path.startswith('/health/'):
+            return None
+        
+        # 获取客户端IP
+        client_ip = request.remote_addr or 'unknown'
+        
+        # 检查速率限制
+        if not rate_limiter.is_allowed(client_ip):
+            retry_after = rate_limiter.get_retry_after(client_ip)
+            response = make_response({'success': False, 'message': 'Rate limit exceeded. Please try again later.'}, 429)
+            response.headers['Retry-After'] = str(retry_after)
+            return response
+        
+        return None
 
 
 def _start_auto_sync_thread(app):
@@ -353,6 +423,56 @@ def _start_auto_sync_thread(app):
     sync_thread = threading.Thread(target=sync_worker, daemon=True)
     sync_thread.start()
     app.logger.info('新书速递自动同步线程已启动（14天周期）')
+
+
+def _start_weekly_report_thread(app):
+    """启动周报自动生成线程（每周一次）"""
+    def weekly_report_task():
+        """周报生成任务"""
+        with app.app_context():
+            try:
+                from .tasks.weekly_report_task import generate_weekly_report
+                
+                app.logger.info('开始自动生成周报...')
+                
+                # 生成周报
+                report = generate_weekly_report()
+                
+                if report:
+                    app.logger.info(f'周报生成成功: {report.title}')
+                else:
+                    app.logger.warning('周报生成失败或已存在')
+                    
+            except Exception as e:
+                app.logger.error(f'自动生成周报失败: {e}', exc_info=True)
+                # 确保即使生成失败也能继续运行
+                try:
+                    # 记录失败时间
+                    from .models.schemas import SystemConfig
+                    SystemConfig.set_value('last_report_failure', datetime.now(timezone.utc).isoformat())
+                except Exception as log_error:
+                    app.logger.error(f'记录周报生成失败时间失败: {log_error}')
+    
+    def report_worker():
+        """周报生成工作线程"""
+        # 首次启动时等待5分钟，避免影响应用启动
+        time.sleep(300)
+        
+        while True:
+            try:
+                weekly_report_task()
+            except Exception as e:
+                app.logger.error(f'周报生成线程异常: {e}', exc_info=True)
+                # 增加延迟，避免频繁失败
+                time.sleep(3600)
+            
+            # 每周执行一次（7 * 24 * 60 * 60 = 604800秒）
+            time.sleep(604800)
+    
+    # 启动后台线程
+    report_thread = threading.Thread(target=report_worker, daemon=True)
+    report_thread.start()
+    app.logger.info('周报自动生成线程已启动（7天周期）')
 
 
 app = create_app(os.environ.get('FLASK_ENV', 'development'))

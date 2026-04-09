@@ -350,6 +350,12 @@ def cache_management():
     return render_template('cache_management.html')
 
 
+@main_bp.route('/analytics')
+def analytics_dashboard():
+    """数据统计仪表盘"""
+    return render_template('analytics_dashboard.html')
+
+
 @main_bp.route('/new-book/<int:book_id>')
 def new_book_detail(book_id):
     """新书详情页"""
@@ -500,3 +506,179 @@ def book_details_api():
         import logging
         logging.getLogger(__name__).error(f"Error in book details API: {e}")
         return {'success': False, 'error': 'Internal error'}
+
+
+@main_bp.route('/reports/weekly')
+def weekly_reports():
+    """周报列表页"""
+    from datetime import datetime
+    from ..services.weekly_report_service import WeeklyReportService
+    
+    book_service = current_app.extensions.get('book_service')
+    if not book_service:
+        return render_template('error.html', message="服务不可用", back_url='/')
+    
+    report_service = WeeklyReportService(book_service)
+    reports = report_service.get_reports()
+    return render_template('weekly_reports.html', reports=reports)
+
+
+@main_bp.route('/reports/weekly/<date>')
+def weekly_report_detail(date):
+    """周报详情页"""
+    from datetime import datetime
+    from ..services.weekly_report_service import WeeklyReportService
+    from ..models.schemas import ReportView, UserBehavior
+    from ..models.database import db
+    
+    book_service = current_app.extensions.get('book_service')
+    if not book_service:
+        return render_template('error.html', message="服务不可用", back_url='/reports/weekly')
+    
+    report_service = WeeklyReportService(book_service)
+    
+    # 验证日期格式
+    if not date or len(date) != 10 or date[4] != '-' or date[7] != '-':
+        return render_template('error.html', message="日期格式错误", back_url='/reports/weekly')
+    
+    try:
+        report_date = datetime.strptime(date, '%Y-%m-%d').date()
+        # 验证日期有效性
+        current_date = datetime.now().date()
+        if report_date.year < 2020 or report_date > current_date:
+            return render_template('error.html', message="无效的日期范围", back_url='/reports/weekly')
+        
+        report = report_service.get_report_by_date(report_date)
+        if not report:
+            return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
+        
+        # 统计阅读量
+        session_id = request.cookies.get('session_id', 'anonymous')
+        user_agent = request.user_agent.string[:500]
+        ip_address = request.remote_addr
+        
+        # 检查是否已经记录过该会话的阅读
+        existing_view = ReportView.query.filter_by(
+            report_id=report.id,
+            session_id=session_id
+        ).first()
+        
+        if not existing_view:
+            # 记录阅读
+            new_view = ReportView(
+                report_id=report.id,
+                session_id=session_id,
+                user_agent=user_agent,
+                ip_address=ip_address
+            )
+            db.session.add(new_view)
+            
+            # 增加阅读量
+            report.view_count = (report.view_count or 0) + 1
+            
+            # 记录用户行为
+            behavior = UserBehavior(
+                session_id=session_id,
+                event_type='view_report',
+                target_id=date,
+                target_type='report',
+                user_agent=user_agent,
+                ip_address=ip_address
+            )
+            db.session.add(behavior)
+            
+            db.session.commit()
+        
+        return render_template('weekly_report_detail.html', report=report)
+    except ValueError:
+        return render_template('error.html', message="日期格式错误", back_url='/reports/weekly')
+    except Exception as e:
+        current_app.logger.error(f"统计阅读量时出错: {str(e)}")
+        # 出错时仍然返回页面，不影响用户体验
+        return render_template('weekly_report_detail.html', report=report)
+
+@main_bp.route('/reports/weekly/<date>/export')
+def export_weekly_report(date):
+    """导出周报"""
+    from datetime import datetime
+    from flask import send_file
+    from ..services.weekly_report_service import WeeklyReportService
+    from ..services.export_service import ExportService
+    from ..models.schemas import UserBehavior
+    from ..models.database import db
+    
+    book_service = current_app.extensions.get('book_service')
+    if not book_service:
+        return render_template('error.html', message="服务不可用", back_url='/reports/weekly')
+    
+    report_service = WeeklyReportService(book_service)
+    export_service = ExportService()
+    
+    # 验证日期格式
+    if not date or len(date) != 10 or date[4] != '-' or date[7] != '-':
+        return render_template('error.html', message="日期格式错误", back_url='/reports/weekly')
+    
+    try:
+        report_date = datetime.strptime(date, '%Y-%m-%d').date()
+        # 验证日期有效性
+        current_date = datetime.now().date()
+        if report_date.year < 2020 or report_date > current_date:
+            return render_template('error.html', message="无效的日期范围", back_url='/reports/weekly')
+        
+        report = report_service.get_report_by_date(report_date)
+        if not report:
+            return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
+        
+        # 获取导出格式
+        format_type = request.args.get('format', 'pdf').lower()
+        
+        # 验证格式参数
+        if format_type not in ['pdf', 'excel']:
+            return render_template('error.html', message="不支持的导出格式", back_url=f'/reports/weekly/{date}')
+        
+        # 导出配置
+        export_config = {
+            'pdf': {
+                'export_method': export_service.export_weekly_report_pdf,
+                'error_message': "PDF导出失败",
+                'filename': f"bookrank-weekly-report-{date}.pdf",
+                'mimetype': 'application/pdf'
+            },
+            'excel': {
+                'export_method': export_service.export_weekly_report_excel,
+                'error_message': "Excel导出失败",
+                'filename': f"bookrank-weekly-report-{date}.xlsx",
+                'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            }
+        }
+        
+        # 执行导出
+        config = export_config[format_type]
+        buffer = config['export_method'](report)
+        if not buffer:
+            return render_template('error.html', message=config['error_message'], back_url=f'/reports/weekly/{date}')
+        
+        # 记录导出行为
+        session_id = request.cookies.get('session_id', 'anonymous')
+        user_agent = request.user_agent.string[:500]
+        ip_address = request.remote_addr
+        
+        behavior = UserBehavior(
+            session_id=session_id,
+            event_type='export_report',
+            target_id=date,
+            target_type='report',
+            user_agent=user_agent,
+            ip_address=ip_address
+        )
+        db.session.add(behavior)
+        db.session.commit()
+        
+        # 返回文件
+        return send_file(buffer, as_attachment=True, download_name=config['filename'], mimetype=config['mimetype'])
+            
+    except ValueError:
+        return render_template('error.html', message="日期格式错误", back_url='/reports/weekly')
+    except Exception as e:
+        current_app.logger.error(f"导出周报时出错: {str(e)}")
+        return render_template('error.html', message="导出失败", back_url=f'/reports/weekly/{date}')
