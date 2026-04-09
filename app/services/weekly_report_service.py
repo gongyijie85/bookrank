@@ -402,6 +402,21 @@ class WeeklyReportService:
         except Exception as e:
             logger.error(f"根据日期获取周报时出错: {str(e)}")
             return None
+            
+    def get_report_by_week_end(self, week_end: date) -> Optional[WeeklyReport]:
+        """根据周结束日期获取周报
+        
+        Args:
+            week_end: 周结束日期
+            
+        Returns:
+            WeeklyReport: 周报
+        """
+        try:
+            return WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first()
+        except Exception as e:
+            logger.error(f"根据周结束日期获取周报时出错: {str(e)}")
+            return None
     
     def get_latest_report(self) -> Optional[WeeklyReport]:
         """获取最新周报

@@ -302,7 +302,7 @@ def _apply_security_headers(app):
             'Server': 'BookRank',
             'Content-Security-Policy': (
                 "default-src 'self'; "
-                "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
                 "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
                 "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com; "
                 "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "

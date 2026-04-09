@@ -80,10 +80,7 @@ def cached_image(filename: str):
     return send_from_directory(cache_dir, safe_filename)
 
 
-@main_bp.route('/static/<path:path>')
-def send_static(path: str):
-    """提供静态文件"""
-    return send_from_directory('static', path)
+
 
 
 @main_bp.route('/awards')
@@ -548,9 +545,13 @@ def weekly_report_detail(date):
         if report_date.year < 2020 or report_date > current_date:
             return render_template('error.html', message="无效的日期范围", back_url='/reports/weekly')
         
-        report = report_service.get_report_by_date(report_date)
+        # 尝试根据周结束日期获取周报
+        report = report_service.get_report_by_week_end(report_date)
         if not report:
-            return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
+            # 如果没有找到，尝试根据报告日期获取周报
+            report = report_service.get_report_by_date(report_date)
+            if not report:
+                return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
         
         # 统计阅读量
         session_id = request.cookies.get('session_id', 'anonymous')
@@ -625,9 +626,13 @@ def export_weekly_report(date):
         if report_date.year < 2020 or report_date > current_date:
             return render_template('error.html', message="无效的日期范围", back_url='/reports/weekly')
         
-        report = report_service.get_report_by_date(report_date)
+        # 尝试根据周结束日期获取周报
+        report = report_service.get_report_by_week_end(report_date)
         if not report:
-            return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
+            # 如果没有找到，尝试根据报告日期获取周报
+            report = report_service.get_report_by_date(report_date)
+            if not report:
+                return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
         
         # 获取导出格式
         format_type = request.args.get('format', 'pdf').lower()
