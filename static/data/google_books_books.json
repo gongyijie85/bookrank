@@ -140,26 +140,6 @@
     "source_url": "https://books.google.com/books/about/What_I_d_Rather_Not_Think_About.html?hl=&id=pkScEAAAQBAJ"
   },
   {
-    "title": "Project Mu Book",
-    "author": "Independently Published",
-    "isbn13": "9781731188861",
-    "isbn10": "1731188862",
-    "description": "This is Vision 2041 explained. No, not really. It is not Vision 2040 explained either. This is just the sequel to the Mu book called \"vision 2040 explained\" which explains a lot, but not Vision 2040. Confused? You should be. But hey, It is a Mu book and you can read it to find out what happened after \"Vision 2040 explained\" since it is a sequel. Also, this book explains one more page in the print only fanzine \"Between the click and bang\" so there is that. It is not really a digital version of the fanzine but close to it. Sorry for that. But since it is a project Mu book I think it is allright. I hope so. There might be more to tell too. In fact, there will be since this book explores new narratives and just needs a sequel. And this sequel will be a project Mu Book. For obvious reasons. As you were.",
-    "cover_url": "https://books.google.com/books/content?id=m-dqvgEACAAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api",
-    "category": "小说",
-    "publication_date": "2018-10-23",
-    "price": null,
-    "page_count": 26,
-    "language": "en",
-    "buy_links": [
-      {
-        "name": "Google Books",
-        "url": "https://books.google.com/books/about/Project_Mu_Book.html?hl=&id=m-dqvgEACAAJ"
-      }
-    ],
-    "source_url": "https://books.google.com/books/about/Project_Mu_Book.html?hl=&id=m-dqvgEACAAJ"
-  },
-  {
     "title": "Headshot",
     "author": "Rita Bullwinkel",
     "isbn13": "9780593654125",
@@ -398,5 +378,25 @@
       }
     ],
     "source_url": "https://books.google.com/books/about/TOP_DOLL.html?hl=&id=SrmoEAAAQBAJ"
+  },
+  {
+    "title": "Briefly Very Beautiful",
+    "author": "Roz Dineen",
+    "isbn13": "9781526659170",
+    "isbn10": "1526659174",
+    "description": "A startlingly beautiful story of a family's survival, and an unforgettable dystopian vision of a familiar world in flames Shortlisted for the Climate Fiction Prize 2024 A Spectator Book of the Year 2024 'Impossible to put down' Daily Telegraph 'Instantly immersive, beautifully imagined, this is an unflinching but inspiring story about some things we're going to lose, and other things we must never lose' Lee Child 'Left me breathless: it is a stunning, poetic, impelling story of love and survival, which I could not stop reading ... An incredible novel' Jodie Whittaker ______________________________________ The world is on fire. And what will you do? In a city rocked by global catastrophe, home-grown terrorism, shortages and wildfires, Cass is quietly raising three small children by herself. Her husband, Nathaniel, has left to serve as a medic in a war overseas. As life in the city becomes increasingly impossible, Cass knows she can no longer wait for Nathaniel's return. Packing up their lives, she and the children set off in search of a place of greater safety. But Cass will learn that not all promises and not all sanctuaries are what they seem – and as the fires around them begin to close in, she'll discover just how far she'll go for her children in a world teetering on apocalypse. Sensual, claustrophobic and vivid, Briefly Very Beautiful announces the arrival of a major new talent, painting an unforgettable portrait of a mother trying to hold her family together. ______________________________________________ 'Beautiful and timely, tough yet tender ...This is an important book and I devoured it' Clover Stroud 'Gorgeous, fierce and haunting ... A book that is, quite literally, on fire. Very beautiful and all-too brief' Catherine Taylor 'A story that burns from the page. Dineen writes about motherhood and the climate crisis with piercing clarity' Amy Twigg, author of Spoilt Creatures 'A haunting vision of our slow-motion apocalypse. This is exactly what it will be like' Michael LaPointe, author of The Creep",
+    "cover_url": "https://books.google.com/books/content?id=hz7qEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api",
+    "category": "小说",
+    "publication_date": "2024-06-06",
+    "price": null,
+    "page_count": 337,
+    "language": "en",
+    "buy_links": [
+      {
+        "name": "Google Books",
+        "url": "https://books.google.com/books/about/Briefly_Very_Beautiful.html?hl=&id=hz7qEAAAQBAJ"
+      }
+    ],
+    "source_url": "https://books.google.com/books/about/Briefly_Very_Beautiful.html?hl=&id=hz7qEAAAQBAJ"
   }
 ]
