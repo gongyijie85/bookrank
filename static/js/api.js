@@ -35,11 +35,8 @@ class ApiClient {
      * @returns {Promise<Object>} 响应数据
      */
     async request(endpoint, options = {}) {
-        // 取消之前的请求
-        if (this.abortController) {
-            this.abortController.abort();
-        }
-        this.abortController = new AbortController();
+        // 为每个请求创建新的AbortController，避免取消之前的请求
+        const abortController = new AbortController();
         
         const url = new URL(endpoint, window.location.origin);
         url.searchParams.append('session_id', this.sessionId);
@@ -47,7 +44,7 @@ class ApiClient {
         try {
             const response = await fetch(url.toString(), {
                 ...options,
-                signal: this.abortController.signal,
+                signal: abortController.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     ...options.headers
