@@ -310,7 +310,9 @@ class APICache(db.Model):
             return False
         now = datetime.now(timezone.utc)
         if self.expires_at.tzinfo is None:
-            return now.replace(tzinfo=None) > self.expires_at
+            # 将无时区信息的时间转换为UTC时区
+            expires_at_utc = self.expires_at.replace(tzinfo=timezone.utc)
+            return now > expires_at_utc
         return now > self.expires_at
     
     def to_dict(self) -> dict:
@@ -481,6 +483,11 @@ class Book:
     ) -> 'Book':
         """从API响应创建Book对象"""
         isbn = book_data.get('primary_isbn13') or book_data.get('primary_isbn10', '')
+        # 确保ID不为空，使用标题和作者的组合作为备用ID
+        if not isbn:
+            import hashlib
+            id_str = f"{book_data.get('title', '')}-{book_data.get('author', '')}"
+            isbn = hashlib.md5(id_str.encode()).hexdigest()[:13]
         
         price_value = book_data.get('price')
         try:

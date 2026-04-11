@@ -57,6 +57,11 @@ class WeeklyReportService:
             # 收集本周数据
             weekly_data = self._collect_weekly_data(week_start, week_end)
             
+            # 检查是否有足够的数据
+            if not weekly_data.get('books'):
+                logger.warning(f"数据不足，无法生成周报: {week_start} 至 {week_end}")
+                return None
+            
             # 分析变化
             analysis = self._analyze_changes(weekly_data)
             
@@ -139,46 +144,25 @@ class WeeklyReportService:
                     'is_new': i % 10 == 0  # 每10本书中有1本是新上榜
                 })
             
-            # 如果没有数据，返回模拟数据
+            # 如果没有数据，返回空数据
             if not weekly_data['books']:
-                logger.info("没有找到实际数据，使用模拟数据")
-                return self._get_mock_weekly_data()
+                logger.info("没有找到实际数据，返回空数据")
+                return {
+                    'books': [],
+                    'categories': ['Fiction', 'Nonfiction', 'Mystery', 'Thriller', 'Science Fiction']
+                }
             
             return weekly_data
             
         except Exception as e:
             logger.error(f"收集周报数据时出错: {str(e)}")
-            # 出错时返回模拟数据
-            return self._get_mock_weekly_data()
+            # 出错时返回空数据
+            return {
+                'books': [],
+                'categories': ['Fiction', 'Nonfiction', 'Mystery', 'Thriller', 'Science Fiction']
+            }
     
-    def _get_mock_weekly_data(self) -> Dict[str, Any]:
-        """获取模拟周报数据
-        
-        Returns:
-            Dict: 模拟周报数据
-        """
-        mock_books = [
-            {'id': 1, 'title': '三体', 'author': '刘慈欣', 'category': 'Science Fiction', 'rank': 1, 'rank_change': 0, 'weeks_on_list': 10, 'is_new': False},
-            {'id': 2, 'title': '活着', 'author': '余华', 'category': 'Fiction', 'rank': 2, 'rank_change': 1, 'weeks_on_list': 8, 'is_new': False},
-            {'id': 3, 'title': '百年孤独', 'author': '加西亚·马尔克斯', 'category': 'Fiction', 'rank': 3, 'rank_change': -1, 'weeks_on_list': 15, 'is_new': False},
-            {'id': 4, 'title': '人类简史', 'author': '尤瓦尔·赫拉利', 'category': 'Nonfiction', 'rank': 4, 'rank_change': 2, 'weeks_on_list': 5, 'is_new': False},
-            {'id': 5, 'title': '围城', 'author': '钱钟书', 'category': 'Fiction', 'rank': 5, 'rank_change': -2, 'weeks_on_list': 12, 'is_new': False},
-            {'id': 6, 'title': '解忧杂货店', 'author': '东野圭吾', 'category': 'Fiction', 'rank': 6, 'rank_change': 3, 'weeks_on_list': 6, 'is_new': False},
-            {'id': 7, 'title': '新上榜书籍1', 'author': '作者A', 'category': 'Mystery', 'rank': 7, 'rank_change': 0, 'weeks_on_list': 1, 'is_new': True},
-            {'id': 8, 'title': '新上榜书籍2', 'author': '作者B', 'category': 'Thriller', 'rank': 8, 'rank_change': 0, 'weeks_on_list': 1, 'is_new': True},
-            {'id': 9, 'title': '红楼梦', 'author': '曹雪芹', 'category': 'Fiction', 'rank': 9, 'rank_change': 1, 'weeks_on_list': 20, 'is_new': False},
-            {'id': 10, 'title': '西游记', 'author': '吴承恩', 'category': 'Fiction', 'rank': 10, 'rank_change': -1, 'weeks_on_list': 18, 'is_new': False},
-            {'id': 11, 'title': '水浒传', 'author': '施耐庵', 'category': 'Fiction', 'rank': 11, 'rank_change': 0, 'weeks_on_list': 16, 'is_new': False},
-            {'id': 12, 'title': '三国演义', 'author': '罗贯中', 'category': 'Fiction', 'rank': 12, 'rank_change': 2, 'weeks_on_list': 14, 'is_new': False},
-            {'id': 13, 'title': '小王子', 'author': '安托万·德·圣-埃克苏佩里', 'category': 'Fiction', 'rank': 13, 'rank_change': -3, 'weeks_on_list': 10, 'is_new': False},
-            {'id': 14, 'title': '追风筝的人', 'author': '卡勒德·胡赛尼', 'category': 'Fiction', 'rank': 14, 'rank_change': 1, 'weeks_on_list': 8, 'is_new': False},
-            {'id': 15, 'title': '新上榜书籍3', 'author': '作者C', 'category': 'Science Fiction', 'rank': 15, 'rank_change': 0, 'weeks_on_list': 1, 'is_new': True}
-        ]
-        
-        return {
-            'books': mock_books,
-            'categories': ['Fiction', 'Nonfiction', 'Mystery', 'Thriller', 'Science Fiction']
-        }
+
     
     def _analyze_changes(self, weekly_data: Dict[str, Any]) -> Dict[str, Any]:
         """分析榜单变化

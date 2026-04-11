@@ -11,8 +11,11 @@ from flask_talisman import Talisman
 
 from .config import config
 from .models import db, init_db
-from .models.schemas import UserPreference, SearchHistory, BookMetadata, Award, AwardBook, TranslationCache, APICache, SystemConfig
+from .models.schemas import UserPreference, SearchHistory, BookMetadata, Award, AwardBook, TranslationCache, APICache, SystemConfig, WeeklyReport, ReportView, UserBehavior
 from .models.new_book import Publisher, NewBook
+
+PROJECT_ROOT = Path(__file__).parent.parent
+
 from .routes import api_bp, main_bp, public_api_bp, new_books_bp, health_bp, analytics_bp
 from .services import (
     CacheService, MemoryCache, FileCache,
@@ -22,8 +25,6 @@ from .services import (
 from .utils import RateLimiter
 from .initialization import init_awards_data, init_sample_books
 from .utils.security import add_security_headers
-
-PROJECT_ROOT = Path(__file__).parent.parent
 
 
 def create_app(config_name='default'):
@@ -376,6 +377,9 @@ def _start_auto_sync_thread(app):
                 
                 if last_sync:
                     last_sync_time = datetime.fromisoformat(last_sync)
+                    # 确保last_sync_time带有时区信息（UTC）
+                    if last_sync_time.tzinfo is None:
+                        last_sync_time = last_sync_time.replace(tzinfo=timezone.utc)
                     days_since_last_sync = (datetime.now(timezone.utc) - last_sync_time).days
                     if days_since_last_sync < 14:
                         app.logger.info(f'距离上次同步仅 {days_since_last_sync} 天，跳过自动同步')
@@ -450,7 +454,6 @@ def _start_weekly_report_thread(app):
                 # 确保即使生成失败也能继续运行
                 try:
                     # 记录失败时间
-                    from .models.schemas import SystemConfig
                     SystemConfig.set_value('last_report_failure', datetime.now(timezone.utc).isoformat())
                 except Exception as log_error:
                     app.logger.error(f'记录周报生成失败时间失败: {log_error}')

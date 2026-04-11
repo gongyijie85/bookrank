@@ -1,7 +1,9 @@
 """导出服务"""
+import os
 import logging
 import json
 from datetime import date
+from pathlib import Path
 from typing import Optional, Dict, Any
 from io import BytesIO
 from fpdf import FPDF
@@ -10,9 +12,33 @@ from openpyxl.styles import Font, Alignment, Border, Side
 
 logger = logging.getLogger(__name__)
 
+# 中文字体路径（项目内置SimHei黑体）
+FONT_DIR = Path(__file__).parent.parent.parent / 'static' / 'fonts'
+CHINESE_FONT = FONT_DIR / 'simhei.ttf'
+
 
 class ExportService:
     """导出服务类"""
+
+    def _init_pdf_font(self, pdf: FPDF) -> bool:
+        """初始化PDF中文字体
+        
+        Args:
+            pdf: FPDF实例
+            
+        Returns:
+            bool: 是否成功注册中文字体
+        """
+        if CHINESE_FONT.exists():
+            try:
+                pdf.add_font('SimHei', '', str(CHINESE_FONT))
+                pdf.add_font('SimHei', 'B', str(CHINESE_FONT))
+                return True
+            except Exception as e:
+                logger.warning(f"加载中文字体失败: {e}")
+                return False
+        logger.warning(f"中文字体文件不存在: {CHINESE_FONT}")
+        return False
     
     def export_weekly_report_pdf(self, report) -> Optional[BytesIO]:
         """导出周报为PDF
@@ -29,22 +55,25 @@ class ExportService:
             pdf.set_auto_page_break(auto=True, margin=15)
             
             # 添加中文字体支持
+            has_chinese_font = self._init_pdf_font(pdf)
+            font_name = 'SimHei' if has_chinese_font else 'Arial'
+            
             pdf.add_page()
             
             # 标题
-            pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, report.title, 0, 1, 'C')
+            pdf.set_font(font_name, '', 16)
+            pdf.cell(0, 10, report.title, new_x='LMARGIN', new_y='NEXT', align='C')
             
             # 元数据
-            pdf.set_font('Arial', '', 10)
-            pdf.cell(0, 8, f"发布日期: {report.report_date.strftime('%Y年%m月%d日')}", 0, 1, 'C')
-            pdf.cell(0, 8, f"统计周期: {report.week_start.strftime('%Y-%m-%d')} 至 {report.week_end.strftime('%Y-%m-%d')}", 0, 1, 'C')
+            pdf.set_font(font_name, '', 10)
+            pdf.cell(0, 8, f"发布日期: {report.report_date.strftime('%Y年%m月%d日')}", new_x='LMARGIN', new_y='NEXT', align='C')
+            pdf.cell(0, 8, f"统计周期: {report.week_start.strftime('%Y-%m-%d')} 至 {report.week_end.strftime('%Y-%m-%d')}", new_x='LMARGIN', new_y='NEXT', align='C')
             pdf.ln(10)
             
             # 摘要
-            pdf.set_font('Arial', 'B', 12)
-            pdf.cell(0, 10, '本周概览', 0, 1, 'L')
-            pdf.set_font('Arial', '', 10)
+            pdf.set_font(font_name, 'B', 12)
+            pdf.cell(0, 10, '本周概览', new_x='LMARGIN', new_y='NEXT', align='L')
+            pdf.set_font(font_name, '', 10)
             pdf.multi_cell(0, 5, report.summary)
             pdf.ln(10)
             
@@ -54,35 +83,35 @@ class ExportService:
                 
                 # 重要变化
                 if content.get('top_changes'):
-                    pdf.set_font('Arial', 'B', 12)
-                    pdf.cell(0, 10, '重要变化', 0, 1, 'L')
-                    pdf.set_font('Arial', '', 10)
+                    pdf.set_font(font_name, 'B', 12)
+                    pdf.cell(0, 10, '重要变化', new_x='LMARGIN', new_y='NEXT', align='L')
+                    pdf.set_font(font_name, '', 10)
                     for change in content['top_changes']:
-                        pdf.cell(0, 6, f"• {change['title']} - {change['author']}", 0, 1, 'L')
-                        pdf.cell(0, 6, f"  类别: {change['category']}", 0, 1, 'L')
+                        pdf.cell(0, 6, f"• {change['title']} - {change['author']}", new_x='LMARGIN', new_y='NEXT', align='L')
+                        pdf.cell(0, 6, f"  类别: {change['category']}", new_x='LMARGIN', new_y='NEXT', align='L')
                         if change['rank_change'] > 0:
-                            pdf.cell(0, 6, f"  排名变化: ↑ {change['rank_change']} 位", 0, 1, 'L')
+                            pdf.cell(0, 6, f"  排名变化: ↑ {change['rank_change']} 位", new_x='LMARGIN', new_y='NEXT', align='L')
                         elif change['rank_change'] < 0:
-                            pdf.cell(0, 6, f"  排名变化: ↓ {abs(change['rank_change'])} 位", 0, 1, 'L')
+                            pdf.cell(0, 6, f"  排名变化: ↓ {abs(change['rank_change'])} 位", new_x='LMARGIN', new_y='NEXT', align='L')
                         else:
-                            pdf.cell(0, 6, "  排名变化: → 无变化", 0, 1, 'L')
+                            pdf.cell(0, 6, "  排名变化: → 无变化", new_x='LMARGIN', new_y='NEXT', align='L')
                         pdf.ln(2)
                     pdf.ln(5)
                 
                 # 推荐书籍
                 if content.get('featured_books'):
-                    pdf.set_font('Arial', 'B', 12)
-                    pdf.cell(0, 10, '推荐书籍', 0, 1, 'L')
-                    pdf.set_font('Arial', '', 10)
+                    pdf.set_font(font_name, 'B', 12)
+                    pdf.cell(0, 10, '推荐书籍', new_x='LMARGIN', new_y='NEXT', align='L')
+                    pdf.set_font(font_name, '', 10)
                     for book in content['featured_books']:
-                        pdf.cell(0, 6, f"• {book['title']} - {book['author']}", 0, 1, 'L')
-                        pdf.cell(0, 6, f"  推荐理由: {book['reason']}", 0, 1, 'L')
+                        pdf.cell(0, 6, f"• {book['title']} - {book['author']}", new_x='LMARGIN', new_y='NEXT', align='L')
+                        pdf.cell(0, 6, f"  推荐理由: {book['reason']}", new_x='LMARGIN', new_y='NEXT', align='L')
                         pdf.ln(2)
                     pdf.ln(5)
             
             # 页脚
-            pdf.set_font('Arial', '', 8)
-            pdf.cell(0, 10, f"© {report.report_date.year} BookRank - 纽约时报畅销书排行榜", 0, 1, 'C')
+            pdf.set_font(font_name, '', 8)
+            pdf.cell(0, 10, f"© {report.report_date.year} BookRank - 纽约时报畅销书排行榜", new_x='LMARGIN', new_y='NEXT', align='C')
             
             # 输出到内存流
             buffer = BytesIO()

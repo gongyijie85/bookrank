@@ -56,9 +56,9 @@ __pycache__/
 *.log
 logs/
 
-# Test files
-test_*.py
-*_test.py
+# Test files (root level only)
+/test_*.py
+/*_test.py
 
 # Translation cache (can be regenerated)
 translation_cache.json
