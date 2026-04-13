@@ -6,6 +6,7 @@
 import os
 import json
 import csv
+import hashlib
 import logging
 from io import StringIO, BytesIO
 from datetime import datetime
@@ -98,7 +99,7 @@ def get_publishers():
             book_count = len(static_books[publisher_name])
             
             publishers.append({
-                'id': hash(publisher_name) % 10000,  # 生成一个简单的ID
+                'id': int(hashlib.md5(publisher_name.encode()).hexdigest()[:8], 16),
                 'name': publisher_name,
                 'is_active': True,
                 'book_count': book_count

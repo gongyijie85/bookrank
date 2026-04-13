@@ -1,69 +1,96 @@
 /* BookRank Base Styles - Professional Business Theme with Full Dark Mode Support */
 
-/* CSS Custom Properties - Design Tokens */
+/* CSS Custom Properties - Vercel Design System Tokens */
 :root {
-    /* Primary Colors - White + Orange */
-    /* Primary Colors - Optimized for Books */
-    --primary-color: #ff6b35;
-    --primary-light: #fff2ed;
-    --primary-dark: #e55a2b;
-    --primary-gradient: linear-gradient(135deg, #ff6b35 0%, #e55a2b 100%);
+    /* Primary Colors - Vercel Black & White */
+    --primary-color: #171717;
+    --primary-light: #fafafa;
+    --primary-dark: #000000;
+    --primary-gradient: linear-gradient(135deg, #171717 0%, #000000 100%);
+
+    /* Vercel Color Palette */
+    --black: #171717;
+    --white: #ffffff;
+    --gray-50: #fafafa;
+    --gray-100: #ebebeb;
+    --gray-400: #808080;
+    --gray-500: #666666;
+    --gray-600: #4d4d4d;
+    --link-blue: #0072f5;
+    --focus-blue: hsl(212,100%,48%);
+    --ship-red: #ff5b4f;
+    --preview-pink: #de1d8d;
+    --develop-blue: #0a72ef;
+    --console-blue: #0070f3;
+    --console-purple: #7928ca;
+    --console-pink: #eb367f;
+    --badge-bg: #ebf5ff;
+    --badge-text: #0068d6;
 
     /* Background Colors - Light Mode */
-    --bg-primary: #ffffff;
-    --bg-secondary: #fafafa;
-    --bg-tertiary: #f0f0f0;
-    --bg-light: #ffffff;
-    --bg-white: #ffffff;
-    --bg-card: #ffffff;
-    --card-bg: #ffffff;
+    --bg-primary: var(--white);
+    --bg-secondary: var(--gray-50);
+    --bg-tertiary: var(--gray-100);
+    --bg-light: var(--white);
+    --bg-white: var(--white);
+    --bg-card: var(--white);
+    --card-bg: var(--white);
 
     /* Text Colors - Light Mode */
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --text-light: #94a3b8;
-    --text-white: #ffffff;
-    --text-muted: #94a3b8;
+    --text-primary: var(--black);
+    --text-secondary: var(--gray-600);
+    --text-light: var(--gray-500);
+    --text-white: var(--white);
+    --text-muted: var(--gray-400);
 
     /* Border Colors */
-    --border-color: #e2e8f0;
-    --border-light: #f1f5f9;
+    --border-color: var(--gray-100);
+    --border-light: var(--gray-50);
 
-    /* Accent Colors - Badge Colors */
-    --accent-silver: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
-    --accent-bronze: linear-gradient(135deg, #cd7f32 0%, #b87333 100%);
-    --accent-gold: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    --accent-red: #ef4444;
-    --accent-green: #22c55e;
-    --accent-blue: #3b82f6;
-    --accent-purple: #8b5cf6;
+    /* Accent Colors - Vercel Workflow Colors */
+    --accent-silver: linear-gradient(135deg, var(--gray-400) 0%, var(--gray-600) 100%);
+    --accent-bronze: linear-gradient(135deg, var(--console-purple) 0%, var(--console-pink) 100%);
+    --accent-gold: linear-gradient(135deg, var(--develop-blue) 0%, var(--console-blue) 100%);
+    --accent-red: var(--ship-red);
+    --accent-green: #10b981;
+    --accent-blue: var(--link-blue);
+    --accent-purple: var(--console-purple);
 
-    /* Shadows - Softer and more refined */
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.12);
-    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.15);
-    --shadow-hover: 0 12px 45px rgba(0, 0, 0, 0.18);
+    /* Shadows - Vercel Style */
+    --shadow-ring: rgba(0,0,0,0.08) 0px 0px 0px 1px;
+    --shadow-ring-light: rgb(235,235,235) 0px 0px 0px 1px;
+    --shadow-subtle: rgba(0,0,0,0.04) 0px 2px 2px 0px;
+    --shadow-sm: var(--shadow-ring-light);
+    --shadow-md: var(--shadow-card);
+    --shadow-lg: var(--shadow-card-full);
+    --shadow-xl: var(--shadow-card-full);
+    --shadow-hover: var(--shadow-card-full);
+    --shadow-card: rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 2px 0px, rgb(250,250,250) 0px 0px 0px 1px;
+    --shadow-card-full: rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 2px 0px, rgba(0,0,0,0.04) 0px 8px 8px -8px, rgb(250,250,250) 0px 0px 0px 1px;
 
-    /* Spacing - More generous */
-    --spacing-xs: 0.375rem;
-    --spacing-sm: 0.625rem;
-    --spacing-md: 1.125rem;
-    --spacing-lg: 1.75rem;
-    --spacing-xl: 2.25rem;
-    --spacing-2xl: 3.25rem;
+    /* Spacing - Vercel Scale */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    --spacing-2xl: 2.5rem;
 
-    /* Border Radius - More refined */
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-xl: 18px;
+    /* Border Radius - Vercel Scale */
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --radius-xl: 8px;
     --radius-full: 9999px;
 
     /* Transitions - Smooth and natural */
-    --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Fonts - Vercel Style */
+    --font-sans: 'Geist', system-ui, -apple-system, Arial, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, 'Roboto Mono', Menlo, monospace;
 
     /* Layout */
     --sidebar-width: 260px;
@@ -133,12 +160,14 @@ html {
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);
     font-size: 1rem;
-    line-height: 1.6;
+    line-height: 1.5;
     color: var(--text-primary);
     background-color: var(--bg-light);
     min-height: 100vh;
+    font-feature-settings: "liga" 1;
+    -webkit-font-smoothing: antialiased;
     contain: layout style;
 }
 
@@ -215,40 +244,43 @@ h4 { font-size: 1.125rem; }
     }
 }
 
-/* Top Navigation */
+/* Top Navigation - Vercel Style */
 .top-nav {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     height: var(--top-nav-height);
-    background-color: var(--bg-white);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-ring);
     display: flex;
     align-items: center;
     padding: 0 var(--spacing-lg);
     z-index: 1000;
     transition: background-color var(--transition-normal), box-shadow var(--transition-normal);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 .nav-brand {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    font-size: 1.25rem;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
+    letter-spacing: -0.28px;
 }
 
-.nav-brand i {
-    font-size: 1.5rem;
+.nav-brand svg {
     color: var(--primary-color);
 }
 
 .nav-links {
     display: flex;
-    gap: var(--spacing-md);
+    gap: 24px;
     margin-left: var(--spacing-xl);
+    list-style: none;
 }
 
 .nav-link {
@@ -256,24 +288,27 @@ h4 { font-size: 1.125rem; }
     align-items: center;
     gap: var(--spacing-xs);
     padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     transition: all var(--transition-fast);
     color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
 }
 
 .nav-link:hover,
 .nav-link:focus {
-    color: var(--primary-color);
+    color: var(--text-primary);
     background-color: var(--bg-tertiary);
 }
 
 .nav-link.active {
-    color: var(--primary-color);
+    color: var(--text-primary);
     background-color: var(--bg-tertiary);
 }
 
 .nav-link:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--focus-blue);
     outline-offset: 2px;
 }
 
@@ -283,7 +318,23 @@ h4 { font-size: 1.125rem; }
     gap: var(--spacing-sm);
 }
 
-/* Sidebar */
+.nav-cta {
+    display: inline-block;
+    background: var(--primary-color);
+    color: var(--text-white);
+    padding: 8px 16px;
+    border-radius: var(--radius-lg);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: opacity var(--transition-fast);
+}
+
+.nav-cta:hover {
+    opacity: 0.85;
+}
+
+/* Sidebar - Vercel Style */
 .sidebar {
     position: fixed;
     left: 0;
@@ -291,7 +342,7 @@ h4 { font-size: 1.125rem; }
     bottom: 0;
     width: var(--sidebar-width);
     background-color: var(--bg-white);
-    box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+    box-shadow: var(--shadow-ring);
     padding: var(--spacing-lg);
     overflow-y: auto;
     transition: transform var(--transition-normal), background-color var(--transition-normal);
@@ -310,12 +361,13 @@ h4 { font-size: 1.125rem; }
 .sidebar-section { margin-bottom: var(--spacing-xl); }
 
 .sidebar-title {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
     margin-bottom: var(--spacing-md);
+    letter-spacing: 0.5px;
 }
 
 .sidebar-menu { list-style: none; }
@@ -327,58 +379,61 @@ h4 { font-size: 1.125rem; }
     align-items: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     transition: all var(--transition-fast);
     color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
 }
 
 .sidebar-link:hover,
 .sidebar-link:focus {
     background-color: var(--bg-tertiary);
-    color: var(--primary-color);
+    color: var(--text-primary);
 }
 
 .sidebar-link.active {
     background-color: var(--bg-tertiary);
-    color: var(--primary-color);
+    color: var(--text-primary);
 }
 
 .sidebar-link:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--focus-blue);
     outline-offset: 2px;
 }
 
-.sidebar-link i {
-    font-size: 1.125rem;
-    width: 20px;
+.sidebar-link svg {
+    width: 18px;
+    height: 18px;
 }
 
-/* Sidebar Toggle */
+/* Sidebar Toggle - Vercel Style */
 .sidebar-toggle {
     position: fixed;
     left: var(--spacing-lg);
     top: calc(var(--top-nav-height) + var(--spacing-md));
     z-index: 998;
     background-color: var(--bg-white);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-full);
+    border: none;
+    border-radius: var(--radius-lg);
     width: 40px;
     height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-ring-light);
     transition: all var(--transition-fast);
 }
 
 .sidebar-toggle:hover,
 .sidebar-toggle:focus {
     background-color: var(--bg-tertiary);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-ring);
 }
 
 .sidebar-toggle:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--focus-blue);
     outline-offset: 2px;
 }
 

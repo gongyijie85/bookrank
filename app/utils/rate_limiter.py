@@ -112,12 +112,12 @@ class IPRateLimiter:
                 del self._requests[client_id]
 
 
-_global_rate_limiter: IPRateLimiter | None = None
+_global_rate_limiters: dict[str, IPRateLimiter] = {}
 
 
 def get_rate_limiter(max_requests: int = 60, window_seconds: int = 60) -> IPRateLimiter:
-    """获取全局限流器实例"""
-    global _global_rate_limiter
-    if _global_rate_limiter is None:
-        _global_rate_limiter = IPRateLimiter(max_requests, window_seconds)
-    return _global_rate_limiter
+    """获取限流器实例（按参数组合缓存）"""
+    cache_key = f"{max_requests}_{window_seconds}"
+    if cache_key not in _global_rate_limiters:
+        _global_rate_limiters[cache_key] = IPRateLimiter(max_requests, window_seconds)
+    return _global_rate_limiters[cache_key]

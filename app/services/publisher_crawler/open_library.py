@@ -114,57 +114,36 @@ class OpenLibraryCrawler(BaseCrawler):
 
         先尝试传统 requests，失败后用 Crawl4AI（尝试从 HTML 中提取 JSON）
         """
-        # 先尝试传统 requests
-        logger.info(f"🔄 OpenLibrary: 尝试传统 requests: {url}")
-        
-        # 尝试不同的请求方式
+        logger.info("OpenLibrary: 尝试传统 requests: %s", url)
+
         for attempt in range(3):
             try:
-                # 尝试禁用 SSL 验证（仅用于 OpenLibrary API）
-                response = self._session.get(url, timeout=self.config.timeout, verify=False)
+                response = self._session.get(url, timeout=self.config.timeout)
                 response.raise_for_status()
-                logger.info(f"✅ OpenLibrary: 传统 requests 成功 (尝试: {attempt + 1})")
+                logger.info("OpenLibrary: 传统 requests 成功 (尝试: %s)", attempt + 1)
                 return response
             except requests.RequestException as e:
-                logger.warning(f"⚠️ OpenLibrary: 请求失败 (尝试: {attempt + 1}): {e}")
+                logger.warning("OpenLibrary: 请求失败 (尝试: %s): %s", attempt + 1, e)
                 time.sleep(self.config.request_delay * (attempt + 1))
 
-        # 失败后尝试使用不同的 URL 格式
-        alternative_urls = [
-            url.replace('https://', 'http://'),
-            f"https://archive.org/works/{url.split('/')[-1]}"
-        ]
-        
-        for alt_url in alternative_urls:
-            try:
-                response = self._session.get(alt_url, timeout=self.config.timeout, verify=False)
-                response.raise_for_status()
-                logger.info(f"✅ OpenLibrary: 替代 URL 成功: {alt_url}")
-                return response
-            except requests.RequestException as e:
-                logger.warning(f"⚠️ OpenLibrary: 替代 URL 失败: {alt_url} - {e}")
-
-        # 最后尝试 Crawl4AI
         if self._crawl4ai_available:
-            logger.info(f"🔄 OpenLibrary: 尝试使用 Crawl4AI 获取数据")
+            logger.info("OpenLibrary: 尝试使用 Crawl4AI 获取数据")
             html = self._crawl_with_crawl4ai(url)
             if html:
-                logger.info(f"✅ OpenLibrary: Crawl4AI 成功获取页面")
-                # 尝试从 HTML 中提取 JSON 数据
+                logger.info("OpenLibrary: Crawl4AI 成功获取页面")
                 try:
                     import re
                     json_match = re.search(r'window\.APP_DATA = (\{.*?\});', html, re.DOTALL)
                     if json_match:
-                        logger.info(f"✅ OpenLibrary: 从 HTML 中提取 JSON 成功")
-                        # 创建一个模拟的 Response 对象
+                        logger.info("OpenLibrary: 从 HTML 中提取 JSON 成功")
                         from unittest.mock import Mock
                         mock_response = Mock()
                         mock_response.json.return_value = json.loads(json_match.group(1))
                         return mock_response
                 except Exception as e:
-                    logger.warning(f"⚠️ OpenLibrary: 从 HTML 提取 JSON 失败: {e}")
+                    logger.warning("OpenLibrary: 从 HTML 提取 JSON 失败: %s", e)
 
-        logger.error(f"❌ OpenLibrary: 所有方法都失败: {url}")
+        logger.error("OpenLibrary: 所有方法都失败: %s", url)
         return None
 
     def get_categories(self) -> list[dict[str, str]]:

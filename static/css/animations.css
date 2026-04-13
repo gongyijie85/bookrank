@@ -279,15 +279,15 @@
     will-change: background-position;
 }
 
-/* Loading Spinner - Enhanced */
+/* Loading Spinner - Vercel Style */
 .loading-spinner {
     display: inline-block;
     width: 40px;
     height: 40px;
-    border: 3px solid rgba(255, 107, 53, 0.3);
+    border: 3px solid rgba(23, 23, 23, 0.1);
     border-radius: 50%;
     border-top-color: var(--primary-color);
-    animation: spin 1s ease-in-out infinite;
+    animation: spin 1s linear infinite;
     will-change: transform;
 }
 
@@ -339,7 +339,7 @@
     font-size: 1rem;
 }
 
-/* Progress Bar */
+/* Progress Bar - Vercel Style */
 @keyframes progress {
     0% {
         width: 0%;
@@ -359,7 +359,7 @@
 
 .progress-bar-fill {
     height: 100%;
-    background: var(--primary-gradient);
+    background: var(--primary-color);
     border-radius: var(--radius-full);
     transition: width 0.3s ease;
     will-change: width;

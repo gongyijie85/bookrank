@@ -107,12 +107,48 @@ class NYTApiClient:
         self._timeout = timeout
         self._session = create_session_with_retry(max_retries=3)
         self._api_cache = None
+        self._key_validated = False
+        self._key_is_valid = False
 
     def _get_cache_service(self):
         """获取API缓存服务"""
         if self._api_cache is None:
             self._api_cache = _get_api_cache_service()
         return self._api_cache
+
+    def _validate_api_key(self) -> bool:
+        """验证 NYT API Key 是否有效"""
+        if self._key_validated:
+            return self._key_is_valid
+
+        if not self._api_key:
+            self._key_validated = True
+            self._key_is_valid = False
+            logger.warning("NYT API Key 未配置")
+            return False
+
+        try:
+            test_url = f"{self._base_url}/hardcover-fiction.json"
+            resp = self._session.get(
+                test_url,
+                params={"api-key": self._api_key},
+                timeout=self._timeout,
+            )
+            if resp.status_code == 200:
+                self._key_is_valid = True
+                logger.info("NYT API Key 验证通过")
+            elif resp.status_code == 401:
+                logger.warning("NYT API Key 无效 (401 Unauthorized)，请检查 .env 中的 NYT_API_KEY")
+                self._key_is_valid = False
+            else:
+                logger.warning("NYT API Key 验证异常 (状态码:%s)", resp.status_code)
+                self._key_is_valid = False
+        except Exception as e:
+            logger.warning("NYT API Key 验证请求失败: %s", e)
+            self._key_is_valid = False
+
+        self._key_validated = True
+        return self._key_is_valid
 
     @retry(max_attempts=3, backoff_factor=2.0)
     def fetch_books(self, category_id: str) -> dict[str, Any]:
@@ -132,12 +168,18 @@ class NYTApiClient:
         if not self._api_key:
             raise APIException("NYT API key not configured", 500)
 
+        if not self._key_validated:
+            self._validate_api_key()
+
+        if not self._key_is_valid:
+            raise APIException("NYT API key is invalid, please check your NYT_API_KEY in .env", 401)
+
         cache_service = self._get_cache_service()
 
         if cache_service:
             cached = cache_service.get('nyt', category_id)
             if cached:
-                logger.info(f"返回NYT缓存数据: {category_id}")
+                logger.info("返回NYT缓存数据: %s", category_id)
                 return cached
 
         if not self._rate_limiter.is_allowed():
@@ -161,6 +203,12 @@ class NYTApiClient:
                 params={'api-key': self._api_key},
                 timeout=self._timeout
             )
+
+            if response.status_code == 401:
+                self._key_is_valid = False
+                self._key_validated = True
+                logger.error("NYT API Key 认证失败 (401)，请检查 .env 中的 NYT_API_KEY")
+                raise APIException("NYT API key authentication failed", 401)
 
             if response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', 60))
@@ -194,12 +242,52 @@ class GoogleBooksClient:
         self._timeout = timeout
         self._session = create_session_with_retry(max_retries=2)
         self._api_cache = None
+        self._key_validated = False
+        self._key_is_valid = False
 
     def _get_cache_service(self):
         """获取API缓存服务"""
         if self._api_cache is None:
             self._api_cache = _get_api_cache_service()
         return self._api_cache
+
+    def _validate_api_key(self) -> bool:
+        """验证 Google Books API Key 是否有效"""
+        if self._key_validated:
+            return self._key_is_valid
+
+        if not self._api_key:
+            self._key_validated = True
+            self._key_is_valid = False
+            return False
+
+        try:
+            resp = self._session.get(
+                self._base_url,
+                params={"q": "test", "maxResults": 1, "key": self._api_key},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                self._key_is_valid = True
+                logger.info("Google Books API Key 验证通过")
+            elif resp.status_code == 400:
+                logger.warning("Google Books API Key 无效，降级为无Key模式（配额较低）")
+                self._key_is_valid = False
+            else:
+                logger.warning("Google Books API Key 验证异常 (状态码:%s)，降级为无Key模式", resp.status_code)
+                self._key_is_valid = False
+        except Exception as e:
+            logger.warning("Google Books API Key 验证失败: %s，降级为无Key模式", e)
+            self._key_is_valid = False
+
+        self._key_validated = True
+        return self._key_is_valid
+
+    def _build_params(self, base_params: dict[str, Any]) -> dict[str, Any]:
+        """构建请求参数，仅在Key有效时附加"""
+        if self._key_is_valid and self._api_key:
+            base_params["key"] = self._api_key
+        return base_params
 
     @retry(max_attempts=2, backoff_factor=1.5)
     def fetch_book_details(self, isbn: str) -> dict[str, Any]:
@@ -215,26 +303,36 @@ class GoogleBooksClient:
         if not isbn:
             return {}
 
+        self._validate_api_key()
+
         cache_service = self._get_cache_service()
         cache_key = f"isbn_{isbn}"
 
         if cache_service:
             cached = cache_service.get('google_books', cache_key)
             if cached:
-                logger.info(f"返回Google Books缓存数据: ISBN {isbn}")
+                logger.info("返回Google Books缓存数据: ISBN %s", isbn)
                 return cached
 
-        url = f"{self._base_url}"
-        params = {'q': f'isbn:{isbn}'}
-        if self._api_key:
-            params['key'] = self._api_key
+        params = self._build_params({'q': f'isbn:{isbn}'})
 
         try:
             response = self._session.get(
-                url,
+                self._base_url,
                 params=params,
                 timeout=self._timeout
             )
+
+            if response.status_code == 400 and self._key_is_valid:
+                logger.warning("Google Books API Key 可能已失效，尝试无Key模式")
+                self._key_is_valid = False
+                params.pop("key", None)
+                response = self._session.get(
+                    self._base_url,
+                    params=params,
+                    timeout=self._timeout
+                )
+
             response.raise_for_status()
             data = response.json()
 
@@ -251,7 +349,7 @@ class GoogleBooksClient:
             return result
 
         except requests.RequestException as e:
-            logger.warning(f"Failed to fetch Google Books data for ISBN {isbn}: {e}")
+            logger.warning("Failed to fetch Google Books data for ISBN %s: %s", isbn, e)
             _safe_cache_set(cache_service, 'google_books', cache_key,
                           {}, ttl_seconds=300, is_error=True,
                           error_message=str(e))
@@ -272,30 +370,39 @@ class GoogleBooksClient:
         if not title:
             return {}
 
+        self._validate_api_key()
+
         cache_key = f"title_{title.lower()}_{author.lower() if author else 'none'}"
         cache_service = self._get_cache_service()
 
         if cache_service:
             cached = cache_service.get('google_books', cache_key)
             if cached:
-                logger.info(f"返回Google Books缓存搜索结果: '{title}'")
+                logger.info("返回Google Books缓存搜索结果: '%s'", title)
                 return cached
 
-        url = f"{self._base_url}"
         query = f'intitle:{title}'
         if author:
             query += f' inauthor:{author}'
 
-        params = {'q': query, 'maxResults': 1}
-        if self._api_key:
-            params['key'] = self._api_key
+        params = self._build_params({'q': query, 'maxResults': 1})
 
         try:
             response = self._session.get(
-                url,
+                self._base_url,
                 params=params,
                 timeout=self._timeout
             )
+
+            if response.status_code == 400 and self._key_is_valid:
+                self._key_is_valid = False
+                params.pop("key", None)
+                response = self._session.get(
+                    self._base_url,
+                    params=params,
+                    timeout=self._timeout
+                )
+
             response.raise_for_status()
             data = response.json()
 
@@ -312,7 +419,7 @@ class GoogleBooksClient:
             return result
 
         except requests.RequestException as e:
-            logger.warning(f"Failed to search Google Books for '{title}': {e}")
+            logger.warning("Failed to search Google Books for '%s': %s", title, e)
             _safe_cache_set(cache_service, 'google_books', cache_key,
                           {}, ttl_seconds=300, is_error=True,
                           error_message=str(e))

@@ -538,34 +538,29 @@ def weekly_report_detail(date):
     if not date or len(date) != 10 or date[4] != '-' or date[7] != '-':
         return render_template('error.html', message="日期格式错误", back_url='/reports/weekly')
     
+    report = None
     try:
         report_date = datetime.strptime(date, '%Y-%m-%d').date()
-        # 验证日期有效性
         current_date = datetime.now().date()
         if report_date.year < 2020 or report_date > current_date:
             return render_template('error.html', message="无效的日期范围", back_url='/reports/weekly')
         
-        # 尝试根据周结束日期获取周报
         report = report_service.get_report_by_week_end(report_date)
         if not report:
-            # 如果没有找到，尝试根据报告日期获取周报
             report = report_service.get_report_by_date(report_date)
             if not report:
                 return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
         
-        # 统计阅读量
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
         ip_address = request.remote_addr
         
-        # 检查是否已经记录过该会话的阅读
         existing_view = ReportView.query.filter_by(
             report_id=report.id,
             session_id=session_id
         ).first()
         
         if not existing_view:
-            # 记录阅读
             new_view = ReportView(
                 report_id=report.id,
                 session_id=session_id,
@@ -574,10 +569,8 @@ def weekly_report_detail(date):
             )
             db.session.add(new_view)
             
-            # 增加阅读量
             report.view_count = (report.view_count or 0) + 1
             
-            # 记录用户行为
             behavior = UserBehavior(
                 session_id=session_id,
                 event_type='view_report',
@@ -595,8 +588,9 @@ def weekly_report_detail(date):
         return render_template('error.html', message="日期格式错误", back_url='/reports/weekly')
     except Exception as e:
         current_app.logger.error(f"统计阅读量时出错: {str(e)}")
-        # 出错时仍然返回页面，不影响用户体验
-        return render_template('weekly_report_detail.html', report=report)
+        if report:
+            return render_template('weekly_report_detail.html', report=report)
+        return render_template('error.html', message="加载周报失败", back_url='/reports/weekly')
 
 @main_bp.route('/reports/weekly/<date>/export')
 def export_weekly_report(date):

@@ -473,18 +473,18 @@ def save_search_history(session_id: str, keyword: str, result_count: int):
 def get_book_details(isbn: str):
     """从 Google Books API 获取图书详细信息"""
     try:
-        # 验证ISBN格式
         if not validate_isbn(isbn):
             return APIResponse.error('Invalid ISBN format', 400)
 
-        from ..services.api_client import GoogleBooksClient
+        google_client = current_app.extensions.get('book_service')._google_client if current_app.extensions.get('book_service') else None
 
-        # 创建 Google Books 客户端
-        google_client = GoogleBooksClient(
-            api_key=current_app.config.get('GOOGLE_API_KEY'),
-            base_url=current_app.config.get('GOOGLE_BOOKS_API_URL', 'https://www.googleapis.com/books/v1/volumes'),
-            timeout=10
-        )
+        if not google_client:
+            from ..services.api_client import GoogleBooksClient
+            google_client = GoogleBooksClient(
+                api_key=current_app.config.get('GOOGLE_API_KEY'),
+                base_url=current_app.config.get('GOOGLE_BOOKS_API_URL', 'https://www.googleapis.com/books/v1/volumes'),
+                timeout=10
+            )
 
         # 获取图书详情
         try:
@@ -598,7 +598,6 @@ def translate_book(isbn: str):
             return APIResponse.error('无效的ISBN格式', 400)
         
         from ..services.zhipu_translation_service import get_translation_service
-        from ..services import BookService
         
         book_service = current_app.extensions.get('book_service')
         if not book_service:
@@ -759,8 +758,6 @@ def get_api_cache_recent():
         api_source = request.args.get('api_source')
         
         cache_service = get_api_cache_service()
-        
-        query = cache_service._query if hasattr(cache_service, '_query') else None
         
         from ..models.schemas import APICache
         query = APICache.query

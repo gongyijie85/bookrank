@@ -3,13 +3,15 @@ import secrets
 from pathlib import Path
 from dotenv import load_dotenv
 
+BASE_DIR = Path(__file__).parent.parent
+load_dotenv(BASE_DIR / '.env')
 load_dotenv()
 
 
 class Config:
     """基础配置类"""
 
-    BASE_DIR = Path(__file__).parent.parent
+    BASE_DIR = BASE_DIR
 
     # 安全配置
     SECRET_KEY: str = os.environ.get('SECRET_KEY') or secrets.token_hex(32)

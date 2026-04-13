@@ -7,7 +7,6 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from flask import Flask, session
 from flask_cors import CORS
-from flask_talisman import Talisman
 
 from .config import config
 from .models import db, init_db

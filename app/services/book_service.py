@@ -145,15 +145,37 @@ class BookService:
         return translations
     
     def _batch_get_supplements(self, isbns: list[str]) -> dict[str, dict]:
-        """批量获取Google Books补充信息"""
+        """并发获取Google Books补充信息，提升批量查询效率"""
         supplements = {}
-        for isbn in isbns:
-            if isbn:
+        if not isbns:
+            return supplements
+
+        valid_isbns = [isbn for isbn in isbns if isbn]
+        if not valid_isbns:
+            return supplements
+
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            def _fetch_one(isbn: str) -> tuple[str, dict]:
+                try:
+                    return isbn, self._google_client.fetch_book_details(isbn)
+                except Exception:
+                    return isbn, {}
+
+            with ThreadPoolExecutor(max_workers=min(self._max_workers, len(valid_isbns))) as executor:
+                futures = {executor.submit(_fetch_one, isbn): isbn for isbn in valid_isbns}
+                for future in as_completed(futures):
+                    isbn, result = future.result()
+                    supplements[isbn] = result
+        except Exception as e:
+            logger.debug("并发获取补充信息失败，降级为串行: %s", e)
+            for isbn in valid_isbns:
                 try:
                     supplements[isbn] = self._google_client.fetch_book_details(isbn)
-                except Exception as e:
-                    logger.debug(f"获取补充信息失败 {isbn}: {e}")
+                except Exception:
                     supplements[isbn] = {}
+
         return supplements
     
     def _process_single_book(
