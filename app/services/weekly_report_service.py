@@ -121,35 +121,57 @@ class WeeklyReportService:
             Dict: 本周数据
         """
         try:
-            # 从 award_books 表获取数据，因为 BookMetadata 表结构可能不完整
-            from ..models.schemas import AwardBook
-            books = AwardBook.query.filter(AwardBook.is_displayable).limit(50).all()
+            # 从纽约时报API获取数据
+            from ..models.schemas import Book
+            
+            # 定义纽约时报书籍分类
+            nyt_categories = {
+                'hardcover-fiction': '精装小说',
+                'paperback-fiction': '平装小说',
+                'hardcover-nonfiction': '精装非虚构',
+                'paperback-nonfiction': '平装非虚构',
+                'advice-how-to-and-miscellaneous': '建议、方法与杂项',
+                'graphic-books-and-manga': '漫画与绘本',
+                'childrens-middle-grade-hardcover': '儿童中级精装本',
+                'young-adult-hardcover': '青少年精装本'
+            }
             
             # 构建周报数据
             weekly_data = {
                 'books': [],
-                'categories': ['Fiction', 'Nonfiction', 'Mystery', 'Thriller', 'Science Fiction']
+                'categories': list(nyt_categories.values())
             }
             
-            for i, book in enumerate(books):
-                # 使用书籍ID和索引生成模拟数据
-                weekly_data['books'].append({
-                    'id': book.id,
-                    'title': book.title_zh or book.title,
-                    'author': book.author,
-                    'category': book.category or 'Fiction',
-                    'rank': (i % 20) + 1,  # 模拟排名 1-20
-                    'rank_change': (i % 9) - 4,  # 模拟排名变化 -4 到 +4
-                    'weeks_on_list': (i % 25) + 1,  # 模拟上榜周数 1-25
-                    'is_new': i % 10 == 0  # 每10本书中有1本是新上榜
-                })
+            # 从每个分类获取书籍数据
+            for category_id, category_name in nyt_categories.items():
+                try:
+                    books = self._book_service.get_books_by_category(category_id)
+                    for i, book in enumerate(books):
+                        # 计算排名变化（这里使用模拟数据，实际应该从历史数据中获取）
+                        rank_change = (i % 9) - 4  # 模拟排名变化 -4 到 +4
+                        weeks_on_list = (i % 25) + 1  # 模拟上榜周数 1-25
+                        
+                        weekly_data['books'].append({
+                            'id': book.isbn13 or book.isbn10,
+                            'title': book.title_zh or book.title,
+                            'author': book.author,
+                            'category': category_name,
+                            'rank': book.rank,
+                            'rank_change': rank_change,
+                            'weeks_on_list': weeks_on_list,
+                            'is_new': i % 10 == 0,  # 每10本书中有1本是新上榜
+                            'cover': book.cover  # 添加封面图片
+                        })
+                except Exception as e:
+                    logger.error(f"获取分类 {category_name} 数据时出错: {str(e)}")
+                    continue
             
             # 如果没有数据，返回空数据
             if not weekly_data['books']:
                 logger.info("没有找到实际数据，返回空数据")
                 return {
                     'books': [],
-                    'categories': ['Fiction', 'Nonfiction', 'Mystery', 'Thriller', 'Science Fiction']
+                    'categories': list(nyt_categories.values())
                 }
             
             return weekly_data
@@ -159,7 +181,7 @@ class WeeklyReportService:
             # 出错时返回空数据
             return {
                 'books': [],
-                'categories': ['Fiction', 'Nonfiction', 'Mystery', 'Thriller', 'Science Fiction']
+                'categories': ['精装小说', '平装小说', '精装非虚构', '平装非虚构', '建议、方法与杂项', '漫画与绘本', '儿童中级精装本', '青少年精装本']
             }
     
 
@@ -206,7 +228,8 @@ class WeeklyReportService:
                 featured_books.append({
                     'title': book['title'],
                     'author': book['author'],
-                    'reason': f"在{book['category']}类别中表现突出"
+                    'reason': f"在{book['category']}类别中表现突出",
+                    'cover': book.get('cover')  # 添加封面图片
                 })
             
             return {
