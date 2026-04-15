@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-04-14T04:54:06.842069",
+  "publishers": [
+    "google_books",
+    "penguin_random_house",
+    "hachette",
+    "harpercollins",
+    "macmillan",
+    "simon_schuster",
+    "open_library"
+  ],
+  "total_books": 170
+}
