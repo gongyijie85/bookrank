@@ -152,20 +152,44 @@ class WeeklyReportService:
                 try:
                     books = self._book_service.get_books_by_category(category_id)
                     for i, book in enumerate(books):
-                        # 计算排名变化（这里使用模拟数据，实际应该从历史数据中获取）
-                        rank_change = (i % 9) - 4  # 模拟排名变化 -4 到 +4
-                        weeks_on_list = (i % 25) + 1  # 模拟上榜周数 1-25
-                        
+                        # 从NYT API真实数据中获取排名信息
+                        # rank_last_week: 上周排名（数字或"无"/"0"表示新上榜）
+                        # weeks_on_list: 上榜周数（NYT API直接提供）
+
+                        # 解析上周排名
+                        last_week_rank_str = str(book.rank_last_week).strip()
+                        current_rank = book.rank
+
+                        # 计算排名变化
+                        if last_week_rank_str in ['无', '0', '', 'None']:
+                            # 新上榜书籍（上周不在榜单上）
+                            rank_change = 0  # 新书不计算变化
+                            is_new = True
+                        else:
+                            try:
+                                last_week_rank = int(last_week_rank_str)
+                                # 排名变化 = 上周排名 - 当前排名
+                                # 正数表示上升（排名数字变小），负数表示下降
+                                rank_change = last_week_rank - current_rank
+                                is_new = False
+                            except (ValueError, TypeError):
+                                # 无法解析时，保守处理为非新书
+                                rank_change = 0
+                                is_new = False
+
+                        # 使用NYT API提供的真实上榜周数
+                        weeks_on_list = book.weeks_on_list if book.weeks_on_list > 0 else 1
+
                         weekly_data['books'].append({
                             'id': book.isbn13 or book.isbn10,
                             'title': book.title_zh or book.title,
                             'author': book.author,
                             'category': category_name,
-                            'rank': book.rank,
-                            'rank_change': rank_change,
-                            'weeks_on_list': weeks_on_list,
-                            'is_new': i % 10 == 0,  # 每10本书中有1本是新上榜
-                            'cover': book.cover  # 添加封面图片
+                            'rank': current_rank,
+                            'rank_change': rank_change,  # 真实排名变化
+                            'weeks_on_list': weeks_on_list,  # 真实上榜周数
+                            'is_new': is_new,  # 真实新上榜状态
+                            'cover': book.cover  # 封面图片
                         })
                 except Exception as e:
                     logger.error(f"获取分类 {category_name} 数据时出错: {str(e)}")

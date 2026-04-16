@@ -201,7 +201,7 @@
              tabindex="0"
              aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
         <div class="card-image">
-            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% elif book.isbn10 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn10 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.cover_original_url %}{{ book.cover_original_url }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% elif book.isbn10 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn10 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
                  alt="{{ book.title_zh or book.title }} 封面"
                  loading="lazy"
                  width="280"
@@ -258,7 +258,7 @@
              tabindex="0"
              aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
         <div class="list-item-image">
-            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% elif book.isbn10 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn10 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.cover_original_url %}{{ book.cover_original_url }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% elif book.isbn10 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn10 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
                  alt="{{ book.title_zh or book.title }} 封面"
                  loading="lazy"
                  width="100"
