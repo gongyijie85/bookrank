@@ -252,9 +252,15 @@ def _setup_db_event_listeners(app):
         # 设置连接参数
         if hasattr(dbapi_connection, 'set_session'):
             try:
-                dbapi_connection.set_session(autocommit=False, timezone='UTC')
+                dbapi_connection.set_session(autocommit=False)
             except Exception as e:
                 app.logger.warning(f"设置连接参数失败: {e}")
+        try:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("SET TIME ZONE 'UTC'")
+            cursor.close()
+        except Exception:
+            pass
 
     @event.listens_for(Pool, "reset")
     def on_reset(dbapi_connection, connection_record):

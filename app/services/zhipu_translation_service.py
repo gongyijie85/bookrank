@@ -69,7 +69,7 @@ class ZhipuTranslationService:
         self.model = model
         self._client = None
         self._last_request_time = 0
-        self._request_interval = 0.5
+        self._request_interval = 1.0
         self._consecutive_429_count = 0
         self._429_backoff_until = 0
         self._author_name_cache: OrderedDict[str, str] = OrderedDict()
@@ -178,7 +178,7 @@ class ZhipuTranslationService:
             error_str = str(e)
             if '429' in error_str or '速率限制' in error_str or 'rate' in error_str.lower():
                 self._consecutive_429_count += 1
-                backoff_seconds = min(30, 5 * (2 ** (self._consecutive_429_count - 1)))
+                backoff_seconds = min(60, 10 * (2 ** (self._consecutive_429_count - 1)))
                 self._429_backoff_until = time.time() + backoff_seconds
                 logger.warning(f"智谱AI 429限流，退避 {backoff_seconds}s（连续第{self._consecutive_429_count}次）")
             else:
