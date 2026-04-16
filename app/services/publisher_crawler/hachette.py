@@ -33,7 +33,7 @@ class HachetteCrawler(MixedCrawl4AICrawler):
     PUBLISHER_WEBSITE = "https://www.hachettebookgroup.com"
     CRAWLER_CLASS_NAME = "HachetteCrawler"
 
-    # 新书页面URL
+    # 新书页面URL（使用正确的书籍列表页）
     NEW_RELEASES_URL = "https://www.hachettebookgroup.com/category/books/"
 
     # 分类映射
@@ -64,9 +64,9 @@ class HachetteCrawler(MixedCrawl4AICrawler):
         'Walmart': 'walmart.com',
     }
 
-    # Hachette 特定选择器
+    # Hachette 特定选择器（页面使用 .archive-item 类）
     BOOK_LIST_SELECTORS: str = (
-        '.product, .product-item, .book, .release-item, .new-release, .book-card, '
+        '.archive-item, .product, .product-item, .book, .release-item, .new-release, .book-card, '
         '.product-tile, .grid-item, .book-tile, article.product, article.book, '
         'div.product, li.product, .item, .card, .product-card, .book-item, '
         '.masonry-item, .grid-item, .book-grid-item, .product-grid-item'
