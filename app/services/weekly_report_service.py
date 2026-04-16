@@ -329,60 +329,70 @@ class WeeklyReportService:
             week_end: 周结束日期
             
         Returns:
-            str: 生成的摘要
+            str: 生成的摘要（确保不包含 prompt 模板文本）
         """
         try:
-            # 尝试使用AI生成摘要
             translation_service = self._get_translation_service()
             
-            if translation_service:
-                # 构建详细提示
-                prompt = f"请为{week_start.strftime('%Y年%m月%d日')}至{week_end.strftime('%Y年%m月%d日')}的畅销书周报生成一份详细、专业的摘要，要求：\n"
-                prompt += "1. 语言流畅，逻辑清晰，信息准确\n"
-                prompt += "2. 包含本周的主要趋势和亮点\n"
-                prompt += "3. 分析各类别书籍的表现\n"
-                prompt += "4. 突出重要变化和值得关注的书籍\n"
-                prompt += "5. 提供有洞察力的分析和见解\n\n"
-                
-                prompt += "基于以下分析结果：\n"
-                
-                if analysis.get('top_changes'):
-                    prompt += "\n【重要变化】："
-                    for book in analysis['top_changes'][:3]:
-                        change_type = "上升" if book['rank_change'] > 0 else "下降"
-                        change_value = abs(book['rank_change'])
-                        prompt += f"《{book['title']}》({book['author']})排名{change_type}{change_value}位；"
-                
-                if analysis.get('new_books'):
-                    prompt += "\n【新上榜书籍】："
-                    for book in analysis['new_books'][:3]:
-                        prompt += f"《{book['title']}》({book['author']}) - {book['category']}；"
-                
-                if analysis.get('top_risers'):
-                    prompt += "\n【排名上升最快】："
-                    for book in analysis['top_risers'][:3]:
-                        prompt += f"《{book['title']}》({book['author']})上升{book['rank_change']}位；"
-                
-                if analysis.get('longest_running'):
-                    prompt += "\n【持续上榜最久】："
-                    for book in analysis['longest_running'][:3]:
-                        prompt += f"《{book['title']}》({book['author']})已上榜{book['weeks_on_list']}周；"
-                
-                if analysis.get('featured_books'):
-                    prompt += "\n【推荐书籍】："
-                    for book in analysis['featured_books'][:3]:
-                        prompt += f"《{book['title']}》({book['author']}) - {book['reason']}；"
-                
-                # 生成摘要
-                summary = translation_service.translate(prompt, "zh", "zh")
-                return summary or self._generate_default_summary(analysis, week_start, week_end)
-            else:
-                # 使用默认摘要
+            if not translation_service:
                 return self._generate_default_summary(analysis, week_start, week_end)
+            
+            # 构建详细提示
+            prompt = f"请为{week_start.strftime('%Y年%m月%d日')}至{week_end.strftime('%Y年%m月%d日')}的畅销书周报生成一份详细、专业的摘要，要求：\n"
+            prompt += "1. 语言流畅，逻辑清晰，信息准确\n"
+            prompt += "2. 包含本周的主要趋势和亮点\n"
+            prompt += "3. 分析各类别书籍的表现\n"
+            prompt += "4. 突出重要变化和值得关注的书籍\n"
+            prompt += "5. 提供有洞察力的分析和见解\n\n"
+            
+            prompt += "基于以下分析结果：\n"
+            
+            if analysis.get('top_changes'):
+                prompt += "\n【重要变化】："
+                for book in analysis['top_changes'][:3]:
+                    change_type = "上升" if book['rank_change'] > 0 else "下降"
+                    change_value = abs(book['rank_change'])
+                    prompt += f"《{book['title']}》({book['author']})排名{change_type}{change_value}位；"
+            
+            if analysis.get('new_books'):
+                prompt += "\n【新上榜书籍】："
+                for book in analysis['new_books'][:3]:
+                    prompt += f"《{book['title']}》({book['author']}) - {book['category']}；"
+            
+            if analysis.get('top_risers'):
+                prompt += "\n【排名上升最快】："
+                for book in analysis['top_risers'][:3]:
+                    prompt += f"《{book['title']}》({book['author']})上升{book['rank_change']}位；"
+            
+            if analysis.get('longest_running'):
+                prompt += "\n【持续上榜最久】："
+                for book in analysis['longest_running'][:3]:
+                    prompt += f"《{book['title']}》({book['author']})已上榜{book['weeks_on_list']}周；"
+            
+            if analysis.get('featured_books'):
+                prompt += "\n【推荐书籍】："
+                for book in analysis['featured_books'][:3]:
+                    prompt += f"《{book['title']}》({book['author']}) - {book['reason']}；"
+            
+            # 调用 AI 生成摘要
+            ai_result = translation_service.translate(prompt, "zh", "zh")
+            
+            # 验证 AI 返回结果是否有效
+            # 如果结果为空、太短、或包含 prompt 模板特征文本，则使用默认摘要
+            if ai_result and len(ai_result.strip()) > 50:
+                # 检查是否包含 prompt 模板特征（说明 AI 原样返回了 prompt）
+                prompt_markers = ['请为', '要求：', '基于以下分析结果', '语言流畅']
+                is_prompt_like = any(marker in ai_result for marker in prompt_markers)
+                
+                if not is_prompt_like:
+                    return ai_result.strip()
+            
+            # AI 结果无效时使用格式化的默认摘要
+            logger.info("AI摘要无效或包含prompt文本，使用格式化默认摘要")
+            return self._generate_default_summary(analysis, week_start, week_end)
                 
         except Exception as e:
             logger.error(f"生成AI摘要时出错: {str(e)}")
-            # 出错时使用默认摘要
             return self._generate_default_summary(analysis, week_start, week_end)
     
     def _generate_default_summary(self, analysis: Dict[str, Any], week_start: date, week_end: date) -> str:
