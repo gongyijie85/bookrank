@@ -23,7 +23,7 @@
             {% if book.cover_url %}
             <img src="{{ book.cover_url }}"
                  alt="{{ book.title_zh or book.title }} 封面"
-                 onerror="this.src='/static/default-cover.png'">
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
             {% else %}
             <div style="width: 100%; height: 100%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
                 <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>

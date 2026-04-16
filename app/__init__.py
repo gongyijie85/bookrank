@@ -308,7 +308,7 @@ def _apply_security_headers(app):
                 "default-src 'self'; "
                 "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
                 "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com 'unsafe-inline'; "
-                "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com; "
+                "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com https://covers.openlibrary.org https://openlibrary.org https://*.penguinrandomhouse.com https://*.harpercollins.com https://*.macmillan.com https://*.simonandschuster.com https://*.hachettebookgroup.com; "
                 "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; "
                 "connect-src 'self'; "
                 "frame-src 'none'; "
