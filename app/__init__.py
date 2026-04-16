@@ -94,6 +94,11 @@ def _init_extensions(app, config_name: str):
     from flask_mail import Mail
     app.extensions['mail'] = Mail(app)
 
+    # 初始化数据库迁移
+    from flask_migrate import Migrate
+    global migrate
+    migrate = Migrate(app, db)
+
     # 设置数据库事件监听器（处理 Render PostgreSQL 休眠恢复）
     _setup_db_event_listeners(app)
 
@@ -432,3 +437,6 @@ def _start_weekly_report_thread(app):
 
 
 app = create_app(os.environ.get('FLASK_ENV', 'development'))
+
+# 导出迁移对象
+migrate
