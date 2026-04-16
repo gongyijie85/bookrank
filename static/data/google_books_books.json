@@ -158,5 +158,25 @@
       }
     ],
     "source_url": "https://play.google.com/store/books/details?id=XUtNEQAAQBAJ"
+  },
+  {
+    "title": "The Great Gatsby",
+    "author": "F. Scott Fitzgerald",
+    "isbn13": "9789526538570",
+    "isbn10": "9526538579",
+    "description": null,
+    "cover_url": "https://books.google.com/books/content?id=faNh0QEACAAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api",
+    "category": "小说",
+    "publication_date": "2024-01-01",
+    "price": null,
+    "page_count": 0,
+    "language": "en",
+    "buy_links": [
+      {
+        "name": "Google Books",
+        "url": "https://books.google.com/books/about/The_Great_Gatsby.html?hl=&id=faNh0QEACAAJ"
+      }
+    ],
+    "source_url": "https://books.google.com/books/about/The_Great_Gatsby.html?hl=&id=faNh0QEACAAJ"
   }
 ]
