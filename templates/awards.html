@@ -201,12 +201,13 @@
              tabindex="0"
              aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
         <div class="card-image">
-            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
-                 alt="{{ book.title }}封面"
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% elif book.isbn10 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn10 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+                 alt="{{ book.title_zh or book.title }} 封面"
                  loading="lazy"
                  width="280"
                  height="240"
-                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'"
+                 onload="if(this.naturalWidth <= 10) this.src='{{ url_for('static', filename='default-cover.png') }}'">
 
             <!-- Award Badge -->
             <span class="card-badge award" aria-label="获奖图书">
@@ -257,12 +258,13 @@
              tabindex="0"
              aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
         <div class="list-item-image">
-            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
-                 alt="{{ book.title }}封面"
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% elif book.isbn10 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn10 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+                 alt="{{ book.title_zh or book.title }} 封面"
                  loading="lazy"
                  width="100"
                  height="150"
-                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'"
+                 onload="if(this.naturalWidth <= 10) this.src='{{ url_for('static', filename='default-cover.png') }}'">
         </div>
 
         <div class="list-item-content">
