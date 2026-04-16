@@ -1,0 +1,904 @@
+{% extends 'base.html' %}
+
+{% block title %}畅销书周报 - BookRank{% endblock %}
+{% block og_title %}畅销书周报 - BookRank{% endblock %}
+{% block twitter_title %}畅销书周报 - BookRank{% endblock %}
+
+{% block content %}
+<main class="main-content">
+    <div class="page-header">
+        <h1 class="page-title">
+            <svg class="icon text-gold" width="24" height="24"><use href="#icon-chart-bar"/></svg>
+            畅销书周报
+        </h1>
+        <p class="page-description">每周更新，总结纽约时报畅销书榜单的变化趋势</p>
+    </div>
+
+    <div class="content-section">
+        <!-- 筛选和搜索功能 -->
+        <div class="filter-section">
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="date-filter">日期筛选</label>
+                    <select id="date-filter" class="form-select">
+                        <option value="all">全部</option>
+                        <option value="this-month">本月</option>
+                        <option value="last-month">上月</option>
+                        <option value="this-year">今年</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="search-input">搜索</label>
+                    <div class="search-box">
+                        <input type="text" id="search-input" placeholder="搜索周报标题或内容" class="form-input">
+                        <button class="search-btn">
+                            <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 周报列表 -->
+        {% if reports %}
+        <div class="reports-list">
+            {% for report in reports %}
+            <div class="report-card news-card" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.title }}" data-summary="{{ report.summary }}">
+                <!-- 日期徽章 -->
+                <div class="news-date-badge">
+                    <span class="news-day">{{ report.report_date.strftime('%d') }}</span>
+                    <span class="news-month">{{ report.report_date.strftime('%m月') }}</span>
+                </div>
+                
+                <!-- 新闻卡片内容 -->
+                <div class="news-card-content">
+                    <div class="news-header">
+                        <h3 class="news-title">
+                            <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}">
+                                {{ report.title }}
+                            </a>
+                        </h3>
+                        <div class="news-meta">
+                            <span class="news-period">
+                                <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
+                                {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- 新闻摘要 -->
+                    <div class="news-summary">
+                        {{ report.summary | truncate(200) }}
+                    </div>
+                    
+                    <!-- 新闻亮点 -->
+                    <div class="news-highlights">
+                        <ul class="highlights-list">
+                            {% if report.content %}
+                            {% set content = report.content %}
+                            {% if content.top_changes %}
+                            <li>
+                                <svg class="icon" width="14" height="14"><use href="#icon-arrow-up"/></svg>
+                                排名变化：{{ content.top_changes | length }} 本图书
+                            </li>
+                            {% endif %}
+                            {% if content.new_books %}
+                            <li>
+                                <svg class="icon" width="14" height="14"><use href="#icon-star"/></svg>
+                                新上榜：{{ content.new_books | length }} 本图书
+                            </li>
+                            {% endif %}
+                            {% if content.featured_books %}
+                            <li>
+                                <svg class="icon" width="14" height="14"><use href="#icon-heart"/></svg>
+                                推荐书籍：{{ content.featured_books | length }} 本
+                            </li>
+                            {% endif %}
+                            {% endif %}
+                        </ul>
+                    </div>
+                    
+                    <!-- 操作按钮 -->
+                    <div class="news-actions">
+                        <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}" class="btn btn-primary">
+                            <svg class="icon" width="16" height="16"><use href="#icon-eye"/></svg>
+                            查看详情
+                        </a>
+                        <button class="btn btn-outline share-btn" data-report-date="{{ report.report_date.strftime('%Y-%m-%d') }}">
+                            <svg class="icon" width="16" height="16"><use href="#icon-share"/></svg>
+                            分享
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 动画图标容器 -->
+                <div class="animation-container">
+                    <canvas id="animation-{{ loop.index }}" width="80" height="80"></canvas>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <button class="btn btn-outline pagination-btn" disabled>
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
+                上一页
+            </button>
+            <span class="pagination-info">第 1 页，共 1 页</span>
+            <button class="btn btn-outline pagination-btn" disabled>
+                下一页
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-right"/></svg>
+            </button>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <svg class="icon" width="48" height="48"><use href="#icon-file-text"/></svg>
+            <h3>暂无周报</h3>
+            <p>周报正在生成中，请稍后再试</p>
+            <button class="btn btn-primary refresh-btn">
+                <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
+                刷新
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="content-section">
+        <div class="section-card">
+            <h3 class="section-title">
+                <svg class="icon" width="18" height="18"><use href="#icon-info"/></svg>
+                关于周报
+            </h3>
+            <div class="section-content">
+                <p>畅销书周报每周自动生成，总结纽约时报畅销书榜单的变化趋势、亮点书籍和值得关注的变动。</p>
+                <ul class="list-disc">
+                    <li>每周一更新上周周报</li>
+                    <li>包含榜单变化分析</li>
+                    <li>推荐值得关注的书籍</li>
+                    <li>提供趋势分析和洞察</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 筛选功能
+    const dateFilter = document.getElementById('date-filter');
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.querySelector('.search-btn');
+    const reportCards = document.querySelectorAll('.report-card');
+    const refreshBtn = document.querySelector('.refresh-btn');
+    const shareBtns = document.querySelectorAll('.share-btn');
+
+    // 筛选逻辑
+    function filterReports() {
+        const dateValue = dateFilter.value;
+        const searchValue = searchInput.value.toLowerCase();
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+
+        reportCards.forEach(card => {
+            const cardDate = new Date(card.dataset.date);
+            const cardTitle = card.dataset.title.toLowerCase();
+            const cardSummary = card.dataset.summary.toLowerCase();
+            const cardMonth = cardDate.getMonth();
+            const cardYear = cardDate.getFullYear();
+
+            // 日期筛选
+            let dateMatch = true;
+            if (dateValue === 'this-month') {
+                dateMatch = (cardMonth === currentMonth && cardYear === currentYear);
+            } else if (dateValue === 'last-month') {
+                const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+                const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+                dateMatch = (cardMonth === lastMonth && cardYear === lastMonthYear);
+            } else if (dateValue === 'this-year') {
+                dateMatch = (cardYear === currentYear);
+            }
+
+            // 搜索筛选
+            const searchMatch = cardTitle.includes(searchValue) || cardSummary.includes(searchValue);
+
+            // 显示或隐藏卡片
+            if (dateMatch && searchMatch) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    // 事件监听
+    dateFilter.addEventListener('change', filterReports);
+    searchInput.addEventListener('input', filterReports);
+    searchBtn.addEventListener('click', filterReports);
+
+    // 回车键搜索
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            filterReports();
+        }
+    });
+
+    // 刷新功能
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            // 显示加载状态
+            this.innerHTML = '<svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> 刷新中...';
+            this.disabled = true;
+
+            // 模拟刷新
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        });
+    }
+
+    // 分享功能
+    shareBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const reportDate = this.dataset.reportDate;
+            const shareUrl = `${window.location.origin}${window.location.pathname.replace('/reports/weekly', '')}/reports/weekly/${reportDate}`;
+            const shareTitle = `畅销书周报 - ${reportDate}`;
+
+            // 检查是否支持原生分享
+            if (navigator.share) {
+                navigator.share({
+                    title: shareTitle,
+                    url: shareUrl
+                }).catch(err => {
+                    console.error('分享失败:', err);
+                    fallbackShare(shareUrl, shareTitle);
+                });
+            } else {
+                // 降级方案
+                fallbackShare(shareUrl, shareTitle);
+            }
+        });
+    });
+
+    // 分享降级方案
+    function fallbackShare(url, title) {
+        // 复制到剪贴板
+        navigator.clipboard.writeText(url).then(() => {
+            alert('链接已复制到剪贴板，可以分享给朋友！');
+        }).catch(err => {
+            console.error('复制失败:', err);
+            // 显示链接
+            prompt('请复制以下链接:', url);
+        });
+    }
+
+    // 卡片悬停效果
+    reportCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-4px)';
+            this.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+        });
+
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+        });
+    });
+
+    // 初始化筛选
+    filterReports();
+
+    // Remotion风格动画
+    class BookAnimation {
+        constructor(canvasId) {
+            this.canvas = document.getElementById(canvasId);
+            this.ctx = this.canvas.getContext('2d');
+            this.width = this.canvas.width;
+            this.height = this.canvas.height;
+            this.rotation = 0;
+            this.scale = 1;
+            this.arrowDirection = 1;
+            this.arrowPosition = 0;
+            this.hovered = false;
+            this.animationId = null;
+            this.init();
+        }
+
+        init() {
+            this.canvas.addEventListener('mouseenter', () => {
+                this.hovered = true;
+            });
+
+            this.canvas.addEventListener('mouseleave', () => {
+                this.hovered = false;
+            });
+
+            this.animate();
+        }
+
+        drawBook() {
+            this.ctx.save();
+            this.ctx.translate(this.width / 2, this.height / 2);
+            this.ctx.rotate(this.rotation * Math.PI / 180);
+            this.ctx.scale(this.scale, this.scale);
+
+            // 书的主体
+            this.ctx.fillStyle = '#3b82f6';
+            this.ctx.fillRect(-20, -30, 40, 60);
+
+            // 书脊
+            this.ctx.fillStyle = '#1e40af';
+            this.ctx.fillRect(20, -30, 5, 60);
+
+            // 书页
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillRect(-22, -32, 44, 64);
+
+            // 书的标题
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = '8px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('BOOK', 0, 0);
+
+            this.ctx.restore();
+        }
+
+        drawArrow() {
+            this.ctx.save();
+            this.ctx.translate(this.width / 2, this.height / 2 - 40);
+
+            // 箭头
+            this.ctx.fillStyle = this.arrowDirection > 0 ? '#10b981' : '#ef4444';
+            this.ctx.beginPath();
+            if (this.arrowDirection > 0) {
+                this.ctx.moveTo(0, -10 + this.arrowPosition);
+                this.ctx.lineTo(-5, 0 + this.arrowPosition);
+                this.ctx.lineTo(5, 0 + this.arrowPosition);
+            } else {
+                this.ctx.moveTo(0, 10 + this.arrowPosition);
+                this.ctx.lineTo(-5, 0 + this.arrowPosition);
+                this.ctx.lineTo(5, 0 + this.arrowPosition);
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+
+            this.ctx.restore();
+        }
+
+        animate() {
+            this.ctx.clearRect(0, 0, this.width, this.height);
+
+            // 背景
+            this.ctx.fillStyle = 'rgba(243, 244, 246, 0.8)';
+            this.ctx.fillRect(0, 0, this.width, this.height);
+
+            // 更新动画参数
+            if (this.hovered) {
+                this.rotation += 0.5;
+                this.scale = 1 + Math.sin(Date.now() * 0.002) * 0.1;
+            } else {
+                this.rotation += 0.1;
+                this.scale = 1 + Math.sin(Date.now() * 0.001) * 0.05;
+            }
+
+            // 更新箭头
+            this.arrowPosition = Math.sin(Date.now() * 0.005) * 5;
+            if (Math.random() > 0.995) {
+                this.arrowDirection = -this.arrowDirection;
+            }
+
+            // 绘制
+            this.drawArrow();
+            this.drawBook();
+
+            this.animationId = requestAnimationFrame(() => this.animate());
+        }
+
+        stop() {
+            if (this.animationId) {
+                cancelAnimationFrame(this.animationId);
+            }
+        }
+    }
+
+    // 初始化所有动画
+    document.querySelectorAll('canvas[id^="animation-"]').forEach((canvas, index) => {
+        new BookAnimation(canvas.id);
+    });
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 周报列表样式 */
+    .reports-list {
+        display: grid;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    /* 新闻卡片样式 */
+    .news-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        display: flex;
+        gap: 1.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .news-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(to bottom, var(--primary), var(--secondary));
+        border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    }
+
+    .news-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    /* 日期徽章 */
+    .news-date-badge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+        padding: 1rem;
+        min-width: 80px;
+        flex-shrink: 0;
+        border: 1px solid var(--card-border);
+    }
+
+    .news-day {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary);
+        line-height: 1;
+    }
+
+    .news-month {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* 新闻卡片内容 */
+    .news-card-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .news-header {
+        margin-bottom: 0.75rem;
+    }
+
+    .news-title {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        line-height: 1.3;
+    }
+
+    .news-title a {
+        color: inherit;
+        text-decoration: none;
+        transition: color 0.3s ease;
+    }
+
+    .news-title a:hover {
+        color: var(--primary);
+    }
+
+    .news-meta {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+    }
+
+    .news-meta .news-period {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* 新闻摘要 */
+    .news-summary {
+        margin-bottom: 1rem;
+        line-height: 1.5;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+    }
+
+    /* 新闻亮点 */
+    .news-highlights {
+        margin-bottom: 1.25rem;
+    }
+
+    .highlights-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .highlights-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+        padding: 0.5rem 0.75rem;
+        border-radius: var(--radius-full);
+        border: 1px solid var(--card-border);
+    }
+
+    .highlights-list li .icon {
+        color: var(--primary);
+    }
+
+    /* 操作按钮 */
+    .news-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    /* 动画容器 */
+    .animation-container {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .animation-container canvas {
+        border-radius: var(--radius-lg);
+        background: var(--bg-secondary);
+        border: 1px solid var(--card-border);
+    }
+
+    /* 空状态 */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+    }
+
+    .empty-state .icon {
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+        margin: 0 0 0.5rem 0;
+        color: var(--text-primary);
+    }
+
+    .empty-state p {
+        margin: 0;
+        color: var(--text-secondary);
+    }
+
+    /* 关于部分 */
+    .section-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+    }
+
+    .section-title {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-content {
+        color: var(--text-secondary);
+    }
+
+    .section-content p {
+        margin: 0 0 1rem 0;
+    }
+
+    .section-content ul {
+        margin: 0;
+        padding-left: 1.5rem;
+    }
+
+    .section-content li {
+        margin-bottom: 0.5rem;
+    }
+
+    /* 筛选和搜索样式 */
+    .filter-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+    }
+
+    .filter-controls {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-end;
+    }
+
+    .filter-group {
+        flex: 1;
+    }
+
+    .filter-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .form-select {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        transition: border-color 0.3s ease;
+    }
+
+    .form-select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-box {
+        position: relative;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 3rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        transition: border-color 0.3s ease;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-btn {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: var(--radius-sm);
+        transition: all 0.3s ease;
+    }
+
+    .search-btn:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    /* 分页样式 */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .pagination-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .pagination-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .pagination-info {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    /* 分享按钮样式 */
+    .share-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* 刷新按钮样式 */
+    .refresh-btn {
+        margin-top: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* 动画效果 */
+    .news-card {
+        transition: all 0.3s ease;
+    }
+
+    .news-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    .news-card:active {
+        transform: translateY(0);
+    }
+
+    .btn {
+        transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn:active {
+        transform: translateY(0);
+    }
+
+    .highlights-list li {
+        transition: all 0.3s ease;
+    }
+
+    .highlights-list li:hover {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+
+    .highlights-list li:hover .icon {
+        color: white;
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .news-card {
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .news-date-badge {
+            flex-direction: row;
+            min-width: auto;
+            padding: 0.5rem 1rem;
+            gap: 1rem;
+        }
+
+        .news-day {
+            font-size: 1.25rem;
+        }
+
+        .news-title {
+            font-size: 1.125rem;
+        }
+
+        .highlights-list {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .highlights-list li {
+            padding: 0.5rem;
+        }
+
+        .news-actions {
+            flex-direction: column;
+        }
+
+        .filter-controls {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 1rem;
+        }
+
+        .filter-group {
+            width: 100%;
+        }
+
+        .pagination {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .pagination-btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .animation-container {
+            order: -1;
+            align-items: center;
+        }
+
+        .animation-container canvas {
+            width: 60px;
+            height: 60px;
+        }
+    }
+
+    /* 金色图标样式 */
+    .text-gold {
+        color: #ffc107;
+    }
+
+    /* 自定义滚动条 */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-sm);
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--text-muted);
+        border-radius: var(--radius-sm);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--text-secondary);
+    }
+</style>
+{% endblock %}

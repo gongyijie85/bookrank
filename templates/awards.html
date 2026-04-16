@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+
+{% block og_title %}{% if selected_award %}{{ selected_award }} - {% endif %}国际图书奖项榜单 - BookRank{% endblock %}
+{% block twitter_title %}{% if selected_award %}{{ selected_award }} - {% endif %}国际图书奖项榜单 - BookRank{% endblock %}
+
+{% block title %}{% if selected_award %}{{ selected_award }} - {% endif %}国际图书奖项榜单 - BookRank{% endblock %}
+
+{% block sidebar %}
+<aside aria-label="奖项分类">
+<div class="sidebar-section">
+    <h3 class="sidebar-title">奖项分类</h3>
+    <ul class="sidebar-menu" role="menu">
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards') }}"
+               class="sidebar-link {% if not selected_award %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if not selected_award %}page{% endif %}">
+                <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
+                <span>全部奖项</span>
+            </a>
+        </li>
+        {% for award in awards %}
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards', award=award.name) }}"
+               class="sidebar-link {% if selected_award == award.name %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if selected_award == award.name %}page{% endif %}">
+                <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
+                <span>{{ award.name }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="sidebar-section">
+    <h3 class="sidebar-title">年份筛选</h3>
+    <ul class="sidebar-menu" role="menu">
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards', award=selected_award) }}"
+               class="sidebar-link {% if not selected_year %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if not selected_year %}page{% endif %}">
+                <svg class="icon" width="18" height="18"><use href="#icon-calendar"/></svg>
+                <span>全部年份</span>
+            </a>
+        </li>
+        {% for year in years %}
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards', award=selected_award, year=year) }}"
+               class="sidebar-link {% if selected_year == year %}active{% endif %}"
+               role="menuitem"
+               aria-current="{% if selected_year == year %}page{% endif %}">
+                <svg class="icon" width="18" height="18"><use href="#icon-calendar"/></svg>
+                <span>{{ year }}年</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="sidebar-section">
+    <h3 class="sidebar-title">统计信息</h3>
+    <div class="sidebar-stats" aria-label="统计数据">
+        <div class="stat-item">
+            <span class="stat-value">{{ total_books }}</span>
+            <span class="stat-label">本图书</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ awards|length }}</span>
+            <span class="stat-label">个奖项</span>
+        </div>
+    </div>
+</div>
+</aside>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<header class="page-header">
+    <h1 class="page-title">
+        <svg class="icon text-gold" width="24" height="24"><use href="#icon-trophy"/></svg>
+        {% if selected_award %}
+            {{ selected_award }}
+        {% else %}
+            国际图书奖项榜单
+        {% endif %}
+    </h1>
+    <p class="page-subtitle">
+        {% if selected_award %}
+            {{ selected_award }}获奖图书展示
+        {% else %}
+            汇集全球最具影响力的图书奖项
+        {% endif %}
+        {% if selected_year %}
+            · {{ selected_year }}年
+        {% endif %}
+    </p>
+</header>
+
+<!-- Filter Bar -->
+<section class="filter-bar" aria-label="筛选选项">
+    <div class="filter-group">
+        <label class="filter-label" for="award-select">奖项</label>
+        <select class="filter-select" id="award-select" onchange="changeAward(this.value)">
+            <option value="">全部奖项</option>
+            {% for award in awards %}
+            <option value="{{ award.name }}" {% if selected_award == award.name %}selected{% endif %}>
+                {{ award.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label class="filter-label" for="year-select">年份</label>
+        <select class="filter-select" id="year-select" onchange="changeYear(this.value)">
+            <option value="">全部年份</option>
+            {% for year in years %}
+            <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>
+                {{ year }}年
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group search-box">
+        <label class="filter-label" for="search-input">搜索</label>
+        <div class="search-input-wrapper">
+            <input type="search"
+                   class="filter-input"
+                   id="search-input"
+                   placeholder="搜索书名或作者..."
+                   value="{{ search_query if search_query else '' }}"
+                   aria-label="搜索书名或作者">
+            <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
+        </div>
+    </div>
+
+    <div class="filter-actions">
+        <button class="btn btn-primary" onclick="applyFilters()" aria-label="应用筛选">
+            <svg class="icon" width="16" height="16"><use href="#icon-filter"/></svg>
+            筛选
+        </button>
+        <button class="btn btn-secondary" onclick="clearFilters()" aria-label="重置筛选">
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
+            重置
+        </button>
+    </div>
+
+    <div class="view-toggle" role="group" aria-label="视图切换">
+        <button class="btn btn-icon {% if view_mode == 'grid' or not view_mode %}active{% endif %}"
+                id="view-grid"
+                onclick="toggleView('grid')"
+                title="网格视图"
+                aria-label="切换到网格视图"
+                aria-pressed="{% if view_mode == 'grid' or not view_mode %}true{% else %}false{% endif %}">
+            <svg class="icon" width="18" height="18"><use href="#icon-grid"/></svg>
+        </button>
+        <button class="btn btn-icon {% if view_mode == 'list' %}active{% endif %}"
+                id="view-list"
+                onclick="toggleView('list')"
+                title="列表视图"
+                aria-label="切换到列表视图"
+                aria-pressed="{% if view_mode == 'list' %}true{% else %}false{% endif %}">
+            <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
+        </button>
+    </div>
+</section>
+
+<!-- Awards Info Cards -->
+{% if not selected_award %}
+<section class="awards-grid" aria-label="奖项列表">
+    {% for award in awards %}
+    <a href="{{ url_for('main.awards', award=award.name) }}"
+       class="award-card card-animate"
+
+       aria-label="{{ award.name }} - {{ award.book_count }}本图书">
+        <div class="award-icon" aria-hidden="true">
+            <svg class="icon" width="32" height="32"><use href="#icon-trophy"/></svg>
+        </div>
+        <div class="award-info">
+            <h3>{{ award.name }}</h3>
+            <p>{{ award.description[:60] }}{% if award.description|length > 60 %}...{% endif %}</p>
+            <div class="award-meta">
+                <span class="award-country">{{ award.country }}</span>
+                <span class="award-count">{{ award.book_count }}本图书</span>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- Books Grid View -->
+<section class="books-grid" id="books-grid" aria-label="图书网格视图">
+    {% for book in books %}
+    <article class="card card-animate"
+             onclick="window.location.href = '/award-book/{{ book.id }}'"
+             role="button"
+             tabindex="0"
+             aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
+        <div class="card-image">
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+                 alt="{{ book.title }}封面"
+                 loading="lazy"
+                 width="280"
+                 height="240"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+
+            <!-- Award Badge -->
+            <span class="card-badge award" aria-label="获奖图书">
+                <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
+            </span>
+
+            <!-- Year Badge -->
+            <span class="card-badge year">{{ book.year }}</span>
+
+            <!-- Favorite Button -->
+            <button class="card-favorite"
+                    onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')"
+                    aria-label="收藏 {{ book.title }}"
+                    aria-pressed="false">
+                <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
+            </button>
+        </div>
+
+        <div class="card-content">
+            <span class="card-award-tag">{{ book.award_name }}</span>
+            <h3 class="card-title"
+                title="{{ book.title_zh or book.title }}"
+                data-en="{{ book.title }}"
+                data-zh="{{ book.title_zh or book.title }}">
+                {{ book.title_zh or book.title }}
+            </h3>
+            <p class="card-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
+
+            <div class="card-meta">
+                <span class="card-tag">{{ book.category }}</span>
+                <span class="card-tag">{{ book.year }}年</span>
+            </div>
+
+            {% if book.description %}
+            <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</section>
+
+<!-- Books List View -->
+<section class="books-list" id="books-list" aria-label="图书列表视图">
+    {% for book in books %}
+    <article class="list-item card-animate"
+             onclick="window.location.href = '/award-book/{{ book.id }}'"
+             role="button"
+             tabindex="0"
+             aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
+        <div class="list-item-image">
+            <img src="{% if book.cover_local_path %}{{ book.cover_local_path }}{% elif book.isbn13 %}https://covers.openlibrary.org/b/isbn/{{ book.isbn13 }}-M.jpg{% else %}{{ url_for('static', filename='default-cover.png') }}{% endif %}"
+                 alt="{{ book.title }}封面"
+                 loading="lazy"
+                 width="100"
+                 height="150"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+
+        <div class="list-item-content">
+            <div class="list-item-header">
+                <span class="list-item-award">{{ book.award_name }}</span>
+                <h3 class="list-item-title"
+                    data-en="{{ book.title }}"
+                    data-zh="{{ book.title_zh or book.title }}">
+                    {{ book.title_zh or book.title }}
+                </h3>
+            </div>
+
+            <p class="list-item-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
+
+            {% if book.description %}
+            <p class="list-item-desc">{{ book.description }}</p>
+            {% endif %}
+
+            <div class="list-item-meta">
+                <span class="card-tag">{{ book.category }}</span>
+                <span class="card-tag">{{ book.year }}年</span>
+                {% if book.isbn13 %}
+                <span class="card-tag">ISBN: {{ book.isbn13 }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="list-item-actions">
+            <button class="btn btn-icon btn-outline"
+                    onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.id }}')"
+                    aria-label="收藏 {{ book.title }}"
+                    aria-pressed="false">
+                <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
+            </button>
+        </div>
+    </article>
+    {% endfor %}
+</section>
+
+<!-- Empty State -->
+{% if not books %}
+<section class="empty-state" aria-label="暂无数据">
+    <svg class="icon" width="48" height="48"><use href="#icon-inbox"/></svg>
+    <h2>暂无数据</h2>
+    <p>请尝试切换筛选条件或稍后重试</p>
+</section>
+{% endif %}
+
+<!-- Quick Link to Bestsellers -->
+<nav class="quick-link-section" aria-label="快速链接">
+    <a href="{{ url_for('main.index') }}" class="quick-link-card">
+        <svg class="icon" width="32" height="32"><use href="#icon-fire"/></svg>
+        <div>
+            <h3>查看纽约时报畅销书榜</h3>
+            <p>实时更新的畅销图书排行榜</p>
+        </div>
+        <svg class="icon" width="20" height="20"><use href="#icon-arrow-right"/></svg>
+    </a>
+</nav>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Change award filter
+    function changeAward(award) {
+        showLoading('加载中...');
+        const year = document.getElementById('year-select').value;
+        let url = '/awards';
+        if (award) url += `?award=${encodeURIComponent(award)}`;
+        if (year) url += `${award ? '&' : '?'}year=${year}`;
+        window.location.href = url;
+    }
+
+    // Change year filter
+    function changeYear(year) {
+        showLoading('加载中...');
+        const award = document.getElementById('award-select').value;
+        let url = '/awards';
+        if (award) url += `?award=${encodeURIComponent(award)}`;
+        if (year) url += `${award ? '&' : '?'}year=${year}`;
+        window.location.href = url;
+    }
+
+    // Apply filters
+    function applyFilters() {
+        const award = document.getElementById('award-select').value;
+        const year = document.getElementById('year-select').value;
+        const search = document.getElementById('search-input').value;
+
+        showLoading('搜索中...');
+
+        let url = '/awards';
+        const params = [];
+        if (award) params.push(`award=${encodeURIComponent(award)}`);
+        if (year) params.push(`year=${year}`);
+        if (search) params.push(`search=${encodeURIComponent(search)}`);
+
+        if (params.length > 0) {
+            url += '?' + params.join('&');
+        }
+
+        window.location.href = url;
+    }
+
+    // Clear filters
+    function clearFilters() {
+        showLoading('重置中...');
+        window.location.href = '/awards';
+    }
+
+    // Search on Enter key
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                applyFilters();
+            }
+        });
+    }
+
+    // Keyboard accessibility for cards
+    document.querySelectorAll('.card, .list-item').forEach(item => {
+        item.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.click();
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,94 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.trae/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+bestsellers.db
+
+# Cache
+cache/
+__pycache__/
+*.cache
+.pytest_cache/
+.mypy_cache/
+
+# Logs
+*.log
+logs/
+
+# Test files (root level only)
+/test_*.py
+/*_test.py
+
+# Translation cache (can be regenerated)
+translation_cache.json
+
+# Local development files (temporary)
+app.html
+book.py
+run_port8080.py
+run_prod.py
+init_db.py
+
+# AWS Elastic Beanstalk
+.elasticbeanstalk/
+.ebextensions/
+
+# Render
+render.yaml
+
+# Keywords folder
+keywords/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+commit.ps1
+commit_optimization.ps1
+push.ps1
+tatus'
+doc/0227.html
+doc/项目总结文档.md
+knowledge/

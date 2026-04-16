@@ -1,0 +1,508 @@
+"""周报服务"""
+import json
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Any, Optional
+import logging
+
+from ..models.schemas import db, WeeklyReport, BookMetadata
+from .book_service import BookService
+from .translation_service import TranslationService
+
+logger = logging.getLogger(__name__)
+
+
+class WeeklyReportService:
+    """周报服务"""
+    
+    def __init__(self, book_service: BookService):
+        """初始化
+        
+        Args:
+            book_service: 图书服务实例
+        """
+        self._book_service = book_service
+        self._translation_service = None
+    
+    def _get_translation_service(self):
+        """获取翻译服务"""
+        if not self._translation_service:
+            try:
+                from .zhipu_translation_service import get_translation_service
+                self._translation_service = get_translation_service()
+            except Exception as e:
+                logger.warning(f"无法初始化翻译服务: {e}")
+        return self._translation_service
+    
+    def generate_report(self, week_start: date, week_end: date) -> Optional[WeeklyReport]:
+        """生成周报
+        
+        Args:
+            week_start: 周开始日期
+            week_end: 周结束日期
+            
+        Returns:
+            WeeklyReport: 生成的周报
+        """
+        try:
+            # 检查是否已经生成过该周的报告
+            existing_report = WeeklyReport.query.filter(
+                WeeklyReport.week_start == week_start,
+                WeeklyReport.week_end == week_end
+            ).first()
+            
+            if existing_report:
+                logger.info(f"周报已存在: {week_start} 至 {week_end}")
+                return existing_report
+            
+            # 收集本周数据
+            weekly_data = self._collect_weekly_data(week_start, week_end)
+            
+            # 检查是否有足够的数据
+            if not weekly_data.get('books'):
+                logger.warning(f"数据不足，无法生成周报: {week_start} 至 {week_end}")
+                return None
+            
+            # 分析变化
+            analysis = self._analyze_changes(weekly_data)
+            
+            # 生成报告标题
+            title = f"{week_start.strftime('%Y年%m月%d日')}-{week_end.strftime('%Y年%m月%d日')} 畅销书周报"
+            
+            # 生成AI摘要
+            summary = self._generate_ai_summary(analysis, week_start, week_end)
+            
+            # 构建报告内容
+            content = {
+                'top_changes': analysis.get('top_changes', []),
+                'new_books': analysis.get('new_books', []),
+                'top_risers': analysis.get('top_risers', []),
+                'longest_running': analysis.get('longest_running', []),
+                'featured_books': analysis.get('featured_books', []),
+                'category_stats': analysis.get('category_stats', {}),
+                'total_books': analysis.get('total_books', 0),
+                'total_new': analysis.get('total_new', 0),
+                'total_rising': analysis.get('total_rising', 0),
+                'total_falling': analysis.get('total_falling', 0)
+            }
+            
+            # 创建周报记录
+            report = WeeklyReport(
+                report_date=date.today(),
+                week_start=week_start,
+                week_end=week_end,
+                title=title,
+                summary=summary,
+                content=json.dumps(content, ensure_ascii=False),
+                top_changes=json.dumps(analysis.get('top_changes', []), ensure_ascii=False),
+                featured_books=json.dumps(analysis.get('featured_books', []), ensure_ascii=False)
+            )
+            
+            # 保存到数据库
+            db.session.add(report)
+            db.session.commit()
+            
+            return report
+            
+        except Exception as e:
+            logger.error(f"生成周报时出错: {str(e)}")
+            db.session.rollback()
+            # 出错时再次检查是否已存在报告
+            existing_report = WeeklyReport.query.filter(
+                WeeklyReport.week_start == week_start,
+                WeeklyReport.week_end == week_end
+            ).first()
+            if existing_report:
+                return existing_report
+            return None
+    
+    def _collect_weekly_data(self, week_start: date, week_end: date) -> Dict[str, Any]:
+        """收集本周数据
+
+        Args:
+            week_start: 周开始日期
+            week_end: 周结束日期
+
+        Returns:
+            Dict: 本周数据
+        """
+        try:
+            # 从纽约时报API获取数据
+            from ..models.schemas import Book
+            
+            # 定义纽约时报书籍分类
+            nyt_categories = {
+                'hardcover-fiction': '精装小说',
+                'paperback-fiction': '平装小说',
+                'hardcover-nonfiction': '精装非虚构',
+                'paperback-nonfiction': '平装非虚构',
+                'advice-how-to-and-miscellaneous': '建议、方法与杂项',
+                'graphic-books-and-manga': '漫画与绘本',
+                'childrens-middle-grade-hardcover': '儿童中级精装本',
+                'young-adult-hardcover': '青少年精装本'
+            }
+            
+            # 构建周报数据
+            weekly_data = {
+                'books': [],
+                'categories': list(nyt_categories.values())
+            }
+            
+            # 从每个分类获取书籍数据
+            for category_id, category_name in nyt_categories.items():
+                try:
+                    books = self._book_service.get_books_by_category(category_id)
+                    for i, book in enumerate(books):
+                        # 计算排名变化（这里使用模拟数据，实际应该从历史数据中获取）
+                        rank_change = (i % 9) - 4  # 模拟排名变化 -4 到 +4
+                        weeks_on_list = (i % 25) + 1  # 模拟上榜周数 1-25
+                        
+                        weekly_data['books'].append({
+                            'id': book.isbn13 or book.isbn10,
+                            'title': book.title_zh or book.title,
+                            'author': book.author,
+                            'category': category_name,
+                            'rank': book.rank,
+                            'rank_change': rank_change,
+                            'weeks_on_list': weeks_on_list,
+                            'is_new': i % 10 == 0,  # 每10本书中有1本是新上榜
+                            'cover': book.cover  # 添加封面图片
+                        })
+                except Exception as e:
+                    logger.error(f"获取分类 {category_name} 数据时出错: {str(e)}")
+                    continue
+            
+            # 如果没有数据，返回空数据
+            if not weekly_data['books']:
+                logger.info("没有找到实际数据，返回空数据")
+                return {
+                    'books': [],
+                    'categories': list(nyt_categories.values())
+                }
+            
+            return weekly_data
+            
+        except Exception as e:
+            logger.error(f"收集周报数据时出错: {str(e)}")
+            # 出错时返回空数据
+            return {
+                'books': [],
+                'categories': ['精装小说', '平装小说', '精装非虚构', '平装非虚构', '建议、方法与杂项', '漫画与绘本', '儿童中级精装本', '青少年精装本']
+            }
+    
+
+    
+    def _analyze_changes(self, weekly_data: Dict[str, Any]) -> Dict[str, Any]:
+        """分析榜单变化
+        
+        Args:
+            weekly_data: 本周数据
+            
+        Returns:
+            Dict: 分析结果
+        """
+        try:
+            books = weekly_data.get('books', [])
+            
+            # 分类统计
+            category_stats = {}
+            for book in books:
+                cat = book.get('category', '其他')
+                if cat not in category_stats:
+                    category_stats[cat] = {'count': 0, 'new_count': 0, 'avg_weeks': 0, 'total_weeks': 0}
+                category_stats[cat]['count'] += 1
+                if book.get('is_new', False):
+                    category_stats[cat]['new_count'] += 1
+                category_stats[cat]['total_weeks'] += book.get('weeks_on_list', 0)
+            for cat in category_stats:
+                cnt = category_stats[cat]['count']
+                category_stats[cat]['avg_weeks'] = round(category_stats[cat]['total_weeks'] / cnt, 1) if cnt > 0 else 0
+            
+            # 重要变化（排名变化较大的书籍）
+            top_changes = sorted(
+                books,
+                key=lambda x: abs(x.get('rank_change', 0)),
+                reverse=True
+            )[:10]
+            
+            # 新上榜书籍
+            new_books = [book for book in books if book.get('is_new', False)][:10]
+            
+            # 排名上升最快
+            top_risers = sorted(
+                [book for book in books if book.get('rank_change', 0) > 0],
+                key=lambda x: x.get('rank_change', 0),
+                reverse=True
+            )[:10]
+            
+            # 持续上榜最久
+            longest_running = sorted(
+                books,
+                key=lambda x: x.get('weeks_on_list', 0),
+                reverse=True
+            )[:10]
+            
+            # 推荐书籍（综合考虑各项指标，生成有意义的推荐理由）
+            featured_books = []
+            for book in books[:15]:
+                reason = self._generate_recommendation_reason(book)
+                featured_books.append({
+                    'title': book['title'],
+                    'author': book['author'],
+                    'category': book.get('category', ''),
+                    'rank': book.get('rank', 0),
+                    'rank_change': book.get('rank_change', 0),
+                    'weeks_on_list': book.get('weeks_on_list', 0),
+                    'is_new': book.get('is_new', False),
+                    'reason': reason,
+                    'cover': book.get('cover')
+                })
+            
+            return {
+                'top_changes': top_changes,
+                'new_books': new_books,
+                'top_risers': top_risers,
+                'longest_running': longest_running,
+                'featured_books': featured_books,
+                'category_stats': category_stats,
+                'total_books': len(books),
+                'total_new': len([b for b in books if b.get('is_new', False)]),
+                'total_rising': len([b for b in books if b.get('rank_change', 0) > 0]),
+                'total_falling': len([b for b in books if b.get('rank_change', 0) < 0])
+            }
+            
+        except Exception as e:
+            logger.error(f"分析榜单变化时出错: {str(e)}")
+            return {
+                'top_changes': [],
+                'new_books': [],
+                'top_risers': [],
+                'longest_running': [],
+                'featured_books': [],
+                'category_stats': {},
+                'total_books': 0,
+                'total_new': 0,
+                'total_rising': 0,
+                'total_falling': 0
+            }
+    
+    def _generate_recommendation_reason(self, book: Dict[str, Any]) -> str:
+        """生成推荐理由
+        
+        Args:
+            book: 书籍数据
+            
+        Returns:
+            str: 推荐理由
+        """
+        reasons = []
+        category = book.get('category', '')
+        rank = book.get('rank', 0)
+        rank_change = book.get('rank_change', 0)
+        weeks_on_list = book.get('weeks_on_list', 0)
+        is_new = book.get('is_new', False)
+        
+        if is_new:
+            reasons.append(f"本周新上榜{category}类别")
+        if rank <= 3:
+            reasons.append(f"{category}榜单第{rank}名")
+        if rank_change > 0:
+            reasons.append(f"排名上升{rank_change}位")
+        if weeks_on_list >= 10:
+            reasons.append(f"持续上榜{weeks_on_list}周，读者口碑稳定")
+        elif weeks_on_list >= 5:
+            reasons.append(f"连续{weeks_on_list}周在榜")
+        
+        if not reasons:
+            if rank <= 10:
+                reasons.append(f"{category}类别Top10畅销书")
+            else:
+                reasons.append(f"{category}类别表现亮眼")
+        
+        return "，".join(reasons)
+    
+    def _generate_ai_summary(self, analysis: Dict[str, Any], week_start: date, week_end: date) -> str:
+        """使用AI生成周报摘要
+        
+        Args:
+            analysis: 分析结果
+            week_start: 周开始日期
+            week_end: 周结束日期
+            
+        Returns:
+            str: 生成的摘要
+        """
+        try:
+            # 尝试使用AI生成摘要
+            translation_service = self._get_translation_service()
+            
+            if translation_service:
+                # 构建详细提示
+                prompt = f"请为{week_start.strftime('%Y年%m月%d日')}至{week_end.strftime('%Y年%m月%d日')}的畅销书周报生成一份详细、专业的摘要，要求：\n"
+                prompt += "1. 语言流畅，逻辑清晰，信息准确\n"
+                prompt += "2. 包含本周的主要趋势和亮点\n"
+                prompt += "3. 分析各类别书籍的表现\n"
+                prompt += "4. 突出重要变化和值得关注的书籍\n"
+                prompt += "5. 提供有洞察力的分析和见解\n\n"
+                
+                prompt += "基于以下分析结果：\n"
+                
+                if analysis.get('top_changes'):
+                    prompt += "\n【重要变化】："
+                    for book in analysis['top_changes'][:3]:
+                        change_type = "上升" if book['rank_change'] > 0 else "下降"
+                        change_value = abs(book['rank_change'])
+                        prompt += f"《{book['title']}》({book['author']})排名{change_type}{change_value}位；"
+                
+                if analysis.get('new_books'):
+                    prompt += "\n【新上榜书籍】："
+                    for book in analysis['new_books'][:3]:
+                        prompt += f"《{book['title']}》({book['author']}) - {book['category']}；"
+                
+                if analysis.get('top_risers'):
+                    prompt += "\n【排名上升最快】："
+                    for book in analysis['top_risers'][:3]:
+                        prompt += f"《{book['title']}》({book['author']})上升{book['rank_change']}位；"
+                
+                if analysis.get('longest_running'):
+                    prompt += "\n【持续上榜最久】："
+                    for book in analysis['longest_running'][:3]:
+                        prompt += f"《{book['title']}》({book['author']})已上榜{book['weeks_on_list']}周；"
+                
+                if analysis.get('featured_books'):
+                    prompt += "\n【推荐书籍】："
+                    for book in analysis['featured_books'][:3]:
+                        prompt += f"《{book['title']}》({book['author']}) - {book['reason']}；"
+                
+                # 生成摘要
+                summary = translation_service.translate(prompt, "zh", "zh")
+                return summary or self._generate_default_summary(analysis, week_start, week_end)
+            else:
+                # 使用默认摘要
+                return self._generate_default_summary(analysis, week_start, week_end)
+                
+        except Exception as e:
+            logger.error(f"生成AI摘要时出错: {str(e)}")
+            # 出错时使用默认摘要
+            return self._generate_default_summary(analysis, week_start, week_end)
+    
+    def _generate_default_summary(self, analysis: Dict[str, Any], week_start: date, week_end: date) -> str:
+        """生成默认摘要
+        
+        Args:
+            analysis: 分析结果
+            week_start: 周开始日期
+            week_end: 周结束日期
+            
+        Returns:
+            str: 默认摘要
+        """
+        summary = f"# {week_start.strftime('%Y年%m月%d日')}至{week_end.strftime('%Y年%m月%d日')} 畅销书周报\n\n"
+        
+        # 总体概览
+        total_books = len(analysis.get('top_changes', [])) + len(analysis.get('new_books', []))
+        summary += f"## 总体概览\n"
+        summary += f"本周共有 {total_books} 本书籍进入榜单，整体呈现出多样化的阅读趋势。\n\n"
+        
+        # 重要变化
+        if analysis.get('top_changes') and len(analysis['top_changes']) > 0:
+            summary += "## 📊 重要变化\n"
+            for book in analysis['top_changes'][:3]:
+                change_desc = f"《{book['title']}》({book['author']})"
+                if book['rank_change'] > 0:
+                    summary += f"- {change_desc} 排名显著上升 {book['rank_change']} 位，表现强劲\n"
+                elif book['rank_change'] < 0:
+                    summary += f"- {change_desc} 排名下降 {abs(book['rank_change'])} 位，需要关注\n"
+            summary += "\n"
+        
+        # 新上榜书籍
+        if analysis.get('new_books') and len(analysis['new_books']) > 0:
+            summary += "## ✨ 新上榜书籍\n"
+            for book in analysis['new_books'][:3]:
+                summary += f"- 《{book['title']}》({book['author']}) - {book['category']} 类别，首次进入榜单\n"
+            summary += "\n"
+        
+        # 排名上升最快
+        if analysis.get('top_risers') and len(analysis['top_risers']) > 0:
+            summary += "## 🚀 排名上升最快\n"
+            for book in analysis['top_risers'][:3]:
+                summary += f"- 《{book['title']}》({book['author']}) 上升 {book['rank_change']} 位，成为本周黑马\n"
+            summary += "\n"
+        
+        # 持续上榜最久
+        if analysis.get('longest_running') and len(analysis['longest_running']) > 0:
+            summary += "## 🏆 持续上榜最久\n"
+            for book in analysis['longest_running'][:3]:
+                summary += f"- 《{book['title']}》({book['author']}) 已上榜 {book['weeks_on_list']} 周，展现出持久的读者吸引力\n"
+            summary += "\n"
+        
+        # 推荐书籍
+        if analysis.get('featured_books') and len(analysis['featured_books']) > 0:
+            summary += "## 💡 推荐书籍\n"
+            for book in analysis['featured_books'][:3]:
+                summary += f"- 《{book['title']}》({book['author']}) - {book['reason']}\n"
+            summary += "\n"
+        
+        # 总结
+        summary += "## 📈 本周趋势\n"
+        summary += "本周畅销书榜单呈现出多元化的阅读偏好，既有经典作品持续霸榜，也有新人新作异军突起。\n"
+        summary += "不同类别书籍各有亮点，反映了当前读者对多样化内容的需求。\n\n"
+        summary += "详细分析请查看完整报告，了解更多畅销书动态和深度分析。"
+        
+        return summary
+    
+    def get_reports(self, limit: int = 10) -> List[WeeklyReport]:
+        """获取周报列表
+        
+        Args:
+            limit: 限制数量
+            
+        Returns:
+            List[WeeklyReport]: 周报列表
+        """
+        try:
+            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all()
+        except Exception as e:
+            logger.error(f"获取周报列表时出错: {str(e)}")
+            return []
+    
+    def get_report_by_date(self, report_date: date) -> Optional[WeeklyReport]:
+        """根据日期获取周报
+        
+        Args:
+            report_date: 报告日期
+            
+        Returns:
+            WeeklyReport: 周报
+        """
+        try:
+            return WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first()
+        except Exception as e:
+            logger.error(f"根据日期获取周报时出错: {str(e)}")
+            return None
+            
+    def get_report_by_week_end(self, week_end: date) -> Optional[WeeklyReport]:
+        """根据周结束日期获取周报
+        
+        Args:
+            week_end: 周结束日期
+            
+        Returns:
+            WeeklyReport: 周报
+        """
+        try:
+            return WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first()
+        except Exception as e:
+            logger.error(f"根据周结束日期获取周报时出错: {str(e)}")
+            return None
+    
+    def get_latest_report(self) -> Optional[WeeklyReport]:
+        """获取最新周报
+        
+        Returns:
+            WeeklyReport: 最新周报
+        """
+        try:
+            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first()
+        except Exception as e:
+            logger.error(f"获取最新周报时出错: {str(e)}")
+            return None

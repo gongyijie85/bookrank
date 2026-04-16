@@ -1,0 +1,675 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title }} - BookRank{% endblock %}
+
+{% block content %}
+<main class="main-content book-detail-page">
+    <div class="book-detail-container">
+        <!-- 顶部导航栏 -->
+        <div class="detail-header">
+            <button class="back-button" onclick="window.location.href = '{{ back_url }}'" aria-label="返回">
+                <svg class="icon" width="24" height="24"><use href="#icon-arrow-left"/></svg>
+            </button>
+            <h1 class="detail-title">{{ book.title }}</h1>
+            <div class="header-spacer"></div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="book-detail-content">
+            <!-- 封面和购买链接 -->
+            <div class="detail-cover-section">
+                <div class="detail-cover">
+                    <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}" 
+                         alt="{{ book.title }} 封面" 
+                         width="300" height="450">
+                    <div class="detail-rank" aria-label="排名">
+                        {{ book_index + 1 }}
+                    </div>
+                </div>
+
+                <!-- 购买链接 -->
+                {% if book.buy_links %}
+                <div class="detail-buy-links">
+                    <h3>购买链接</h3>
+                    <div class="buy-links-list">
+                        {% for link in book.buy_links %}
+                        <a href="{{ link.url }}" class="buy-link" target="_blank" rel="noopener noreferrer">
+                            <svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg>
+                            {{ link.name }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- 书籍信息 -->
+            <div class="detail-info-section">
+
+                <div class="detail-header-info">
+                    <!-- 英文内容（默认显示） -->
+                    <div id="detail-content-en">
+                        <h2>{{ book.title }}</h2>
+                        <p class="detail-author">{{ book.author }}</p>
+                    </div>
+
+                    <!-- 中文内容（默认隐藏） -->
+                    <div id="detail-content-zh" style="display: none;">
+                        <h2 id="detail-title-zh">{{ book.title_zh or '' }}</h2>
+                        <p class="detail-author" id="detail-author-zh"></p>
+                    </div>
+                </div>
+
+                <!-- 元信息 -->
+                <div class="detail-meta">
+                    {% if book.publisher %}
+                    <div class="meta-item">
+                        <span class="meta-label">出版社</span>
+                        <span class="meta-value">{{ book.publisher }}</span>
+                    </div>
+                    {% endif %}
+                    {% if book.publication_dt %}
+                    <div class="meta-item">
+                        <span class="meta-label">出版日期</span>
+                        <span class="meta-value">{{ book.publication_dt }}</span>
+                    </div>
+                    {% endif %}
+                    {% if book.page_count %}
+                    <div class="meta-item">
+                        <span class="meta-label">页数</span>
+                        <span class="meta-value">{{ book.page_count }}</span>
+                    </div>
+                    {% endif %}
+                    {% if book.language %}
+                    <div class="meta-item">
+                        <span class="meta-label">语言</span>
+                        <span class="meta-value">{{ book.language }}</span>
+                    </div>
+                    {% endif %}
+                    {% if book.category_name %}
+                    <div class="meta-item">
+                        <span class="meta-label">分类</span>
+                        <span class="meta-value">{{ book.category_name }}</span>
+                    </div>
+                    {% endif %}
+                    {% if book.weeks_on_list %}
+                    <div class="meta-item">
+                        <span class="meta-label">上榜周数</span>
+                        <span class="meta-value">{{ book.weeks_on_list }}周</span>
+                    </div>
+                    {% endif %}
+                    {% if book.isbn13 %}
+                    <div class="meta-item">
+                        <span class="meta-label">ISBN</span>
+                        <span class="meta-value">{{ book.isbn13 }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- 标签页 -->
+                <div class="detail-tabs">
+                    <button class="tab-btn active" onclick="switchTab('description')" data-tab="description">
+                        图书简介
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('details')" data-tab="details">
+                        详细信息
+                    </button>
+                </div>
+
+                <!-- 标签页内容 -->
+                <div class="tab-content">
+                    <!-- 简介 -->
+                    <div class="tab-panel active" id="tab-description">
+                        <p class="desc-en">{{ book.description if book.description else '暂无简介' }}</p>
+                        <p class="desc-zh" style="display: none;" id="desc-zh-content">
+                            {{ book.description_zh or '暂无中文简介' }}
+                        </p>
+                    </div>
+
+                    <!-- 详细信息 -->
+                    <div class="tab-panel" id="tab-details">
+                        <div class="details-en">
+                            <p id="detail-description">{{ book.description if book.description else '暂无详细介绍' }}</p>
+                        </div>
+                        <div class="details-zh" style="display: none;">
+                            <p id="details-zh-content">
+                                {{ book.details_zh or book.description_zh or '暂无中文详情' }}
+                            </p>
+                        </div>
+                        <p id="detail-loading" style="display: none; color: var(--text-secondary); font-style: italic;">
+                            正在获取详细介绍...
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    // 当前详情页语言
+    let currentDetailLang = 'en';
+
+    // 标签页切换
+    function switchTab(tabName) {
+        // 更新标签按钮
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        // 更新内容面板
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+
+    /**
+     * 切换详情页语言
+     * @param {string} lang - 'en' 或 'zh'
+     */
+    function switchDetailLang(lang) {
+        if (lang === currentDetailLang) return;
+
+        currentDetailLang = lang;
+
+        // 更新按钮状态
+        document.getElementById('detail-lang-en').classList.toggle('active', lang === 'en');
+        document.getElementById('detail-lang-zh').classList.toggle('active', lang === 'zh');
+
+        // 切换标题和作者
+        document.getElementById('detail-content-en').style.display = lang === 'en' ? 'block' : 'none';
+        document.getElementById('detail-content-zh').style.display = lang === 'zh' ? 'block' : 'none';
+
+        // 切换描述内容
+        const descEn = document.querySelector('.desc-en');
+        const descZh = document.getElementById('desc-zh-content');
+        if (descEn) descEn.style.display = lang === 'en' ? 'block' : 'none';
+        if (descZh) descZh.style.display = lang === 'zh' ? 'block' : 'none';
+
+        // 切换详细信息
+        const detailsEn = document.querySelector('.details-en');
+        const detailsZh = document.querySelector('.details-zh');
+        if (detailsEn) detailsEn.style.display = lang === 'en' ? 'block' : 'none';
+        if (detailsZh) detailsZh.style.display = lang === 'zh' ? 'block' : 'none';
+
+        // 如果切换到中文且没有翻译数据，尝试从API获取
+        if (lang === 'zh') {
+            const titleZh = document.getElementById('detail-title-zh');
+            if (!titleZh || !titleZh.textContent.trim()) {
+                fetchAndTranslateDetail();
+            }
+        }
+    }
+
+    /**
+     * 获取并翻译详情页内容（带防抖和错误处理）
+     */
+    let _translateDetailFetchTime = 0;
+    const TRANSLATE_DETAIL_DEBOUNCE_MS = 1000; // 防抖1秒
+
+    async function fetchAndTranslateDetail() {
+        // 防抖：避免短时间内重复请求
+        const now = Date.now();
+        if (now - _translateDetailFetchTime < TRANSLATE_DETAIL_DEBOUNCE_MS) {
+            console.log('[Translation] 防抖跳过重复请求');
+            return;
+        }
+        _translateDetailFetchTime = now;
+
+        const isbn = '{{ book.isbn13 }}';
+        if (!isbn) {
+            console.warn('[Translation] 无ISBN，跳过翻译请求');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/translate/book/${isbn}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': await getCsrfToken()
+                }
+            });
+
+            // 检查HTTP状态码
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // 检查业务逻辑是否成功
+            if (!data.success) {
+                throw new Error(data.message || '翻译服务返回错误');
+            }
+
+            if (data.data && data.data.book) {
+                const book = data.data.book;
+
+                // 更新中文标题
+                const titleEl = document.getElementById('detail-title-zh');
+                if (titleEl && book.title_zh) {
+                    titleEl.textContent = book.title_zh;
+                }
+
+                // 更新中文描述
+                const descEl = document.getElementById('desc-zh-content');
+                if (descEl && book.description_zh) {
+                    descEl.textContent = book.description_zh;
+                }
+
+                // 更新中文详情
+                const detailsEl = document.getElementById('details-zh-content');
+                if (detailsEl && book.details_zh) {
+                    detailsEl.textContent = book.details_zh;
+                }
+
+                console.log('[Translation] 详情页翻译成功:', isbn);
+            } else {
+                console.warn('[Translation] 返回数据为空:', data);
+            }
+        } catch (error) {
+            console.error('[Translation] 获取翻译失败:', error);
+
+            // 用户友好的错误提示（如果 showToast 可用）
+            if (typeof window.showToast === 'function') {
+                window.showToast('翻译加载失败，请稍后重试', 'warning');
+            }
+
+            // 显示原始英文作为降级方案
+            const titleZh = document.getElementById('detail-title-zh');
+            if (titleZh && !titleZh.textContent.trim()) {
+                titleZh.textContent = '{{ book.title }}';
+                titleZh.style.fontStyle = 'italic';
+                titleZh.style.color = 'var(--text-secondary)';
+            }
+        }
+    }
+
+    // 如果有 ISBN，获取详细信息
+    {% if book.isbn13 %}
+    async function fetchBookDetails() {
+        const loadingEl = document.getElementById('detail-loading');
+        const descriptionEl = document.getElementById('detail-description');
+        
+        if (loadingEl && descriptionEl) {
+            loadingEl.style.display = 'block';
+            
+            try {
+                const response = await fetch(`/api/book-details?book_index={{ book_index }}&isbn={{ book.isbn13 }}`);
+                const data = await response.json();
+                
+                if (data.success && data.details) {
+                    descriptionEl.textContent = data.details;
+                }
+            } catch (error) {
+                console.error('Failed to fetch book details:', error);
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+    }
+    
+    // 页面加载完成后获取详细信息
+    window.addEventListener('load', function() {
+        // 延迟一点执行，确保页面已渲染
+        setTimeout(fetchBookDetails, 500);
+    });
+    {% endif %}
+</script>
+
+<style>
+.book-detail-page {
+    min-height: 100vh;
+    background: var(--bg-primary, #1a1a2e);
+}
+
+.book-detail-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* 顶部导航栏 */
+.detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    background: var(--bg-secondary, #16213e);
+    border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1));
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.back-button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: var(--text-primary, white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.back-button:hover,
+.back-button:active {
+    background: rgba(255,255,255,0.2);
+    transform: scale(1.05);
+}
+
+.detail-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary, white);
+    flex: 1;
+    text-align: center;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: calc(100% - 88px);
+}
+
+.header-spacer {
+    width: 44px;
+}
+
+/* 内容区域 */
+.book-detail-content {
+    flex: 1;
+    padding: 1.5rem;
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+/* 封面和购买链接 */
+.detail-cover-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 280px;
+    flex-shrink: 0;
+}
+
+.detail-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2/3;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.detail-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.detail-rank {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931a 100%);
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(255,107,53,0.4);
+}
+
+.detail-buy-links {
+    width: 100%;
+    max-width: 320px;
+}
+
+.detail-buy-links h3 {
+    font-size: 0.9rem;
+    color: var(--text-secondary, rgba(255,255,255,0.7));
+    text-align: center;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.buy-links-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.buy-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    text-decoration: none;
+    color: white;
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931a 100%);
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.buy-link:hover,
+.buy-link:active {
+    transform: scale(0.98);
+    box-shadow: 0 4px 16px rgba(255,107,53,0.3);
+}
+
+/* 书籍信息 */
+.detail-info-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    flex: 1;
+}
+
+.detail-header-info {
+    text-align: left;
+}
+
+.detail-header-info h2 {
+    font-size: 1.3rem;
+    color: var(--text-primary, white);
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+}
+
+.detail-author {
+    font-size: 1rem;
+    color: var(--text-secondary, rgba(255,255,255,0.7));
+    margin: 0;
+}
+
+/* 元信息 */
+.detail-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem 1rem;
+    padding: 1.5rem;
+    background: var(--bg-tertiary, rgba(0,0,0,0.2));
+    border-radius: 12px;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+}
+
+.meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.meta-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary, rgba(255,255,255,0.5));
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.meta-value {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary, white);
+}
+
+/* 语言切换器 */
+.detail-lang-switch {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 1rem;
+}
+
+.detail-lang-switch .lang-btn {
+    background: transparent;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.2));
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.detail-lang-switch .lang-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: var(--text-primary, white);
+}
+
+.detail-lang-switch .lang-btn.active {
+    background: linear-gradient(135deg, #ff6b35, #f7931a);
+    color: white;
+    border-color: transparent;
+}
+
+.detail-lang-switch .lang-divider {
+    color: var(--text-secondary, rgba(255,255,255,0.4));
+}
+
+/* 标签页 */
+.detail-tabs {
+    display: flex;
+    gap: 0;
+    background: var(--bg-tertiary, rgba(0,0,0,0.1));
+    border-radius: 10px;
+    padding: 0.25rem;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    background: var(--bg-secondary, #16213e);
+    color: var(--text-primary, white);
+}
+
+/* 标签页内容 */
+.tab-content {
+    margin-top: 0.5rem;
+}
+
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+.tab-panel p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-primary, white);
+    margin: 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .book-detail-content {
+        padding: 1rem;
+        gap: 1.5rem;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .detail-cover-section {
+        width: 240px;
+    }
+    
+    .detail-header-info {
+        text-align: center;
+    }
+    
+    .detail-meta {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+    
+    .detail-header {
+        padding: 0.75rem 1rem;
+    }
+    
+    .detail-title {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .detail-cover-section {
+        width: 200px;
+    }
+    
+    .detail-header-info h2 {
+        font-size: 1.1rem;
+    }
+    
+    .buy-link {
+        padding: 0.65rem 0.8rem;
+        font-size: 0.85rem;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}
