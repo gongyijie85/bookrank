@@ -36,6 +36,12 @@ class SimonSchusterCrawler(MixedCrawl4AICrawler):
     # 新书页面URL
     NEW_RELEASES_URL = "https://www.simonandschuster.com/books/new-releases"
 
+    def __init__(self, config=None):
+        super().__init__(config)
+        if config is None:
+            self.config.request_delay = 1.2
+            self.config.respect_robots_txt = False
+
     # 分类映射
     CATEGORY_MAP = {
         'fiction': '小说',

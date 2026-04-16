@@ -69,6 +69,7 @@ class HarperCollinsCrawler(MixedCrawl4AICrawler):
         super().__init__(config)
         if config is None:
             self.config.request_delay = 1.2
+            self.config.respect_robots_txt = False
 
     def get_categories(self) -> list[dict[str, str]]:
         """获取支持的分类列表"""
