@@ -1236,8 +1236,13 @@
             if (reportContent.top_changes && reportContent.top_changes.length > 0) {
                 const comparisonCtx = document.getElementById('week-comparison-chart').getContext('2d');
                 const labels = reportContent.top_changes.map(item => item.title);
-                const currentRanks = reportContent.top_changes.map(() => Math.floor(Math.random() * 20) + 1);
-                const previousRanks = reportContent.top_changes.map(item => item.rank_change > 0 ? currentRanks[reportContent.top_changes.indexOf(item)] + item.rank_change : currentRanks[reportContent.top_changes.indexOf(item)] - Math.abs(item.rank_change));
+                // 使用真实排名数据：当前排名 vs 上周排名
+                const currentRanks = reportContent.top_changes.map(item => item.rank || 0);
+                const previousRanks = reportContent.top_changes.map(item => {
+                    const change = item.rank_change || 0;
+                    const current = item.rank || 0;
+                    return Math.max(1, current + change);
+                });
                 
                 new Chart(comparisonCtx, {
                     type: 'bar',
@@ -1286,11 +1291,17 @@
                 });
             }
 
-            // 排名稳定性分析图
+            // 排名稳定性分析
             if (reportContent.top_changes && reportContent.top_changes.length > 0) {
                 const stabilityCtx = document.getElementById('stability-chart').getContext('2d');
-                const labels = reportContent.top_changes.map(item => item.title);
-                const stabilityScores = reportContent.top_changes.map(() => Math.floor(Math.random() * 100) + 1);
+                const stabilityLabels = reportContent.top_changes.map(item => item.title);
+                // 使用真实数据计算稳定性评分：基于上榜周数和排名变化
+                const stabilityScores = reportContent.top_changes.map(item => {
+                    const weeks = item.weeks_on_list || 1;
+                    const change = Math.abs(item.rank_change || 0);
+                    let score = (weeks * 10) - (change * 5);
+                    return Math.max(1, Math.min(100, score));
+                });
                 
                 new Chart(stabilityCtx, {
                     type: 'radar',
