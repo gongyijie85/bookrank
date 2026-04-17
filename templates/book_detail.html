@@ -47,6 +47,13 @@
             <div class="detail-info-section">
 
                 <div class="detail-header-info">
+                    <!-- 语言切换器 -->
+                    <div class="detail-lang-switch">
+                        <button class="lang-btn active" id="detail-lang-en" onclick="switchDetailLang('en')" title="显示英文">EN</button>
+                        <span class="lang-divider">|</span>
+                        <button class="lang-btn" id="detail-lang-zh" onclick="switchDetailLang('zh')" title="显示中文">中</button>
+                    </div>
+
                     <!-- 英文内容（默认显示） -->
                     <div id="detail-content-en">
                         <h2>{{ book.title }}</h2>
@@ -56,7 +63,7 @@
                     <!-- 中文内容（默认隐藏） -->
                     <div id="detail-content-zh" style="display: none;">
                         <h2 id="detail-title-zh">{{ book.title_zh or '' }}</h2>
-                        <p class="detail-author" id="detail-author-zh"></p>
+                        <p class="detail-author" id="detail-author-zh">{{ book.author_zh or '' }}</p>
                     </div>
                 </div>
 
@@ -252,6 +259,12 @@
                 const titleEl = document.getElementById('detail-title-zh');
                 if (titleEl && book.title_zh) {
                     titleEl.textContent = book.title_zh;
+                }
+
+                // 更新中文作者
+                const authorEl = document.getElementById('detail-author-zh');
+                if (authorEl && book.author_zh) {
+                    authorEl.textContent = book.author_zh;
                 }
 
                 // 更新中文描述

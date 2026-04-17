@@ -364,9 +364,21 @@
             </a>
         </li>
         <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.publishers') }}" class="sidebar-link" role="menuitem">
+                <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
+                <span>出版社导航</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
             <a href="{{ url_for('main.new_books') }}" class="sidebar-link active" role="menuitem" aria-current="page">
                 <svg class="icon" width="18" height="18"><use href="#icon-sparkles"/></svg>
                 <span>新书速递</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.weekly_reports') }}" class="sidebar-link" role="menuitem">
+                <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
+                <span>畅销书周报</span>
             </a>
         </li>
     </ul>
@@ -477,7 +489,8 @@
             <div class="book-title"
                  title="{{ book.title_zh or book.title }}"
                  data-en="{{ book.title }}"
-                 data-zh="{{ book.title_zh or book.title }}">
+                 data-zh="{{ book.title_zh or book.title }}"
+                 data-isbn="{{ book.isbn13 or '' }}">
                 {{ book.title_zh or book.title }}
             </div>
             <div class="book-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</div>
@@ -547,6 +560,92 @@
 
 {% block extra_js %}
 <script>
+    // 客户端翻译系统
+    const translationCache = {
+        getBook(isbn) {
+            if (!isbn) return null;
+            try {
+                const cached = localStorage.getItem(`bookrank_trans_${isbn}`);
+                return cached ? JSON.parse(cached) : null;
+            } catch { return null; }
+        },
+        saveBook(isbn, data) {
+            if (!isbn || !data) return;
+            try {
+                localStorage.setItem(`bookrank_trans_${isbn}`, JSON.stringify(data));
+            } catch {}
+        }
+    };
+
+    async function translateAllBooks() {
+        const books = document.querySelectorAll('.book-card');
+        if (!books.length) return;
+
+        const lang = localStorage.getItem('bookrank_language') || 'en';
+        if (lang === 'en') return;
+
+        const toTranslate = [];
+        for (let i = 0; i < books.length; i++) {
+            const card = books[i];
+            const titleEl = card.querySelector('.book-title');
+            if (!titleEl) continue;
+
+            const titleZh = titleEl.dataset.zh || '';
+            const titleEn = titleEl.dataset.en || '';
+            if (titleZh && titleZh !== titleEn) {
+                titleEl.textContent = titleZh;
+                continue;
+            }
+
+            const isbn = titleEl.dataset.isbn || '';
+            const cached = translationCache.getBook(isbn);
+            if (cached && cached.title_zh) {
+                titleEl.textContent = cached.title_zh;
+                continue;
+            }
+
+            if (isbn) toTranslate.push({ index: i, card, isbn });
+        }
+
+        for (const { index, card, isbn } of toTranslate) {
+            await translateSingleBook(index, card, isbn);
+        }
+    }
+
+    async function translateSingleBook(index, card, isbn) {
+        const titleEl = card.querySelector('.book-title');
+        const authorEl = card.querySelector('.book-author');
+        if (!titleEl || !isbn) return;
+
+        try {
+            const response = await fetch(`/api/translate/book/${isbn}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (data.success && data.data && data.data.book) {
+                const book = data.data.book;
+                if (book.title_zh) {
+                    titleEl.textContent = book.title_zh;
+                    titleEl.dataset.zh = book.title_zh;
+                }
+                if (authorEl && book.author_zh) {
+                    authorEl.textContent = book.author_zh;
+                }
+                translationCache.saveBook(isbn, book);
+            }
+        } catch (e) {
+            console.warn('[Translation] 翻译失败:', isbn, e);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const lang = localStorage.getItem('bookrank_language') || 'en';
+        if (lang === 'zh') {
+            translateAllBooks();
+        }
+    });
+
     function applyFilter() {
         const publisher = document.getElementById('publisher-filter').value;
         const category = document.getElementById('category-filter').value;

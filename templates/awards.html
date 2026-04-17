@@ -8,6 +8,42 @@
 {% block sidebar %}
 <aside aria-label="奖项分类">
 <div class="sidebar-section">
+    <h3 class="sidebar-title">导航</h3>
+    <ul class="sidebar-menu" role="menu">
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.index') }}" class="sidebar-link" role="menuitem">
+                <svg class="icon" width="18" height="18"><use href="#icon-fire"/></svg>
+                <span>畅销书榜</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.awards') }}" class="sidebar-link active" role="menuitem" aria-current="page">
+                <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
+                <span>获奖书单</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.publishers') }}" class="sidebar-link" role="menuitem">
+                <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
+                <span>出版社导航</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.new_books') }}" class="sidebar-link" role="menuitem">
+                <svg class="icon" width="18" height="18"><use href="#icon-sparkles"/></svg>
+                <span>新书速递</span>
+            </a>
+        </li>
+        <li class="sidebar-item" role="none">
+            <a href="{{ url_for('main.weekly_reports') }}" class="sidebar-link" role="menuitem">
+                <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
+                <span>畅销书周报</span>
+            </a>
+        </li>
+    </ul>
+</div>
+
+<div class="sidebar-section">
     <h3 class="sidebar-title">奖项分类</h3>
     <ul class="sidebar-menu" role="menu">
         <li class="sidebar-item" role="none">
@@ -231,7 +267,8 @@
             <h3 class="card-title"
                 title="{{ book.title_zh or book.title }}"
                 data-en="{{ book.title }}"
-                data-zh="{{ book.title_zh or book.title }}">
+                data-zh="{{ book.title_zh or book.title }}"
+                data-isbn="{{ book.isbn13 or '' }}">
                 {{ book.title_zh or book.title }}
             </h3>
             <p class="card-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
@@ -272,7 +309,8 @@
                 <span class="list-item-award">{{ book.award_name }}</span>
                 <h3 class="list-item-title"
                     data-en="{{ book.title }}"
-                    data-zh="{{ book.title_zh or book.title }}">
+                    data-zh="{{ book.title_zh or book.title }}"
+                    data-isbn="{{ book.isbn13 or '' }}">
                     {{ book.title_zh or book.title }}
                 </h3>
             </div>
@@ -330,6 +368,84 @@
 
 {% block extra_js %}
 <script>
+    // 客户端翻译系统
+    const translationCache = {
+        getBook(isbn) {
+            if (!isbn) return null;
+            try {
+                const cached = localStorage.getItem(`bookrank_trans_${isbn}`);
+                return cached ? JSON.parse(cached) : null;
+            } catch { return null; }
+        },
+        saveBook(isbn, data) {
+            if (!isbn || !data) return;
+            try {
+                localStorage.setItem(`bookrank_trans_${isbn}`, JSON.stringify(data));
+            } catch {}
+        }
+    };
+
+    async function translateAllBooks() {
+        const titleEls = document.querySelectorAll('.card-title, .list-item-title');
+        if (!titleEls.length) return;
+
+        const lang = localStorage.getItem('bookrank_language') || 'en';
+        if (lang === 'en') return;
+
+        const toTranslate = [];
+        for (let i = 0; i < titleEls.length; i++) {
+            const titleEl = titleEls[i];
+            const titleZh = titleEl.dataset.zh || '';
+            const titleEn = titleEl.dataset.en || '';
+            if (titleZh && titleZh !== titleEn) {
+                titleEl.textContent = titleZh;
+                continue;
+            }
+
+            const isbn = titleEl.dataset.isbn || '';
+            const cached = translationCache.getBook(isbn);
+            if (cached && cached.title_zh) {
+                titleEl.textContent = cached.title_zh;
+                continue;
+            }
+
+            if (isbn) toTranslate.push({ index: i, titleEl, isbn });
+        }
+
+        for (const { index, titleEl, isbn } of toTranslate) {
+            await translateSingleBook(index, titleEl, isbn);
+        }
+    }
+
+    async function translateSingleBook(index, titleEl, isbn) {
+        if (!titleEl || !isbn) return;
+
+        try {
+            const response = await fetch(`/api/translate/book/${isbn}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (data.success && data.data && data.data.book) {
+                const book = data.data.book;
+                if (book.title_zh) {
+                    titleEl.textContent = book.title_zh;
+                    titleEl.dataset.zh = book.title_zh;
+                }
+                translationCache.saveBook(isbn, book);
+            }
+        } catch (e) {
+            console.warn('[Translation] 翻译失败:', isbn, e);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const lang = localStorage.getItem('bookrank_language') || 'en';
+        if (lang === 'zh') {
+            translateAllBooks();
+        }
+    });
+
     // Change award filter
     function changeAward(award) {
         showLoading('加载中...');
