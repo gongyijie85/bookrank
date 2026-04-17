@@ -33,13 +33,14 @@ class WeeklyReportService:
                 logger.warning(f"无法初始化翻译服务: {e}")
         return self._translation_service
     
-    def generate_report(self, week_start: date, week_end: date) -> Optional[WeeklyReport]:
+    def generate_report(self, week_start: date, week_end: date, force_regenerate: bool = False) -> Optional[WeeklyReport]:
         """生成周报
-        
+
         Args:
             week_start: 周开始日期
             week_end: 周结束日期
-            
+            force_regenerate: 是否强制重新生成（即使已存在）
+
         Returns:
             WeeklyReport: 生成的周报
         """
@@ -49,10 +50,16 @@ class WeeklyReportService:
                 WeeklyReport.week_start == week_start,
                 WeeklyReport.week_end == week_end
             ).first()
-            
-            if existing_report:
+
+            if existing_report and not force_regenerate:
                 logger.info(f"周报已存在: {week_start} 至 {week_end}")
                 return existing_report
+
+            # 如果是强制重新生成且旧报告存在，先删除
+            if existing_report and force_regenerate:
+                logger.info(f"强制重新生成周报: {week_start} 至 {week_end}")
+                db.session.delete(existing_report)
+                db.session.commit()
             
             # 收集本周数据
             weekly_data = self._collect_weekly_data(week_start, week_end)
