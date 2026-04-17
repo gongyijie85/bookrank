@@ -105,24 +105,36 @@ class AwardCoverSyncService:
             封面URL或None
         """
         isbn = book.isbn13
-        if not isbn:
-            return None
+        title = book.title
+        author = book.author
 
-        # 方法1：Google Books API
-        try:
-            result = self._google_client.fetch_book_details(isbn)
-            if result and result.get('cover_url'):
-                return result['cover_url']
-        except Exception as e:
-            logger.debug(f"Google Books查询失败 ({isbn}): {e}")
+        # 方法1：Google Books API（通过ISBN查询）
+        if isbn:
+            try:
+                result = self._google_client.fetch_book_details(isbn)
+                if result and result.get('cover_url'):
+                    return result['cover_url']
+            except Exception as e:
+                logger.debug(f"Google Books ISBN查询失败 ({isbn}): {e}")
 
-        # 方法2：Open Library
-        try:
-            ol_cover = self._openlibrary_client.get_cover_url(isbn, size='L')
-            if ol_cover:
-                return ol_cover
-        except Exception as e:
-            logger.debug(f"Open Library查询失败 ({isbn}): {e}")
+        # 方法2：Open Library（通过ISBN查询）
+        if isbn:
+            try:
+                ol_cover = self._openlibrary_client.get_cover_url(isbn, size='L')
+                if ol_cover:
+                    return ol_cover
+            except Exception as e:
+                logger.debug(f"Open Library查询失败 ({isbn}): {e}")
+
+        # 方法3：Google Books API（通过书名+作者搜索）- 备选方案
+        if title and author:
+            try:
+                result = self._google_client.search_book_by_title(title, author)
+                if result and result.get('cover_url'):
+                    logger.info(f"通过书名搜索找到封面: {title}")
+                    return result['cover_url']
+            except Exception as e:
+                logger.debug(f"Google Books书名搜索失败 ({title}): {e}")
 
         return None
 
