@@ -17,7 +17,7 @@ class AwardCoverSyncService:
         self._openlibrary_client = openlibrary_client or OpenLibraryClient()
         self._is_running = False
 
-    def sync_missing_covers(self, batch_size: int = 10, delay: float = 0.5) -> dict:
+    def sync_missing_covers(self, batch_size: int = 10, delay: float = 1.5) -> dict:
         """
         同步缺失的获奖书籍封面
 

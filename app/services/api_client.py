@@ -323,6 +323,18 @@ class GoogleBooksClient:
                 timeout=self._timeout
             )
 
+            # 处理429限流错误：等待后重试
+            if response.status_code == 429:
+                import time
+                wait_time = 2
+                logger.warning(f"Google Books API 限流 (429)，等待 {wait_time}秒后重试...")
+                time.sleep(wait_time)
+                response = self._session.get(
+                    self._base_url,
+                    params=params,
+                    timeout=self._timeout
+                )
+
             if response.status_code == 400 and self._key_is_valid:
                 logger.warning("Google Books API Key 可能已失效，尝试无Key模式")
                 self._key_is_valid = False
