@@ -181,9 +181,12 @@ def _init_services(app):
 
     # 启动新书速递自动同步线程（14天一次）
     _start_auto_sync_thread(app)
-    
+
     # 启动周报自动生成线程（每周一次）
     _start_weekly_report_thread(app)
+
+    # 启动获奖书籍封面同步（启动后5分钟执行一次）
+    _start_award_cover_sync_thread(app)
 
 
 def _register_blueprints(app):
@@ -434,6 +437,43 @@ def _start_weekly_report_thread(app):
                     app.logger.error(f'记录周报生成失败时间失败: {log_error}')
 
     _start_background_thread(app, '周报自动生成', weekly_report_task, initial_delay=300, interval=604800)
+
+
+def _start_award_cover_sync_thread(app):
+    """启动获奖书籍封面自动同步线程（启动后执行一次）"""
+    def cover_sync_task():
+        with app.app_context():
+            try:
+                from .services.api_client import GoogleBooksClient
+                from .services.award_cover_sync_service import AwardCoverSyncService
+                from .config import Config
+
+                app.logger.info('开始检查获奖书籍封面...')
+
+                google_client = GoogleBooksClient(
+                    api_key=Config.GOOGLE_API_KEY,
+                    base_url='https://www.googleapis.com/books/v1/volumes'
+                )
+                sync_service = AwardCoverSyncService(google_client)
+
+                # 执行同步（最多处理30本书）
+                result = sync_service.sync_missing_covers(batch_size=30, delay=0.5)
+
+                if result.get('status') == 'success':
+                    app.logger.info(
+                        f"封面同步完成: 更新{result.get('updated', 0)}本, "
+                        f"跳过{result.get('skipped', 0)}本"
+                    )
+                elif result.get('status') == 'complete':
+                    app.logger.info("所有获奖书籍封面已完整")
+                else:
+                    app.logger.warning(f"封面同步状态: {result.get('status')}")
+
+            except Exception as e:
+                app.logger.error(f'封面同步失败: {e}', exc_info=True)
+
+    # 启动后5分钟执行一次（不重复，仅在需要时手动触发）
+    _start_background_thread(app, '获奖书籍封面同步', cover_sync_task, initial_delay=300, interval=0)
 
 
 app = create_app(os.environ.get('FLASK_ENV', 'development'))

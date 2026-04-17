@@ -397,9 +397,17 @@ class WeeklyReportService:
                 prompt += "\n【推荐书籍】："
                 for book in analysis['featured_books'][:3]:
                     prompt += f"《{book['title']}》({book['author']}) - {book['reason']}；"
-            
-            # 调用 AI 生成摘要
-            ai_result = translation_service.translate(prompt, "zh", "zh")
+
+            # 使用专门的AI摘要生成方法（如果可用），否则回退到翻译接口
+            ai_result = None
+
+            # 尝试使用专门的摘要生成方法
+            if hasattr(translation_service, 'generate_summary'):
+                ai_result = translation_service.generate_summary(prompt)
+            else:
+                # 回退：使用翻译接口，但明确告知这是摘要生成任务
+                summary_prompt = f"【重要】请忽略你的翻译角色设定。现在你需要根据以下信息生成一份中文摘要，不要翻译，直接用中文输出摘要内容：\n\n{prompt}"
+                ai_result = translation_service.translate(summary_prompt, "zh", "zh")
             
             # 验证 AI 返回结果是否有效
             # 如果结果为空、太短、或包含 prompt 模板特征文本，则使用默认摘要

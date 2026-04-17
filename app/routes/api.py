@@ -979,3 +979,54 @@ def get_popular_searches():
     except Exception as e:
         logger.error(f"获取热门搜索失败: {e}", exc_info=True)
         return APIResponse.error('获取热门搜索失败', 500)
+
+
+# ==================== 管理API ====================
+
+@api_bp.route('/admin/award-covers/sync', methods=['POST'])
+@csrf_protect
+def sync_award_covers():
+    """手动触发获奖书籍封面同步"""
+    try:
+        from ..services.api_client import GoogleBooksClient
+        from ..services.award_cover_sync_service import AwardCoverSyncService
+        from ..config import Config
+
+        google_client = GoogleBooksClient(
+            api_key=Config.GOOGLE_API_KEY,
+            base_url='https://www.googleapis.com/books/v1/volumes'
+        )
+        sync_service = AwardCoverSyncService(google_client)
+
+        # 获取参数
+        batch_size = min(max(1, request.json.get('batch_size', 10, type=int)), 50)
+
+        # 执行同步
+        result = sync_service.sync_missing_covers(batch_size=batch_size, delay=0.3)
+
+        return APIResponse.success(data=result, message=f"同步完成: 更新{result.get('updated', 0)}本")
+
+    except Exception as e:
+        logger.error(f"同步获奖书籍封面失败: {e}", exc_info=True)
+        return APIResponse.error('同步失败', 500)
+
+
+@api_bp.route('/admin/award-covers/status')
+def get_award_covers_status():
+    """获取获奖书籍封面同步状态"""
+    try:
+        from ..services.api_client import GoogleBooksClient
+        from ..services.award_cover_sync_service import AwardCoverSyncService
+
+        google_client = GoogleBooksClient(
+            api_key=None,
+            base_url='https://www.googleapis.com/books/v1/volumes'
+        )
+        sync_service = AwardCoverSyncService(google_client)
+        status = sync_service.get_sync_status()
+
+        return APIResponse.success(data=status)
+
+    except Exception as e:
+        logger.error(f"获取封面状态失败: {e}", exc_info=True)
+        return APIResponse.error('获取状态失败', 500)
