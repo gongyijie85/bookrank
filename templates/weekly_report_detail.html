@@ -1055,27 +1055,63 @@
         const modalClose = modalOverlay.querySelector('.modal-close');
         const modalBody = modalOverlay.querySelector('.modal-body');
 
+        // 构建书籍数据映射
+        function buildBookDataMap() {
+            if (!reportContent) return {};
+            const map = {};
+            const allBooks = [
+                ...(reportContent.top_changes || []),
+                ...(reportContent.new_books || []),
+                ...(reportContent.top_risers || []),
+                ...(reportContent.longest_running || []),
+                ...(reportContent.featured_books || [])
+            ];
+            for (const book of allBooks) {
+                const key = `${book.title}|${book.author}`;
+                if (!map[key]) map[key] = book;
+            }
+            return map;
+        }
+
+        const bookDataMap = buildBookDataMap();
+
         bookDetailBtns.forEach(btn => {
             btn.addEventListener('click', function() {
-                const bookTitle = this.closest('.book-item, .change-item, .recommendation-card').dataset.bookTitle;
-                const bookAuthor = this.closest('.book-item, .change-item, .recommendation-card').dataset.bookAuthor;
+                const parent = this.closest('.book-item, .change-item, .recommendation-card');
+                const bookTitle = parent.dataset.bookTitle;
+                const bookAuthor = parent.dataset.bookAuthor;
+                const key = `${bookTitle}|${bookAuthor}`;
+                const book = bookDataMap[key];
 
                 // 显示加载状态
                 modalBody.innerHTML = '<p>加载中...</p>';
                 modalOverlay.classList.add('active');
 
-                // 模拟书籍详情数据
-                setTimeout(() => {
+                if (book) {
+                    const changeHtml = book.rank_change !== undefined && book.rank_change !== 0
+                        ? `<p><strong>排名变化：</strong>${book.rank_change > 0 ? '↑' : '↓'} ${Math.abs(book.rank_change)} 位</p>`
+                        : '';
+                    const weeksHtml = book.weeks_on_list ? `<p><strong>上榜周数：</strong>${book.weeks_on_list} 周</p>` : '';
+                    const rankHtml = book.rank ? `<p><strong>当前排名：</strong>第 ${book.rank} 名</p>` : '';
+                    const categoryHtml = book.category ? `<p><strong>类别：</strong>${book.category}</p>` : '';
+                    const reasonHtml = book.reason ? `<p><strong>推荐理由：</strong>${book.reason}</p>` : '';
+
                     modalBody.innerHTML = `
                         <h4>${bookTitle}</h4>
                         <p><strong>作者：</strong>${bookAuthor}</p>
-                        <p><strong>简介：</strong>这是一本畅销书籍，内容丰富，深受读者喜爱。</p>
-                        <p><strong>出版社：</strong>知名出版社</p>
-                        <p><strong>出版日期：</strong>2026年</p>
-                        <p><strong>ISBN：</strong>978-XXXXXXXXXX</p>
-                        <p><strong>推荐理由：</strong>本书内容精彩，情节跌宕起伏，是一本值得阅读的好书。</p>
+                        ${categoryHtml}
+                        ${rankHtml}
+                        ${changeHtml}
+                        ${weeksHtml}
+                        ${reasonHtml}
                     `;
-                }, 500);
+                } else {
+                    modalBody.innerHTML = `
+                        <h4>${bookTitle}</h4>
+                        <p><strong>作者：</strong>${bookAuthor}</p>
+                        <p>暂无更多详情数据</p>
+                    `;
+                }
             });
         });
 
@@ -1306,7 +1342,7 @@
                 new Chart(stabilityCtx, {
                     type: 'radar',
                     data: {
-                        labels: labels,
+                        labels: stabilityLabels,
                         datasets: [{
                             label: '排名稳定性评分',
                             data: stabilityScores,
