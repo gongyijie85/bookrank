@@ -1060,25 +1060,24 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 标签页功能
+        // 1. 首先定义数据变量（必须在使用前定义）
+        const reportContent = {{ content | tojson if content else 'null' }};
+
+        // 2. 标签页切换功能
         const tabBtns = document.querySelectorAll('.tab-btn');
         const tabPanels = document.querySelectorAll('.tab-panel');
 
         tabBtns.forEach(btn => {
             btn.addEventListener('click', function() {
                 const tab = this.dataset.tab;
-
-                // 移除所有标签页的活动状态
                 tabBtns.forEach(b => b.classList.remove('active'));
                 tabPanels.forEach(p => p.classList.remove('active'));
-
-                // 添加当前标签页的活动状态
                 this.classList.add('active');
                 document.getElementById(tab).classList.add('active');
             });
         });
 
-        // 书籍详情弹窗
+        // 3. 书籍详情弹窗功能
         const bookDetailBtns = document.querySelectorAll('.book-detail-btn');
         const modalOverlay = document.createElement('div');
         modalOverlay.className = 'modal-overlay';
@@ -1118,6 +1117,7 @@
 
         const bookDataMap = buildBookDataMap();
 
+        // 绑定详情按钮事件
         bookDetailBtns.forEach(btn => {
             btn.addEventListener('click', function() {
                 const parent = this.closest('.book-item, .change-item, .recommendation-card');
@@ -1126,7 +1126,6 @@
                 const key = `${bookTitle}|${bookAuthor}`;
                 const book = bookDataMap[key];
 
-                // 显示加载状态
                 modalBody.innerHTML = '<p>加载中...</p>';
                 modalOverlay.classList.add('active');
 
@@ -1167,9 +1166,6 @@
                 modalOverlay.classList.remove('active');
             }
         });
-
-        // 提取数据
-        const reportContent = {{ content | tojson if content else 'null' }};
         
         if (reportContent) {
             // 排名变化图表
@@ -1218,39 +1214,46 @@
             }
             
             // 书籍类别分布图表
-            if (reportContent.books) {
+            const allBooksForCategory = [
+                ...(reportContent.top_changes || []),
+                ...(reportContent.new_books || []),
+                ...(reportContent.top_risers || []),
+                ...(reportContent.longest_running || []),
+                ...(reportContent.featured_books || [])
+            ];
+            
+            if (allBooksForCategory.length > 0) {
                 const categoryData = {};
-                reportContent.books.forEach(book => {
-                    const category = book.category || 'Other';
+                allBooksForCategory.forEach(book => {
+                    const category = book.category || '其他';
                     categoryData[category] = (categoryData[category] || 0) + 1;
                 });
                 
                 const categoryLabels = Object.keys(categoryData);
                 const categoryCounts = Object.values(categoryData);
                 
+                const colors = [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)',
+                    'rgba(199, 199, 199, 0.6)',
+                    'rgba(83, 102, 255, 0.6)',
+                    'rgba(255, 99, 255, 0.6)',
+                    'rgba(99, 255, 132, 0.6)'
+                ];
+                
                 const categoryCtx = document.getElementById('category-chart').getContext('2d');
                 new Chart(categoryCtx, {
-                    type: 'pie',
+                    type: 'doughnut',
                     data: {
                         labels: categoryLabels,
                         datasets: [{
                             data: categoryCounts,
-                            backgroundColor: [
-                                'rgba(255, 99, 132, 0.6)',
-                                'rgba(54, 162, 235, 0.6)',
-                                'rgba(255, 206, 86, 0.6)',
-                                'rgba(75, 192, 192, 0.6)',
-                                'rgba(153, 102, 255, 0.6)',
-                                'rgba(255, 159, 64, 0.6)'
-                            ],
-                            borderColor: [
-                                'rgba(255, 99, 132, 1)',
-                                'rgba(54, 162, 235, 1)',
-                                'rgba(255, 206, 86, 1)',
-                                'rgba(75, 192, 192, 1)',
-                                'rgba(153, 102, 255, 1)',
-                                'rgba(255, 159, 64, 1)'
-                            ],
+                            backgroundColor: colors.slice(0, categoryLabels.length),
+                            borderColor: colors.slice(0, categoryLabels.length).map(c => c.replace('0.6', '1')),
                             borderWidth: 1
                         }]
                     },
@@ -1260,6 +1263,17 @@
                         plugins: {
                             legend: {
                                 position: 'bottom'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return `${label}: ${value}本 (${percentage}%)`;
+                                    }
+                                }
                             }
                         }
                     }
