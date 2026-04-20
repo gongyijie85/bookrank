@@ -179,7 +179,11 @@
                             {% for change in content.top_changes %}
                             <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}">
                                 {% if change.cover %}
-                                <img src="{{ change.cover }}" alt="{{ change.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ change.cover }}" alt="{{ change.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="change-title">{{ change.title }}</span>
                                 <span class="change-author">{{ change.author }}</span>
@@ -210,7 +214,11 @@
                             {% for book in content.new_books %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="book-title">{{ book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
@@ -233,7 +241,11 @@
                             {% for book in content.top_risers %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="book-title">{{ book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
@@ -256,7 +268,11 @@
                             {% for book in content.longest_running %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="book-title">{{ book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
@@ -590,6 +606,20 @@
         border-radius: var(--radius-sm);
         box-shadow: var(--shadow-sm);
         flex-shrink: 0;
+        object-fit: cover;
+    }
+
+    .book-cover-placeholder {
+        width: 50px;
+        height: 75px;
+        border-radius: var(--radius-sm);
+        background: var(--bg-tertiary);
+        border: 1px dashed var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--text-muted);
     }
 
     .recommendation-cover {
