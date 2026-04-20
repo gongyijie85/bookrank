@@ -436,7 +436,7 @@ def _start_weekly_report_thread(app):
                 except Exception as log_error:
                     app.logger.error(f'记录周报生成失败时间失败: {log_error}')
 
-    _start_background_thread(app, '周报自动生成', weekly_report_task, initial_delay=300, interval=604800)
+    _start_background_thread(app, '周报自动生成', weekly_report_task, initial_delay=300, interval=86400)  # 每天检查，但只在周五生成
 
 
 def _start_award_cover_sync_thread(app):

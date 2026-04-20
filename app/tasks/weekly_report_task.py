@@ -10,13 +10,23 @@ logger = logging.getLogger(__name__)
 
 
 def generate_weekly_report() -> Optional[WeeklyReport]:
-    """生成周报"""
+    """生成周报
+    
+    每周五执行一次，生成上一周的周报（上周一至上周日）
+    """
     try:
         # 计算上周的开始和结束日期
         today = datetime.date.today()
-        # 上周日作为周结束
+        # 如果今天是周五（weekday=4），生成上周的周报
+        # 如果今天不是周五，不生成周报
+        if today.weekday() != 4:  # 0=周一, 4=周五
+            logger.info(f"今天不是周五（weekday={today.weekday()}），跳过周报生成")
+            return None
+            
+        # 计算上一周的日期范围
+        # 今天是周五时，上周日 = 今天 - (4+1) = 今天 - 5 天
+        # 上周一 = 上周日 - 6 天
         last_sunday = today - datetime.timedelta(days=today.weekday() + 1)
-        # 上周一作为周开始
         last_monday = last_sunday - datetime.timedelta(days=6)
         
         # 检查是否已经生成过该周的报告

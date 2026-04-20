@@ -18,8 +18,7 @@
             </div>
             <h1 class="news-hero-title">{{ report.title }}</h1>
             <div class="news-hero-highlights">
-                {% if report.content %}
-                {% set content = report.content %}
+                {% if content %}
                 <div class="highlights-grid">
                     {% if content.top_changes %}
                     <div class="highlight-item">
@@ -169,8 +168,6 @@
 
                 <!-- 详细分析标签页 -->
                 <div class="tab-panel" id="analysis">
-                    {% if report.content %}
-                    {% set content = report.content %}
                     {% if content %}
                     {% if content.top_changes %}
                     <div class="analysis-section">
@@ -297,16 +294,18 @@
 
                 <!-- 推荐书籍标签页 -->
                 <div class="tab-panel" id="recommendations">
-                    {% if report.content %}
-                    {% set content = report.content %}
-                    {% if content.featured_books %}
+                    {% if content and content.featured_books %}
                     <div class="analysis-section">
                         <h3 class="analysis-subheading">推荐书籍</h3>
                         <div class="recommendations-grid">
                             {% for book in content.featured_books %}
                             <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="recommendation-cover" width="80" height="120">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
+                                {% else %}
+                                <div class="recommendation-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="32" height="32"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <div class="recommendation-header">
                                     <h4 class="recommendation-title">{{ book.title }}</h4>
@@ -625,6 +624,22 @@
     .recommendation-cover {
         border-radius: var(--radius-sm);
         box-shadow: var(--shadow-md);
+        margin-bottom: 1rem;
+        align-self: center;
+        object-fit: cover;
+    }
+
+    .recommendation-cover-placeholder {
+        width: 80px;
+        height: 120px;
+        border-radius: var(--radius-sm);
+        background: var(--bg-tertiary);
+        border: 1px dashed var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--text-muted);
         margin-bottom: 1rem;
         align-self: center;
     }
@@ -1156,7 +1171,7 @@
         });
 
         // 提取数据
-        const reportContent = {{ report.content | tojson }};
+        const reportContent = {{ content | tojson if content else 'null' }};
         
         if (reportContent) {
             // 排名变化图表
