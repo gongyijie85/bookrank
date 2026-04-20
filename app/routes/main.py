@@ -505,6 +505,39 @@ def book_details_api():
         return {'success': False, 'error': 'Internal error'}
 
 
+@main_bp.route('/api/category-books')
+def api_category_books():
+    """AJAX获取分类图书列表"""
+    from flask import jsonify
+    
+    categories = current_app.config['CATEGORIES']
+    category = request.args.get('category', list(categories.keys())[0])
+    
+    if category not in categories:
+        return jsonify({'success': False, 'error': '无效的分类'}), 400
+    
+    books_data = []
+    update_time = None
+    
+    try:
+        book_service = current_app.extensions.get('book_service')
+        if book_service:
+            books = book_service.get_books_by_category(category)
+            if books:
+                books_data = [book.to_dict() for book in books]
+                update_time = book_service._cache.get_cache_time(f"books_{category}")
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to get cached books: {e}")
+    
+    return jsonify({
+        'success': True,
+        'books': books_data,
+        'category': category,
+        'update_time': update_time
+    })
+
+
 @main_bp.route('/reports/weekly')
 def weekly_reports():
     """周报列表页"""
