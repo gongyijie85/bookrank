@@ -106,14 +106,16 @@ class TranslationCacheService:
             raise ValueError("源文本和翻译结果不能为空")
         
         source_hash = self._compute_source_hash(source_text)
-
+        
+        # 检查是否已存在
         existing = TranslationCache.query.filter_by(
             source_hash=source_hash,
             source_lang=source_lang,
             target_lang=target_lang
         ).first()
-
+        
         if existing:
+            # 更新现有缓存
             existing.translated_text = translated_text
             existing.model_name = model_name or self.default_model
             existing.model_version = model_version
@@ -121,6 +123,7 @@ class TranslationCacheService:
             existing.last_used_at = datetime.now(timezone.utc)
             existing.usage_count += 1
         else:
+            # 创建新缓存
             existing = TranslationCache(
                 source_hash=source_hash,
                 source_text=source_text,
@@ -134,34 +137,12 @@ class TranslationCacheService:
                 last_used_at=datetime.now(timezone.utc)
             )
             db.session.add(existing)
-
+        
         try:
             db.session.commit()
             logger.info(f"翻译缓存已保存: {source_lang}->{target_lang}")
             return existing
         except Exception as e:
-            error_str = str(e).lower()
-            if 'unique' in error_str or 'duplicate' in error_str:
-                db.session.rollback()
-                existing = TranslationCache.query.filter_by(
-                    source_hash=source_hash,
-                    source_lang=source_lang,
-                    target_lang=target_lang
-                ).first()
-                if existing:
-                    existing.translated_text = translated_text
-                    existing.model_name = model_name or self.default_model
-                    existing.model_version = model_version
-                    existing.quality_score = quality_score
-                    existing.last_used_at = datetime.now(timezone.utc)
-                    existing.usage_count += 1
-                    try:
-                        db.session.commit()
-                        return existing
-                    except Exception as e2:
-                        logger.error(f"更新翻译缓存失败: {e2}")
-                        db.session.rollback()
-                        raise
             logger.error(f"保存翻译缓存失败: {e}")
             db.session.rollback()
             raise

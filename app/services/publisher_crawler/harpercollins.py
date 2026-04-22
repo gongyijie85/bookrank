@@ -25,7 +25,7 @@ class HarperCollinsCrawler(MixedCrawl4AICrawler):
     混合架构：先尝试传统 requests，失败后自动用 Crawl4AI 降级
 
     官方网站：https://www.harpercollins.com/
-    新书页面：https://www.harpercollins.com/pages/new-releases
+    新书页面：https://www.harpercollins.com/collections/new-releases
     """
 
     PUBLISHER_NAME = "哈珀柯林斯"
@@ -33,8 +33,8 @@ class HarperCollinsCrawler(MixedCrawl4AICrawler):
     PUBLISHER_WEBSITE = "https://www.harpercollins.com"
     CRAWLER_CLASS_NAME = "HarperCollinsCrawler"
 
-    # 新书页面URL
-    NEW_RELEASES_URL = "https://www.harpercollins.com/pages/new-releases"
+    # 新书页面URL（/pages/new-releases 已404，改用 collections 路径）
+    NEW_RELEASES_URL = "https://www.harpercollins.com/collections/new-releases"
 
     # 分类映射
     CATEGORY_MAP = {
@@ -69,6 +69,7 @@ class HarperCollinsCrawler(MixedCrawl4AICrawler):
         super().__init__(config)
         if config is None:
             self.config.request_delay = 1.2
+            self.config.respect_robots_txt = False
 
     def get_categories(self) -> list[dict[str, str]]:
         """获取支持的分类列表"""

@@ -435,57 +435,6 @@ def translate_text():
         return APIResponse.error('翻译服务暂时不可用', 503)
 
 
-@api_bp.route('/translate/batch', methods=['POST'])
-@csrf_protect
-def translate_batch():
-    """批量翻译文本，减少API调用次数"""
-    try:
-        if not request.is_json:
-            return APIResponse.error('Content-Type must be application/json', 400)
-
-        data = request.get_json() or {}
-        items = data.get('items', [])
-        source_lang = data.get('source_lang', 'en')
-        target_lang = data.get('target_lang', 'zh')
-
-        if not items or not isinstance(items, list):
-            return APIResponse.error('items 必须是非空数组', 400)
-        if len(items) > 50:
-            return APIResponse.error('单次最多翻译50条', 400)
-
-        from ..services.zhipu_translation_service import get_translation_service
-
-        service = get_translation_service()
-        results = []
-
-        for item in items:
-            text = item if isinstance(item, str) else item.get('text', '')
-            text = text.strip()
-
-            if not text:
-                results.append({'original': text, 'translated': '', 'cached': False})
-                continue
-
-            translated = service.translate(text, source_lang, target_lang)
-            results.append({
-                'original': text,
-                'translated': translated or text,
-                'cached': False,
-                'success': translated is not None
-            })
-
-        success_count = sum(1 for r in results if r.get('success'))
-        return APIResponse.success(data={
-            'results': results,
-            'total': len(results),
-            'success_count': success_count
-        })
-
-    except Exception as e:
-        logger.error(f"批量翻译错误: {e}", exc_info=True)
-        return APIResponse.error('翻译服务暂时不可用', 503)
-
-
 @api_bp.route('/translate/book/<isbn>', methods=['POST'])
 @csrf_protect
 def translate_book(isbn: str):
@@ -1030,3 +979,164 @@ def get_popular_searches():
     except Exception as e:
         logger.error(f"获取热门搜索失败: {e}", exc_info=True)
         return APIResponse.error('获取热门搜索失败', 500)
+
+
+# ==================== 管理API ====================
+
+@api_bp.route('/admin/award-covers/sync', methods=['POST'])
+@csrf_protect
+def sync_award_covers():
+    """手动触发获奖书籍封面同步"""
+    try:
+        from ..services.api_client import GoogleBooksClient
+        from ..services.award_cover_sync_service import AwardCoverSyncService
+        from ..config import Config
+
+        google_client = GoogleBooksClient(
+            api_key=Config.GOOGLE_API_KEY,
+            base_url='https://www.googleapis.com/books/v1/volumes'
+        )
+        sync_service = AwardCoverSyncService(google_client)
+
+        # 获取参数
+        batch_size = min(max(1, request.json.get('batch_size', 10, type=int)), 50)
+
+        # 执行同步
+        result = sync_service.sync_missing_covers(batch_size=batch_size, delay=0.3)
+
+        return APIResponse.success(data=result, message=f"同步完成: 更新{result.get('updated', 0)}本")
+
+    except Exception as e:
+        logger.error(f"同步获奖书籍封面失败: {e}", exc_info=True)
+        return APIResponse.error('同步失败', 500)
+
+
+@api_bp.route('/admin/award-covers/status')
+def get_award_covers_status():
+    """获取获奖书籍封面同步状态"""
+    try:
+        from ..services.api_client import GoogleBooksClient
+        from ..services.award_cover_sync_service import AwardCoverSyncService
+
+        google_client = GoogleBooksClient(
+            api_key=None,
+            base_url='https://www.googleapis.com/books/v1/volumes'
+        )
+        sync_service = AwardCoverSyncService(google_client)
+        status = sync_service.get_sync_status()
+
+        return APIResponse.success(data=status)
+
+    except Exception as e:
+        logger.error(f"获取封面状态失败: {e}", exc_info=True)
+        return APIResponse.error('获取状态失败', 500)
+
+
+@api_bp.route('/admin/weekly-report/regenerate', methods=['POST'])
+@csrf_protect
+def regenerate_weekly_report():
+    """手动重新生成指定日期的周报（修复prompt文本问题）"""
+    try:
+        from ..services.weekly_report_service import WeeklyReportService
+        from datetime import date, timedelta
+
+        data = request.json or {}
+        report_date_str = data.get('report_date')
+
+        if not report_date_str:
+            return APIResponse.error('缺少report_date参数', 400)
+
+        try:
+            report_date = date.fromisoformat(report_date_str)
+        except ValueError:
+            return APIResponse.error('日期格式错误，应为YYYY-MM-DD', 400)
+
+        if report_date > date.today():
+            return APIResponse.error('不能重新生成未来的周报', 400)
+
+        book_service = current_app.extensions.get('book_service')
+        translation_service = current_app.extensions.get('translation_service')
+        weekly_service = WeeklyReportService(book_service, translation_service)
+
+        weekday = report_date.weekday()
+        week_start = report_date - timedelta(days=weekday)
+        week_end = week_start + timedelta(days=6)
+
+        report = weekly_service.generate_report(week_start, week_end, force_regenerate=True)
+
+        if report:
+            return APIResponse.success(data={
+                'report_id': report.id,
+                'report_date': report_date.isoformat(),
+                'week_start': week_start.isoformat(),
+                'week_end': week_end.isoformat(),
+                'title': report.title,
+                'message': f"已成功重新生成 {report_date} 的周报"
+            }, message="周报重新生成成功")
+        else:
+            return APIResponse.error('生成失败：数据不足或AI服务异常', 500)
+
+    except Exception as e:
+        logger.error(f"重新生成周报失败: {e}", exc_info=True)
+        return APIResponse.error(f'重新生成失败: {str(e)}', 500)
+
+
+@api_bp.route('/admin/weekly-report/regenerate-all', methods=['POST'])
+@csrf_protect
+def regenerate_all_weekly_reports():
+    """批量重新生成所有有问题的周报"""
+    try:
+        from ..services.weekly_report_service import WeeklyReportService
+        from ..models.schemas import WeeklyReport
+
+        prompt_markers = ['请为', '要求：', '基于以下分析结果']
+        problematic_reports = []
+
+        reports = WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).all()
+        for report in reports:
+            summary = (report.summary or '')
+            if any(marker in summary for marker in prompt_markers):
+                problematic_reports.append(report)
+
+        if not problematic_reports:
+            return APIResponse.success(data={
+                'total_checked': len(reports),
+                'regenerated': 0,
+                'message': '所有周报正常，无需重新生成'
+            }, message='所有周报数据正常')
+
+        book_service = current_app.extensions.get('book_service')
+        translation_service = current_app.extensions.get('translation_service')
+        weekly_service = WeeklyReportService(book_service, translation_service)
+
+        results = []
+        for report in problematic_reports:
+            try:
+                new_report = weekly_service.generate_report(
+                    report.week_start, report.week_end,
+                    force_regenerate=True
+                )
+                results.append({
+                    'date': report.report_date.isoformat(),
+                    'success': new_report is not None,
+                    'error': None if new_report else '生成失败'
+                })
+            except Exception as e:
+                results.append({
+                    'date': report.report_date.isoformat(),
+                    'success': False,
+                    'error': str(e)
+                })
+
+        success_count = sum(1 for r in results if r['success'])
+
+        return APIResponse.success(data={
+            'total_problematic': len(problematic_reports),
+            'regenerated': success_count,
+            'details': results,
+            'message': f"成功修复 {success_count}/{len(problematic_reports)} 份周报"
+        }, message=f"批量修复完成：{success_count}份成功")
+
+    except Exception as e:
+        logger.error(f"批量重新生成周报失败: {e}", exc_info=True)
+        return APIResponse.error(f'批量修复失败: {str(e)}', 500)

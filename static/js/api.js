@@ -163,24 +163,6 @@ class ApiClient {
     }
 
     /**
-     * 批量翻译文本（减少API调用次数）
-     * @param {Array<string|Object>} items - 要翻译的文本数组
-     * @param {string} sourceLang - 源语言
-     * @param {string} targetLang - 目标语言
-     * @returns {Promise<Object>} 批量翻译结果
-     */
-    async translateBatch(items, sourceLang = 'en', targetLang = 'zh') {
-        return this.request('/api/translate/batch', {
-            method: 'POST',
-            body: JSON.stringify({
-                items: items,
-                source_lang: sourceLang,
-                target_lang: targetLang
-            })
-        });
-    }
-
-    /**
      * 获取翻译服务状态
      * @returns {Promise<Object>} 服务状态
      */

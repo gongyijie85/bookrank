@@ -18,6 +18,7 @@ class BookService:
         google_client: GoogleBooksClient,
         cache_service: CacheService,
         image_cache: ImageCacheService,
+        app=None,
         max_workers: int = 4,
         categories: dict | None = None
     ):
@@ -25,6 +26,7 @@ class BookService:
         self._google_client = google_client
         self._cache = cache_service
         self._image_cache = image_cache
+        self._app = app
         self._max_workers = max_workers
         self._categories = categories or {}
         
@@ -234,28 +236,68 @@ class BookService:
             return False
 
         try:
-            metadata = BookMetadata.query.get(isbn)
-            if not metadata:
-                metadata = BookMetadata(isbn=isbn, title='', author='')
-                db.session.add(metadata)
+            # 确保在应用上下文中执行数据库操作
+            if self._app:
+                with self._app.app_context():
+                    # 重新导入db以确保在正确的上下文中
+                    from ..models.database import db
+                    from ..models.schemas import BookMetadata
+                    
+                    metadata = BookMetadata.query.get(isbn)
+                    if not metadata:
+                        metadata = BookMetadata(isbn=isbn, title='', author='')
+                        db.session.add(metadata)
 
-            if title_zh:
-                metadata.title_zh = title_zh
-            if description_zh:
-                metadata.description_zh = description_zh
-            if details_zh:
-                metadata.details_zh = details_zh
+                    if title_zh:
+                        metadata.title_zh = title_zh
+                    if description_zh:
+                        metadata.description_zh = description_zh
+                    if details_zh:
+                        metadata.details_zh = details_zh
 
-            from datetime import datetime, timezone
-            metadata.translated_at = datetime.now(timezone.utc)
+                    from datetime import datetime, timezone
+                    metadata.translated_at = datetime.now(timezone.utc)
 
-            db.session.commit()
-            logger.info(f"翻译已保存: {isbn}")
-            return True
+                    db.session.commit()
+                    logger.info(f"翻译已保存: {isbn}")
+                    return True
+            else:
+                # 没有应用上下文，尝试直接执行（可能在请求上下文中）
+                from ..models.database import db
+                from ..models.schemas import BookMetadata
+                
+                metadata = BookMetadata.query.get(isbn)
+                if not metadata:
+                    metadata = BookMetadata(isbn=isbn, title='', author='')
+                    db.session.add(metadata)
+
+                if title_zh:
+                    metadata.title_zh = title_zh
+                if description_zh:
+                    metadata.description_zh = description_zh
+                if details_zh:
+                    metadata.details_zh = details_zh
+
+                from datetime import datetime, timezone
+                metadata.translated_at = datetime.now(timezone.utc)
+
+                db.session.commit()
+                logger.info(f"翻译已保存: {isbn}")
+                return True
 
         except Exception as e:
             logger.error(f"保存翻译失败: {e}")
-            db.session.rollback()
+            # 确保在异常处理中也使用正确的db对象
+            try:
+                if self._app:
+                    with self._app.app_context():
+                        from ..models.database import db
+                        db.session.rollback()
+                else:
+                    from ..models.database import db
+                    db.session.rollback()
+            except Exception:
+                pass
             return False
 
     def _auto_translate_books(self, books: list[Book]) -> None:

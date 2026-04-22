@@ -182,6 +182,10 @@ class BaseCrawler(ABC):
         Returns:
             是否允许访问
         """
+        # 如果配置为忽略robots.txt，直接允许访问
+        if not self.config.respect_robots_txt:
+            return True
+
         if not self._robots_parser:
             return True
 

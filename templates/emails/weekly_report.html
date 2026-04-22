@@ -162,6 +162,9 @@
                 <ul class="changes-list">
                     {% for change in content.top_changes[:5] %}
                     <li class="change-item">
+                        {% if change.cover %}
+                        <img src="{{ change.cover }}" alt="{{ change.title }}" style="width: 50px; height: 75px; border-radius: 4px; margin-right: 12px; vertical-align: top; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        {% endif %}
                         <strong>{{ change.title }}</strong> - {{ change.author }}<br>
                         类别：{{ change.category }}<br>
                         排名变化：

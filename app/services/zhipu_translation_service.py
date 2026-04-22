@@ -57,24 +57,24 @@ class ZhipuTranslationService:
     - 专业术语翻译准确
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "glm-4.7-flash"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "glm-4.7-flash", app=None):
         """
         初始化智谱AI翻译服务
 
         Args:
             api_key: 智谱AI API密钥，如果不提供则从环境变量获取
             model: 使用的模型，默认glm-4-flash
+            app: Flask应用实例，用于提供应用上下文
         """
         self.api_key = api_key or os.environ.get("ZHIPU_API_KEY")
         self.model = model
         self._client = None
         self._last_request_time = 0
-        self._request_interval = 1.0
-        self._consecutive_429_count = 0
-        self._429_backoff_until = 0
+        self._request_interval = 0.1
         self._author_name_cache: OrderedDict[str, str] = OrderedDict()
         self._author_name_cache_max_size = 1000
         self._cache_service = None
+        self._app = app
 
         self._system_prompt = """你是一位资深的图书翻译专家，专门负责将英文图书信息翻译成中文。
 
@@ -137,15 +137,21 @@ class ZhipuTranslationService:
 
     def translate(self, text: str, source_lang: str = 'en',
                   target_lang: str = 'zh') -> Optional[str]:
+        """
+        翻译文本
+
+        Args:
+            text: 要翻译的文本
+            source_lang: 源语言代码（目前只支持en）
+            target_lang: 目标语言代码（目前只支持zh）
+
+        Returns:
+            翻译后的文本，失败返回None
+        """
         if not text or not text.strip():
             return text
 
-        # 429退避检查：如果之前连续遇到429，直接跳过智谱AI
         current_time = time.time()
-        if self._429_backoff_until > current_time:
-            logger.debug(f"智谱AI 429退避中，剩余 {self._429_backoff_until - current_time:.1f}s")
-            return None
-
         time_since_last = current_time - self._last_request_time
         if time_since_last < self._request_interval:
             time.sleep(self._request_interval - time_since_last)
@@ -166,7 +172,6 @@ class ZhipuTranslationService:
             )
 
             self._last_request_time = time.time()
-            self._consecutive_429_count = 0
 
             if response and response.choices:
                 result = response.choices[0].message.content
@@ -175,14 +180,7 @@ class ZhipuTranslationService:
                     return result.strip()
 
         except Exception as e:
-            error_str = str(e)
-            if '429' in error_str or '速率限制' in error_str or 'rate' in error_str.lower():
-                self._consecutive_429_count += 1
-                backoff_seconds = min(60, 10 * (2 ** (self._consecutive_429_count - 1)))
-                self._429_backoff_until = time.time() + backoff_seconds
-                logger.warning(f"智谱AI 429限流，退避 {backoff_seconds}s（连续第{self._consecutive_429_count}次）")
-            else:
-                logger.warning(f"智谱AI翻译失败: {e}")
+            logger.warning(f"智谱AI翻译失败: {e}")
 
         return None
 
@@ -287,16 +285,18 @@ class HybridTranslationService:
     内置缓存系统避免重复翻译相同内容
     """
 
-    def __init__(self, zhipu_api_key: Optional[str] = None):
+    def __init__(self, zhipu_api_key: Optional[str] = None, app=None):
         """
         初始化混合翻译服务
 
         Args:
             zhipu_api_key: 智谱AI API密钥
+            app: Flask应用实例，用于提供应用上下文
         """
-        self.zhipu = ZhipuTranslationService(api_key=zhipu_api_key)
+        self.zhipu = ZhipuTranslationService(api_key=zhipu_api_key, app=app)
         self._fallback = None
         self._cache_service = None
+        self._app = app
 
     def _get_cache_service(self):
         """获取缓存服务"""
@@ -337,10 +337,19 @@ class HybridTranslationService:
         cache_service = self._get_cache_service()
         if cache_service:
             try:
-                cached = cache_service.get(text, source_lang, target_lang)
-                if cached:
-                    logger.debug("缓存命中，返回翻译结果")
-                    return cached.translated_text
+                # 使用应用上下文读取缓存
+                if self._app:
+                    with self._app.app_context():
+                        cached = cache_service.get(text, source_lang, target_lang)
+                        if cached:
+                            logger.debug("缓存命中，返回翻译结果")
+                            return cached.translated_text
+                else:
+                    # 没有应用上下文，尝试直接执行
+                    cached = cache_service.get(text, source_lang, target_lang)
+                    if cached:
+                        logger.debug("缓存命中，返回翻译结果")
+                        return cached.translated_text
             except Exception as e:
                 logger.debug(f"缓存读取失败: {e}")
 
@@ -358,9 +367,17 @@ class HybridTranslationService:
 
         if translated and cache_service:
             try:
-                cache_service.set(text, translated, source_lang, target_lang,
-                                model_name='glm-4.7-flash')
-                logger.info("翻译结果已缓存")
+                # 使用应用上下文保存缓存
+                if self._app:
+                    with self._app.app_context():
+                        cache_service.set(text, translated, source_lang, target_lang,
+                                        model_name='glm-4.7-flash')
+                        logger.info("翻译结果已缓存")
+                else:
+                    # 没有应用上下文，尝试直接执行
+                    cache_service.set(text, translated, source_lang, target_lang,
+                                    model_name='glm-4.7-flash')
+                    logger.info("翻译结果已缓存")
             except Exception as e:
                 logger.warning(f"缓存翻译结果失败: {e}")
 
@@ -420,11 +437,17 @@ class HybridTranslationService:
 _hybrid_translation_service = None
 
 
-def get_translation_service() -> HybridTranslationService:
-    """获取全局翻译服务实例"""
+def get_translation_service(app=None) -> HybridTranslationService:
+    """获取全局翻译服务实例（容错初始化）"""
     global _hybrid_translation_service
     if _hybrid_translation_service is None:
-        _hybrid_translation_service = HybridTranslationService()
+        try:
+            _hybrid_translation_service = HybridTranslationService(app=app)
+        except Exception as e:
+            logger.warning(f"翻译服务初始化失败，返回空服务: {e}")
+            # 返回一个空服务，避免调用方崩溃
+            _hybrid_translation_service = HybridTranslationService(app=app)
+            _hybrid_translation_service.zhipu = ZhipuTranslationService(api_key=None, app=app)
     return _hybrid_translation_service
 
 

@@ -26,7 +26,7 @@ CRAWLER_MAP: dict[str, type] = {}
 
 
 def _init_crawler_map():
-    """初始化爬虫映射（延迟导入避免循环依赖）"""
+    """初始化爬虫映射（延迟导入避免循环依赖，带完整异常保护）"""
     global CRAWLER_MAP
     if CRAWLER_MAP:
         return
@@ -35,45 +35,45 @@ def _init_crawler_map():
     try:
         from .publisher_crawler.open_library import OpenLibraryCrawler
         CRAWLER_MAP['OpenLibraryCrawler'] = OpenLibraryCrawler
-    except ImportError:
-        logger.warning("无法导入 OpenLibraryCrawler")
+    except Exception as e:
+        logger.warning(f"无法导入 OpenLibraryCrawler: {e}")
 
     try:
         from .publisher_crawler.google_books import GoogleBooksCrawler
         CRAWLER_MAP['GoogleBooksCrawler'] = GoogleBooksCrawler
-    except ImportError:
-        logger.warning("无法导入 GoogleBooksCrawler")
+    except Exception as e:
+        logger.warning(f"无法导入 GoogleBooksCrawler: {e}")
 
     # 出版社爬虫
     try:
         from .publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
         CRAWLER_MAP['PenguinRandomHouseCrawler'] = PenguinRandomHouseCrawler
-    except ImportError:
-        logger.warning("无法导入 PenguinRandomHouseCrawler")
+    except Exception as e:
+        logger.warning(f"无法导入 PenguinRandomHouseCrawler: {e}")
 
     try:
         from .publisher_crawler.simon_schuster import SimonSchusterCrawler
         CRAWLER_MAP['SimonSchusterCrawler'] = SimonSchusterCrawler
-    except ImportError:
-        logger.warning("无法导入 SimonSchusterCrawler")
+    except Exception as e:
+        logger.warning(f"无法导入 SimonSchusterCrawler: {e}")
 
     try:
         from .publisher_crawler.hachette import HachetteCrawler
         CRAWLER_MAP['HachetteCrawler'] = HachetteCrawler
-    except ImportError:
-        logger.warning("无法导入 HachetteCrawler")
+    except Exception as e:
+        logger.warning(f"无法导入 HachetteCrawler: {e}")
 
     try:
         from .publisher_crawler.harpercollins import HarperCollinsCrawler
         CRAWLER_MAP['HarperCollinsCrawler'] = HarperCollinsCrawler
-    except ImportError:
-        logger.warning("无法导入 HarperCollinsCrawler")
+    except Exception as e:
+        logger.warning(f"无法导入 HarperCollinsCrawler: {e}")
 
     try:
         from .publisher_crawler.macmillan import MacmillanCrawler
         CRAWLER_MAP['MacmillanCrawler'] = MacmillanCrawler
-    except ImportError:
-        logger.warning("无法导入 MacmillanCrawler")
+    except Exception as e:
+        logger.warning(f"无法导入 MacmillanCrawler: {e}")
 
 
 class NewBookService:
@@ -142,7 +142,7 @@ class NewBookService:
             translation_service: 翻译服务（可选）
         """
         self._cache = cache_service
-        self._translator = translation_service or get_translation_service()
+        self._translator = translation_service  # 仅在传入时使用，不主动初始化
         _init_crawler_map()
 
     # ==================== 出版社管理 ====================
@@ -557,7 +557,9 @@ class NewBookService:
         Returns:
             (书籍列表, 总数)
         """
-        query = NewBook.query.filter(NewBook.is_displayable == True)
+        from sqlalchemy.orm import joinedload
+
+        query = NewBook.query.options(joinedload(NewBook.publisher)).filter(NewBook.is_displayable == True)
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         query = query.filter(NewBook.created_at >= cutoff_date)
@@ -607,9 +609,11 @@ class NewBookService:
         Returns:
             (书籍列表, 总数)
         """
+        from sqlalchemy.orm import joinedload
+
         search_pattern = f"%{keyword}%"
 
-        query = NewBook.query.filter(
+        query = NewBook.query.options(joinedload(NewBook.publisher)).filter(
             db.or_(
                 NewBook.title.ilike(search_pattern),
                 NewBook.title_zh.ilike(search_pattern),

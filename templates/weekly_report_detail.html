@@ -18,8 +18,7 @@
             </div>
             <h1 class="news-hero-title">{{ report.title }}</h1>
             <div class="news-hero-highlights">
-                {% if report.content %}
-                {% set content = report.content %}
+                {% if content %}
                 <div class="highlights-grid">
                     {% if content.top_changes %}
                     <div class="highlight-item">
@@ -169,8 +168,6 @@
 
                 <!-- 详细分析标签页 -->
                 <div class="tab-panel" id="analysis">
-                    {% if report.content %}
-                    {% set content = report.content %}
                     {% if content %}
                     {% if content.top_changes %}
                     <div class="analysis-section">
@@ -179,7 +176,11 @@
                             {% for change in content.top_changes %}
                             <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}">
                                 {% if change.cover %}
-                                <img src="{{ change.cover }}" alt="{{ change.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ change.cover }}" alt="{{ change.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="change-title">{{ change.title }}</span>
                                 <span class="change-author">{{ change.author }}</span>
@@ -210,7 +211,11 @@
                             {% for book in content.new_books %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="book-title">{{ book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
@@ -233,7 +238,11 @@
                             {% for book in content.top_risers %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="book-title">{{ book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
@@ -256,7 +265,11 @@
                             {% for book in content.longest_running %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="40" height="60">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <span class="book-title">{{ book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
@@ -276,21 +289,22 @@
                         <p>暂无详细分析数据</p>
                     </div>
                     {% endif %}
-                    {% endif %}
                 </div>
 
                 <!-- 推荐书籍标签页 -->
                 <div class="tab-panel" id="recommendations">
-                    {% if report.content %}
-                    {% set content = report.content %}
-                    {% if content.featured_books %}
+                    {% if content and content.featured_books %}
                     <div class="analysis-section">
                         <h3 class="analysis-subheading">推荐书籍</h3>
                         <div class="recommendations-grid">
                             {% for book in content.featured_books %}
                             <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="recommendation-cover" width="80" height="120">
+                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
+                                {% else %}
+                                <div class="recommendation-cover-placeholder" title="暂无封面">
+                                    <svg class="icon" width="32" height="32"><use href="#icon-book"/></svg>
+                                </div>
                                 {% endif %}
                                 <div class="recommendation-header">
                                     <h4 class="recommendation-title">{{ book.title }}</h4>
@@ -311,7 +325,6 @@
                     <div class="empty-content">
                         <p>暂无推荐书籍</p>
                     </div>
-                    {% endif %}
                     {% endif %}
                 </div>
             </div>
@@ -362,12 +375,39 @@
 
 {% block extra_css %}
 <style>
-    /* 新闻风格头部 */
+    /* ============================================
+       BookRank 周报详情页样式 (Notion 设计系统)
+       ============================================ */
+
+    /* -- 颜色变量 (Notion 暖色中性调) -- */
+    :root {
+        --n-black: rgba(0, 0, 0, 0.95);
+        --n-white: #ffffff;
+        --n-blue: #0075de;
+        --n-blue-hover: #005bab;
+        --n-warm-white: #f6f5f4;
+        --n-warm-dark: #31302e;
+        --n-warm-gray-500: #615d59;
+        --n-warm-gray-300: #a39e98;
+        --n-teal: #2a9d99;
+        --n-green: #1aae39;
+        --n-orange: #dd5b00;
+        --n-pink: #ff64c8;
+        --n-purple: #391c57;
+        --n-badge-bg: #f2f9ff;
+        --n-badge-text: #097fe8;
+        --n-focus: #097fe8;
+        --n-shadow-card: rgba(0,0,0,0.04) 0px 4px 18px, rgba(0,0,0,0.027) 0px 2.025px 7.84688px, rgba(0,0,0,0.02) 0px 0.8px 2.925px, rgba(0,0,0,0.01) 0px 0.175px 1.04062px;
+        --n-shadow-deep: rgba(0,0,0,0.01) 0px 1px 3px, rgba(0,0,0,0.02) 0px 3px 7px, rgba(0,0,0,0.02) 0px 7px 15px, rgba(0,0,0,0.04) 0px 14px 28px, rgba(0,0,0,0.05) 0px 23px 52px;
+        --n-whisper-border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    /* -- 新闻风格头部 -- */
     .news-hero-section {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        padding: 2rem;
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 16px;
+        padding: 2.5rem;
         margin-bottom: 2rem;
         display: flex;
         gap: 2rem;
@@ -382,7 +422,7 @@
         left: 0;
         width: 100%;
         height: 4px;
-        background: linear-gradient(to right, var(--primary), var(--secondary));
+        background: linear-gradient(to right, var(--n-blue), var(--n-teal));
     }
 
     .news-hero-content {
@@ -391,18 +431,21 @@
 
     .news-hero-meta {
         display: flex;
-        gap: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
         margin-bottom: 1rem;
         font-size: 0.875rem;
-        color: var(--text-secondary);
+        color: var(--n-warm-gray-500);
     }
 
     .news-hero-date {
-        background: var(--primary);
-        color: white;
+        background: var(--n-blue);
+        color: var(--n-white);
         padding: 0.25rem 0.75rem;
-        border-radius: var(--radius-full);
-        font-weight: 500;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 0.75rem;
+        letter-spacing: 0.125px;
     }
 
     .news-hero-period {
@@ -414,9 +457,10 @@
     .news-hero-title {
         font-size: 2rem;
         font-weight: 700;
-        color: var(--text-primary);
+        color: var(--n-black);
         margin: 0 0 1.5rem 0;
         line-height: 1.2;
+        letter-spacing: -0.625px;
     }
 
     .news-hero-highlights {
@@ -425,14 +469,14 @@
 
     .highlights-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 1rem;
     }
 
     .highlight-item {
-        background: var(--bg-secondary);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
+        background: var(--n-warm-white);
+        border: var(--n-whisper-border);
+        border-radius: 12px;
         padding: 1rem;
         display: flex;
         flex-direction: column;
@@ -443,39 +487,39 @@
 
     .highlight-item:hover {
         transform: translateY(-2px);
-        box-shadow: var(--shadow-sm);
-        border-color: var(--primary);
+        box-shadow: var(--n-shadow-card);
+        border-color: var(--n-blue);
     }
 
     .highlight-icon {
-        width: 48px;
-        height: 48px;
-        background: var(--primary);
-        color: white;
+        width: 44px;
+        height: 44px;
+        background: var(--n-blue);
+        color: var(--n-white);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
         transition: all 0.3s ease;
     }
 
     .highlight-item:hover .highlight-icon {
         transform: scale(1.1);
-        background: var(--secondary);
+        background: var(--n-teal);
     }
 
     .highlight-number {
         display: block;
         font-size: 1.5rem;
         font-weight: 700;
-        color: var(--text-primary);
+        color: var(--n-black);
         margin-bottom: 0.25rem;
     }
 
     .highlight-label {
         font-size: 0.875rem;
-        color: var(--text-secondary);
+        color: var(--n-warm-gray-500);
     }
 
     .news-hero-animation {
@@ -483,236 +527,87 @@
     }
 
     .news-hero-animation canvas {
-        border-radius: var(--radius-lg);
-        background: var(--bg-secondary);
-        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        background: var(--n-warm-white);
+        border: var(--n-whisper-border);
     }
 
-    .header-breadcrumb {
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        margin-bottom: 0.5rem;
-    }
-
-    .header-breadcrumb a {
-        color: var(--primary);
-        text-decoration: none;
-    }
-
-    .header-breadcrumb a:hover {
-        text-decoration: underline;
-    }
-
-    .breadcrumb-separator {
-        margin: 0 0.5rem;
-        color: var(--text-muted);
-    }
-
-    .page-meta {
-        display: flex;
-        gap: 1.5rem;
-        margin-top: 0.75rem;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-    }
-
-    .meta-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+    /* -- 内容区 -- */
+    .content-section {
+        margin-bottom: 2rem;
     }
 
     .report-detail-card {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 16px;
         padding: 2rem;
+        box-shadow: var(--n-shadow-card);
     }
 
     .report-summary-section {
         margin-bottom: 2rem;
         padding-bottom: 1.5rem;
-        border-bottom: 1px solid var(--border);
+        border-bottom: var(--n-whisper-border);
     }
 
     .section-heading {
         margin: 0 0 1rem 0;
         font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--text-primary);
+        font-weight: 700;
+        color: var(--n-black);
         display: flex;
         align-items: center;
         gap: 0.75rem;
+        letter-spacing: -0.25px;
     }
 
     .report-summary-content {
         line-height: 1.6;
-        color: var(--text-primary);
-    }
-
-    .report-content-section {
-        margin-top: 2rem;
-    }
-
-    .analysis-section {
-        margin-bottom: 2rem;
-        padding: 1.5rem;
-        background: var(--bg-secondary);
-        border-radius: var(--radius-lg);
-    }
-
-    .analysis-subheading {
-        margin: 0 0 1rem 0;
+        color: var(--n-black);
         font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
     }
 
-    .changes-list, .books-list {
-        margin: 0;
-        padding: 0;
-        list-style: none;
+    .report-summary-content p {
+        margin: 0 0 1rem 0;
     }
 
-    .change-item, .book-item {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 1rem;
-        padding: 0.75rem;
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-md);
-        margin-bottom: 0.75rem;
-    }
-
-    .book-cover {
-        border-radius: var(--radius-sm);
-        box-shadow: var(--shadow-sm);
-        flex-shrink: 0;
-    }
-
-    .recommendation-cover {
-        border-radius: var(--radius-sm);
-        box-shadow: var(--shadow-md);
-        margin-bottom: 1rem;
-        align-self: center;
-    }
-
-    .change-item:last-child, .book-item:last-child {
-        margin-bottom: 0;
-    }
-
-    .change-title, .book-title {
-        font-weight: 500;
-        color: var(--text-primary);
-        flex: 1;
-        min-width: 200px;
-    }
-
-    .change-author, .book-author {
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-    }
-
-    .change-category, .book-category {
-        color: var(--text-muted);
-        font-size: 0.75rem;
-        background: var(--bg-tertiary);
-        padding: 0.25rem 0.5rem;
-        border-radius: var(--radius-sm);
-    }
-
-    .change-rank, .book-rank, .book-change, .book-weeks, .book-reason {
-        font-size: 0.875rem;
-        font-weight: 500;
-    }
-
-    .rank-up {
-        color: var(--success);
-    }
-
-    .rank-down {
-        color: var(--danger);
-    }
-
-    .rank-stable {
-        color: var(--text-secondary);
-    }
-
-    .book-change {
-        color: var(--success);
-    }
-
-    .book-weeks {
-        color: var(--warning);
-    }
-
-    .book-reason {
-        color: var(--primary);
-    }
-
-    .empty-content {
-        text-align: center;
-        padding: 3rem;
-        color: var(--text-secondary);
-    }
-
-    .navigation-card {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        padding: 1.5rem;
-    }
-
-    .navigation-links {
-        display: flex;
-        gap: 1rem;
-        margin-top: 1rem;
-    }
-
-    /* 数据可视化样式 */
-    .visualization-section {
-        margin-bottom: 2rem;
-        padding: 1.5rem;
-        background: var(--bg-secondary);
-        border-radius: var(--radius-lg);
-    }
-
-    /* 标签页样式 */
+    /* -- 标签页 -- */
     .tab-navigation {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.25rem;
         margin-bottom: 2rem;
-        border-bottom: 1px solid var(--border);
+        border-bottom: var(--n-whisper-border);
         padding-bottom: 0.5rem;
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .tab-btn {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.75rem 1.5rem;
-        border: 1px solid transparent;
-        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        padding: 0.625rem 1.25rem;
+        border: none;
+        border-radius: 8px;
         background: transparent;
-        color: var(--text-secondary);
+        color: var(--n-warm-gray-500);
+        font-size: 0.9375rem;
+        font-weight: 600;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
         white-space: nowrap;
+        min-height: 44px;
     }
 
     .tab-btn:hover {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
+        background: var(--n-warm-white);
+        color: var(--n-black);
     }
 
     .tab-btn.active {
-        background: var(--card-bg);
-        color: var(--primary);
-        border-color: var(--border);
-        border-bottom-color: var(--card-bg);
+        background: var(--n-badge-bg);
+        color: var(--n-badge-text);
     }
 
     .tab-panel {
@@ -725,98 +620,259 @@
     }
 
     @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
-    /* 书籍详情按钮样式 */
-    .book-detail-btn {
-        padding: 0.25rem 0.75rem;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-        font-size: 0.75rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
+    /* -- 分析区 -- */
+    .analysis-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: var(--n-warm-white);
+        border-radius: 12px;
+        border: var(--n-whisper-border);
+    }
+
+    .analysis-subheading {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
+    }
+
+    /* -- 书籍列表 -- */
+    .changes-list, .books-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .change-item, .book-item {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 12px;
+        margin-bottom: 0.75rem;
+        transition: all 0.2s ease;
+    }
+
+    .change-item:hover, .book-item:hover {
+        box-shadow: var(--n-shadow-card);
+        border-color: var(--n-blue);
+    }
+
+    .change-item:last-child, .book-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .book-cover {
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        flex-shrink: 0;
+        object-fit: cover;
+    }
+
+    .book-cover-placeholder {
+        width: 50px;
+        height: 75px;
+        border-radius: 8px;
+        background: var(--n-warm-white);
+        border: 1px dashed rgba(0,0,0,0.15);
         display: flex;
         align-items: center;
-        gap: 0.25rem;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--n-warm-gray-300);
     }
 
-    .book-detail-btn:hover {
-        background: var(--primary);
-        color: white;
-        border-color: var(--primary);
+    .change-title, .book-title {
+        font-weight: 600;
+        color: var(--n-black);
+        flex: 1;
+        min-width: 180px;
+        font-size: 0.9375rem;
     }
 
-    /* 推荐书籍网格 */
+    .change-author, .book-author {
+        color: var(--n-warm-gray-500);
+        font-size: 0.8125rem;
+    }
+
+    .change-category, .book-category {
+        color: var(--n-warm-gray-500);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        background: var(--n-warm-white);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        letter-spacing: 0.125px;
+    }
+
+    .change-rank, .book-rank, .book-change, .book-weeks, .book-reason {
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    .rank-up { color: var(--n-teal); }
+    .rank-down { color: var(--n-orange); }
+    .rank-stable { color: var(--n-warm-gray-500); }
+    .book-change { color: var(--n-teal); }
+    .book-weeks { color: var(--n-orange); }
+    .book-reason { color: var(--n-blue); }
+
+    /* -- 推荐书籍网格 -- */
     .recommendations-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 1.5rem;
     }
 
     .recommendation-card {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 12px;
         padding: 1.5rem;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
     }
 
     .recommendation-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+        transform: translateY(-3px);
+        box-shadow: var(--n-shadow-deep);
+    }
+
+    .recommendation-cover {
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        margin-bottom: 1rem;
+        align-self: center;
+        object-fit: cover;
+    }
+
+    .recommendation-cover-placeholder {
+        width: 80px;
+        height: 120px;
+        border-radius: 8px;
+        background: var(--n-warm-white);
+        border: 1px dashed rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--n-warm-gray-300);
+        margin-bottom: 1rem;
+        align-self: center;
     }
 
     .recommendation-header {
-        margin-bottom: 1rem;
+        margin-bottom: 0.75rem;
     }
 
     .recommendation-title {
-        margin: 0 0 0.5rem 0;
+        margin: 0 0 0.375rem 0;
         font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
     }
 
     .recommendation-author {
-        font-size: 0.875rem;
-        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        color: var(--n-warm-gray-500);
     }
 
     .recommendation-reason {
         margin-bottom: 1rem;
         line-height: 1.5;
-        color: var(--text-primary);
+        color: var(--n-warm-gray-500);
+        font-size: 0.875rem;
+        flex: 1;
     }
 
     .recommendation-reason p {
         margin: 0;
     }
 
-    /* 书籍详情弹窗 */
+    /* -- 详情按钮 -- */
+    .book-detail-btn {
+        padding: 0.375rem 1rem;
+        border: var(--n-whisper-border);
+        border-radius: 9999px;
+        background: var(--n-badge-bg);
+        color: var(--n-badge-text);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.125px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        min-height: 32px;
+        min-width: 44px;
+    }
+
+    .book-detail-btn:hover {
+        background: var(--n-blue);
+        color: var(--n-white);
+        border-color: var(--n-blue);
+    }
+
+    /* -- 数据可视化 -- */
+    .visualization-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: var(--n-warm-white);
+        border-radius: 12px;
+        border: var(--n-whisper-border);
+    }
+
+    .chart-container {
+        position: relative;
+        height: 320px;
+        margin-top: 1rem;
+    }
+
+    .chart-controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .chart-controls .btn {
+        flex: 1;
+        min-width: 140px;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    /* -- 弹窗 (居中 + 移动端优化) -- */
     .modal-overlay {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 1000;
         opacity: 0;
         visibility: hidden;
-        transition: all 0.3s ease;
+        transition: all 0.25s ease;
+        padding: 1rem;
     }
 
     .modal-overlay.active {
@@ -825,180 +881,246 @@
     }
 
     .modal-content {
-        background: var(--bg-primary);
-        border-radius: var(--radius-lg);
-        padding: 2rem;
-        max-width: 500px;
-        width: 90%;
-        max-height: 80vh;
+        background: var(--n-white);
+        border-radius: 16px;
+        padding: 1.5rem;
+        max-width: 480px;
+        width: 100%;
+        max-height: 85vh;
         overflow-y: auto;
-        transform: scale(0.9);
-        transition: all 0.3s ease;
+        -webkit-overflow-scrolling: touch;
+        transform: scale(0.95) translateY(20px);
+        transition: all 0.25s ease;
+        box-shadow: var(--n-shadow-deep);
+        border: var(--n-whisper-border);
     }
 
     .modal-overlay.active .modal-content {
-        transform: scale(1);
+        transform: scale(1) translateY(0);
     }
 
     .modal-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.25rem;
         padding-bottom: 1rem;
-        border-bottom: 1px solid var(--border);
+        border-bottom: var(--n-whisper-border);
     }
 
     .modal-title {
         margin: 0;
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--text-primary);
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
     }
 
     .modal-close {
-        background: none;
-        border: none;
-        color: var(--text-muted);
-        font-size: 1.5rem;
+        background: var(--n-warm-white);
+        border: var(--n-whisper-border);
+        color: var(--n-warm-gray-500);
+        font-size: 1.25rem;
         cursor: pointer;
         padding: 0;
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        height: 36px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: var(--radius-sm);
-        transition: all 0.3s ease;
+        border-radius: 9999px;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
     }
 
     .modal-close:hover {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
+        background: var(--n-blue);
+        color: var(--n-white);
+        border-color: var(--n-blue);
     }
 
     .modal-body {
         line-height: 1.6;
-        color: var(--text-primary);
+        color: var(--n-warm-gray-500);
+        font-size: 0.9375rem;
+    }
+
+    .modal-body h4 {
+        margin: 0 0 0.75rem 0;
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
     }
 
     .modal-body p {
-        margin: 0 0 1rem 0;
+        margin: 0 0 0.625rem 0;
+    }
+
+    .modal-body p strong {
+        color: var(--n-black);
+        font-weight: 600;
     }
 
     .modal-body ul {
-        margin: 0 0 1rem 0;
-        padding-left: 1.5rem;
+        margin: 0 0 0.75rem 0;
+        padding-left: 1.25rem;
     }
 
     .modal-body li {
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.375rem;
     }
 
-    /* 图表容器 */
-    .chart-container {
-        position: relative;
-        height: 300px;
-        margin-top: 1rem;
+    /* -- 导航 & 导出卡片 -- */
+    .navigation-card, .export-card {
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: var(--n-shadow-card);
     }
 
-    /* 响应式设计 */
+    .section-title {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--n-black);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .navigation-links, .export-links {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border: var(--n-whisper-border);
+        border-radius: 9999px;
+        background: var(--n-white);
+        color: var(--n-warm-gray-500);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        min-height: 44px;
+    }
+
+    .btn:hover {
+        color: var(--n-black);
+        border-color: var(--n-warm-gray-300);
+    }
+
+    .btn-outline {
+        background: transparent;
+    }
+
+    .btn-outline:hover {
+        background: var(--n-warm-white);
+    }
+
+    /* -- 空状态 -- */
+    .empty-content {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        color: var(--n-warm-gray-500);
+        font-size: 0.9375rem;
+    }
+
+    /* ============================================
+       响应式设计 (Notion 断点)
+       ============================================ */
+
+    /* Tablet (768px 以下) */
     @media (max-width: 768px) {
-        .page-meta {
+        .news-hero-section {
             flex-direction: column;
-            gap: 0.5rem;
+            padding: 1.5rem;
+            gap: 1.5rem;
+        }
+
+        .news-hero-title {
+            font-size: 1.5rem;
+        }
+
+        .highlights-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .news-hero-animation {
+            align-self: center;
+        }
+
+        .news-hero-animation canvas {
+            width: 80px;
+            height: 80px;
         }
 
         .report-detail-card {
-            padding: 1.5rem;
+            padding: 1.25rem;
         }
 
         .tab-navigation {
-            gap: 0.25rem;
+            gap: 0.125rem;
+            margin-bottom: 1.5rem;
         }
 
         .tab-btn {
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
+            padding: 0.5rem 0.875rem;
+            font-size: 0.8125rem;
+            min-height: 40px;
+        }
+
+        .analysis-section {
+            padding: 1rem;
         }
 
         .change-item, .book-item {
             flex-direction: column;
             align-items: flex-start;
             gap: 0.5rem;
+            padding: 0.875rem;
         }
 
         .change-title, .book-title {
             min-width: auto;
             width: 100%;
+            font-size: 0.875rem;
         }
 
         .recommendations-grid {
             grid-template-columns: 1fr;
-        }
-
-        .navigation-links {
-            flex-direction: column;
+            gap: 1rem;
         }
 
         .chart-container {
-            height: 250px;
+            height: 260px;
         }
 
         .modal-content {
-            width: 95%;
-            padding: 1.5rem;
+            max-width: 100%;
+            padding: 1.25rem;
+            border-radius: 12px;
         }
-    }
 
-    /* 动画效果 */
-    .analysis-section {
-        transition: all 0.3s ease;
-    }
+        .modal-overlay {
+            padding: 0.5rem;
+            align-items: flex-end;
+        }
 
-    .analysis-section:hover {
-        box-shadow: var(--shadow-sm);
-    }
+        .modal-content {
+            max-height: 90vh;
+            border-radius: 12px 12px 0 0;
+        }
 
-    .book-item, .change-item {
-        transition: all 0.3s ease;
-    }
-
-    .book-item:hover, .change-item:hover {
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    /* 导出卡片样式 */
-    .export-card {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        padding: 1.5rem;
-    }
-
-    .export-links {
-        display: flex;
-        gap: 1rem;
-        margin-top: 1rem;
-    }
-
-    /* 图表控件样式 */
-    .chart-controls {
-        display: flex;
-        gap: 1rem;
-        margin-top: 1rem;
-        flex-wrap: wrap;
-    }
-
-    .chart-controls .btn {
-        flex: 1;
-        min-width: 150px;
-    }
-
-    /* 响应式设计 */
-    @media (max-width: 768px) {
-        .export-links {
+        .navigation-links, .export-links {
             flex-direction: column;
         }
 
@@ -1010,6 +1132,95 @@
             width: 100%;
         }
     }
+
+    /* Mobile Small (480px 以下) */
+    @media (max-width: 480px) {
+        .news-hero-section {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .news-hero-title {
+            font-size: 1.25rem;
+        }
+
+        .news-hero-meta {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .highlights-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.625rem;
+        }
+
+        .highlight-item {
+            padding: 0.75rem 0.5rem;
+        }
+
+        .highlight-icon {
+            width: 36px;
+            height: 36px;
+            margin-bottom: 0.375rem;
+        }
+
+        .highlight-number {
+            font-size: 1.25rem;
+        }
+
+        .highlight-label {
+            font-size: 0.75rem;
+        }
+
+        .report-detail-card {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .tab-btn {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        .tab-btn svg {
+            display: none;
+        }
+
+        .analysis-section {
+            padding: 0.875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .book-cover {
+            width: 40px;
+            height: 60px;
+        }
+
+        .change-title, .book-title {
+            font-size: 0.8125rem;
+        }
+
+        .change-author, .book-author {
+            font-size: 0.75rem;
+        }
+
+        .chart-container {
+            height: 220px;
+        }
+
+        .modal-content {
+            padding: 1rem;
+            max-height: 92vh;
+        }
+
+        .modal-title {
+            font-size: 1rem;
+        }
+
+        .modal-body {
+            font-size: 0.875rem;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -1017,25 +1228,24 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 标签页功能
+        // 1. 首先定义数据变量（必须在使用前定义）
+        const reportContent = {{ content | tojson if content else 'null' }};
+
+        // 2. 标签页切换功能
         const tabBtns = document.querySelectorAll('.tab-btn');
         const tabPanels = document.querySelectorAll('.tab-panel');
 
         tabBtns.forEach(btn => {
             btn.addEventListener('click', function() {
                 const tab = this.dataset.tab;
-
-                // 移除所有标签页的活动状态
                 tabBtns.forEach(b => b.classList.remove('active'));
                 tabPanels.forEach(p => p.classList.remove('active'));
-
-                // 添加当前标签页的活动状态
                 this.classList.add('active');
                 document.getElementById(tab).classList.add('active');
             });
         });
 
-        // 书籍详情弹窗
+        // 3. 书籍详情弹窗功能
         const bookDetailBtns = document.querySelectorAll('.book-detail-btn');
         const modalOverlay = document.createElement('div');
         modalOverlay.className = 'modal-overlay';
@@ -1055,27 +1265,63 @@
         const modalClose = modalOverlay.querySelector('.modal-close');
         const modalBody = modalOverlay.querySelector('.modal-body');
 
+        // 构建书籍数据映射
+        function buildBookDataMap() {
+            if (!reportContent) return {};
+            const map = {};
+            const allBooks = [
+                ...(reportContent.top_changes || []),
+                ...(reportContent.new_books || []),
+                ...(reportContent.top_risers || []),
+                ...(reportContent.longest_running || []),
+                ...(reportContent.featured_books || [])
+            ];
+            for (const book of allBooks) {
+                const key = `${book.title}|${book.author}`;
+                if (!map[key]) map[key] = book;
+            }
+            return map;
+        }
+
+        const bookDataMap = buildBookDataMap();
+
+        // 绑定详情按钮事件
         bookDetailBtns.forEach(btn => {
             btn.addEventListener('click', function() {
-                const bookTitle = this.closest('.book-item, .change-item, .recommendation-card').dataset.bookTitle;
-                const bookAuthor = this.closest('.book-item, .change-item, .recommendation-card').dataset.bookAuthor;
+                const parent = this.closest('.book-item, .change-item, .recommendation-card');
+                const bookTitle = parent.dataset.bookTitle;
+                const bookAuthor = parent.dataset.bookAuthor;
+                const key = `${bookTitle}|${bookAuthor}`;
+                const book = bookDataMap[key];
 
-                // 显示加载状态
                 modalBody.innerHTML = '<p>加载中...</p>';
                 modalOverlay.classList.add('active');
 
-                // 模拟书籍详情数据
-                setTimeout(() => {
+                if (book) {
+                    const changeHtml = book.rank_change !== undefined && book.rank_change !== 0
+                        ? `<p><strong>排名变化：</strong>${book.rank_change > 0 ? '↑' : '↓'} ${Math.abs(book.rank_change)} 位</p>`
+                        : '';
+                    const weeksHtml = book.weeks_on_list ? `<p><strong>上榜周数：</strong>${book.weeks_on_list} 周</p>` : '';
+                    const rankHtml = book.rank ? `<p><strong>当前排名：</strong>第 ${book.rank} 名</p>` : '';
+                    const categoryHtml = book.category ? `<p><strong>类别：</strong>${book.category}</p>` : '';
+                    const reasonHtml = book.reason ? `<p><strong>推荐理由：</strong>${book.reason}</p>` : '';
+
                     modalBody.innerHTML = `
                         <h4>${bookTitle}</h4>
                         <p><strong>作者：</strong>${bookAuthor}</p>
-                        <p><strong>简介：</strong>这是一本畅销书籍，内容丰富，深受读者喜爱。</p>
-                        <p><strong>出版社：</strong>知名出版社</p>
-                        <p><strong>出版日期：</strong>2026年</p>
-                        <p><strong>ISBN：</strong>978-XXXXXXXXXX</p>
-                        <p><strong>推荐理由：</strong>本书内容精彩，情节跌宕起伏，是一本值得阅读的好书。</p>
+                        ${categoryHtml}
+                        ${rankHtml}
+                        ${changeHtml}
+                        ${weeksHtml}
+                        ${reasonHtml}
                     `;
-                }, 500);
+                } else {
+                    modalBody.innerHTML = `
+                        <h4>${bookTitle}</h4>
+                        <p><strong>作者：</strong>${bookAuthor}</p>
+                        <p>暂无更多详情数据</p>
+                    `;
+                }
             });
         });
 
@@ -1088,9 +1334,6 @@
                 modalOverlay.classList.remove('active');
             }
         });
-
-        // 提取数据
-        const reportContent = {{ report.content | tojson }};
         
         if (reportContent) {
             // 排名变化图表
@@ -1139,39 +1382,46 @@
             }
             
             // 书籍类别分布图表
-            if (reportContent.books) {
+            const allBooksForCategory = [
+                ...(reportContent.top_changes || []),
+                ...(reportContent.new_books || []),
+                ...(reportContent.top_risers || []),
+                ...(reportContent.longest_running || []),
+                ...(reportContent.featured_books || [])
+            ];
+            
+            if (allBooksForCategory.length > 0) {
                 const categoryData = {};
-                reportContent.books.forEach(book => {
-                    const category = book.category || 'Other';
+                allBooksForCategory.forEach(book => {
+                    const category = book.category || '其他';
                     categoryData[category] = (categoryData[category] || 0) + 1;
                 });
                 
                 const categoryLabels = Object.keys(categoryData);
                 const categoryCounts = Object.values(categoryData);
                 
+                const colors = [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)',
+                    'rgba(199, 199, 199, 0.6)',
+                    'rgba(83, 102, 255, 0.6)',
+                    'rgba(255, 99, 255, 0.6)',
+                    'rgba(99, 255, 132, 0.6)'
+                ];
+                
                 const categoryCtx = document.getElementById('category-chart').getContext('2d');
                 new Chart(categoryCtx, {
-                    type: 'pie',
+                    type: 'doughnut',
                     data: {
                         labels: categoryLabels,
                         datasets: [{
                             data: categoryCounts,
-                            backgroundColor: [
-                                'rgba(255, 99, 132, 0.6)',
-                                'rgba(54, 162, 235, 0.6)',
-                                'rgba(255, 206, 86, 0.6)',
-                                'rgba(75, 192, 192, 0.6)',
-                                'rgba(153, 102, 255, 0.6)',
-                                'rgba(255, 159, 64, 0.6)'
-                            ],
-                            borderColor: [
-                                'rgba(255, 99, 132, 1)',
-                                'rgba(54, 162, 235, 1)',
-                                'rgba(255, 206, 86, 1)',
-                                'rgba(75, 192, 192, 1)',
-                                'rgba(153, 102, 255, 1)',
-                                'rgba(255, 159, 64, 1)'
-                            ],
+                            backgroundColor: colors.slice(0, categoryLabels.length),
+                            borderColor: colors.slice(0, categoryLabels.length).map(c => c.replace('0.6', '1')),
                             borderWidth: 1
                         }]
                     },
@@ -1181,6 +1431,17 @@
                         plugins: {
                             legend: {
                                 position: 'bottom'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return `${label}: ${value}本 (${percentage}%)`;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1236,8 +1497,13 @@
             if (reportContent.top_changes && reportContent.top_changes.length > 0) {
                 const comparisonCtx = document.getElementById('week-comparison-chart').getContext('2d');
                 const labels = reportContent.top_changes.map(item => item.title);
-                const currentRanks = reportContent.top_changes.map(() => Math.floor(Math.random() * 20) + 1);
-                const previousRanks = reportContent.top_changes.map(item => item.rank_change > 0 ? currentRanks[reportContent.top_changes.indexOf(item)] + item.rank_change : currentRanks[reportContent.top_changes.indexOf(item)] - Math.abs(item.rank_change));
+                // 使用真实排名数据：当前排名 vs 上周排名
+                const currentRanks = reportContent.top_changes.map(item => item.rank || 0);
+                const previousRanks = reportContent.top_changes.map(item => {
+                    const change = item.rank_change || 0;
+                    const current = item.rank || 0;
+                    return Math.max(1, current + change);
+                });
                 
                 new Chart(comparisonCtx, {
                     type: 'bar',
@@ -1286,16 +1552,22 @@
                 });
             }
 
-            // 排名稳定性分析图
+            // 排名稳定性分析
             if (reportContent.top_changes && reportContent.top_changes.length > 0) {
                 const stabilityCtx = document.getElementById('stability-chart').getContext('2d');
-                const labels = reportContent.top_changes.map(item => item.title);
-                const stabilityScores = reportContent.top_changes.map(() => Math.floor(Math.random() * 100) + 1);
+                const stabilityLabels = reportContent.top_changes.map(item => item.title);
+                // 使用真实数据计算稳定性评分：基于上榜周数和排名变化
+                const stabilityScores = reportContent.top_changes.map(item => {
+                    const weeks = item.weeks_on_list || 1;
+                    const change = Math.abs(item.rank_change || 0);
+                    let score = (weeks * 10) - (change * 5);
+                    return Math.max(1, Math.min(100, score));
+                });
                 
                 new Chart(stabilityCtx, {
                     type: 'radar',
                     data: {
-                        labels: labels,
+                        labels: stabilityLabels,
                         datasets: [{
                             label: '排名稳定性评分',
                             data: stabilityScores,

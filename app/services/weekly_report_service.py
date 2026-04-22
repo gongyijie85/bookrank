@@ -33,13 +33,14 @@ class WeeklyReportService:
                 logger.warning(f"无法初始化翻译服务: {e}")
         return self._translation_service
     
-    def generate_report(self, week_start: date, week_end: date) -> Optional[WeeklyReport]:
+    def generate_report(self, week_start: date, week_end: date, force_regenerate: bool = False) -> Optional[WeeklyReport]:
         """生成周报
-        
+
         Args:
             week_start: 周开始日期
             week_end: 周结束日期
-            
+            force_regenerate: 是否强制重新生成（即使已存在）
+
         Returns:
             WeeklyReport: 生成的周报
         """
@@ -49,10 +50,16 @@ class WeeklyReportService:
                 WeeklyReport.week_start == week_start,
                 WeeklyReport.week_end == week_end
             ).first()
-            
-            if existing_report:
+
+            if existing_report and not force_regenerate:
                 logger.info(f"周报已存在: {week_start} 至 {week_end}")
                 return existing_report
+
+            # 如果是强制重新生成且旧报告存在，先删除
+            if existing_report and force_regenerate:
+                logger.info(f"强制重新生成周报: {week_start} 至 {week_end}")
+                db.session.delete(existing_report)
+                db.session.commit()
             
             # 收集本周数据
             weekly_data = self._collect_weekly_data(week_start, week_end)
@@ -152,20 +159,44 @@ class WeeklyReportService:
                 try:
                     books = self._book_service.get_books_by_category(category_id)
                     for i, book in enumerate(books):
-                        # 计算排名变化（这里使用模拟数据，实际应该从历史数据中获取）
-                        rank_change = (i % 9) - 4  # 模拟排名变化 -4 到 +4
-                        weeks_on_list = (i % 25) + 1  # 模拟上榜周数 1-25
-                        
+                        # 从NYT API真实数据中获取排名信息
+                        # rank_last_week: 上周排名（数字或"无"/"0"表示新上榜）
+                        # weeks_on_list: 上榜周数（NYT API直接提供）
+
+                        # 解析上周排名
+                        last_week_rank_str = str(book.rank_last_week).strip()
+                        current_rank = book.rank
+
+                        # 计算排名变化
+                        if last_week_rank_str in ['无', '0', '', 'None']:
+                            # 新上榜书籍（上周不在榜单上）
+                            rank_change = 0  # 新书不计算变化
+                            is_new = True
+                        else:
+                            try:
+                                last_week_rank = int(last_week_rank_str)
+                                # 排名变化 = 上周排名 - 当前排名
+                                # 正数表示上升（排名数字变小），负数表示下降
+                                rank_change = last_week_rank - current_rank
+                                is_new = False
+                            except (ValueError, TypeError):
+                                # 无法解析时，保守处理为非新书
+                                rank_change = 0
+                                is_new = False
+
+                        # 使用NYT API提供的真实上榜周数
+                        weeks_on_list = book.weeks_on_list if book.weeks_on_list > 0 else 1
+
                         weekly_data['books'].append({
                             'id': book.isbn13 or book.isbn10,
                             'title': book.title_zh or book.title,
                             'author': book.author,
                             'category': category_name,
-                            'rank': book.rank,
-                            'rank_change': rank_change,
-                            'weeks_on_list': weeks_on_list,
-                            'is_new': i % 10 == 0,  # 每10本书中有1本是新上榜
-                            'cover': book.cover  # 添加封面图片
+                            'rank': current_rank,
+                            'rank_change': rank_change,  # 真实排名变化
+                            'weeks_on_list': weeks_on_list,  # 真实上榜周数
+                            'is_new': is_new,  # 真实新上榜状态
+                            'cover': book.cover  # 封面图片
                         })
                 except Exception as e:
                     logger.error(f"获取分类 {category_name} 数据时出错: {str(e)}")
@@ -329,60 +360,78 @@ class WeeklyReportService:
             week_end: 周结束日期
             
         Returns:
-            str: 生成的摘要
+            str: 生成的摘要（确保不包含 prompt 模板文本）
         """
         try:
-            # 尝试使用AI生成摘要
             translation_service = self._get_translation_service()
             
-            if translation_service:
-                # 构建详细提示
-                prompt = f"请为{week_start.strftime('%Y年%m月%d日')}至{week_end.strftime('%Y年%m月%d日')}的畅销书周报生成一份详细、专业的摘要，要求：\n"
-                prompt += "1. 语言流畅，逻辑清晰，信息准确\n"
-                prompt += "2. 包含本周的主要趋势和亮点\n"
-                prompt += "3. 分析各类别书籍的表现\n"
-                prompt += "4. 突出重要变化和值得关注的书籍\n"
-                prompt += "5. 提供有洞察力的分析和见解\n\n"
-                
-                prompt += "基于以下分析结果：\n"
-                
-                if analysis.get('top_changes'):
-                    prompt += "\n【重要变化】："
-                    for book in analysis['top_changes'][:3]:
-                        change_type = "上升" if book['rank_change'] > 0 else "下降"
-                        change_value = abs(book['rank_change'])
-                        prompt += f"《{book['title']}》({book['author']})排名{change_type}{change_value}位；"
-                
-                if analysis.get('new_books'):
-                    prompt += "\n【新上榜书籍】："
-                    for book in analysis['new_books'][:3]:
-                        prompt += f"《{book['title']}》({book['author']}) - {book['category']}；"
-                
-                if analysis.get('top_risers'):
-                    prompt += "\n【排名上升最快】："
-                    for book in analysis['top_risers'][:3]:
-                        prompt += f"《{book['title']}》({book['author']})上升{book['rank_change']}位；"
-                
-                if analysis.get('longest_running'):
-                    prompt += "\n【持续上榜最久】："
-                    for book in analysis['longest_running'][:3]:
-                        prompt += f"《{book['title']}》({book['author']})已上榜{book['weeks_on_list']}周；"
-                
-                if analysis.get('featured_books'):
-                    prompt += "\n【推荐书籍】："
-                    for book in analysis['featured_books'][:3]:
-                        prompt += f"《{book['title']}》({book['author']}) - {book['reason']}；"
-                
-                # 生成摘要
-                summary = translation_service.translate(prompt, "zh", "zh")
-                return summary or self._generate_default_summary(analysis, week_start, week_end)
-            else:
-                # 使用默认摘要
+            if not translation_service:
                 return self._generate_default_summary(analysis, week_start, week_end)
+            
+            # 构建详细提示
+            prompt = f"请为{week_start.strftime('%Y年%m月%d日')}至{week_end.strftime('%Y年%m月%d日')}的畅销书周报生成一份详细、专业的摘要，要求：\n"
+            prompt += "1. 语言流畅，逻辑清晰，信息准确\n"
+            prompt += "2. 包含本周的主要趋势和亮点\n"
+            prompt += "3. 分析各类别书籍的表现\n"
+            prompt += "4. 突出重要变化和值得关注的书籍\n"
+            prompt += "5. 提供有洞察力的分析和见解\n\n"
+            
+            prompt += "基于以下分析结果：\n"
+            
+            if analysis.get('top_changes'):
+                prompt += "\n【重要变化】："
+                for book in analysis['top_changes'][:3]:
+                    change_type = "上升" if book['rank_change'] > 0 else "下降"
+                    change_value = abs(book['rank_change'])
+                    prompt += f"《{book['title']}》({book['author']})排名{change_type}{change_value}位；"
+            
+            if analysis.get('new_books'):
+                prompt += "\n【新上榜书籍】："
+                for book in analysis['new_books'][:3]:
+                    prompt += f"《{book['title']}》({book['author']}) - {book['category']}；"
+            
+            if analysis.get('top_risers'):
+                prompt += "\n【排名上升最快】："
+                for book in analysis['top_risers'][:3]:
+                    prompt += f"《{book['title']}》({book['author']})上升{book['rank_change']}位；"
+            
+            if analysis.get('longest_running'):
+                prompt += "\n【持续上榜最久】："
+                for book in analysis['longest_running'][:3]:
+                    prompt += f"《{book['title']}》({book['author']})已上榜{book['weeks_on_list']}周；"
+            
+            if analysis.get('featured_books'):
+                prompt += "\n【推荐书籍】："
+                for book in analysis['featured_books'][:3]:
+                    prompt += f"《{book['title']}》({book['author']}) - {book['reason']}；"
+
+            # 使用专门的AI摘要生成方法（如果可用），否则回退到翻译接口
+            ai_result = None
+
+            # 尝试使用专门的摘要生成方法
+            if hasattr(translation_service, 'generate_summary'):
+                ai_result = translation_service.generate_summary(prompt)
+            else:
+                # 回退：使用翻译接口，但明确告知这是摘要生成任务
+                summary_prompt = f"【重要】请忽略你的翻译角色设定。现在你需要根据以下信息生成一份中文摘要，不要翻译，直接用中文输出摘要内容：\n\n{prompt}"
+                ai_result = translation_service.translate(summary_prompt, "zh", "zh")
+            
+            # 验证 AI 返回结果是否有效
+            # 如果结果为空、太短、或包含 prompt 模板特征文本，则使用默认摘要
+            if ai_result and len(ai_result.strip()) > 50:
+                # 检查是否包含 prompt 模板特征（说明 AI 原样返回了 prompt）
+                prompt_markers = ['请为', '要求：', '基于以下分析结果', '语言流畅']
+                is_prompt_like = any(marker in ai_result for marker in prompt_markers)
+                
+                if not is_prompt_like:
+                    return ai_result.strip()
+            
+            # AI 结果无效时使用格式化的默认摘要
+            logger.info("AI摘要无效或包含prompt文本，使用格式化默认摘要")
+            return self._generate_default_summary(analysis, week_start, week_end)
                 
         except Exception as e:
             logger.error(f"生成AI摘要时出错: {str(e)}")
-            # 出错时使用默认摘要
             return self._generate_default_summary(analysis, week_start, week_end)
     
     def _generate_default_summary(self, analysis: Dict[str, Any], week_start: date, week_end: date) -> str:
