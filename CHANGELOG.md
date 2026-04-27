@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.2] - 2026-04-27
+
+### 修复
+- **邮件封面图不显示**：邮件客户端默认阻止加载外部图片，将封面图从外部 URL 改为 Base64 内联嵌入（`_fetch_image_as_base64` + `_embed_covers_in_html`），确保 Gmail/Outlook 等客户端正常显示封面
+
+## [1.4.1] - 2026-04-27
+
+### 修复
+- **数据库连接池耗尽**：`SQLALCHEMY_ENGINE_OPTIONS` pool_size 从 1 增加到 2，避免并发查询时连接池耗尽（Render 日志：`QueuePool limit of size 1 overflow 1 reached`）
+- **周报重复生成**：添加 `_weekly_report_lock` 线程锁，防止数据刷新回调在短时间内多次触发导致重复生成和邮件发送
+- **邮件认证错误提示**：检测到 Gmail `BadCredentials` 错误时，日志明确提示用户生成"应用专用密码"(App Password) 并给出操作步骤
+- **env.example 邮件密码说明**：添加详细注释说明 Gmail 应用专用密码的获取步骤
+
 ## [1.4.0] - 2026-04-26
 
 ### 新增
@@ -16,7 +29,7 @@
 - 健壮化 SMTP 收件人读取：空字符串和空格不报错
 
 ### 删除
-- 删除废弃的 `email_service.py`（使用 Flask-Mail 但从未被调用，周报任务直接用 smtplib）
+- 删除废弃的 `email_service.py`（使用 Flask-Mail 但从未被调用）
 
 ### 测试
 - 新增 7 个测试：SMTP 配置(3)、数据刷新回调(2)、周报封面图(2)

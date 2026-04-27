@@ -246,10 +246,60 @@ def _render_weekly_report_html(report: WeeklyReport) -> str:
     return html
 
 
+def _fetch_image_as_base64(url: str, timeout: int = 10) -> str | None:
+    """获取图片并转为 Base64 编码，用于邮件内联嵌入
+
+    返回格式: data:image/jpeg;base64,/9j/4AAQ...
+    如果获取失败返回 None。
+    """
+    import base64
+    import requests
+
+    if not url or not url.startswith('http'):
+        return None
+
+    try:
+        resp = requests.get(url, timeout=timeout, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        resp.raise_for_status()
+        content_type = resp.headers.get('Content-Type', 'image/jpeg')
+        b64 = base64.b64encode(resp.content).decode('utf-8')
+        return f"data:{content_type};base64,{b64}"
+    except Exception as e:
+        logger.debug(f"获取封面图失败 {url}: {e}")
+        return None
+
+
+def _embed_covers_in_html(html: str) -> str:
+    """将 HTML 中的外部封面图 URL 替换为 Base64 内联数据
+
+    邮件客户端默认阻止加载外部图片，Base64 内联可以确保图片正常显示。
+    """
+    import re
+
+    # 匹配 <img src="..."> 中的 src 属性
+    img_pattern = re.compile(r'<img[^>]+src="([^"]+)"[^>]*>', re.IGNORECASE)
+
+    def replace_src(match):
+        original_tag = match.group(0)
+        url = match.group(1)
+        # 已经是 base64 或相对路径的不处理
+        if url.startswith('data:') or not url.startswith('http'):
+            return original_tag
+        # 获取 base64 编码的图片
+        base64_data = _fetch_image_as_base64(url)
+        if base64_data:
+            return original_tag.replace(f'src="{url}"', f'src="{base64_data}"')
+        return original_tag  # 获取失败保持原样
+
+    return img_pattern.sub(replace_src, html)
+
+
 def send_weekly_report_email(report: WeeklyReport) -> bool:
     """发送周报邮件（使用标准库 smtplib，不依赖 Flask-Mail）
 
-    参考 amazon_book_email.py 的实现方式。
+    封面图通过 Base64 内联嵌入，确保邮件客户端正常显示。
     """
     import smtplib
     import ssl
@@ -276,8 +326,9 @@ def send_weekly_report_email(report: WeeklyReport) -> bool:
         msg['From'] = cfg['sender']
         msg['To'] = ', '.join(recipients)
 
-        # 渲染 HTML
+        # 渲染 HTML 并将封面图转为 Base64 内联
         html_body = _render_weekly_report_html(report)
+        html_body = _embed_covers_in_html(html_body)
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
 
         # 发送（支持 TLS 和 SSL）
