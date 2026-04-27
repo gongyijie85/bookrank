@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}错误 - BookRank{% endblock %}
+
+{% block content %}
+<main class="main-content error-page">
+    <div class="error-container">
+        <div class="error-icon">
+            <svg class="icon" width="64" height="64"><use href="#icon-x-circle"/></svg>
+        </div>
+        <h1>出错了</h1>
+        <p class="error-message">{{ message }}</p>
+        <div class="error-actions">
+            <a href="{{ back_url }}" class="btn btn-primary">
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
+                返回
+            </a>
+            <a href="/" class="btn btn-secondary">
+                <svg class="icon" width="16" height="16"><use href="#icon-home"/></svg>
+                首页
+            </a>
+        </div>
+    </div>
+</main>
+
+<style>
+.error-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    padding: 2rem;
+}
+
+.error-container {
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+}
+
+.error-icon {
+    margin-bottom: 1.5rem;
+    color: var(--accent-red, #e74c3c);
+}
+
+.error-container h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.error-message {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    line-height: 1.5;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+@media (max-width: 480px) {
+    .error-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .error-actions .btn {
+        width: 100%;
+        max-width: 200px;
+    }
+}
+</style>
+{% endblock %}

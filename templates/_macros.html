@@ -1,0 +1,253 @@
+{# ============================================
+   通用宏模板 (Notion 设计系统)
+   ============================================ #}
+
+{# 书籍网格卡片宏 #}
+{% macro book_grid_card(book, book_index, category='') %}
+<article class="card card-animate"
+         onclick="window.location.href = '/book/{{ book_index }}?category={{ category }}'"
+         role="button"
+         tabindex="0"
+         aria-label="{{ book.title }} - 第{{ book_index + 1 }}名">
+    <div class="card-image">
+        <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+             alt="{{ book.title }}封面"
+             loading="lazy"
+             width="280"
+             height="240"
+             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+
+        <!-- Category Tag -->
+        <span class="card-category-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
+
+        <!-- Rank Badge -->
+        <span class="card-badge {% if book_index == 0 %}gold{% elif book_index == 1 %}silver{% elif book_index == 2 %}bronze{% else %}other{% endif %}"
+              aria-label="排名: 第{{ book_index + 1 }}名">
+            {{ book_index + 1 }}
+        </span>
+
+        <!-- Rank Change Badge -->
+        {% if book.rank_last_week and book.rank_last_week != '0' %}
+            {% set rank_change = book.rank_last_week|int - (book_index + 1) %}
+            {% if rank_change > 0 %}
+            <span class="rank-change up" aria-label="排名上升{{ rank_change }}名">+{{ rank_change }}</span>
+            {% elif rank_change < 0 %}
+            <span class="rank-change down" aria-label="排名下降{{ rank_change|abs }}名">-{{ rank_change|abs }}</span>
+            {% endif %}
+        {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+            <span class="rank-change new" aria-label="新书上榜">NEW</span>
+        {% endif %}
+    </div>
+
+    <div class="card-content">
+        <div class="card-rank-row">
+            <span class="card-rank-badge">第{{ book_index + 1 }}名</span>
+            {% if book.weeks_on_list %}
+            <span class="card-weeks">
+                <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}周
+            </span>
+            {% endif %}
+        </div>
+        <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
+        <p class="card-author">{{ book.author }}</p>
+        {% if book.isbn13 %}
+        <p class="card-isbn">ISBN: {{ book.isbn13 }}</p>
+        {% elif book.isbn10 %}
+        <p class="card-isbn">ISBN: {{ book.isbn10 }}</p>
+        {% endif %}
+
+        {% if book.description %}
+        <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
+        {% endif %}
+    </div>
+</article>
+{% endmacro %}
+
+{# 书籍列表卡片宏 #}
+{% macro book_list_card(book, book_index, category='') %}
+<article class="list-item card-animate"
+         onclick="window.location.href = '/book/{{ book_index }}?category={{ category }}'"
+         role="button"
+         tabindex="0"
+         aria-label="{{ book.title }} - 第{{ book_index + 1 }}名">
+    <div class="list-item-image">
+        <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+             alt="{{ book.title }}封面"
+             loading="lazy"
+             width="100"
+             height="150"
+             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+    </div>
+    <div class="list-item-content">
+        <div class="list-item-header">
+            <span class="list-item-rank {% if book_index == 0 %}rank-gold{% elif book_index == 1 %}rank-silver{% elif book_index == 2 %}rank-bronze{% endif %}"
+                  aria-label="第{{ book_index + 1 }}名">
+                {{ book_index + 1 }}
+            </span>
+            {% if book.rank_last_week and book.rank_last_week != '0' %}
+                {% set rank_change = book.rank_last_week|int - (book_index + 1) %}
+                {% if rank_change > 0 %}
+                <span class="rank-change-badge up" aria-label="上升{{ rank_change }}名">+{{ rank_change }}</span>
+                {% elif rank_change < 0 %}
+                <span class="rank-change-badge down" aria-label="下降{{ rank_change|abs }}名">-{{ rank_change|abs }}</span>
+                {% endif %}
+            {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+                <span class="rank-change-badge new" aria-label="新书上榜">NEW</span>
+            {% endif %}
+            <h3 class="list-item-title">{{ book.title }}</h3>
+        </div>
+        <p class="list-item-author">{{ book.author }}</p>
+        {% if book.description %}
+        <p class="list-item-desc">{{ book.description[:200] }}{% if book.description|length > 200 %}...{% endif %}</p>
+        {% endif %}
+        <div class="list-item-meta">
+            <span class="card-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
+            {% if book.weeks_on_list %}
+            <span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}周</span>
+            {% endif %}
+            {% if book.publisher %}
+            <span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> {{ book.publisher }}</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="list-item-actions">
+        <button class="btn btn-icon btn-outline"
+                onclick="event.stopPropagation(); toggleFavorite(this, '{{ book.isbn13 or '' }}')"
+                aria-label="收藏 {{ book.title }}"
+                aria-pressed="false">
+            <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
+        </button>
+        <button class="btn btn-icon btn-outline"
+                onclick="event.stopPropagation(); shareBook('{{ book.title }}', '{{ book.author }}')"
+                aria-label="分享 {{ book.title }}">
+            <svg class="icon" width="18" height="18"><use href="#icon-share"/></svg>
+        </button>
+        {% if book.amazon_url %}
+        <a class="btn btn-icon btn-outline"
+           href="{{ book.amazon_url }}"
+           target="_blank"
+           rel="noopener noreferrer"
+           onclick="event.stopPropagation()"
+           aria-label="在亚马逊购买 {{ book.title }}">
+            <svg class="icon" width="18" height="18"><use href="#icon-cart"/></svg>
+        </a>
+        {% endif %}
+    </div>
+</article>
+{% endmacro %}
+
+{# 新书速递卡片宏 #}
+{% macro new_book_card(book) %}
+<div class="book-card" onclick="window.location.href = '/new-book/{{ book.id }}'">
+    <div class="book-cover-wrapper">
+        {% if book.cover_url %}
+        <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="book-cover" loading="lazy"
+             onerror="this.outerHTML='<div class=\'book-cover-placeholder\'><svg class=\'icon\' style=\'width:3rem;height:3rem\'><use href=\'#icon-book\'/></svg></div>'">
+        {% else %}
+        <div class="book-cover-placeholder">
+            <svg class="icon" style="width:3rem;height:3rem"><use href="#icon-book"/></svg>
+        </div>
+        {% endif %}
+    </div>
+    <div class="book-info">
+        <div class="book-title"
+             title="{{ book.title_zh or book.title }}"
+             data-en="{{ book.title }}"
+             data-zh="{{ book.title_zh or book.title }}"
+             data-isbn="{{ book.isbn13 or '' }}">
+            {{ book.title_zh or book.title }}
+        </div>
+        <div class="book-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</div>
+        <div class="book-meta">
+            <span class="book-publisher">
+                <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg>
+                {{ book.publisher.name if book.publisher else '未知' }}
+            </span>
+            {% if book.price %}
+            <span class="book-price">{{ book.price }}</span>
+            {% endif %}
+        </div>
+        {% if book.category or book.publication_date %}
+        <div class="book-tags">
+            {% if book.category %}
+            <span class="book-tag tag-category">{{ book.category }}</span>
+            {% endif %}
+            {% if book.publication_date %}
+            {% set pub_date = book.publication_date.strftime('%Y-%m') if book.publication_date is not string else book.publication_date[:7] %}
+            <span class="book-tag tag-new">{{ pub_date }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% if book.isbn13 %}
+        <p class="book-isbn">{{ book.isbn13 }}</p>
+        {% elif book.isbn10 %}
+        <p class="book-isbn">{{ book.isbn10 }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# 分页宏 #}
+{% macro pagination(pagination_obj, endpoint, page=None, category=None, search=None, view=None, publisher=None, days=None) %}
+{% if pagination_obj.pages > 1 %}
+<nav class="pagination" aria-label="分页导航">
+    {% set base_params = {} %}
+    {% if category %}{% set _ = base_params.update({'category': category}) %}{% endif %}
+    {% if search %}{% set _ = base_params.update({'search': search}) %}{% endif %}
+    {% if view %}{% set _ = base_params.update({'view': view}) %}{% endif %}
+    {% if publisher %}{% set _ = base_params.update({'publisher': publisher}) %}{% endif %}
+    {% if days %}{% set _ = base_params.update({'days': days}) %}{% endif %}
+
+    {% if pagination_obj.has_prev %}
+    <a href="{{ url_for(endpoint, page=pagination_obj.prev_num, **base_params) }}" aria-label="上一页">
+        <svg class="icon" width="16" height="16"><use href="#icon-chevron-left"/></svg>
+    </a>
+    {% else %}
+    <span class="disabled" aria-label="上一页不可用">
+        <svg class="icon" width="16" height="16"><use href="#icon-chevron-left"/></svg>
+    </span>
+    {% endif %}
+
+    {% for p in pagination_obj.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+            {% if p == pagination_obj.page %}
+            <span class="active" aria-current="page">{{ p }}</span>
+            {% else %}
+            <a href="{{ url_for(endpoint, page=p, **base_params) }}">{{ p }}</a>
+            {% endif %}
+        {% else %}
+        <span class="disabled">…</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if pagination_obj.has_next %}
+    <a href="{{ url_for(endpoint, page=pagination_obj.next_num, **base_params) }}" aria-label="下一页">
+        <svg class="icon" width="16" height="16"><use href="#icon-chevron-right"/></svg>
+    </a>
+    {% else %}
+    <span class="disabled" aria-label="下一页不可用">
+        <svg class="icon" width="16" height="16"><use href="#icon-chevron-right"/></svg>
+    </span>
+    {% endif %}
+</nav>
+{% endif %}
+{% endmacro %}
+
+{# 空状态宏 #}
+{% macro empty_state(icon_name='inbox', title='暂无数据', message='当前条件下没有找到相关内容') %}
+<div class="empty-state">
+    <svg class="icon" width="64" height="64"><use href="#icon-{{ icon_name }}"/></svg>
+    <h3>{{ title }}</h3>
+    <p>{{ message }}</p>
+</div>
+{% endmacro %}
+
+{# 加载动画宏 #}
+{% macro loading_spinner(text='加载中...') %}
+<div class="loading-overlay">
+    <div style="display: flex; flex-direction: column; align-items: center;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">{{ text }}</div>
+    </div>
+</div>
+{% endmacro %}

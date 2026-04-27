@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report.title }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .header p {
+            margin: 10px 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 15px;
+            color: #4a5568;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 8px;
+        }
+        .summary {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .summary p {
+            margin: 0;
+            line-height: 1.6;
+        }
+        .changes-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .change-item {
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .change-item strong {
+            color: #4a5568;
+        }
+        .rank-up {
+            color: #38a169;
+            font-weight: 500;
+        }
+        .rank-down {
+            color: #e53e3e;
+            font-weight: 500;
+        }
+        .rank-stable {
+            color: #718096;
+            font-weight: 500;
+        }
+        .cta {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .cta a {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .cta a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .footer {
+            background-color: #f7fafc;
+            padding: 20px 30px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 14px;
+            color: #718096;
+            text-align: center;
+        }
+        .footer p {
+            margin: 0;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 640px) {
+            .container {
+                border-radius: 0;
+                box-shadow: none;
+            }
+            .header,
+            .content,
+            .footer {
+                padding: 20px;
+            }
+            .header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ report.title }}</h1>
+            <p>发布日期：{{ report.report_date.strftime('%Y年%m月%d日') }}</p>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>本周概览</h2>
+                <div class="summary">
+                    {{ report.summary | replace('\n', '<br>') | safe }}
+                </div>
+            </div>
+            
+            {% if report.content %}
+            {% set content = report.content %}
+            {% if content.top_changes %}
+            <div class="section">
+                <h2>重要变化</h2>
+                <ul class="changes-list">
+                    {% for change in content.top_changes[:5] %}
+                    <li class="change-item">
+                        {% if change.cover %}
+                        <img src="{{ change.cover }}" alt="{{ change.title }}" style="max-width: 60px; height: auto; width: auto; max-height: 90px; border-radius: 4px; margin-right: 12px; vertical-align: top; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        {% endif %}
+                        <strong>{{ change.title }}</strong> - {{ change.author }}<br>
+                        类别：{{ change.category }}<br>
+                        排名变化：
+                        {% if change.rank_change > 0 %}
+                        <span class="rank-up">↑ {{ change.rank_change }} 位</span>
+                        {% elif change.rank_change < 0 %}
+                        <span class="rank-down">↓ {{ change.rank_change | abs }} 位</span>
+                        {% else %}
+                        <span class="rank-stable">→ 无变化</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            {% if content.featured_books %}
+            <div class="section">
+                <h2>推荐书籍</h2>
+                <ul class="changes-list">
+                    {% for book in content.featured_books[:5] %}
+                    <li class="change-item" style="display:flex;align-items:flex-start;gap:12px;">
+                        {% if book.cover %}
+                        <img src="{{ book.cover }}" alt="{{ book.title }}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1);flex-shrink:0;">
+                        {% else %}
+                        <span style="display:inline-block;width:60px;height:90px;background:#f0f0f0;border-radius:4px;text-align:center;line-height:90px;color:#999;font-size:24px;flex-shrink:0;">📖</span>
+                        {% endif %}
+                        <div>
+                            <strong>{{ book.title }}</strong> - {{ book.author }}<br>
+                            <span style="color:#718096;font-size:13px;">推荐理由：{{ book.reason }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% endif %}
+            
+            <div class="cta">
+                <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d'), _external=True) }}">查看完整周报</a>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>这是一封自动发送的邮件，请勿直接回复。</p>
+            <p>© {{ report.report_date.year }} BookRank - 纽约时报畅销书排行榜</p>
+            <p><a href="{{ url_for('main.index', _external=True) }}">访问 BookRank</a></p>
+        </div>
+    </div>
+</body>
+</html>

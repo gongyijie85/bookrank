@@ -1,0 +1,737 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+
+{% block content %}
+<main class="main-content book-detail-page">
+    <!-- 返回按钮 -->
+    <div class="detail-nav">
+        <a href="{{ back_url }}" class="back-btn">
+            <svg class="icon" width="20" height="20"><use href="#icon-arrow-left"/></svg>
+            返回榜单
+        </a>
+    </div>
+
+    <!-- 内容区域 -->
+    <div class="detail-container">
+        <!-- 左侧：封面 -->
+        <div class="detail-cover-section">
+            <div class="detail-cover">
+                <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+                     alt="{{ book.title }} 封面"
+                     width="280" height="420"
+                     loading="lazy"
+                     onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                <div class="detail-rank-badge">{{ book_index + 1 }}</div>
+            </div>
+
+            <!-- 购买链接 -->
+            {% if book.buy_links %}
+            <div class="buy-section">
+                <div class="buy-section-title">
+                    <svg class="icon" width="16" height="16"><use href="#icon-cart"/></svg>
+                    购买链接
+                </div>
+                {% for link in book.buy_links %}
+                <a href="{{ link.url }}" class="buy-btn" target="_blank" rel="noopener noreferrer">
+                    <svg class="icon" width="14" height="14"><use href="#icon-external-link"/></svg>
+                    {{ link.name }}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 右侧：信息 -->
+        <div class="detail-info-section">
+            <!-- 标题区 -->
+            <div class="detail-header">
+                <h1 class="detail-title">{{ book.title_zh or book.title }}</h1>
+                {% if book.title_zh and book.title != book.title_zh %}
+                <p class="detail-title-en">{{ book.title }}</p>
+                {% endif %}
+                <p class="detail-author">{{ book.author }}</p>
+            </div>
+
+            <!-- 元信息网格 - 仅显示有效数据，隐藏 Unknown -->
+            <div class="detail-meta-grid">
+                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %}
+                <div class="meta-card">
+                    <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
+                    <div>
+                        <div class="meta-label">出版社</div>
+                        <div class="meta-value">{{ book.publisher }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
+                <div class="meta-card">
+                    <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-calendar"/></svg></span>
+                    <div>
+                        <div class="meta-label">出版日期</div>
+                        <div class="meta-value">{{ book.publication_dt }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if book.page_count and book.page_count not in ('', 'Unknown', '未知', 'N/A', 'None') %}
+                <div class="meta-card">
+                    <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-file-text"/></svg></span>
+                    <div>
+                        <div class="meta-label">页数</div>
+                        <div class="meta-value">{{ book.page_count }} 页</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if book.isbn13 or book.isbn10 %}
+                <div class="meta-card">
+                    <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
+                    <div>
+                        <div class="meta-label">ISBN</div>
+                        <div class="meta-value">{{ book.isbn13 or book.isbn10 }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if book.category_name %}
+                <div class="meta-card">
+                    <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-tag"/></svg></span>
+                    <div>
+                        <div class="meta-label">分类</div>
+                        <div class="meta-value">{{ book.category_name }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if book.weeks_on_list and book.weeks_on_list > 0 %}
+                <div class="meta-card">
+                    <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg></span>
+                    <div>
+                        <div class="meta-label">上榜周数</div>
+                        <div class="meta-value">{{ book.weeks_on_list }} 周</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if book.language and book.language not in ('', 'Unknown', '未知', 'N/A') %}
+                <div class="meta-card">
+                    <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-globe"/></svg></span>
+                    <div>
+                        <div class="meta-label">语言</div>
+                        <div class="meta-value">{{ book.language }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- 简介和详情标签页 -->
+            <div class="detail-tabs-wrapper">
+                <div class="detail-tabs">
+                    <button class="tab-btn active" onclick="switchDetailTab('description')" data-tab="description">
+                        <svg class="icon" width="16" height="16"><use href="#icon-book-open"/></svg>
+                        图书简介
+                    </button>
+                    {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
+                    <button class="tab-btn" onclick="switchDetailTab('details')" data-tab="details">
+                        <svg class="icon" width="16" height="16"><use href="#icon-info"/></svg>
+                        详细信息
+                    </button>
+                    {% endif %}
+                </div>
+
+                <div class="tab-content">
+                    <!-- 图书简介 -->
+                    <div class="tab-panel active" id="tab-description">
+                        {% if book.description_zh %}
+                        <div class="zh-description">{{ book.description_zh }}</div>
+                        {% if book.description and book.description != 'No summary available.' %}
+                        <div class="en-description">{{ book.description }}</div>
+                        {% endif %}
+                        {% elif book.description and book.description != 'No summary available.' %}
+                        <p>{{ book.description }}</p>
+                        {% else %}
+                        <p class="empty-text">暂无简介</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- 详细信息 -->
+                    <div class="tab-panel" id="tab-details">
+                        {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
+                        <div class="detail-content">{{ book.details }}</div>
+                        {% endif %}
+                        {% if book.details_zh %}
+                        <div class="zh-description" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            {{ book.details_zh }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ============================================
+   书籍详情页样式 (Apple Design System)
+   ============================================ */
+
+.book-detail-page {
+    --apple-blue: #0071e3;
+    --apple-blue-light: #2997ff;
+    --apple-bg: #f5f5f7;
+    --apple-card: #ffffff;
+    --apple-text: #1d1d1f;
+    --apple-text-secondary: rgba(0, 0, 0, 0.48);
+    --apple-text-body: rgba(0, 0, 0, 0.8);
+    --apple-border: rgba(0, 0, 0, 0.04);
+    --apple-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
+    --apple-nav-glass: rgba(0, 0, 0, 0.8);
+    --apple-radius-sm: 8px;
+    --apple-radius-md: 12px;
+    --apple-radius-lg: 12px;
+    --apple-radius-xl: 18px;
+    --apple-radius-pill: 980px;
+    --apple-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --apple-font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --apple-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    min-height: 100vh;
+    background: var(--apple-bg);
+    padding: 1.5rem;
+    font-family: var(--apple-font-text);
+}
+
+/* 暗色模式覆盖 - Apple 风格：纯黑背景 */
+@media (prefers-color-scheme: dark) {
+    .book-detail-page {
+        --apple-bg: #000000;
+        --apple-card: #272729;
+        --apple-text: #ffffff;
+        --apple-text-secondary: rgba(255, 255, 255, 0.48);
+        --apple-text-body: rgba(255, 255, 255, 0.8);
+        --apple-border: rgba(255, 255, 255, 0.08);
+        --apple-shadow: rgba(0, 0, 0, 0.5) 3px 5px 30px 0px;
+        --apple-nav-glass: rgba(0, 0, 0, 0.8);
+    }
+}
+
+[data-theme="dark"] .book-detail-page {
+    --apple-bg: #000000;
+    --apple-card: #272729;
+    --apple-text: #ffffff;
+    --apple-text-secondary: rgba(255, 255, 255, 0.48);
+    --apple-text-body: rgba(255, 255, 255, 0.8);
+    --apple-border: rgba(255, 255, 255, 0.08);
+    --apple-shadow: rgba(0, 0, 0, 0.5) 3px 5px 30px 0px;
+    --apple-nav-glass: rgba(0, 0, 0, 0.8);
+}
+
+/* 返回导航 */
+.detail-nav {
+    margin-bottom: 1.5rem;
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--apple-text-body);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 400;
+    padding: 0.5rem 1rem;
+    border-radius: var(--apple-radius-pill);
+    background: var(--apple-card);
+    border: none;
+    box-shadow: var(--apple-shadow);
+    transition: var(--apple-transition);
+}
+
+.back-btn:hover {
+    color: var(--apple-text);
+    box-shadow: rgba(0, 0, 0, 0.3) 3px 5px 30px 0px;
+}
+
+/* 主容器 */
+.detail-container {
+    display: flex;
+    gap: 2.5rem;
+    align-items: flex-start;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* 左侧封面区域 */
+.detail-cover-section {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    position: sticky;
+    top: 1.5rem;
+}
+
+.detail-cover {
+    position: relative;
+    border-radius: var(--apple-radius-md);
+    overflow: hidden;
+    box-shadow: var(--apple-shadow);
+    background: var(--apple-card);
+}
+
+.detail-cover img {
+    width: 100%;
+    display: block;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+}
+
+.detail-rank-badge {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF9500, #FF6B35);
+    color: white;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(255, 107, 53, 0.4);
+}
+
+/* 购买链接区 */
+.buy-section {
+    background: var(--apple-card);
+    border-radius: var(--apple-radius-md);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: var(--apple-shadow);
+}
+
+.buy-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--apple-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--apple-border);
+}
+
+.buy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 8px 15px;
+    border-radius: var(--apple-radius-sm);
+    text-decoration: none;
+    color: #ffffff;
+    background: var(--apple-blue);
+    font-size: 0.875rem;
+    font-weight: 400;
+    transition: var(--apple-transition);
+    border: 1px solid transparent;
+}
+
+.buy-btn:hover {
+    background: #0077ed;
+}
+
+/* 右侧信息区域 */
+.detail-info-section {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* 标题区 */
+.detail-header {
+    background: var(--apple-card);
+    border-radius: var(--apple-radius-md);
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--apple-shadow);
+}
+
+.detail-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--apple-blue);
+}
+
+.detail-title {
+    font-family: var(--apple-font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--apple-text);
+    margin: 0 0 0.5rem 0;
+    line-height: 1.14;
+    letter-spacing: -0.28px;
+}
+
+.detail-title-en {
+    color: var(--apple-text-secondary);
+    font-size: 0.9375rem;
+    margin: 0 0 0.75rem 0;
+    line-height: 1.47;
+}
+
+.detail-author {
+    font-size: 1.0625rem;
+    color: var(--apple-text-body);
+    margin: 0;
+    font-weight: 400;
+    line-height: 1.47;
+}
+
+/* 元信息网格 */
+.detail-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.meta-card {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 1rem;
+    background: var(--apple-card);
+    border-radius: var(--apple-radius-sm);
+    box-shadow: var(--apple-shadow);
+}
+
+.meta-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--apple-radius-sm);
+    background: rgba(0, 113, 227, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--apple-blue);
+    flex-shrink: 0;
+}
+
+.meta-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--apple-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.375rem;
+}
+
+.meta-value {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--apple-text);
+}
+
+/* 标签页 */
+.detail-tabs-wrapper {
+    background: var(--apple-card);
+    border-radius: var(--apple-radius-md);
+    overflow: hidden;
+    box-shadow: var(--apple-shadow);
+}
+
+.detail-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--apple-border);
+    background: rgba(0, 0, 0, 0.02);
+    gap: 4px;
+    padding: 0 4px;
+}
+
+.detail-tabs .tab-btn {
+    flex: 1;
+    padding: 1rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: var(--apple-text-secondary);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--apple-transition);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    position: relative;
+    border-radius: var(--apple-radius-sm) var(--apple-radius-sm) 0 0;
+}
+
+.detail-tabs .tab-btn:hover {
+    color: var(--apple-text);
+    background: rgba(0, 113, 227, 0.04);
+}
+
+.detail-tabs .tab-btn.active {
+    color: var(--apple-blue);
+    border-bottom-color: var(--apple-blue);
+    background: rgba(0, 113, 227, 0.06);
+    font-weight: 600;
+}
+
+/* 激活标签左侧指示条 */
+.detail-tabs .tab-btn.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    background: var(--apple-blue);
+    border-radius: 0 2px 2px 0;
+}
+
+.tab-content {
+    padding: 1.75rem 2rem;
+}
+
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.tab-panel p {
+    font-size: 1.06rem;
+    line-height: 1.47;
+    color: var(--apple-text-body);
+    margin: 0;
+    letter-spacing: -0.224px;
+}
+
+/* 双语描述 */
+.zh-description {
+    font-size: 1.06rem;
+    line-height: 1.47;
+    color: var(--apple-text);
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--apple-border);
+    letter-spacing: -0.224px;
+}
+
+.en-description {
+    font-size: 0.88rem;
+    line-height: 1.43;
+    color: var(--apple-text-secondary);
+    letter-spacing: -0.224px;
+}
+
+/* 详细信息内容 */
+.detail-content {
+    font-size: 1.06rem;
+    line-height: 1.47;
+    color: var(--apple-text-body);
+    letter-spacing: -0.224px;
+}
+
+.empty-text {
+    color: var(--apple-text-secondary);
+    text-align: center;
+    padding: 2rem 0;
+    font-size: 1.06rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .book-detail-page {
+        padding: 1rem;
+    }
+
+    .detail-container {
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .detail-cover-section {
+        width: 100%;
+        max-width: 240px;
+        margin: 0 auto;
+        position: static;
+    }
+
+    .detail-header {
+        padding: 1.5rem;
+    }
+
+    .detail-title {
+        font-size: 1.5rem;
+    }
+
+    .detail-meta-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .tab-content {
+        padding: 1.25rem;
+    }
+
+    .meta-card {
+        padding: 0.875rem;
+    }
+
+    .meta-icon {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+@media (max-width: 480px) {
+    .book-detail-page {
+        padding: 0.75rem;
+    }
+
+    .detail-cover-section {
+        max-width: 180px;
+    }
+
+    .detail-title {
+        font-size: 1.25rem;
+    }
+
+    .detail-meta-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .meta-card {
+        padding: 0.75rem;
+    }
+
+    .detail-header {
+        padding: 1.25rem;
+    }
+
+    .tab-content {
+        padding: 1rem;
+    }
+
+    .buy-btn {
+        font-size: 0.75rem;
+        padding: 0.625rem 0.875rem;
+    }
+
+    .back-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.8125rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /**
+     * 切换详情页标签页
+     */
+    function switchDetailTab(tabName) {
+        // 更新标签按钮
+        document.querySelectorAll('.detail-tabs .tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.querySelector(`.detail-tabs [data-tab="${tabName}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        // 更新内容面板
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
+        const activePanel = document.getElementById(`tab-${tabName}`);
+        if (activePanel) activePanel.classList.add('active');
+    }
+
+    /**
+     * 详情页语言切换
+     */
+    function switchDetailLang(lang) {
+        const titleEl = document.querySelector('.detail-title');
+        const titleEnEl = document.querySelector('.detail-title-en');
+        const authorEl = document.querySelector('.detail-author');
+        const descZhEl = document.querySelector('.zh-description');
+        const descEnEl = document.querySelector('.en-description');
+        const detailsZhEl = document.getElementById('tab-details') ?
+            document.getElementById('tab-details').querySelector('.zh-description') : null;
+        const detailsEnEl = document.getElementById('tab-details') ?
+            document.getElementById('tab-details').querySelector('.detail-content') : null;
+
+        if (lang === 'en') {
+            // 显示英文
+            if (titleEl && titleEl.dataset.en) titleEl.textContent = titleEl.dataset.en;
+            if (titleEnEl) titleEnEl.style.display = 'none';
+            if (descZhEl) descZhEl.style.display = 'none';
+            if (descEnEl) descEnEl.style.display = 'block';
+            if (detailsZhEl) detailsZhEl.style.display = 'none';
+            if (detailsEnEl) detailsEnEl.style.display = 'block';
+        } else {
+            // 显示中文（优先显示翻译，没有则显示英文）
+            if (titleEl && titleEl.dataset.zh) titleEl.textContent = titleEl.dataset.zh;
+            if (titleEnEl) titleEnEl.style.display = 'block';
+            if (descZhEl) descZhEl.style.display = 'block';
+            if (descEnEl) descEnEl.style.display = 'block';
+            if (detailsZhEl) detailsZhEl.style.display = 'block';
+            if (detailsEnEl) detailsEnEl.style.display = 'block';
+        }
+    }
+
+    // 初始化时保存原始文本到 data 属性
+    (function initDetailLang() {
+        const titleEl = document.querySelector('.detail-title');
+        const authorEl = document.querySelector('.detail-author');
+        if (titleEl) {
+            titleEl.dataset.zh = titleEl.textContent;
+            titleEl.dataset.en = '{{ book.title|escape }}';
+        }
+        if (authorEl) {
+            authorEl.dataset.zh = authorEl.textContent;
+            authorEl.dataset.en = '{{ book.author|escape }}';
+        }
+
+        // 根据用户偏好自动切换
+        const savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        if (savedLang === 'en') {
+            switchDetailLang('en');
+        }
+    })();
+</script>
+{% endblock %}

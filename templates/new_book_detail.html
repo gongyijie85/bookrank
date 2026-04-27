@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+
+{% block content %}
+<!-- 返回按钮 -->
+<div class="detail-nav">
+    <a href="{{ back_url }}" class="back-btn">
+        <svg class="icon" width="20" height="20"><use href="#icon-arrow-left"/></svg>
+        返回
+    </a>
+</div>
+
+<!-- 书籍详情主区域 -->
+<div class="detail-container">
+    <!-- 左侧：封面 -->
+    <div class="detail-cover-section">
+        <div class="detail-cover">
+            {% if book.cover_url %}
+            <img src="{{ book.cover_url }}" alt="{{ book.title_zh or book.title }} 封面" onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            {% else %}
+            <div class="cover-placeholder">
+                <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 购买链接 -->
+        {% if book.get_buy_links() %}
+        <div class="buy-section">
+            {% for link in book.get_buy_links() %}
+            <a href="{{ link.url }}" class="buy-btn" target="_blank" rel="noopener noreferrer">
+                <svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg>
+                {{ link.name }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 右侧：信息 -->
+    <div class="detail-info-section">
+        <!-- 标题区 -->
+        <div class="detail-header">
+            <h1 class="detail-title" data-en="{{ book.title }}" data-zh="{{ book.title_zh or book.title }}">
+                {{ book.title_zh or book.title }}
+            </h1>
+            {% if book.title_zh and book.title != book.title_zh %}
+            <p class="detail-title-en">{{ book.title }}</p>
+            {% endif %}
+            <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
+        </div>
+
+        <!-- 元信息网格 -->
+        <div class="detail-meta-grid">
+            {% if book.publisher %}
+            <div class="meta-card">
+                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
+                <div>
+                    <div class="meta-label">出版社</div>
+                    <div class="meta-value">{{ book.publisher.name if book.publisher else '未知' }}</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if book.publication_date %}
+            <div class="meta-card">
+                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-calendar"/></svg></span>
+                <div>
+                    <div class="meta-label">出版日期</div>
+                    <div class="meta-value">{{ book.publication_date }}</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if book.page_count %}
+            <div class="meta-card">
+                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-file-text"/></svg></span>
+                <div>
+                    <div class="meta-label">页数</div>
+                    <div class="meta-value">{{ book.page_count }} 页</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if book.isbn13 or book.isbn10 %}
+            <div class="meta-card">
+                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
+                <div>
+                    <div class="meta-label">ISBN</div>
+                    <div class="meta-value">{{ book.isbn13 or book.isbn10 }}</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if book.category %}
+            <div class="meta-card">
+                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-tag"/></svg></span>
+                <div>
+                    <div class="meta-label">分类</div>
+                    <div class="meta-value">{{ book.category }}</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if book.price %}
+            <div class="meta-card">
+                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-dollar-sign"/></svg></span>
+                <div>
+                    <div class="meta-label">价格</div>
+                    <div class="meta-value">{{ book.price }}</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 简介 -->
+        <div class="detail-description">
+            <h3 class="desc-title">图书简介</h3>
+            <div class="desc-content">
+                <p>{{ book.description_zh or book.description or '暂无简介' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ============================================
+   新书详情页样式 (Notion 设计系统)
+   ============================================ */
+
+/* 导航 */
+.detail-nav {
+    margin-bottom: 1.5rem;
+}
+
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #615d59;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.back-btn:hover {
+    background: #f6f5f4;
+    color: rgba(0, 0, 0, 0.95);
+}
+
+/* 主容器 */
+.detail-container {
+    display: flex;
+    gap: 2.5rem;
+    align-items: flex-start;
+}
+
+/* 左侧封面区域 */
+.detail-cover-section {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    position: sticky;
+    top: 1.5rem;
+}
+
+.detail-cover {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+    background: #f6f5f4;
+}
+
+.detail-cover img {
+    width: 100%;
+    display: block;
+}
+
+.cover-placeholder {
+    width: 100%;
+    aspect-ratio: 2/3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a39e98;
+}
+
+/* 购买按钮 */
+.buy-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.buy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    text-decoration: none;
+    color: #ffffff;
+    background: #0075de;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.buy-btn:hover {
+    background: #005bab;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 117, 222, 0.3);
+}
+
+/* 右侧信息区域 */
+.detail-info-section {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+/* 标题区 */
+.detail-header {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.detail-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(to right, #0075de, #2a9d99);
+}
+
+.detail-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.95);
+    margin: 0 0 0.5rem 0;
+    line-height: 1.3;
+    letter-spacing: -0.625px;
+}
+
+.detail-title-en {
+    color: #615d59;
+    font-size: 0.9375rem;
+    margin: 0 0 0.75rem 0;
+}
+
+.detail-author {
+    font-size: 1.0625rem;
+    color: #615d59;
+    margin: 0;
+    font-weight: 500;
+}
+
+/* 元信息网格 */
+.detail-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.meta-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.meta-card:hover {
+    border-color: #0075de;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.meta-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #f6f5f4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0075de;
+    flex-shrink: 0;
+}
+
+.meta-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #615d59;
+    text-transform: uppercase;
+    letter-spacing: 0.125px;
+    margin-bottom: 0.125rem;
+}
+
+.meta-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.95);
+}
+
+/* 简介区域 */
+.detail-description {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+}
+
+.desc-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.95);
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.desc-content p {
+    font-size: 0.9375rem;
+    line-height: 1.8;
+    color: #31302e;
+    margin: 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .detail-container {
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .detail-cover-section {
+        width: 100%;
+        max-width: 240px;
+        margin: 0 auto;
+        position: static;
+    }
+
+    .detail-header {
+        padding: 1.5rem;
+    }
+
+    .detail-title {
+        font-size: 1.375rem;
+    }
+
+    .detail-meta-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .detail-description {
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .detail-cover-section {
+        max-width: 180px;
+    }
+
+    .detail-title {
+        font-size: 1.125rem;
+    }
+
+    .detail-meta-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .meta-card {
+        padding: 0.75rem;
+    }
+
+    .detail-header, .detail-description {
+        padding: 1.25rem;
+    }
+}
+</style>
+{% endblock %}
