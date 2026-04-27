@@ -154,13 +154,13 @@ def _render_weekly_report_html(report: WeeklyReport) -> str:
 
     # 构建图书行 HTML（带封面图）
     def book_row(book: dict) -> str:
-        cover = book.get('cover', '')
-        title = book.get('title', '未知书名')
-        author = book.get('author', '')
-        category = book.get('category', '')
-        rank = book.get('rank', 0)
-        rank_change = book.get('rank_change', 0)
-        weeks = book.get('weeks_on_list', 0)
+        cover = book.get('cover', '') or ''
+        title = book.get('title', '未知书名') or '未知书名'
+        author = book.get('author', '') or ''
+        category = book.get('category', '') or ''
+        rank = book.get('rank', 0) or 0
+        rank_change = book.get('rank_change', 0) or 0
+        weeks = book.get('weeks_on_list', 0) or 0
 
         # 排名变化箭头
         if rank_change > 0:
@@ -172,7 +172,7 @@ def _render_weekly_report_html(report: WeeklyReport) -> str:
 
         # 封面图片（按比例缩放，max-width 限制）
         cover_html = ''
-        if cover:
+        if cover and cover.startswith('http'):
             cover_html = (
                 f'<img src="{cover}" alt="{title}" '
                 f'style="max-width:60px;height:auto;width:auto;max-height:90px;'
@@ -259,11 +259,19 @@ def _fetch_image_as_base64(url: str, timeout: int = 10) -> str | None:
         return None
 
     try:
-        resp = requests.get(url, timeout=timeout, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        # Google Books 图片需要 referer 才能正常访问
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Referer': 'https://books.google.com/',
+        }
+        resp = requests.get(url, timeout=timeout, headers=headers)
         resp.raise_for_status()
+        # 确保返回的是图片内容
         content_type = resp.headers.get('Content-Type', 'image/jpeg')
+        if not content_type.startswith('image/'):
+            logger.debug(f"URL返回的不是图片: {url}, Content-Type: {content_type}")
+            return None
         b64 = base64.b64encode(resp.content).decode('utf-8')
         return f"data:{content_type};base64,{b64}"
     except Exception as e:
@@ -281,19 +289,27 @@ def _embed_covers_in_html(html: str) -> str:
     # 匹配 <img src="..."> 中的 src 属性
     img_pattern = re.compile(r'<img[^>]+src="([^"]+)"[^>]*>', re.IGNORECASE)
 
+    total = 0
+    success = 0
+
     def replace_src(match):
+        nonlocal total, success
         original_tag = match.group(0)
         url = match.group(1)
         # 已经是 base64 或相对路径的不处理
         if url.startswith('data:') or not url.startswith('http'):
             return original_tag
+        total += 1
         # 获取 base64 编码的图片
         base64_data = _fetch_image_as_base64(url)
         if base64_data:
+            success += 1
             return original_tag.replace(f'src="{url}"', f'src="{base64_data}"')
         return original_tag  # 获取失败保持原样
 
-    return img_pattern.sub(replace_src, html)
+    result = img_pattern.sub(replace_src, html)
+    logger.info(f"封面图嵌入完成: {success}/{total} 张成功转换为 Base64")
+    return result
 
 
 def send_weekly_report_email(report: WeeklyReport) -> bool:
