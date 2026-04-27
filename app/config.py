@@ -123,16 +123,17 @@ class ProductionConfig(Config):
     MEMORY_CACHE_TTL: int = 300
 
     # 数据库连接池优化（免费 PostgreSQL 限制 97 连接）
+    # 注意：pool_size + max_overflow 不要超过 3，避免连接池耗尽
     SQLALCHEMY_ENGINE_OPTIONS: dict = {
-        'pool_size': 1,           # 保持最小连接
-        'max_overflow': 1,        # 最多 1 个临时连接（原为 2）
-        'pool_timeout': 10,       # 缩短等待时间（原为 30）
-        'pool_recycle': 180,      # 更频繁回收连接（原为 300）
+        'pool_size': 2,           # 基础连接池（原为1，避免并发查询时阻塞）
+        'max_overflow': 1,        # 最多 1 个临时连接
+        'pool_timeout': 15,       # 等待时间（适当放宽避免超时）
+        'pool_recycle': 180,      # 更频繁回收连接
         'pool_pre_ping': True,    # 连接前 ping 检测
         'echo': False,
         'connect_args': {
-            'connect_timeout': 5,     # 缩短连接超时（原为 10）
-            'options': '-c statement_timeout=15000',  # 15 秒查询超时（原为 30）
+            'connect_timeout': 5,     # 缩短连接超时
+            'options': '-c statement_timeout=15000',  # 15 秒查询超时
         },
     }
 

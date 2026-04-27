@@ -1,12 +1,16 @@
 """周报定时任务"""
 import datetime
 import logging
+import threading
 from typing import Optional
 
 from ..models.schemas import WeeklyReport
 from ..services.weekly_report_service import WeeklyReportService
 
 logger = logging.getLogger(__name__)
+
+# 全局锁，防止周报被重复生成
+_weekly_report_lock = threading.Lock()
 
 
 def generate_weekly_report(force_regenerate: bool = False) -> Optional[WeeklyReport]:
@@ -15,7 +19,13 @@ def generate_weekly_report(force_regenerate: bool = False) -> Optional[WeeklyRep
     不再限制仅在周五生成，而是在数据刷新后自动触发。
     周一/二/三时生成上周周报（排行榜尚未更新），
     周四及以后生成本周周报（排行榜已更新）。
+    使用线程锁防止并发重复生成。
     """
+    # 获取锁，防止并发重复生成
+    if not _weekly_report_lock.acquire(blocking=False):
+        logger.info("周报生成已在进行中，跳过本次触发")
+        return None
+
     try:
         today = datetime.date.today()
         # 计算当前周的日期范围（周一至周日）
@@ -100,10 +110,16 @@ def generate_weekly_report(force_regenerate: bool = False) -> Optional[WeeklyRep
         else:
             logger.error("周报生成失败")
             return None
-            
+
     except Exception as e:
         logger.error(f"生成周报时出错: {str(e)}")
         return None
+    finally:
+        # 释放锁
+        try:
+            _weekly_report_lock.release()
+        except RuntimeError:
+            pass  # 锁可能已被释放
 
 def _get_smtp_config() -> dict:
     """从 Flask 配置读取 SMTP 配置"""
@@ -284,7 +300,19 @@ def send_weekly_report_email(report: WeeklyReport) -> bool:
         return True
 
     except Exception as e:
-        logger.error(f"发送周报邮件时出错: {str(e)}")
+        error_msg = str(e)
+        # 检测 Gmail 认证错误，给出明确提示
+        if 'Username and Password not accepted' in error_msg or 'BadCredentials' in error_msg:
+            logger.error(
+                "发送周报邮件失败：Gmail 用户名或密码错误。"
+                "如果你使用 Gmail，请确保："
+                "1. 开启两步验证；"
+                "2. 生成'应用专用密码'(App Password) 替代普通密码；"
+                "3. 将应用专用密码填入 MAIL_PASSWORD 环境变量。"
+                "详情：https://support.google.com/accounts/answer/185833"
+            )
+        else:
+            logger.error(f"发送周报邮件时出错: {error_msg}")
         return False
 
 def schedule_weekly_report():
