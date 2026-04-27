@@ -1,14 +1,175 @@
 {
-  "google_books": [],
+  "google_books": [
+    {
+      "title": "The Worship of the Serpent",
+      "author": "John Bathurst Deane",
+      "isbn13": "9781465577344",
+      "isbn10": "1465577343",
+      "description": null,
+      "cover_url": "https://books.google.com/books/content?id=40o3CqBrgocC&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "category": "小说",
+      "publication_date": null,
+      "price": null,
+      "page_count": 395,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://play.google.com/store/books/details?id=40o3CqBrgocC"
+        }
+      ],
+      "source_url": "https://play.google.com/store/books/details?id=40o3CqBrgocC"
+    },
+    {
+      "title": "The Time Machine",
+      "author": "Herbert George Wells",
+      "isbn13": "9781465562135",
+      "isbn10": "1465562133",
+      "description": null,
+      "cover_url": "https://books.google.com/books/content?id=nZ0sZ8G8Lg8C&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "category": "小说",
+      "publication_date": null,
+      "price": null,
+      "page_count": 136,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://play.google.com/store/books/details?id=nZ0sZ8G8Lg8C"
+        }
+      ],
+      "source_url": "https://play.google.com/store/books/details?id=nZ0sZ8G8Lg8C"
+    },
+    {
+      "title": "White fang",
+      "author": "Jack London",
+      "isbn13": "9786552942296",
+      "isbn10": "655294229X",
+      "description": "In ush.the wild Yukon Territory, a fierce wolf-dog struggles to survive the harsh wilderness. Born of a wolf and raised among men, White Fang learns the brutal laws of nature and the cruelty of mankind. But amidst the violence, a glimmer of hope shines through when he encounters kindness for the first time. Will White Fang find his place in a world of man and beast, or be consumed by the savage forces around him?",
+      "cover_url": "https://books.google.com/books/content?id=QR9rEQAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "category": "小说",
+      "publication_date": "2025-07-03",
+      "price": null,
+      "page_count": 171,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://play.google.com/store/books/details?id=QR9rEQAAQBAJ"
+        }
+      ],
+      "source_url": "https://play.google.com/store/books/details?id=QR9rEQAAQBAJ"
+    },
+    {
+      "title": "Frankenstein",
+      "author": "Mary Shelley",
+      "isbn13": "9789403837420",
+      "isbn10": "940383742X",
+      "description": "Frankenstein; or, The Modern Prometheus is an 1818 Gothic novel written by English author Mary Shelley. Frankenstein tells the story of Victor Frankenstein, a young scientist who creates a sapient creature in an unorthodox scientific experiment that involved putting it together with different body parts. Shelley started writing the story when she was 18 and staying in Bath, and the first edition was published anonymously in London on 1 January 1818, when she was 20. Her name first appeared in the second edition, which was published in Paris in 1821. Shelley travelled through Europe in 1815, moving along the river Rhine in Germany, and stopping in Gernsheim, 17 kilometres (11 mi) away from Frankenstein Castle, where, about a century earlier, Johann Konrad Dippel, an alchemist, had engaged in experiments. She then journeyed to the region of Geneva, Switzerland, where much of the story takes place. Galvanism and occult ideas were topics of conversation for her companions, particularly for her lover and future husband Percy Bysshe Shelley. In 1816, Mary, Percy, John Polidori, and Lord Byron had a competition to see who would write the best horror story.",
+      "cover_url": "https://books.google.com/books/content?id=lyWOEQAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "category": "小说",
+      "publication_date": "2025-10-10",
+      "price": null,
+      "page_count": 214,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://play.google.com/store/books/details?id=lyWOEQAAQBAJ"
+        }
+      ],
+      "source_url": "https://play.google.com/store/books/details?id=lyWOEQAAQBAJ"
+    },
+    {
+      "title": "The Street of Crocodiles",
+      "author": "Bruno Schulz",
+      "isbn13": "9788087830277",
+      "isbn10": "808783027X",
+      "description": "''The Street of Crocodiles'' by Bruno Schulz (1892-1942) was first published in Polish in 1934; this English translation was first published in the US by Walker and Company in 1963, public domain. A novel that blends the real and the fantastic, from \"one of the most original imaginations in modern Europe\" (Cynthia Ozick). The Street of Crocodiles in the Polish city of Drogobych is a street of memories and dreams where recollections of Bruno Schulz's uncommon boyhood and of the eerie side of his merchant family's life are evoked in a startling blend of the real and the fantastic. Most memorable - and most chilling - is the portrait of the author's father, a maddened shopkeeper who imports rare birds' eggs to hatch in his attic, who believes tailors' dummies should be treated like people, and whose obsessive fear of cockroaches causes him to resemble one. Bruno Schulz, a Polish Jew killed by the Nazis in 1942, is considered by many to have been the leading Polish writer between the two world wars.",
+      "cover_url": "https://books.google.com/books/content?id=v7VPEQAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "category": "小说",
+      "publication_date": "2025-03-19",
+      "price": null,
+      "page_count": 136,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://play.google.com/store/books/details?id=v7VPEQAAQBAJ"
+        }
+      ],
+      "source_url": "https://play.google.com/store/books/details?id=v7VPEQAAQBAJ"
+    },
+    {
+      "title": "SHERLOCK HOLMES - THE VALLEY OF FEAR",
+      "author": "ARTHUR CONAN DOYLE",
+      "isbn13": null,
+      "isbn10": null,
+      "description": "SHERLOCK HOLMES – THE VALLEY OF FEAR, is the 4th and final novel written by Arthur Conan Doyle. This book is complete, unabridged and was originally published in 1915. This is one of Doyle’s most outstanding and well-known works of the adventures of the most famous crime-solving duo - Sherlock Holmes and John Watson This book is properly formatted for aesthetics and ease of reading. This book is great for teachers and students or for the casual reader. This book is the perfect addition to any classic literary library. At Pure Snow Publishing we have taken the time and care into formatting this book to make it the best possible reading experience. Key features of this book: - A biographical outline of the author - A custom list of related collections and novels written by the author (listed in order of initial publication) - Easy-to-read font size: 12 pt. - Indented first lines, 1.25 Line Spacing and Justified Paragraphs - Custom Table of Contents and Design elements for each chapter - The Copyright page has been placed at the end of the book, as to not impede the content and flow of the book. We have made this book available in 3 reading formats: Original Paperback, Large Print Paperback and Ebook. Enjoy!",
+      "cover_url": "https://books.google.com/books/content?id=L88qEAAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "category": "小说",
+      "publication_date": null,
+      "price": null,
+      "page_count": 214,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://play.google.com/store/books/details?id=L88qEAAAQBAJ"
+        }
+      ],
+      "source_url": "https://play.google.com/store/books/details?id=L88qEAAAQBAJ"
+    },
+    {
+      "title": "The Final Problem",
+      "author": "Arthur Conan Doyle",
+      "isbn13": "9786561335850",
+      "isbn10": "6561335856",
+      "description": "In \"The Final Problem\", Sherlock Holmes finds himself locked in a dangerous battle of wits against Professor Moriarty, the mastermind behind London's criminal underworld. Aware of the growing threat, Holmes and Watson flee to Switzerland in an attempt to evade Moriarty's reach. As the pursuit intensifies, Holmes devises a plan to end Moriarty's influence once and for all, leading to a fateful confrontation at the Reichenbach Falls.",
+      "cover_url": "https://books.google.com/books/content?id=XUtNEQAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "category": "小说",
+      "publication_date": "2025-03-08",
+      "price": null,
+      "page_count": 39,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://play.google.com/store/books/details?id=XUtNEQAAQBAJ"
+        }
+      ],
+      "source_url": "https://play.google.com/store/books/details?id=XUtNEQAAQBAJ"
+    },
+    {
+      "title": "The Great Gatsby",
+      "author": "F. Scott Fitzgerald",
+      "isbn13": "9789526538570",
+      "isbn10": "9526538579",
+      "description": null,
+      "cover_url": "https://books.google.com/books/content?id=faNh0QEACAAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api",
+      "category": "小说",
+      "publication_date": "2024-01-01",
+      "price": null,
+      "page_count": 0,
+      "language": "en",
+      "buy_links": [
+        {
+          "name": "Google Books",
+          "url": "https://books.google.com/books/about/The_Great_Gatsby.html?hl=&id=faNh0QEACAAJ"
+        }
+      ],
+      "source_url": "https://books.google.com/books/about/The_Great_Gatsby.html?hl=&id=faNh0QEACAAJ"
+    }
+  ],
   "penguin_random_house": [
     {
-      "title": "Gates of Fire",
+      "title": "The Profession",
       "author": "Steven Pressfield",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780767931175",
-      "category": "new stories to listen to learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$21.00",
       "page_count": null,
@@ -23,7 +184,7 @@
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9788466388603",
-      "category": "how to read more this year learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$17.95",
       "page_count": null,
@@ -32,13 +193,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/252943/el-impostor--the-impostor-by-javier-cercas/"
     },
     {
-      "title": "Fire Touched",
+      "title": "Magic Shifts",
       "author": "Patricia Briggs",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780425270684",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$9.99",
       "page_count": null,
@@ -47,13 +208,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/310129/fire-touched-by-patricia-briggs/"
     },
     {
-      "title": "A Red-Rose Chain",
+      "title": "Fire Touched",
       "author": "Seanan McGuire",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217411887",
-      "category": "new releases learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$20.00",
       "page_count": null,
@@ -62,13 +223,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/312909/a-red-rose-chain-by-seanan-mcguire/"
     },
     {
-      "title": "Once Broken Faith",
+      "title": "Fire Touched",
       "author": "Seanan McGuire",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217411887",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "how to read more this year learn more >",
       "publication_date": null,
       "price": "$20.00",
       "page_count": null,
@@ -77,13 +238,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/312910/once-broken-faith-by-seanan-mcguire/"
     },
     {
-      "title": "The Lost Horadrim (Diablo IV)",
+      "title": "Strixhaven: Omens of Chaos (Magic: The Gathering)",
       "author": "Matthew J. Kirby",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593871430",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$30.00",
       "page_count": null,
@@ -92,13 +253,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/538199/the-lost-horadrim-diablo-iv-by-matthew-j-kirby/"
     },
     {
-      "title": "No Middle Name",
+      "title": "No Plan B",
       "author": "Lee Child",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781984818560",
-      "category": "new stories to listen to learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$20.00",
       "page_count": null,
@@ -107,13 +268,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/549190/no-middle-name-by-lee-child/"
     },
     {
-      "title": "La doctora Cole / Choices",
+      "title": "El impostor / The Impostor",
       "author": "Noah Gordon",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9788466388603",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "new stories to listen to learn more >",
       "publication_date": null,
       "price": "$17.95",
       "page_count": null,
@@ -122,13 +283,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/595761/la-doctora-cole--choices-by-noah-gordon/"
     },
     {
-      "title": "Distancia de rescate / Fever Dream",
+      "title": "El impostor / The Impostor",
       "author": "Samanta Schweblin",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9788466388603",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$18.95",
       "page_count": null,
@@ -137,13 +298,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/652915/distancia-de-rescate--fever-dream-by-samanta-schweblin/"
     },
     {
-      "title": "Hot Air",
+      "title": "Show Don’t Tell",
       "author": "Marcy Dermansky",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593446751",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$17.00",
       "page_count": null,
@@ -152,7 +313,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/688426/hot-air-by-marcy-dermansky/"
     },
     {
-      "title": "Aphrodite in Pieces",
+      "title": "Witch Queen Rising",
       "author": "Lauren J. A. Bear",
       "isbn13": null,
       "isbn10": null,
@@ -167,13 +328,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/726795/aphrodite-in-pieces-by-lauren-j-a-bear/"
     },
     {
-      "title": "When the Harvest Comes",
+      "title": "The Outer Country",
       "author": "Denne Michele Norris",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593731659",
-      "category": "join our authors for upcoming events learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$18.00",
       "page_count": null,
@@ -182,7 +343,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/735735/when-the-harvest-comes-by-denne-michele-norris/"
     },
     {
-      "title": "Summer Light on Nantucket",
+      "title": "All the Days of Summer",
       "author": "Nancy Thayer",
       "isbn13": null,
       "isbn10": null,
@@ -197,13 +358,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/736289/summer-light-on-nantucket-by-nancy-thayer/"
     },
     {
-      "title": "Where We Belong",
+      "title": "A Season for Tending",
       "author": "Kim Vogel Sawyer",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780307730022",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$18.00",
       "page_count": null,
@@ -212,13 +373,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/738118/where-we-belong-by-kim-vogel-sawyer/"
     },
     {
-      "title": "James (Pulitzer Prize Winner)",
+      "title": "The Seven Year Slip",
       "author": "Percival Everett",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593638842",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$20.00",
       "page_count": null,
@@ -227,13 +388,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/738749/james-pulitzer-prize-winner-by-percival-everett/"
     },
     {
-      "title": "The Antiquarian's Object of Desire",
+      "title": "The Sea Spinner",
       "author": "India Holton",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593817889",
-      "category": "join our authors for upcoming events learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$19.00",
       "page_count": null,
@@ -242,13 +403,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/739806/the-antiquarians-object-of-desire-by-india-holton/"
     },
     {
-      "title": "Somewhere Soft to Land",
+      "title": "The Shape of Dreams",
       "author": "kai alonté",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593316863",
-      "category": "join our authors for upcoming events learn more >",
+      "category": "10 audiobook originals you need to hear learn more >",
       "publication_date": null,
       "price": "$30.00",
       "page_count": null,
@@ -257,13 +418,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/746272/somewhere-soft-to-land-by-kai-alonte/"
     },
     {
-      "title": "The Missing Half",
+      "title": "Not Quite Dead Yet: A GMA Book Club Pick",
       "author": "Ashley Flowers",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593977071",
-      "category": "how to read more this year learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$20.00",
       "page_count": null,
@@ -272,13 +433,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/746479/the-missing-half-by-ashley-flowers-with-alex-kiester/"
     },
     {
-      "title": "Lidie",
+      "title": "A Fortune of Sand",
       "author": "Jane Smiley On Tour",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217093243",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "new stories to listen to learn more >",
       "publication_date": null,
       "price": "$30.00",
       "page_count": null,
@@ -287,7 +448,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/750410/lidie-by-jane-smiley/"
     },
     {
-      "title": "The Best Punctuation Book, Period (Revised Edition)",
+      "title": "Grammar Snobs Are Great Big Meanies",
       "author": "June Casagrande",
       "isbn13": null,
       "isbn10": null,
@@ -302,13 +463,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/224059/the-best-punctuation-book-period-revised-edition-by-june-casagrande/"
     },
     {
-      "title": "Why Do We Exist?",
+      "title": "The Essential Guide to Freelance Writing",
       "author": "Hakeem Oluseyi",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781599639055",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$32.00",
       "page_count": null,
@@ -317,13 +478,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/600369/why-do-we-exist-by-hakeem-oluseyi-with-nils-johnson-shelton/"
     },
     {
-      "title": "Mon Cher Amour",
+      "title": "The Marble Faun and A Green Bough",
       "author": "Albert Camus",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780307873804",
-      "category": "how to read more this year learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$60.00",
       "page_count": null,
@@ -332,13 +493,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/607892/mon-cher-amour-by-albert-camus/"
     },
     {
-      "title": "Homesick for a World Unknown",
+      "title": "How to Rule the World",
       "author": "Miriam Horn",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593832837",
-      "category": "new releases learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$40.00",
       "page_count": null,
@@ -347,13 +508,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/635282/homesick-for-a-world-unknown-by-miriam-horn/"
     },
     {
-      "title": "The Rolling Stones",
+      "title": "American Rambler",
       "author": "Bob Spitz",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593537794",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$38.00",
       "page_count": null,
@@ -362,13 +523,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/690796/the-rolling-stones-by-bob-spitz/"
     },
     {
-      "title": "Beyond Inheritance",
+      "title": "Seek and Hide",
       "author": "Roxanne Khamsi On Tour",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781984880741",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$30.00",
       "page_count": null,
@@ -377,7 +538,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/711682/beyond-inheritance-by-roxanne-khamsi/"
     },
     {
-      "title": "The Fullness of Time",
+      "title": "For the Sun After Long Nights",
       "author": "Cathy Haynes",
       "isbn13": null,
       "isbn10": null,
@@ -392,13 +553,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/736946/the-fullness-of-time-by-cathy-haynes/"
     },
     {
-      "title": "Just the Good Stuff",
+      "title": "The Fullness of Time",
       "author": "Jim VandeHei",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593715451",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$18.00",
       "page_count": null,
@@ -407,13 +568,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/739608/just-the-good-stuff-by-jim-vandehei/"
     },
     {
-      "title": "If This Be Magic",
+      "title": "Selected Poems of W. H. Auden",
       "author": "Daniel Hahn On Tour",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780307278081",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$35.00",
       "page_count": null,
@@ -422,13 +583,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/743377/if-this-be-magic-by-daniel-hahn/"
     },
     {
-      "title": "Why We Talk Funny",
+      "title": "Passing for Human",
       "author": "Valerie Fridland",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780525508946",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$32.00",
       "page_count": null,
@@ -437,13 +598,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/744046/why-we-talk-funny-by-valerie-fridland/"
     },
     {
-      "title": "Anchored, Aligned, Accountable",
+      "title": "The Meaning of Your Life",
       "author": "Aiko Bethea",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593545423",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$31.00",
       "page_count": null,
@@ -452,13 +613,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/747123/anchored-aligned-accountable-by-aiko-bethea/"
     },
     {
-      "title": "America, América",
+      "title": "Crossing the Threshold of Hope",
       "author": "Greg Grandin",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780679765615",
-      "category": "new releases learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$24.00",
       "page_count": null,
@@ -467,13 +628,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/747326/america-america-by-greg-grandin/"
     },
     {
-      "title": "The Lao Kitchen",
+      "title": "Kimi’s Kitchen",
       "author": "Saeng Douangdara",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593837146",
-      "category": "new releases learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$32.99",
       "page_count": null,
@@ -488,7 +649,7 @@
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593798102",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$35.00",
       "page_count": null,
@@ -497,13 +658,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/753294/budget-luxury-by-clare-sullivan/"
     },
     {
-      "title": "Prophecy",
+      "title": "On Morrison",
       "author": "Carissa Véliz On Tour",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593732915",
-      "category": "how to read more this year learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$35.00",
       "page_count": null,
@@ -512,13 +673,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/759692/prophecy-by-carissa-veliz/"
     },
     {
-      "title": "Drained",
+      "title": "When She Makes More",
       "author": "Leah Ruppanner, PhD",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780142181928",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$30.00",
       "page_count": null,
@@ -527,7 +688,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/762972/drained-by-leah-ruppanner-phd/"
     },
     {
-      "title": "Love, Finally",
+      "title": "What Matters Most",
       "author": "Geneen Roth",
       "isbn13": null,
       "isbn10": null,
@@ -542,13 +703,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/762978/love-finally-by-geneen-roth/"
     },
     {
-      "title": "Monsters in the Archives",
+      "title": "Good and Evil and Other Stories",
       "author": "Caroline Bicks",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593803103",
-      "category": "new stories to listen to learn more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$29.00",
       "page_count": null,
@@ -557,7 +718,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/771482/monsters-in-the-archives-by-caroline-bicks/"
     },
     {
-      "title": "The Migrant Rain Falls in Reverse",
+      "title": "Mon Cher Amour",
       "author": "Vinh Nguyen",
       "isbn13": null,
       "isbn10": null,
@@ -572,7 +733,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/772197/the-migrant-rain-falls-in-reverse-by-vinh-nguyen/"
     },
     {
-      "title": "God Gave Us Heaven",
+      "title": "God Gave Us Love",
       "author": "Lisa Tawn Bergren",
       "isbn13": null,
       "isbn10": null,
@@ -587,13 +748,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/12488/god-gave-us-heaven-by-lisa-tawn-bergren-art-by-laura-j-bryant/"
     },
     {
-      "title": "God Gave Us Love",
+      "title": "God Gave Us Heaven",
       "author": "Lisa Tawn Bergren",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781400074464",
-      "category": "join our authors for upcoming events learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$14.99",
       "page_count": null,
@@ -602,13 +763,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/12489/god-gave-us-love-by-lisa-tawn-bergren-illustrated-by-laura-bryant/"
     },
     {
-      "title": "God Gave Us Two",
+      "title": "God Gave Us the World",
       "author": "Lisa Tawn Bergren",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781400074488",
-      "category": "new releases learn more >",
+      "category": "how to read more this year learn more >",
       "publication_date": null,
       "price": "$14.99",
       "page_count": null,
@@ -617,13 +778,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/12491/god-gave-us-two-by-lisa-tawn-bergren-illustrated-by-laura-j-bryant/"
     },
     {
-      "title": "God Gave Us Angels",
+      "title": "God Gave Us Two",
       "author": "Lisa Tawn Bergren",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781578565078",
-      "category": "how to read more this year learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$14.99",
       "page_count": null,
@@ -632,7 +793,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/239365/god-gave-us-angels-by-lisa-tawn-bergren-illustrations-by-laura-j-bryant/"
     },
     {
-      "title": "God Gave Us Sleep",
+      "title": "The Big Book of Berenstain Bears Stories",
       "author": "Lisa Tawn Bergren",
       "isbn13": null,
       "isbn10": null,
@@ -647,13 +808,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/239366/god-gave-us-sleep-by-lisa-tawn-bergren-illustrated-by-laura-j-bryant/"
     },
     {
-      "title": "Found Sound",
-      "author": "Meg Wolitzer On Tour",
+      "title": "Unfathomable: 20 Wild (But True) Stories About the Ocean",
+      "author": "Meg Wolitzer",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593904756",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$17.99",
       "page_count": null,
@@ -662,13 +823,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/530277/found-sound-by-meg-wolitzer-and-charlie-panek/"
     },
     {
-      "title": "Zonia's Rain Forest",
+      "title": "Zonia’s Rain Forest",
       "author": "Juana Martinez-Neal",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781536250527",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "10 audiobook originals you need to hear learn more >",
       "publication_date": null,
       "price": "$8.99",
       "page_count": null,
@@ -683,7 +844,7 @@
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781536250626",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$8.99",
       "page_count": null,
@@ -698,7 +859,7 @@
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781623542849",
-      "category": "new releases learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$8.99",
       "page_count": null,
@@ -707,13 +868,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/705257/chicken-soup-for-the-soul-babies-brave-little-otter-its-okay-to-wait-by-natasha-yim-author-nina-ramos-illustrator/"
     },
     {
-      "title": "Jurassic Jeff: Phone Home (Jurassic Jeff Book 3)",
+      "title": "Dinosaur Day",
       "author": "Royden Lepp",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593377284",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "new stories to listen to learn more >",
       "publication_date": null,
       "price": "$14.99",
       "page_count": null,
@@ -722,13 +883,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/708155/jurassic-jeff-phone-home-jurassic-jeff-book-3-by-royden-lepp/"
     },
     {
-      "title": "Shock City Punks: A Graphic Novel",
+      "title": "What Do We Know About Spontaneous Human Combustion?",
       "author": "Aaron Alexovich",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217049202",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$23.99",
       "page_count": null,
@@ -737,13 +898,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/711869/shock-city-punks-a-graphic-novel-by-aaron-alexovich/"
     },
     {
-      "title": "A Shelter for Sadness",
+      "title": "Zonia’s Rain Forest",
       "author": "Anne Booth",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781536250527",
-      "category": "how to read more this year learn more >",
+      "category": "10 audiobook originals you need to hear learn more >",
       "publication_date": null,
       "price": "$8.99",
       "page_count": null,
@@ -752,13 +913,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/715329/a-shelter-for-sadness-by-anne-booth-illustrated-by-david-litchfield/"
     },
     {
-      "title": "What Ended the Golden Age of Airships? The Hindenburg Disaster",
+      "title": "Where Is Missouri?",
       "author": "Chris Kindred",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217243761",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "new stories to listen to learn more >",
       "publication_date": null,
       "price": "$13.99",
       "page_count": null,
@@ -767,13 +928,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/727172/what-ended-the-golden-age-of-airships-the-hindenburg-disaster-by-chris-kindred-illustrated-by-ru-xu/"
     },
     {
-      "title": "Ritu in the Sun",
+      "title": "If I Were A Kangaroo",
       "author": "Moniza Hossain",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780451469588",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$18.99",
       "page_count": null,
@@ -782,13 +943,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/740790/ritu-in-the-sun-by-moniza-hossain-illustrated-by-merce-lopez/"
     },
     {
-      "title": "Sheep & Goat Climb the World",
-      "author": "A. C. Paolini On Tour",
+      "title": "Sharks in Kansas",
+      "author": "A. C. Paolini",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593904718",
-      "category": "how to read more this year learn more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$18.99",
       "page_count": null,
@@ -797,13 +958,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/751001/sheep-and-goat-climb-the-world-by-a-c-paolini-illustrated-by-monica-arnaldo/"
     },
     {
-      "title": "Hold",
+      "title": "Watermelon Pool",
       "author": "Randy Ribay On Tour",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217111787",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "how to read more this year learn more >",
       "publication_date": null,
       "price": "$18.99",
       "page_count": null,
@@ -812,13 +973,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/751454/hold-by-written-by-randy-ribay-illustrated-by-zeke-pena/"
     },
     {
-      "title": "The Ghost in Cabin 13: A Graphic Novel",
+      "title": "Uncle Wiggily’s Story Book",
       "author": "J.C. Phillipps",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780448400907",
-      "category": "how to read more this year learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$23.99",
       "page_count": null,
@@ -827,13 +988,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/753316/the-ghost-in-cabin-13-a-graphic-novel-by-j-c-phillipps/"
     },
     {
-      "title": "Can You Grow a Striped Banana?",
+      "title": "Hello, Ocean!",
       "author": "Jill Santopolo On Tour",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593625248",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$18.99",
       "page_count": null,
@@ -842,13 +1003,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/762680/can-you-grow-a-striped-banana-by-jill-santopolo-illustrated-by-momoko-abe/"
     },
     {
-      "title": "Two Birthdays",
+      "title": "Zonia’s Rain Forest",
       "author": "Tim Hopgood",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781536250527",
-      "category": "join our authors for upcoming events learn more >",
+      "category": "books to read if you love \"the devil wears prada\" read more >",
       "publication_date": null,
       "price": "$17.99",
       "page_count": null,
@@ -857,13 +1018,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/763720/two-birthdays-by-tim-hopgood-illustrated-by-tim-hopgood/"
     },
     {
-      "title": "The Time of Cherries",
+      "title": "A Trip to the Stars",
       "author": "Montserrat Roig",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780812984798",
-      "category": "new stories to listen to learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$17.00",
       "page_count": null,
@@ -872,13 +1033,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/786140/the-time-of-cherries-by-montserrat-roig/"
     },
     {
-      "title": "Nest of the Gentry, Virgin Soil",
+      "title": "Revolutionary Road, The Easter Parade, Eleven Kinds of Loneliness",
       "author": "Ivan Turgenev",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780307270894",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "books bans are on the rise in america learn more >",
       "publication_date": null,
       "price": "$35.00",
       "page_count": null,
@@ -887,13 +1048,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/803603/nest-of-the-gentry-virgin-soil-by-ivan-turgenev-introduction-by-andrew-kahn/"
     },
     {
-      "title": "A Tale Unasked",
+      "title": "The Catacombs",
       "author": "Lady Nijo",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217007332",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$20.00",
       "page_count": null,
@@ -902,13 +1063,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/780915/a-tale-unasked-by-lady-nijo-translated-by-meredith-mckinney/"
     },
     {
-      "title": "Fyodor Dostoyevsky 3-Book Boxed Set",
+      "title": "Major Works of the Stoics 3-Book Boxed Set",
       "author": "Fyodor Dostoyevsky",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780241765791",
-      "category": "new releases learn more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$94.00",
       "page_count": null,
@@ -917,13 +1078,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/806937/fyodor-dostoyevsky-3-book-boxed-set-by-fyodor-dostoyevsky-translated-by-david-mcduff-cover-illustrated-by-coralie-bickford-smith/"
     },
     {
-      "title": "All Quiet on the Western Front",
+      "title": "The Civil War Trilogy Box Set",
       "author": "Erich Maria Remarque",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780679643708",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$30.00",
       "page_count": null,
@@ -932,7 +1093,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/775540/all-quiet-on-the-western-front-by-erich-maria-remarque-translated-by-maria-tatar-foreword-by-samantha-power/"
     },
     {
-      "title": "The Inheritors",
+      "title": "The Spire",
       "author": "William Golding",
       "isbn13": null,
       "isbn10": null,
@@ -947,13 +1108,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/775828/the-inheritors-by-william-golding-foreword-by-ben-okri-suggestions-for-further-exploration-by-rachel-greenwald-smith/"
     },
     {
-      "title": "Pincher Martin",
+      "title": "The Spire",
       "author": "William Golding",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780143138815",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "10 audiobook originals you need to hear learn more >",
       "publication_date": null,
       "price": "$19.00",
       "page_count": null,
@@ -962,13 +1123,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/775829/pincher-martin-by-william-golding-foreword-by-marlon-james-suggestions-for-further-exploration-by-rachel-greenwald-smith/"
     },
     {
-      "title": "Free Fall",
+      "title": "The Spire",
       "author": "William Golding",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780143138815",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$19.00",
       "page_count": null,
@@ -977,13 +1138,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/775830/free-fall-by-william-golding-foreword-by-john-gray-suggestions-for-further-exploration-by-rachel-greenwald-smith/"
     },
     {
-      "title": "The Spire",
+      "title": "Pincher Martin",
       "author": "William Golding",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780143138792",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$19.00",
       "page_count": null,
@@ -992,13 +1153,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/775831/the-spire-by-william-golding-foreword-by-benjamin-myers-suggestions-for-further-explorationby-rachel-greenwald-smith/"
     },
     {
-      "title": "Suspicion",
+      "title": "Tokyo Express",
       "author": "Seicho Matsumoto",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593979044",
-      "category": "join our authors for upcoming events learn more >",
+      "category": "books to read if you love \"the devil wears prada\" read more >",
       "publication_date": null,
       "price": "$17.00",
       "page_count": null,
@@ -1007,13 +1168,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/787335/suspicion-by-seicho-matsumoto/"
     },
     {
-      "title": "Irish Stories",
+      "title": "Tristram Shandy",
       "author": "Christopher Morash",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780679405603",
-      "category": "how to read more this year learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$25.00",
       "page_count": null,
@@ -1022,7 +1183,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/800473/irish-stories-by-edited-by-christopher-morash/"
     },
     {
-      "title": "Nothing Grows by Moonlight",
+      "title": "Dubliners",
       "author": "Torborg Nedreaas",
       "isbn13": null,
       "isbn10": null,
@@ -1037,13 +1198,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/808825/nothing-grows-by-moonlight-by-torborg-nedreaas/"
     },
     {
-      "title": "The Writings of Thomas Smallwood",
+      "title": "The Boundless Deep",
       "author": "Thomas Smallwood",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780307379672",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "books to read if you love \"the devil wears prada\" read more >",
       "publication_date": null,
       "price": "$17.00",
       "page_count": null,
@@ -1052,13 +1213,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/748905/the-writings-of-thomas-smallwood-by-thomas-smallwood-edited-with-an-introduction-by-scott-shane-general-editor-henry-louis-gates-jr/"
     },
     {
-      "title": "Zami: A New Spelling of My Name",
+      "title": "Plum Bun",
       "author": "Audre Lorde",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593731956",
-      "category": "new releases learn more >",
+      "category": "how to read more this year learn more >",
       "publication_date": null,
       "price": "$28.00",
       "page_count": null,
@@ -1067,7 +1228,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/803669/zami-a-new-spelling-of-my-name-by-audre-lorde-foreword-by-evie-shockley-afterword-by-melinda-goodman/"
     },
     {
-      "title": "The Philokalia",
+      "title": "Medieval Writings on Female Spirituality",
       "author": "Andrew Louth",
       "isbn13": null,
       "isbn10": null,
@@ -1082,13 +1243,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/780706/the-philokalia-by-translated-by-jonathan-l-zecher-and-andrew-louth-introduction-by-andrew-louth/"
     },
     {
-      "title": "The Weary Blues; Not Without Laughter; The Ways of White Folks",
+      "title": "Go Down, Moses",
       "author": "Langston Hughes",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780679732174",
-      "category": "new releases learn more >",
+      "category": "10 audiobook originals you need to hear learn more >",
       "publication_date": null,
       "price": "$35.00",
       "page_count": null,
@@ -1097,13 +1258,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/792150/the-weary-blues-not-without-laughter-the-ways-of-white-folks-by-langston-hughes-introduction-by-joshua-bennett/"
     },
     {
-      "title": "Not Without Laughter",
+      "title": "Snow Country",
       "author": "Langston Hughes",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780679761044",
-      "category": "new releases learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$12.00",
       "page_count": null,
@@ -1112,13 +1273,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/84082/not-without-laughter-by-langston-hughes-with-an-introduction-by-bryan-washington/"
     },
     {
-      "title": "Major Works of the Stoics 3-Book Boxed Set",
+      "title": "The Qur’an",
       "author": "Marcus Aurelius",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780143105886",
-      "category": "new releases learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$72.00",
       "page_count": null,
@@ -1127,13 +1288,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/806936/major-works-of-the-stoics-3-book-boxed-set-by-marcus-aurelius-seneca-and-epictetus-translated-by-martin-hammond-robin-campbell-and-robert-dobbin-cover-illustrated-by-coralie-bickford-smith/"
     },
     {
-      "title": "The Idiot",
+      "title": "The Story of King Arthur and His Knights",
       "author": "Fyodor Dostoyevsky",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780451530240",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$32.00",
       "page_count": null,
@@ -1142,15 +1303,15 @@
       "source_url": "https://www.penguinrandomhouse.com/books/294984/the-idiot-by-fyodor-dostoyevsky-translated-with-notes-by-david-mcduff-introduction-by-william-mills-todd-iii-cover-illustrated-by-coralie-bickford-smith/"
     },
     {
-      "title": "Hello Body Horror #1",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Mark Bouchard",
       "isbn13": null,
       "isbn10": null,
       "description": null,
-      "cover_url": "https://images.penguinrandomhouse.com/cover/9798217383931",
-      "category": "join our authors for upcoming events learn more >",
+      "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
+      "category": "new releases learn more >",
       "publication_date": null,
-      "price": "$5.99",
+      "price": "$2.99",
       "page_count": null,
       "language": "English",
       "buy_links": [],
@@ -1163,7 +1324,7 @@
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781506753225",
-      "category": "what type of reader is your child? take the quiz! learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$29.99",
       "page_count": null,
@@ -1172,13 +1333,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/241678/creepy-presents-richard-corben-by-illustrated-by-richard-corben-written-by-doug-moench-steve-skeates-and-others/"
     },
     {
-      "title": "The EC Archives: Panic Volume 1",
+      "title": "Creepy Presents: Richard Corben",
       "author": "Al Feldstein",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781506753225",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "new releases learn more >",
       "publication_date": null,
       "price": "$19.99",
       "page_count": null,
@@ -1187,13 +1348,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/556102/the-ec-archives-panic-volume-1-by-written-by-al-feldstein-nick-meglin-and-others-illustrated-by-wally-wood-basil-wolverton-joe-orlando-and-others/"
     },
     {
-      "title": "Father, I Don't Want This Marriage, Volume 6",
+      "title": "King’s Maker, Volume 2",
       "author": "Hong Heesu",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9780593972595",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "how to read more this year learn more >",
       "publication_date": null,
       "price": "$20.00",
       "page_count": null,
@@ -1202,13 +1363,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/751247/father-i-dont-want-this-marriage-volume-6-by-original-story-by-hong-heesu-art-by-roal-adapted-by-yuri/"
     },
     {
-      "title": "The Blue Wolves of Mibu 9 (Blue Miburo)",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Tsuyoshi Yasuda",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
-      "category": "new releases learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$13.99",
       "page_count": null,
@@ -1217,7 +1378,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/752416/the-blue-wolves-of-mibu-9-blue-miburo-by-tsuyoshi-yasuda/"
     },
     {
-      "title": "Drifting Dragons 17",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Taku Kuwabara",
       "isbn13": null,
       "isbn10": null,
@@ -1232,13 +1393,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/772276/drifting-dragons-17-by-taku-kuwabara/"
     },
     {
-      "title": "Wave, Listen to Me! 11",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Hiroaki Samura",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$12.99",
       "page_count": null,
@@ -1247,13 +1408,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/772299/wave-listen-to-me-11-by-hiroaki-samura/"
     },
     {
-      "title": "Star Wars: The High Republic Phase III – Trials Of The Jedi Omnibus Phil Noto Cover",
+      "title": "Creepy Presents: Richard Corben",
       "author": "Cavan Scott",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781506753225",
-      "category": "new stories to listen to learn more >",
+      "category": "books to read if you love \"the devil wears prada\" read more >",
       "publication_date": null,
       "price": "$100.00",
       "page_count": null,
@@ -1262,7 +1423,7 @@
       "source_url": "https://www.penguinrandomhouse.com/books/777624/star-wars-the-high-republic-phase-iii---trials-of-the-jedi-omnibus-phil-noto-cover-by-cavan-scott/"
     },
     {
-      "title": "Blue Lock 29",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Muneyuki Kaneshiro",
       "isbn13": null,
       "isbn10": null,
@@ -1277,23 +1438,8 @@
       "source_url": "https://www.penguinrandomhouse.com/books/777794/blue-lock-29-by-story-by-muneyuki-kaneshiro-art-by-yusuke-nomura/"
     },
     {
-      "title": "That Time I Got Reincarnated as a Slime: Trinity in Tempest (Manga) 10",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Fuse",
-      "isbn13": null,
-      "isbn10": null,
-      "description": null,
-      "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
-      "category": "how to read more this year learn more >",
-      "publication_date": null,
-      "price": "$12.99",
-      "page_count": null,
-      "language": "English",
-      "buy_links": [],
-      "source_url": "https://www.penguinrandomhouse.com/books/777924/that-time-i-got-reincarnated-as-a-slime-trinity-in-tempest-manga-10-by-by-tae-tono-created-by-fuse-character-designs-by-mitz-vah/"
-    },
-    {
-      "title": "Gachiakuta 10",
-      "author": "Kei Urana",
       "isbn13": null,
       "isbn10": null,
       "description": null,
@@ -1304,16 +1450,31 @@
       "page_count": null,
       "language": "English",
       "buy_links": [],
+      "source_url": "https://www.penguinrandomhouse.com/books/777924/that-time-i-got-reincarnated-as-a-slime-trinity-in-tempest-manga-10-by-by-tae-tono-created-by-fuse-character-designs-by-mitz-vah/"
+    },
+    {
+      "title": "My Favorite VTuber Is Scary IRL #019",
+      "author": "Kei Urana",
+      "isbn13": null,
+      "isbn10": null,
+      "description": null,
+      "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
+      "category": "books bans are on the rise in america learn more >",
+      "publication_date": null,
+      "price": "$12.99",
+      "page_count": null,
+      "language": "English",
+      "buy_links": [],
       "source_url": "https://www.penguinrandomhouse.com/books/777945/gachiakuta-10-by-by-kei-urana-graffiti-designs-by-hideyoshi-andou/"
     },
     {
-      "title": "The Ancient Magus' Bride: Wizard's Blue Vol. 10",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Makoto Sanda",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$13.99",
       "page_count": null,
@@ -1322,13 +1483,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/783974/the-ancient-magus-bride-wizards-blue-vol-10-by-kore-yamazaki-and-makoto-sanda-illustrated-by-isuo-tsukumo/"
     },
     {
-      "title": "Batman: Gotham by Gaslight: A League for Justice",
+      "title": "Creepy Presents: Richard Corben",
       "author": "Andy Diggle",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781506753225",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "what type of reader is your child? take the quiz! learn more >",
       "publication_date": null,
       "price": "$29.99",
       "page_count": null,
@@ -1337,13 +1498,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/796811/batman-gotham-by-gaslight-a-league-for-justice-by-andy-diggle/"
     },
     {
-      "title": "Mortal Thor Vol. 1: No Gods, No Masters",
+      "title": "Creepy Presents: Richard Corben",
       "author": "Al Ewing",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781506753225",
-      "category": "10 audiobook originals you need to hear learn more >",
+      "category": "books to read if you love \"the devil wears prada\" read more >",
       "publication_date": null,
       "price": "$17.99",
       "page_count": null,
@@ -1352,13 +1513,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/799367/mortal-thor-vol-1-no-gods-no-masters-by-al-ewing/"
     },
     {
-      "title": "Cosmic Censorship Vol.3",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Ryu-Ichi Sadamatsu",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
-      "category": "new stories to listen to learn more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$13.99",
       "page_count": null,
@@ -1367,13 +1528,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/799947/cosmic-censorship-vol3-by-written-by-ryu-ichi-sadamatsu/"
     },
     {
-      "title": "Star Wars: The Mandalorian – Seasons One & Two",
+      "title": "Creepy Presents: Richard Corben",
       "author": "Rodney Barnes",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781506753225",
-      "category": "books bans are on the rise in america learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$49.99",
       "page_count": null,
@@ -1382,13 +1543,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/801474/star-wars-the-mandalorian---seasons-one-and-two-by-rodney-barnes/"
     },
     {
-      "title": "Wash It All Away 07",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Mitsuru Hattori",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
-      "category": "how to read more this year learn more >",
+      "category": "join our authors for upcoming events learn more >",
       "publication_date": null,
       "price": "$14.99",
       "page_count": null,
@@ -1397,13 +1558,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/802335/wash-it-all-away-07-by-mitsuru-hattori/"
     },
     {
-      "title": "Her Royal Highness Seems to Be Angry, Volume 3 (Light Novel)",
+      "title": "My Favorite VTuber Is Scary IRL #019",
       "author": "Kou Yatsuhashi",
       "isbn13": null,
       "isbn10": null,
       "description": null,
-      "cover_url": "https://images.penguinrandomhouse.com/cover/9798217383931",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "cover_url": "https://images.penguinrandomhouse.com/cover/9798899232701",
+      "category": "how to read more this year learn more >",
       "publication_date": null,
       "price": "$16.99",
       "page_count": null,
@@ -1412,13 +1573,13 @@
       "source_url": "https://www.penguinrandomhouse.com/books/803334/her-royal-highness-seems-to-be-angry-volume-3-light-novel-by-kou-yatsuhashi/"
     },
     {
-      "title": "Godzilla: Here There Be Aliens",
+      "title": "Creepy Presents: Richard Corben",
       "author": "Frank Tieri",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9781506753225",
-      "category": "join our authors for upcoming events learn more >",
+      "category": "browse all our lists, essays, and interviews see what we’re reading >",
       "publication_date": null,
       "price": "$17.99",
       "page_count": null,
@@ -1428,57 +1589,12 @@
     },
     {
       "title": "Gates of Fire",
-      "author": "Steven Pressfield",
-      "isbn13": null,
-      "isbn10": null,
-      "description": null,
-      "cover_url": "https://images.penguinrandomhouse.com/cover/9780767931175",
-      "category": "new stories to listen to learn more >",
-      "publication_date": null,
-      "price": "$21.00",
-      "page_count": null,
-      "language": "English",
-      "buy_links": [],
-      "source_url": "https://www.penguinrandomhouse.com/books/133742/gates-of-fire-by-steven-pressfield/"
-    },
-    {
-      "title": "James (Pulitzer Prize Winner)",
-      "author": "Percival Everett",
-      "isbn13": null,
-      "isbn10": null,
-      "description": null,
-      "cover_url": "https://images.penguinrandomhouse.com/cover/9780593638842",
-      "category": "books bans are on the rise in america learn more >",
-      "publication_date": null,
-      "price": "$20.00",
-      "page_count": null,
-      "language": "English",
-      "buy_links": [],
-      "source_url": "https://www.penguinrandomhouse.com/books/738749/james-pulitzer-prize-winner-by-percival-everett/"
-    },
-    {
-      "title": "Lidie",
-      "author": "Jane Smiley On Tour",
-      "isbn13": null,
-      "isbn10": null,
-      "description": null,
-      "cover_url": "https://images.penguinrandomhouse.com/cover/9798217093243",
-      "category": "books to read if you love \"the devil wears prada\" read more >",
-      "publication_date": null,
-      "price": "$30.00",
-      "page_count": null,
-      "language": "English",
-      "buy_links": [],
-      "source_url": "https://www.penguinrandomhouse.com/books/750410/lidie-by-jane-smiley/"
-    },
-    {
-      "title": "Mother Russia",
       "author": "Robert Littell",
       "isbn13": null,
       "isbn10": null,
       "description": null,
       "cover_url": "https://images.penguinrandomhouse.com/cover/9798217410224",
-      "category": "browse all our lists, essays, and interviews see what we’re reading >",
+      "category": "books to read if you love \"the devil wears prada\" read more >",
       "publication_date": null,
       "price": "$19.95",
       "page_count": null,
@@ -1500,6 +1616,51 @@
       "language": "English",
       "buy_links": [],
       "source_url": "https://www.penguinrandomhouse.com/books/797912/the-sisters-by-robert-littell/"
+    },
+    {
+      "title": "The Dead Ringer",
+      "author": "Dane Bahr On Tour",
+      "isbn13": null,
+      "isbn10": null,
+      "description": null,
+      "cover_url": "https://images.penguinrandomhouse.com/cover/9781640097544",
+      "category": "join our authors for upcoming events learn more >",
+      "publication_date": null,
+      "price": "$28.00",
+      "page_count": null,
+      "language": "English",
+      "buy_links": [],
+      "source_url": "https://www.penguinrandomhouse.com/books/804565/the-dead-ringer-by-dane-bahr/"
+    },
+    {
+      "title": "Gates of Fire",
+      "author": "April Howells",
+      "isbn13": null,
+      "isbn10": null,
+      "description": null,
+      "cover_url": "https://images.penguinrandomhouse.com/cover/9798217410224",
+      "category": "10 audiobook originals you need to hear learn more >",
+      "publication_date": null,
+      "price": "$29.99",
+      "page_count": null,
+      "language": "English",
+      "buy_links": [],
+      "source_url": "https://www.penguinrandomhouse.com/books/813693/the-unforgettable-mailman-by-april-howells/"
+    },
+    {
+      "title": "Fire Touched",
+      "author": "Tang Jiu Qing",
+      "isbn13": null,
+      "isbn10": null,
+      "description": null,
+      "cover_url": "https://images.penguinrandomhouse.com/cover/9798217411887",
+      "category": "new releases learn more >",
+      "publication_date": null,
+      "price": "$19.99",
+      "page_count": null,
+      "language": "English",
+      "buy_links": [],
+      "source_url": "https://www.penguinrandomhouse.com/books/818298/ballad-of-sword-and-wine-qiang-jin-jiu-novel-vol-7-by-tang-jiu-qing-cover-art-and-illustrations-by-st-translated-by-xia-jia-amixy/"
     }
   ],
   "hachette": [
