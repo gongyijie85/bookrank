@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-27T07:19:18.557003",
+  "timestamp": "2026-04-28T05:37:47.420615",
   "publishers": [
     "google_books",
     "penguin_random_house",
@@ -9,5 +9,5 @@
     "simon_schuster",
     "open_library"
   ],
-  "total_books": 208
+  "total_books": 200
 }
