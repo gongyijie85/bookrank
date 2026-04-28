@@ -1,31 +1,28 @@
 """
 Simon & Schuster（西蒙舒斯特）出版社爬虫
 
-西蒙舒斯特是美国主要出版商之一，
-以出版畅销小说、非虚构作品和儿童读物闻名。
+使用 Google Books API 获取 Simon & Schuster 出版社的书籍数据。
+避免直接爬取出版社网站（Cloudflare 403 防护）。
 
-混合架构：先尝试传统 requests，失败后自动用 Crawl4AI 降级
-
-网站特点：
-- 新书页面按月份组织
-- 提供详细的书籍信息
-- 支持多种分类浏览
+Google Books 查询语法:
+- publisher:"Simon & Schuster" 可筛选特定出版社
 """
 import logging
+from typing import Any
 
-from .mixed_crawl4ai_crawler import MixedCrawl4AICrawler
+from .google_books import GoogleBooksCrawler
 
 logger = logging.getLogger(__name__)
 
 
-class SimonSchusterCrawler(MixedCrawl4AICrawler):
+class SimonSchusterCrawler(GoogleBooksCrawler):
     """
-    Simon & Schuster 出版社爬虫
+    Simon & Schuster 出版社爬虫（基于 Google Books API）
 
-    混合架构：先尝试传统 requests，失败后自动用 Crawl4AI 降级
+    通过 Google Books API 的 publisher 筛选获取 Simon & Schuster 出版的书籍，
+    避免直接爬取官网导致的 403 问题。
 
     官方网站：https://www.simonandschuster.com/
-    新书页面：https://www.simonandschuster.com/books/new-releases
     """
 
     PUBLISHER_NAME = "西蒙舒斯特"
@@ -33,8 +30,8 @@ class SimonSchusterCrawler(MixedCrawl4AICrawler):
     PUBLISHER_WEBSITE = "https://www.simonandschuster.com"
     CRAWLER_CLASS_NAME = "SimonSchusterCrawler"
 
-    # 新书页面URL
-    NEW_RELEASES_URL = "https://www.simonandschuster.com/books/new-releases"
+    # Google Books 出版社查询名称（含空格需加引号）
+    GOOGLE_PUBLISHER_QUERY = '"Simon & Schuster"'
 
     CATEGORY_MAP = {
         'fiction': '小说',
@@ -44,24 +41,15 @@ class SimonSchusterCrawler(MixedCrawl4AICrawler):
         'thriller': '惊悚',
         'biography': '传记',
         'history': '历史',
-        'self-help': '自助',
+        'self_help': '自助',
         'children': '儿童读物',
-        'young-adult': '青少年',
-    }
-
-    RETAILERS = {
-        'Amazon': 'amazon.com',
-        'Barnes & Noble': 'bn.com',
-        'Books-A-Million': 'booksamillion.com',
-        'Apple Books': 'apple.com',
-        'Google Play': 'play.google.com',
+        'young_adult': '青少年',
     }
 
     def __init__(self, config=None):
         super().__init__(config)
         if config is None:
-            self.config.request_delay = 1.2
-            self.config.respect_robots_txt = False
+            self.config.request_delay = 0.8
 
     def get_categories(self) -> list[dict[str, str]]:
         """获取支持的分类列表"""
@@ -73,7 +61,56 @@ class SimonSchusterCrawler(MixedCrawl4AICrawler):
             {'id': 'thriller', 'name': '惊悚'},
             {'id': 'biography', 'name': '传记'},
             {'id': 'history', 'name': '历史'},
-            {'id': 'self-help', 'name': '自助'},
+            {'id': 'self_help', 'name': '自助'},
             {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young-adult', 'name': '青少年'},
+            {'id': 'young_adult', 'name': '青少年'},
         ]
+
+    def _build_query_params(
+        self,
+        subject: str,
+        max_results: int,
+        start_index: int = 0,
+    ) -> dict[str, Any]:
+        """构建查询参数，添加 publisher 筛选"""
+        query_parts = [f"publisher:{self.GOOGLE_PUBLISHER_QUERY}"]
+
+        if subject and subject != "general":
+            query_parts.append(f"subject:{subject}")
+        else:
+            query_parts.append("books")
+
+        params = {
+            "q": " ".join(query_parts),
+            "maxResults": min(max_results, 40),
+            "startIndex": start_index,
+            "printType": "books",
+            "langRestrict": "en",
+            "orderBy": "newest",
+        }
+
+        if self._key_is_valid and self._api_key:
+            params["key"] = self._api_key
+
+        return params
+
+    def get_new_books(
+        self,
+        category: str | None = None,
+        max_books: int = 100,
+        year_from: int | None = None,
+    ):
+        """
+        获取 Simon & Schuster 新书列表
+
+        通过 Google Books API 的 publisher 筛选获取。
+        """
+        logger.info(
+            "正在通过 Google Books API 获取 %s 的新书...",
+            self.PUBLISHER_NAME_EN,
+        )
+        yield from super().get_new_books(
+            category=category,
+            max_books=max_books,
+            year_from=year_from,
+        )

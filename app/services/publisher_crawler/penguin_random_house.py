@@ -1,27 +1,28 @@
 """
 Penguin Random House（企鹅兰登）出版社爬虫
 
-企鹅兰登是世界上最大的大众图书出版商之一，
-网站提供新书发布信息、作者介绍和书籍详情。
+使用 Google Books API 获取 Penguin Random House 出版社的书籍数据。
+避免直接爬取出版社网站（Cloudflare 403 防护）。
 
-混合架构：先尝试传统 requests，失败后自动用 Crawl4AI 降级
-（继承自 MixedCrawl4AICrawler 基类）
+Google Books 查询语法:
+- publisher:"Penguin Random House" 可筛选特定出版社
 """
 import logging
+from typing import Any
 
-from .mixed_crawl4ai_crawler import MixedCrawl4AICrawler
+from .google_books import GoogleBooksCrawler
 
 logger = logging.getLogger(__name__)
 
 
-class PenguinRandomHouseCrawler(MixedCrawl4AICrawler):
+class PenguinRandomHouseCrawler(GoogleBooksCrawler):
     """
-    Penguin Random House 出版社爬虫
+    Penguin Random House 出版社爬虫（基于 Google Books API）
 
-    混合架构：先尝试传统 requests，失败后自动用 Crawl4AI 降级
+    通过 Google Books API 的 publisher 筛选获取 Penguin Random House 出版的书籍，
+    避免直接爬取官网导致的 403 问题。
 
     官方网站：https://www.penguinrandomhouse.com/
-    新书页面：https://www.penguinrandomhouse.com/books/new-releases/
     """
 
     PUBLISHER_NAME = "企鹅兰登"
@@ -29,65 +30,93 @@ class PenguinRandomHouseCrawler(MixedCrawl4AICrawler):
     PUBLISHER_WEBSITE = "https://www.penguinrandomhouse.com"
     CRAWLER_CLASS_NAME = "PenguinRandomHouseCrawler"
 
-    NEW_RELEASES_URL = "https://www.penguinrandomhouse.com/books/new-releases/"
-
-    # 企鹅兰登特定选择器（网站使用 .carousel .item 结构）
-    BOOK_LIST_SELECTORS: str = (
-        '.carousel .item, .book-item, .product-item, [data-book-id], .book-card, '
-        '.product, .release-item, .new-release, .product-tile, .grid-item'
-    )
-    BOOK_LINK_SELECTORS: str = (
-        'a[href*="/books/"], .img a, .title a, '
-        'a[href*="/book/"], a[href*="/product/"], '
-        'a.product-link, a.book-link'
-    )
-    TITLE_SELECTORS: str = '.title a, .title, .book-title, h1.book-title, h1.product-title, .book-info h1, h1'
-    AUTHOR_SELECTORS: str = '.contributor a, .contributor, .author-name, .book-author, .contributor-name, .author a'
-    DESCRIPTION_SELECTORS: str = '.book-description, .product-description, .synopsis, .summary, [data-description], .description'
-    COVER_SELECTORS: str = '.book-cover img, .product-image img, .cover-image img, img.book-image, img[alt*="cover"]'
-    CATEGORY_SELECTORS: str = '.book-category, .genre, .category, [data-category]'
-    PRICE_SELECTORS: str = '.price, .book-price, .product-price, [data-price]'
-    PAGE_COUNT_SELECTORS: str = '.page-count, .pages, [data-pages]'
-    ISBN_SELECTORS: str = '.isbn, .book-isbn, [data-isbn]'
-    BUY_SECTION_SELECTORS: str = '.buy-buttons, .purchase-options, .buy-links'
+    # Google Books 出版社查询名称（含空格需加引号）
+    GOOGLE_PUBLISHER_QUERY = '"Penguin Random House"'
 
     CATEGORY_MAP = {
         'fiction': '小说',
-        'non-fiction': '非虚构',
+        'nonfiction': '非虚构',
         'mystery': '悬疑',
         'romance': '言情',
-        'science-fiction': '科幻',
+        'thriller': '惊悚',
+        'science_fiction': '科幻',
+        'fantasy': '奇幻',
         'biography': '传记',
         'history': '历史',
         'children': '儿童读物',
-        'young-adult': '青少年',
-        'graphic-novels': '图像小说',
-    }
-
-    RETAILERS = {
-        'Amazon': 'amazon.com',
-        'Barnes & Noble': 'bn.com',
-        'Books-A-Million': 'booksamillion.com',
-        'Bookshop': 'bookshop.org',
-        'IndieBound': 'indiebound.org',
+        'young_adult': '青少年',
+        'business': '商业',
+        'self_help': '自助',
     }
 
     def __init__(self, config=None):
         super().__init__(config)
         if config is None:
-            self.config.request_delay = 1.5
+            self.config.request_delay = 0.8
 
     def get_categories(self) -> list[dict[str, str]]:
         """获取支持的分类列表"""
         return [
             {'id': 'fiction', 'name': '小说'},
-            {'id': 'non-fiction', 'name': '非虚构'},
+            {'id': 'nonfiction', 'name': '非虚构'},
             {'id': 'mystery', 'name': '悬疑'},
             {'id': 'romance', 'name': '言情'},
-            {'id': 'science-fiction', 'name': '科幻'},
+            {'id': 'thriller', 'name': '惊悚'},
+            {'id': 'science_fiction', 'name': '科幻'},
+            {'id': 'fantasy', 'name': '奇幻'},
             {'id': 'biography', 'name': '传记'},
             {'id': 'history', 'name': '历史'},
             {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young-adult', 'name': '青少年'},
-            {'id': 'graphic-novels', 'name': '图像小说'},
+            {'id': 'young_adult', 'name': '青少年'},
+            {'id': 'business', 'name': '商业'},
+            {'id': 'self_help', 'name': '自助'},
         ]
+
+    def _build_query_params(
+        self,
+        subject: str,
+        max_results: int,
+        start_index: int = 0,
+    ) -> dict[str, Any]:
+        """构建查询参数，添加 publisher 筛选"""
+        query_parts = [f"publisher:{self.GOOGLE_PUBLISHER_QUERY}"]
+
+        if subject and subject != "general":
+            query_parts.append(f"subject:{subject}")
+        else:
+            query_parts.append("books")
+
+        params = {
+            "q": " ".join(query_parts),
+            "maxResults": min(max_results, 40),
+            "startIndex": start_index,
+            "printType": "books",
+            "langRestrict": "en",
+            "orderBy": "newest",
+        }
+
+        if self._key_is_valid and self._api_key:
+            params["key"] = self._api_key
+
+        return params
+
+    def get_new_books(
+        self,
+        category: str | None = None,
+        max_books: int = 100,
+        year_from: int | None = None,
+    ):
+        """
+        获取 Penguin Random House 新书列表
+
+        通过 Google Books API 的 publisher 筛选获取。
+        """
+        logger.info(
+            "正在通过 Google Books API 获取 %s 的新书...",
+            self.PUBLISHER_NAME_EN,
+        )
+        yield from super().get_new_books(
+            category=category,
+            max_books=max_books,
+            year_from=year_from,
+        )

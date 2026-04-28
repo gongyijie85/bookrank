@@ -19,6 +19,8 @@ class Config:
     """基础配置类"""
 
     BASE_DIR = BASE_DIR
+    # 网站基础 URL（用于邮件中构建完整图片链接）
+    BASE_URL: str = os.environ.get('BASE_URL', '')
 
     SECRET_KEY: str = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
     SESSION_COOKIE_SECURE: bool = True

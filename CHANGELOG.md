@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.4.6] - 2026-04-28
+
+### 修复
+- **出版社爬虫 403 + Crawl4AI 失败（Render 兼容性问题）**：
+  - 问题：Macmillan、Simon & Schuster、Hachette、HarperCollins、Penguin Random House 官网均有 Cloudflare 防护，requests 直接 403
+  - 问题：Render 免费版未安装 Playwright，Crawl4AI 降级方案报错 `Executable doesn't exist at /home/runner/.cache/ms-playwright/...`
+  - 解决方案：5 个出版社爬虫全部改为继承 `GoogleBooksCrawler`，使用 Google Books API 的 `publisher:` 查询筛选
+  - Macmillan：`publisher:Macmillan`
+  - Simon & Schuster：`publisher:"Simon & Schuster"`
+  - Hachette：`publisher:Hachette`
+  - HarperCollins：`publisher:HarperCollins`
+  - Penguin Random House：`publisher:"Penguin Random House"`
+  - 所有爬虫添加 `orderBy: newest` 参数，优先返回最新出版的书籍
+  - 优点：无需浏览器、不受 Cloudflare 影响、在 Render 免费版上稳定运行
+
+## [1.4.5] - 2026-04-27
+
+### 修复
+- **邮件封面图缺失（根因修复）**：
+  - `book_row()` 函数只对 `cover.startswith('http')` 的封面生成 `<img>` 标签，但 `ImageCacheService` 返回的是相对路径 `/cache/images/xxx.jpg`，导致所有缓存封面被跳过显示为占位符
+  - 修改为：对所有有 cover 值的封面都生成 `<img>` 标签，后续 `_embed_covers_in_html` 统一处理
+- **邮件 Base64 嵌入增强**：`_embed_covers_in_html` 新增本地文件读取优先策略——相对路径图片先从本地文件系统读取转 Base64，再尝试拼接 `BASE_URL` 下载
+- **图片缓存目录不一致**：`weekly_report_task.py` 中 `ImageCacheService(cache_dir=Path('static/cache'))` 与路由 `/cache/images/` 读取目录 `cache/images/` 不一致，修正为 `Path('cache/images')`
+- **周报数据保存原始图片 URL**：`book._original_cover` 保存 NYT 原始图片 URL，写入周报 content JSON 中，作为缓存图片加载失败的兜底
+- **网页周报封面兜底**：详情页 JavaScript 为所有 `.book-cover` 图片添加 `onerror` 回调，本地缓存图片 404 时自动切换到 NYT 原始 URL
+- **邮件模板封面兜底**：`emails/weekly_report.html` 使用 `cover or original_cover` 确保有兜底图源
+
 ## [1.4.4] - 2026-04-27
 
 ### 修复
