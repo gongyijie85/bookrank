@@ -83,7 +83,7 @@ def generate_weekly_report(force_regenerate: bool = False) -> Optional[WeeklyRep
         )
         
         image_cache = ImageCacheService(
-            cache_dir=Path('static/cache'),
+            cache_dir=Path('cache/images'),
             default_cover='/static/default-cover.png'
         )
         
@@ -155,6 +155,7 @@ def _render_weekly_report_html(report: WeeklyReport) -> str:
     # 构建图书行 HTML（带封面图）
     def book_row(book: dict) -> str:
         cover = book.get('cover', '') or ''
+        original_cover = book.get('original_cover', '') or ''
         title = book.get('title', '未知书名') or '未知书名'
         author = book.get('author', '') or ''
         category = book.get('category', '') or ''
@@ -170,11 +171,13 @@ def _render_weekly_report_html(report: WeeklyReport) -> str:
         else:
             change_html = '<span style="color:#718096;font-weight:500;">→ 无变化</span>'
 
-        # 封面图片（按比例缩放，max-width 限制）
+        # 封面图片：优先使用缓存的 cover URL，兜底使用 NYT 原始 URL
+        # 邮件中 _embed_covers_in_html 会将所有 <img src> 转为 Base64 内联
         cover_html = ''
-        if cover and cover.startswith('http'):
+        img_src = cover if cover else original_cover
+        if img_src:
             cover_html = (
-                f'<img src="{cover}" alt="{title}" '
+                f'<img src="{img_src}" alt="{title}" '
                 f'style="max-width:60px;height:auto;width:auto;max-height:90px;'
                 f'border-radius:4px;vertical-align:top;box-shadow:0 1px 3px rgba(0,0,0,0.1);" '
                 f'loading="lazy">'
@@ -283,29 +286,77 @@ def _embed_covers_in_html(html: str) -> str:
     """将 HTML 中的外部封面图 URL 替换为 Base64 内联数据
 
     邮件客户端默认阻止加载外部图片，Base64 内联可以确保图片正常显示。
+    处理策略：1. http/https URL 直接下载转 Base64
+              2. 相对路径（/cache/images/xxx.jpg）先尝试本地文件读取，再尝试拼接 BASE_URL 下载
     """
     import re
+    import base64 as b64mod
+    from pathlib import Path
 
-    # 匹配 <img src="..."> 中的 src 属性
     img_pattern = re.compile(r'<img[^>]+src="([^"]+)"[^>]*>', re.IGNORECASE)
 
     total = 0
     success = 0
 
+    def _read_local_image_as_base64(relative_path: str) -> str | None:
+        """从本地文件系统读取缓存图片并转为 Base64"""
+        # relative_path 如 /cache/images/abc.jpg -> cache/images/abc.jpg
+        clean = relative_path.lstrip('/')
+        local_path = Path(clean)
+
+        if local_path.exists():
+            try:
+                data = local_path.read_bytes()
+                suffix = local_path.suffix.lower()
+                mime_map = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif'}
+                mime = mime_map.get(suffix, 'image/jpeg')
+                b64 = b64mod.b64encode(data).decode('utf-8')
+                return f"data:{mime};base64,{b64}"
+            except Exception as e:
+                logger.debug(f"读取本地图片失败 {local_path}: {e}")
+        return None
+
     def replace_src(match):
         nonlocal total, success
         original_tag = match.group(0)
         url = match.group(1)
-        # 已经是 base64 或相对路径的不处理
-        if url.startswith('data:') or not url.startswith('http'):
+        # 已经是 base64 的不处理
+        if url.startswith('data:'):
             return original_tag
+
+        # 处理相对路径（如 /cache/images/xxx.jpg）
+        if url.startswith('/'):
+            # 优先从本地文件系统读取（Render 上缓存文件可能在本地）
+            local_b64 = _read_local_image_as_base64(url)
+            if local_b64:
+                total += 1
+                success += 1
+                return original_tag.replace(f'src="{url}"', f'src="{local_b64}"')
+
+            # 本地文件不存在，尝试构建完整 URL 下载
+            base_url = current_app.config.get('BASE_URL', '')
+            if not base_url:
+                try:
+                    from flask import request
+                    base_url = request.url_root.rstrip('/')
+                except RuntimeError:
+                    base_url = ''
+            if base_url:
+                url = base_url + url
+            else:
+                logger.warning(f"无法构建完整URL且本地无缓存，跳过相对路径图片: {url}")
+                return original_tag
+
+        # 只处理 http/https URL
+        if not url.startswith('http'):
+            return original_tag
+
         total += 1
-        # 获取 base64 编码的图片
         base64_data = _fetch_image_as_base64(url)
         if base64_data:
             success += 1
             return original_tag.replace(f'src="{url}"', f'src="{base64_data}"')
-        return original_tag  # 获取失败保持原样
+        return original_tag
 
     result = img_pattern.sub(replace_src, html)
     logger.info(f"封面图嵌入完成: {success}/{total} 张成功转换为 Base64")

@@ -192,10 +192,11 @@ class WeeklyReportService:
                             'author': book.author,
                             'category': category_name,
                             'rank': current_rank,
-                            'rank_change': rank_change,  # 真实排名变化
-                            'weeks_on_list': weeks_on_list,  # 真实上榜周数
-                            'is_new': is_new,  # 真实新上榜状态
-                            'cover': book.cover  # 封面图片
+                            'rank_change': rank_change,
+                            'weeks_on_list': weeks_on_list,
+                            'is_new': is_new,
+                            'cover': book.cover,
+                            'original_cover': getattr(book, '_original_cover', '') or ''
                         })
                 except Exception as e:
                     logger.error(f"获取分类 {category_name} 数据时出错: {str(e)}")
@@ -284,7 +285,8 @@ class WeeklyReportService:
                     'weeks_on_list': book.get('weeks_on_list', 0),
                     'is_new': book.get('is_new', False),
                     'reason': reason,
-                    'cover': book.get('cover')
+                    'cover': book.get('cover'),
+                    'original_cover': book.get('original_cover', '')
                 })
             
             return {

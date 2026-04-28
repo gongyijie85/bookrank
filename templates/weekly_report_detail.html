@@ -1285,6 +1285,29 @@
 
         const bookDataMap = buildBookDataMap();
 
+        // 封面图加载失败兜底：使用 original_cover（NYT 原始 URL）替代本地缓存路径
+        document.querySelectorAll('.book-cover, .recommendation-cover').forEach(img => {
+            const parent = img.closest('[data-book-title]');
+            if (parent) {
+                const key = `${parent.dataset.bookTitle}|${parent.dataset.bookAuthor}`;
+                const book = bookDataMap[key];
+                if (book && book.original_cover) {
+                    img.addEventListener('error', function() {
+                        if (this.src !== book.original_cover) {
+                            this.src = book.original_cover;
+                        } else {
+                            this.style.display = 'none';
+                            const placeholder = document.createElement('div');
+                            placeholder.className = this.classList.contains('recommendation-cover') ? 'recommendation-cover-placeholder' : 'book-cover-placeholder';
+                            placeholder.title = '暂无封面';
+                            placeholder.innerHTML = '<svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>';
+                            this.parentNode.insertBefore(placeholder, this);
+                        }
+                    }, { once: false });
+                }
+            }
+        });
+
         // 绑定详情按钮事件
         bookDetailBtns.forEach(btn => {
             btn.addEventListener('click', function() {

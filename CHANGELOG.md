@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.4] - 2026-04-27
+
+### 修复
+- **邮件封面图仍不显示（根本原因）**：
+  - 发现问题：`ImageCacheService.get_cached_image_url()` 返回的是相对路径（如 `/cache/images/abc.jpg`），邮件客户端无法访问
+  - 修复 `_embed_covers_in_html`：自动将相对路径补全为完整 URL（使用 `BASE_URL` 配置或 `request.url_root`）
+  - 新增 `BASE_URL` 配置项：`config.py` 和 `.env.example` 中添加网站基础 URL 配置
+  - 保留 Base64 内联：补全后的完整 URL 仍然会被转换为 Base64 内联嵌入
+
+## [1.4.3] - 2026-04-27
+
+### 修复
+- **邮件封面图仍不显示**：
+  - Google Books 图片反爬：添加 `Referer: https://books.google.com/` 和完整 User-Agent
+  - 空值处理：`book_row()` 中 cover 字段添加 `or ''` 兜底，检查 `startswith('http')`
+  - 调试日志：`_embed_covers_in_html` 添加成功/失败计数日志，方便排查
+  - 内容类型校验：确保 URL 返回的是图片内容（`Content-Type: image/*`）
+
 ## [1.4.2] - 2026-04-27
 
 ### 修复

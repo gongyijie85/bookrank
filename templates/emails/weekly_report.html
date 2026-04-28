@@ -162,8 +162,8 @@
                 <ul class="changes-list">
                     {% for change in content.top_changes[:5] %}
                     <li class="change-item">
-                        {% if change.cover %}
-                        <img src="{{ change.cover }}" alt="{{ change.title }}" style="max-width: 60px; height: auto; width: auto; max-height: 90px; border-radius: 4px; margin-right: 12px; vertical-align: top; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        {% if change.cover or change.original_cover %}
+                        <img src="{{ change.cover or change.original_cover }}" alt="{{ change.title }}" style="max-width: 60px; height: auto; width: auto; max-height: 90px; border-radius: 4px; margin-right: 12px; vertical-align: top; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                         {% endif %}
                         <strong>{{ change.title }}</strong> - {{ change.author }}<br>
                         类别：{{ change.category }}<br>
@@ -187,8 +187,8 @@
                 <ul class="changes-list">
                     {% for book in content.featured_books[:5] %}
                     <li class="change-item" style="display:flex;align-items:flex-start;gap:12px;">
-                        {% if book.cover %}
-                        <img src="{{ book.cover }}" alt="{{ book.title }}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1);flex-shrink:0;">
+                        {% if book.cover or book.original_cover %}
+                        <img src="{{ book.cover or book.original_cover }}" alt="{{ book.title }}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1);flex-shrink:0;">
                         {% else %}
                         <span style="display:inline-block;width:60px;height:90px;background:#f0f0f0;border-radius:4px;text-align:center;line-height:90px;color:#999;font-size:24px;flex-shrink:0;">📖</span>
                         {% endif %}
