@@ -217,7 +217,7 @@
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ book.title }}</span>
+                                <span class="book-title">{{ book.title_zh or book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-category">{{ book.category }}</span>
                                 <span class="book-rank">排名：{{ book.rank }}</span>
@@ -244,7 +244,7 @@
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ book.title }}</span>
+                                <span class="book-title">{{ book.title_zh or book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-category">{{ book.category }}</span>
                                 <span class="book-change">↑ {{ book.rank_change }} 位</span>
@@ -271,7 +271,7 @@
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ book.title }}</span>
+                                <span class="book-title">{{ book.title_zh or book.title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-weeks">已上榜 {{ book.weeks_on_list }} 周</span>
                                 <span class="book-rank">当前排名：{{ book.rank }}</span>
@@ -307,7 +307,7 @@
                                 </div>
                                 {% endif %}
                                 <div class="recommendation-header">
-                                    <h4 class="recommendation-title">{{ book.title }}</h4>
+                                    <h4 class="recommendation-title">{{ book.title_zh or book.title }}</h4>
                                     <span class="recommendation-author">{{ book.author }}</span>
                                 </div>
                                 <div class="recommendation-reason">

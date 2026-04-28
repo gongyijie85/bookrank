@@ -193,7 +193,7 @@
                         <span style="display:inline-block;width:60px;height:90px;background:#f0f0f0;border-radius:4px;text-align:center;line-height:90px;color:#999;font-size:24px;flex-shrink:0;">📖</span>
                         {% endif %}
                         <div>
-                            <strong>{{ book.title }}</strong> - {{ book.author }}<br>
+                            <strong>{{ book.title_zh or book.title }}</strong> - {{ book.author }}<br>
                             <span style="color:#718096;font-size:13px;">推荐理由：{{ book.reason }}</span>
                         </div>
                     </li>

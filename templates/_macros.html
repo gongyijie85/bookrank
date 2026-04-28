@@ -48,7 +48,7 @@
             </span>
             {% endif %}
         </div>
-        <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
+        <h3 class="card-title" title="{{ book.title_zh or book.title }}">{{ book.title_zh or book.title }}</h3>
         <p class="card-author">{{ book.author }}</p>
         {% if book.isbn13 %}
         <p class="card-isbn">ISBN: {{ book.isbn13 }}</p>
@@ -56,8 +56,8 @@
         <p class="card-isbn">ISBN: {{ book.isbn10 }}</p>
         {% endif %}
 
-        {% if book.description %}
-        <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
+        {% if book.description_zh or book.description %}
+        <p class="card-desc">{{ (book.description_zh or book.description)[:100] }}{% if (book.description_zh or book.description)|length > 100 %}...{% endif %}</p>
         {% endif %}
     </div>
 </article>
@@ -94,11 +94,11 @@
             {% elif book.rank_last_week == '0' or not book.rank_last_week %}
                 <span class="rank-change-badge new" aria-label="新书上榜">NEW</span>
             {% endif %}
-            <h3 class="list-item-title">{{ book.title }}</h3>
+            <h3 class="list-item-title">{{ book.title_zh or book.title }}</h3>
         </div>
         <p class="list-item-author">{{ book.author }}</p>
-        {% if book.description %}
-        <p class="list-item-desc">{{ book.description[:200] }}{% if book.description|length > 200 %}...{% endif %}</p>
+        {% if book.description_zh or book.description %}
+        <p class="list-item-desc">{{ (book.description_zh or book.description)[:200] }}{% if (book.description_zh or book.description)|length > 200 %}...{% endif %}</p>
         {% endif %}
         <div class="list-item-meta">
             <span class="card-tag">{{ book.category_name if book.category_name else '虚构类' }}</span>
