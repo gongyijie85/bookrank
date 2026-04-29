@@ -1,5 +1,112 @@
 # Changelog
 
+## [1.5.0] - 2026-04-29
+
+### 修复
+- **CSP阻止Chart.js source map**：
+  - 问题：控制台报错 `Connecting to 'https://cdn.jsdelivr.net/npm/chart.umd.min.js.map' violates Content Security Policy directive: "connect-src 'self'"`
+  - 修复：将 `connect-src 'self'` 改为 `connect-src 'self' https://cdn.jsdelivr.net`
+  - 修复文件：`app/__init__.py`
+
+- **Service Worker路径不匹配**：
+  - 问题：`/sw.js` 返回404，实际文件在 `/static/service-worker.js`
+  - 修复：注册路径改为 `/static/service-worker.js`
+  - 修复文件：`static/js/app.js`
+
+- **新书分类数据污染**：
+  - 问题：企鹅兰登的书籍分类显示为营销文案（如 `what type of reader is your child? take the quiz! learn more >`）
+  - 修复：添加分类校验方法 `_sanitize_category`，过滤长度超30字符、包含营销关键词、特殊字符的无效分类
+  - 新增：数据库清洗脚本 `scripts/cleanup_categories.py`
+  - 新增：管理员API端点 `/api/admin/categories/cleanup`（支持预览和执行模式）
+  - 修复文件：`app/services/new_book_service.py`、`app/routes/api.py`
+
+- **周报书名重复书名号**：
+  - 问题：书名显示为 `《《难民》》`（数据库已含《》，代码又加了一层）
+  - 修复：添加 `_format_book_title` 函数，先去除已有书名号再统一添加
+  - 修复：添加 `_clean_double_brackets` 后处理函数，对AI生成的摘要统一清理双书名号
+  - 修复：添加 `clean_brackets` Jinja2模板过滤器，对已存储的周报summary进行渲染时清理
+  - 修复：周报生成时对content JSON中的书名统一应用 `_format_book_title`
+  - 新增：管理员API端点 `/api/admin/reports/clean-brackets`（支持预览和执行模式，清理已有数据库记录）
+  - 修复文件：`app/services/weekly_report_service.py`、`app/__init__.py`、`templates/weekly_report_detail.html`、`app/routes/api.py`
+
+- **表单无障碍标签缺失**：
+  - 问题：多个输入框缺少 `aria-label` 属性，控制台警告 `No label associated with a form field`
+  - 修复：为新书页面、周报页面、出版社页面的输入框添加 `aria-label` 和 `for` 属性
+  - 修复文件：`templates/new_books.html`、`templates/weekly_reports.html`、`templates/publishers.html`
+
+- **周报邮件发送失败 `current_app` 未定义**：
+  - 问题：`_embed_covers_in_html` 函数第337行使用 `current_app` 但未导入，导致周报邮件发送失败
+  - 修复：在函数内部添加 `from flask import current_app` 导入
+  - 修复文件：`app/tasks/weekly_report_task.py`
+
+- **书名翻译污染（作者名、描述、markdown混入）**：
+  - 问题：AI翻译返回过长内容（如 `**书名：** 《养兔记》 **作者：** ...`、`思考，快与慢 丹尼尔·卡尼曼译`、`《掌控习惯》詹姆斯·克利尔 这是一本关于习惯养成的实用指南...`），直接存入数据库
+  - 根因1：翻译缓存读取时未应用后处理函数 `clean_translation_text`，旧缓存中的脏数据直接返回
+  - 根因2：前端 `/api/translate` 调用未传递 `field_type` 参数，导致书名翻译未经过 `_clean_title_text` 清理
+  - 修复：
+    - `HybridTranslationService.translate` 和 `translate_batch`：缓存命中时也应用 `clean_translation_text`
+    - `ZhipuTranslationService.translate_batch`：缓存命中时也应用 `clean_translation_text`
+    - 新增 `_clean_title_text` 函数：处理作者名混入（间隔号分割）、长描述截断、双书名号等
+    - `clean_translation_text`：`field_type='title'` 时调用 `_clean_title_text` 替代 `_add_book_title_marks`
+    - `/api/translate` 端点：新增 `field_type` 参数，传递给翻译服务
+    - 前端 `api.js`：`translateText` 方法新增 `fieldType` 参数
+    - 前端 `index.html`：`translateSingleBook` 为标题/描述/详情分别传递 `field_type='title'/'description'/'details'`
+    - 新增管理员API `/api/admin/translations/cleanup`：清理已有脏翻译缓存和BookMetadata数据
+    - `is_dirty` 检测增强：新增间隔号+书名号组合模式、书名号后长尾内容、多行长文本检测
+  - 修复文件：`app/services/zhipu_translation_service.py`、`app/utils/api_helpers.py`、`app/routes/api.py`、`static/js/api.js`、`templates/index.html`
+
+## [1.4.9] - 2026-04-29
+
+### 修复
+- **API限流过严导致首页429错误**：
+  - 问题：全站API限流默认值20次/60秒，首页加载时需发送约52个请求（7个分类预加载 + 45个翻译请求），导致大量429错误
+  - 修复：将 `API_RATE_LIMIT` 默认值从20提高到100
+  - 优化：轻量级接口（`/api/csrf-token`、`/api/health`）排除在限流之外
+  - 修复文件：
+    - `app/config.py`：`API_RATE_LIMIT` 默认值从20改为100
+    - `app/__init__.py`：添加排除路径检查，轻量级接口不计入限流
+
+- **周报Markdown未渲染**：
+  - 问题：周报详情页和列表页直接显示原始Markdown文本（#、##、-、**等语法符号）
+  - 修复：引入 `mistune` 库，注册Jinja2过滤器 `markdown`，将Markdown转换为HTML
+  - 修复文件：
+    - `requirements.txt`：添加 `mistune==3.2.0`
+    - `app/__init__.py`：添加 `_register_jinja_filters` 函数，注册 `markdown` 过滤器
+    - `templates/weekly_report_detail.html`：使用 `{{ report.summary | markdown | safe }}` 渲染
+    - `templates/weekly_reports.html`：使用 `{{ report.summary | markdown | striptags | truncate(200) }}` 渲染摘要
+
+## [1.4.8] - 2026-04-29
+
+### 修复
+- **翻译系统全面修复（"译"后缀、Markdown格式、未翻译内容）**：
+  - **问题1：标题带"译"后缀**：GLM-4-Flash模型翻译时输出"希望升起译"、"通讯员译"等，后处理未清除
+  - **问题2：详情页描述未翻译**：`book_detail.html` 直接使用 `book.description` 而非翻译版本
+  - **问题3：获奖书单卡片未翻译**：`awards.html` 的卡片和列表描述显示英文原文
+  - **问题4：Markdown格式残留**：翻译描述中出现 `**粗体**`、`*斜体*` 等markdown标记
+  - **问题5：周报详情页alt属性未翻译**：封面图片alt属性显示英文标题
+  - **问题6：详情API返回英文**：`/api/book-details/{isbn}` 端点不包含翻译逻辑
+  - **修复文件**：
+    - `app/utils/api_helpers.py`：增强 `clean_translation_text` 函数，新增 `_strip_markdown` 辅助函数，清除Markdown格式、"译"后缀、翻译前缀
+    - `templates/book_detail.html`：简介和详细信息优先使用 `description_zh` 和 `details_zh`
+    - `templates/awards.html`：卡片和列表描述优先使用 `description_zh`
+    - `templates/weekly_report_detail.html`：所有封面图片alt属性使用翻译标题
+    - `app/routes/api.py`：`/api/book-details/{isbn}` 端点增加数据库翻译查询和同步翻译能力，返回 `details_zh` 字段
+    - `fix_translation_data.py`：增强脏数据检测，新增"译"后缀和Markdown格式检测
+  - **说明**：新增 `_strip_markdown` 函数清除 `**粗体**`、`__粗体__`、`*斜体*`、`` `代码` ``、`# 标题`、`[链接](url)` 等格式；脏数据清理脚本已增强，部署后需运行 `python fix_translation_data.py` 清理数据库中已有脏数据
+
+## [1.4.7] - 2026-04-28
+
+### 修复
+- **页面书名/简介翻译显示问题**：
+  - 问题：模板中直接使用 `book.title` 和 `book.description`，未优先使用翻译后的 `book.title_zh` 和 `book.description_zh`
+  - 问题：从 Render 页面看到 "身体决定分数译" 等翻译质量差且带"译"字污染
+  - 修复文件：
+    - `templates/index.html`：网格视图和列表视图的书名、简介优先使用翻译版本
+    - `templates/_macros.html`：宏模板中的书名、简介优先使用翻译版本
+    - `templates/weekly_report_detail.html`：周报详情页所有书籍列表使用翻译书名
+    - `templates/emails/weekly_report.html`：邮件模板使用翻译书名
+  - 说明：当 `title_zh` 或 `description_zh` 存在时优先显示中文翻译，否则回退到英文原文
+
 ## [1.4.6] - 2026-04-28
 
 ### 修复
