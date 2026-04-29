@@ -87,8 +87,8 @@
 
 <div class="filter-bar">
     <div class="filter-group">
-        <label>出版社：</label>
-        <select id="publisher-filter" onchange="applyFilter()">
+        <label for="publisher-filter">出版社：</label>
+        <select id="publisher-filter" aria-label="选择出版社" onchange="applyFilter()">
             <option value="">全部出版社</option>
             {% for pub in publishers %}
             <option value="{{ pub.id }}" {% if selected_publisher == pub.id %}selected{% endif %}>{{ pub.name }}</option>
@@ -97,8 +97,8 @@
     </div>
 
     <div class="filter-group">
-        <label>分类：</label>
-        <select id="category-filter" onchange="applyFilter()">
+        <label for="category-filter">分类：</label>
+        <select id="category-filter" aria-label="选择分类" onchange="applyFilter()">
             <option value="">全部分类</option>
             {% for cat in categories %}
             <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name }} ({{ cat.count }})</option>
@@ -107,8 +107,8 @@
     </div>
 
     <div class="filter-group">
-        <label>时间：</label>
-        <select id="days-filter" onchange="applyFilter()">
+        <label for="days-filter">时间：</label>
+        <select id="days-filter" aria-label="选择时间范围" onchange="applyFilter()">
             <option value="7" {% if selected_days == 7 %}selected{% endif %}>最近7天</option>
             <option value="30" {% if selected_days == 30 %}selected{% endif %}>最近30天</option>
             <option value="90" {% if selected_days == 90 %}selected{% endif %}>最近90天</option>
@@ -119,7 +119,7 @@
 
     <div class="search-box">
         <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
-        <input type="text" id="search-input" placeholder="搜索书名、作者、ISBN..." value="{{ search_query }}" onkeypress="handleSearchKeypress(event)">
+        <input type="text" id="search-input" aria-label="搜索新书" placeholder="搜索书名、作者、ISBN..." value="{{ search_query }}" onkeypress="handleSearchKeypress(event)">
     </div>
 
     <div class="toolbar">

@@ -10,6 +10,19 @@ from .book_service import BookService
 logger = logging.getLogger(__name__)
 
 
+def _format_book_title(title: str) -> str:
+    """
+    格式化书名，避免重复书名号
+
+    如果书名已经包含《》，则不再添加
+    """
+    if not title:
+        return ''
+    # 去除已有的书名号
+    clean_title = title.strip().strip('《》')
+    return f'《{clean_title}》'
+
+
 class WeeklyReportService:
     """周报服务"""
     
@@ -384,27 +397,27 @@ class WeeklyReportService:
                 for book in analysis['top_changes'][:3]:
                     change_type = "上升" if book['rank_change'] > 0 else "下降"
                     change_value = abs(book['rank_change'])
-                    prompt += f"《{book['title']}》({book['author']})排名{change_type}{change_value}位；"
+                    prompt += f"{_format_book_title(book['title'])}({book['author']})排名{change_type}{change_value}位；"
             
             if analysis.get('new_books'):
                 prompt += "\n【新上榜书籍】："
                 for book in analysis['new_books'][:3]:
-                    prompt += f"《{book['title']}》({book['author']}) - {book['category']}；"
+                    prompt += f"{_format_book_title(book['title'])}({book['author']}) - {book['category']}；"
             
             if analysis.get('top_risers'):
                 prompt += "\n【排名上升最快】："
                 for book in analysis['top_risers'][:3]:
-                    prompt += f"《{book['title']}》({book['author']})上升{book['rank_change']}位；"
+                    prompt += f"{_format_book_title(book['title'])}({book['author']})上升{book['rank_change']}位；"
             
             if analysis.get('longest_running'):
                 prompt += "\n【持续上榜最久】："
                 for book in analysis['longest_running'][:3]:
-                    prompt += f"《{book['title']}》({book['author']})已上榜{book['weeks_on_list']}周；"
+                    prompt += f"{_format_book_title(book['title'])}({book['author']})已上榜{book['weeks_on_list']}周；"
             
             if analysis.get('featured_books'):
                 prompt += "\n【推荐书籍】："
                 for book in analysis['featured_books'][:3]:
-                    prompt += f"《{book['title']}》({book['author']}) - {book['reason']}；"
+                    prompt += f"{_format_book_title(book['title'])}({book['author']}) - {book['reason']}；"
 
             # 使用专门的AI摘要生成方法（如果可用），否则回退到翻译接口
             ai_result = None
@@ -460,9 +473,9 @@ class WeeklyReportService:
                 cover = book.get('cover', '')
                 cover_tag = f'<img src="{cover}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;vertical-align:middle;margin-right:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">' if cover else ''
                 if book['rank_change'] > 0:
-                    summary += f"- {cover_tag}《{book['title']}》({book['author']}) 排名显著上升 {book['rank_change']} 位\n"
+                    summary += f"- {cover_tag}{_format_book_title(book['title'])}({book['author']}) 排名显著上升 {book['rank_change']} 位\n"
                 elif book['rank_change'] < 0:
-                    summary += f"- {cover_tag}《{book['title']}》({book['author']}) 排名下降 {abs(book['rank_change'])} 位\n"
+                    summary += f"- {cover_tag}{_format_book_title(book['title'])}({book['author']}) 排名下降 {abs(book['rank_change'])} 位\n"
             summary += "\n"
         
         # 新上榜书籍
@@ -471,7 +484,7 @@ class WeeklyReportService:
             for book in analysis['new_books'][:5]:
                 cover = book.get('cover', '')
                 cover_tag = f'<img src="{cover}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;vertical-align:middle;margin-right:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">' if cover else ''
-                summary += f"- {cover_tag}《{book['title']}》({book['author']}) - {book['category']} 类别\n"
+                summary += f"- {cover_tag}{_format_book_title(book['title'])}({book['author']}) - {book['category']} 类别\n"
             summary += "\n"
         
         # 排名上升最快
@@ -480,7 +493,7 @@ class WeeklyReportService:
             for book in analysis['top_risers'][:5]:
                 cover = book.get('cover', '')
                 cover_tag = f'<img src="{cover}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;vertical-align:middle;margin-right:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">' if cover else ''
-                summary += f"- {cover_tag}《{book['title']}》({book['author']}) 上升 {book['rank_change']} 位\n"
+                summary += f"- {cover_tag}{_format_book_title(book['title'])}({book['author']}) 上升 {book['rank_change']} 位\n"
             summary += "\n"
         
         # 持续上榜最久
@@ -489,7 +502,7 @@ class WeeklyReportService:
             for book in analysis['longest_running'][:5]:
                 cover = book.get('cover', '')
                 cover_tag = f'<img src="{cover}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;vertical-align:middle;margin-right:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">' if cover else ''
-                summary += f"- {cover_tag}《{book['title']}》({book['author']}) 已上榜 {book['weeks_on_list']} 周\n"
+                summary += f"- {cover_tag}{_format_book_title(book['title'])}({book['author']}) 已上榜 {book['weeks_on_list']} 周\n"
             summary += "\n"
         
         # 推荐书籍
@@ -498,7 +511,7 @@ class WeeklyReportService:
             for book in analysis['featured_books'][:5]:
                 cover = book.get('cover', '')
                 cover_tag = f'<img src="{cover}" style="max-width:60px;height:auto;width:auto;max-height:90px;border-radius:4px;vertical-align:middle;margin-right:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">' if cover else ''
-                summary += f"- {cover_tag}《{book['title']}》({book['author']}) - {book['reason']}\n"
+                summary += f"- {cover_tag}{_format_book_title(book['title'])}({book['author']}) - {book['reason']}\n"
             summary += "\n"
         
         # 总结

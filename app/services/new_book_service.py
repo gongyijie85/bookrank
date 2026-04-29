@@ -10,6 +10,7 @@
 import gc
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -88,6 +89,59 @@ class NewBookService:
         """
         self._cache = cache_service
         self._translator = translation_service
+
+    # ==================== 分类校验 ====================
+
+    # 合法的分类列表（中英文）
+    VALID_CATEGORIES = {
+        '小说', '非虚构', '悬疑', '言情', '惊悚', '科幻', '奇幻',
+        '传记', '历史', '儿童读物', '青少年', '商业', '自助',
+        'Fiction', 'Nonfiction', 'Mystery', 'Romance', 'Thriller',
+        'Science Fiction', 'Fantasy', 'Biography', 'History',
+        'Children', 'Young Adult', 'Business', 'Self-Help',
+    }
+
+    @staticmethod
+    def _sanitize_category(category: str | None) -> str | None:
+        """
+        清洗分类数据，过滤掉无效的营销文案
+
+        Args:
+            category: 原始分类字符串
+
+        Returns:
+            清洗后的分类，无效则返回 None
+        """
+        if not category:
+            return None
+
+        category = category.strip()
+
+        # 长度检查：分类通常不超过20个字符
+        if len(category) > 30:
+            return None
+
+        # 包含营销关键词的过滤
+        marketing_keywords = [
+            'learn more', 'read more', 'see what', 'take the quiz',
+            'join our', 'browse all', 'how to', 'on the rise',
+            'you need to', 'you love', 'audiobook', 'events',
+            'new releases', 'new stories', 'lists, essays',
+        ]
+        category_lower = category.lower()
+        for keyword in marketing_keywords:
+            if keyword in category_lower:
+                return None
+
+        # 包含特殊字符的过滤（>、<、!、http等）
+        if re.search(r'[>!<]|http[s]?://', category):
+            return None
+
+        # 包含引号的过滤
+        if '"' in category or '"' in category or '"' in category:
+            return None
+
+        return category
 
     # ==================== 出版社管理 ====================
 
@@ -396,7 +450,7 @@ class NewBookService:
             isbn10=book_info.isbn10,
             description=book_info.description,
             cover_url=book_info.cover_url,
-            category=book_info.category,
+            category=self._sanitize_category(book_info.category),
             publication_date=book_info.publication_date,
             price=book_info.price,
             page_count=book_info.page_count,
