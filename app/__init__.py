@@ -282,5 +282,15 @@ def _register_jinja_filters(app):
         clean = title.strip().strip('《》')
         return f'《{clean}》'
 
+    @app.template_filter('clean_brackets')
+    def clean_brackets_filter(text):
+        """清理文本中所有重复的书名号（《《xxx》》 → 《xxx》）"""
+        if not text:
+            return text
+        import re
+        text = re.sub(r'《{2,}', '《', text)
+        text = re.sub(r'》{2,}', '》', text)
+        return text
+
 
 app = create_app(os.environ.get('FLASK_ENV', 'development'))

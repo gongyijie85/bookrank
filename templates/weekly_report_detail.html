@@ -106,7 +106,7 @@
                             本周概览
                         </h2>
                         <div class="report-summary-content">
-                            {{ report.summary | markdown | safe }}
+                            {{ report.summary | clean_brackets | markdown | safe }}
                         </div>
                     </div>
                 </div>

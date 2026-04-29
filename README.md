@@ -199,12 +199,13 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
-- ✅ 修复了获奖书单详情页布局，使用统一的左右布局
-- ✅ 修复了新书速递详情页左侧导航栏缺失问题
-- ✅ 全局统一图书卡片比例为 2/3，提升视觉一致性
-- ✅ 优化了详情页的导航结构，使用 base.html 的侧边栏
-- ✅ 增强了安全防护，添加了响应头安全配置
-- ✅ 优化了 Render 免费版部署配置，提高性能
+- ✅ 修复CSP阻止Chart.js source map，添加cdn.jsdelivr.net到connect-src
+- ✅ 修复Service Worker路径不匹配（/sw.js → /static/service-worker.js）
+- ✅ 修复新书分类数据污染，添加分类校验过滤营销文案
+- ✅ 修复周报书名重复书名号问题
+- ✅ 修复表单无障碍标签缺失，添加aria-label属性
+- ✅ 修复API限流过严导致首页429错误，将默认值从20提高到100
+- ✅ 修复周报Markdown未渲染问题，引入mistune库实现Markdown转HTML
 
 ## 未来规划
 

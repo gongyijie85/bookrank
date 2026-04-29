@@ -1,5 +1,6 @@
 """周报服务"""
 import json
+import re
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Any, Optional
 import logging
@@ -11,16 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 def _format_book_title(title: str) -> str:
-    """
-    格式化书名，避免重复书名号
-
-    如果书名已经包含《》，则不再添加
-    """
+    """格式化书名，去除重复书名号"""
     if not title:
         return ''
-    # 去除已有的书名号
     clean_title = title.strip().strip('《》')
     return f'《{clean_title}》'
+
+
+def _clean_double_brackets(text: str) -> str:
+    """清理文本中所有重复的书名号（《《xxx》》 → 《xxx》）"""
+    if not text:
+        return text
+    text = re.sub(r'《{2,}', '《', text)
+    text = re.sub(r'》{2,}', '》', text)
+    return text
 
 
 class WeeklyReportService:
@@ -89,6 +94,7 @@ class WeeklyReportService:
             
             # 生成AI摘要
             summary = self._generate_ai_summary(analysis, week_start, week_end)
+            summary = _clean_double_brackets(summary)
             
             # 构建报告内容
             content = {
@@ -103,6 +109,12 @@ class WeeklyReportService:
                 'total_rising': analysis.get('total_rising', 0),
                 'total_falling': analysis.get('total_falling', 0)
             }
+            
+            # 清理内容数据中的重复书名号
+            for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
+                for book in content.get(key, []):
+                    if 'title' in book:
+                        book['title'] = _format_book_title(book['title'])
             
             # 创建周报记录
             report = WeeklyReport(

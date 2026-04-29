@@ -1185,3 +1185,95 @@ def cleanup_categories():
     except Exception as e:
         logger.error(f"清理分类数据失败: {e}", exc_info=True)
         return APIResponse.error(f'清理失败: {str(e)}', 500)
+
+
+@api_bp.route('/admin/reports/clean-brackets', methods=['GET', 'POST'])
+def clean_report_brackets():
+    """清理周报中重复的书名号（《《xxx》》 → 《xxx》）"""
+    try:
+        from ..models.schemas import WeeklyReport
+        import json as json_lib
+
+        if request.method == 'GET':
+            dry_run = True
+        else:
+            data = request.get_json(silent=True) or {}
+            dry_run = data.get('dry_run', True)
+
+        reports = WeeklyReport.query.all()
+        fixable = []
+
+        for report in reports:
+            issues = []
+
+            # 检查summary字段
+            if report.summary:
+                import re
+                cleaned_summary = re.sub(r'《{2,}', '《', report.summary)
+                cleaned_summary = re.sub(r'》{2,}', '》', cleaned_summary)
+                if cleaned_summary != report.summary:
+                    issues.append('summary')
+
+            # 检查content JSON字段
+            if report.content:
+                try:
+                    content = json_lib.loads(report.content)
+                    has_issue = False
+                    for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
+                        for book in content.get(key, []):
+                            if 'title' in book:
+                                clean = re.sub(r'《{2,}', '《', book['title'])
+                                clean = re.sub(r'》{2,}', '》', clean)
+                                if clean != book['title']:
+                                    has_issue = True
+                                    book['title'] = clean
+                    if has_issue:
+                        issues.append('content')
+                except (json_lib.JSONDecodeError, TypeError):
+                    pass
+
+            if issues:
+                fixable.append({
+                    'id': report.id,
+                    'report_date': str(report.report_date),
+                    'issues': issues
+                })
+
+        if not dry_run:
+            updated = 0
+            for item in fixable:
+                report = WeeklyReport.query.get(item['id'])
+                if not report:
+                    continue
+
+                if 'summary' in item['issues']:
+                    report.summary = re.sub(r'》{2,}', '》', re.sub(r'《{2,}', '《', report.summary))
+
+                if 'content' in item['issues']:
+                    content = json_lib.loads(report.content)
+                    for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
+                        for book in content.get(key, []):
+                            if 'title' in book:
+                                book['title'] = re.sub(r'》{2,}', '》', re.sub(r'《{2,}', '《', book['title']))
+                    report.content = json_lib.dumps(content, ensure_ascii=False)
+
+                updated += 1
+
+            db.session.commit()
+            return APIResponse.success(data={
+                'total_reports': len(reports),
+                'fixable': len(fixable),
+                'updated': updated,
+                'details': fixable
+            }, message=f"清理完成: 修复{updated}份周报")
+        else:
+            return APIResponse.success(data={
+                'total_reports': len(reports),
+                'fixable': len(fixable),
+                'details': fixable,
+                'message': '预览模式，未实际修改。发送 dry_run=false 执行清理'
+            }, message=f"预览: 发现{len(fixable)}份周报有双书名号问题")
+
+    except Exception as e:
+        logger.error(f"清理周报书名号失败: {e}", exc_info=True)
+        return APIResponse.error(f'清理失败: {str(e)}', 500)
