@@ -140,13 +140,14 @@ class ApiClient {
      * @param {string} targetLang - 目标语言（默认：zh）
      * @returns {Promise<Object>} 翻译结果
      */
-    async translateText(text, sourceLang = 'en', targetLang = 'zh') {
+    async translateText(text, sourceLang = 'en', targetLang = 'zh', fieldType = 'text') {
         return this.request('/api/translate', {
             method: 'POST',
             body: JSON.stringify({
                 text: text,
                 source_lang: sourceLang,
-                target_lang: targetLang
+                target_lang: targetLang,
+                field_type: fieldType
             })
         });
     }

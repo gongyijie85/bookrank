@@ -401,6 +401,7 @@ def translate_text():
         text = data.get('text', '').strip()
         source_lang = data.get('source_lang', 'en')
         target_lang = data.get('target_lang', 'zh')
+        field_type = data.get('field_type', 'text')
 
         if not text:
             return APIResponse.error('缺少要翻译的文本', 400)
@@ -410,7 +411,7 @@ def translate_text():
         from ..services.zhipu_translation_service import get_translation_service
 
         service = get_translation_service()
-        result = service.translate(text, source_lang, target_lang)
+        result = service.translate(text, source_lang, target_lang, field_type=field_type)
 
         if result:
             return APIResponse.success(data={

@@ -1861,7 +1861,7 @@
             // 翻译标题
             if (book.title) {
                 try {
-                    const result = await api.translateText(book.title);
+                    const result = await api.translateText(book.title, 'en', 'zh', 'title');
                     if (result.success) {
                         translatedTitle = result.data.translated;
                     }
@@ -1873,7 +1873,7 @@
             // 翻译描述
             if (book.description) {
                 try {
-                    const result = await api.translateText(book.description);
+                    const result = await api.translateText(book.description, 'en', 'zh', 'description');
                     if (result.success) {
                         translatedDesc = result.data.translated;
                     }
@@ -1886,7 +1886,7 @@
             const bestDescription = getBestDescription(book);
             if (bestDescription && bestDescription !== book.description) {
                 try {
-                    const result = await api.translateText(bestDescription);
+                    const result = await api.translateText(bestDescription, 'en', 'zh', 'details');
                     if (result.success) {
                         translatedDetails = result.data.translated;
                     }
