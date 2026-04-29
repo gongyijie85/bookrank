@@ -216,6 +216,45 @@ def _add_book_title_marks(text: str) -> str:
     return f'《{text}》'
 
 
+def _clean_title_text(text: str) -> str:
+    """清理书名中混入的作者名、描述等多余内容
+
+    处理以下污染模式：
+    - "作者名 · 《书名》" → "《书名》"
+    - "书名 作者名译" → "《书名》"
+    - "《书名》作者名 描述文本..." → "《书名》"
+    - "书名 **书名：** 作者名..." → "《书名》"
+    """
+    if not text:
+        return text
+    text = text.strip()
+
+    # 模式1：文本中已有《》，提取《》内容
+    book_match = re.search(r'《([^》]+)》', text)
+    if book_match:
+        return f'《{book_match.group(1).strip()}》'
+
+    # 模式2：含间隔号 · 的作者名混入（如 "作者名 · 书名" 或 "书名 · 作者名"）
+    if '·' in text:
+        parts = re.split(r'\s*·\s*', text)
+        # 取最长的部分作为书名（作者名通常较短）
+        longest = max(parts, key=len).strip()
+        if len(longest) <= len(text) * 0.8:
+            return _add_book_title_marks(longest)
+
+    # 模式3：末尾有中文名+可选"译"后缀（如 "书名 作者名译"）
+    # 中文人名模式：2-4个汉字，可能含间隔号
+    text = re.sub(r'\s+[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text).strip()
+
+    # 模式4：书名后跟长描述（超过30个字符的部分可能是描述）
+    # 在第一个句号、分号或"这本书"处截断
+    desc_match = re.search(r'[。，；](?:这本书|作者|该书|本书)', text)
+    if desc_match and desc_match.start() > 2:
+        text = text[:desc_match.start()].strip()
+
+    return _add_book_title_marks(text)
+
+
 def _strip_markdown(text: str) -> str:
     """清除Markdown格式标记（粗体、斜体、代码、标题、链接等）"""
     if not text:
@@ -268,7 +307,7 @@ def clean_translation_text(text: str, field_type: str = 'text') -> str:
     text = text.replace('\u201c', '\u201c').replace('\u201d', '\u201d')
     text = text.replace('\u2018', '\u2018').replace('\u2019', '\u2019')
     if field_type == 'title':
-        text = _add_book_title_marks(text)
+        text = _clean_title_text(text)
     # 清除空行
     text = '\n'.join(line.strip() for line in text.split('\n') if line.strip())
     return text

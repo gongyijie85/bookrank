@@ -1277,3 +1277,105 @@ def clean_report_brackets():
     except Exception as e:
         logger.error(f"清理周报书名号失败: {e}", exc_info=True)
         return APIResponse.error(f'清理失败: {str(e)}', 500)
+
+
+@api_bp.route('/admin/translations/cleanup', methods=['GET', 'POST'])
+def cleanup_translations():
+    """清理翻译缓存和BookMetadata中污染的书名（含作者名、描述、markdown等）"""
+    try:
+        from ..models.schemas import TranslationCache, BookMetadata
+        from ..utils.api_helpers import clean_translation_text
+
+        if request.method == 'GET':
+            dry_run = True
+        else:
+            data = request.get_json(silent=True) or {}
+            dry_run = data.get('dry_run', True)
+
+        def is_dirty(text):
+            """检测翻译文本是否被污染"""
+            if not text:
+                return False
+            if re.search(r'\*{1,2}|_{1,2}|#{1,6}|`', text):
+                return True
+            if any(label in text for label in ['书名：', '作者：', '简介：', 'Title:', 'Author:']):
+                return True
+            if '·' in text and '《' not in text and len(text) > 10:
+                return True
+            if text.endswith('译') and len(text) > 2:
+                return True
+            if '《《' in text:
+                return True
+            return False
+
+        fixable_translations = []
+        fixable_metadata = []
+
+        # 检查翻译缓存
+        t_records = TranslationCache.query.filter(
+            TranslationCache.target_lang == 'zh'
+        ).all()
+        for record in t_records:
+            text = record.translated_text or ''
+            if is_dirty(text):
+                cleaned = clean_translation_text(text)
+                if cleaned != text:
+                    fixable_translations.append({
+                        'id': record.id,
+                        'source': record.source_text[:50],
+                        'before': text[:100],
+                        'after': cleaned[:100]
+                    })
+
+        # 检查BookMetadata
+        m_records = BookMetadata.query.filter(
+            BookMetadata.title_zh.isnot(None)
+        ).all()
+        for record in m_records:
+            text = record.title_zh or ''
+            if is_dirty(text):
+                cleaned = clean_translation_text(text, field_type='title')
+                if cleaned != text:
+                    fixable_metadata.append({
+                        'isbn': record.isbn,
+                        'source': record.title[:50],
+                        'before': text[:100],
+                        'after': cleaned[:100]
+                    })
+
+        total_fixable = len(fixable_translations) + len(fixable_metadata)
+
+        if not dry_run:
+            t_updated = 0
+            for item in fixable_translations:
+                record = TranslationCache.query.get(item['id'])
+                if record:
+                    record.translated_text = clean_translation_text(record.translated_text)
+                    t_updated += 1
+
+            m_updated = 0
+            for item in fixable_metadata:
+                record = BookMetadata.query.get(item['isbn'])
+                if record:
+                    record.title_zh = clean_translation_text(record.title_zh, field_type='title')
+                    m_updated += 1
+
+            db.session.commit()
+            return APIResponse.success(data={
+                'translation_cache': {'total': len(t_records), 'fixed': t_updated},
+                'book_metadata': {'total': len(m_records), 'fixed': m_updated},
+                'details_translations': fixable_translations[:20],
+                'details_metadata': fixable_metadata[:20]
+            }, message=f"清理完成: 修复{t_updated}条缓存 + {m_updated}条元数据")
+        else:
+            return APIResponse.success(data={
+                'translation_cache': {'total': len(t_records), 'fixable': len(fixable_translations)},
+                'book_metadata': {'total': len(m_records), 'fixable': len(fixable_metadata)},
+                'details_translations': fixable_translations[:20],
+                'details_metadata': fixable_metadata[:20],
+                'message': '预览模式，未实际修改。发送 dry_run=false 执行清理'
+            }, message=f"预览: 发现{total_fixable}条被污染的翻译数据")
+
+    except Exception as e:
+        logger.error(f"清理翻译缓存失败: {e}", exc_info=True)
+        return APIResponse.error(f'清理失败: {str(e)}', 500)

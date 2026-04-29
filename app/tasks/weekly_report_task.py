@@ -334,6 +334,7 @@ def _embed_covers_in_html(html: str) -> str:
                 return original_tag.replace(f'src="{url}"', f'src="{local_b64}"')
 
             # 本地文件不存在，尝试构建完整 URL 下载
+            from flask import current_app
             base_url = current_app.config.get('BASE_URL', '')
             if not base_url:
                 try:

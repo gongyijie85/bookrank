@@ -264,6 +264,7 @@ class ZhipuTranslationService:
         cache_service = self._get_cache_service()
 
         # 第一步：检查缓存
+        from ..utils.api_helpers import clean_translation_text
         for i, text in enumerate(texts):
             if not text or not text.strip():
                 results[i] = text
@@ -273,7 +274,7 @@ class ZhipuTranslationService:
                 try:
                     cached = cache_service.get(text, source_lang, target_lang)
                     if cached:
-                        results[i] = cached.translated_text
+                        results[i] = clean_translation_text(cached.translated_text)
                         cache_hits += 1
                         continue
                 except Exception:
@@ -431,8 +432,10 @@ class HybridTranslationService:
                     lambda: cache_service.get(text, source_lang, target_lang)
                 )
                 if cached:
-                    logger.debug("缓存命中，返回翻译结果")
-                    return cached.translated_text
+                    from ..utils.api_helpers import clean_translation_text
+                    result = clean_translation_text(cached.translated_text, field_type=field_type)
+                    logger.debug("缓存命中，返回翻译结果（已后处理）")
+                    return result
             except Exception as e:
                 logger.debug(f"缓存读取失败: {e}")
 
@@ -493,6 +496,7 @@ class HybridTranslationService:
         to_translate = []
 
         # 第一步：检查缓存
+        from ..utils.api_helpers import clean_translation_text
         for i, text in enumerate(texts):
             if not text or not text.strip():
                 results[i] = text
@@ -503,7 +507,7 @@ class HybridTranslationService:
                         lambda t=text: cache_service.get(t, source_lang, target_lang)
                     )
                     if cached:
-                        results[i] = cached.translated_text
+                        results[i] = clean_translation_text(cached.translated_text)
                         continue
                 except Exception:
                     pass
