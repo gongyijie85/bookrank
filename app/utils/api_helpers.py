@@ -150,7 +150,7 @@ def csrf_protect(f):
 
 _DIRTY_MARKERS = ('书名', '作者', '简介', '描述', '详情', '出版社',
                   'Title:', 'Author:', 'Description:', 'Summary:', 'Details:', 'Publisher:',
-                  '翻译：', '译文：', '**')
+                  '翻译：', '译文：', '**', '__', '`')
 
 _FIELD_LABELS_MAP = {
     'title': {
@@ -216,25 +216,60 @@ def _add_book_title_marks(text: str) -> str:
     return f'《{text}》'
 
 
+def _strip_markdown(text: str) -> str:
+    """清除Markdown格式标记（粗体、斜体、代码、标题、链接等）"""
+    if not text:
+        return text
+    # 粗体 **text** 或 __text__
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'__(.*?)__', r'\1', text)
+    # 斜体 *text* 或 _text_（避免误删下划线命名）
+    text = re.sub(r'(?<!\w)\*([^\*]+?)\*(?!\w)', r'\1', text)
+    text = re.sub(r'(?<!\w)_([^_]+?)_(?!\w)', r'\1', text)
+    # 行内代码 `text`
+    text = re.sub(r'`([^`]+?)`', r'\1', text)
+    # 标题 # text
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # 链接 [text](url) -> text
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    # 图片 ![text](url) -> 空
+    text = re.sub(r'!\[([^\]]*)\]\([^\)]+\)', '', text)
+    # 水平线 --- 或 ***
+    text = re.sub(r'^[\-\*_]{3,}\s*$', '', text, flags=re.MULTILINE)
+    # 引用 > text
+    text = re.sub(r'^>\s+', '', text, flags=re.MULTILINE)
+    return text.strip()
+
+
 def clean_translation_text(text: str, field_type: str = 'text') -> str:
-    """权威翻译文本后处理函数：去AI污染标记、字段提取、统一引号、书名号"""
+    """权威翻译文本后处理函数：去AI污染标记、清除Markdown、字段提取、统一引号、书名号"""
     if not text:
         return text
     text = text.strip()
+    # 清除翻译前缀
     prefixes = ['翻译：', '译文：', '中文翻译：', '翻译结果：']
     for prefix in prefixes:
         if text.startswith(prefix):
             text = text[len(prefix):].strip()
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    # 清除Markdown格式
+    text = _strip_markdown(text)
+    # 清除残留的单个星号（兜底）
     text = text.replace('*', '')
+    # 清除末尾的"译"字后缀（GLM模型翻译标记残留，如"希望升起译"）
+    text = re.sub(r'[\s]*译$', '', text)
+    text = re.sub(r'[\s]*\[译\]$', '', text)
+    text = re.sub(r'[\s]*\(译\)$', '', text)
+    # 提取字段内容
     if field_type in _FIELD_LABELS_MAP:
         text = _extract_field_content(text, field_type)
     for pattern in _FIELD_PREFIX_PATTERNS:
         text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    # 统一引号
     text = text.replace('\u201c', '\u201c').replace('\u201d', '\u201d')
     text = text.replace('\u2018', '\u2018').replace('\u2019', '\u2019')
     if field_type == 'title':
         text = _add_book_title_marks(text)
+    # 清除空行
     text = '\n'.join(line.strip() for line in text.split('\n') if line.strip())
     return text
 

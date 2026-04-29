@@ -302,7 +302,7 @@ def save_search_history(session_id: str, keyword: str, result_count: int):
 
 @api_bp.route('/book-details/<isbn>')
 def get_book_details(isbn: str):
-    """从 Google Books API 获取图书详细信息"""
+    """从 Google Books API 获取图书详细信息（含中文翻译）"""
     try:
         if not validate_isbn(isbn):
             return APIResponse.error('Invalid ISBN format', 400)
@@ -331,9 +331,31 @@ def get_book_details(isbn: str):
         if not cover_url and book_data.get('isbn_13'):
             cover_url = f"https://covers.openlibrary.org/b/isbn/{book_data['isbn_13']}-L.jpg"
 
+        details_en = book_data.get('details', '')
+        details_zh = ''
+
+        # 从数据库获取已有的中文翻译
+        try:
+            from ..models.schemas import BookMetadata
+            meta = BookMetadata.query.get(isbn)
+            if meta and meta.details_zh:
+                details_zh = clean_translation_text(meta.details_zh, 'details')
+        except Exception as e:
+            logger.debug(f"查询翻译缓存失败: {e}")
+
+        # 如果没有翻译，尝试同步翻译
+        if details_en and not details_zh:
+            try:
+                translation_service = current_app.extensions.get('translation_service')
+                if translation_service:
+                    details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
+            except Exception as e:
+                logger.debug(f"详情翻译失败: {e}")
+
         return APIResponse.success(data={
-            'description': book_data.get('details', ''),
-            'details': book_data.get('details', ''),
+            'description': details_zh or details_en,
+            'details': details_en,
+            'details_zh': details_zh,
             'cover_url': cover_url,
             'page_count': book_data.get('page_count'),
             'language': book_data.get('language'),

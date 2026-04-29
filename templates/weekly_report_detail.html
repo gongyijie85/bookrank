@@ -176,7 +176,7 @@
                             {% for change in content.top_changes %}
                             <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}">
                                 {% if change.cover %}
-                                <img src="{{ change.cover }}" alt="{{ change.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ change.cover }}" alt="{{ change.title_zh or change.title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -211,7 +211,7 @@
                             {% for book in content.new_books %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -238,7 +238,7 @@
                             {% for book in content.top_risers %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -265,7 +265,7 @@
                             {% for book in content.longest_running %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -300,7 +300,7 @@
                             {% for book in content.featured_books %}
                             <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
                                 {% else %}
                                 <div class="recommendation-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="32" height="32"><use href="#icon-book"/></svg>

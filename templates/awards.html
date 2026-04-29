@@ -278,8 +278,8 @@
                 <span class="card-tag">{{ book.year }}年</span>
             </div>
 
-            {% if book.description %}
-            <p class="card-desc">{{ book.description[:100] }}{% if book.description|length > 100 %}...{% endif %}</p>
+            {% if book.description_zh or book.description %}
+            <p class="card-desc">{{ (book.description_zh or book.description)[:100] }}{% if (book.description_zh or book.description)|length > 100 %}...{% endif %}</p>
             {% endif %}
         </div>
     </article>
@@ -317,8 +317,8 @@
 
             <p class="list-item-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
 
-            {% if book.description %}
-            <p class="list-item-desc">{{ book.description }}</p>
+            {% if book.description_zh or book.description %}
+            <p class="list-item-desc">{{ book.description_zh or book.description }}</p>
             {% endif %}
 
             <div class="list-item-meta">

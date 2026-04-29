@@ -23,14 +23,21 @@ logger = logging.getLogger(__name__)
 # 常见翻译污染标记
 _DIRTY_MARKERS = ('书名', '作者', '简介', '描述', '详情', '出版社',
                   'Title:', 'Author:', 'Description:', 'Summary:', 'Details:', 'Publisher:',
-                  '翻译：', '译文：', '**')
+                  '翻译：', '译文：', '**', '__', '`')
+
+# "译"后缀正则（匹配标题末尾的"译"字，如"希望升起译"）
+_RE_TRANSLATE_SUFFIX = re.compile(r'[\s]*译$|[\s]*\[译\]$|[\s]*\(译\)$')
 
 
 def is_dirty(text: Optional[str]) -> bool:
     """检测文本是否包含翻译污染标记"""
     if not text:
         return False
-    return any(marker in text for marker in _DIRTY_MARKERS)
+    if any(marker in text for marker in _DIRTY_MARKERS):
+        return True
+    if _RE_TRANSLATE_SUFFIX.search(text):
+        return True
+    return False
 
 
 def clean_title(text: str) -> str:
