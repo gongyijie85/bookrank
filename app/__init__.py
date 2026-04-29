@@ -37,6 +37,7 @@ def create_app(config_name='default'):
     _register_error_handlers(app)
     _configure_logging(app)
     _apply_security_headers(app)
+    _register_jinja_filters(app)
 
     if config_name == 'production':
         _enable_rate_limiting(app)
@@ -247,6 +248,10 @@ def _enable_rate_limiting(app):
             not request.path.startswith('/api/')):
             return None
 
+        excluded_paths = ['/api/csrf-token', '/api/health']
+        if request.path in excluded_paths:
+            return None
+
         client_ip = request.remote_addr or 'unknown'
 
         if not rate_limiter.is_allowed(client_ip):
@@ -256,6 +261,18 @@ def _enable_rate_limiting(app):
             return response
 
         return None
+
+
+def _register_jinja_filters(app):
+    """注册自定义Jinja2过滤器"""
+    import mistune
+    
+    @app.template_filter('markdown')
+    def markdown_filter(text):
+        """将Markdown文本转换为HTML"""
+        if not text:
+            return ''
+        return mistune.html(text)
 
 
 app = create_app(os.environ.get('FLASK_ENV', 'development'))

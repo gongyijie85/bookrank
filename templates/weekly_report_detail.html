@@ -106,7 +106,7 @@
                             本周概览
                         </h2>
                         <div class="report-summary-content">
-                            {{ report.summary | replace('\n', '<br>') | safe }}
+                            {{ report.summary | markdown | safe }}
                         </div>
                     </div>
                 </div>

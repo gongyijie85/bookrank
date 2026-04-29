@@ -51,7 +51,7 @@ class Config:
     CACHE_DIR: Path = BASE_DIR / 'cache'
     IMAGE_CACHE_DIR: Path = CACHE_DIR / 'images'
 
-    API_RATE_LIMIT: int = int(os.environ.get('API_RATE_LIMIT', 20))
+    API_RATE_LIMIT: int = int(os.environ.get('API_RATE_LIMIT', 100))
     API_RATE_LIMIT_WINDOW: int = 60
 
     MAX_WORKERS: int = int(os.environ.get('MAX_WORKERS', 4))

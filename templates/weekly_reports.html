@@ -68,7 +68,7 @@
                     
                     <!-- 新闻摘要 -->
                     <div class="news-summary">
-                        {{ report.summary | truncate(200) }}
+                        {{ report.summary | markdown | striptags | truncate(200) }}
                     </div>
                     
                     <!-- 新闻亮点 -->
