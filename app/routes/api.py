@@ -1310,6 +1310,11 @@ def cleanup_translations():
                 return True
             if '《《' in text:
                 return True
+            bracket_match = re.search(r'《[^》]+》', text)
+            if bracket_match and len(text[bracket_match.end():].strip()) > 5:
+                return True
+            if '\n' in text and len(text) > 30:
+                return True
             return False
 
         fixable_translations = []
