@@ -274,5 +274,13 @@ def _register_jinja_filters(app):
             return ''
         return mistune.html(text)
 
+    @app.template_filter('format_title')
+    def format_title_filter(title):
+        """格式化书名，去除重复书名号"""
+        if not title:
+            return ''
+        clean = title.strip().strip('《》')
+        return f'《{clean}》'
+
 
 app = create_app(os.environ.get('FLASK_ENV', 'development'))

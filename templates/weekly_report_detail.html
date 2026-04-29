@@ -211,13 +211,13 @@
                             {% for book in content.new_books %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ book.title_zh or book.title }}</span>
+                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-category">{{ book.category }}</span>
                                 <span class="book-rank">排名：{{ book.rank }}</span>
@@ -238,13 +238,13 @@
                             {% for book in content.top_risers %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ book.title_zh or book.title }}</span>
+                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-category">{{ book.category }}</span>
                                 <span class="book-change">↑ {{ book.rank_change }} 位</span>
@@ -265,13 +265,13 @@
                             {% for book in content.longest_running %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ book.title_zh or book.title }}</span>
+                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-weeks">已上榜 {{ book.weeks_on_list }} 周</span>
                                 <span class="book-rank">当前排名：{{ book.rank }}</span>
@@ -300,14 +300,14 @@
                             {% for book in content.featured_books %}
                             <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ book.title_zh or book.title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
                                 {% else %}
                                 <div class="recommendation-cover-placeholder" title="暂无封面">
                                     <svg class="icon" width="32" height="32"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
                                 <div class="recommendation-header">
-                                    <h4 class="recommendation-title">{{ book.title_zh or book.title }}</h4>
+                                    <h4 class="recommendation-title">{{ (book.title_zh or book.title) | format_title }}</h4>
                                     <span class="recommendation-author">{{ book.author }}</span>
                                 </div>
                                 <div class="recommendation-reason">
