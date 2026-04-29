@@ -1132,16 +1132,19 @@ def regenerate_all_weekly_reports():
         return APIResponse.error(f'批量修复失败: {str(e)}', 500)
 
 
-@api_bp.route('/admin/categories/cleanup', methods=['POST'])
-@csrf_protect
+@api_bp.route('/admin/categories/cleanup', methods=['GET', 'POST'])
 def cleanup_categories():
     """清理新书分类中的营销文案数据"""
     try:
         from ..models.new_book import NewBook
         from ..services.new_book_service import NewBookService
 
-        data = request.get_json(silent=True) or {}
-        dry_run = data.get('dry_run', True)
+        # GET请求或无body的POST请求：预览模式
+        if request.method == 'GET':
+            dry_run = True
+        else:
+            data = request.get_json(silent=True) or {}
+            dry_run = data.get('dry_run', True)
 
         # 查询所有有分类的记录
         books = NewBook.query.filter(NewBook.category.isnot(None)).all()
