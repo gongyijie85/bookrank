@@ -1301,8 +1301,11 @@ def cleanup_translations():
                 return True
             if any(label in text for label in ['书名：', '作者：', '简介：', 'Title:', 'Author:']):
                 return True
-            if '·' in text and '《' not in text and len(text) > 10:
-                return True
+            if '·' in text:
+                if '《' not in text and len(text) > 10:
+                    return True
+                if re.search(r'[\u4e00-\u9fff]+\s*·\s*[\u4e00-\u9fff]+\s*·?\s*《', text):
+                    return True
             if text.endswith('译') and len(text) > 2:
                 return True
             if '《《' in text:
