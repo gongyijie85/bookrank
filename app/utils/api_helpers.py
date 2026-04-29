@@ -223,36 +223,45 @@ def _clean_title_text(text: str) -> str:
     - "作者名 · 《书名》" → "《书名》"
     - "书名 作者名译" → "《书名》"
     - "《书名》作者名 描述文本..." → "《书名》"
-    - "书名 **书名：** 作者名..." → "《书名》"
+    - "书名\n作者名" → "《书名》"
     """
     if not text:
         return text
     text = text.strip()
 
     # 模式1：文本中已有《》，提取《》内容
-    book_match = re.search(r'《([^》]+)》', text)
+    book_match = re.search(r'《([^》\n]+)》', text)
     if book_match:
         return f'《{book_match.group(1).strip()}》'
 
-    # 模式2：含间隔号 · 的作者名混入（如 "作者名 · 书名" 或 "书名 · 作者名"）
+    # 模式2：多行文本，第一行是书名，后续行是作者/描述
+    if '\n' in text:
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        if len(lines) >= 2:
+            first_line = lines[0]
+            # 第一行较短（<20字符）且不含间隔号，大概率是书名
+            if len(first_line) <= 20 and '·' not in first_line:
+                return _add_book_title_marks(first_line)
+
+    # 模式3：含间隔号 · 的作者名混入
     if '·' in text:
-        parts = re.split(r'\s*·\s*', text)
-        # 取最长的部分作为书名（作者名通常较短）
-        longest = max(parts, key=len).strip()
-        if len(longest) <= len(text) * 0.8:
-            return _add_book_title_marks(longest)
+        # 先尝试在间隔号处分割
+        parts = re.split(r'\s*·\s*', text.replace('\n', ' '))
+        # 取不含间隔号且较短的部分作为书名
+        candidates = [p.strip() for p in parts if '·' not in p and len(p.strip()) <= 20]
+        if candidates:
+            return _add_book_title_marks(candidates[0])
 
-    # 模式3：末尾有中文名+可选"译"后缀（如 "书名 作者名译"）
-    # 中文人名模式：2-4个汉字，可能含间隔号
-    text = re.sub(r'\s+[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text).strip()
+    # 模式4：末尾有中文名+可选"译"后缀
+    text_flat = text.replace('\n', ' ').strip()
+    text_flat = re.sub(r'\s+[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text_flat).strip()
 
-    # 模式4：书名后跟长描述（超过30个字符的部分可能是描述）
-    # 在第一个句号、分号或"这本书"处截断
-    desc_match = re.search(r'[。，；](?:这本书|作者|该书|本书)', text)
+    # 模式5：书名后跟长描述
+    desc_match = re.search(r'[。，；](?:这本书|作者|该书|本书)', text_flat)
     if desc_match and desc_match.start() > 2:
-        text = text[:desc_match.start()].strip()
+        text_flat = text_flat[:desc_match.start()].strip()
 
-    return _add_book_title_marks(text)
+    return _add_book_title_marks(text_flat)
 
 
 def _strip_markdown(text: str) -> str:
