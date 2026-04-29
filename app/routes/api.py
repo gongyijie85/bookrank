@@ -1130,3 +1130,55 @@ def regenerate_all_weekly_reports():
     except Exception as e:
         logger.error(f"批量重新生成周报失败: {e}", exc_info=True)
         return APIResponse.error(f'批量修复失败: {str(e)}', 500)
+
+
+@api_bp.route('/admin/categories/cleanup', methods=['POST'])
+@csrf_protect
+def cleanup_categories():
+    """清理新书分类中的营销文案数据"""
+    try:
+        from ..models.new_book import NewBook
+        from ..services.new_book_service import NewBookService
+
+        data = request.get_json(silent=True) or {}
+        dry_run = data.get('dry_run', True)
+
+        # 查询所有有分类的记录
+        books = NewBook.query.filter(NewBook.category.isnot(None)).all()
+
+        invalid_books = []
+        for book in books:
+            cleaned = NewBookService._sanitize_category(book.category)
+            if cleaned != book.category:
+                invalid_books.append({
+                    'id': book.id,
+                    'title': book.title,
+                    'old_category': book.category,
+                    'new_category': cleaned
+                })
+
+        if not dry_run:
+            updated = 0
+            for item in invalid_books:
+                book = NewBook.query.get(item['id'])
+                if book:
+                    book.category = item['new_category']
+                    updated += 1
+            db.session.commit()
+            return APIResponse.success(data={
+                'total_checked': len(books),
+                'invalid_found': len(invalid_books),
+                'updated': updated,
+                'details': invalid_books[:50]
+            }, message=f"清理完成: 修复{updated}条分类数据")
+        else:
+            return APIResponse.success(data={
+                'total_checked': len(books),
+                'invalid_found': len(invalid_books),
+                'details': invalid_books[:50],
+                'message': '预览模式，未实际修改。发送 dry_run=false 执行清理'
+            }, message=f"预览: 发现{len(invalid_books)}条无效分类")
+
+    except Exception as e:
+        logger.error(f"清理分类数据失败: {e}", exc_info=True)
+        return APIResponse.error(f'清理失败: {str(e)}', 500)
