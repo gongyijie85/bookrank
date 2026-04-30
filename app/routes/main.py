@@ -853,14 +853,46 @@ def weekly_reports():
 
 
 def _parse_report_content(report):
-    """解析周报内容 JSON"""
+    """解析周报内容 JSON，并清理书名污染"""
     import json
+    import re
     if not report or not report.content:
         return None
     try:
-        return json.loads(report.content) if isinstance(report.content, str) else report.content
+        content = json.loads(report.content) if isinstance(report.content, str) else report.content
     except (json.JSONDecodeError, TypeError):
         return None
+    # 清理各列表中的书名
+    for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
+        for book in content.get(key, []):
+            if 'title' in book and book['title']:
+                book['title'] = _clean_report_book_title(book['title'])
+    return content
+
+
+def _clean_report_book_title(title: str) -> str:
+    """清理周报书名中的翻译污染"""
+    if not title:
+        return ''
+    text = title.strip()
+    # 去除markdown标记
+    text = re.sub(r'\*{1,2}|_{1,2}|`', '', text)
+    # 有换行只取第一行
+    if '\n' in text:
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        if lines:
+            text = lines[0]
+    # 提取《》内内容
+    book_match = re.search(r'《([^》]+)》', text)
+    if book_match:
+        text = book_match.group(1).strip()
+    else:
+        # 清理末尾作者名+"译"
+        text = re.sub(r'\s*[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text).strip()
+        # 清理书名后长描述
+        text = re.sub(r'[。，；].*$', '', text).strip()
+    text = text.strip('《》').strip()
+    return f'《{text}》' if text else ''
 
 
 def _validate_date(date_str: str) -> tuple:
