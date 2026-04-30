@@ -150,10 +150,11 @@ class TestSimpleResponse:
 class TestPenguinRandomHouseMigration:
     """企鹅兰登爬虫迁移验证"""
 
-    def test_inherits_from_mixed_crawl4ai(self):
+    def test_inherits_from_google_books_crawler(self):
+        """PRH 已从 MixedCrawl4AI 迁移到 GoogleBooksCrawler (v1.6+)"""
         from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-        from app.services.publisher_crawler.mixed_crawl4ai_crawler import MixedCrawl4AICrawler
-        assert issubclass(PenguinRandomHouseCrawler, MixedCrawl4AICrawler)
+        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
+        assert issubclass(PenguinRandomHouseCrawler, GoogleBooksCrawler)
 
     def test_publisher_name(self):
         from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
@@ -184,12 +185,12 @@ class TestCrawlerInitBug:
     def test_macmillan_request_delay(self):
         from app.services.publisher_crawler.macmillan import MacmillanCrawler
         crawler = MacmillanCrawler()
-        assert crawler.config.request_delay == 1.3
+        assert crawler.config.request_delay == 0.8
 
     def test_simon_schuster_request_delay(self):
         from app.services.publisher_crawler.simon_schuster import SimonSchusterCrawler
         crawler = SimonSchusterCrawler()
-        assert crawler.config.request_delay == 1.2
+        assert crawler.config.request_delay == 0.8
 
 
 class TestCrawlerRegistry:

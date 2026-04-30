@@ -53,24 +53,28 @@ class NewBookService:
             'name': '西蒙舒斯特',
             'name_en': 'Simon & Schuster',
             'website': 'https://www.simonandschuster.com',
-            'crawler_class': 'SimonSchusterCrawler',
+            # 使用 Google Books 按出版社名搜索（原 HTML 爬虫已失效）
+            'crawler_class': 'SimonSchusterGoogleCrawler',
         },
         {
             'name': '阿歇特',
             'name_en': 'Hachette',
             'website': 'https://www.hachettebookgroup.com',
+            # 直接爬取官网首页+详情页（v1.7.0）
             'crawler_class': 'HachetteCrawler',
         },
         {
             'name': '哈珀柯林斯',
             'name_en': 'HarperCollins',
             'website': 'https://www.harpercollins.com',
+            # 直接爬取官网首页图片alt信息（v1.7.0，详情页Cloudflare封锁）
             'crawler_class': 'HarperCollinsCrawler',
         },
         {
             'name': '麦克米伦',
             'name_en': 'Macmillan',
             'website': 'https://us.macmillan.com',
+            # Sitemap ISBN + Google Books 双路策略（v1.7.0，官网全站Cloudflare封锁）
             'crawler_class': 'MacmillanCrawler',
         },
     ]
@@ -145,9 +149,24 @@ class NewBookService:
 
     # ==================== 出版社管理 ====================
 
+    # 旧爬虫 -> 新爬虫的迁移映射
+    # v1.6.0: HTML 爬虫 -> Google Books 搜索爬虫
+    # v1.7.0: Google Books 搜索爬虫 -> 官网直接爬虫（如有）
+    _CRAWLER_MIGRATION = {
+        'SimonSchusterCrawler': 'SimonSchusterGoogleCrawler',
+        'HachetteCrawler': 'HachetteCrawler',  # 自身已是最新
+        'HarperCollinsCrawler': 'HarperCollinsCrawler',
+        'MacmillanCrawler': 'MacmillanCrawler',
+        'HachetteGoogleCrawler': 'HachetteCrawler',
+        'HarperCollinsGoogleCrawler': 'HarperCollinsCrawler',
+        'MacmillanGoogleCrawler': 'MacmillanCrawler',
+    }
+
     def init_publishers(self) -> int:
         """
         初始化默认出版社数据
+
+        同时将已失效的 HTML 爬虫迁移到 Google Books 搜索爬虫。
 
         Returns:
             创建的出版社数量
@@ -158,7 +177,17 @@ class NewBookService:
             # 检查是否已存在
             existing = Publisher.query.filter_by(name_en=pub_data['name_en']).first()
             if existing:
-                logger.info(f"出版社已存在: {pub_data['name_en']}")
+                # 迁移：如果使用旧爬虫，更新为新爬虫
+                if existing.crawler_class in self._CRAWLER_MIGRATION:
+                    old_class = existing.crawler_class
+                    new_class = self._CRAWLER_MIGRATION[old_class]
+                    existing.crawler_class = new_class
+                    logger.info(
+                        f"出版社爬虫迁移: {pub_data['name_en']} "
+                        f"{old_class} -> {new_class}"
+                    )
+                else:
+                    logger.info(f"出版社已存在: {pub_data['name_en']}")
                 continue
 
             publisher = Publisher(
@@ -232,6 +261,17 @@ class NewBookService:
 
     # ==================== 爬虫管理 ====================
 
+    # Google Books 相关爬虫类名列表（都需要 API Key）
+    # v1.7.0: Hachette/HarperCollins 已改用官网直接爬取，不再需要 API Key
+    _GOOGLE_BOOKS_CRAWLERS = {
+        'GoogleBooksCrawler',
+        'SimonSchusterGoogleCrawler',
+        'HachetteGoogleCrawler',
+        'HarperCollinsGoogleCrawler',
+        'MacmillanGoogleCrawler',
+        'MacmillanCrawler',  # v1.7.0: Sitemap+Google Books 双路策略
+    }
+
     def get_crawler(self, crawler_class: str):
         """
         获取爬虫实例
@@ -248,8 +288,8 @@ class NewBookService:
             logger.error(f"未找到爬虫类: {crawler_class}")
             return None
 
-        # Google Books 爬虫需要 API key
-        if crawler_class == 'GoogleBooksCrawler':
+        # Google Books 系列爬虫需要 API key
+        if crawler_class in self._GOOGLE_BOOKS_CRAWLERS:
             from flask import current_app
             api_key = current_app.config.get('GOOGLE_API_KEY') if current_app else None
             if api_key:

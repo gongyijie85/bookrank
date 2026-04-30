@@ -1,5 +1,104 @@
 # Changelog
 
+## [1.7.0] - 2026-04-30
+
+### 优化
+- **出版社官网直接爬取**：将 Hachette、HarperCollins、Macmillan 三个出版社从 Google Books 间接搜索切换为直接官网爬取（或混合策略），获取更准确、更新的新书数据
+  - `HachetteCrawler`：直接爬取 hachettebookgroup.com 首页"New Releases"标签页，进入详情页获取完整数据（ISBN、作者、封面等）
+  - `HarperCollinsCrawler`：爬取 harpercollins.com 首页 NEW RELEASES 轮播，从图片 alt 属性提取标题/作者/ISBN 信息
+  - `MacmillanCrawler`：采用多印记查询（Macmillan、St. Martin's Press、Tor Books 等8个印记）+ Sitemap ISBN 补充的双路策略，解决官网 Cloudflare 封锁问题
+- **爬虫注册与迁移**：更新 `new_book_service.py` 中的默认出版社配置和爬虫迁移映射
+
+### 修复
+- **Macmillan 返回旧书**：
+  - 问题：Macmillan 爬虫返回 1998-2022 年的旧书，而非近期新书
+  - 根因：Sitemap ISBN 补充路径在 `year_from=None` 时跳过年份过滤；`_lookup_isbn` 返回 `publication_date` 为字符串类型（应为 `date` 对象），导致比较失败
+  - 修复：统一使用 `min_year` 默认值（当前年-2）进行年份过滤；`_lookup_isbn` 改用 `_parse_date_string` 返回 `date` 对象
+- **HarperCollins robots.txt 误拦截**：
+  - 问题：HarperCollins 的 robots.txt 被 Cloudflare 拦截返回 HTML，导致 `RobotFileParser` 无法解析有效规则，`can_fetch()` 始终返回 False
+  - 修复：覆盖 `_is_url_allowed()` 方法，绕过无效的 robots.txt 检查
+- **Macmillan Google Books 查询覆盖不足**：
+  - 问题：仅查询 `publisher:Macmillan`，遗漏旗下 St. Martin's Press、Tor Books 等主要印记
+  - 修复：新增 `MACMILLAN_IMPRINTS` 列表，通过 `inpublisher:` 分别查询8个印记
+- **Sitemap 采样固定**：
+  - 问题：始终检查 sitemap 28-31，ISBN 集合固定导致结果缺乏多样性
+  - 修复：扩展至 `range(1, 32)`，每次随机采样6个 sitemap 并打乱 ISBN 顺序
+
+### 新增文件
+- `app/services/publisher_crawler/hachette.py`：Hachette 官网爬虫
+- `app/services/publisher_crawler/harpercollins.py`：HarperCollins 官网爬虫
+- `app/services/publisher_crawler/macmillan.py`：Macmillan 多印记+Sitemap 爬虫
+
+### 修改文件
+- `app/services/new_book_service.py`：更新默认出版社爬虫类名和迁移映射
+- `app/services/publisher_crawler/__init__.py`：更新模块文档
+
+## [1.6.1] - 2026-04-30
+
+### 项目架构
+- **通用工具独立开源**：
+  - 从主项目提取 `IPRateLimiter` 为独立 Python 包 `flask-ip-limiter`
+  - 从主项目提取 `BaseCrawler` 为独立 Python 包 `web-crawler-base`
+  - 两个通用工具采用 MIT 许可证发布到 GitHub
+  - 主项目 BookRank 保持私有闭源（业务属性、法律风险）
+  - 开源仓库地址：
+    - https://github.com/gongyijie85/flask-ip-limiter
+    - https://github.com/gongyijie85/web-crawler-base
+- **清理工作**：
+  - 恢复主项目 `.gitignore` 到初始状态
+  - 删除主项目中的 LICENSE、CONTRIBUTING.md 等开源准备文件
+  - 保留 `open-source-tools/` 目录作为本地开源工具的工作区
+
+### 说明
+- 主项目闭源理由：属于给上海外文图书有限公司的业务项目，包含出版社数据、奖项收录规则、周报格式等商业机密
+- 通用工具开源理由：限流器、爬虫基类等模块无业务逻辑，适合展示技术能力、积累社区贡献
+
+## [1.6.0] - 2026-04-30
+
+### 新功能
+- **Google Books 出版社搜索爬虫**：
+  - 新增 `GoogleBooksPublisherCrawler` 基类，通过 Google Books API 的 `inpublisher:` 语法按出版社名搜索新书
+  - 新增 `SimonSchusterGoogleCrawler`：Simon & Schuster 出版社新书搜索
+  - 新增 `HachetteGoogleCrawler`：Hachette 出版社新书搜索（含子出版社 Grand Central、Little Brown、Orbit 等）
+  - 新增 `HarperCollinsGoogleCrawler`：HarperCollins 出版社新书搜索
+  - 新增 `MacmillanGoogleCrawler`：Macmillan 出版社新书搜索
+  - 优势：比 HTML 爬虫稳定可靠，不受网站结构变化和反爬措施影响
+
+- **RSS Feed 爬虫**：
+  - 新增 `PublisherRSSCrawler` 基类，支持 RSS 2.0 和 Atom 格式解析
+  - 新增企鹅兰登、HarperCollins、Simon & Schuster 的 RSS 爬虫子类
+  - 作为 HTML 爬虫的备选方案
+
+- **自动迁移机制**：
+  - `init_publishers()` 方法增加爬虫迁移逻辑
+  - 自动将失效的 HTML 爬虫（SimonSchusterCrawler、HachetteCrawler、HarperCollinsCrawler、MacmillanCrawler）迁移到 Google Books 搜索爬虫
+  - 无需手动干预，应用启动时自动完成
+
+### 优化
+- **get_crawler 方法**：支持所有 Google Books 系列爬虫的 API Key 注入
+- **爬虫注册表**：新增 7 个爬虫类到统一注册入口
+
+### 修复
+- **Google Books API 返回未来占位日期**：
+  - 问题：Google Books API 常返回 `2030-12-30`、`2030-12-31` 等占位日期，被当作有效新书数据
+  - 根因：`_is_recent_book` 方法只检查年份下限（>= min_year），未检查上限
+  - 修复：增加上限检查，过滤掉超过当前年份+1年的占位日期
+  - 修复文件：`app/services/publisher_crawler/google_books.py`
+
+- **Simon & Schuster、Hachette、HarperCollins、Macmillan 数据为空**：
+  - 根因：HTML 爬虫的 CSS 选择器不匹配网站当前结构，且存在反爬和 JS 渲染问题
+  - 修复：切换到 Google Books API 按出版社名搜索，数据源从 0 变为有数据
+
+### 新增文件
+- `app/services/publisher_crawler/google_books_publisher.py`：Google Books 出版社搜索爬虫
+- `app/services/publisher_crawler/rss_crawler.py`：RSS Feed 爬虫
+- `scripts/migrate_publishers.py`：出版社爬虫迁移脚本
+
+### 修改文件
+- `app/services/publisher_crawler/__init__.py`：注册新爬虫
+- `app/services/new_book_service.py`：更新默认出版社配置和迁移逻辑、get_crawler 支持新爬虫
+- `app/services/publisher_crawler/google_books.py`：修复未来占位日期过滤逻辑
+
 ## [1.5.1] - 2026-04-30
 
 ### 修复
