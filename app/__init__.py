@@ -279,6 +279,8 @@ def _register_jinja_filters(app):
         """格式化书名，去除重复书名号并清理翻译污染"""
         if not title:
             return ''
+        if not isinstance(title, str):
+            title = str(title)
         text = title.strip()
         # 去除markdown标记
         text = re.sub(r'\*{1,2}|_{1,2}|`', '', text)
