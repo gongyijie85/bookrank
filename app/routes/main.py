@@ -882,13 +882,11 @@ def _clean_report_book_title(title: str) -> str:
         lines = [l.strip() for l in text.split('\n') if l.strip()]
         if lines:
             text = lines[0]
-    # 提取《》内内容
-    book_match = re.search(r'《([^》]+)》', text)
-    if book_match:
-        text = book_match.group(1).strip()
-    else:
-        # 清理书名后长描述（以标点开头）
-        text = re.sub(r'[。，；].*$', '', text).strip()
+    # 如果文本中已有《》，提取《》内的内容
+    if '《' in text and '》' in text:
+        book_match = re.search(r'《([^》]+)》', text)
+        if book_match:
+            text = book_match.group(1).strip()
     text = text.strip('《》').strip()
     return f'《{text}》' if text else ''
 
