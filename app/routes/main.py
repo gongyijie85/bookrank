@@ -939,11 +939,10 @@ def weekly_report_detail(date):
         return render_template('weekly_report_detail.html', report=report, content=content_data)
         
     except Exception as e:
-        current_app.logger.error(f"统计阅读量时出错: {str(e)}")
-        if report:
-            content_data = _parse_report_content(report)
-            return render_template('weekly_report_detail.html', report=report, content=content_data)
-        return render_template('error.html', message="加载周报失败", back_url='/reports/weekly')
+        import traceback
+        error_detail = traceback.format_exc()
+        current_app.logger.error(f"周报详情渲染错误: {str(e)}\n{error_detail}")
+        return f"<pre>渲染错误: {str(e)}\n\n{error_detail}</pre>", 500
 
 @main_bp.route('/reports/weekly/<date>/export')
 def export_weekly_report(date):
