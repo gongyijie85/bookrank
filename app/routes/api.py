@@ -1278,6 +1278,84 @@ def clean_report_brackets():
         return APIResponse.error(f'清理失败: {str(e)}', 500)
 
 
+@api_bp.route('/admin/reports/fix-truncated-titles', methods=['GET', 'POST'])
+def fix_truncated_titles():
+    """修复被截断的书名（从其他数据源恢复）"""
+    try:
+        from ..models.schemas import WeeklyReport, BookMetadata
+        import json as json_lib
+
+        if request.method == 'GET':
+            dry_run = True
+        else:
+            data = request.get_json(silent=True) or {}
+            dry_run = data.get('dry_run', True)
+
+        # 从BookMetadata构建书名映射（isbn -> title）
+        book_metadata_map = {}
+        all_books = BookMetadata.query.all()
+        for book in all_books:
+            if book.isbn and book.title_cn:
+                book_metadata_map[book.isbn] = book.title_cn
+
+        reports = WeeklyReport.query.all()
+        fixed_count = 0
+        details = []
+
+        for report in reports:
+            if not report.content:
+                continue
+
+            try:
+                content = json_lib.loads(report.content)
+            except (json_lib.JSONDecodeError, TypeError):
+                continue
+
+            report_fixed = False
+            for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
+                for book in content.get(key, []):
+                    title = book.get('title', '')
+                    if not title:
+                        continue
+
+                    # 检测是否被截断（书名只有1-2个字且在《》内）
+                    clean_title = title.strip('《》').strip()
+                    if len(clean_title) <= 2 and '《' in title:
+                        # 尝试从isbn恢复
+                        isbn = book.get('isbn', '')
+                        if isbn and isbn in book_metadata_map:
+                            correct_title = book_metadata_map[isbn]
+                            details.append({
+                                'report_date': str(report.report_date),
+                                'section': key,
+                                'old_title': title,
+                                'new_title': f'《{correct_title}》',
+                                'source': 'book_metadata'
+                            })
+                            book['title'] = f'《{correct_title}》'
+                            report_fixed = True
+
+            if report_fixed:
+                fixed_count += 1
+                if not dry_run:
+                    report.content = json_lib.dumps(content, ensure_ascii=False)
+
+        if not dry_run and fixed_count > 0:
+            db.session.commit()
+
+        return APIResponse.success(data={
+            'total_reports': len(reports),
+            'fixed': fixed_count,
+            'details': details[:50],
+            'dry_run': dry_run,
+            'message': '预览模式' if dry_run else f'已修复{fixed_count}份周报'
+        })
+
+    except Exception as e:
+        logger.error(f"修复截断书名失败: {e}", exc_info=True)
+        return APIResponse.error(f'修复失败: {str(e)}', 500)
+
+
 def _clean_report_text(text: str) -> str:
     """清理周报文本中的书名污染"""
     if not text:

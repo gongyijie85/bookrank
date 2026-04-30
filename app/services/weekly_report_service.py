@@ -27,11 +27,6 @@ def _format_book_title(title: str) -> str:
     book_match = re.search(r'《([^》]+)》', text)
     if book_match:
         text = book_match.group(1).strip()
-    else:
-        # 清理末尾的中文作者名+"译"后缀
-        text = re.sub(r'\s*[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text).strip()
-        # 清理书名后的长描述（以标点或关键词开头）
-        text = re.sub(r'[。，；].*$', '', text).strip()
     # 去除剩余的书名号，统一添加
     text = text.strip('《》').strip()
     return f'《{text}》' if text else ''
