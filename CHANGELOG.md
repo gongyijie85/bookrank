@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.5.1] - 2026-04-30
+
+### 修复
+- **周报详情书名截断（BUG-13）**：
+  - 问题：周报详情页书名显示为截断形式（如《天》应为《天堂十八日》）
+  - 根因：_format_book_title 函数中的正则误将书名末尾中文识别为作者名并删除
+  - 修复：移除会导致书名截断的正则表达式
+  - 修复文件：app/services/weekly_report_service.py、app/routes/api.py
+
+- **图书详情页未翻译**：
+  - 问题：部分详情页显示英文标题，即使数据库已有翻译
+  - 根因：_merge_or_translate_book 提前返回条件过于宽泛
+  - 修复：将提前返回条件改为三个字段都有翻译才跳过
+  - 修复文件：app/routes/main.py
+
+- **Analytics session-stats 500错误**：
+  - 问题：/api/analytics/session-stats 返回500
+  - 根因：SQL嵌套聚合函数 avg(count(...)) 在PostgreSQL中不合法
+  - 修复：拆分为子查询 + Python计算
+  - 修复文件：app/services/analytics_service.py
+
+### 优化
+- **清理调试代码**：
+  - 移除 main.py 周报详情路由中的 traceback.format_exc() 调试输出
+  - 移除 _parse_report_content 中已禁用的书名清理注释代码
+  - 恢复正常的错误页面渲染
+
 ## [1.5.0] - 2026-04-29
 
 ### 修复

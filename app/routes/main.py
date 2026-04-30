@@ -707,8 +707,8 @@ def _merge_or_translate_book(book: dict, isbn: str) -> None:
             if meta.title_zh and not book.get('title_zh'):
                 book['title_zh'] = clean_translation_text(meta.title_zh, 'title')
 
-            # 如果数据库已经有翻译，直接返回
-            if meta.description_zh or meta.details_zh:
+            # 如果数据库已经有全部翻译，直接返回
+            if meta.title_zh and meta.description_zh and meta.details_zh:
                 return
 
         # 数据库没有翻译，尝试同步翻译并保存
@@ -853,42 +853,15 @@ def weekly_reports():
 
 
 def _parse_report_content(report):
-    """解析周报内容 JSON，并清理书名污染"""
+    """解析周报内容 JSON"""
     import json
-    import re
     if not report or not report.content:
         return None
     try:
         content = json.loads(report.content) if isinstance(report.content, str) else report.content
     except (json.JSONDecodeError, TypeError):
         return None
-    # 清理各列表中的书名（暂时禁用，排查截断问题）
-    # for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
-    #     for book in content.get(key, []):
-    #         if 'title' in book and book['title']:
-    #             book['title'] = _clean_report_book_title(book['title'])
     return content
-
-
-def _clean_report_book_title(title: str) -> str:
-    """清理周报书名中的翻译污染"""
-    if not title:
-        return ''
-    text = title.strip()
-    # 去除markdown标记
-    text = re.sub(r'\*{1,2}|_{1,2}|`', '', text)
-    # 有换行只取第一行（避免作者名/描述混入）
-    if '\n' in text:
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
-        if lines:
-            text = lines[0]
-    # 如果文本中已有《》，提取《》内的内容
-    if '《' in text and '》' in text:
-        book_match = re.search(r'《([^》]+)》', text)
-        if book_match:
-            text = book_match.group(1).strip()
-    text = text.strip('《》').strip()
-    return f'《{text}》' if text else ''
 
 
 def _validate_date(date_str: str) -> tuple:
@@ -967,10 +940,8 @@ def weekly_report_detail(date):
         return render_template('weekly_report_detail.html', report=report, content=content_data)
         
     except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        current_app.logger.error(f"周报详情渲染错误: {str(e)}\n{error_detail}")
-        return f"<pre>渲染错误: {str(e)}\n\n{error_detail}</pre>", 500
+        current_app.logger.error(f"周报详情渲染错误: {str(e)}", exc_info=True)
+        return render_template('error.html', message="周报加载失败，请稍后再试", back_url='/reports/weekly'), 500
 
 @main_bp.route('/reports/weekly/<date>/export')
 def export_weekly_report(date):
