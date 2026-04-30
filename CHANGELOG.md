@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.7.2] - 2026-05-01
+
+### 修复
+- **翻译文本引号替换无效代码**：
+  - 问题：`clean_translation_text()` 中 `text.replace('\u201c', '\u201c')` 将字符替换成自身，完全无效
+  - 修复：移除两行无效的引号替换代码
+- **单字"译"作为脏标记误判**：
+  - 问题：`_DIRTY_MARKERS` 包含单字 `'译'`，导致任何含"译"的正常文本（如"翻译""编译"）都被误判为脏数据
+  - 修复：从 `_DIRTY_MARKERS` 移除 `'译'`；末尾"译"字后缀清理已由 `clean_translation_text()` 的正则独立处理
+- **`_translate_book_info` 未翻译 author 字段**：
+  - 问题：系统已支持 `author_zh` 字段，但 `_translate_book_info()` 的翻译字段列表遗漏了 author
+  - 修复：在翻译字段列表中增加 `('author', 'author_zh', 'author')`
+
+### 简化
+- **清除 `book_service.py` 冗余导入**：移除 `_batch_get_translations`、`save_book_translation`、`get_latest_cache_time` 中重复的局部导入（`BookMetadata`、`db`、`datetime`），统一使用文件顶部导入
+- **提取翻译缓存服务共享逻辑**：`ZhipuTranslationService` 和 `HybridTranslationService` 中重复的 `_get_cache_service` 方法，提取为模块级 `_get_shared_cache_service()` 函数，避免重复初始化
+
+## [1.7.1] - 2026-04-30
+
+### 修复
+- **书名翻译后错误附加"译"字**：
+  - 问题：GLM 模型翻译书名时偶尔在末尾添加"译"字（如"希望升起译"），所有分类的畅销书均受影响
+  - 根因：`_DIRTY_MARKERS` 未包含"译"字，导致 `quick_clean_translation()` 误判脏数据为干净，直接返回缓存的脏翻译
+  - 修复：将"译"加入 `_DIRTY_MARKERS`；增强 `clean_translation_text()` 正则，处理行尾、换行前、行首各种"译"字变体；在智谱AI Prompt 中明确严禁添加"译"字标记
+- **作者名未翻译显示**：
+  - 问题：首页畅销书排行榜仅显示英文作者名
+  - 修复：`Book` 数据类新增 `author_zh` 字段；`BookMetadata` 表新增 `author_zh` 列；`BookService` 批量获取并赋值作者中文名；首页模板优先显示 `author_zh`
+
+### 新增文件
+- `scripts/fix_translation_suffix.py`：数据库脏数据清理脚本，支持 `--dry-run` 预览模式，遍历 `book_metadata`、`translation_cache` 和 `static/data/*.json` 清理"译"字残留
+
 ## [1.7.0] - 2026-04-30
 
 ### 优化
