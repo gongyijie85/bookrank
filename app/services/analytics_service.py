@@ -193,14 +193,15 @@ class AnalyticsService:
             UserBehavior.created_at >= start_date
         ).scalar() or 0
         
-        # 获取每个会话的平均行为数
-        session_behavior_avg = db.session.query(
-            func.avg(func.count(UserBehavior.id))
+        # 获取每个会话的平均行为数（聚合函数不能嵌套，先查列表再计算平均值）
+        session_counts = db.session.query(
+            func.count(UserBehavior.id)
         ).filter(
             UserBehavior.created_at >= start_date
         ).group_by(
             UserBehavior.session_id
-        ).scalar() or 0
+        ).all()
+        session_behavior_avg = sum(c[0] for c in session_counts) / len(session_counts) if session_counts else 0
         
         return {
             'session_count': session_count,

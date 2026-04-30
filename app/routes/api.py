@@ -1190,9 +1190,10 @@ def cleanup_categories():
 
 @api_bp.route('/admin/reports/clean-brackets', methods=['GET', 'POST'])
 def clean_report_brackets():
-    """清理周报中重复的书名号（《《xxx》》 → 《xxx》）"""
+    """清理周报中的书名污染（双书名号、markdown、作者名混入、长描述等）"""
     try:
         from ..models.schemas import WeeklyReport
+        from ..services.weekly_report_service import _format_book_title
         import json as json_lib
 
         if request.method == 'GET':
@@ -1209,9 +1210,7 @@ def clean_report_brackets():
 
             # 检查summary字段
             if report.summary:
-                import re
-                cleaned_summary = re.sub(r'《{2,}', '《', report.summary)
-                cleaned_summary = re.sub(r'》{2,}', '》', cleaned_summary)
+                cleaned_summary = _clean_report_text(report.summary)
                 if cleaned_summary != report.summary:
                     issues.append('summary')
 
@@ -1223,8 +1222,7 @@ def clean_report_brackets():
                     for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
                         for book in content.get(key, []):
                             if 'title' in book:
-                                clean = re.sub(r'《{2,}', '《', book['title'])
-                                clean = re.sub(r'》{2,}', '》', clean)
+                                clean = _format_book_title(book['title'])
                                 if clean != book['title']:
                                     has_issue = True
                                     book['title'] = clean
@@ -1248,14 +1246,14 @@ def clean_report_brackets():
                     continue
 
                 if 'summary' in item['issues']:
-                    report.summary = re.sub(r'》{2,}', '》', re.sub(r'《{2,}', '《', report.summary))
+                    report.summary = _clean_report_text(report.summary)
 
                 if 'content' in item['issues']:
                     content = json_lib.loads(report.content)
                     for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
                         for book in content.get(key, []):
                             if 'title' in book:
-                                book['title'] = re.sub(r'》{2,}', '》', re.sub(r'《{2,}', '《', book['title']))
+                                book['title'] = _format_book_title(book['title'])
                     report.content = json_lib.dumps(content, ensure_ascii=False)
 
                 updated += 1
@@ -1273,11 +1271,27 @@ def clean_report_brackets():
                 'fixable': len(fixable),
                 'details': fixable,
                 'message': '预览模式，未实际修改。发送 dry_run=false 执行清理'
-            }, message=f"预览: 发现{len(fixable)}份周报有双书名号问题")
+            }, message=f"预览: 发现{len(fixable)}份周报有问题")
 
     except Exception as e:
         logger.error(f"清理周报书名号失败: {e}", exc_info=True)
         return APIResponse.error(f'清理失败: {str(e)}', 500)
+
+
+def _clean_report_text(text: str) -> str:
+    """清理周报文本中的书名污染"""
+    if not text:
+        return text
+    from ..services.weekly_report_service import _format_book_title
+    # 清理双书名号
+    text = re.sub(r'《{2,}', '《', text)
+    text = re.sub(r'》{2,}', '》', text)
+    # 清理markdown粗体标记包裹的书名号
+    text = re.sub(r'\*\*《([^》]+)》\*\*', r'《\1》', text)
+    text = re.sub(r'\*《([^》]+)》\*', r'《\1》', text)
+    # 清理换行符混入的书名（如《掌控习惯》\n詹姆斯·克利尔\n描述...）
+    text = re.sub(r'《([^》\n]+)》\n[^《\n]*(?:\n[^《\n]*)*', lambda m: _format_book_title(m.group(0)), text)
+    return text
 
 
 @api_bp.route('/admin/translations/cleanup', methods=['GET', 'POST'])

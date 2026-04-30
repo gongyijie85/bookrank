@@ -12,11 +12,29 @@ logger = logging.getLogger(__name__)
 
 
 def _format_book_title(title: str) -> str:
-    """格式化书名，去除重复书名号"""
+    """格式化书名，去除重复书名号并清理翻译污染"""
     if not title:
         return ''
-    clean_title = title.strip().strip('《》')
-    return f'《{clean_title}》'
+    text = title.strip()
+    # 去除markdown标记
+    text = re.sub(r'\*{1,2}|_{1,2}|`', '', text)
+    # 如果文本中有换行，只取第一行（书名）
+    if '\n' in text:
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        if lines:
+            text = lines[0]
+    # 如果文本中已有《》，提取《》内的内容
+    book_match = re.search(r'《([^》]+)》', text)
+    if book_match:
+        text = book_match.group(1).strip()
+    else:
+        # 清理末尾的中文作者名+"译"后缀
+        text = re.sub(r'\s*[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text).strip()
+        # 清理书名后的长描述（以标点或关键词开头）
+        text = re.sub(r'[。，；].*$', '', text).strip()
+    # 去除剩余的书名号，统一添加
+    text = text.strip('《》').strip()
+    return f'《{text}》' if text else ''
 
 
 def _clean_double_brackets(text: str) -> str:
