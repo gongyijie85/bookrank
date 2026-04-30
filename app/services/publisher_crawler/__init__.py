@@ -4,13 +4,18 @@
 提供多种数据源的爬虫实现：
 - Open Library（推荐，稳定可靠）
 - Google Books（支持年份筛选）
-- Penguin Random House（企鹅兰登）
-- Simon & Schuster（西蒙舒斯特）
-- Hachette（阿歇特）
-- HarperCollins（哈珀柯林斯）
-- Macmillan（麦克米伦）
+- Google Books Publisher（按出版社名搜索，推荐用于无API的出版社）
+- Publisher RSS（RSS Feed 解析）
+- Penguin Random House（企鹅兰登，有结构化API）
+- Simon & Schuster（西蒙舒斯特，Google Books API）
+- Hachette（阿歇特，官网直接爬取 v1.7.0）
+- HarperCollins（哈珀柯林斯，官网首页解析 v1.7.0）
+- Macmillan（麦克米伦，Sitemap+Google Books 双路 v1.7.0）
 
-注意：由于出版社网站反爬措施，建议优先使用Open Library或Google Books数据源。
+推荐优先级：
+1. 出版社自有 API 或官网爬虫（如企鹅兰登、阿歇特）
+2. Google Books Publisher（按出版社名搜索，稳定可靠）
+3. RSS Feed（如果有配置的话）
 """
 import importlib
 import logging
@@ -36,6 +41,15 @@ _CRAWLER_MODULES = [
     ('HachetteCrawler', '.hachette'),
     ('HarperCollinsCrawler', '.harpercollins'),
     ('MacmillanCrawler', '.macmillan'),
+    # Google Books 出版社搜索爬虫（按出版社名搜索，稳定可靠）
+    ('SimonSchusterGoogleCrawler', '.google_books_publisher'),
+    ('HachetteGoogleCrawler', '.google_books_publisher'),
+    ('HarperCollinsGoogleCrawler', '.google_books_publisher'),
+    ('MacmillanGoogleCrawler', '.google_books_publisher'),
+    # RSS Feed 爬虫
+    ('PenguinRandomHouseRSSCrawler', '.rss_crawler'),
+    ('HarperCollinsRSSCrawler', '.rss_crawler'),
+    ('SimonSchusterRSSCrawler', '.rss_crawler'),
 ]
 
 

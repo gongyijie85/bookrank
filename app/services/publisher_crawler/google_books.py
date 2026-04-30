@@ -237,12 +237,16 @@ class GoogleBooksCrawler(BaseCrawler):
 
     @staticmethod
     def _is_recent_book(published_date: str, min_year: int) -> bool:
-        """判断书籍是否为近期出版"""
+        """判断书籍是否为近期出版（排除未来占位日期和过旧书籍）"""
         if not published_date:
             return True
 
         try:
             year = int(published_date[:4])
+            current_year = datetime.now().year
+            # 过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）
+            if year > current_year + 1:
+                return False
             return year >= min_year
         except (ValueError, IndexError):
             return True

@@ -8,7 +8,7 @@ from flask_cors import CORS
 
 from .config import config
 from .models import db, init_db
-from .routes import api_bp, main_bp, public_api_bp, new_books_bp, health_bp, analytics_bp
+from .routes import api_bp, main_bp, public_api_bp, new_books_bp, health_bp, analytics_bp, admin_bp
 from .initialization import init_awards_data, init_sample_books
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -101,6 +101,7 @@ def _register_blueprints(app):
     """注册蓝图"""
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(admin_bp)
     app.register_blueprint(public_api_bp)
     app.register_blueprint(new_books_bp)
     app.register_blueprint(health_bp)

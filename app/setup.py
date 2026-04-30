@@ -234,16 +234,21 @@ def _cover_sync_task(app):
     """获奖书籍封面自动同步任务"""
     with app.app_context():
         try:
-            from .services.api_client import GoogleBooksClient
             from .services.award_cover_sync_service import AwardCoverSyncService
-            from .config import Config
 
             app.logger.info('开始检查获奖书籍封面...')
 
-            google_client = GoogleBooksClient(
-                api_key=Config.GOOGLE_API_KEY,
-                base_url='https://www.googleapis.com/books/v1/volumes'
-            )
+            book_service = app.extensions.get('book_service')
+            google_client = book_service._google_client if book_service and hasattr(book_service, '_google_client') else None
+
+            if not google_client:
+                from .services.google_books_client import GoogleBooksClient
+                from .config import Config
+                google_client = GoogleBooksClient(
+                    api_key=Config.GOOGLE_API_KEY,
+                    base_url='https://www.googleapis.com/books/v1/volumes'
+                )
+
             sync_service = AwardCoverSyncService(google_client)
 
             result = sync_service.sync_missing_covers(batch_size=30, delay=0.5)
