@@ -862,13 +862,11 @@ def _parse_report_content(report):
         content = json.loads(report.content) if isinstance(report.content, str) else report.content
     except (json.JSONDecodeError, TypeError):
         return None
-    # 清理各列表中的书名
-    for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
-        for book in content.get(key, []):
-            if 'title' in book and book['title']:
-                original = book['title']
-                cleaned = _clean_report_book_title(original)
-                book['title'] = cleaned
+    # 清理各列表中的书名（暂时禁用，排查截断问题）
+    # for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
+    #     for book in content.get(key, []):
+    #         if 'title' in book and book['title']:
+    #             book['title'] = _clean_report_book_title(book['title'])
     return content
 
 
@@ -890,11 +888,7 @@ def _clean_report_book_title(title: str) -> str:
         if book_match:
             text = book_match.group(1).strip()
     text = text.strip('《》').strip()
-    result = f'《{text}》' if text else ''
-    # 调试日志
-    if len(result) < 5 and len(title) > 5:
-        logger.warning(f"_clean_report_book_title截断: 输入='{title}' 输出='{result}'")
-    return result
+    return f'《{text}》' if text else ''
 
 
 def _validate_date(date_str: str) -> tuple:
