@@ -866,7 +866,9 @@ def _parse_report_content(report):
     for key in ['top_changes', 'new_books', 'top_risers', 'longest_running', 'featured_books']:
         for book in content.get(key, []):
             if 'title' in book and book['title']:
-                book['title'] = _clean_report_book_title(book['title'])
+                original = book['title']
+                cleaned = _clean_report_book_title(original)
+                book['title'] = cleaned
     return content
 
 
@@ -888,7 +890,11 @@ def _clean_report_book_title(title: str) -> str:
         if book_match:
             text = book_match.group(1).strip()
     text = text.strip('《》').strip()
-    return f'《{text}》' if text else ''
+    result = f'《{text}》' if text else ''
+    # 调试日志
+    if len(result) < 5 and len(title) > 5:
+        logger.warning(f"_clean_report_book_title截断: 输入='{title}' 输出='{result}'")
+    return result
 
 
 def _validate_date(date_str: str) -> tuple:
