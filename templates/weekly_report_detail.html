@@ -182,7 +182,7 @@
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                                 </div>
                                 {% endif %}
-                                <span class="change-title">{{ change.title }}</span>
+                                <span class="change-title">{{ change.title | format_title }}</span>
                                 <span class="change-author">{{ change.author }}</span>
                                 <span class="change-category">{{ change.category }}</span>
                                 <span class="change-rank">

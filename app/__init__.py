@@ -276,20 +276,38 @@ def _register_jinja_filters(app):
 
     @app.template_filter('format_title')
     def format_title_filter(title):
-        """格式化书名，去除重复书名号"""
+        """格式化书名，去除重复书名号并清理翻译污染"""
         if not title:
             return ''
-        clean = title.strip().strip('《》')
-        return f'《{clean}》'
+        text = title.strip()
+        # 去除markdown标记
+        text = re.sub(r'\*{1,2}|_{1,2}|`', '', text)
+        # 有换行只取第一行
+        if '\n' in text:
+            lines = [l.strip() for l in text.split('\n') if l.strip()]
+            if lines:
+                text = lines[0]
+        # 提取《》内内容
+        book_match = re.search(r'《([^》]+)》', text)
+        if book_match:
+            text = book_match.group(1).strip()
+        else:
+            # 清理末尾作者名+"译"
+            text = re.sub(r'\s*[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text).strip()
+            # 清理书名后长描述
+            text = re.sub(r'[。，；].*$', '', text).strip()
+        text = text.strip('《》').strip()
+        return f'《{text}》' if text else ''
 
     @app.template_filter('clean_brackets')
     def clean_brackets_filter(text):
-        """清理文本中所有重复的书名号（《《xxx》》 → 《xxx》）"""
+        """清理文本中所有重复的书名号和markdown（《《xxx》》 → 《xxx》，**《xxx》** → 《xxx》）"""
         if not text:
             return text
-        import re
         text = re.sub(r'《{2,}', '《', text)
         text = re.sub(r'》{2,}', '》', text)
+        text = re.sub(r'\*\*《([^》]+)》\*\*', r'《\1》', text)
+        text = re.sub(r'\*《([^》]+)》\*', r'《\1》', text)
         return text
 
 
