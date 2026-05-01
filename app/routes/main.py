@@ -7,9 +7,8 @@ from flask import Blueprint, render_template, send_from_directory, abort, reques
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
 
-from ..models.database import db
-from ..utils import quick_clean_translation
-from ..utils.service_helpers import get_book_service, get_google_books_client, submit_background_task
+from ..utils import clean_translation_text
+from ..utils.service_helpers import get_book_service
 from ..data.publishers import PUBLISHERS_DATA
 
 main_bp = Blueprint('main', __name__)
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_books_for_category(category: str) -> Tuple[list, Optional[str]]:
-    """获取指定分类的书籍数据（统一入口�?""
+    """获取指定分类的书籍数据（统一入口）"""
     categories = current_app.config['CATEGORIES']
     default_category = list(categories.keys())[0]
 
@@ -46,7 +45,7 @@ def _get_books_for_category(category: str) -> Tuple[list, Optional[str]]:
 
 
 def _filter_books_by_search(books_data: list, search_query: str) -> list:
-    """根据搜索词过滤书籍列�?""
+    """根据搜索词过滤书籍列表"""
     if not search_query or not books_data:
         return books_data
 
@@ -59,7 +58,7 @@ def _filter_books_by_search(books_data: list, search_query: str) -> list:
 
 
 def _filter_books_by_publisher(books_data: list, publisher: str) -> list:
-    """根据出版社过滤书籍列�?""
+    """根据出版社过滤书籍列表"""
     if not publisher or not books_data:
         return books_data
     publisher_lower = publisher.lower()
@@ -81,7 +80,7 @@ def _filter_books_by_weeks(books_data: list, weeks_filter: str) -> list:
 
 
 def _sort_books(books_data: list, sort_by: str) -> list:
-    """对书籍列表进行排�?""
+    """对书籍列表进行排序"""
     if not books_data:
         return books_data
 
@@ -106,7 +105,7 @@ def _sort_books(books_data: list, sort_by: str) -> list:
 
 @main_bp.route('/')
 def index():
-    """首页 - 畅销书榜单（支持多维度筛选和排序�?""
+    """首页 - 畅销书榜单（支持多维度筛选和排序）"""
     categories = current_app.config['CATEGORIES']
     default_category = list(categories.keys())[0]
 
@@ -155,7 +154,7 @@ def index():
 
 @main_bp.route('/cache/images/<filename>')
 def cached_image(filename: str):
-    """提供缓存的图片文件（安全验证文件名格式，防止路径遍历攻击�?""
+    """提供缓存的图片文件（安全验证文件名格式，防止路径遍历攻击）"""
     if not re.match(r'^[a-f0-9]{32}\.jpg$', filename):
         abort(404)
 
@@ -263,7 +262,7 @@ def awards():
 
 @main_bp.route('/new-books')
 def new_books():
-    """新书速递页�?""
+    """新书速递页面"""
     selected_publisher = request.args.get('publisher', '', type=int)
     selected_category = request.args.get('category', '')
     selected_days = min(max(1, request.args.get('days', 30, type=int)), 365)
@@ -280,7 +279,7 @@ def new_books():
     try:
         publishers = service.get_publishers(active_only=True)
     except Exception as e:
-        logger.warning(f"获取出版社列表失�? {e}")
+        logger.warning(f"获取出版社列表失败: {e}")
         publishers = []
 
     publisher_book_counts = {}
@@ -344,7 +343,7 @@ def new_books():
 
 @main_bp.route('/publishers')
 def publishers():
-    """出版社导航页�?""
+    """出版社导航页面"""
     total_publishers = sum(len(cat["publishers"]) for cat in PUBLISHERS_DATA)
 
     return render_template('publishers.html',
@@ -360,13 +359,13 @@ def cache_management():
 
 @main_bp.route('/analytics')
 def analytics_dashboard():
-    """数据统计仪表�?""
+    """数据统计仪表盘"""
     return render_template('analytics_dashboard.html')
 
 
 @main_bp.route('/new-book/<int:book_id>')
 def new_book_detail(book_id):
-    """新书详情页（异步翻译，不阻塞响应�?""
+    """新书详情页（异步翻译，不阻塞响应）"""
     from ..models.new_book import NewBook
     from ..models.database import db
 
@@ -374,7 +373,7 @@ def new_book_detail(book_id):
 
     if not book:
         return render_template('error.html',
-                           message="书籍不存�?,
+                           message="书籍不存在",
                            back_url=request.referrer or '/new-books')
 
     if not book.title_zh or not book.description_zh:
@@ -397,8 +396,7 @@ def new_book_detail(book_id):
             except Exception as e:
                 logger.warning(f"Background translation failed for book {book_id}: {e}")
 
-        thread = threading.Thread(target=translate_book_async, daemon=True)
-        thread.start()
+        submit_background_task(translate_book_async)
 
     return render_template('new_book_detail.html',
                           book=book,
@@ -407,7 +405,7 @@ def new_book_detail(book_id):
 
 @main_bp.route('/award-book/<int:book_id>')
 def award_book_detail(book_id):
-    """获奖图书详情�?""
+    """获奖图书详情页"""
     from ..models.schemas import AwardBook
 
     book = db.session.get(AwardBook, book_id)
@@ -418,13 +416,13 @@ def award_book_detail(book_id):
                               back_url=request.referrer or '/awards')
     else:
         return render_template('error.html',
-                           message="书籍不存�?,
+                           message="书籍不存在",
                            back_url=request.referrer or '/awards')
 
 
 @main_bp.route('/book/<int:book_index>')
 def book_detail(book_index):
-    """书籍详情页（集成 Google Books API 获取详细信息�?""
+    """书籍详情页（集成 Google Books API 获取详细信息）"""
     categories = current_app.config['CATEGORIES']
     default_category = list(categories.keys())[0]
 
@@ -436,7 +434,7 @@ def book_detail(book_index):
 
     if book_index < 0 or book_index >= len(books_data):
         return render_template('error.html',
-                           message="书籍不存�?,
+                           message="书籍不存在",
                            back_url=request.referrer or '/')
 
     book = books_data[book_index]
@@ -453,8 +451,15 @@ def book_detail(book_index):
                           back_url=request.referrer or '/?category=' + category)
 
 
+def get_google_books_client():
+    book_service = get_book_service()
+    if book_service and hasattr(book_service, '_google_client'):
+        return book_service._google_client
+    return None
+
+
 def _fetch_google_books_details(book: dict, isbn: str) -> None:
-    """�?Google Books API 获取详细信息并更�?book 字典（带缓存�?""
+    """从 Google Books API 获取详细信息并更新 book 字典（带缓存）"""
     cache_key = f"google_books_detail:{isbn}"
     cache_service = None
 
@@ -496,7 +501,7 @@ def _fetch_google_books_details(book: dict, isbn: str) -> None:
 
 
 def _translate_field_async(book: dict, source_field: str, target_field: str) -> None:
-    """异步翻译书籍字段（不阻塞响应�?""
+    """异步翻译书籍字段（不阻塞响应）"""
     def _do_translate():
         try:
             translation_service = current_app.extensions.get('translation_service')
@@ -508,12 +513,11 @@ def _translate_field_async(book: dict, source_field: str, target_field: str) -> 
                         translated = translation_service.translate(text, 'en', 'zh', field_type=ft)
                         if translated:
                             book[target_field] = translated
-                            logger.info(f"已翻�?{source_field} -> {target_field}")
+                            logger.info(f"已翻译 {source_field} -> {target_field}")
         except Exception as e:
             logger.warning(f"异步翻译失败 {source_field}: {e}")
 
-    thread = threading.Thread(target=_do_translate, daemon=True)
-    thread.start()
+    submit_background_task(_do_translate)
 
 
 def _update_book_from_google_books(book: dict, details: dict) -> None:
@@ -549,7 +553,7 @@ def _update_book_from_google_books(book: dict, details: dict) -> None:
 
 
 def _merge_or_translate_book(book: dict, isbn: str) -> None:
-    """从数据库合并中文翻译，未翻译的启动后台线程异步翻�?""
+    """从数据库合并中文翻译，未翻译的启动后台线程异步翻译"""
     try:
         from ..models.schemas import BookMetadata, db
 
@@ -607,7 +611,7 @@ def _merge_or_translate_book(book: dict, isbn: str) -> None:
                             if t:
                                 meta_obj.description_zh = t
                         except Exception as e:
-                            logger.warning(f"异步简介翻译失�? {e}")
+                            logger.warning(f"异步简介翻译失败: {e}")
 
                     if needs_details:
                         try:
@@ -668,7 +672,7 @@ def api_category_books():
     category = request.args.get('category', list(categories.keys())[0])
 
     if category not in categories:
-        return jsonify({'success': False, 'error': '无效的分�?}), 400
+        return jsonify({'success': False, 'error': '无效的分类'}), 400
 
     books_data = []
     update_time = None
@@ -693,12 +697,12 @@ def api_category_books():
 
 @main_bp.route('/reports/weekly')
 def weekly_reports():
-    """周报列表�?""
+    """周报列表页"""
     from ..services.weekly_report_service import WeeklyReportService
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message="服务不可�?, back_url='/')
+        return render_template('error.html', message="服务不可用", back_url='/')
 
     report_service = WeeklyReportService(book_service)
     reports = report_service.get_reports()
@@ -726,7 +730,7 @@ def _validate_date(date_str: str) -> tuple:
         date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
         current_date = datetime.now().date()
         if date_obj.year < 2020 or date_obj > current_date:
-            return False, "无效的日期范�?, None
+            return False, "无效的日期范围", None
         return True, None, date_obj
     except ValueError:
         return False, "日期格式错误", None
@@ -734,14 +738,14 @@ def _validate_date(date_str: str) -> tuple:
 
 @main_bp.route('/reports/weekly/<date>')
 def weekly_report_detail(date):
-    """周报详情�?""
+    """周报详情页"""
     from ..services.weekly_report_service import WeeklyReportService
     from ..models.schemas import ReportView, UserBehavior
     from ..models.database import db
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message="服务不可�?, back_url='/reports/weekly')
+        return render_template('error.html', message="服务不可用", back_url='/reports/weekly')
 
     is_valid, error_msg, report_date = _validate_date(date)
     if not is_valid:
@@ -754,7 +758,7 @@ def weekly_report_detail(date):
         if not report:
             report = report_service.get_report_by_date(report_date)
             if not report:
-                return render_template('error.html', message="周报不存�?, back_url='/reports/weekly')
+                return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
 
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
@@ -804,7 +808,7 @@ def export_weekly_report(date):
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message="服务不可�?, back_url='/reports/weekly')
+        return render_template('error.html', message="服务不可用", back_url='/reports/weekly')
 
     is_valid, error_msg, report_date = _validate_date(date)
     if not is_valid:
@@ -818,7 +822,7 @@ def export_weekly_report(date):
         if not report:
             report = report_service.get_report_by_date(report_date)
             if not report:
-                return render_template('error.html', message="周报不存�?, back_url='/reports/weekly')
+                return render_template('error.html', message="周报不存在", back_url='/reports/weekly')
 
         format_type = request.args.get('format', 'pdf').lower()
         if format_type not in ['pdf', 'excel']:
@@ -862,5 +866,5 @@ def export_weekly_report(date):
         return send_file(buffer, as_attachment=True, download_name=config['filename'], mimetype=config['mimetype'])
 
     except Exception as e:
-        current_app.logger.error(f"导出周报时出�? {str(e)}")
+        current_app.logger.error(f"导出周报时出错: {str(e)}")
         return render_template('error.html', message="导出失败", back_url=f'/reports/weekly/{date}')

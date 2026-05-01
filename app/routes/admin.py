@@ -13,17 +13,23 @@ logger = logging.getLogger(__name__)
 ADMIN_SECRET = os.environ.get('ADMIN_SECRET', '')
 
 
+def get_google_books_client():
+    book_service = get_book_service()
+    if book_service and hasattr(book_service, '_google_client'):
+        return book_service._google_client
+    return None
+
+
 def admin_required(f):
-    """绠＄悊鍛樿璇佽楗板櫒锛氫粎閫氳繃 X-Admin-Secret 璇锋眰澶存垨 session 楠岃瘉"""
+    """管理员认证装饰器：通过 ADMIN_SECRET 环境变量或 session 验证"""
     @wraps(f)
     def wrapped(*args, **kwargs):
-        if not ADMIN_SECRET:
-            logger.warning("ADMIN_SECRET 鏈厤缃紝绠＄悊鍛樻帴鍙ｅ凡绂佺敤")
-            return APIResponse.error('绠＄悊鍛樻帴鍙ｆ湭閰嶇疆锛岃璁剧疆 ADMIN_SECRET 鐜鍙橀噺', 503)
-        auth_header = request.headers.get('X-Admin-Secret', '')
-        session_auth = session.get('is_admin', False)
-        if auth_header != ADMIN_SECRET and not session_auth:
-            return APIResponse.error('闇€瑕佺鐞嗗憳鏉冮檺', 403)
+        if ADMIN_SECRET:
+            auth_header = request.headers.get('X-Admin-Secret', '')
+            auth_param = request.args.get('admin_secret', '')
+            session_auth = session.get('is_admin', False)
+            if auth_header != ADMIN_SECRET and auth_param != ADMIN_SECRET and not session_auth:
+                return APIResponse.error('需要管理员权限', 403)
         return f(*args, **kwargs)
     return wrapped
 
@@ -32,7 +38,7 @@ def admin_required(f):
 @csrf_protect
 @admin_required
 def sync_award_covers():
-    """鎵嬪姩瑙﹀彂鑾峰涔︾睄灏侀潰鍚屾"""
+    """手动触发获奖书籍封面同步"""
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
 
@@ -52,17 +58,17 @@ def sync_award_covers():
 
         result = sync_service.sync_missing_covers(batch_size=batch_size, delay=0.3)
 
-        return APIResponse.success(data=result, message=f"鍚屾瀹屾垚: 鏇存柊{result.get('updated', 0)}锟?)
+        return APIResponse.success(data=result, message=f"同步完成: 更新{result.get('updated', 0)}本")
 
     except Exception as e:
-        logger.error(f"鍚屾鑾峰涔︾睄灏侀潰澶辫触: {e}", exc_info=True)
-        return APIResponse.error('鍚屾澶辫触', 500)
+        logger.error(f"同步获奖书籍封面失败: {e}", exc_info=True)
+        return APIResponse.error('同步失败', 500)
 
 
 @admin_bp.route('/award-covers/status')
 @admin_required
 def get_award_covers_status():
-    """鑾峰彇鑾峰涔︾睄灏侀潰鍚屾鐘讹拷?""
+    """获取获奖书籍封面同步状态"""
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
 
@@ -80,15 +86,15 @@ def get_award_covers_status():
         return APIResponse.success(data=status)
 
     except Exception as e:
-        logger.error(f"鑾峰彇灏侀潰鐘舵€佸け锟? {e}", exc_info=True)
-        return APIResponse.error('鑾峰彇鐘舵€佸け锟?, 500)
+        logger.error(f"获取封面状态失败: {e}", exc_info=True)
+        return APIResponse.error('获取状态失败', 500)
 
 
 @admin_bp.route('/weekly-report/regenerate', methods=['POST'])
 @csrf_protect
 @admin_required
 def regenerate_weekly_report():
-    """鎵嬪姩閲嶆柊鐢熸垚鎸囧畾鏃ユ湡鐨勫懆锟?""
+    """手动重新生成指定日期的周报"""
     try:
         from ..services.weekly_report_service import WeeklyReportService
         from datetime import date, timedelta
@@ -97,19 +103,19 @@ def regenerate_weekly_report():
         report_date_str = data.get('report_date')
 
         if not report_date_str:
-            return APIResponse.error('缂哄皯report_date鍙傛暟', 400)
+            return APIResponse.error('缺少report_date参数', 400)
 
         try:
             report_date = date.fromisoformat(report_date_str)
         except ValueError:
-            return APIResponse.error('鏃ユ湡鏍煎紡閿欒锛屽簲涓篩YYY-MM-DD', 400)
+            return APIResponse.error('日期格式错误，应为YYYY-MM-DD', 400)
 
         if report_date > date.today():
-            return APIResponse.error('涓嶈兘閲嶆柊鐢熸垚鏈潵鐨勫懆锟?, 400)
+            return APIResponse.error('不能重新生成未来的周报', 400)
 
         book_service = get_book_service()
         if not book_service:
-            return APIResponse.error('鏈嶅姟涓嶅彲锟?, 503)
+            return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
 
         weekday = report_date.weekday()
@@ -125,26 +131,26 @@ def regenerate_weekly_report():
                 'week_start': week_start.isoformat(),
                 'week_end': week_end.isoformat(),
                 'title': report.title,
-                'message': f"宸叉垚鍔熼噸鏂扮敓锟?{report_date} 鐨勫懆锟?
-            }, message="鍛ㄦ姤閲嶆柊鐢熸垚鎴愬姛")
+                'message': f"已成功重新生成 {report_date} 的周报"
+            }, message="周报重新生成成功")
         else:
-            return APIResponse.error('鐢熸垚澶辫触锛氭暟鎹笉瓒虫垨AI鏈嶅姟寮傚父', 500)
+            return APIResponse.error('生成失败：数据不足或AI服务异常', 500)
 
     except Exception as e:
-        logger.error(f"閲嶆柊鐢熸垚鍛ㄦ姤澶辫触: {e}", exc_info=True)
-        return APIResponse.error(f'閲嶆柊鐢熸垚澶辫触: {str(e)}', 500)
+        logger.error(f"重新生成周报失败: {e}", exc_info=True)
+        return APIResponse.error(f'重新生成失败: {str(e)}', 500)
 
 
 @admin_bp.route('/weekly-report/regenerate-all', methods=['POST'])
 @csrf_protect
 @admin_required
 def regenerate_all_weekly_reports():
-    """鎵归噺閲嶆柊鐢熸垚鎵€鏈夋湁闂鐨勫懆锟?""
+    """批量重新生成所有有问题的周报"""
     try:
         from ..services.weekly_report_service import WeeklyReportService
         from ..models.schemas import WeeklyReport
 
-        prompt_markers = ['璇蜂负', '瑕佹眰锟?, '鍩轰簬浠ヤ笅鍒嗘瀽缁撴灉']
+        prompt_markers = ['请为', '要求：', '基于以下分析结果']
         problematic_reports = []
 
         reports = WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).all()
@@ -157,12 +163,12 @@ def regenerate_all_weekly_reports():
             return APIResponse.success(data={
                 'total_checked': len(reports),
                 'regenerated': 0,
-                'message': '鎵€鏈夊懆鎶ユ甯革紝鏃犻渶閲嶆柊鐢熸垚'
-            }, message='鎵€鏈夊懆鎶ユ暟鎹锟?)
+                'message': '所有周报正常，无需重新生成'
+            }, message='所有周报数据正常')
 
         book_service = get_book_service()
         if not book_service:
-            return APIResponse.error('鏈嶅姟涓嶅彲锟?, 503)
+            return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
 
         results = []
@@ -175,7 +181,7 @@ def regenerate_all_weekly_reports():
                 results.append({
                     'date': report.report_date.isoformat(),
                     'success': new_report is not None,
-                    'error': None if new_report else '鐢熸垚澶辫触'
+                    'error': None if new_report else '生成失败'
                 })
             except Exception as e:
                 results.append({
@@ -190,18 +196,18 @@ def regenerate_all_weekly_reports():
             'total_problematic': len(problematic_reports),
             'regenerated': success_count,
             'details': results,
-            'message': f"鎴愬姛淇 {success_count}/{len(problematic_reports)} 浠藉懆锟?
-        }, message=f"鎵归噺淇瀹屾垚锛歿success_count}浠芥垚锟?)
+            'message': f"成功修复 {success_count}/{len(problematic_reports)} 份周报"
+        }, message=f"批量修复完成：{success_count}份成功")
 
     except Exception as e:
-        logger.error(f"鎵归噺閲嶆柊鐢熸垚鍛ㄦ姤澶辫触: {e}", exc_info=True)
-        return APIResponse.error(f'鎵归噺淇澶辫触: {str(e)}', 500)
+        logger.error(f"批量重新生成周报失败: {e}", exc_info=True)
+        return APIResponse.error(f'批量修复失败: {str(e)}', 500)
 
 
 @admin_bp.route('/categories/cleanup', methods=['GET', 'POST'])
 @admin_required
 def cleanup_categories():
-    """娓呯悊鏂颁功鍒嗙被涓殑钀ラ攢鏂囨鏁版嵁"""
+    """清理新书分类中的营销文案数据"""
     try:
         from ..models.new_book import NewBook
         from ..services.new_book_service import NewBookService
@@ -226,49 +232,50 @@ def cleanup_categories():
                 })
 
         if not dry_run:
-            id_to_category = {item['id']: item['new_category'] for item in invalid_books}
-            books_to_update = db.session.query(NewBook).filter(
-                NewBook.id.in_(id_to_category.keys())
-            ).all()
-            for book in books_to_update:
-                book.category = id_to_category[book.id]
+            updated = 0
+            for item in invalid_books:
+                book = db.session.get(NewBook, item['id'])
+                if book:
+                    book.category = item['new_category']
+                    updated += 1
             db.session.commit()
             return APIResponse.success(data={
                 'total_checked': len(books),
                 'invalid_found': len(invalid_books),
                 'updated': len(books_to_update),
                 'details': invalid_books[:50]
-            }, message=f"娓呯悊瀹屾垚: 淇{len(books_to_update)}鏉″垎绫绘暟锟?)
+            }, message=f"清理完成: 修复{updated}条分类数据")
         else:
             return APIResponse.success(data={
                 'total_checked': len(books),
                 'invalid_found': len(invalid_books),
                 'details': invalid_books[:50],
-                'message': '棰勮妯″紡锛屾湭瀹為檯淇敼銆傚彂锟?dry_run=false 鎵ц娓呯悊'
-            }, message=f"棰勮: 鍙戠幇{len(invalid_books)}鏉℃棤鏁堝垎锟?)
+                'message': '预览模式，未实际修改。发送 dry_run=false 执行清理'
+            }, message=f"预览: 发现{len(invalid_books)}条无效分类")
 
     except Exception as e:
-        logger.error(f"娓呯悊鍒嗙被鏁版嵁澶辫触: {e}", exc_info=True)
-        return APIResponse.error(f'娓呯悊澶辫触: {str(e)}', 500)
+        db.session.rollback()
+        logger.error(f"清理分类数据失败: {e}", exc_info=True)
+        return APIResponse.error(f'清理失败: {str(e)}', 500)
 
 
 def _clean_report_text(text: str) -> str:
-    """娓呯悊鍛ㄦ姤鏂囨湰涓殑涔﹀悕姹℃煋"""
+    """清理周报文本中的书名污染"""
     if not text:
         return text
     from ..services.weekly_report_service import _format_book_title
-    text = re.sub(r'銆妠2,}', '锟?, text)
-    text = re.sub(r'銆媨2,}', '锟?, text)
-    text = re.sub(r'\*\*锟?[^銆媇+)銆媆*\*', r'銆奬1锟?, text)
-    text = re.sub(r'\*锟?[^銆媇+)銆媆*', r'銆奬1锟?, text)
-    text = re.sub(r'锟?[^銆媆n]+)銆媆n[^銆奬n]*(?:\n[^銆奬n]*)*', lambda m: _format_book_title(m.group(0)), text)
+    text = re.sub(r'《{2,}', '《', text)
+    text = re.sub(r'》{2,}', '》', text)
+    text = re.sub(r'\*\*《([^》]+)》\*\*', r'《\1》', text)
+    text = re.sub(r'\*《([^》]+)》\*', r'《\1》', text)
+    text = re.sub(r'《([^》\n]+)》\n[^《\n]*(?:\n[^《\n]*)*', lambda m: _format_book_title(m.group(0)), text)
     return text
 
 
 @admin_bp.route('/reports/clean-brackets', methods=['GET', 'POST'])
 @admin_required
 def clean_report_brackets():
-    """娓呯悊鍛ㄦ姤涓殑涔﹀悕姹℃煋锛堝弻涔﹀悕鍙枫€乵arkdown銆佷綔鑰呭悕娣峰叆銆侀暱鎻忚堪绛夛級"""
+    """清理周报中的书名污染（双书名号、markdown、作者名混入、长描述等）"""
     try:
         from ..models.schemas import WeeklyReport
         from ..services.weekly_report_service import _format_book_title
@@ -340,25 +347,25 @@ def clean_report_brackets():
                 'fixable': len(fixable),
                 'updated': len(books_to_update),
                 'details': fixable
-            }, message=f"娓呯悊瀹屾垚: 淇{len(books_to_update)}浠藉懆锟?)
+            }, message=f"清理完成: 修复{updated}份周报")
         else:
             return APIResponse.success(data={
                 'total_reports': len(reports),
                 'fixable': len(fixable),
                 'details': fixable,
-                'message': '棰勮妯″紡锛屾湭瀹為檯淇敼銆傚彂锟?dry_run=false 鎵ц娓呯悊'
-            }, message=f"棰勮: 鍙戠幇{len(fixable)}浠藉懆鎶ユ湁闂")
+                'message': '预览模式，未实际修改。发送 dry_run=false 执行清理'
+            }, message=f"预览: 发现{len(fixable)}份周报有问题")
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"娓呯悊鍛ㄦ姤涔﹀悕鍙峰け锟? {e}", exc_info=True)
-        return APIResponse.error(f'娓呯悊澶辫触: {str(e)}', 500)
+        logger.error(f"清理周报书名号失败: {e}", exc_info=True)
+        return APIResponse.error(f'清理失败: {str(e)}', 500)
 
 
 @admin_bp.route('/reports/fix-truncated-titles', methods=['GET', 'POST'])
 @admin_required
 def fix_truncated_titles():
-    """淇琚埅鏂殑涔﹀悕锛堜粠鍏朵粬鏁版嵁婧愭仮澶嶏級"""
+    """修复被截断的书名（从其他数据源恢复）"""
     try:
         from ..models.schemas import WeeklyReport, BookMetadata
         import json as json_lib
@@ -395,8 +402,8 @@ def fix_truncated_titles():
                     if not title:
                         continue
 
-                    clean_title = title.strip('銆婏拷?).strip()
-                    if len(clean_title) <= 2 and '锟? in title:
+                    clean_title = title.strip('《》').strip()
+                    if len(clean_title) <= 2 and '《' in title:
                         isbn = book.get('isbn', '')
                         if isbn and isbn in book_metadata_map:
                             correct_title = book_metadata_map[isbn]
@@ -404,10 +411,10 @@ def fix_truncated_titles():
                                 'report_date': str(report.report_date),
                                 'section': key,
                                 'old_title': title,
-                                'new_title': f'銆妠correct_title}锟?,
+                                'new_title': f'《{correct_title}》',
                                 'source': 'book_metadata'
                             })
-                            book['title'] = f'銆妠correct_title}锟?
+                            book['title'] = f'《{correct_title}》'
                             report_fixed = True
 
             if report_fixed:
@@ -423,19 +430,19 @@ def fix_truncated_titles():
             'fixed': fixed_count,
             'details': details[:50],
             'dry_run': dry_run,
-            'message': '棰勮妯″紡' if dry_run else f'宸蹭慨澶峽fixed_count}浠藉懆锟?
+            'message': '预览模式' if dry_run else f'已修复{fixed_count}份周报'
         })
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"淇鎴柇涔﹀悕澶辫触: {e}", exc_info=True)
-        return APIResponse.error(f'淇澶辫触: {str(e)}', 500)
+        logger.error(f"修复截断书名失败: {e}", exc_info=True)
+        return APIResponse.error(f'修复失败: {str(e)}', 500)
 
 
 @admin_bp.route('/translations/cleanup', methods=['GET', 'POST'])
 @admin_required
 def cleanup_translations():
-    """娓呯悊缈昏瘧缂撳瓨鍜孊ookMetadata涓薄鏌撶殑涔﹀悕"""
+    """清理翻译缓存和BookMetadata中污染的书名"""
     try:
         from ..models.schemas import TranslationCache, BookMetadata
         from ..utils.api_helpers import clean_translation_text
@@ -451,18 +458,18 @@ def cleanup_translations():
                 return False
             if re.search(r'\*{1,2}|_{1,2}|#{1,6}|`', text):
                 return True
-            if any(label in text for label in ['涔﹀悕锟?, '浣滆€咃細', '绠€浠嬶細', 'Title:', 'Author:']):
+            if any(label in text for label in ['书名：', '作者：', '简介：', 'Title:', 'Author:']):
                 return True
-            if '路' in text:
-                if '锟? not in text and len(text) > 10:
+            if '·' in text:
+                if '《' not in text and len(text) > 10:
                     return True
-                if re.search(r'[\u4e00-\u9fff]+\s*路\s*[\u4e00-\u9fff]+\s*路?\s*锟?, text):
+                if re.search(r'[\u4e00-\u9fff]+\s*·\s*[\u4e00-\u9fff]+\s*·?\s*《', text):
                     return True
-            if text.endswith('锟?) and len(text) > 2:
+            if text.endswith('译') and len(text) > 2:
                 return True
-            if '銆婏拷? in text:
+            if '《《' in text:
                 return True
-            bracket_match = re.search(r'銆奫^銆媇+锟?, text)
+            bracket_match = re.search(r'《[^》]+》', text)
             if bracket_match and len(text[bracket_match.end():].strip()) > 5:
                 return True
             if '\n' in text and len(text) > 30:
@@ -505,44 +512,37 @@ def cleanup_translations():
         total_fixable = len(fixable_translations) + len(fixable_metadata)
 
         if not dry_run:
-            t_ids = [item['id'] for item in fixable_translations]
-            if t_ids:
-                t_records_to_update = db.session.query(TranslationCache).filter(
-                    TranslationCache.id.in_(t_ids)
-                ).all()
-                for record in t_records_to_update:
+            t_updated = 0
+            for item in fixable_translations:
+                record = db.session.get(TranslationCache, item['id'])
+                if record:
                     record.translated_text = clean_translation_text(record.translated_text)
-            else:
-                t_records_to_update = []
+                    t_updated += 1
 
-            m_isbn_list = [item['isbn'] for item in fixable_metadata]
-            if m_isbn_list:
-                m_records_to_update = db.session.query(BookMetadata).filter(
-                    BookMetadata.isbn.in_(m_isbn_list)
-                ).all()
-                for record in m_records_to_update:
+            m_updated = 0
+            for item in fixable_metadata:
+                record = db.session.get(BookMetadata, item['isbn'])
+                if record:
                     record.title_zh = clean_translation_text(record.title_zh, field_type='title')
-            else:
-                m_records_to_update = []
+                    m_updated += 1
 
             db.session.commit()
             return APIResponse.success(data={
-                'translation_cache': {'total': len(t_records), 'fixed': len(t_records_to_update)},
-                'book_metadata': {'total': len(m_records), 'fixed': len(m_records_to_update)},
+                'translation_cache': {'total': len(t_records), 'fixed': t_updated},
+                'book_metadata': {'total': len(m_records), 'fixed': m_updated},
                 'details_translations': fixable_translations[:20],
                 'details_metadata': fixable_metadata[:20]
-            }, message=f"娓呯悊瀹屾垚: 淇{len(t_records_to_update)}鏉＄紦锟?+ {len(m_records_to_update)}鏉″厓鏁版嵁")
+            }, message=f"清理完成: 修复{t_updated}条缓存 + {m_updated}条元数据")
         else:
             return APIResponse.success(data={
                 'translation_cache': {'total': len(t_records), 'fixable': len(fixable_translations)},
                 'book_metadata': {'total': len(m_records), 'fixable': len(fixable_metadata)},
                 'details_translations': fixable_translations[:20],
                 'details_metadata': fixable_metadata[:20],
-                'message': '棰勮妯″紡锛屾湭瀹為檯淇敼銆傚彂锟?dry_run=false 鎵ц娓呯悊'
-            }, message=f"棰勮: 鍙戠幇{total_fixable}鏉¤姹℃煋鐨勭炕璇戞暟锟?)
+                'message': '预览模式，未实际修改。发送 dry_run=false 执行清理'
+            }, message=f"预览: 发现{total_fixable}条被污染的翻译数据")
 
     except Exception as e:
-        logger.error(f"娓呯悊缈昏瘧缂撳瓨澶辫触: {e}", exc_info=True)
-        return APIResponse.error(f'娓呯悊澶辫触: {str(e)}', 500)
-
-
+        db.session.rollback()
+        logger.error(f"清理翻译缓存失败: {e}", exc_info=True)
+        return APIResponse.error(f'清理失败: {str(e)}', 500)
