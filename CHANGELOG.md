@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.7.5] - 2026-05-02
+
+### 模型名称统一
+- **翻译状态API显示名称修复**：统一 `api.py` 中两处 `ZhipuAI GLM-4-Flash` 为 `ZhipuAI GLM-4.7-Flash`，保持与实际使用的模型名 `glm-4.7-flash` 一致
+
+### 翻译质量修复
+- **翻译标题末尾"译"字残留（P0）**：
+  - 问题：所有翻译标题显示为"希望升起译"、"通讯员译"等，末尾残留"译"字
+  - 根因：两层故障链——① `quick_clean_translation` 仅在检测到脏标记时才调用 `clean_translation_text`，但"译"不在脏标记列表中；② `Book.to_dict()` 直接返回 `asdict()` 不做任何清洗
+  - 修复：
+    - `quick_clean_translation` 增加"译"后缀正则检测，命中即调用完整清洗
+    - `Book.to_dict()` 和 `AwardBook.to_dict()` 对 `title_zh`、`description_zh`、`details_zh` 应用 `quick_clean_translation`
+- **数据库脏数据一次性清理（P1）**：
+  - 首次部署启动时，自动扫描 `BookMetadata`、`AwardBook`、`NewBook` 表中的 `title_zh` 字段，修复所有残留"译"字、Markdown标记等脏数据
+  - 清理过程在 `_init_database_lazy()` 中执行，不影响正常启动
+
 ## [1.7.4] - 2026-05-02
 
 ### 稳定性修复
