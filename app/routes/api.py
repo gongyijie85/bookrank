@@ -476,7 +476,7 @@ def get_translation_cache_stats():
         except Exception as e:
             if 'no such table' in str(e):
                 return APIResponse.success(data={
-                    'service': 'ZhipuAI GLM-4-Flash',
+                    'service': 'ZhipuAI GLM-4.7-Flash',
                     'status': 'offline',
                     'model': 'glm-4.7-flash',
                     'description': '使用智谱AI免费模型进行高质量翻译',
@@ -495,7 +495,7 @@ def get_translation_cache_stats():
     except Exception as e:
         logger.error(f"获取翻译状态错误: {e}", exc_info=True)
         return APIResponse.success(data={
-            'service': 'ZhipuAI GLM-4-Flash',
+            'service': 'ZhipuAI GLM-4.7-Flash',
             'status': 'error',
             'description': str(e)
         })
