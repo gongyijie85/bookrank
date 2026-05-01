@@ -328,4 +328,6 @@ def quick_clean_translation(text: str, field_type: str = 'text') -> str:
         return text
     if any(marker in text for marker in _DIRTY_MARKERS):
         return clean_translation_text(text, field_type)
+    if re.search(r'[\s]*(?:译|\[译\]|\(译\))\s*$', text):
+        return clean_translation_text(text, field_type)
     return text

@@ -19,6 +19,49 @@ _db_init_lock = threading.Lock()
 _db_initialized = False
 
 
+def _cleanup_dirty_translations():
+    """一次性清理数据库中残留的翻译脏数据（如末尾'译'字、Markdown标记等）"""
+    try:
+        from app.utils.api_helpers import clean_translation_text
+        import re
+
+        count = 0
+
+        from app.models.schemas import BookMetadata, AwardBook
+        for Model in (BookMetadata, AwardBook):
+            try:
+                records = Model.query.filter(Model.title_zh.isnot(None)).all()
+                for record in records:
+                    original = record.title_zh
+                    cleaned = clean_translation_text(original, 'title')
+                    if cleaned != original:
+                        record.title_zh = cleaned
+                        count += 1
+            except Exception:
+                pass
+
+        from app.models.new_book import NewBook
+        try:
+            records = NewBook.query.filter(NewBook.title_zh.isnot(None)).all()
+            for record in records:
+                original = record.title_zh
+                cleaned = clean_translation_text(original, 'title')
+                if cleaned != original:
+                    record.title_zh = cleaned
+                    count += 1
+        except Exception:
+            pass
+
+        if count > 0:
+            db.session.commit()
+            logger.info(f"翻译脏数据清理完成: 修复 {count} 条记录")
+        else:
+            logger.info("翻译数据干净，无需清理")
+    except Exception as e:
+        logger.warning(f"翻译脏数据清理跳过: {e}")
+        db.session.rollback()
+
+
 def _run_migrations():
     """运行数据库迁移（先检查是否已有迁移记录，避免重复执行）
 
@@ -81,6 +124,8 @@ def _init_database_lazy():
 
             except Exception as e:
                 logger.warning(f"基础数据初始化跳过: {e}")
+
+            _cleanup_dirty_translations()
 
             _db_initialized = True
             logger.info("数据库初始化完成")

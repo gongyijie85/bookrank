@@ -222,9 +222,10 @@ class AwardBook(db.Model):
         }
 
         if include_zh:
+            from ..utils import quick_clean_translation
             data.update({
-                'title_zh': self.title_zh,
-                'description_zh': self.description_zh
+                'title_zh': quick_clean_translation(self.title_zh, 'title'),
+                'description_zh': quick_clean_translation(self.description_zh, 'description')
             })
 
         return data
@@ -471,7 +472,12 @@ class Book:
     details_zh: str | None = None
     
     def to_dict(self) -> dict:
-        return asdict(self)
+        from ..utils import quick_clean_translation
+        data = asdict(self)
+        data['title_zh'] = quick_clean_translation(self.title_zh, 'title')
+        data['description_zh'] = quick_clean_translation(self.description_zh, 'description')
+        data['details_zh'] = quick_clean_translation(self.details_zh, 'details')
+        return data
     
     @classmethod
     def from_api_response(
