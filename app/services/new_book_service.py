@@ -237,7 +237,7 @@ class NewBookService:
         Returns:
             出版社对象或None
         """
-        return Publisher.query.get(publisher_id)
+        return db.session.get(Publisher, publisher_id)
 
     def update_publisher_status(self, publisher_id: int, is_active: bool) -> bool:
         """

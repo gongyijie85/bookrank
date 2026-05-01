@@ -345,13 +345,13 @@ class SystemConfig(db.Model):
     @classmethod
     def get_value(cls, key: str, default: str | None = None) -> str | None:
         """获取配置值"""
-        config = cls.query.get(key)
+        config = db.session.get(cls, key)
         return config.value if config else default
     
     @classmethod
     def set_value(cls, key: str, value: str, description: str | None = None) -> 'SystemConfig':
         """设置配置值"""
-        config = cls.query.get(key)
+        config = db.session.get(cls, key)
         if config:
             config.value = value
         else:

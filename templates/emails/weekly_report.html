@@ -150,7 +150,7 @@
             <div class="section">
                 <h2>本周概览</h2>
                 <div class="summary">
-                    {{ report.summary | replace('\n', '<br>') | safe }}
+                    {{ report.summary | replace('\n', '<br>') | sanitize_html | safe }}
                 </div>
             </div>
             

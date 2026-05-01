@@ -268,13 +268,27 @@ def _enable_rate_limiting(app):
 def _register_jinja_filters(app):
     """注册自定义Jinja2过滤器"""
     import mistune
-    
-    @app.template_filter('markdown')
-    def markdown_filter(text):
-        """将Markdown文本转换为HTML"""
+
+    _UNSAFE_TAGS_RE = re.compile(r'<\s*/?\s*(?:script|iframe|object|embed|form|input|textarea|button|link|meta|base|applet)\b[^>]*>', re.IGNORECASE)
+    _EVENT_HANDLER_RE = re.compile(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)', re.IGNORECASE)
+    _JS_URL_RE = re.compile(r'(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|\'javascript:[^\']*\'|javascript:\S+)', re.IGNORECASE)
+
+    @app.template_filter('sanitize_html')
+    def sanitize_html_filter(text):
+        """HTML消毒：移除危险标签和事件属性，保留安全的格式标签"""
         if not text:
             return ''
-        return mistune.html(text)
+        text = _UNSAFE_TAGS_RE.sub('', text)
+        text = _EVENT_HANDLER_RE.sub('', text)
+        text = _JS_URL_RE.sub('', text)
+        return text
+
+    @app.template_filter('markdown')
+    def markdown_filter(text):
+        """将Markdown文本转换为HTML（自动消毒）"""
+        if not text:
+            return ''
+        return sanitize_html_filter(mistune.html(text))
 
     @app.template_filter('format_title')
     def format_title_filter(title):

@@ -59,6 +59,36 @@ class PublicAPIResponse:
         return jsonify(response), status_code
 
 
+def handle_api_errors(f):
+    """统一API异常处理装饰器：捕获常见异常并返回标准格式响应"""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except ValueError as e:
+            _logger.warning(f"参数错误 [{f.__name__}]: {e}")
+            return APIResponse.error(str(e), 400)
+        except KeyError as e:
+            _logger.warning(f"字段缺失 [{f.__name__}]: {e}")
+            return APIResponse.error(f'缺少必要字段: {e}', 400)
+        except PermissionError as e:
+            _logger.warning(f"权限不足 [{f.__name__}]: {e}")
+            return APIResponse.error(str(e), 403)
+        except FileNotFoundError as e:
+            _logger.warning(f"文件未找到 [{f.__name__}]: {e}")
+            return APIResponse.error(str(e), 404)
+        except ConnectionError as e:
+            _logger.error(f"外部服务连接失败 [{f.__name__}]: {e}")
+            return APIResponse.error('外部服务暂时不可用，请稍后重试', 503)
+        except TimeoutError as e:
+            _logger.error(f"请求超时 [{f.__name__}]: {e}")
+            return APIResponse.error('请求超时，请稍后重试', 504)
+        except Exception as e:
+            _logger.error(f"未预期的错误 [{f.__name__}]: {e}", exc_info=True)
+            return APIResponse.error('服务器内部错误，请稍后重试', 500)
+    return wrapped
+
+
 def validate_isbn(isbn: str) -> bool:
     """验证ISBN格式（ISBN-10 或 ISBN-13）"""
     if not isbn:

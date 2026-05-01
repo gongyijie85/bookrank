@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import logging
 import re
 import secrets
@@ -20,23 +20,23 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 
 def get_session_id() -> str:
-    """获取或生成安全的会话ID"""
+    """鑾峰彇鎴栫敓鎴愬畨鍏ㄧ殑浼氳瘽ID"""
     if 'session_id' not in session:
         session['session_id'] = secrets.token_hex(16)
     return session['session_id']
 
 
 def validate_category(category: str) -> bool:
-    """验证分类ID是否有效"""
+    """楠岃瘉鍒嗙被ID鏄惁鏈夋晥"""
     categories = current_app.config.get('CATEGORIES', {})
     return category in categories or category == 'all'
 
 
-# ==================== 健康检查 ====================
+# ==================== 鍋ュ悍妫€鏌?====================
 
 @api_bp.route('/health')
 def health_check():
-    """健康检查端点"""
+    """鍋ュ悍妫€鏌ョ鐐?""
     return APIResponse.success(data={
         'status': 'healthy',
         'service': 'book-rank-api'
@@ -45,17 +45,17 @@ def health_check():
 
 @api_bp.route('/csrf-token')
 def get_csrf_token_endpoint():
-    """获取CSRF令牌端点"""
+    """鑾峰彇CSRF浠ょ墝绔偣"""
     token = get_csrf_token()
     return APIResponse.success(data={'csrf_token': token})
 
 
-# ==================== 图书API ====================
+# ==================== 鍥句功API ====================
 
 @api_bp.route('/books/<category>')
 @api_rate_limit(max_requests=60, window=60)
 def get_books(category: str):
-    """获取图书列表"""
+    """鑾峰彇鍥句功鍒楄〃"""
     try:
         if not category or not isinstance(category, str):
             return APIResponse.error('Invalid category parameter', 400)
@@ -109,7 +109,7 @@ def get_books(category: str):
 @api_bp.route('/search')
 @api_rate_limit(max_requests=30, window=60)
 def search_books():
-    """搜索图书"""
+    """鎼滅储鍥句功"""
     try:
         keyword = request.args.get('keyword', '').strip()
 
@@ -147,7 +147,7 @@ def search_books():
 
 @api_bp.route('/search/history')
 def get_search_history():
-    """获取搜索历史"""
+    """鑾峰彇鎼滅储鍘嗗彶"""
     try:
         session_id = get_session_id()
         limit = min(request.args.get('limit', 5, type=int), 20)
@@ -167,7 +167,7 @@ def get_search_history():
 
 @api_bp.route('/user/preferences', methods=['GET', 'POST'])
 def user_preferences():
-    """获取或更新用户偏好"""
+    """鑾峰彇鎴栨洿鏂扮敤鎴峰亸濂?""
     try:
         session_id = get_session_id()
 
@@ -177,7 +177,7 @@ def user_preferences():
 
             data = request.get_json() or {}
 
-            preference = UserPreference.query.get(session_id)
+            preference = db.session.get(UserPreference, session_id)
             if not preference:
                 preference = UserPreference(session_id=session_id)
                 db.session.add(preference)
@@ -203,7 +203,7 @@ def user_preferences():
             return APIResponse.success(message='Preferences saved')
 
         else:
-            preference = UserPreference.query.get(session_id)
+            preference = db.session.get(UserPreference, session_id)
             if preference:
                 return APIResponse.success(data={'preferences': preference.to_dict()})
             return APIResponse.success(data={'preferences': {}})
@@ -216,7 +216,7 @@ def user_preferences():
 
 @api_bp.route('/export/<category>')
 def export_csv(category: str):
-    """导出CSV"""
+    """瀵煎嚭CSV"""
     try:
         if not validate_category(category):
             return APIResponse.error('Invalid category', 400)
@@ -236,9 +236,9 @@ def export_csv(category: str):
         output = StringIO()
         writer = csv.writer(output)
         writer.writerow([
-            '分类', '书名', '作者', '出版社', '当前排名',
-            '上周排名', '上榜周数', '出版日期', '页数',
-            '语言', 'ISBN-13', '价格'
+            '鍒嗙被', '涔﹀悕', '浣滆€?, '鍑虹増绀?, '褰撳墠鎺掑悕',
+            '涓婂懆鎺掑悕', '涓婃鍛ㄦ暟', '鍑虹増鏃ユ湡', '椤垫暟',
+            '璇█', 'ISBN-13', '浠锋牸'
         ])
 
         for book in books:
@@ -254,7 +254,7 @@ def export_csv(category: str):
         response_data = '\ufeff'.encode('utf-8') + csv_content.encode('utf-8')
 
         response = make_response(response_data)
-        filename = f'纽约时报畅销书_{category}_{datetime.now().strftime("%Y%m%d")}.csv'
+        filename = f'绾界害鏃舵姤鐣呴攢涔{category}_{datetime.now().strftime("%Y%m%d")}.csv'
         response.headers["Content-Disposition"] = f"attachment; filename={quote(filename)}"
         response.headers["Content-type"] = "text/csv; charset=utf-8"
         return response
@@ -265,9 +265,9 @@ def export_csv(category: str):
 
 
 def save_user_categories(session_id: str, category_ids: list):
-    """保存用户分类偏好"""
+    """淇濆瓨鐢ㄦ埛鍒嗙被鍋忓ソ"""
     try:
-        preference = UserPreference.query.get(session_id)
+        preference = db.session.get(UserPreference, session_id)
         if not preference:
             preference = UserPreference(session_id=session_id)
             db.session.add(preference)
@@ -284,7 +284,7 @@ def save_user_categories(session_id: str, category_ids: list):
 
 
 def save_viewed_books(session_id: str, isbns: list):
-    """保存用户浏览记录"""
+    """淇濆瓨鐢ㄦ埛娴忚璁板綍"""
     try:
         for isbn in isbns:
             db.session.merge(UserViewedBook(session_id=session_id, isbn=isbn))
@@ -295,7 +295,7 @@ def save_viewed_books(session_id: str, isbns: list):
 
 
 def save_search_history(session_id: str, keyword: str, result_count: int):
-    """保存搜索历史"""
+    """淇濆瓨鎼滅储鍘嗗彶"""
     try:
         db.session.add(SearchHistory(
             session_id=session_id, keyword=keyword, result_count=result_count
@@ -308,7 +308,7 @@ def save_search_history(session_id: str, keyword: str, result_count: int):
 
 @api_bp.route('/book-details/<isbn>')
 def get_book_details(isbn: str):
-    """从 Google Books API 获取图书详细信息（含中文翻译）"""
+    """浠?Google Books API 鑾峰彇鍥句功璇︾粏淇℃伅锛堝惈涓枃缈昏瘧锛?""
     try:
         if not validate_isbn(isbn):
             return APIResponse.error('Invalid ISBN format', 400)
@@ -341,23 +341,23 @@ def get_book_details(isbn: str):
         details_en = book_data.get('details', '')
         details_zh = ''
 
-        # 从数据库获取已有的中文翻译
+        # 浠庢暟鎹簱鑾峰彇宸叉湁鐨勪腑鏂囩炕璇?
         try:
             from ..models.schemas import BookMetadata
-            meta = BookMetadata.query.get(isbn)
+            meta = db.session.get(BookMetadata, isbn)
             if meta and meta.details_zh:
                 details_zh = clean_translation_text(meta.details_zh, 'details')
         except Exception as e:
-            logger.debug(f"查询翻译缓存失败: {e}")
+            logger.debug(f"鏌ヨ缈昏瘧缂撳瓨澶辫触: {e}")
 
-        # 如果没有翻译，尝试同步翻译
+        # 濡傛灉娌℃湁缈昏瘧锛屽皾璇曞悓姝ョ炕璇?
         if details_en and not details_zh:
             try:
                 translation_service = current_app.extensions.get('translation_service')
                 if translation_service:
                     details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
             except Exception as e:
-                logger.debug(f"详情翻译失败: {e}")
+                logger.debug(f"璇︽儏缈昏瘧澶辫触: {e}")
 
         return APIResponse.success(data={
             'description': details_zh or details_en,
@@ -376,7 +376,7 @@ def get_book_details(isbn: str):
         return APIResponse.error('Failed to fetch book details', 500)
 
 
-# ==================== 错误处理器 ====================
+# ==================== 閿欒澶勭悊鍣?====================
 
 @api_bp.errorhandler(404)
 def not_found(error):
@@ -394,12 +394,12 @@ def internal_error(error):
     return APIResponse.error('Internal server error', 500)
 
 
-# ==================== 翻译相关API ====================
+# ==================== 缈昏瘧鐩稿叧API ====================
 
 @api_bp.route('/translate', methods=['POST'])
 @csrf_protect
 def translate_text():
-    """翻译文本"""
+    """缈昏瘧鏂囨湰"""
     try:
         if not request.is_json:
             return APIResponse.error('Content-Type must be application/json', 400)
@@ -411,9 +411,9 @@ def translate_text():
         field_type = data.get('field_type', 'text')
 
         if not text:
-            return APIResponse.error('缺少要翻译的文本', 400)
+            return APIResponse.error('缂哄皯瑕佺炕璇戠殑鏂囨湰', 400)
         if len(text) > 10000:
-            return APIResponse.error('文本长度超过限制（最大10000字符）', 400)
+            return APIResponse.error('鏂囨湰闀垮害瓒呰繃闄愬埗锛堟渶澶?0000瀛楃锛?, 400)
 
         from ..services.zhipu_translation_service import get_translation_service
 
@@ -427,30 +427,30 @@ def translate_text():
                 'source_lang': source_lang,
                 'target_lang': target_lang
             })
-        return APIResponse.error('翻译失败，请稍后重试', 500)
+        return APIResponse.error('缈昏瘧澶辫触锛岃绋嶅悗閲嶈瘯', 500)
 
     except Exception as e:
-        logger.error(f"翻译错误: {e}", exc_info=True)
-        return APIResponse.error('翻译服务暂时不可用', 503)
+        logger.error(f"缈昏瘧閿欒: {e}", exc_info=True)
+        return APIResponse.error('缈昏瘧鏈嶅姟鏆傛椂涓嶅彲鐢?, 503)
 
 
 @api_bp.route('/translate/book/<isbn>', methods=['POST'])
 @csrf_protect
 def translate_book(isbn: str):
-    """翻译图书信息"""
+    """缈昏瘧鍥句功淇℃伅"""
     try:
         if not validate_isbn(isbn):
-            return APIResponse.error('无效的ISBN格式', 400)
+            return APIResponse.error('鏃犳晥鐨処SBN鏍煎紡', 400)
 
         from ..services.zhipu_translation_service import get_translation_service
 
         book_service = get_book_service()
         if not book_service:
-            return APIResponse.error('图书服务不可用', 503)
+            return APIResponse.error('鍥句功鏈嶅姟涓嶅彲鐢?, 503)
 
         book_data = book_service.get_book_by_isbn(isbn)
         if not book_data:
-            return APIResponse.error('图书不存在', 404)
+            return APIResponse.error('鍥句功涓嶅瓨鍦?, 404)
 
         service = get_translation_service()
         translated_data = service.translate_book_info(book_data)
@@ -458,13 +458,13 @@ def translate_book(isbn: str):
         return APIResponse.success(data={'book': translated_data})
 
     except Exception as e:
-        logger.error(f"翻译图书错误: {e}", exc_info=True)
-        return APIResponse.error('翻译服务暂时不可用', 503)
+        logger.error(f"缈昏瘧鍥句功閿欒: {e}", exc_info=True)
+        return APIResponse.error('缈昏瘧鏈嶅姟鏆傛椂涓嶅彲鐢?, 503)
 
 
 @api_bp.route('/translate/cache/stats')
 def get_translation_cache_stats():
-    """获取翻译缓存统计信息"""
+    """鑾峰彇缈昏瘧缂撳瓨缁熻淇℃伅"""
     try:
         from ..services.zhipu_translation_service import get_translation_service
 
@@ -479,7 +479,7 @@ def get_translation_cache_stats():
                     'service': 'ZhipuAI GLM-4.7-Flash',
                     'status': 'offline',
                     'model': 'glm-4.7-flash',
-                    'description': '使用智谱AI免费模型进行高质量翻译',
+                    'description': '浣跨敤鏅鸿氨AI鍏嶈垂妯″瀷杩涜楂樿川閲忕炕璇?,
                     'message': 'Database not initialized'
                 })
             raise
@@ -488,12 +488,12 @@ def get_translation_cache_stats():
             'service': 'ZhipuAI GLM-4.7-Flash',
             'status': 'online' if zhipu_available else 'offline',
             'model': 'glm-4.7-flash',
-            'description': '使用智谱AI免费模型进行高质量翻译',
+            'description': '浣跨敤鏅鸿氨AI鍏嶈垂妯″瀷杩涜楂樿川閲忕炕璇?,
             'cache': cache_stats
         })
 
     except Exception as e:
-        logger.error(f"获取翻译状态错误: {e}", exc_info=True)
+        logger.error(f"鑾峰彇缈昏瘧鐘舵€侀敊璇? {e}", exc_info=True)
         return APIResponse.success(data={
             'service': 'ZhipuAI GLM-4.7-Flash',
             'status': 'error',
@@ -503,7 +503,7 @@ def get_translation_cache_stats():
 
 @api_bp.route('/translate/cache/recent')
 def get_translation_cache_recent():
-    """获取最近的翻译缓存记录"""
+    """鑾峰彇鏈€杩戠殑缈昏瘧缂撳瓨璁板綍"""
     try:
         from ..services.translation_cache_service import get_translation_cache_service
 
@@ -532,14 +532,14 @@ def get_translation_cache_recent():
         })
 
     except Exception as e:
-        logger.error(f"获取缓存记录错误: {e}", exc_info=True)
-        return APIResponse.error('获取缓存记录失败', 500)
+        logger.error(f"鑾峰彇缂撳瓨璁板綍閿欒: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇缂撳瓨璁板綍澶辫触', 500)
 
 
 @api_bp.route('/translate/cache/clear', methods=['POST'])
 @csrf_protect
 def clear_translation_cache():
-    """清理翻译缓存"""
+    """娓呯悊缈昏瘧缂撳瓨"""
     try:
         from ..services.translation_cache_service import get_translation_cache_service
 
@@ -552,26 +552,26 @@ def clear_translation_cache():
 
         if older_than_days or min_usage is not None:
             deleted = cache_service.delete(older_than_days=older_than_days, min_usage=min_usage)
-            message = f'已清理 {deleted} 条翻译缓存'
+            message = f'宸叉竻鐞?{deleted} 鏉＄炕璇戠紦瀛?
         elif cache_id:
             deleted = cache_service.delete(cache_id=cache_id)
-            message = f'已删除缓存记录 #{cache_id}'
+            message = f'宸插垹闄ょ紦瀛樿褰?#{cache_id}'
         else:
             deleted = cache_service.clear_all()
-            message = f'已清空所有翻译缓存（{deleted}条）'
+            message = f'宸叉竻绌烘墍鏈夌炕璇戠紦瀛橈紙{deleted}鏉★級'
 
         return APIResponse.success(message=message)
 
     except Exception as e:
-        logger.error(f"清理缓存错误: {e}", exc_info=True)
-        return APIResponse.error('清理缓存失败', 500)
+        logger.error(f"娓呯悊缂撳瓨閿欒: {e}", exc_info=True)
+        return APIResponse.error('娓呯悊缂撳瓨澶辫触', 500)
 
 
-# ==================== API缓存管理 ====================
+# ==================== API缂撳瓨绠＄悊 ====================
 
 @api_bp.route('/cache/stats')
 def get_api_cache_stats():
-    """获取API缓存统计信息"""
+    """鑾峰彇API缂撳瓨缁熻淇℃伅"""
     try:
         from ..services.api_cache_service import get_api_cache_service
 
@@ -581,13 +581,13 @@ def get_api_cache_stats():
         return APIResponse.success(data=stats)
 
     except Exception as e:
-        logger.error(f"获取API缓存统计错误: {e}", exc_info=True)
-        return APIResponse.error('获取统计失败', 500)
+        logger.error(f"鑾峰彇API缂撳瓨缁熻閿欒: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇缁熻澶辫触', 500)
 
 
 @api_bp.route('/cache/recent')
 def get_api_cache_recent():
-    """获取最近的API缓存记录"""
+    """鑾峰彇鏈€杩戠殑API缂撳瓨璁板綍"""
     try:
         from ..services.api_cache_service import get_api_cache_service
         from ..models.schemas import APICache
@@ -620,14 +620,14 @@ def get_api_cache_recent():
         })
 
     except Exception as e:
-        logger.error(f"获取API缓存记录错误: {e}", exc_info=True)
-        return APIResponse.error('获取缓存记录失败', 500)
+        logger.error(f"鑾峰彇API缂撳瓨璁板綍閿欒: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇缂撳瓨璁板綍澶辫触', 500)
 
 
 @api_bp.route('/cache/clear', methods=['POST'])
 @csrf_protect
 def clear_api_cache():
-    """清理API缓存"""
+    """娓呯悊API缂撳瓨"""
     try:
         from ..services.api_cache_service import get_api_cache_service
 
@@ -637,35 +637,35 @@ def clear_api_cache():
         cache_service = get_api_cache_service()
         deleted = cache_service.delete(older_than_days=older_than_days)
 
-        return APIResponse.success(message=f'已清理 {deleted} 条API缓存')
+        return APIResponse.success(message=f'宸叉竻鐞?{deleted} 鏉PI缂撳瓨')
 
     except Exception as e:
-        logger.error(f"清理API缓存错误: {e}", exc_info=True)
-        return APIResponse.error('清理缓存失败', 500)
+        logger.error(f"娓呯悊API缂撳瓨閿欒: {e}", exc_info=True)
+        return APIResponse.error('娓呯悊缂撳瓨澶辫触', 500)
 
 
 @api_bp.route('/cache/clear-expired', methods=['POST'])
 @csrf_protect
 def clear_expired_api_cache():
-    """清理过期API缓存"""
+    """娓呯悊杩囨湡API缂撳瓨"""
     try:
         from ..services.api_cache_service import get_api_cache_service
 
         cache_service = get_api_cache_service()
         deleted = cache_service.clear_expired()
 
-        return APIResponse.success(message=f'已清理 {deleted} 条过期缓存')
+        return APIResponse.success(message=f'宸叉竻鐞?{deleted} 鏉¤繃鏈熺紦瀛?)
 
     except Exception as e:
-        logger.error(f"清理过期缓存错误: {e}", exc_info=True)
-        return APIResponse.error('清理缓存失败', 500)
+        logger.error(f"娓呯悊杩囨湡缂撳瓨閿欒: {e}", exc_info=True)
+        return APIResponse.error('娓呯悊缂撳瓨澶辫触', 500)
 
 
-# ==================== 国际图书奖项API ====================
+# ==================== 鍥介檯鍥句功濂栭」API ====================
 
 @api_bp.route('/awards')
 def get_awards():
-    """获取所有奖项列表"""
+    """鑾峰彇鎵€鏈夊椤瑰垪琛?""
     try:
         from app.models.schemas import Award
 
@@ -673,23 +673,23 @@ def get_awards():
         return APIResponse.success(data={'awards': [award.to_dict() for award in awards]})
 
     except Exception as e:
-        logger.error(f"获取奖项列表错误: {e}", exc_info=True)
-        return APIResponse.error('获取奖项列表失败', 500)
+        logger.error(f"鑾峰彇濂栭」鍒楄〃閿欒: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇濂栭」鍒楄〃澶辫触', 500)
 
 
 @api_bp.route('/awards/<int:award_id>/books')
 def get_award_books(award_id: int):
-    """获取指定奖项的图书列表"""
+    """鑾峰彇鎸囧畾濂栭」鐨勫浘涔﹀垪琛?""
     try:
         from app.models.schemas import Award, AwardBook
 
-        award = Award.query.get(award_id)
+        award = db.session.get(Award, award_id)
         if not award:
-            return APIResponse.error('奖项不存在', 404)
+            return APIResponse.error('濂栭」涓嶅瓨鍦?, 404)
 
         year = request.args.get('year', type=int)
         if year and (year < 1900 or year > 2100):
-            return APIResponse.error('无效的年份', 400)
+            return APIResponse.error('鏃犳晥鐨勫勾浠?, 400)
 
         category = request.args.get('category')
         page, limit = validate_pagination(
@@ -717,20 +717,20 @@ def get_award_books(award_id: int):
         })
 
     except Exception as e:
-        logger.error(f"获取奖项图书错误: {e}", exc_info=True)
-        return APIResponse.error('获取图书列表失败', 500)
+        logger.error(f"鑾峰彇濂栭」鍥句功閿欒: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇鍥句功鍒楄〃澶辫触', 500)
 
 
 @api_bp.route('/award-books')
 def get_all_award_books():
-    """获取所有获奖图书（支持筛选）"""
+    """鑾峰彇鎵€鏈夎幏濂栧浘涔︼紙鏀寔绛涢€夛級"""
     try:
         from app.models.schemas import AwardBook
 
         award_id = request.args.get('award_id', type=int)
         year = request.args.get('year', type=int)
         if year and (year < 1900 or year > 2100):
-            return APIResponse.error('无效的年份', 400)
+            return APIResponse.error('鏃犳晥鐨勫勾浠?, 400)
 
         category = request.args.get('category')
         keyword = request.args.get('keyword')
@@ -766,38 +766,38 @@ def get_all_award_books():
         })
 
     except Exception as e:
-        logger.error(f"获取图书列表错误: {e}", exc_info=True)
-        return APIResponse.error('获取图书列表失败', 500)
+        logger.error(f"鑾峰彇鍥句功鍒楄〃閿欒: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇鍥句功鍒楄〃澶辫触', 500)
 
 
 @api_bp.route('/award-books/<int:book_id>')
 def get_award_book_detail(book_id: int):
-    """获取图书详情"""
+    """鑾峰彇鍥句功璇︽儏"""
     try:
         from app.models.schemas import AwardBook
 
-        book = AwardBook.query.get(book_id)
+        book = db.session.get(AwardBook, book_id)
         if not book:
-            return APIResponse.error('图书不存在', 404)
+            return APIResponse.error('鍥句功涓嶅瓨鍦?, 404)
 
         return APIResponse.success(data={'book': book.to_dict(include_zh=True)})
 
     except Exception as e:
-        logger.error(f"获取图书详情错误: {e}", exc_info=True)
-        return APIResponse.error('获取图书详情失败', 500)
+        logger.error(f"鑾峰彇鍥句功璇︽儏閿欒: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇鍥句功璇︽儏澶辫触', 500)
 
 
 @api_bp.route('/award-books/search')
 def search_award_books():
-    """搜索获奖图书"""
+    """鎼滅储鑾峰鍥句功"""
     try:
         from app.models.schemas import AwardBook
 
         keyword = request.args.get('keyword', '').strip()
         if not keyword:
-            return APIResponse.error('搜索关键词不能为空', 400)
+            return APIResponse.error('鎼滅储鍏抽敭璇嶄笉鑳戒负绌?, 400)
         if len(keyword) > 100:
-            return APIResponse.error('关键词长度不能超过100个字符', 400)
+            return APIResponse.error('鍏抽敭璇嶉暱搴︿笉鑳借秴杩?00涓瓧绗?, 400)
 
         escaped = keyword.replace('%', r'\%').replace('_', r'\_')
         page, limit = validate_pagination(
@@ -825,15 +825,15 @@ def search_award_books():
         })
 
     except Exception as e:
-        logger.error(f"搜索图书错误: {e}", exc_info=True)
-        return APIResponse.error('搜索失败', 500)
+        logger.error(f"鎼滅储鍥句功閿欒: {e}", exc_info=True)
+        return APIResponse.error('鎼滅储澶辫触', 500)
 
 
-# ==================== AI 推荐 API ====================
+# ==================== AI 鎺ㄨ崘 API ====================
 
 @api_bp.route('/recommendations')
 def get_recommendations():
-    """获取个性化推荐"""
+    """鑾峰彇涓€у寲鎺ㄨ崘"""
     try:
         from app.services.recommendation_service import RecommendationService
 
@@ -864,13 +864,13 @@ def get_recommendations():
         return APIResponse.success(data=result)
 
     except Exception as e:
-        logger.error(f"获取推荐失败: {e}", exc_info=True)
-        return APIResponse.error('获取推荐失败', 500)
+        logger.error(f"鑾峰彇鎺ㄨ崘澶辫触: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇鎺ㄨ崘澶辫触', 500)
 
 
 @api_bp.route('/recommendations/similarity')
 def get_similarity_recommendations():
-    """获取相似图书推荐"""
+    """鑾峰彇鐩镐技鍥句功鎺ㄨ崘"""
     try:
         from app.services.recommendation_service import RecommendationService
 
@@ -881,7 +881,7 @@ def get_similarity_recommendations():
         limit = min(max(1, request.args.get('limit', 10, type=int)), 50)
 
         if not any([book_id, isbn, award_id, category]):
-            return APIResponse.error('请提供 book_id, isbn, award_id 或 category 参数之一', 400)
+            return APIResponse.error('璇锋彁渚?book_id, isbn, award_id 鎴?category 鍙傛暟涔嬩竴', 400)
 
         categories = current_app.config.get('CATEGORIES', {})
         recommendation_service = RecommendationService(categories)
@@ -893,15 +893,15 @@ def get_similarity_recommendations():
         return APIResponse.success(data=result)
 
     except Exception as e:
-        logger.error(f"获取相似推荐失败: {e}", exc_info=True)
-        return APIResponse.error('获取相似推荐失败', 500)
+        logger.error(f"鑾峰彇鐩镐技鎺ㄨ崘澶辫触: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇鐩镐技鎺ㄨ崘澶辫触', 500)
 
 
-# ==================== 智能搜索 API ====================
+# ==================== 鏅鸿兘鎼滅储 API ====================
 
 @api_bp.route('/search/suggestions')
 def get_search_suggestions():
-    """获取搜索建议（自动补全）"""
+    """鑾峰彇鎼滅储寤鸿锛堣嚜鍔ㄨˉ鍏級"""
     try:
         from app.services.smart_search_service import SmartSearchService
 
@@ -918,13 +918,13 @@ def get_search_suggestions():
         return APIResponse.success(data=result)
 
     except Exception as e:
-        logger.error(f"获取搜索建议失败: {e}", exc_info=True)
-        return APIResponse.error('获取搜索建议失败', 500)
+        logger.error(f"鑾峰彇鎼滅储寤鸿澶辫触: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇鎼滅储寤鸿澶辫触', 500)
 
 
 @api_bp.route('/search/smart')
 def smart_search():
-    """智能搜索（支持多种筛选条件）"""
+    """鏅鸿兘鎼滅储锛堟敮鎸佸绉嶇瓫閫夋潯浠讹級"""
     try:
         from app.services.smart_search_service import SmartSearchService
 
@@ -958,13 +958,13 @@ def smart_search():
         return APIResponse.success(data=result)
 
     except Exception as e:
-        logger.error(f"智能搜索失败: {e}", exc_info=True)
-        return APIResponse.error('搜索失败', 500)
+        logger.error(f"鏅鸿兘鎼滅储澶辫触: {e}", exc_info=True)
+        return APIResponse.error('鎼滅储澶辫触', 500)
 
 
 @api_bp.route('/search/popular')
 def get_popular_searches():
-    """获取热门搜索词"""
+    """鑾峰彇鐑棬鎼滅储璇?""
     try:
         from app.services.smart_search_service import SmartSearchService
 
@@ -976,5 +976,6 @@ def get_popular_searches():
         return APIResponse.success(data=result)
 
     except Exception as e:
-        logger.error(f"获取热门搜索失败: {e}", exc_info=True)
-        return APIResponse.error('获取热门搜索失败', 500)
+        logger.error(f"鑾峰彇鐑棬鎼滅储澶辫触: {e}", exc_info=True)
+        return APIResponse.error('鑾峰彇鐑棬鎼滅储澶辫触', 500)
+

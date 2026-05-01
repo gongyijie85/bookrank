@@ -57,7 +57,7 @@ class BookService:
             for book_data in cached_data:
                 if book_data.get('isbn13') == isbn or book_data.get('isbn10') == isbn:
                     return book_data
-        metadata = BookMetadata.query.get(isbn)
+        metadata = db.session.get(BookMetadata, isbn)
         if metadata:
             return {
                 'title': metadata.title or '',
@@ -287,7 +287,7 @@ class BookService:
             from ..models.schemas import BookMetadata
             from datetime import datetime, timezone
 
-            metadata = BookMetadata.query.get(isbn)
+            metadata = db.session.get(BookMetadata, isbn)
             if not metadata:
                 metadata = BookMetadata(isbn=isbn, title='', author='')
                 db.session.add(metadata)

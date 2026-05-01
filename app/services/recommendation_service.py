@@ -320,7 +320,7 @@ class RecommendationService:
             # 确定基准图书
             target_book = None
             if book_id:
-                target_book = AwardBook.query.get(book_id)
+                target_book = db.session.get(AwardBook, book_id)
             elif isbn:
                 target_book = AwardBook.query.filter_by(isbn13=isbn).first()
 

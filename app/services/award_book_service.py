@@ -421,7 +421,8 @@ class AwardBookService:
                 'days_since_last': days_since,
                 'needs_refresh': days_since >= 7
             }
-        except:
+        except (ValueError, TypeError, KeyError) as e:
+            logger.warning(f"计算刷新调度出错: {e}")
             return {
                 'last_refresh': last_refresh,
                 'next_refresh': None,
