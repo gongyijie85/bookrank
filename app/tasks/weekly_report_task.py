@@ -4,45 +4,37 @@ import logging
 import threading
 from typing import Optional
 
+from flask import current_app
+
 from ..models.schemas import WeeklyReport
 from ..services.weekly_report_service import WeeklyReportService
+from ..utils.service_helpers import require_book_service
 
 logger = logging.getLogger(__name__)
 
-# 全局锁，防止周报被重复生成
 _weekly_report_lock = threading.Lock()
 
 
 def generate_weekly_report(force_regenerate: bool = False) -> Optional[WeeklyReport]:
-    """生成周报（排行榜数据刷新后调用）
-
-    不再限制仅在周五生成，而是在数据刷新后自动触发。
-    周一/二/三时生成上周周报（排行榜尚未更新），
-    周四及以后生成本周周报（排行榜已更新）。
-    使用线程锁防止并发重复生成。
-    """
-    # 获取锁，防止并发重复生成
     if not _weekly_report_lock.acquire(blocking=False):
         logger.info("周报生成已在进行中，跳过本次触发")
         return None
 
     try:
+        book_service = require_book_service()
+
         today = datetime.date.today()
-        # 计算当前周的日期范围（周一至周日）
         current_monday = today - datetime.timedelta(days=today.weekday())
 
-        # NYT 排行榜通常在周三更新（美国时间），中国时间周四可见
-        if today.weekday() <= 2:  # 周一/二/三，排行榜尚未更新
+        if today.weekday() <= 2:
             last_monday = current_monday - datetime.timedelta(days=7)
             last_sunday = current_monday - datetime.timedelta(days=1)
             week_start = last_monday
             week_end = last_sunday
         else:
-            # 周四及以后，排行榜已更新
             week_start = current_monday
             week_end = current_monday + datetime.timedelta(days=6)
 
-        # 检查是否已经生成过
         existing_report = WeeklyReport.query.filter(
             WeeklyReport.week_start == week_start,
             WeeklyReport.week_end == week_end
@@ -55,71 +47,30 @@ def generate_weekly_report(force_regenerate: bool = False) -> Optional[WeeklyRep
 
         if existing_report and force_regenerate:
             logger.info(f"强制重新生成周报: {week_start} 至 {week_end}")
-        
-        # 初始化服务
-        from ..services import (
-            BookService, NYTApiClient, GoogleBooksClient, 
-            CacheService, MemoryCache, FileCache, ImageCacheService
-        )
 
-        # 初始化依赖服务
-        from pathlib import Path
-        
-        memory_cache = MemoryCache(default_ttl=3600, max_size=1000)
-        file_cache = FileCache(cache_dir=Path('cache'), default_ttl=86400)
-        cache_service = CacheService(memory_cache, file_cache, flask_cache=None)
-        
-        nyt_client = NYTApiClient(
-            api_key='',  # 使用环境变量中的 API 密钥
-            base_url='https://api.nytimes.com/svc/books/v3',
-            rate_limiter=None,
-            timeout=15
-        )
-        
-        google_client = GoogleBooksClient(
-            api_key=None,  # 使用环境变量中的 API 密钥
-            base_url='https://www.googleapis.com/books/v1',
-            timeout=8
-        )
-        
-        image_cache = ImageCacheService(
-            cache_dir=Path('cache/images'),
-            default_cover='/static/default-cover.png'
-        )
-        
-        # 初始化图书服务
-        book_service = BookService(
-            nyt_client=nyt_client,
-            google_client=google_client,
-            cache_service=cache_service,
-            image_cache=image_cache,
-            max_workers=4,
-            categories=['Fiction', 'Nonfiction', 'Mystery', 'Science Fiction']
-        )
-        
         report_service = WeeklyReportService(book_service)
-        
-        # 生成报告
+
         report = report_service.generate_report(week_start, week_end, force_regenerate=force_regenerate)
-        
+
         if report:
             logger.info(f"周报生成成功: {report.title}")
-            # 发送邮件
             send_weekly_report_email(report)
             return report
         else:
             logger.error("周报生成失败")
             return None
 
+    except RuntimeError as e:
+        logger.error(f"服务未初始化，无法生成周报: {str(e)}")
+        return None
     except Exception as e:
         logger.error(f"生成周报时出错: {str(e)}")
         return None
     finally:
-        # 释放锁
         try:
             _weekly_report_lock.release()
         except RuntimeError:
-            pass  # 锁可能已被释放
+            pass
 
 def _get_smtp_config() -> dict:
     """从 Flask 配置读取 SMTP 配置"""

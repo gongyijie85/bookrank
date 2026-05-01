@@ -8,12 +8,14 @@ Render 部署启动入口（免费版优化版）
 """
 import os
 import logging
+import threading
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from app import app, db
 
+_db_init_lock = threading.Lock()
 _db_initialized = False
 
 
@@ -22,7 +24,7 @@ def _run_migrations():
     try:
         from flask_migrate import upgrade as _upgrade
         _upgrade()
-        logger.info("✅ 数据库迁移完成")
+        logger.info("数据库迁移完成")
         return True
     except Exception as e:
         logger.warning(f"迁移失败: {e}")
@@ -30,46 +32,47 @@ def _run_migrations():
 
 
 def _init_database_lazy():
-    """惰性初始化数据库（只在第一次请求时执行）"""
+    """惰性初始化数据库（线程安全双重检查锁）"""
     global _db_initialized
     if _db_initialized:
         return
 
-    with app.app_context():
-        logger.info("🔧 首次请求，初始化数据库...")
+    with _db_init_lock:
+        if _db_initialized:
+            return
 
-        # 尝试迁移
-        if not _run_migrations():
+        with app.app_context():
+            logger.info("首次请求，初始化数据库...")
+
+            if not _run_migrations():
+                try:
+                    db.create_all()
+                    logger.info("使用 create_all 创建表")
+                except Exception as e:
+                    logger.error(f"创建表失败: {e}")
+
             try:
-                db.create_all()
-                logger.info("✅ 使用 create_all 创建表")
+                from app.models.schemas import Award
+                from app.models.new_book import Publisher
+                from app.initialization import init_awards_data
+
+                if db.session.query(Award).count() == 0:
+                    logger.info("初始化奖项数据...")
+                    init_awards_data(app)
+
+                if db.session.query(Publisher).count() == 0:
+                    logger.info("初始化出版社数据...")
+                    from app.services.new_book_service import NewBookService
+                    service = NewBookService()
+                    service.init_publishers()
+
             except Exception as e:
-                logger.error(f"❌ 创建表失败: {e}")
+                logger.warning(f"基础数据初始化跳过: {e}")
 
-        # 只在表为空时初始化基础数据
-        try:
-            from app.models.schemas import Award
-            from app.models.new_book import Publisher
-            from app.initialization import init_awards_data
-
-            if db.session.query(Award).count() == 0:
-                logger.info("📦 初始化奖项数据...")
-                init_awards_data(app)
-
-            if db.session.query(Publisher).count() == 0:
-                logger.info("🏢 初始化出版社数据...")
-                from app.services.new_book_service import NewBookService
-                service = NewBookService()
-                service.init_publishers()
-
-        except Exception as e:
-            logger.warning(f"⚠️ 基础数据初始化跳过: {e}")
-
-        _db_initialized = True
-        logger.info("🎉 数据库初始化完成")
+            _db_initialized = True
+            logger.info("数据库初始化完成")
 
 
-# 注册 Flask 请求前钩子：第一次请求时初始化
 @app.before_request
 def _ensure_db_ready():
     """确保数据库已初始化（惰性）"""

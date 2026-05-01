@@ -5,8 +5,8 @@ from flask import Blueprint, request, current_app
 
 from ..models.schemas import AwardBook, Award
 from ..models.database import db
-from ..services import BookService
 from ..utils.api_helpers import PublicAPIResponse, validate_isbn, public_rate_limit
+from ..utils.service_helpers import get_book_service
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +16,11 @@ public_api_bp = Blueprint('public_api', __name__, url_prefix='/api/public')
 @public_api_bp.route('/bestsellers')
 @public_rate_limit(max_requests=60, window=60)
 def get_all_bestsellers():
-    """获取所有分类畅销书"""
     try:
         limit = min(request.args.get('limit', 10, type=int), 50)
-        book_service: BookService = public_api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return PublicAPIResponse.error('Service unavailable', 503)
         categories = current_app.config.get('CATEGORIES', {})
 
         all_books = {}
@@ -44,7 +45,6 @@ def get_all_bestsellers():
 @public_api_bp.route('/bestsellers/<category>')
 @public_rate_limit(max_requests=60, window=60)
 def get_bestsellers_by_category(category: str):
-    """获取指定分类畅销书"""
     try:
         categories = current_app.config.get('CATEGORIES', {})
         if category not in categories:
@@ -53,7 +53,9 @@ def get_bestsellers_by_category(category: str):
             )
 
         limit = min(request.args.get('limit', 20, type=int), 50)
-        book_service: BookService = public_api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return PublicAPIResponse.error('Service unavailable', 503)
         books = book_service.get_books_by_category(category)
 
         return PublicAPIResponse.success(data={
@@ -72,7 +74,6 @@ def get_bestsellers_by_category(category: str):
 @public_api_bp.route('/bestsellers/search')
 @public_rate_limit(max_requests=30, window=60)
 def search_bestsellers():
-    """搜索畅销书"""
     try:
         keyword = request.args.get('keyword', '').strip()
 
@@ -86,7 +87,9 @@ def search_bestsellers():
             return PublicAPIResponse.error('Invalid keyword format', 400)
 
         limit = min(request.args.get('limit', 20, type=int), 50)
-        book_service: BookService = public_api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return PublicAPIResponse.error('Service unavailable', 503)
         results = book_service.search_books(keyword)
 
         return PublicAPIResponse.success(data={
@@ -103,21 +106,24 @@ def search_bestsellers():
 @public_api_bp.route('/awards')
 @public_rate_limit(max_requests=60, window=60)
 def get_all_awards():
-    """获取所有奖项列表"""
     try:
         awards = Award.query.all()
 
+        from sqlalchemy import func
+        book_counts = dict(
+            db.session.query(AwardBook.award_id, func.count(AwardBook.id))
+            .filter(AwardBook.is_displayable == True)
+            .group_by(AwardBook.award_id).all()
+        )
+
         awards_data = []
         for award in awards:
-            book_count = AwardBook.query.filter_by(
-                award_id=award.id, is_displayable=True
-            ).count()
             awards_data.append({
                 'id': award.id,
                 'name': award.name,
                 'name_en': award.name_en,
                 'description': award.description,
-                'book_count': book_count
+                'book_count': book_counts.get(award.id, 0)
             })
 
         return PublicAPIResponse.success(data={
@@ -132,7 +138,6 @@ def get_all_awards():
 @public_api_bp.route('/awards/<award_name>')
 @public_rate_limit(max_requests=60, window=60)
 def get_award_books(award_name: str):
-    """获取指定奖项的获奖图书"""
     try:
         award = Award.query.filter_by(name=award_name).first()
         if not award:
@@ -172,7 +177,6 @@ def get_award_books(award_name: str):
 @public_api_bp.route('/awards/<award_name>/<int:year>')
 @public_rate_limit(max_requests=60, window=60)
 def get_award_books_by_year(award_name: str, year: int):
-    """获取指定奖项和年份的获奖图书"""
     try:
         award = Award.query.filter_by(name=award_name).first()
         if not award:
@@ -205,12 +209,13 @@ def get_award_books_by_year(award_name: str, year: int):
 @public_api_bp.route('/book/<isbn>')
 @public_rate_limit(max_requests=60, window=60)
 def get_book_details(isbn: str):
-    """获取图书详细信息"""
     try:
         if not validate_isbn(isbn):
             return PublicAPIResponse.error('Invalid ISBN format', 400)
 
-        book_service: BookService = public_api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return PublicAPIResponse.error('Service unavailable', 503)
         all_books = []
         for cat_id in current_app.config['CATEGORIES'].keys():
             all_books.extend(book_service.get_books_by_category(cat_id))
@@ -237,12 +242,13 @@ def get_book_details(isbn: str):
 @public_api_bp.route('/reports/weekly')
 @public_rate_limit(max_requests=60, window=60)
 def get_weekly_reports():
-    """获取周报列表"""
     try:
         from ..services.weekly_report_service import WeeklyReportService
 
         limit = min(request.args.get('limit', 10, type=int), 50)
-        book_service: BookService = public_api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return PublicAPIResponse.error('Service unavailable', 503)
         report_service = WeeklyReportService(book_service)
         reports = report_service.get_reports(limit)
 
@@ -259,11 +265,12 @@ def get_weekly_reports():
 @public_api_bp.route('/reports/weekly/latest')
 @public_rate_limit(max_requests=60, window=60)
 def get_latest_weekly_report():
-    """获取最新周报"""
     try:
         from ..services.weekly_report_service import WeeklyReportService
 
-        book_service: BookService = public_api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return PublicAPIResponse.error('Service unavailable', 503)
         report_service = WeeklyReportService(book_service)
         report = report_service.get_latest_report()
 
@@ -280,7 +287,6 @@ def get_latest_weekly_report():
 @public_api_bp.route('/reports/weekly/<date>')
 @public_rate_limit(max_requests=60, window=60)
 def get_weekly_report_by_date(date: str):
-    """根据日期获取周报"""
     try:
         from ..services.weekly_report_service import WeeklyReportService
 
@@ -289,7 +295,9 @@ def get_weekly_report_by_date(date: str):
         except ValueError:
             return PublicAPIResponse.error('Invalid date format. Use YYYY-MM-DD', 400)
 
-        book_service: BookService = public_api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return PublicAPIResponse.error('Service unavailable', 503)
         report_service = WeeklyReportService(book_service)
         report = report_service.get_report_by_date(report_date)
 
@@ -305,7 +313,6 @@ def get_weekly_report_by_date(date: str):
 
 @public_api_bp.route('/')
 def api_info():
-    """API信息端点"""
     return PublicAPIResponse.success(data={
         'name': 'BookRank Public API',
         'version': '1.1.0',

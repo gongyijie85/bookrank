@@ -63,26 +63,33 @@ class IPRateLimiter:
     def is_allowed(self, client_id: str) -> bool:
         """
         检查指定客户端是否允许请求
-        
+
         Args:
             client_id: 客户端标识（通常是 IP 地址）
-            
+
         Returns:
             是否允许请求
         """
         with self._lock:
             now = time.time()
-            
+
             self._requests[client_id] = [
                 t for t in self._requests[client_id]
                 if now - t < self.window_seconds
             ]
-            
+
             if len(self._requests[client_id]) >= self.max_requests:
                 logger.warning(f"Rate limit exceeded for {client_id}")
                 return False
-            
+
             self._requests[client_id].append(now)
+
+            if len(self._requests) > 10000:
+                self._requests = defaultdict(list, {
+                    k: v for k, v in self._requests.items()
+                    if v and (now - max(v)) < self.window_seconds * 2
+                })
+
             return True
     
     def get_retry_after(self, client_id: str) -> int:

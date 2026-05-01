@@ -236,9 +236,9 @@ def get_statistics():
         return APIResponse.error('获取统计数据失败', 500)
 
 
-@new_books_bp.route('/export/excel')
-def export_excel():
-    """导出Excel格式"""
+@new_books_bp.route('/export/csv')
+def export_csv():
+    """导出CSV格式"""
     try:
         service = get_new_book_service()
         publisher_id = request.args.get('publisher_id', type=int)

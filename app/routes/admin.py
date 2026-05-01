@@ -1,24 +1,43 @@
+import os
 import re
 import logging
-from flask import Blueprint, request, current_app
+from functools import wraps
+from flask import Blueprint, request, current_app, session
 
 from ..models.database import db
 from ..utils.api_helpers import APIResponse, csrf_protect
+from ..utils.service_helpers import get_book_service
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 logger = logging.getLogger(__name__)
 
+ADMIN_SECRET = os.environ.get('ADMIN_SECRET', '')
+
 
 def _get_google_client():
-    """从应用扩展获取 GoogleBooksClient，避免重复创建"""
-    book_service = current_app.extensions.get('book_service')
+    book_service = get_book_service()
     if book_service and hasattr(book_service, '_google_client'):
         return book_service._google_client
     return None
 
 
+def admin_required(f):
+    """管理员认证装饰器：通过 ADMIN_SECRET 环境变量或 session 验证"""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if ADMIN_SECRET:
+            auth_header = request.headers.get('X-Admin-Secret', '')
+            auth_param = request.args.get('admin_secret', '')
+            session_auth = session.get('is_admin', False)
+            if auth_header != ADMIN_SECRET and auth_param != ADMIN_SECRET and not session_auth:
+                return APIResponse.error('需要管理员权限', 403)
+        return f(*args, **kwargs)
+    return wrapped
+
+
 @admin_bp.route('/award-covers/sync', methods=['POST'])
 @csrf_protect
+@admin_required
 def sync_award_covers():
     """手动触发获奖书籍封面同步"""
     try:
@@ -48,6 +67,7 @@ def sync_award_covers():
 
 
 @admin_bp.route('/award-covers/status')
+@admin_required
 def get_award_covers_status():
     """获取获奖书籍封面同步状态"""
     try:
@@ -73,6 +93,7 @@ def get_award_covers_status():
 
 @admin_bp.route('/weekly-report/regenerate', methods=['POST'])
 @csrf_protect
+@admin_required
 def regenerate_weekly_report():
     """手动重新生成指定日期的周报"""
     try:
@@ -93,7 +114,9 @@ def regenerate_weekly_report():
         if report_date > date.today():
             return APIResponse.error('不能重新生成未来的周报', 400)
 
-        book_service = current_app.extensions.get('book_service')
+        book_service = get_book_service()
+        if not book_service:
+            return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
 
         weekday = report_date.weekday()
@@ -121,6 +144,7 @@ def regenerate_weekly_report():
 
 @admin_bp.route('/weekly-report/regenerate-all', methods=['POST'])
 @csrf_protect
+@admin_required
 def regenerate_all_weekly_reports():
     """批量重新生成所有有问题的周报"""
     try:
@@ -143,7 +167,9 @@ def regenerate_all_weekly_reports():
                 'message': '所有周报正常，无需重新生成'
             }, message='所有周报数据正常')
 
-        book_service = current_app.extensions.get('book_service')
+        book_service = get_book_service()
+        if not book_service:
+            return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
 
         results = []
@@ -180,6 +206,7 @@ def regenerate_all_weekly_reports():
 
 
 @admin_bp.route('/categories/cleanup', methods=['GET', 'POST'])
+@admin_required
 def cleanup_categories():
     """清理新书分类中的营销文案数据"""
     try:
@@ -246,6 +273,7 @@ def _clean_report_text(text: str) -> str:
 
 
 @admin_bp.route('/reports/clean-brackets', methods=['GET', 'POST'])
+@admin_required
 def clean_report_brackets():
     """清理周报中的书名污染（双书名号、markdown、作者名混入、长描述等）"""
     try:
@@ -334,6 +362,7 @@ def clean_report_brackets():
 
 
 @admin_bp.route('/reports/fix-truncated-titles', methods=['GET', 'POST'])
+@admin_required
 def fix_truncated_titles():
     """修复被截断的书名（从其他数据源恢复）"""
     try:
@@ -409,6 +438,7 @@ def fix_truncated_titles():
 
 
 @admin_bp.route('/translations/cleanup', methods=['GET', 'POST'])
+@admin_required
 def cleanup_translations():
     """清理翻译缓存和BookMetadata中污染的书名"""
     try:

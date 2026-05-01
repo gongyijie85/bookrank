@@ -299,7 +299,7 @@
         const category = document.getElementById('category-filter').value;
         const days = document.getElementById('days-filter').value;
         
-        let url = '/api/new-books/export/excel?';
+        let url = '/api/new-books/export/csv?';
         if (publisher) url += `publisher_id=${publisher}&`;
         if (category) url += `category=${encodeURIComponent(category)}&`;
         if (days) url += `days=${days}&`;

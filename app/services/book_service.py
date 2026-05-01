@@ -1,4 +1,5 @@
 import logging
+import threading
 from typing import Any
 
 from ..models.schemas import Book, BookMetadata, db
@@ -30,9 +31,8 @@ class BookService:
         self._max_workers = max_workers
         self._categories = categories or {}
         
-        # 线程安全：防止重复启动预翻译线程
+        self._translation_lock = threading.Lock()
         self._translation_thread_active = False
-        # 数据刷新回调
         self._on_data_refreshed_callbacks = []
 
     def on_data_refreshed(self, callback):
@@ -324,16 +324,15 @@ class BookService:
         Args:
             books: 图书列表
         """
-        # 线程安全检查：如果已有翻译线程在运行，跳过
-        if self._translation_thread_active:
-            logger.info("预翻译线程已在运行中，跳过重复启动")
-            return
+        with self._translation_lock:
+            if self._translation_thread_active:
+                logger.info("预翻译线程已在运行中，跳过重复启动")
+                return
+            if not books:
+                logger.debug("无图书数据，跳过预翻译")
+                return
+            self._translation_thread_active = True
 
-        if not books:
-            logger.debug("无图书数据，跳过预翻译")
-            return
-
-        import threading
         import time
 
         def translate_in_background():
@@ -352,12 +351,10 @@ class BookService:
                     if not isbn:
                         continue
 
-                    # 跳过已有完整翻译的图书
                     if book.title_zh and book.description_zh:
                         continue
 
                     try:
-                        # 翻译书名（最重要）
                         title_zh = None
                         if not book.title_zh and book.title:
                             title_zh = service.translate(
@@ -366,7 +363,6 @@ class BookService:
                             if title_zh:
                                 logger.info(f"预翻译书名: {book.title[:30]}... -> {title_zh[:30]}...")
 
-                        # 翻译描述
                         desc_zh = None
                         if book.description:
                             desc_zh = service.translate(
@@ -375,7 +371,6 @@ class BookService:
                             if desc_zh:
                                 logger.debug(f"预翻译描述: {isbn}")
 
-                        # 保存到数据库
                         if title_zh or desc_zh:
                             self.save_book_translation(
                                 isbn=isbn,
@@ -385,7 +380,6 @@ class BookService:
                             )
                             translated_count += 1
 
-                        # 添加延迟避免API限流（0.2秒间隔）
                         time.sleep(0.2)
 
                     except Exception as e:
@@ -397,13 +391,9 @@ class BookService:
             except Exception as e:
                 logger.error(f"后台翻译线程异常: {e}")
             finally:
-                # 无论成功失败，都清除线程活动标志
-                self._translation_thread_active = False
+                with self._translation_lock:
+                    self._translation_thread_active = False
 
-        # 设置线程活动标志
-        self._translation_thread_active = True
-
-        # 启动守护线程（主进程退出时自动结束）
         thread = threading.Thread(target=translate_in_background, daemon=True)
         thread.start()
         logger.info(f"已启动后台预翻译线程，共 {len(books)} 本图书待处理")

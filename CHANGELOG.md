@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.7.3] - 2026-05-01
+
+### 安全修复
+- **Admin API 无认证保护（P0）**：
+  - 问题：所有管理端点（同步封面、重新生成周报、清理缓存等）仅靠 CSRF Token 保护，缺少身份认证
+  - 修复：新增 `admin_required` 装饰器，通过 `ADMIN_SECRET` 环境变量或 session 验证管理员身份；所有 admin 路由添加 `@admin_required`
+
+### 稳定性修复
+- **翻译线程竞态条件（P0）**：
+  - 问题：`_translation_thread_active` 标志的读写没有加锁，多线程并发时可能重复启动翻译线程
+  - 修复：使用 `threading.Lock` 保护 `_translation_thread_active` 的读写，采用双重检查锁模式
+- **数据库初始化竞态条件（P0）**：
+  - 问题：`run.py` 中 `_db_initialized` 全局变量非线程安全，多线程并发时可能重复初始化
+  - 修复：使用 `threading.Lock` 实现双重检查锁，确保数据库初始化只执行一次
+- **IP 限流器内存泄漏（P1）**：
+  - 问题：`IPRateLimiter._requests` 字典只增不减，长期运行内存膨胀
+  - 修复：当记录数超过 10000 时自动清理过期条目，防止内存无限增长
+
+### 性能优化
+- **N+1 查询问题（P1）**：
+  - 问题：出版社页面循环调用 `pub.books.count()`、获奖页面循环调用 `AwardBook.query.filter_by().count()`，触发 N+1 查询
+  - 修复：使用 `sqlalchemy.func.count` + `group_by` 批量查询替代循环计数
+- **同步翻译阻塞请求（P1）**：
+  - 问题：`_merge_or_translate_book()` 在请求线程中同步调用翻译 API（最多 3 次），导致 3-5 秒延迟
+  - 修复：改为仅从数据库读取已有翻译，未翻译的启动后台守护线程异步翻译
+
+### 其他修复
+- **导出路由名实不符**：
+  - 问题：`/export/excel` 路由实际导出 CSV 格式
+  - 修复：路由改为 `/export/csv`，同步更新前端引用
+
 ## [1.7.2] - 2026-05-01
 
 ### 修复

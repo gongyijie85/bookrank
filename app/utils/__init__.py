@@ -19,6 +19,12 @@ from .api_helpers import (
     clean_translation_text,
     quick_clean_translation,
 )
+from .service_helpers import (
+    get_book_service,
+    get_cache_service,
+    get_image_cache_service,
+    require_book_service,
+)
 
 __all__ = [
     'RateLimiter', 
@@ -40,4 +46,8 @@ __all__ = [
     'get_csrf_token',
     'clean_translation_text',
     'quick_clean_translation',
+    'get_book_service',
+    'get_cache_service',
+    'get_image_cache_service',
+    'require_book_service',
 ]

@@ -12,7 +12,7 @@ from ..models.schemas import UserPreference, UserCategory, UserViewedBook, Searc
 from ..models.database import db
 from ..utils.exceptions import APIRateLimitException, APIException, ValidationException
 from ..utils.api_helpers import APIResponse, validate_isbn, validate_pagination, api_rate_limit, csrf_protect, get_csrf_token
-from ..services import BookService
+from ..utils.service_helpers import get_book_service
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,9 @@ def get_books(category: str):
             )
 
         session_id = get_session_id()
-        book_service: BookService = api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return APIResponse.error('Service unavailable', 503)
 
         if category == 'all':
             all_books = {}
@@ -121,7 +123,9 @@ def search_books():
             return APIResponse.error('Invalid keyword format', 400)
 
         session_id = get_session_id()
-        book_service: BookService = api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return APIResponse.error('Service unavailable', 503)
 
         results = book_service.search_books(keyword)[:50]
 
@@ -217,7 +221,9 @@ def export_csv(category: str):
         if not validate_category(category):
             return APIResponse.error('Invalid category', 400)
 
-        book_service: BookService = api_bp.book_service
+        book_service = get_book_service()
+        if not book_service:
+            return APIResponse.error('Service unavailable', 503)
 
         if category == 'all':
             all_books = []
@@ -307,7 +313,8 @@ def get_book_details(isbn: str):
         if not validate_isbn(isbn):
             return APIResponse.error('Invalid ISBN format', 400)
 
-        google_client = current_app.extensions.get('book_service')._google_client if current_app.extensions.get('book_service') else None
+        book_service = get_book_service()
+        google_client = book_service._google_client if book_service else None
 
         if not google_client:
             from ..services.api_client import GoogleBooksClient
@@ -437,7 +444,7 @@ def translate_book(isbn: str):
 
         from ..services.zhipu_translation_service import get_translation_service
 
-        book_service = current_app.extensions.get('book_service')
+        book_service = get_book_service()
         if not book_service:
             return APIResponse.error('图书服务不可用', 503)
 

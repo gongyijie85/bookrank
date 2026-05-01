@@ -30,11 +30,14 @@ def init_services(app):
         default_ttl=cfg['CACHE_DEFAULT_TIMEOUT']
     )
     cache_service = CacheService(memory_cache, file_cache, flask_cache=None)
+    app.extensions['cache_service'] = cache_service
     app.logger.info("缓存服务初始化成功")
 
     nyt_client = _init_nyt_client(cfg, app)
     google_client = _init_google_client(cfg, app)
     image_cache = _init_image_cache(cfg, app)
+    if image_cache:
+        app.extensions['image_cache_service'] = image_cache
     translation_service = _init_translation_service(app)
 
     book_service = _init_book_service(
@@ -105,8 +108,6 @@ def _init_translation_service(app):
 
 def _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg):
     """初始化图书服务"""
-    from .routes import api_bp, public_api_bp
-
     if not nyt_client or not cache_service:
         app.logger.warning("缺少 NYT 客户端或缓存服务，图书服务未初始化")
         return None
@@ -122,10 +123,7 @@ def _init_book_service(nyt_client, google_client, cache_service, image_cache, ap
             categories=cfg['CATEGORIES']
         )
         app.extensions['book_service'] = book_service
-        api_bp.book_service = book_service
-        public_api_bp.book_service = book_service
 
-        # 注册数据刷新后的周报生成回调
         def _trigger_weekly_report():
             with app.app_context():
                 try:

@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
 
 from ..utils import clean_translation_text
+from ..utils.service_helpers import get_book_service
 from ..data.publishers import PUBLISHERS_DATA
 
 main_bp = Blueprint('main', __name__)
@@ -27,7 +28,7 @@ def _get_books_for_category(category: str) -> Tuple[list, Optional[str]]:
     update_time = None
 
     try:
-        book_service = current_app.extensions.get('book_service')
+        book_service = get_book_service()
         if book_service:
             books = book_service.get_books_by_category(category)
             if books:
@@ -283,11 +284,15 @@ def new_books():
         publishers = []
 
     publisher_book_counts = {}
-    for pub in publishers:
-        try:
-            publisher_book_counts[pub.id] = pub.books.count() if hasattr(pub, 'books') else 0
-        except Exception:
-            publisher_book_counts[pub.id] = 0
+    try:
+        from sqlalchemy import func
+        from ..models.new_book import NewBook
+        counts_result = db.session.query(
+            NewBook.publisher_id, func.count(NewBook.id)
+        ).group_by(NewBook.publisher_id).all()
+        publisher_book_counts = dict(counts_result)
+    except Exception:
+        publisher_book_counts = {}
 
     try:
         categories = service.get_categories()
@@ -449,8 +454,7 @@ def book_detail(book_index):
 
 
 def _get_google_client():
-    """从应用扩展获取 GoogleBooksClient，避免重复创建"""
-    book_service = current_app.extensions.get('book_service')
+    book_service = get_book_service()
     if book_service and hasattr(book_service, '_google_client'):
         return book_service._google_client
     return None
@@ -462,7 +466,7 @@ def _fetch_google_books_details(book: dict, isbn: str) -> None:
     cache_service = None
 
     try:
-        book_service = current_app.extensions.get('book_service')
+        book_service = get_book_service()
         if book_service and hasattr(book_service, '_cache'):
             cache_service = book_service._cache
     except Exception:
@@ -552,7 +556,7 @@ def _update_book_from_google_books(book: dict, details: dict) -> None:
 
 
 def _merge_or_translate_book(book: dict, isbn: str) -> None:
-    """从数据库合并中文翻译，如果没有则同步翻译并保存"""
+    """从数据库合并中文翻译，未翻译的启动后台线程异步翻译"""
     try:
         from ..models.schemas import BookMetadata, db
 
@@ -568,69 +572,76 @@ def _merge_or_translate_book(book: dict, isbn: str) -> None:
             if meta.title_zh and meta.description_zh and meta.details_zh:
                 return
 
-        title = book.get('title', '')
-        description = book.get('description', '')
-        details = book.get('details', '')
+        needs_title = bool(book.get('title') and not book.get('title_zh'))
+        needs_desc = bool(book.get('description') and book.get('description') != 'No summary available.' and not book.get('description_zh'))
+        needs_details = bool(book.get('details') and book.get('details') != 'No detailed description available.' and not book.get('details_zh'))
 
-        if not title and not description and not details:
+        if not needs_title and not needs_desc and not needs_details:
             return
 
         translation_service = current_app.extensions.get('translation_service')
         if not translation_service:
             return
 
-        title_zh = ''
-        description_zh = ''
-        details_zh = ''
+        import threading
 
-        if title and not book.get('title_zh'):
+        def _translate_async():
             try:
-                title_zh = translation_service.translate(title, 'en', 'zh', field_type='title')
-            except Exception as e:
-                logger.warning(f"书名翻译失败: {e}")
+                app = current_app._get_current_object()
+            except RuntimeError:
+                return
 
-        if description and description != 'No summary available.':
-            try:
-                description_zh = translation_service.translate(description, 'en', 'zh', field_type='description')
-            except Exception as e:
-                logger.warning(f"简介翻译失败: {e}")
+            with app.app_context():
+                try:
+                    meta_obj = BookMetadata.query.get(isbn)
+                    if not meta_obj:
+                        meta_obj = BookMetadata(
+                            isbn=isbn,
+                            title=book.get('title', ''),
+                            author=book.get('author', '')
+                        )
+                        db.session.add(meta_obj)
 
-        if details and details != 'No detailed description available.':
-            try:
-                details_zh = translation_service.translate(details, 'en', 'zh', field_type='details')
-            except Exception as e:
-                logger.warning(f"详情翻译失败: {e}")
+                    if needs_title:
+                        try:
+                            t = translation_service.translate(book.get('title', ''), 'en', 'zh', field_type='title')
+                            if t:
+                                meta_obj.title_zh = t
+                        except Exception as e:
+                            logger.warning(f"异步书名翻译失败: {e}")
 
-        if not meta:
-            meta = BookMetadata(
-                isbn=isbn,
-                title=book.get('title', ''),
-                author=book.get('author', '')
-            )
-            db.session.add(meta)
+                    if needs_desc:
+                        try:
+                            t = translation_service.translate(book.get('description', ''), 'en', 'zh', field_type='description')
+                            if t:
+                                meta_obj.description_zh = t
+                        except Exception as e:
+                            logger.warning(f"异步简介翻译失败: {e}")
 
-        if title_zh:
-            meta.title_zh = title_zh
-            book['title_zh'] = title_zh
-        if description_zh:
-            meta.description_zh = description_zh
-            book['description_zh'] = description_zh
-        if details_zh:
-            meta.details_zh = details_zh
-            book['details_zh'] = details_zh
+                    if needs_details:
+                        try:
+                            t = translation_service.translate(book.get('details', ''), 'en', 'zh', field_type='details')
+                            if t:
+                                meta_obj.details_zh = t
+                        except Exception as e:
+                            logger.warning(f"异步详情翻译失败: {e}")
 
-        from datetime import datetime, timezone
-        meta.translated_at = datetime.now(timezone.utc)
-        db.session.commit()
-        logger.info(f"图书 {isbn} 翻译已保存到数据库")
+                    from datetime import datetime, timezone
+                    meta_obj.translated_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                    logger.info(f"异步翻译完成: {isbn}")
+                except Exception as e:
+                    logger.warning(f"异步翻译失败 {isbn}: {e}")
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+
+        thread = threading.Thread(target=_translate_async, daemon=True)
+        thread.start()
 
     except Exception as e:
-        logger.warning(f"合并/翻译图书失败 {isbn}: {e}")
-        try:
-            from ..models.database import db
-            db.session.rollback()
-        except Exception:
-            pass
+        logger.warning(f"合并图书翻译失败 {isbn}: {e}")
 
 
 @main_bp.route('/api/book-details')
@@ -673,7 +684,7 @@ def api_category_books():
     update_time = None
 
     try:
-        book_service = current_app.extensions.get('book_service')
+        book_service = get_book_service()
         if book_service:
             books = book_service.get_books_by_category(category)
             if books:
@@ -695,7 +706,7 @@ def weekly_reports():
     """周报列表页"""
     from ..services.weekly_report_service import WeeklyReportService
 
-    book_service = current_app.extensions.get('book_service')
+    book_service = get_book_service()
     if not book_service:
         return render_template('error.html', message="服务不可用", back_url='/')
 
@@ -738,7 +749,7 @@ def weekly_report_detail(date):
     from ..models.schemas import ReportView, UserBehavior
     from ..models.database import db
 
-    book_service = current_app.extensions.get('book_service')
+    book_service = get_book_service()
     if not book_service:
         return render_template('error.html', message="服务不可用", back_url='/reports/weekly')
 
@@ -795,14 +806,13 @@ def weekly_report_detail(date):
 
 @main_bp.route('/reports/weekly/<date>/export')
 def export_weekly_report(date):
-    """导出周报"""
     from flask import send_file
     from ..services.weekly_report_service import WeeklyReportService
     from ..services.export_service import ExportService
     from ..models.schemas import UserBehavior
     from ..models.database import db
 
-    book_service = current_app.extensions.get('book_service')
+    book_service = get_book_service()
     if not book_service:
         return render_template('error.html', message="服务不可用", back_url='/reports/weekly')
 
