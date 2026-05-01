@@ -20,7 +20,20 @@ _db_initialized = False
 
 
 def _run_migrations():
-    """运行数据库迁移"""
+    """运行数据库迁移（先检查是否已有迁移记录，避免重复执行）
+
+    调用方需确保已在 app.app_context() 内。
+    """
+    try:
+        result = db.session.execute(
+            db.text("SELECT version_num FROM alembic_version")
+        ).fetchone()
+        if result:
+            logger.info(f"数据库迁移已是最新版本: {result[0]}")
+            return True
+    except Exception:
+        logger.info("alembic_version 表不存在，需要执行迁移")
+
     try:
         from flask_migrate import upgrade as _upgrade
         _upgrade()

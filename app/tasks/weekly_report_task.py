@@ -13,14 +13,25 @@ from ..utils.service_helpers import require_book_service
 logger = logging.getLogger(__name__)
 
 _weekly_report_lock = threading.Lock()
+_last_report_trigger_time: float = 0
+_REPORT_TRIGGER_COOLDOWN: float = 300.0
 
 
 def generate_weekly_report(force_regenerate: bool = False) -> Optional[WeeklyReport]:
+    global _last_report_trigger_time
+
+    import time
+    now = time.time()
+    if not force_regenerate and (now - _last_report_trigger_time) < _REPORT_TRIGGER_COOLDOWN:
+        logger.debug(f"周报触发冷却中（距上次 {now - _last_report_trigger_time:.0f}s），跳过")
+        return None
+
     if not _weekly_report_lock.acquire(blocking=False):
         logger.info("周报生成已在进行中，跳过本次触发")
         return None
 
     try:
+        _last_report_trigger_time = time.time()
         book_service = require_book_service()
 
         today = datetime.date.today()
@@ -371,7 +382,6 @@ def send_weekly_report_email(report: WeeklyReport) -> bool:
 
     except Exception as e:
         error_msg = str(e)
-        # 检测 Gmail 认证错误，给出明确提示
         if 'Username and Password not accepted' in error_msg or 'BadCredentials' in error_msg:
             logger.error(
                 "发送周报邮件失败：Gmail 用户名或密码错误。"
@@ -380,6 +390,11 @@ def send_weekly_report_email(report: WeeklyReport) -> bool:
                 "2. 生成'应用专用密码'(App Password) 替代普通密码；"
                 "3. 将应用专用密码填入 MAIL_PASSWORD 环境变量。"
                 "详情：https://support.google.com/accounts/answer/185833"
+            )
+        elif 'Network is unreachable' in error_msg or 'Errno 101' in error_msg:
+            logger.warning(
+                "邮件发送跳过：当前环境不支持 SMTP 出站连接"
+                "（Render 免费版限制）。周报已保存到数据库，可在网页端查看。"
             )
         else:
             logger.error(f"发送周报邮件时出错: {error_msg}")
