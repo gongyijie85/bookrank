@@ -541,7 +541,21 @@ h4 { font-size: 1.125rem; }
 @media (max-width: 1024px) {
     .sidebar {
         transform: translateX(-100%);
-        width: 240px;
+        width: 80vw;
+        max-width: 300px;
+    }
+
+    /* 移动端侧边栏展开时添加遮罩层 */
+    .sidebar.open::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: -1;
+        pointer-events: auto;
     }
 }
 

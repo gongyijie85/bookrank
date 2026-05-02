@@ -518,7 +518,14 @@
         const langName = lang === 'zh' ? '简体中文' : 'English';
         showToast(`已切换到 ${langName}`, 'success');
 
-        // Strategy 1: Check if page has index.html's translation system
+        // Strategy 1: Use the new translation system if available
+        if (typeof setGlobalLanguage === 'function') {
+            console.log('[Global Lang] Using translations.js system');
+            setGlobalLanguage(lang);
+            return;
+        }
+
+        // Strategy 2: Check if page has index.html's translation system
         if (typeof translateAllBooks === 'function' && typeof updateLanguageButtons === 'function') {
             console.log('[Global Lang] Using index.html translation system');
             updateLanguageButtons(lang);
@@ -530,14 +537,14 @@
             return;
         }
 
-        // Strategy 2: Check if page has detail page's language switch
+        // Strategy 3: Check if page has detail page's language switch
         if (typeof switchDetailLang === 'function') {
             console.log('[Global Lang] Using detail page translation');
             switchDetailLang(lang);
             return;
         }
 
-        // Strategy 3: Generic text replacement for other pages
+        // Strategy 4: Generic text replacement for other pages
         console.log('[Global Lang] Using generic translation approach');
         applyGenericTranslation(lang);
     }

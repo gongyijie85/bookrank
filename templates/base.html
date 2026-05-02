@@ -82,35 +82,35 @@
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.index' %}page{% endif %}">
                 <svg class="icon" width="18" height="18"><use href="#icon-home"/></svg>
-                <span>首页</span>
+                <span data-i18n="nav_home">首页</span>
             </a>
             <a href="{{ url_for('main.awards') }}"
                class="nav-link {% if request.endpoint == 'main.awards' %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.awards' %}page{% endif %}">
                 <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
-                <span>获奖书单</span>
+                <span data-i18n="nav_awards">获奖书单</span>
             </a>
             <a href="{{ url_for('main.publishers') }}"
                class="nav-link {% if request.endpoint == 'main.publishers' %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.publishers' %}page{% endif %}">
                 <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                <span>出版社</span>
+                <span data-i18n="nav_publishers">出版社</span>
             </a>
             <a href="{{ url_for('main.new_books') }}"
                class="nav-link {% if request.endpoint == 'main.new_books' %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint == 'main.new_books' %}page{% endif %}">
                 <svg class="icon" width="18" height="18"><use href="#icon-star"/></svg>
-                <span>新书速递</span>
+                <span data-i18n="nav_new_books">新书速递</span>
             </a>
             <a href="{{ url_for('main.weekly_reports') }}"
                class="nav-link {% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}active{% endif %}"
                role="menuitem"
                aria-current="{% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}page{% endif %}">
                 <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
-                <span>畅销书周报</span>
+                <span data-i18n="nav_weekly">畅销书周报</span>
             </a>
         </div>
 
@@ -145,7 +145,7 @@
     <aside class="sidebar" id="sidebar" role="complementary" aria-label="侧边导航">
         {% block sidebar %}
         <div class="sidebar-section">
-            <h3 class="sidebar-title">导航</h3>
+            <h3 class="sidebar-title" data-i18n="sidebar_nav">导航</h3>
             <ul class="sidebar-menu" role="menu">
                 <li class="sidebar-item" role="none">
                     <a href="{{ url_for('main.index') }}"
@@ -153,7 +153,7 @@
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.index' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-fire"/></svg>
-                        <span>畅销书榜</span>
+                        <span data-i18n="nav_home">畅销书榜</span>
                     </a>
                 </li>
                 <li class="sidebar-item" role="none">
@@ -162,7 +162,7 @@
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.awards' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
-                        <span>获奖书单</span>
+                        <span data-i18n="nav_awards">获奖书单</span>
                     </a>
                 </li>
                 <li class="sidebar-item" role="none">
@@ -171,7 +171,7 @@
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.publishers' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                        <span>出版社导航</span>
+                        <span data-i18n="nav_publishers">出版社导航</span>
                     </a>
                 </li>
                 <li class="sidebar-item" role="none">
@@ -180,7 +180,7 @@
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.new_books' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-star"/></svg>
-                        <span>新书速递</span>
+                        <span data-i18n="nav_new_books">新书速递</span>
                     </a>
                 </li>
                 <li class="sidebar-item" role="none">
@@ -189,19 +189,22 @@
                        role="menuitem"
                        aria-current="{% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
-                        <span>畅销书周报</span>
+                        <span data-i18n="nav_weekly">畅销书周报</span>
                     </a>
                 </li>
             </ul>
         </div>
 
         <div class="sidebar-section">
-            <h3 class="sidebar-title">关于</h3>
+            <h3 class="sidebar-title" data-i18n="sidebar_about">关于</h3>
             <ul class="sidebar-menu" role="menu">
                 <li class="sidebar-item" role="none">
-                    <a href="#" class="sidebar-link" role="menuitem" onclick="showAboutModal(); return false;">
+                    <a href="{{ url_for('main.about') }}"
+                       class="sidebar-link {% if request.endpoint == 'main.about' %}active{% endif %}"
+                       role="menuitem"
+                       aria-current="{% if request.endpoint == 'main.about' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-info"/></svg>
-                        <span>关于我们</span>
+                        <span data-i18n="nav_about">关于我们</span>
                     </a>
                 </li>
                 <!-- 翻译缓存功能暂时隐藏，避免用户操作消耗过多额度
@@ -273,10 +276,30 @@
         };
     </script>
 
+    <!-- Translation System -->
+    <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+
     <!-- Base JavaScript -->
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>
 
     {% block extra_js %}{% endblock %}
+
+    <!-- Auto-apply saved language on page load -->
+    <script>
+        (function() {
+            const savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'zh';
+            if (savedLang === 'en' && typeof applyPageTranslation === 'function') {
+                // 延迟执行，等待 DOM 完全加载
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        applyPageTranslation('en');
+                    });
+                } else {
+                    applyPageTranslation('en');
+                }
+            }
+        })();
+    </script>
 
     <!-- Load SVG Icons Sprite (Modern Zero-Dependency Approach) -->
     <script>

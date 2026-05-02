@@ -7,8 +7,9 @@ from flask import Blueprint, render_template, send_from_directory, abort, reques
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
 
-from ..utils import clean_translation_text
-from ..utils.service_helpers import get_book_service
+from ..models.database import db
+from ..utils import quick_clean_translation
+from ..utils.service_helpers import get_book_service, get_google_books_client, submit_background_task
 from ..data.publishers import PUBLISHERS_DATA
 
 main_bp = Blueprint('main', __name__)
@@ -284,12 +285,7 @@ def new_books():
 
     publisher_book_counts = {}
     try:
-        from sqlalchemy import func
-        from ..models.new_book import NewBook
-        counts_result = db.session.query(
-            NewBook.publisher_id, func.count(NewBook.id)
-        ).group_by(NewBook.publisher_id).all()
-        publisher_book_counts = dict(counts_result)
+        publisher_book_counts = service.get_publisher_book_counts()
     except Exception:
         publisher_book_counts = {}
 
@@ -339,6 +335,12 @@ def new_books():
                           total=total,
                           total_pages=total_pages,
                           per_page=per_page)
+
+
+@main_bp.route('/about')
+def about():
+    """关于我们页面"""
+    return render_template('about.html')
 
 
 @main_bp.route('/publishers')
@@ -396,7 +398,8 @@ def new_book_detail(book_id):
             except Exception as e:
                 logger.warning(f"Background translation failed for book {book_id}: {e}")
 
-        submit_background_task(translate_book_async)
+        thread = threading.Thread(target=translate_book_async, daemon=True)
+        thread.start()
 
     return render_template('new_book_detail.html',
                           book=book,
@@ -405,7 +408,7 @@ def new_book_detail(book_id):
 
 @main_bp.route('/award-book/<int:book_id>')
 def award_book_detail(book_id):
-    """获奖图书详情页"""
+    """获奖图书详情"""
     from ..models.schemas import AwardBook
 
     book = db.session.get(AwardBook, book_id)
@@ -449,13 +452,6 @@ def book_detail(book_index):
                           book_index=book_index,
                           category=category,
                           back_url=request.referrer or '/?category=' + category)
-
-
-def get_google_books_client():
-    book_service = get_book_service()
-    if book_service and hasattr(book_service, '_google_client'):
-        return book_service._google_client
-    return None
 
 
 def _fetch_google_books_details(book: dict, isbn: str) -> None:
@@ -517,7 +513,8 @@ def _translate_field_async(book: dict, source_field: str, target_field: str) -> 
         except Exception as e:
             logger.warning(f"异步翻译失败 {source_field}: {e}")
 
-    submit_background_task(_do_translate)
+    thread = threading.Thread(target=_do_translate, daemon=True)
+    thread.start()
 
 
 def _update_book_from_google_books(book: dict, details: dict) -> None:
@@ -697,7 +694,7 @@ def api_category_books():
 
 @main_bp.route('/reports/weekly')
 def weekly_reports():
-    """周报列表页"""
+    """周报列表"""
     from ..services.weekly_report_service import WeeklyReportService
 
     book_service = get_book_service()
@@ -738,7 +735,7 @@ def _validate_date(date_str: str) -> tuple:
 
 @main_bp.route('/reports/weekly/<date>')
 def weekly_report_detail(date):
-    """周报详情页"""
+    """周报详情"""
     from ..services.weekly_report_service import WeeklyReportService
     from ..models.schemas import ReportView, UserBehavior
     from ..models.database import db
