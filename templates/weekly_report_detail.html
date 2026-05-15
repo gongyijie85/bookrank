@@ -1,0 +1,1356 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ report.title }} - BookRank{% endblock %}
+{% block og_title %}{{ report.title }} - BookRank{% endblock %}
+{% block twitter_title %}{{ report.title }} - BookRank{% endblock %}
+
+{% block content %}
+<main class="main-content">
+    <!-- 新闻风格头部 -->
+    <div class="news-hero-section">
+        <div class="news-hero-content">
+            <div class="news-hero-meta">
+                <span class="news-hero-date">{{ report.report_date.strftime('%Y年%m月%d日') }}</span>
+                <span class="news-hero-period">
+                    <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
+                    {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
+                </span>
+            </div>
+            <h1 class="news-hero-title">{{ report.title }}</h1>
+            <div class="news-hero-highlights">
+                {% if content %}
+                <div class="highlights-grid">
+                    {% if content.top_changes %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-arrow-up"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.top_changes | length }}</span>
+                            <span class="highlight-label">{{ _('排名变化') }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if content.new_books %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-star"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.new_books | length }}</span>
+                            <span class="highlight-label">{{ _('新上榜') }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if content.featured_books %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-heart"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.featured_books | length }}</span>
+                            <span class="highlight-label">{{ _('推荐书籍') }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if content.longest_running %}
+                    <div class="highlight-item">
+                        <div class="highlight-icon">
+                            <svg class="icon" width="24" height="24"><use href="#icon-clock"/></svg>
+                        </div>
+                        <div class="highlight-content">
+                            <span class="highlight-number">{{ content.longest_running | length }}</span>
+                            <span class="highlight-label">{{ _('持续上榜') }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="content-section">
+        <div class="report-detail-card">
+            <!-- 标签页导航 -->
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="overview">
+                    <svg class="icon" width="16" height="16"><use href="#icon-info"/></svg>
+                    {{ _('本周概览') }}
+                </button>
+                <button class="tab-btn" data-tab="visualization">
+                    <svg class="icon" width="16" height="16"><use href="#icon-chart"/></svg>
+                    {{ _('数据可视化') }}
+                </button>
+                <button class="tab-btn" data-tab="analysis">
+                    <svg class="icon" width="16" height="16"><use href="#icon-list"/></svg>
+                    {{ _('详细分析') }}
+                </button>
+                <button class="tab-btn" data-tab="recommendations">
+                    <svg class="icon" width="16" height="16"><use href="#icon-star"/></svg>
+                    {{ _('推荐书籍') }}
+                </button>
+            </div>
+
+            <!-- 标签页内容 -->
+            <div class="tab-content">
+                <!-- 概览标签页 -->
+                <div class="tab-panel active" id="overview">
+                    <div class="report-summary-section">
+                        <h2 class="section-heading">
+                            <svg class="icon" width="20" height="20"><use href="#icon-info"/></svg>
+                            {{ _('本周概览') }}
+                        </h2>
+                        <div class="report-summary-content">
+                            {{ report.summary | clean_brackets | markdown | safe }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据可视化标签页 -->
+                <div class="tab-panel" id="visualization">
+                    <div class="visualization-section">
+                        <h2 class="section-heading">
+                            <svg class="icon" width="20" height="20"><use href="#icon-chart"/></svg>
+                            {{ _('数据可视化') }}
+                        </h2>
+                        <div class="chart-container">
+                            <canvas id="top-changes-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="visualization-section">
+                        <h3 class="analysis-subheading">{{ _('书籍类别分布') }}</h3>
+                        <div class="chart-container">
+                            <canvas id="category-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="visualization-section">
+                        <h3 class="analysis-subheading">{{ _('排名变化趋势') }}</h3>
+                        <div class="chart-container">
+                            <canvas id="trend-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="visualization-section">
+                        <h3 class="analysis-subheading">{{ _('周榜对比') }}</h3>
+                        <div class="chart-container">
+                            <canvas id="week-comparison-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="visualization-section">
+                        <h3 class="analysis-subheading">{{ _('排名稳定性分析') }}</h3>
+                        <div class="chart-container">
+                            <canvas id="stability-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 详细分析标签页 -->
+                <div class="tab-panel" id="analysis">
+                    {% if content %}
+                    {% if content.top_changes %}
+                    <div class="analysis-section">
+                        <h3 class="analysis-subheading">{{ _('重要变化') }}</h3>
+                        <ul class="changes-list">
+                            {% for change in content.top_changes %}
+                            <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}">
+                                {% if change.cover %}
+                                <img src="{{ change.cover }}" alt="{{ change.title_zh or change.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
+                                {% endif %}
+                                <span class="change-title">{{ change.title | format_title }}</span>
+                                <span class="change-author">{{ change.author }}</span>
+                                <span class="change-category">{{ change.category }}</span>
+                                <span class="change-rank">
+                                    {% if change.rank_change > 0 %}
+                                    <span class="rank-up">↑ {{ change.rank_change }} {{ _('位') }}</span>
+                                    {% elif change.rank_change < 0 %}
+                                    <span class="rank-down">↓ {{ change.rank_change | abs }} {{ _('位') }}</span>
+                                    {% else %}
+                                    <span class="rank-stable">→ {{ _('无变化') }}</span>
+                                    {% endif %}
+                                </span>
+                                <button class="book-detail-btn">
+                                    <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
+                                    {{ _('详情') }}
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if content.new_books %}
+                    <div class="analysis-section">
+                        <h3 class="analysis-subheading">{{ _('新上榜书籍') }}</h3>
+                        <ul class="books-list">
+                            {% for book in content.new_books %}
+                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                                {% if book.cover %}
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
+                                {% endif %}
+                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
+                                <span class="book-author">{{ book.author }}</span>
+                                <span class="book-category">{{ book.category }}</span>
+                                <span class="book-rank">{{ _('排名') }}：{{ book.rank }}</span>
+                                <button class="book-detail-btn">
+                                    <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
+                                    {{ _('详情') }}
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if content.top_risers %}
+                    <div class="analysis-section">
+                        <h3 class="analysis-subheading">{{ _('排名上升最快') }}</h3>
+                        <ul class="books-list">
+                            {% for book in content.top_risers %}
+                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                                {% if book.cover %}
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
+                                {% endif %}
+                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
+                                <span class="book-author">{{ book.author }}</span>
+                                <span class="book-category">{{ book.category }}</span>
+                                <span class="book-change">↑ {{ book.rank_change }} {{ _('位') }}</span>
+                                <button class="book-detail-btn">
+                                    <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
+                                    {{ _('详情') }}
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if content.longest_running %}
+                    <div class="analysis-section">
+                        <h3 class="analysis-subheading">{{ _('持续上榜最久') }}</h3>
+                        <ul class="books-list">
+                            {% for book in content.longest_running %}
+                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                                {% if book.cover %}
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                {% else %}
+                                <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
+                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                </div>
+                                {% endif %}
+                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
+                                <span class="book-author">{{ book.author }}</span>
+                                <span class="book-weeks">{{ _('已上榜') }} {{ book.weeks_on_list }} {{ _('周') }}</span>
+                                <span class="book-rank">{{ _('当前排名') }}：{{ book.rank }}</span>
+                                <button class="book-detail-btn">
+                                    <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
+                                    {{ _('详情') }}
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="empty-content">
+                        <p>{{ _('暂无详细分析数据') }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- 推荐书籍标签页 -->
+                <div class="tab-panel" id="recommendations">
+                    {% if content and content.featured_books %}
+                    <div class="analysis-section">
+                        <h3 class="analysis-subheading">{{ _('推荐书籍') }}</h3>
+                        <div class="recommendations-grid">
+                            {% for book in content.featured_books %}
+                            <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                                {% if book.cover %}
+                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
+                                {% else %}
+                                <div class="recommendation-cover-placeholder" title="{{ _('暂无封面') }}">
+                                    <svg class="icon" width="32" height="32"><use href="#icon-book"/></svg>
+                                </div>
+                                {% endif %}
+                                <div class="recommendation-header">
+                                    <h4 class="recommendation-title">{{ (book.title_zh or book.title) | format_title }}</h4>
+                                    <span class="recommendation-author">{{ book.author }}</span>
+                                </div>
+                                <div class="recommendation-reason">
+                                    <p>{{ book.reason }}</p>
+                                </div>
+                                <button class="book-detail-btn">
+                                    <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
+                                    {{ _('查看详情') }}
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="empty-content">
+                        <p>{{ _('暂无推荐书籍') }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+
+    <div class="content-section">
+        <div class="navigation-card">
+            <h3 class="section-title">
+                <svg class="icon" width="18" height="18"><use href="#icon-navigation"/></svg>
+                {{ _('导航') }}
+            </h3>
+            <div class="navigation-links">
+                <a href="{{ url_for('main.weekly_reports') }}" class="btn btn-outline">
+                    <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
+                    {{ _('返回周报列表') }}
+                </a>
+                <a href="{{ url_for('main.index') }}" class="btn btn-outline">
+                    <svg class="icon" width="16" height="16"><use href="#icon-home"/></svg>
+                    {{ _('返回首页') }}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-section">
+        <div class="export-card">
+            <h3 class="section-title">
+                <svg class="icon" width="18" height="18"><use href="#icon-download"/></svg>
+                {{ _('导出周报') }}
+            </h3>
+            <div class="export-links">
+                <a href="{{ url_for('main.export_weekly_report', date=report.report_date.strftime('%Y-%m-%d'), format='pdf') }}" class="btn btn-outline">
+                    <svg class="icon" width="16" height="16"><use href="#icon-file-pdf"/></svg>
+                    {{ _('导出') }} PDF
+                </a>
+                <a href="{{ url_for('main.export_weekly_report', date=report.report_date.strftime('%Y-%m-%d'), format='excel') }}" class="btn btn-outline">
+                    <svg class="icon" width="16" height="16"><use href="#icon-file-excel"/></svg>
+                    {{ _('导出') }} Excel
+                </a>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+    /* ============================================
+       BookRank {{ _('周报详情页样式') }} (Notion {{ _('设计系统') }})
+       ============================================ */
+
+    /* -- {{ _('颜色变量') }} (Notion {{ _('暖色中性调') }}) -- */
+    :root {
+        --n-black: rgba(0, 0, 0, 0.95);
+        --n-white: #ffffff;
+        --n-blue: #0075de;
+        --n-blue-hover: #005bab;
+        --n-warm-white: #f6f5f4;
+        --n-warm-dark: #31302e;
+        --n-warm-gray-500: #615d59;
+        --n-warm-gray-300: #a39e98;
+        --n-teal: #2a9d99;
+        --n-green: #1aae39;
+        --n-orange: #dd5b00;
+        --n-pink: #ff64c8;
+        --n-purple: #391c57;
+        --n-badge-bg: #f2f9ff;
+        --n-badge-text: #097fe8;
+        --n-focus: #097fe8;
+        --n-shadow-card: rgba(0,0,0,0.04) 0px 4px 18px, rgba(0,0,0,0.027) 0px 2.025px 7.84688px, rgba(0,0,0,0.02) 0px 0.8px 2.925px, rgba(0,0,0,0.01) 0px 0.175px 1.04062px;
+        --n-shadow-deep: rgba(0,0,0,0.01) 0px 1px 3px, rgba(0,0,0,0.02) 0px 3px 7px, rgba(0,0,0,0.02) 0px 7px 15px, rgba(0,0,0,0.04) 0px 14px 28px, rgba(0,0,0,0.05) 0px 23px 52px;
+        --n-whisper-border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    /* -- {{ _('新闻风格头部') }} -- */
+    .news-hero-section {
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 16px;
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .news-hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(to right, var(--n-blue), var(--n-teal));
+    }
+
+    .news-hero-content {
+        flex: 1;
+    }
+
+    .news-hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+        color: var(--n-warm-gray-500);
+    }
+
+    .news-hero-date {
+        background: var(--n-blue);
+        color: var(--n-white);
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 0.75rem;
+        letter-spacing: 0.125px;
+    }
+
+    .news-hero-period {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .news-hero-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--n-black);
+        margin: 0 0 1.5rem 0;
+        line-height: 1.2;
+        letter-spacing: -0.625px;
+    }
+
+    .news-hero-highlights {
+        margin-top: 1.5rem;
+    }
+
+    .highlights-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+
+    .highlight-item {
+        background: var(--n-warm-white);
+        border: var(--n-whisper-border);
+        border-radius: 12px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .highlight-item:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--n-shadow-card);
+        border-color: var(--n-blue);
+    }
+
+    .highlight-icon {
+        width: 44px;
+        height: 44px;
+        background: var(--n-blue);
+        color: var(--n-white);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .highlight-item:hover .highlight-icon {
+        transform: scale(1.1);
+        background: var(--n-teal);
+    }
+
+    .highlight-number {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--n-black);
+        margin-bottom: 0.25rem;
+    }
+
+    .highlight-label {
+        font-size: 0.875rem;
+        color: var(--n-warm-gray-500);
+    }
+
+    /* -- {{ _('内容区') }} -- */
+    .content-section {
+        margin-bottom: 2rem;
+    }
+
+    .report-detail-card {
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: var(--n-shadow-card);
+    }
+
+    .report-summary-section {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: var(--n-whisper-border);
+    }
+
+    .section-heading {
+        margin: 0 0 1rem 0;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--n-black);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        letter-spacing: -0.25px;
+    }
+
+    .report-summary-content {
+        line-height: 1.6;
+        color: var(--n-black);
+        font-size: 1rem;
+    }
+
+    .report-summary-content p {
+        margin: 0 0 1rem 0;
+    }
+
+    /* -- {{ _('标签页') }} -- */
+    .tab-navigation {
+        display: flex;
+        gap: 0.25rem;
+        margin-bottom: 2rem;
+        border-bottom: var(--n-whisper-border);
+        padding-bottom: 0.5rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--n-warm-gray-500);
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        min-height: 44px;
+    }
+
+    .tab-btn:hover {
+        background: var(--n-warm-white);
+        color: var(--n-black);
+    }
+
+    .tab-btn.active {
+        background: var(--n-badge-bg);
+        color: var(--n-badge-text);
+    }
+
+    .tab-panel {
+        display: none;
+    }
+
+    .tab-panel.active {
+        display: block;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* -- {{ _('分析区') }} -- */
+    .analysis-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: var(--n-warm-white);
+        border-radius: 12px;
+        border: var(--n-whisper-border);
+    }
+
+    .analysis-subheading {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
+    }
+
+    /* -- {{ _('书籍列表') }} -- */
+    .changes-list, .books-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .change-item, .book-item {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 12px;
+        margin-bottom: 0.75rem;
+        transition: all 0.2s ease;
+    }
+
+    .change-item:hover, .book-item:hover {
+        box-shadow: var(--n-shadow-card);
+        border-color: var(--n-blue);
+    }
+
+    .change-item:last-child, .book-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .book-cover {
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        flex-shrink: 0;
+        object-fit: cover;
+    }
+
+    .book-cover-placeholder {
+        width: 50px;
+        height: 75px;
+        border-radius: 8px;
+        background: var(--n-warm-white);
+        border: 1px dashed rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--n-warm-gray-300);
+    }
+
+    .change-title, .book-title {
+        font-weight: 600;
+        color: var(--n-black);
+        flex: 1;
+        min-width: 180px;
+        font-size: 0.9375rem;
+    }
+
+    .change-author, .book-author {
+        color: var(--n-warm-gray-500);
+        font-size: 0.8125rem;
+    }
+
+    .change-category, .book-category {
+        color: var(--n-warm-gray-500);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        background: var(--n-warm-white);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        letter-spacing: 0.125px;
+    }
+
+    .change-rank, .book-rank, .book-change, .book-weeks, .book-reason {
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    .rank-up { color: var(--n-teal); }
+    .rank-down { color: var(--n-orange); }
+    .rank-stable { color: var(--n-warm-gray-500); }
+    .book-change { color: var(--n-teal); }
+    .book-weeks { color: var(--n-orange); }
+    .book-reason { color: var(--n-blue); }
+
+    /* -- {{ _('推荐书籍网格') }} -- */
+    .recommendations-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .recommendation-card {
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .recommendation-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--n-shadow-deep);
+    }
+
+    .recommendation-cover {
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        margin-bottom: 1rem;
+        align-self: center;
+        object-fit: cover;
+    }
+
+    .recommendation-cover-placeholder {
+        width: 80px;
+        height: 120px;
+        border-radius: 8px;
+        background: var(--n-warm-white);
+        border: 1px dashed rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--n-warm-gray-300);
+        margin-bottom: 1rem;
+        align-self: center;
+    }
+
+    .recommendation-header {
+        margin-bottom: 0.75rem;
+    }
+
+    .recommendation-title {
+        margin: 0 0 0.375rem 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
+    }
+
+    .recommendation-author {
+        font-size: 0.8125rem;
+        color: var(--n-warm-gray-500);
+    }
+
+    .recommendation-reason {
+        margin-bottom: 1rem;
+        line-height: 1.5;
+        color: var(--n-warm-gray-500);
+        font-size: 0.875rem;
+        flex: 1;
+    }
+
+    .recommendation-reason p {
+        margin: 0;
+    }
+
+    /* -- {{ _('详情按钮') }} -- */
+    .book-detail-btn {
+        padding: 0.375rem 1rem;
+        border: var(--n-whisper-border);
+        border-radius: 9999px;
+        background: var(--n-badge-bg);
+        color: var(--n-badge-text);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.125px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        min-height: 32px;
+        min-width: 44px;
+    }
+
+    .book-detail-btn:hover {
+        background: var(--n-blue);
+        color: var(--n-white);
+        border-color: var(--n-blue);
+    }
+
+    /* -- {{ _('数据可视化') }} -- */
+    .visualization-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: var(--n-warm-white);
+        border-radius: 12px;
+        border: var(--n-whisper-border);
+    }
+
+    .chart-container {
+        position: relative;
+        height: 320px;
+        margin-top: 1rem;
+    }
+
+    /* -- {{ _('弹窗') }} ({{ _('居中') }} + {{ _('移动端优化') }}) -- */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.25s ease;
+        padding: 1rem;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal-content {
+        background: var(--n-white);
+        border-radius: 16px;
+        padding: 1.5rem;
+        max-width: 480px;
+        width: 100%;
+        max-height: 85vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        transform: scale(0.95) translateY(20px);
+        transition: all 0.25s ease;
+        box-shadow: var(--n-shadow-deep);
+        border: var(--n-whisper-border);
+    }
+
+    .modal-overlay.active .modal-content {
+        transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.25rem;
+        padding-bottom: 1rem;
+        border-bottom: var(--n-whisper-border);
+    }
+
+    .modal-title {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
+    }
+
+    .modal-close {
+        background: var(--n-warm-white);
+        border: var(--n-whisper-border);
+        color: var(--n-warm-gray-500);
+        font-size: 1.25rem;
+        cursor: pointer;
+        padding: 0;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .modal-close:hover {
+        background: var(--n-blue);
+        color: var(--n-white);
+        border-color: var(--n-blue);
+    }
+
+    .modal-body {
+        line-height: 1.6;
+        color: var(--n-warm-gray-500);
+        font-size: 0.9375rem;
+    }
+
+    .modal-body h4 {
+        margin: 0 0 0.75rem 0;
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--n-black);
+        letter-spacing: -0.125px;
+    }
+
+    .modal-body p {
+        margin: 0 0 0.625rem 0;
+    }
+
+    .modal-body p strong {
+        color: var(--n-black);
+        font-weight: 600;
+    }
+
+    .modal-body ul {
+        margin: 0 0 0.75rem 0;
+        padding-left: 1.25rem;
+    }
+
+    .modal-body li {
+        margin-bottom: 0.375rem;
+    }
+
+    /* -- {{ _('导航') }} & {{ _('导出卡片') }} -- */
+    .navigation-card, .export-card {
+        background: var(--n-white);
+        border: var(--n-whisper-border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: var(--n-shadow-card);
+    }
+
+    .section-title {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--n-black);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .navigation-links, .export-links {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border: var(--n-whisper-border);
+        border-radius: 9999px;
+        background: var(--n-white);
+        color: var(--n-warm-gray-500);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        min-height: 44px;
+    }
+
+    .btn:hover {
+        color: var(--n-black);
+        border-color: var(--n-warm-gray-300);
+    }
+
+    .btn-outline {
+        background: transparent;
+    }
+
+    .btn-outline:hover {
+        background: var(--n-warm-white);
+    }
+
+    /* -- {{ _('空状态') }} -- */
+    .empty-content {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        color: var(--n-warm-gray-500);
+        font-size: 0.9375rem;
+    }
+
+    /* ============================================
+       {{ _('响应式设计') }} (Notion {{ _('断点') }})
+       ============================================ */
+
+    /* Tablet (768px {{ _('以下') }}) */
+    @media (max-width: 768px) {
+        .news-hero-section {
+            flex-direction: column;
+            padding: 1.5rem;
+            gap: 1.5rem;
+        }
+
+        .news-hero-title {
+            font-size: 1.5rem;
+        }
+
+        .highlights-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .report-detail-card {
+            padding: 1.25rem;
+        }
+
+        .tab-navigation {
+            gap: 0.125rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-btn {
+            padding: 0.5rem 0.875rem;
+            font-size: 0.8125rem;
+            min-height: 40px;
+        }
+
+        .analysis-section {
+            padding: 1rem;
+        }
+
+        .change-item, .book-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.875rem;
+        }
+
+        .change-title, .book-title {
+            min-width: auto;
+            width: 100%;
+            font-size: 0.875rem;
+        }
+
+        .recommendations-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .chart-container {
+            height: 260px;
+        }
+
+        .modal-content {
+            max-width: 100%;
+            padding: 1.25rem;
+            border-radius: 12px;
+        }
+
+        .modal-overlay {
+            padding: 0.5rem;
+            align-items: flex-end;
+        }
+
+        .modal-content {
+            max-height: 90vh;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .navigation-links, .export-links {
+            flex-direction: column;
+        }
+    }
+
+    /* Mobile Small (480px {{ _('以下') }}) */
+    @media (max-width: 480px) {
+        .news-hero-section {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .news-hero-title {
+            font-size: 1.25rem;
+        }
+
+        .news-hero-meta {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .highlights-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.625rem;
+        }
+
+        .highlight-item {
+            padding: 0.75rem 0.5rem;
+        }
+
+        .highlight-icon {
+            width: 36px;
+            height: 36px;
+            margin-bottom: 0.375rem;
+        }
+
+        .highlight-number {
+            font-size: 1.25rem;
+        }
+
+        .highlight-label {
+            font-size: 0.75rem;
+        }
+
+        .report-detail-card {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .tab-btn {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        .tab-btn svg {
+            display: none;
+        }
+
+        .analysis-section {
+            padding: 0.875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .book-cover {
+            width: 40px;
+            height: 60px;
+        }
+
+        .change-title, .book-title {
+            font-size: 0.8125rem;
+        }
+
+        .change-author, .book-author {
+            font-size: 0.75rem;
+        }
+
+        .chart-container {
+            height: 220px;
+        }
+
+        .modal-content {
+            padding: 1rem;
+            max-height: 92vh;
+        }
+
+        .modal-title {
+            font-size: 1rem;
+        }
+
+        .modal-body {
+            font-size: 0.875rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script nonce="{{ csp_nonce() }}">
+'use strict';
+document.addEventListener('DOMContentLoaded', function() {
+    const reportContent = {{ content | tojson if content else 'null' }};
+
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tab = this.dataset.tab;
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabPanels.forEach(p => p.classList.remove('active'));
+            this.classList.add('active');
+            document.getElementById(tab).classList.add('active');
+        });
+    });
+
+    // {{ _('书籍详情弹窗') }}
+    const bookDetailBtns = document.querySelectorAll('.book-detail-btn');
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+    modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">{{ _('书籍详情') }}</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body"><p>{{ _('加载中') }}...</p></div>
+        </div>
+    `;
+    document.body.appendChild(modalOverlay);
+
+    const modalClose = modalOverlay.querySelector('.modal-close');
+    const modalBody = modalOverlay.querySelector('.modal-body');
+
+    function buildBookDataMap() {
+        if (!reportContent) return {};
+        const map = {};
+        const allBooks = [
+            ...(reportContent.top_changes || []),
+            ...(reportContent.new_books || []),
+            ...(reportContent.top_risers || []),
+            ...(reportContent.longest_running || []),
+            ...(reportContent.featured_books || [])
+        ];
+        for (const book of allBooks) {
+            const key = `${book.title}|${book.author}`;
+            if (!map[key]) map[key] = book;
+        }
+        return map;
+    }
+
+    const bookDataMap = buildBookDataMap();
+
+    // {{ _('封面图加载失败兜底') }}
+    document.querySelectorAll('.book-cover, .recommendation-cover').forEach(img => {
+        const parent = img.closest('[data-book-title]');
+        if (parent) {
+            const key = `${parent.dataset.bookTitle}|${parent.dataset.bookAuthor}`;
+            const book = bookDataMap[key];
+            if (book?.original_cover) {
+                img.addEventListener('error', function() {
+                    if (this.src !== book.original_cover) {
+                        this.src = book.original_cover;
+                    } else {
+                        this.style.display = 'none';
+                        const placeholder = document.createElement('div');
+                        placeholder.className = this.classList.contains('recommendation-cover') ? 'recommendation-cover-placeholder' : 'book-cover-placeholder';
+                        placeholder.title = '{{ _('暂无封面') }}';
+                        placeholder.innerHTML = '<svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>';
+                        this.parentNode.insertBefore(placeholder, this);
+                    }
+                }, { once: false });
+            }
+        }
+    });
+
+    bookDetailBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const parent = this.closest('.book-item, .change-item, .recommendation-card');
+            const bookTitle = parent.dataset.bookTitle;
+            const bookAuthor = parent.dataset.bookAuthor;
+            const key = `${bookTitle}|${bookAuthor}`;
+            const book = bookDataMap[key];
+
+            if (book) {
+                const changeHtml = book.rank_change && book.rank_change !== 0
+                    ? `<p><strong>{{ _('排名变化') }}：</strong>${book.rank_change > 0 ? '↑' : '↓'} ${Math.abs(book.rank_change)} {{ _('位') }}</p>` : '';
+                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('上榜周数') }}：</strong>${book.weeks_on_list} {{ _('周') }}</p>` : '';
+                const rankHtml = book.rank ? `<p><strong>{{ _('当前排名') }}：</strong>{{ _('第') }} ${book.rank} {{ _('名') }}</p>` : '';
+                const categoryHtml = book.category ? `<p><strong>{{ _('类别') }}：</strong>${book.category}</p>` : '';
+                const reasonHtml = book.reason ? `<p><strong>{{ _('推荐理由') }}：</strong>${book.reason}</p>` : '';
+                modalBody.innerHTML = `<h4>${bookTitle}</h4><p><strong>{{ _('作者') }}：</strong>${bookAuthor}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
+            } else {
+                modalBody.innerHTML = `<h4>${bookTitle}</h4><p><strong>{{ _('作者') }}：</strong>${bookAuthor}</p><p>{{ _('暂无更多详情数据') }}</p>`;
+            }
+            modalOverlay.classList.add('active');
+        });
+    });
+
+    modalClose.addEventListener('click', () => modalOverlay.classList.remove('active'));
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) modalOverlay.classList.remove('active'); });
+
+    // {{ _('图表渲染') }}
+    if (reportContent) {
+        const chartColors = {
+            green: 'rgba(75, 192, 192, 0.6)',
+            red: 'rgba(255, 99, 132, 0.6)',
+            gray: 'rgba(201, 203, 207, 0.6)',
+            blue: 'rgba(54, 162, 235, 0.6)',
+            blueBorder: 'rgba(54, 162, 235, 1)',
+            greenBorder: 'rgba(75, 192, 192, 1)',
+            redBorder: 'rgba(255, 99, 132, 1)',
+        };
+
+        // {{ _('排名变化柱状图') }}
+        if (reportContent.top_changes?.length > 0) {
+            const ctx = document.getElementById('top-changes-chart').getContext('2d');
+            const labels = reportContent.top_changes.map(i => i.title);
+            const data = reportContent.top_changes.map(i => i.rank_change);
+            const bgColors = data.map(c => c > 0 ? chartColors.green : c < 0 ? chartColors.red : chartColors.gray);
+            new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: '{{ _('排名变化') }}', data, backgroundColor: bgColors, borderWidth: 1 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _('排名变化') }}（{{ _('位') }}）' } } },
+                    plugins: { tooltip: { callbacks: { label: ctx => { const v = ctx.raw; return v > 0 ? `↑ ${v} {{ _('位') }}` : v < 0 ? `↓ ${Math.abs(v)} {{ _('位') }}` : '{{ _('无变化') }}'; } } } }
+                }
+            });
+        }
+
+        // {{ _('类别分布饼图') }}
+        const allBooksForCategory = [
+            ...(reportContent.top_changes || []), ...(reportContent.new_books || []),
+            ...(reportContent.top_risers || []), ...(reportContent.longest_running || []),
+            ...(reportContent.featured_books || [])
+        ];
+        if (allBooksForCategory.length > 0) {
+            const categoryData = {};
+            allBooksForCategory.forEach(b => { categoryData[b.category || '{{ _('其他') }}'] = (categoryData[b.category || '{{ _('其他') }}'] || 0) + 1; });
+            const palette = ['rgba(255,99,132,0.6)','rgba(54,162,235,0.6)','rgba(255,206,86,0.6)','rgba(75,192,192,0.6)','rgba(153,102,255,0.6)','rgba(255,159,64,0.6)','rgba(199,199,199,0.6)','rgba(83,102,255,0.6)'];
+            new Chart(document.getElementById('category-chart').getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: Object.keys(categoryData), datasets: [{ data: Object.values(categoryData), backgroundColor: palette.slice(0, Object.keys(categoryData).length), borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: ctx => { const total = ctx.dataset.data.reduce((a, b) => a + b, 0); return `${ctx.label}: ${ctx.raw}{{ _('本') }} (${Math.round(ctx.raw / total * 100)}%)`; } } } } }
+            });
+        }
+
+        // {{ _('排名变化趋势折线图') }}
+        if (reportContent.top_changes?.length > 0) {
+            new Chart(document.getElementById('trend-chart').getContext('2d'), {
+                type: 'line',
+                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: '{{ _('排名变化趋势') }}', data: reportContent.top_changes.map(i => i.rank_change), borderColor: chartColors.blueBorder, backgroundColor: 'rgba(54,162,235,0.1)', borderWidth: 2, tension: 0.3, fill: true }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _('排名变化') }}（{{ _('位') }}）' } } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
+            });
+        }
+
+        // {{ _('周榜对比图') }}
+        if (reportContent.top_changes?.length > 0) {
+            new Chart(document.getElementById('week-comparison-chart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: reportContent.top_changes.map(i => i.title),
+                    datasets: [
+                        { label: '{{ _('本周排名') }}', data: reportContent.top_changes.map(i => i.rank || 0), backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 },
+                        { label: '{{ _('上周排名') }}', data: reportContent.top_changes.map(i => Math.max(1, (i.rank || 0) + (i.rank_change || 0))), backgroundColor: chartColors.red, borderColor: chartColors.redBorder, borderWidth: 1 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _('排名') }}' }, reverse: true } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
+            });
+        }
+
+        // {{ _('排名稳定性雷达图') }}
+        if (reportContent.top_changes?.length > 0) {
+            const scores = reportContent.top_changes.map(i => Math.max(1, Math.min(100, (i.weeks_on_list || 1) * 10 - Math.abs(i.rank_change || 0) * 5)));
+            new Chart(document.getElementById('stability-chart').getContext('2d'), {
+                type: 'radar',
+                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: '{{ _('排名稳定性评分') }}', data: scores, backgroundColor: 'rgba(75,192,192,0.2)', borderColor: chartColors.greenBorder, borderWidth: 2, pointBackgroundColor: chartColors.greenBorder }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 100, title: { display: true, text: '{{ _('稳定性评分') }}' } } } }
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

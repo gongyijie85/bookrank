@@ -1,0 +1,73 @@
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "SIM",
+    "TCH",
+    "RUF",
+]
+ignore = [
+    "E501",
+    "E402",
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "RUF012",
+    "RUF013",
+    "N806",
+    "N818",
+    "B904",
+    "SIM105",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/routes/api/__init__.py" = ["F401"]
+"app/models/schemas.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = [
+    "flask.*",
+    "flask_sqlalchemy.*",
+    "flask_cors.*",
+    "flask_migrate.*",
+    "flask_mail.*",
+    "flask_wtf.*",
+    "apscheduler.*",
+    "mistune.*",
+    "bs4.*",
+    "tenacity.*",
+    "zhipuai.*",
+    "deep_translator.*",
+    "fpdf.*",
+    "openpyxl.*",
+    "PIL.*",
+    "werkzeug.*",
+    "dotenv.*",
+    "alembic.*",
+    "psycopg2.*",
+]
+ignore_missing_imports = true

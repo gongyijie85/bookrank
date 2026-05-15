@@ -1,0 +1,92 @@
+# BookRank 版本信息
+
+**当前版本**：v0.9.9
+**发布日期**：2026-05-15
+**Python 版本**：3.13
+**Flask 版本**：3.1.3
+
+## 版本亮点
+
+### v0.9.9 (2026-05-15) — 分类切换报错修复与语言同步优化
+- **分类切换报错修复**：`/api/category-books` 接口增加异常降级处理，服务异常时返回空列表而非500错误
+- **语言同步优化**：`base.html` 内联脚本优先尊重用户 localStorage 语言设置，不再强制覆盖为服务端语言
+
+### v0.9.8 (2026-05-15) — 语言切换按钮修复
+- **修复语言切换按钮状态不同步**：切换到中文版后，导航栏语言按钮始终显示正确状态（中/EN）
+- **消除竞态条件**：统一语言初始化逻辑，确保 DOM 加载完成后再更新 UI
+
+### v0.9.7 (2026-05-14) — 路由层 db.session 治理 & 前端 XSS 加固
+- **路由层 db.session 治理**：`new_book_detail` 路由改用 `NewBookService.get_book`，异步翻译逻辑提取至 `NewBookService.translate_book_background`
+- **翻译闭包治理**：`_merge_or_translate_book` 的异步翻译闭包改用 `UserService.save_book_translation`，消除闭包内直接 db.session 操作
+- **前端 XSS 加固**：`index.html` 搜索历史 `aria-label`、`analytics_dashboard.html` 表格行模板变量全部使用 `escapeHtml()` 转义
+- **User-Agent 配置化**：`open_library_client.py` User-Agent 从配置读取，不再硬编码
+- **类型注解修复**：`user_service.py` 返回类型移除字符串前引
+
+### v0.9.6 (2026-05-14) - 配置项集中管理 & 图表颜色规范化
+- **配置项迁移**：6 个配置项（TTL、模型名称、缓存容量）迁移到 `config.py`
+- **图表颜色规范化**：`analytics_dashboard.html` 所有图表颜色统一由 `chartColors` 对象管理
+
+### v0.9.5 (2026-05-14) - API 路由统一错误处理装饰器
+- **装饰器统一接管**：31 个 API 函数引入 `@handle_api_errors`，错误返回格式统一
+- **代码简化**：移除 31 处手动 try/except，减少约 150 行代码
+
+### v0.9.4 (2026-05-14) - 前端 XSS 漏洞修复
+- **购买链接 XSS 修复**：`index.html` 中 `link.name` 未转义直接注入 DOM，现使用 `escapeHtml()` 转义
+- **SVG 注入防护**：`base.html` SVG Sprite 加载增加类型、格式、结构三重验证
+- **数据表格转义**：`analytics_dashboard.html` 所有用户可见数据使用 `escapeHtml()` 转义
+
+### v0.9.3 (2026-05-14) - SECRET_KEY 管理与 CORS 配置修复
+- **SECRET_KEY 固定化**：开发环境使用固定密钥，生产环境强制环境变量校验
+- **CORS 配置修复**：开发/测试/生产环境分离，credentials 组合合规
+
+### v0.9.2 (2026-05-14) - 缓存高频写入优化
+- **缓存命中即 commit 修复**：`api_cache_service.py` 和 `translation_cache_service.py` 读路径移除数据库写入
+- **日志补全**：`analytics_service.py` 添加 logging 和异常处理
+
+### v0.9.1 (2026-05-14) - 数据库迁移系统修复
+- **8 个缺失表迁移**：新增 `create_all_missing_tables.py`，包含完整 CREATE TABLE 语句
+- **迁移链修复**：迁移链顺序正确，支持 `flask db upgrade` 完整重建
+
+### v0.9.0 (2026-05-14) - 全面代码审计
+- **全项目代码审计**：覆盖路由层、服务层、模型层、前端模板、配置安全和测试体系
+- **发现 120+ 问题**：8 项严重、15 项高危、40+ 项中等、57 项低危
+- **审计报告输出**：详见 `CHANGELOG.md` 和 `docs/code-audit-report-2026-05-14.md`
+- **修复优先级矩阵**：P0-P3 四级优先级，指导后续修复工作
+
+### v0.8.2 (2026-05-14) - Flask-Babel 4.0 兼容性修复
+- **修复生产环境 500 错误**：`get_locale()` 在模板中未定义问题
+- **Flask-Babel 4.0 API 适配**：`locale_selector` 改为属性赋值 + Jinja2 globals 注入
+
+### v0.8.1 (2026-05-11) - 语言切换 Bug 修复
+- **分类标签语言翻转修复**：中英文界面分类标签显示正确
+- **服务端渲染语言适配**：`index.html`、`_macros.html`、`awards.html` 服务端渲染根据 locale 切换内容
+
+### v0.8.0 (2026-05-11) - 全线优化升级
+- **生产依赖精简**：新增 `requirements-prod.txt`，移除开发工具减少内存占用
+- **错误监控**：内置内存错误追踪器（`/admin/errors` 路由）
+- **CSRF 保护全量覆盖**：所有 POST 路由已有 CSRF 保护
+- **代码整洁**：删除 28 个临时调试文件，17 个脚本移入 `scripts/`
+- **性能优化**：CSS 构建缓存检测 + Gzip 响应压缩 + SW 缓存策略 v2
+- **文档同步**：README/VERSION/CHANGELOG 更新至当前状态
+
+### v0.7.0 (2026-04) - Render 部署优化
+- PostgreSQL 连接池极致优化（pool_size=2, overflow=1）
+- Gunicorn 单 worker 模式 + `--preload` 共享内存
+- APScheduler 内存队列调度
+- 智能处理 Render 数据库冷启动
+- SQLAlchemy 2.0 兼容就绪
+
+### v0.6.0 (2026-03) - 代码架构升级
+- API 路由拆分为子模块
+- 周报模块标准化
+- 代码质量工具链集成（Ruff + mypy + pre-commit）
+
+### v0.5.0 (2026-02) - 功能扩展
+- 新书速递爬虫系统
+- 智谱AI翻译服务
+- 每周报告生成
+
+### v0.4.0 (2026-01) - 基础完善
+- 缓存系统
+- 奖项书单
+- 数据导出功能
