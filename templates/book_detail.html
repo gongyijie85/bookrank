@@ -56,8 +56,7 @@
             <!-- 元信息网格 - 仅显示有效数据，隐藏 Unknown -->
             <div class="detail-meta-grid">
                 {% set pub = book.publisher %}
-            {% set invalid_publishers = ['Unknown', 'Unknown Publisher', 'N/A', '', '精装小说', 'Hardcover Fiction', '平装小说', 'Paperback Fiction', '虚构类', 'Fiction', '非虚构类', 'Nonfiction', '青少年', "Young Adult", '儿童图书', "Children's", '建议读物', 'Advice', '如何做', 'How-To'] %}
-            {% if pub and pub not in invalid_publishers and pub not in (book.category_name, book.list_name) and pub|length > 3 %}
+                {% if pub and not (pub|is_invalid_publisher) and pub.strip() not in (book.category_name, book.list_name) %}
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
                     <div>
@@ -88,22 +87,12 @@
                 {% endif %}
 
                 {% set isbn_value = book.isbn13 or book.isbn10 %}
-                {% set is_valid_isbn = false %}
-                {% if isbn_value %}
-                    {% set clean_isbn = isbn_value|replace('-', '')|replace(' ', '') %}
-                    {% set _digits = clean_isbn|replace('0','')|replace('1','')|replace('2','')|replace('3','')|replace('4','')|replace('5','')|replace('6','')|replace('7','')|replace('8','')|replace('9','') %}
-                    {% if clean_isbn|length == 13 and clean_isbn[0:3] in ('978', '979') and _digits == '' %}
-                        {% set is_valid_isbn = true %}
-                    {% elif clean_isbn|length == 10 and (_digits == '' or _digits in ('X', 'x')) and _digits|length <= 1 %}
-                        {% set is_valid_isbn = true %}
-                    {% endif %}
-                {% endif %}
-                {% if is_valid_isbn %}
+                {% if isbn_value and isbn_value|is_valid_isbn %}
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="isbn_label">{{ _('ISBN') }}</div>
-                        <div class="meta-value">{{ clean_isbn }}</div>
+                        <div class="meta-value">{{ isbn_value|clean_isbn }}</div>
                     </div>
                 </div>
                 {% endif %}
@@ -113,7 +102,9 @@
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-tag"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="book_category">{{ _('分类') }}</div>
-                        <div class="meta-value">{% if get_locale() == 'zh' %}{{ book.category_name }}{% else %}{{ book.list_name }}{% endif %}</div>
+                        <div class="meta-value" data-cat-zh="{{ book.category_name|default('') }}" data-cat-en="{{ book.list_name|default('') }}">
+                            {{ book.category_name or book.list_name }}
+                        </div>
                     </div>
                 </div>
                 {% endif %}
@@ -133,7 +124,7 @@
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-globe"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="language_label">{{ _('语言') }}</div>
-                        <div class="meta-value">{{ book.language }}</div>
+                        <div class="meta-value" data-lang-zh="{{ book.language }}" data-lang-en="{% if '英' in book.language or 'English' in book.language %}English{% elif '中' in book.language or 'Chinese' in book.language %}Chinese{% else %}{{ book.language }}{% endif %}">{{ book.language }}</div>
                     </div>
                 </div>
                 {% endif %}
@@ -829,21 +820,25 @@
             switchDetailLang('en');
         }
 
-        // 分类名称语言切换支持
-        var catValueZh = '{{ book.category_name|default("") }}';
-        var catValueEn = '{{ book.list_name|default("") }}';
-        var catValueEl = document.querySelector('.meta-card .meta-value');
-        if (catValueEl) {
-            catValueEl.dataset.zh = catValueZh;
-            catValueEl.dataset.en = catValueEn;
-        }
+        // 分类名称语言切换支持（通过 data-cat-zh / data-cat-en 属性）
+        var catValueEl = document.querySelector('.meta-card .meta-value[data-cat-zh]');
 
-        // Extend switchDetailLang to also handle category name
+        // 语言值语言切换支持（通过 data-lang-zh / data-lang-en 属性）
+        var langValueEl = document.querySelector('.meta-card .meta-value[data-lang-zh]');
+
+        // Extend switchDetailLang to also handle category and language values
         var _origSwitchLang = switchDetailLang;
         switchDetailLang = function(lang) {
             _origSwitchLang(lang);
             if (catValueEl) {
-                catValueEl.textContent = lang === 'zh' ? (catValueEl.dataset.zh || '') : (catValueEl.dataset.en || '');
+                catValueEl.textContent = lang === 'zh'
+                    ? (catValueEl.dataset.catZh || '')
+                    : (catValueEl.dataset.catEn || '');
+            }
+            if (langValueEl) {
+                langValueEl.textContent = lang === 'zh'
+                    ? (langValueEl.dataset.langZh || '')
+                    : (langValueEl.dataset.langEn || '');
             }
         };
     })();
