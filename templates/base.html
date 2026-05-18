@@ -286,16 +286,26 @@
     <script nonce="{{ csp_nonce() }}">
         (function() {
             const serverLang = '{{ get_locale() }}';
-            // 优先使用用户通过UI切换的语言设置，避免服务端语言覆盖用户选择
             const userLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+            
+            // 情况1：用户有保存的语言，且与服务端不一致 → 同步cookie并刷新
+            if (userLang && userLang !== serverLang) {
+                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax';
+                // 添加一个小标志避免循环刷新
+                if (!sessionStorage.getItem('lang_refreshed')) {
+                    sessionStorage.setItem('lang_refreshed', '1');
+                    window.location.reload();
+                    return;
+                }
+            }
+            
+            // 清理刷新标志
+            sessionStorage.removeItem('lang_refreshed');
+            
+            // 情况2：保持一致，同步localStorage
             const finalLang = userLang || serverLang;
             localStorage.setItem('app_language', finalLang);
             localStorage.setItem('bookrank_language', finalLang);
-            // 如果用户语言与服务端不一致，静默同步（不刷新页面，避免循环重定向）
-            if (userLang && userLang !== serverLang) {
-                // 仅更新cookie，不强制刷新，让下次页面加载时生效
-                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax';
-            }
         })();
     </script>
 

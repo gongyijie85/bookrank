@@ -1,5 +1,28 @@
 # Change Log
 
+## v0.9.10 - 2026-05-18 - 语言切换完整修复
+
+### 修复内容
+
+#### 1. 修复语言同步循环问题
+- **问题**: base.html的内联脚本与服务端语言不同步，导致语言切换后页面内容不更新
+- **解决方案**: 
+  - 优先检查localStorage中用户保存的语言
+  - 如果localStorage语言与服务端语言不一致，同步到cookie并刷新页面
+  - 添加sessionStorage标志防止无限循环刷新
+- **涉及文件**: templates/base.html
+
+#### 2. 重新编译翻译文件
+- **问题**: 可能存在.mo文件与.po文件不同步的问题
+- **解决方案**: 重新编译所有语言的.po文件到.mo文件
+- **涉及文件**: translations/zh/LC_MESSAGES/messages.mo, translations/en/LC_MESSAGES/messages.mo
+
+### 技术改进
+- 修复了语言切换后导航菜单不更新为中文的问题
+- 确保了localStorage、Cookie和服务端渲染语言的完全同步
+
+---
+
 ## v0.9.9 - 2026-05-15 - 分类切换报错修复与语言同步优化
 
 ### 修复内容
