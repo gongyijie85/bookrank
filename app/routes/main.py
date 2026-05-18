@@ -26,6 +26,21 @@ main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
 
 
+def _is_valid_isbn(value: str | None) -> bool:
+    """校验字符串是否为合法 ISBN-10 或 ISBN-13"""
+    if not value:
+        return False
+    clean = re.sub(r'[\s\-]', '', value)
+    if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
+        return True
+    if len(clean) == 10:
+        prefix = clean[:9]
+        suffix = clean[9]
+        if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
+            return True
+    return False
+
+
 def _get_books_for_category(category: str) -> tuple[list, str | None]:
     """获取指定分类的书籍数据（统一入口）"""
     categories = current_app.config['CATEGORIES']
@@ -461,7 +476,7 @@ def book_detail(book_index):
     book = books_data[book_index]
 
     isbn = book.get('isbn13') or book.get('isbn10')
-    if isbn:
+    if isbn and _is_valid_isbn(isbn):
         _fetch_google_books_details(book, isbn)
         _merge_or_translate_book(book, isbn)
 
@@ -569,9 +584,9 @@ def _update_book_from_google_books(book: dict, details: dict) -> None:
     if details.get('cover_url') and not book.get('cover'):
         book['cover'] = details['cover_url']
 
-    if details.get('isbn_13') and not book.get('isbn13'):
+    if details.get('isbn_13') and _is_valid_isbn(details['isbn_13']) and not book.get('isbn13'):
         book['isbn13'] = details['isbn_13']
-    if details.get('isbn_10') and not book.get('isbn10'):
+    if details.get('isbn_10') and _is_valid_isbn(details['isbn_10']) and not book.get('isbn10'):
         book['isbn10'] = details['isbn_10']
 
     if book.get('description') and not book.get('description_zh'):
