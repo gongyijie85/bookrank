@@ -1,5 +1,42 @@
 # Change Log
 
+## v0.9.16 - 2026-05-18 - ISBN 格式严格校验 + 详情页硬编码中文修复
+
+### 修复内容
+
+#### 1. ISBN 显示错误值（如"精装小说"）
+**问题**: ISBN 栏位显示 NYT API 返回的分类名而非真实 ISBN
+**根因**: 原过滤条件仅检查 `length > 8`，分类名字符串也满足此条件
+**修复**:
+- 实现严格的 ISBN 格式校验（Jinja2 模板层）：
+  - **ISBN-13**: 必须以 `978` 或 `979` 开头，且为 13 位纯数字
+  - **ISBN-10**: 必须为 10 位（前 9 位数字，末位可为 `X`/`x`）
+  - 先去除连字符和空格再校验
+  - 不符合格式的值直接隐藏 ISBN 卡片
+
+#### 2. 出版社显示无效值
+**问题**: 出版社栏位显示分类名等非出版社字符串
+**修复**:
+- 扩展无效值黑名单：覆盖 NYT API 所有已知分类名
+  - 中文：精装小说、平装小说、虚构类、非虚构类、青少年、儿童图书、建议读物、如何做
+  - 英文：Hardcover Fiction, Paperback Fiction, Fiction, Nonfiction, Young Adult, Children's, Advice, How-To
+  - 通用：Unknown, Unknown Publisher, N/A
+- 额外排除与 category_name / list_name 相同的值
+- 要求长度 > 3（过滤过短的无效字符串）
+
+#### 3. 详情页英文模式下仍有中文残留
+**问题**: "查看英文原文"/"收起英文原文" 按钮文字在英文模式仍显示中文
+**根因**: `toggleOriginal()` 和 `switchDetailLang()` 函数中硬编码中文字符串
+**修复**:
+- 两处硬编码改为调用 `t('view_original')` / `t('hide_original')` 翻译函数
+- translations.js 新增 `hide_original` 键值（zh: 收起英文原文 / en: Hide Original）
+
+### 涉及文件
+- `templates/book_detail.html`: ISBN 严格格式校验 + 出版社黑名单 + 硬编码中文改用翻译函数
+- `static/js/translations.js`: 新增 hide_original 键值
+
+---
+
 ## v0.9.15 - 2026-05-18 - 修复语言按钮不更新 + ISBN 显示问题
 
 ### 修复内容

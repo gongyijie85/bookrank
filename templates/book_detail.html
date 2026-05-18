@@ -56,7 +56,8 @@
             <!-- 元信息网格 - 仅显示有效数据，隐藏 Unknown -->
             <div class="detail-meta-grid">
                 {% set pub = book.publisher %}
-                {% if pub and pub not in ('Unknown', 'Unknown Publisher', book.category_name, book.list_name) and pub != '精装小说' and pub != ' Hardcover Fiction' %}
+            {% set invalid_publishers = ['Unknown', 'Unknown Publisher', 'N/A', '', '精装小说', 'Hardcover Fiction', '平装小说', 'Paperback Fiction', '虚构类', 'Fiction', '非虚构类', 'Nonfiction', '青少年', "Young Adult", '儿童图书', "Children's", '建议读物', 'Advice', '如何做', 'How-To'] %}
+            {% if pub and pub not in invalid_publishers and pub not in (book.category_name, book.list_name) and pub|length > 3 %}
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
                     <div>
@@ -87,12 +88,21 @@
                 {% endif %}
 
                 {% set isbn_value = book.isbn13 or book.isbn10 %}
-                {% if isbn_value and isbn_value|length > 8 %}
+                {% set is_valid_isbn = false %}
+                {% if isbn_value %}
+                    {% set clean_isbn = isbn_value|replace('-', '')|replace(' ', '') %}
+                    {% if clean_isbn|length == 13 and clean_isbn[0:3] in ('978', '979') and clean_isbn|is digit %}
+                        {% set is_valid_isbn = true %}
+                    {% elif clean_isbn|length == 10 and (clean_isbn|is digit or (clean_isbn[0:9]|is digit and clean_isbn[9] in ('X', 'x'))) %}
+                        {% set is_valid_isbn = true %}
+                    {% endif %}
+                {% endif %}
+                {% if is_valid_isbn %}
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="isbn_label">{{ _('ISBN') }}</div>
-                        <div class="meta-value">{{ isbn_value }}</div>
+                        <div class="meta-value">{{ clean_isbn }}</div>
                     </div>
                 </div>
                 {% endif %}
@@ -730,13 +740,16 @@
         const btn = content ? content.previousElementSibling : null;
         if (!content || !btn) return;
 
+        var tViewOrig = (typeof t === 'function') ? t('view_original', null) : '\u67e5\u770b\u82f1\u6587\u539f\u6587';
+        var tHideOrig = (typeof t === 'function') ? t('hide_original', null) : '\u6536\u8d77\u82f1\u6587\u539f\u6587';
+
         const isVisible = content.classList.contains('visible');
         if (isVisible) {
             content.classList.remove('visible');
-            btn.querySelector('.toggle-text').textContent = '查看英文原文';
+            btn.querySelector('.toggle-text').textContent = tViewOrig;
         } else {
             content.classList.add('visible');
-            btn.querySelector('.toggle-text').textContent = '收起英文原文';
+            btn.querySelector('.toggle-text').textContent = tHideOrig;
         }
     }
 
@@ -774,7 +787,8 @@
             if (detailsEnEl) { detailsEnEl.style.display = ''; detailsEnEl.classList.remove('visible'); }
             toggleBtns.forEach(btn => {
                 btn.style.display = '';
-                btn.querySelector('.toggle-text').textContent = '查看英文原文';
+                var tViewOrig2 = (typeof t === 'function') ? t('view_original', null) : '\u67e5\u770b\u82f1\u6587\u539f\u6587';
+                btn.querySelector('.toggle-text').textContent = tViewOrig2;
             });
         }
     }

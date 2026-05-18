@@ -43,6 +43,7 @@ const TRANSLATIONS = {
         'book_description': '图书简介',
         'book_details': '详细信息',
         'view_original': '查看英文原文',
+        'hide_original': '收起英文原文',
         'no_description': '暂无简介',
         // 首页
         'page_title_bestsellers': '纽约时报畅销书排行榜',
@@ -152,6 +153,7 @@ const TRANSLATIONS = {
         'book_description': 'Description',
         'book_details': 'Details',
         'view_original': 'View Original',
+        'hide_original': 'Hide Original',
         'no_description': 'No description',
         // Home
         'page_title_bestsellers': 'NYT Bestsellers',
