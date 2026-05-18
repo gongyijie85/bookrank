@@ -877,5 +877,16 @@ def set_language():
         lang = 'en'
     next_url = request.args.get('next', '/')
     response = make_response(redirect(next_url))
-    response.set_cookie('lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
+    # 获取当前请求的域名用于设置 cookie domain
+    host = request.host.split(':')[0]  # 去掉端口号
+    # 对于 Render 等部署平台，需要设置正确的 domain
+    cookie_domain = host if '.' in host else None
+    response.set_cookie(
+        'lang',
+        lang,
+        max_age=60 * 60 * 24 * 365,
+        samesite='Lax',
+        domain=cookie_domain,
+        path='/'
+    )
     return response

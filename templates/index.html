@@ -2154,15 +2154,19 @@
             const data = await response.json();
             
             if (!data.success) {
-                throw new Error(data.error || '加载失败');
+                throw new Error(data.message || data.error || '加载失败');
             }
+            
+            // API返回格式: {success: true, data: {books: [...], category: ..., update_time: ...}}
+            const apiData = data.data || data;
+            const books = apiData.books || [];
             
             // 更新当前分类
             window.currentCategory = category;
-            window.booksData = data.books;
+            window.booksData = books;
             
             // 更新页面
-            updateBooksOnPage(data.books, category, data.update_time);
+            updateBooksOnPage(books, category, apiData.update_time);
             
             // 更新URL（不刷新页面）
             const newUrl = `/?category=${encodeURIComponent(category)}`;

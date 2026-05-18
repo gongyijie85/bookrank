@@ -288,9 +288,13 @@
             const serverLang = '{{ get_locale() }}';
             const userLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
             
+            // 获取当前域名用于 cookie
+            const host = window.location.hostname;
+            const cookieDomain = host.includes('.') ? host : '';
+            
             // 情况1：用户有保存的语言，且与服务端不一致 → 同步cookie并刷新
             if (userLang && userLang !== serverLang) {
-                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax';
+                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
                 // 添加一个小标志避免循环刷新
                 if (!sessionStorage.getItem('lang_refreshed')) {
                     sessionStorage.setItem('lang_refreshed', '1');

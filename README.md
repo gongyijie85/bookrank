@@ -225,6 +225,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.11 - 分类切换崩溃修复 & Cookie Domain 修复：changeCategory() API 数据路径错误修复，/set-language 自动获取域名解决 Render 部署 cookie 不生效
 - v0.9.10 - 语言切换完整修复：base.html内联脚本语言同步优化，所有翻译文件重新编译，导航菜单完整显示中文
 - v0.9.9 - 分类切换报错修复与语言同步优化：`/api/category-books` 异常处理增强，语言切换后 localStorage 不再被服务端覆盖
 - v0.9.8 - 语言切换按钮修复：切换中文版后导航栏按钮状态同步，消除竞态条件

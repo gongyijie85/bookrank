@@ -1,5 +1,29 @@
 # Change Log
 
+## v0.9.11 - 2026-05-18 - 分类切换崩溃修复 & Cookie Domain 修复
+
+### 修复内容
+
+#### 1. 修复分类切换崩溃（TypeError: Cannot read properties of undefined (reading 'map')）
+**问题描述**: 切换图书分类时，前端 `changeCategory()` 函数调用 `.map()` 时崩溃
+**根本原因**: API 返回格式为 `{success: true, data: {books: [...]}}`，但前端代码用 `data.books` 而非 `data.data.books`
+**修复方案**: 
+- 在 `changeCategory()` 函数中添加 `const apiData = data.data || data; const books = apiData.books || [];`
+- 确保即使 API 返回异常格式也不会崩溃
+**涉及文件**: `templates/index.html`
+
+#### 2. 修复 Cookie Domain 导致语言不生效
+**问题描述**: 切换到中文后，导航菜单仍显示英文（Home, Awards 等）
+**根本原因**: `/set-language` 路由设置 cookie 时没有指定 domain 参数，导致在 Render 等部署平台上 cookie 无法正确保存
+**修复方案**:
+- `/set-language` 路由：自动获取当前请求域名并设置 cookie domain
+- `base.html` 内联脚本：同步添加 domain 参数
+**涉及文件**: 
+- `app/routes/main.py`: `set_language()` 函数
+- `templates/base.html`: 语言初始化脚本
+
+---
+
 ## v0.9.10 - 2026-05-18 - 语言切换完整修复
 
 ### 修复内容
