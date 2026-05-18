@@ -222,6 +222,9 @@ let currentLanguage = localStorage.getItem('app_language') || localStorage.getIt
 
 window.addEventListener('languagechange', function(e) {
     currentLanguage = e.detail.language;
+    if (typeof applyPageTranslation === 'function') {
+        applyPageTranslation(currentLanguage);
+    }
     if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
         BookI18n.applyLanguage(currentLanguage);
         if (currentLanguage === 'zh') {

@@ -112,24 +112,74 @@ var BookI18n = (function() {
     }
 
     function applyLanguage(lang) {
-        _store.forEach(function(entry, isbn) {
-            var data = get(isbn, lang);
+        if (_store.size === 0) return;
+
+        var hasDataIsbn = document.querySelectorAll('[data-isbn]').length > 0;
+
+        if (hasDataIsbn || _store.size > 1) {
+            _store.forEach(function(entry, isbn) {
+                var data = get(isbn, lang);
+                if (!data) return;
+
+                var cards = document.querySelectorAll('[data-isbn="' + isbn + '"]');
+                for (var c = 0; c < cards.length; c++) {
+                    var card = cards[c];
+                    _updateElement(card.querySelector(TITLE_SELECTORS), data.title);
+                    _updateElement(card.querySelector(DESC_SELECTORS), data.description, 80);
+                    _updateElement(card.querySelector(CAT_SELECTORS), data.category);
+                }
+            });
+        } else if (_store.size === 1) {
+            var onlyEntry = null;
+            _store.forEach(function(entry) { onlyEntry = entry; });
+            var data = get(onlyEntry.isbn, lang);
             if (!data) return;
 
-            var cards = document.querySelectorAll('[data-isbn="' + isbn + '"]');
-            for (var c = 0; c < cards.length; c++) {
-                var card = cards[c];
+            var detailTitle = document.querySelector('.detail-title');
+            if (detailTitle) _updateElement(detailTitle, data.title);
 
-                var titleEl = card.querySelector(TITLE_SELECTORS);
-                _updateElement(titleEl, data.title);
-
-                var descEl = card.querySelector(DESC_SELECTORS);
-                _updateElement(descEl, data.description, 80);
-
-                var catEl = card.querySelector(CAT_SELECTORS);
-                _updateElement(catEl, data.category);
+            var titleEnEl = document.querySelector('.detail-title-en');
+            if (titleEnEl) {
+                if (lang === 'zh' && data.title !== onlyEntry.en.title) {
+                    titleEnEl.style.display = 'block';
+                    titleEnEl.textContent = onlyEntry.en.title;
+                } else {
+                    titleEnEl.style.display = 'none';
+                }
             }
-        });
+
+            var descZhEl = document.querySelector('#panel-description .zh-description');
+            var descEnEl = document.querySelector('#panel-description #desc-en, #panel-description .lang-toggle-content');
+            if (descZhEl && descEnEl) {
+                if (lang === 'zh') {
+                    if (data.description && data.description !== onlyEntry.en.description) {
+                        descZhEl.textContent = data.description;
+                        descZhEl.style.display = 'block';
+                        descEnEl.style.display = '';
+                    } else {
+                        descZhEl.style.display = 'none';
+                        descEnEl.style.display = 'block';
+                    }
+                } else {
+                    descZhEl.style.display = 'none';
+                    descEnEl.style.display = 'block';
+                }
+            }
+
+            var catValueEl = document.querySelector('.detail-meta-grid .meta-card:nth-child(4) .meta-value, .meta-card:has(.meta-label[data-i18n="book_category"]) .meta-value');
+            if (catValueEl) {
+                _updateElement(catValueEl, data.category);
+            }
+
+            var toggleBtns = document.querySelectorAll('.lang-toggle-btn');
+            toggleBtns.forEach(function(btn) {
+                var textEl = btn.querySelector('.toggle-text');
+                if (textEl) {
+                    textEl.textContent = lang === 'zh' ? '\u67e5\u770b\u82f1\u6587\u539f\u6587' : 'View Original';
+                }
+                btn.style.display = lang === 'zh' ? '' : 'none';
+            });
+        }
 
         window.dispatchEvent(new CustomEvent('booklanguagechange', {
             detail: { language: lang }

@@ -2684,6 +2684,10 @@
         var lang = e.detail.language;
         currentLanguage = lang;
 
+        if (typeof applyPageTranslation === 'function') {
+            applyPageTranslation(lang);
+        }
+
         if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
             BookI18n.applyLanguage(lang);
 

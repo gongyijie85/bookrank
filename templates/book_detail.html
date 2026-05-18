@@ -6,7 +6,7 @@
 <main class="main-content book-detail-page">
     <!-- 返回按钮 -->
     <div class="detail-nav">
-        <a href="{{ back_url }}" class="back-btn">
+        <a href="{{ back_url }}" class="back-btn" data-i18n="back_to_list">
             <svg class="icon" width="20" height="20"><use href="#icon-arrow-left"/></svg>
             {{ _('返回榜单') }}
         </a>
@@ -28,7 +28,7 @@
             <!-- 购买链接 -->
             {% if book.buy_links %}
             <div class="buy-section">
-                <div class="buy-section-title">
+                <div class="buy-section-title" data-i18n="buy_links">
                     <svg class="icon" width="16" height="16"><use href="#icon-cart"/></svg>
                     {{ _('购买链接') }}
                 </div>
@@ -59,7 +59,7 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
                     <div>
-                        <div class="meta-label">{{ _('出版社') }}</div>
+                        <div class="meta-label" data-i18n="book_publisher">{{ _('出版社') }}</div>
                         <div class="meta-value">{{ book.publisher }}</div>
                     </div>
                 </div>
@@ -69,7 +69,7 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-calendar"/></svg></span>
                     <div>
-                        <div class="meta-label">{{ _('出版日期') }}</div>
+                        <div class="meta-label" data-i18n="book_pub_date">{{ _('出版日期') }}</div>
                         <div class="meta-value">{{ book.publication_dt }}</div>
                     </div>
                 </div>
@@ -79,8 +79,8 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-file-text"/></svg></span>
                     <div>
-                        <div class="meta-label">{{ _('页数') }}</div>
-                        <div class="meta-value">{{ book.page_count }} {{ _('页') }}</div>
+                        <div class="meta-label" data-i18n="book_pages">{{ _('页数') }}</div>
+                        <div class="meta-value">{{ book.page_count }} <span data-i18n="page_suffix">{{ _('页') }}</span></div>
                     </div>
                 </div>
                 {% endif %}
@@ -89,7 +89,7 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
                     <div>
-                        <div class="meta-label">{{ _('ISBN') }}</div>
+                        <div class="meta-label" data-i18n="isbn_label">{{ _('ISBN') }}</div>
                         <div class="meta-value">{{ book.isbn13 or book.isbn10 }}</div>
                     </div>
                 </div>
@@ -99,7 +99,7 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-tag"/></svg></span>
                     <div>
-                        <div class="meta-label">{{ _('分类') }}</div>
+                        <div class="meta-label" data-i18n="book_category">{{ _('分类') }}</div>
                         <div class="meta-value">{% if get_locale() == 'zh' %}{{ book.category_name }}{% else %}{{ book.list_name }}{% endif %}</div>
                     </div>
                 </div>
@@ -109,8 +109,8 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg></span>
                     <div>
-                        <div class="meta-label">{{ _('上榜周数') }}</div>
-                        <div class="meta-value">{{ book.weeks_on_list }} {{ _('周') }}</div>
+                        <div class="meta-label" data-i18n="weeks_on_list">{{ _('上榜周数') }}</div>
+                        <div class="meta-value">{{ book.weeks_on_list }} <span data-i18n="week_suffix">{{ _('周') }}</span></div>
                     </div>
                 </div>
                 {% endif %}
@@ -119,7 +119,7 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-globe"/></svg></span>
                     <div>
-                        <div class="meta-label">{{ _('语言') }}</div>
+                        <div class="meta-label" data-i18n="language_label">{{ _('语言') }}</div>
                         <div class="meta-value">{{ book.language }}</div>
                     </div>
                 </div>
@@ -129,12 +129,12 @@
             <!-- 简介和详情标签页 -->
             <div class="detail-tabs-wrapper">
                 <div class="detail-tabs">
-                    <button class="tab-btn active" id="tab-description" data-tab="description">
+                    <button class="tab-btn active" id="tab-description" data-tab="description" data-i18n="book_description">
                         <svg class="icon" width="16" height="16"><use href="#icon-book-open"/></svg>
                         {{ _('图书简介') }}
                     </button>
                     {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
-                    <button class="tab-btn" id="tab-details" data-tab="details">
+                    <button class="tab-btn" id="tab-details" data-tab="details" data-i18n="book_details">
                         <svg class="icon" width="16" height="16"><use href="#icon-info"/></svg>
                         {{ _('详细信息') }}
                     </button>
@@ -149,14 +149,14 @@
                         {% if book.description and book.description != 'No summary available.' %}
                         <button class="lang-toggle-btn" onclick="toggleOriginal('desc')">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
-                            <span class="toggle-text">{{ _('查看英文原文') }}</span>
+                            <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
                         <div class="en-description lang-toggle-content" id="desc-en">{{ book.description }}</div>
                         {% endif %}
                         {% elif book.description and book.description != 'No summary available.' %}
                         <p>{{ book.description }}</p>
                         {% else %}
-                        <p class="empty-text">{{ _('暂无简介') }}</p>
+                        <p class="empty-text" data-i18n="no_description">{{ _('暂无简介') }}</p>
                         {% endif %}
                     </div>
 
@@ -167,7 +167,7 @@
                         {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
                         <button class="lang-toggle-btn" onclick="toggleOriginal('details')">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
-                            <span class="toggle-text">{{ _('查看英文原文') }}</span>
+                            <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
                         <div class="detail-content lang-toggle-content" id="details-en">{{ book.details }}</div>
                         {% endif %}
@@ -834,6 +834,9 @@
     window.addEventListener('languagechange', function(e) {
         var newLang = e.detail && e.detail.language;
         if (!newLang) return;
+        if (typeof applyPageTranslation === 'function') {
+            applyPageTranslation(newLang);
+        }
         switchDetailLang(newLang);
         if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
             BookI18n.applyLanguage(newLang);

@@ -1236,6 +1236,9 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('languagechange', function(e) {
         var newLang = e.detail && e.detail.language;
         if (!newLang) return;
+        if (typeof applyPageTranslation === 'function') {
+            applyPageTranslation(newLang);
+        }
         if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
             BookI18n.applyLanguage(newLang);
             if (newLang === 'zh') {

@@ -1,5 +1,38 @@
 # Change Log
 
+## v0.9.14 - 2026-05-18 - 修复语言切换中英混杂 Bug
+
+### 修复内容
+
+#### 1. 详情页（book_detail.html）英文模式下标签显示中文
+**问题**: 选择英文时，"出版日期""页数""上榜周数""语言"等 meta-label 仍显示中文
+**根因**: `.meta-label` 元素使用 `{{ _('xxx') }}` 服务端渲染，没有 `data-i18n` 属性，`applyPageTranslation('en')` 无法处理
+**修复**: 给所有 `.meta-label`、`.buy-section-title`、`.tab-btn`、`.lang-toggle-btn .toggle-text` 添加 `data-i18n` 属性
+
+#### 2. 详情页中文模式下书名/描述仍显示英文
+**问题**: 选择中文时，书名和描述仍是英文原文
+**根因**: BookI18n.applyLanguage() 通过 `[data-isbn="xxx"]` 查找元素，但 book_detail.html 无此属性
+**修复**: 重写 applyLanguage() 支持详情页模式（_store.size===1 时直接查找 .detail-title / .zh-description 等元素）
+
+#### 3. 所有页面 languagechange 处理器缺少 applyPageTranslation() 调用
+**问题**: 切换语言时只调了 BookI18n.applyLanguage() 或 switchDetailLang()，没调 applyPageTranslation()
+**影响页面**: index.html, awards.html, new_books.html, book_detail.html, weekly_report_detail.html
+**修复**: 所有页面的 languagechange 处理器开头添加 `applyPageTranslation(newLang)` 调用
+
+#### 4. 补充 translations.js 详情页键值
+新增 14 个翻译键值：back_to_list, buy_links, book_publisher, book_pub_date, book_pages, isbn_label, book_category, weeks_on_list, language_label, book_description, book_details, view_original, no_description
+
+**涉及文件**:
+- `static/js/book-i18n.js`: applyLanguage() 支持详情页模式
+- `static/js/translations.js`: 新增 14 个详情页翻译键值
+- `templates/book_detail.html`: 所有固定 UI 标签添加 data-i18n + languagechange 添加 applyPageTranslation()
+- `templates/index.html`: languagechange 添加 applyPageTranslation()
+- `templates/awards.html`: 同上
+- `templates/new_books.html`: 同上
+- `templates/weekly_report_detail.html`: 同上
+
+---
+
 ## v0.9.13 - 2026-05-18 - BookI18n 图书内容语言包全页面集成
 
 ### 新增功能
