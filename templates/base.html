@@ -71,11 +71,11 @@
 </head>
 <body>
     <!-- Skip Link for Accessibility -->
-    <a href="#main-content" class="skip-link">{{ _('跳转到主要内容') }}</a>
+    <a href="#main-content" class="skip-link" data-i18n="skip_to_content">{{ _('跳转到主要内容') }}</a>
 
     <!-- Top Navigation -->
-    <nav class="top-nav" role="navigation" aria-label="{{ _('主导航') }}">
-        <a href="{{ url_for('main.index') }}" class="nav-brand" aria-label="{{ _('BookRank 首页') }}">
+    <nav class="top-nav" role="navigation" aria-label="{{ _('主导航') }}" data-i18n-aria-label="main_nav">
+        <a href="{{ url_for('main.index') }}" class="nav-brand" aria-label="{{ _('BookRank 首页') }}" data-i18n-title="nav_home_brand">
             <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
             <span>BookRank</span>
         </a>
@@ -120,33 +120,33 @@
 
         <div class="nav-actions">
             <div class="language-switcher">
-                <button class="lang-globe-btn" id="lang-globe" title="{{ _('切换语言') }}" aria-label="{{ _('切换语言') }}" aria-expanded="false" aria-haspopup="true">
+                <button class="lang-globe-btn" id="lang-globe" title="{{ _('切换语言') }}" aria-label="{{ _('切换语言') }}" data-i18n-title="lang_switch" aria-expanded="false" aria-haspopup="true">
                     <svg class="icon" width="18" height="18"><use href="#icon-globe"/></svg>
                     <span class="lang-current" id="lang-current">中</span>
                 </button>
-                <div class="lang-dropdown" id="lang-dropdown" role="menu" aria-label="{{ _('语言选择') }}">
+                <div class="lang-dropdown" id="lang-dropdown" role="menu" aria-label="{{ _('语言选择') }}" data-i18n-aria-label="lang_select">
                     <button class="lang-option active" id="lang-opt-zh" role="menuitem">
                         <span class="lang-flag">简</span>
-                        <span class="lang-name">{{ _('简体中文') }}</span>
+                        <span class="lang-name" data-i18n="lang_zh">{{ _('简体中文') }}</span>
                         <svg class="lang-check" width="16" height="16"><use href="#icon-check-circle"/></svg>
                     </button>
                     <button class="lang-option" id="lang-opt-en" role="menuitem">
                         <span class="lang-flag">EN</span>
-                        <span class="lang-name">English</span>
+                        <span class="lang-name" data-i18n="lang_en">English</span>
                         <svg class="lang-check" width="16" height="16"><use href="#icon-check-circle"/></svg>
                     </button>
                     <div class="lang-divider-line"></div>
-                    <div class="lang-coming-soon">{{ _('更多语言即将支持') }}</div>
+                    <div class="lang-coming-soon" data-i18n="lang_coming_soon">{{ _('更多语言即将支持') }}</div>
                 </div>
             </div>
-            <button class="btn btn-icon btn-outline" id="theme-toggle" title="{{ _('切换主题') }}" aria-label="{{ _('切换明暗主题') }}">
+            <button class="btn btn-icon btn-outline" id="theme-toggle" title="{{ _('切换主题') }}" aria-label="{{ _('切换明暗主题') }}" data-i18n-title="theme_toggle">
                 <svg class="icon" width="18" height="18"><use href="#icon-moon"/></svg>
             </button>
         </div>
     </nav>
 
     <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar" role="complementary" aria-label="{{ _('侧边导航') }}">
+    <aside class="sidebar" id="sidebar" role="complementary" aria-label="{{ _('侧边导航') }}" data-i18n-aria-label="sidebar_nav_label">
         {% block sidebar %}
         <div class="sidebar-section">
             <h3 class="sidebar-title" data-i18n="sidebar_nav">{{ _('导航') }}</h3>
@@ -157,7 +157,7 @@
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.index' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-fire"/></svg>
-                        <span data-i18n="nav_home">{{ _('畅销书榜') }}</span>
+                        <span data-i18n="nav_bestsellers">{{ _('畅销书榜') }}</span>
                     </a>
                 </li>
                 <li class="sidebar-item" role="none">
@@ -175,7 +175,7 @@
                        role="menuitem"
                        aria-current="{% if request.endpoint == 'main.publishers' %}page{% endif %}">
                         <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                        <span data-i18n="nav_publishers">{{ _('出版社导航') }}</span>
+                        <span data-i18n="nav_publishers_guide">{{ _('出版社导航') }}</span>
                     </a>
                 </li>
                 <li class="sidebar-item" role="none">
@@ -228,7 +228,7 @@
     </aside>
 
     <!-- Sidebar Toggle Button -->
-    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="{{ _('切换侧边栏') }}" aria-expanded="false" aria-controls="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="{{ _('切换侧边栏') }}" data-i18n-title="sidebar_toggle" aria-expanded="false" aria-controls="sidebar">
         <svg class="icon" width="20" height="20"><use href="#icon-menu"/></svg>
     </button>
 
@@ -238,7 +238,7 @@
     </main>
 
     <!-- Toast Container -->
-    <div class="toast-container" id="toast-container" role="region" aria-label="{{ _('通知提示') }}" aria-live="polite"></div>
+    <div class="toast-container" id="toast-container" role="region" aria-label="{{ _('通知提示') }}" data-i18n-aria-label="notification_area" aria-live="polite"></div>
 
     <!-- CSRF Token for API requests -->
     <script nonce="{{ csp_nonce() }}">
@@ -285,31 +285,23 @@
     <!-- Auto-apply saved language on page load -->
     <script nonce="{{ csp_nonce() }}">
         (function() {
-            const serverLang = '{{ get_locale() }}';
-            const userLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
-            
-            // 获取当前域名用于 cookie
-            const host = window.location.hostname;
-            const cookieDomain = host.includes('.') ? host : '';
-            
-            // 情况1：用户有保存的语言，且与服务端不一致 → 同步cookie并刷新
+            var serverLang = '{{ get_locale() }}';
+            var userLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+
+            var host = window.location.hostname;
+            var cookieDomain = host.includes('.') ? host : '';
+
             if (userLang && userLang !== serverLang) {
                 document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
-                // 添加一个小标志避免循环刷新
-                if (!sessionStorage.getItem('lang_refreshed')) {
-                    sessionStorage.setItem('lang_refreshed', '1');
-                    window.location.reload();
-                    return;
-                }
             }
-            
-            // 清理刷新标志
-            sessionStorage.removeItem('lang_refreshed');
-            
-            // 情况2：保持一致，同步localStorage
-            const finalLang = userLang || serverLang;
+
+            var finalLang = userLang || serverLang;
             localStorage.setItem('app_language', finalLang);
             localStorage.setItem('bookrank_language', finalLang);
+
+            if (typeof applyPageTranslation === 'function') {
+                applyPageTranslation(finalLang);
+            }
         })();
     </script>
 

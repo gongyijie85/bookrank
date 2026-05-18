@@ -530,13 +530,16 @@
      * @param {string} lang - Language code (en, zh)
      */
     function switchLanguage(lang) {
-        // Save to localStorage for backward compatibility
         localStorage.setItem('app_language', lang);
         localStorage.setItem('bookrank_language', lang);
 
-        // Redirect to /set-language which sets cookie and redirects back
-        const nextUrl = encodeURIComponent(window.location.href);
-        window.location.href = '/set-language?lang=' + lang + '&next=' + nextUrl;
+        if (typeof setGlobalLanguage === 'function') {
+            setGlobalLanguage(lang);
+        }
+
+        const host = window.location.hostname;
+        const cookieDomain = host.includes('.') ? host : '';
+        document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
     }
 
     /**

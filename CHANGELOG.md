@@ -1,6 +1,42 @@
 # Change Log
 
-## v0.9.11 - 2026-05-18 - 分类切换崩溃修复 & Cookie Domain 修复
+## v0.9.12 - 2026-05-18 - 前端语言包即时切换
+
+### 修复内容
+
+#### 1. 导航栏和按钮中文不显示问题（根本性修复）
+**问题描述**: 切换到中文后，导航栏、按钮等固定UI内容仍显示英文，服务端翻译（Flask-Babel）在 Render 部署平台上不可靠
+**根本原因**: 依赖服务端 Cookie + Flask-Babel 渲染翻译，但 Cookie 在 Render 上经常丢失或延迟生效
+**修复方案**: 改用前端语言包即时切换，不再依赖服务端翻译
+- `switchLanguage()` 改为调用 `setGlobalLanguage()` 即时切换，不再刷新页面
+- 页面加载时调用 `applyPageTranslation()` 立即应用已保存的语言
+- 移除页面刷新循环逻辑（`sessionStorage.lang_refreshed`）
+- 同步 Cookie 以便服务端下次渲染时使用正确语言
+
+#### 2. 完善前端语言包
+- 新增 30+ 翻译键值：语言切换、主题切换、侧边栏、搜索框、视图切换、导出等
+- 侧边栏独立键值：`nav_bestsellers`（畅销书榜/Bestsellers）、`nav_publishers_guide`（出版社导航/Publishers Guide）
+- 新增 `data-i18n-aria-label` 属性支持，翻译无障碍标签
+
+#### 3. 给所有固定UI元素添加 data-i18n 属性
+- 导航栏：已有 `data-i18n` 属性，确认正常
+- 语言切换按钮：添加 `data-i18n-title="lang_switch"`
+- 主题切换按钮：添加 `data-i18n-title="theme_toggle"`
+- 侧边栏切换按钮：添加 `data-i18n-title="sidebar_toggle"`
+- 语言名称：添加 `data-i18n="lang_zh"` / `data-i18n="lang_en"`
+- "更多语言即将支持"：添加 `data-i18n="lang_coming_soon"`
+- "跳转到主要内容"：添加 `data-i18n="skip_to_content"`
+- 首页搜索框、按钮、标签：添加 `data-i18n` / `data-i18n-placeholder` 属性
+- 视图切换按钮：添加 `data-i18n-title` / `data-i18n-aria-label`
+- 导出按钮：添加 `data-i18n="export_all"`
+
+**涉及文件**:
+- `static/js/base.js`: `switchLanguage()` 改为即时切换
+- `static/js/translations.js`: 补充 30+ 翻译键值，新增 `data-i18n-aria-label` 支持
+- `templates/base.html`: 添加 `data-i18n` 属性，调用 `applyPageTranslation()`，移除刷新逻辑
+- `templates/index.html`: 添加 `data-i18n` / `data-i18n-placeholder` / `data-i18n-aria-label` 属性
+
+---
 
 ### 修复内容
 

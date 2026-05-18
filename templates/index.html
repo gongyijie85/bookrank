@@ -10,22 +10,22 @@
 <header class="page-header">
     <h1 class="page-title">
         <svg class="icon text-gold" width="24" height="24"><use href="#icon-fire"/></svg>
-        {{ _('纽约时报畅销书排行榜') }}
+        <span data-i18n="page_title_bestsellers">{{ _('纽约时报畅销书排行榜') }}</span>
     </h1>
     <p class="page-subtitle">
         <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
         <time datetime="{{ update_time if update_time else '' }}">{{ _('更新于:') }} {{ update_time if update_time else _('刚刚') }}</time>
         {% if is_cached %}
-        <span class="cache-badge">{{ _('缓存数据') }}</span>
+        <span class="cache-badge" data-i18n="cache_badge">{{ _('缓存数据') }}</span>
         {% endif %}
     </p>
 </header>
 
 <!-- Filter Bar -->
-<section class="filter-bar" aria-label="{{ _('筛选选项') }}">
+<section class="filter-bar" aria-label="{{ _('筛选选项') }}" data-i18n-aria-label="filter_options">
     <!-- 分类筛选 -->
     <div class="filter-group">
-        <label class="filter-label" for="category-select">{{ _('图书分类') }}</label>
+        <label class="filter-label" for="category-select" data-i18n="filter_category">{{ _('图书分类') }}</label>
         <select class="filter-select" id="category-select">
             {% for key, label in categories.items() %}
             <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
@@ -37,49 +37,54 @@
 
     <!-- 搜索框 -->
     <div class="filter-group search-box">
-        <label class="filter-label" for="search-input">{{ _('搜索') }}</label>
+        <label class="filter-label" for="search-input" data-i18n="filter_search">{{ _('搜索') }}</label>
         <div class="search-input-wrapper">
             <input type="search"
                    class="filter-input"
                    id="search-input"
                    placeholder="{{ _('搜索书名或作者...') }}"
+                   data-i18n-placeholder="search_placeholder"
                    value="{{ search_query if search_query else '' }}"
                    aria-label="{{ _('搜索书名或作者') }}"
                    autocomplete="off">
             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
-            <button class="search-clear-btn" id="search-clear-btn" style="display: none;" aria-label="{{ _('清除搜索') }}">
+            <button class="search-clear-btn" id="search-clear-btn" style="display: none;" aria-label="{{ _('清除搜索') }}" data-i18n-title="search_clear">
                 <svg class="icon" width="14" height="14"><use href="#icon-close"/></svg>
             </button>
         </div>
         <div class="search-suggestions" id="search-suggestions" style="display: none;">
-            <div class="suggestions-header">{{ _('搜索历史') }}</div>
+            <div class="suggestions-header" data-i18n="search_history">{{ _('搜索历史') }}</div>
             <ul class="suggestions-list" id="suggestions-list"></ul>
         </div>
     </div>
 
     <div class="filter-actions">
-        <button class="btn btn-primary" id="btn-search" aria-label="{{ _('搜索') }}">
+        <button class="btn btn-primary" id="btn-search" aria-label="{{ _('搜索') }}" data-i18n="btn_search">
             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
             {{ _('搜索') }}
         </button>
-        <button class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置') }}">
+        <button class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置') }}" data-i18n="btn_reset">
             <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
             {{ _('重置') }}
         </button>
     </div>
 
-    <div class="view-toggle" role="group" aria-label="{{ _('视图切换') }}">
+    <div class="view-toggle" role="group" aria-label="{{ _('视图切换') }}" data-i18n-aria-label="view_switch">
         <button class="btn btn-icon {% if view_mode == 'grid' %}active{% endif %}"
                 id="view-grid"
                 title="{{ _('网格视图') }}"
+                data-i18n-title="view_grid"
                 aria-label="{{ _('切换到网格视图') }}"
+                data-i18n-aria-label="view_grid_label"
                 aria-pressed="{% if view_mode == 'grid' %}true{% else %}false{% endif %}">
             <svg class="icon" width="18" height="18"><use href="#icon-grid"/></svg>
         </button>
         <button class="btn btn-icon {% if view_mode == 'list' or not view_mode %}active{% endif %}"
                 id="view-list"
                 title="{{ _('列表视图') }}"
+                data-i18n-title="view_list"
                 aria-label="{{ _('切换到列表视图') }}"
+                data-i18n-aria-label="view_list_label"
                 aria-pressed="{% if view_mode == 'list' or not view_mode %}true{% else %}false{% endif %}">
             <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
         </button>
@@ -87,10 +92,10 @@
 </section>
 
 {% if books %}
-<section class="export-actions-bar" aria-label="导出选项">
+<section class="export-actions-bar" aria-label="导出选项" data-i18n-aria-label="export_options">
     <span class="export-info">{{ _('共') }} <strong>{{ books|length }}</strong> {{ _('本图书') }}</span>
     <div class="export-buttons">
-        <button class="btn btn-primary btn-sm" id="btn-export-all" aria-label="{{ _('导出全部') }}">
+        <button class="btn btn-primary btn-sm" id="btn-export-all" aria-label="{{ _('导出全部') }}" data-i18n="export_all">
             <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
             {{ _('导出全部') }}
         </button>
@@ -101,7 +106,7 @@
 {% set _locale = get_locale() %}
 
 <!-- Books Grid View -->
-<section class="books-grid {% if view_mode == 'grid' or not view_mode %}active{% endif %}" id="books-grid" aria-label="{{ _('图书网格视图') }}">
+<section class="books-grid {% if view_mode == 'grid' or not view_mode %}active{% endif %}" id="books-grid" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
     {% for book in books %}
     <article class="card card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
@@ -207,7 +212,7 @@
 </section>
 
 <!-- Books List View -->
-<section class="books-list {% if view_mode == 'list' %}active{% endif %}" id="books-list" aria-label="{{ _('图书列表视图') }}">
+<section class="books-list {% if view_mode == 'list' %}active{% endif %}" id="books-list" aria-label="{{ _('图书列表视图') }}" data-i18n-aria-label="books_list_view">
     {% for book in books %}
     <article class="list-item card-animate"
              data-index="{{ loop.index - 1 }}"
