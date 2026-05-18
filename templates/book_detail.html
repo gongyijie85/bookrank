@@ -91,9 +91,10 @@
                 {% set is_valid_isbn = false %}
                 {% if isbn_value %}
                     {% set clean_isbn = isbn_value|replace('-', '')|replace(' ', '') %}
-                    {% if clean_isbn|length == 13 and clean_isbn[0:3] in ('978', '979') and clean_isbn|is digit %}
+                    {% set _digits = clean_isbn|replace('0','')|replace('1','')|replace('2','')|replace('3','')|replace('4','')|replace('5','')|replace('6','')|replace('7','')|replace('8','')|replace('9','') %}
+                    {% if clean_isbn|length == 13 and clean_isbn[0:3] in ('978', '979') and _digits == '' %}
                         {% set is_valid_isbn = true %}
-                    {% elif clean_isbn|length == 10 and (clean_isbn|is digit or (clean_isbn[0:9]|is digit and clean_isbn[9] in ('X', 'x'))) %}
+                    {% elif clean_isbn|length == 10 and (_digits == '' or _digits in ('X', 'x')) and _digits|length <= 1 %}
                         {% set is_valid_isbn = true %}
                     {% endif %}
                 {% endif %}
