@@ -311,20 +311,23 @@ function setGlobalLanguage(lang) {
     localStorage.setItem('bookrank_language', lang);
 
     if (typeof updateLangDropdown === 'function') {
-        updateLangDropdown(lang);
+        try { updateLangDropdown(lang); } catch(e) { console.warn('updateLangDropdown error:', e); }
     }
+
+    var labelEl = document.getElementById('lang-current');
+    if (labelEl) { labelEl.textContent = lang === 'zh' ? '\u4e2d' : 'EN'; }
 
     applyPageTranslation(lang);
 
     if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
-        BookI18n.applyLanguage(lang);
+        try { BookI18n.applyLanguage(lang); } catch(e) { console.warn('BookI18n error:', e); }
     }
 
     window.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } }));
 
-    const langName = lang === 'zh' ? '简体中文' : 'English';
+    var langName = lang === 'zh' ? '\u7b80\u4f53\u4e2d\u6587' : 'English';
     if (typeof showToast === 'function') {
-        showToast(`已切换到 ${langName}`, 'success');
+        showToast('\u5df2\u5207\u6362\u5230 ' + langName, 'success');
     }
 }
 

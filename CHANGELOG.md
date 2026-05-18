@@ -1,5 +1,33 @@
 # Change Log
 
+## v0.9.15 - 2026-05-18 - 修复语言按钮不更新 + ISBN 显示问题
+
+### 修复内容
+
+#### 1. 语言切换按钮切换后仍显示旧语言
+**问题**: 切换到英文后，右上角语言按钮仍显示"中"
+**根因**: `updateLangDropdown()` 可能因异常未执行，或 `#lang-current` 元素未被正确更新
+**修复**:
+- `setGlobalLanguage()` 中在 `updateLangDropdown()` 之后直接操作 `#lang-current` 元素
+- base.html 内联脚本加载时也直接更新 `#lang-current`
+- `initLanguage()` 中同样添加直接更新逻辑
+- 对 `updateLangDropdown` 和 `BookI18n.applyLanguage` 添加 try-catch 防止异常中断
+
+#### 2. 详情页 ISBN 和出版社显示错误值
+**问题**: ISBN 栏位显示"精装小说"（分类名），出版社也显示相同值
+**根因**: NYT API 部分图书数据缺失真实 ISBN/出版社，字段包含无效值
+**修复**:
+- ISBN: 增加长度验证（`length > 8`），短于8字符的视为无效不显示
+- 出版社: 过滤掉与分类名/列表名相同的值，以及已知的无效值
+
+**涉及文件**:
+- `static/js/translations.js`: setGlobalLanguage() 直接更新 #lang-current + try-catch
+- `static/js/base.js`: initLanguage() 直接更新 #lang-current
+- `templates/base.html`: 内联脚本加载时更新 #lang-current
+- `templates/book_detail.html`: ISBN 长度验证 + 出版社值过滤
+
+---
+
 ## v0.9.14 - 2026-05-18 - 修复语言切换中英混杂 Bug
 
 ### 修复内容

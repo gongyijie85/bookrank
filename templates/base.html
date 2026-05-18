@@ -302,6 +302,9 @@
             localStorage.setItem('app_language', finalLang);
             localStorage.setItem('bookrank_language', finalLang);
 
+            var labelEl = document.getElementById('lang-current');
+            if (labelEl) { labelEl.textContent = finalLang === 'zh' ? '\u4e2d' : 'EN'; }
+
             if (typeof applyPageTranslation === 'function') {
                 applyPageTranslation(finalLang);
             }

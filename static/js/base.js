@@ -561,25 +561,23 @@
      * Initialize language based on saved preference or browser detection
      */
     function initLanguage() {
-        // Server cookie is source of truth (synced by base.html inline script)
-        const savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
-        // Fallback to browser detection if no saved preference
-        const browserLang = navigator.language || navigator.userLanguage || '';
-        const defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
-        const currentLang = savedLang || defaultLang;
+        var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        var browserLang = navigator.language || navigator.userLanguage || '';
+        var defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
+        var currentLang = savedLang || defaultLang;
 
-        // Update dropdown UI
         updateLangDropdown(currentLang);
 
-        // Also update old-style buttons if present (backward compatibility)
-        const langEnBtn = document.getElementById('lang-en');
-        const langZhBtn = document.getElementById('lang-zh');
+        var labelEl = document.getElementById('lang-current');
+        if (labelEl) { labelEl.textContent = currentLang === 'zh' ? '\u4e2d' : 'EN'; }
+
+        var langEnBtn = document.getElementById('lang-en');
+        var langZhBtn = document.getElementById('lang-zh');
         if (langEnBtn && langZhBtn) {
             langEnBtn.classList.toggle('active', currentLang === 'en');
             langZhBtn.classList.toggle('active', currentLang === 'zh');
         }
 
-        // Dispatch language change event for pages that need it
         window.dispatchEvent(new CustomEvent('languagechange', { detail: { language: currentLang } }));
     }
 

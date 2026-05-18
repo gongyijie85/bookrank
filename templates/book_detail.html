@@ -55,12 +55,13 @@
 
             <!-- 元信息网格 - 仅显示有效数据，隐藏 Unknown -->
             <div class="detail-meta-grid">
-                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %}
+                {% set pub = book.publisher %}
+                {% if pub and pub not in ('Unknown', 'Unknown Publisher', book.category_name, book.list_name) and pub != '精装小说' and pub != ' Hardcover Fiction' %}
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="book_publisher">{{ _('出版社') }}</div>
-                        <div class="meta-value">{{ book.publisher }}</div>
+                        <div class="meta-value">{{ pub }}</div>
                     </div>
                 </div>
                 {% endif %}
@@ -85,12 +86,13 @@
                 </div>
                 {% endif %}
 
-                {% if book.isbn13 or book.isbn10 %}
+                {% set isbn_value = book.isbn13 or book.isbn10 %}
+                {% if isbn_value and isbn_value|length > 8 %}
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="isbn_label">{{ _('ISBN') }}</div>
-                        <div class="meta-value">{{ book.isbn13 or book.isbn10 }}</div>
+                        <div class="meta-value">{{ isbn_value }}</div>
                     </div>
                 </div>
                 {% endif %}
