@@ -41,6 +41,22 @@ class Book:
         return data
 
     @classmethod
+    def _is_valid_isbn(cls, value: str) -> bool:
+        """校验字符串是否为合法 ISBN-10 或 ISBN-13"""
+        if not value:
+            return False
+        import re
+        clean = re.sub(r'[\s\-]', '', value)
+        if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
+            return True
+        if len(clean) == 10:
+            prefix = clean[:9]
+            suffix = clean[9]
+            if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
+                return True
+        return False
+
+    @classmethod
     def from_api_response(
         cls,
         book_data: dict,
@@ -51,7 +67,11 @@ class Book:
         supplement: dict,
     ) -> 'Book':
         """从API响应创建Book对象"""
-        isbn = book_data.get('primary_isbn13') or book_data.get('primary_isbn10', '')
+        raw_isbn13 = book_data.get('primary_isbn13', '')
+        raw_isbn10 = book_data.get('primary_isbn10', '')
+        isbn = raw_isbn13 if cls._is_valid_isbn(raw_isbn13) else ''
+        if not isbn:
+            isbn = raw_isbn10 if cls._is_valid_isbn(raw_isbn10) else ''
         if not isbn:
             id_str = f'{book_data.get("title", "")}-{book_data.get("author", "")}'
             isbn = hashlib.md5(id_str.encode()).hexdigest()[:13]
@@ -87,7 +107,7 @@ class Book:
             page_count=str(supplement.get('page_count', 'Unknown')),
             language=supplement.get('language', 'Unknown'),
             buy_links=buy_links,
-            isbn13=book_data.get('primary_isbn13', ''),
-            isbn10=book_data.get('primary_isbn10', ''),
+            isbn13=raw_isbn13 if cls._is_valid_isbn(raw_isbn13) else '',
+            isbn10=raw_isbn10 if cls._is_valid_isbn(raw_isbn10) else '',
             price=final_price,
         )
