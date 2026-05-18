@@ -1,18 +1,18 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.12
+**当前版本**：v0.9.13
 **发布日期**：2026-05-18
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
 
-### v0.9.12 (2026-05-18) — 前端语言包即时切换
-- **根本性修复导航栏中文不显示**: 改用前端语言包即时切换，不再依赖服务端翻译
-- **即时切换无需刷新页面**: `switchLanguage()` 调用 `setGlobalLanguage()` 即时翻译所有UI元素
-- **页面加载自动应用语言**: `applyPageTranslation()` 在页面加载时立即执行
-- **完善语言包**: 新增 30+ 翻译键值，覆盖导航、按钮、搜索框、视图切换等
-- **新增 `data-i18n-aria-label`**: 无障碍标签也支持语言切换
+### v0.9.13 (2026-05-18) — BookI18n 图书内容语言包全页面集成
+- **4个模板页面集成 BookI18n**: awards/new_books/book_detail/weekly_report_detail 全部支持 BookI18n 即时切换
+- **languagechange 事件监听**: 所有页面监听语言切换事件，使用 `BookI18n.applyLanguage()` 即时替换
+- **缺失翻译自动补全**: `BookI18n.getMissingTranslations('zh')` 检测缺失翻译并后台调用翻译 API
+- **保留原有翻译函数作为后备**: BookI18n 不可用时回退到 `translateAllBooks()` / `loadBooks()`
+- **翻译结果同步回写**: 翻译 API 成功后通过 `BookI18n.updateTranslation()` 更新内存数据
 
 ### v0.9.10 (2026-05-18) — 语言切换完整修复
 - **修复语言同步循环问题**: base.html内联脚本优化，确保localStorage与服务端语言一致

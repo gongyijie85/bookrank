@@ -1,0 +1,161 @@
+/**
+ * BookRank 图书内容语言包
+ * 存储图书的中英双语内容，切换语言时即时替换，无需调翻译API
+ */
+var BookI18n = (function() {
+    'use strict';
+
+    var _store = new Map();
+
+    var TITLE_SELECTORS = '.card-title, .list-item-title, .book-title, .detail-title, .recommendation-title, .change-title';
+    var DESC_SELECTORS = '.card-desc, .list-item-desc, .book-description, .detail-description';
+    var CAT_SELECTORS = '.card-category-tag, .book-category';
+
+    function _extractBookData(book) {
+        var isbn = book.isbn13 || book.isbn10 || '';
+        if (!isbn) return null;
+
+        return {
+            isbn: isbn,
+            en: {
+                title: book.title || '',
+                description: book.description || '',
+                category: book.list_name || book.category_name || 'Fiction',
+                details: book.details || ''
+            },
+            zh: {
+                title: book.title_zh || '',
+                description: book.description_zh || '',
+                category: book.category_name || '',
+                details: book.details_zh || ''
+            },
+            _raw: book
+        };
+    }
+
+    function register(isbn, book) {
+        if (!isbn) return;
+        var existing = _store.get(isbn);
+        var data = _extractBookData(book);
+        if (!data) return;
+
+        if (existing) {
+            if (data.zh.title && !existing.zh.title) existing.zh.title = data.zh.title;
+            if (data.zh.description && !existing.zh.description) existing.zh.description = data.zh.description;
+            if (data.zh.category && !existing.zh.category) existing.zh.category = data.zh.category;
+            if (data.zh.details && !existing.zh.details) existing.zh.details = data.zh.details;
+        } else {
+            _store.set(isbn, data);
+        }
+    }
+
+    function registerAll(books) {
+        if (!Array.isArray(books)) return;
+        for (var i = 0; i < books.length; i++) {
+            var isbn = books[i].isbn13 || books[i].isbn10;
+            if (isbn) register(isbn, books[i]);
+        }
+    }
+
+    function get(isbn, lang) {
+        var entry = _store.get(isbn);
+        if (!entry) return null;
+        var localized = entry[lang] || {};
+        var base = entry.en;
+        return {
+            title: localized.title || base.title,
+            description: localized.description || base.description,
+            category: localized.category || base.category,
+            details: localized.details || base.details
+        };
+    }
+
+    function getRaw(isbn) {
+        var entry = _store.get(isbn);
+        return entry ? entry._raw : null;
+    }
+
+    function updateTranslation(isbn, lang, data) {
+        var entry = _store.get(isbn);
+        if (!entry) return;
+        if (!entry[lang]) entry[lang] = {};
+        if (data.title) entry[lang].title = data.title;
+        if (data.description) entry[lang].description = data.description;
+        if (data.category) entry[lang].category = data.category;
+        if (data.details) entry[lang].details = data.details;
+    }
+
+    function hasTranslation(isbn, lang) {
+        var entry = _store.get(isbn);
+        if (!entry) return false;
+        if (lang === 'en') return true;
+        return entry[lang] && entry[lang].title && entry[lang].title !== entry.en.title;
+    }
+
+    function getMissingTranslations(lang) {
+        var missing = [];
+        _store.forEach(function(entry, isbn) {
+            if (!hasTranslation(isbn, lang)) {
+                missing.push(isbn);
+            }
+        });
+        return missing;
+    }
+
+    function _updateElement(el, text, truncate) {
+        if (!el || text === undefined) return;
+        if (truncate && text.length > truncate) {
+            el.textContent = text.substring(0, truncate) + '...';
+        } else {
+            el.textContent = text;
+        }
+    }
+
+    function applyLanguage(lang) {
+        _store.forEach(function(entry, isbn) {
+            var data = get(isbn, lang);
+            if (!data) return;
+
+            var cards = document.querySelectorAll('[data-isbn="' + isbn + '"]');
+            for (var c = 0; c < cards.length; c++) {
+                var card = cards[c];
+
+                var titleEl = card.querySelector(TITLE_SELECTORS);
+                _updateElement(titleEl, data.title);
+
+                var descEl = card.querySelector(DESC_SELECTORS);
+                _updateElement(descEl, data.description, 80);
+
+                var catEl = card.querySelector(CAT_SELECTORS);
+                _updateElement(catEl, data.category);
+            }
+        });
+
+        window.dispatchEvent(new CustomEvent('booklanguagechange', {
+            detail: { language: lang }
+        }));
+    }
+
+    function clear() {
+        _store.clear();
+    }
+
+    function size() {
+        return _store.size;
+    }
+
+    return {
+        register: register,
+        registerAll: registerAll,
+        get: get,
+        getRaw: getRaw,
+        updateTranslation: updateTranslation,
+        hasTranslation: hasTranslation,
+        getMissingTranslations: getMissingTranslations,
+        applyLanguage: applyLanguage,
+        clear: clear,
+        size: size
+    };
+})();
+
+window.BookI18n = BookI18n;

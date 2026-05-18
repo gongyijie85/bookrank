@@ -779,8 +779,8 @@
 
     // 初始化时保存原始文本到 data 属性
     (function initDetailLang() {
-        const titleEl = document.querySelector('.detail-title');
-        const authorEl = document.querySelector('.detail-author');
+        var titleEl = document.querySelector('.detail-title');
+        var authorEl = document.querySelector('.detail-author');
         if (titleEl) {
             titleEl.dataset.zh = titleEl.textContent;
             titleEl.dataset.en = '{{ book.title|escape }}';
@@ -790,23 +790,39 @@
             authorEl.dataset.en = '{{ book.author|escape }}';
         }
 
+        if (typeof BookI18n !== 'undefined') {
+            var currentBook = {
+                isbn13: '{{ book.isbn13 or "" }}',
+                isbn10: '{{ book.isbn10 or "" }}',
+                title: '{{ book.title|escape }}',
+                title_zh: '{{ (book.title_zh or book.title)|escape }}',
+                description: '{{ (book.description or "")|escape }}',
+                description_zh: '{{ (book.description_zh or "")|escape }}',
+                details: '{{ (book.details or "")|escape }}',
+                details_zh: '{{ (book.details_zh or "")|escape }}',
+                list_name: '{{ book.list_name|default("")|escape }}',
+                category_name: '{{ book.category_name|default("")|escape }}'
+            };
+            BookI18n.registerAll([currentBook]);
+        }
+
         // 根据用户偏好自动切换
-        const savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
         if (savedLang === 'en') {
             switchDetailLang('en');
         }
 
         // 分类名称语言切换支持
-        const catValueZh = '{{ book.category_name|default("") }}';
-        const catValueEn = '{{ book.list_name|default("") }}';
-        const catValueEl = document.querySelector('.meta-card .meta-value');
+        var catValueZh = '{{ book.category_name|default("") }}';
+        var catValueEn = '{{ book.list_name|default("") }}';
+        var catValueEl = document.querySelector('.meta-card .meta-value');
         if (catValueEl) {
             catValueEl.dataset.zh = catValueZh;
             catValueEl.dataset.en = catValueEn;
         }
 
         // Extend switchDetailLang to also handle category name
-        const _origSwitchLang = switchDetailLang;
+        var _origSwitchLang = switchDetailLang;
         switchDetailLang = function(lang) {
             _origSwitchLang(lang);
             if (catValueEl) {
@@ -814,6 +830,15 @@
             }
         };
     })();
+
+    window.addEventListener('languagechange', function(e) {
+        var newLang = e.detail && e.detail.language;
+        if (!newLang) return;
+        switchDetailLang(newLang);
+        if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+            BookI18n.applyLanguage(newLang);
+        }
+    });
 
     document.getElementById('tab-description')?.addEventListener('click', () => switchDetailTab('description'));
     document.getElementById('tab-details')?.addEventListener('click', () => switchDetailTab('details'));

@@ -1220,7 +1220,57 @@ document.addEventListener('DOMContentLoaded', function() {
         return map;
     }
 
-    const bookDataMap = buildBookDataMap();
+    var bookDataMap = buildBookDataMap();
+
+    if (typeof BookI18n !== 'undefined' && reportContent) {
+        var allBooksForI18n = [
+            ...(reportContent.top_changes || []),
+            ...(reportContent.new_books || []),
+            ...(reportContent.top_risers || []),
+            ...(reportContent.longest_running || []),
+            ...(reportContent.featured_books || [])
+        ];
+        BookI18n.registerAll(allBooksForI18n);
+    }
+
+    window.addEventListener('languagechange', function(e) {
+        var newLang = e.detail && e.detail.language;
+        if (!newLang) return;
+        if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+            BookI18n.applyLanguage(newLang);
+            if (newLang === 'zh') {
+                var missing = BookI18n.getMissingTranslations('zh');
+                if (missing.length > 0) {
+                    for (var m = 0; m < missing.length; m++) {
+                        translateMissingBook(missing[m]);
+                    }
+                }
+            }
+        }
+    });
+
+    async function translateMissingBook(isbn) {
+        if (!isbn) return;
+        try {
+            var response = await fetch('/api/translate/book/' + isbn, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            var data = await response.json();
+            if (data.success && data.data && data.data.book) {
+                var book = data.data.book;
+                if (typeof BookI18n !== 'undefined') {
+                    BookI18n.updateTranslation(isbn, 'zh', {
+                        title: book.title_zh || '',
+                        description: book.description_zh || ''
+                    });
+                }
+                BookI18n.applyLanguage('zh');
+            }
+        } catch (e) {
+            console.warn('[Translation] 翻译失败:', isbn, e);
+        }
+    }
 
     // {{ _('封面图加载失败兜底') }}
     document.querySelectorAll('.book-cover, .recommendation-cover').forEach(img => {

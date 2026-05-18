@@ -222,7 +222,19 @@ let currentLanguage = localStorage.getItem('app_language') || localStorage.getIt
 
 window.addEventListener('languagechange', function(e) {
     currentLanguage = e.detail.language;
-    loadBooks();
+    if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+        BookI18n.applyLanguage(currentLanguage);
+        if (currentLanguage === 'zh') {
+            var missing = BookI18n.getMissingTranslations('zh');
+            if (missing.length > 0) {
+                for (var m = 0; m < missing.length; m++) {
+                    translateSingleBookByIsbn(missing[m]);
+                }
+            }
+        }
+    } else {
+        loadBooks();
+    }
 });
 
 function debouncedSearch() {
@@ -337,8 +349,22 @@ function renderBooks(data) {
 
     container.innerHTML = html;
 
-    if (currentLanguage === 'zh') {
-        translateAllBooks();
+    if (typeof BookI18n !== 'undefined') {
+        BookI18n.clear();
+        BookI18n.registerAll(books);
+        if (currentLanguage === 'zh') {
+            BookI18n.applyLanguage('zh');
+            var missing = BookI18n.getMissingTranslations('zh');
+            if (missing.length > 0) {
+                for (var m = 0; m < missing.length; m++) {
+                    translateSingleBookByIsbn(missing[m]);
+                }
+            }
+        }
+    } else {
+        if (currentLanguage === 'zh') {
+            translateAllBooks();
+        }
     }
 }
 
@@ -476,10 +502,25 @@ async function translateSingleBook(card, isbn) {
                 titleEl.dataset.zh = book.title_zh;
             }
             translationCache.saveBook(isbn, book);
+            if (typeof BookI18n !== 'undefined') {
+                BookI18n.updateTranslation(isbn, 'zh', {
+                    title: book.title_zh || '',
+                    description: book.description_zh || ''
+                });
+            }
         }
     } catch (e) {
         console.warn('[Translation] {{ _('翻译失败') }}:', isbn, e);
     }
+}
+
+async function translateSingleBookByIsbn(isbn) {
+    if (!isbn) return;
+    var card = document.querySelector('.book-card .book-title[data-isbn="' + isbn + '"]');
+    if (!card) return;
+    var bookCard = card.closest('.book-card');
+    if (!bookCard) return;
+    await translateSingleBook(bookCard, isbn);
 }
 
 function exportExcel() {

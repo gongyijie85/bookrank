@@ -1,5 +1,48 @@
 # Change Log
 
+## v0.9.13 - 2026-05-18 - BookI18n 图书内容语言包全页面集成
+
+### 新增功能
+
+#### 4个模板页面集成 BookI18n 图书内容语言包
+- 所有图书数据加载后调用 `BookI18n.registerAll(books)` 注册双语数据
+- 所有页面添加 `languagechange` 事件监听，使用 `BookI18n.applyLanguage(lang)` 即时切换
+- 对没有中文翻译的图书，使用 `BookI18n.getMissingTranslations('zh')` 检测并后台翻译
+- 保留原有 `translateAllBooks()` 作为后备（当 BookI18n 不可用时）
+
+#### awards.html（获奖书单页）
+- 从 DOM 中提取图书数据（`data-isbn`/`data-en`/`data-zh`）注册到 BookI18n
+- 新增 `translateSingleBookByIsbn()` 辅助函数，供缺失翻译时按 ISBN 定位并翻译
+- `translateSingleBook()` 翻译成功后同步更新 BookI18n 数据
+- `languagechange` 事件优先使用 `BookI18n.applyLanguage()`，不可用时回退到 `translateAllBooks()`
+
+#### new_books.html（新书速递页）
+- `renderBooks()` 渲染完成后注册图书到 BookI18n（`BookI18n.clear()` + `registerAll()`）
+- `languagechange` 事件优先使用 `BookI18n.applyLanguage()`，不可用时回退到 `loadBooks()`
+- 新增 `translateSingleBookByIsbn()` 辅助函数
+- `translateSingleBook()` 翻译成功后同步更新 BookI18n 数据
+
+#### book_detail.html（图书详情页）
+- 在 `initDetailLang()` 中注册当前图书到 BookI18n（含 title/description/details/category 完整双语数据）
+- 新增 `languagechange` 事件监听，同时调用 `switchDetailLang()` 和 `BookI18n.applyLanguage()`
+
+#### weekly_report_detail.html（周报详情页）
+- 从 `reportContent` 提取所有图书数据注册到 BookI18n
+- 新增 `languagechange` 事件监听，使用 `BookI18n.applyLanguage()` 即时切换
+- 新增 `translateMissingBook()` 函数，翻译缺失图书后更新 BookI18n 并重新应用语言
+
+### 代码规范
+- 所有新增代码使用 `var` 替代 `const`/`let`（兼容性要求）
+- 所有 BookI18n 调用前使用 `typeof BookI18n !== 'undefined'` 检查可用性
+
+### 涉及文件
+- `templates/awards.html`：DOM 数据提取 + BookI18n 注册 + languagechange 监听 + translateSingleBookByIsbn
+- `templates/new_books.html`：renderBooks 注册 + languagechange 改用 BookI18n + translateSingleBookByIsbn
+- `templates/book_detail.html`：initDetailLang 注册 + languagechange 监听
+- `templates/weekly_report_detail.html`：reportContent 注册 + languagechange 监听 + translateMissingBook
+
+---
+
 ## v0.9.12 - 2026-05-18 - 前端语言包即时切换
 
 ### 修复内容

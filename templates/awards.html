@@ -445,29 +445,88 @@
         if (!titleEl || !isbn) return;
 
         try {
-            const response = await fetch(`/api/translate/book/${isbn}`, {
+            var response = await fetch(`/api/translate/book/${isbn}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
-            const data = await response.json();
+            var data = await response.json();
             if (data.success && data.data && data.data.book) {
-                const book = data.data.book;
+                var book = data.data.book;
                 if (book.title_zh) {
                     titleEl.textContent = book.title_zh;
                     titleEl.dataset.zh = book.title_zh;
                 }
                 translationCache.saveBook(isbn, book);
+                if (typeof BookI18n !== 'undefined') {
+                    BookI18n.updateTranslation(isbn, 'zh', {
+                        title: book.title_zh || '',
+                        description: book.description_zh || ''
+                    });
+                }
             }
         } catch (e) {
             console.warn('[Translation] 翻译失败:', isbn, e);
         }
     }
 
+    async function translateSingleBookByIsbn(isbn) {
+        if (!isbn) return;
+        var titleEl = document.querySelector('[data-isbn="' + isbn + '"] .card-title, [data-isbn="' + isbn + '"] .list-item-title, [data-isbn="' + isbn + '"]');
+        if (!titleEl) return;
+        await translateSingleBook(0, titleEl, isbn);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
-        const lang = localStorage.getItem('bookrank_language') || 'en';
-        if (lang === 'zh') {
-            translateAllBooks();
+        var lang = localStorage.getItem('bookrank_language') || localStorage.getItem('app_language') || 'en';
+
+        if (typeof BookI18n !== 'undefined') {
+            var awardBooks = [];
+            var titleEls = document.querySelectorAll('.card-title, .list-item-title');
+            for (var i = 0; i < titleEls.length; i++) {
+                var el = titleEls[i];
+                var isbn = el.dataset.isbn || '';
+                if (!isbn) continue;
+                awardBooks.push({
+                    isbn13: isbn,
+                    title: el.dataset.en || '',
+                    title_zh: el.dataset.zh || ''
+                });
+            }
+            if (awardBooks.length > 0) {
+                BookI18n.registerAll(awardBooks);
+                if (lang === 'zh') {
+                    BookI18n.applyLanguage('zh');
+                    var missing = BookI18n.getMissingTranslations('zh');
+                    if (missing.length > 0) {
+                        for (var m = 0; m < missing.length; m++) {
+                            translateSingleBookByIsbn(missing[m]);
+                        }
+                    }
+                }
+            }
+        } else {
+            if (lang === 'zh') {
+                translateAllBooks();
+            }
         }
+
+        window.addEventListener('languagechange', function(e) {
+            var newLang = e.detail && e.detail.language;
+            if (!newLang) return;
+            if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+                BookI18n.applyLanguage(newLang);
+                if (newLang === 'zh') {
+                    var missing = BookI18n.getMissingTranslations('zh');
+                    if (missing.length > 0) {
+                        for (var m = 0; m < missing.length; m++) {
+                            translateSingleBookByIsbn(missing[m]);
+                        }
+                    }
+                }
+            } else {
+                if (newLang === 'zh') translateAllBooks();
+            }
+        });
 
         document.getElementById('award-select')?.addEventListener('change', function() {
             changeAward(this.value);

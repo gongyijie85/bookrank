@@ -282,18 +282,18 @@ function setGlobalLanguage(lang) {
     localStorage.setItem('app_language', lang);
     localStorage.setItem('bookrank_language', lang);
 
-    // 更新下拉菜单 UI
     if (typeof updateLangDropdown === 'function') {
         updateLangDropdown(lang);
     }
 
-    // 应用页面翻译
     applyPageTranslation(lang);
 
-    // 触发语言切换事件，供各页面监听
+    if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+        BookI18n.applyLanguage(lang);
+    }
+
     window.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } }));
 
-    // 显示提示
     const langName = lang === 'zh' ? '简体中文' : 'English';
     if (typeof showToast === 'function') {
         showToast(`已切换到 ${langName}`, 'success');
