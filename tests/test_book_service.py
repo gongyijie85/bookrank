@@ -11,6 +11,7 @@ import pytest
 from app.models.book import Book
 from app.models.schemas import BookMetadata
 from app.services.book_service import BookService
+from app.utils.exceptions import APIException
 
 
 class TestBookService:
@@ -63,6 +64,7 @@ class TestBookService:
         }
 
         cache_service.get.return_value = None
+        cache_service.get_stale.return_value = None
         cache_service.set.return_value = True
         cache_service.get_cache_time.return_value = '2024-01-14 12:00:00'
 
@@ -127,6 +129,79 @@ class TestBookService:
         assert len(books) == 1
         assert books[0].title == 'Cached Book'
         assert books[0].author == 'Cached Author'
+
+    def test_get_books_by_category_returns_stale_cache_on_api_failure(self, book_service):
+        """测试API失败时返回过期文件缓存"""
+        cached_books = [
+            {
+                'id': '9780143127550',
+                'title': 'Cached Book',
+                'author': 'Cached Author',
+                'publisher': 'Test Publisher',
+                'cover': '',
+                'list_name': 'Test List',
+                'category_id': 'hardcover-fiction',
+                'category_name': 'Hardcover Fiction',
+                'rank': 1,
+                'weeks_on_list': 1,
+                'rank_last_week': '0',
+                'published_date': '2024-01-01',
+                'description': 'Test description',
+                'details': 'Test details',
+                'publication_dt': '2024-01-01',
+                'page_count': '200',
+                'language': 'English',
+                'buy_links': [],
+                'isbn13': '9780143127550',
+                'isbn10': '0143127550',
+                'price': '19.99',
+            }
+        ]
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = cached_books
+        book_service._nyt_client.fetch_books.side_effect = APIException('NYT unavailable')
+
+        books = book_service.get_books_by_category('hardcover-fiction')
+
+        assert len(books) == 1
+        assert books[0].title == 'Cached Book'
+
+    def test_get_books_by_category_treats_error_payload_as_failure(self, book_service):
+        """测试NYT错误缓存不会被当成空榜单写入缓存"""
+        cached_books = [
+            {
+                'id': '9780143127550',
+                'title': 'Cached Book',
+                'author': 'Cached Author',
+                'publisher': 'Test Publisher',
+                'cover': '',
+                'list_name': 'Test List',
+                'category_id': 'hardcover-fiction',
+                'category_name': 'Hardcover Fiction',
+                'rank': 1,
+                'weeks_on_list': 1,
+                'rank_last_week': '0',
+                'published_date': '2024-01-01',
+                'description': 'Test description',
+                'details': 'Test details',
+                'publication_dt': '2024-01-01',
+                'page_count': '200',
+                'language': 'English',
+                'buy_links': [],
+                'isbn13': '9780143127550',
+                'isbn10': '0143127550',
+                'price': '19.99',
+            }
+        ]
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = cached_books
+        book_service._nyt_client.fetch_books.return_value = {'error': 'rate_limit_exceeded'}
+
+        books = book_service.get_books_by_category('hardcover-fiction')
+
+        assert len(books) == 1
+        assert books[0].title == 'Cached Book'
+        book_service._cache.set.assert_not_called()
 
     def test_save_book_translation(self, book_service, db):
         """测试保存图书翻译"""

@@ -52,6 +52,10 @@ class APICacheService:
                 logger.debug(f'缓存已过期: {api_source} - {request_key}')
                 return None
 
+            if cache.status_code and cache.status_code >= 400:
+                logger.warning(f'忽略错误API缓存: {api_source} - {request_key} ({cache.status_code})')
+                return None
+
             logger.info(f'API缓存命中: {api_source} - {request_key}')
 
             try:

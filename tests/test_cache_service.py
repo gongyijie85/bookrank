@@ -154,6 +154,19 @@ class TestCacheService:
             # 验证缓存已过期
             assert cache.get('test_key') is None
 
+    def test_file_cache_respects_entry_ttl_and_keeps_stale(self):
+        """测试文件缓存按单条TTL过期，并保留降级读取能力"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache = FileCache(cache_dir=Path(temp_dir), default_ttl=10)
+
+            cache.set('test_key', {'value': 'test_value'}, ttl=1)
+            assert cache.get('test_key') == {'value': 'test_value'}
+
+            time.sleep(1.1)
+
+            assert cache.get('test_key') is None
+            assert cache.get_stale('test_key') == {'value': 'test_value'}
+
     def test_file_cache_delete(self):
         """测试文件缓存删除"""
         # 创建临时目录
@@ -210,6 +223,19 @@ class TestCacheService:
 
             # 验证结果
             assert value == 'test_value'
+
+    def test_cache_service_get_stale_from_file(self):
+        """测试缓存服务可以读取过期文件缓存用于降级"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            memory_cache = MemoryCache(default_ttl=1, max_size=100)
+            file_cache = FileCache(cache_dir=Path(temp_dir), default_ttl=10)
+            cache_service = CacheService(memory_cache, file_cache)
+
+            cache_service.set('test_key', 'test_value', ttl=1)
+            time.sleep(1.1)
+
+            assert cache_service.get('test_key') is None
+            assert cache_service.get_stale('test_key') == 'test_value'
 
     def test_cache_service_delete(self):
         """测试缓存服务删除"""

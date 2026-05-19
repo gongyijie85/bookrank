@@ -111,6 +111,17 @@ var BookI18n = (function() {
         }
     }
 
+    function _findMetaValueByLabelKey(labelKey) {
+        var labels = document.querySelectorAll('.detail-meta-grid .meta-label[data-i18n="' + labelKey + '"]');
+        for (var i = 0; i < labels.length; i++) {
+            var card = labels[i].closest ? labels[i].closest('.meta-card') : null;
+            if (!card) continue;
+            var value = card.querySelector('.meta-value');
+            if (value) return value;
+        }
+        return null;
+    }
+
     function applyLanguage(lang) {
         if (_store.size === 0) return;
 
@@ -166,7 +177,7 @@ var BookI18n = (function() {
                 }
             }
 
-            var catValueEl = document.querySelector('.detail-meta-grid .meta-card:nth-child(4) .meta-value, .meta-card:has(.meta-label[data-i18n="book_category"]) .meta-value');
+            var catValueEl = document.querySelector('.detail-meta-grid .meta-value[data-cat-zh][data-cat-en]') || _findMetaValueByLabelKey('book_category');
             if (catValueEl) {
                 _updateElement(catValueEl, data.category);
             }

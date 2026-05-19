@@ -100,6 +100,11 @@ class MemoryCache(CacheStrategy):
 class FileCache(CacheStrategy):
     """文件缓存实现 - 优化版本"""
 
+    _CACHE_VERSION = 1
+    _CACHE_MARKER = '__bookrank_cache_v'
+    _CACHE_VALUE = 'value'
+    _CACHE_EXPIRES_AT = 'expires_at'
+
     def __init__(self, cache_dir: Path, default_ttl: int = 3600):
         self._cache_dir = cache_dir
         self._default_ttl = default_ttl
@@ -109,33 +114,67 @@ class FileCache(CacheStrategy):
         safe_key = hashlib.md5(key.encode()).hexdigest()
         return self._cache_dir / f'{safe_key}.json'
 
-    def get(self, key: str) -> Any:
+    def _read_cache_file(self, key: str) -> tuple[Any, float | None] | None:
         cache_path = self._get_cache_path(key)
 
         if not cache_path.exists():
             return None
 
         try:
-            file_age = time.time() - cache_path.stat().st_mtime
-            if file_age > self._default_ttl:
-                cache_path.unlink()
-                return None
-
             with open(cache_path, encoding='utf-8') as f:
-                return json.load(f)
+                payload = json.load(f)
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f'Failed to read cache file {cache_path}: {e}')
             return None
 
+        if (
+            isinstance(payload, dict)
+            and payload.get(self._CACHE_MARKER) == self._CACHE_VERSION
+            and self._CACHE_VALUE in payload
+        ):
+            return payload.get(self._CACHE_VALUE), payload.get(self._CACHE_EXPIRES_AT)
+
+        # Legacy cache files did not store per-entry TTL. Keep supporting them
+        # using the file mtime for freshness while allowing stale fallback reads.
+        try:
+            return payload, cache_path.stat().st_mtime + self._default_ttl
+        except OSError as e:
+            logger.warning(f'Failed to stat cache file {cache_path}: {e}')
+            return None
+
+    def get(self, key: str) -> Any:
+        entry = self._read_cache_file(key)
+        if entry is None:
+            return None
+
+        value, expires_at = entry
+        if expires_at is not None and time.time() > expires_at:
+            return None
+
+        return value
+
+    def get_stale(self, key: str) -> Any:
+        """获取文件缓存内容，即使已经过期。用于外部 API 故障时降级。"""
+        entry = self._read_cache_file(key)
+        if entry is None:
+            return None
+        value, _expires_at = entry
+        return value
+
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         cache_path = self._get_cache_path(key)
-        ttl = ttl or self._default_ttl
+        ttl = self._default_ttl if ttl is None else ttl
+        payload = {
+            self._CACHE_MARKER: self._CACHE_VERSION,
+            self._CACHE_EXPIRES_AT: time.time() + ttl,
+            self._CACHE_VALUE: value,
+        }
 
         try:
             # 先写入临时文件，再重命名（原子操作）
             tmp_path = cache_path.with_suffix('.tmp')
             with open(tmp_path, 'w', encoding='utf-8') as f:
-                json.dump(value, f, ensure_ascii=False, indent=2)
+                json.dump(payload, f, ensure_ascii=False, indent=2)
             tmp_path.replace(cache_path)
         except OSError as e:
             logger.warning(f'Failed to write cache file {cache_path}: {e}')
@@ -213,6 +252,13 @@ class CacheService:
 
         logger.debug(f'Cache miss: {key}')
         return None
+
+    def get_stale(self, key: str) -> Any:
+        """获取文件层缓存，即使已过期；不会回填内存缓存。"""
+        value = self._file.get_stale(key)
+        if value is not None:
+            logger.debug(f'Stale file cache hit: {key}')
+        return value
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """设置缓存（同时写入多层缓存）"""

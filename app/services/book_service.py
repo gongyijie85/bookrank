@@ -85,6 +85,29 @@ class BookService:
             }
         return None
 
+    def _books_from_cache_data(self, cached_data: list[dict[str, Any]] | None, category_id: str) -> list[Book]:
+        if not cached_data:
+            return []
+
+        books = []
+        for book_data in cached_data:
+            try:
+                books.append(Book(**book_data))
+            except TypeError as e:
+                logger.warning(f'Invalid cached book for {category_id}: {e}')
+        return books
+
+    def _get_stale_cached_books(self, cache_key: str, category_id: str) -> list[Book]:
+        get_stale = getattr(self._cache, 'get_stale', None)
+        cached_data = get_stale(cache_key) if callable(get_stale) else None
+        if not cached_data:
+            cached_data = self._cache.get(cache_key)
+
+        books = self._books_from_cache_data(cached_data, category_id)
+        if books:
+            logger.warning(f'Returning stale cached books for {category_id}')
+        return books
+
     def get_books_by_category(self, category_id: str, force_refresh: bool = False) -> list[Book]:
         """
         获取指定分类的图书列表
@@ -103,12 +126,21 @@ class BookService:
             cached_data = self._cache.get(cache_key)
             if cached_data:
                 logger.info(f'Returning cached books for {category_id}')
-                return [Book(**book_data) for book_data in cached_data]
+                return self._books_from_cache_data(cached_data, category_id)
 
         # 从API获取
         try:
             api_data = self._nyt_client.fetch_books(category_id)
+            if isinstance(api_data, dict) and api_data.get('error'):
+                raise APIException(f'NYT API returned error for {category_id}: {api_data["error"]}')
+
             books = self._process_api_response(api_data, category_id)
+            if not books:
+                stale_books = self._get_stale_cached_books(cache_key, category_id)
+                if stale_books:
+                    return stale_books
+                logger.warning(f'NYT API returned no books for {category_id}')
+                return []
 
             # 缓存结果 - 缓存 TTL 从配置读取
             books_data = [book.to_dict() for book in books]
@@ -127,17 +159,16 @@ class BookService:
 
         except APIRateLimitException:
             # 限流时返回缓存数据（即使已过期）
-            cached_data = self._cache.get(cache_key)
-            if cached_data:
-                logger.warning(f'Rate limited, returning stale cache for {category_id}')
-                return [Book(**book_data) for book_data in cached_data]
+            stale_books = self._get_stale_cached_books(cache_key, category_id)
+            if stale_books:
+                return stale_books
             raise
         except APIException as e:
             logger.error(f'Failed to fetch books for {category_id}: {e}')
             # 返回缓存数据作为降级
-            cached_data = self._cache.get(cache_key)
-            if cached_data:
-                return [Book(**book_data) for book_data in cached_data]
+            stale_books = self._get_stale_cached_books(cache_key, category_id)
+            if stale_books:
+                return stale_books
             return []
 
     def _process_api_response(self, api_data: dict[str, Any], category_id: str) -> list[Book]:

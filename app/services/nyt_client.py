@@ -82,8 +82,11 @@ class NYTApiClient:
         if cache_service:
             cached = cache_service.get('nyt', category_id)
             if cached:
-                logger.info('返回NYT缓存数据: %s', category_id)
-                return cached
+                if isinstance(cached, dict) and cached.get('error'):
+                    logger.warning('忽略NYT错误缓存: %s', category_id)
+                else:
+                    logger.info('返回NYT缓存数据: %s', category_id)
+                    return cached
 
         if not self._rate_limiter.is_allowed():
             retry_after = self._rate_limiter.get_retry_after()
@@ -98,7 +101,7 @@ class NYTApiClient:
                 error_message=f'Rate limited, retry after {retry_after}s',
             )
 
-            raise APIRateLimitException(f'API rate limit exceeded. Retry after {retry_after}s', retry_after)
+            raise APIRateLimitException(f'API rate limit exceeded. Retry after {retry_after}s', retry_after=retry_after)
 
         url = f'{self._base_url}/{category_id}.json'
 
@@ -113,7 +116,7 @@ class NYTApiClient:
 
             if response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', 60))
-                raise APIRateLimitException('API rate limited', retry_after)
+                raise APIRateLimitException('API rate limited', retry_after=retry_after)
 
             response.raise_for_status()
             data = response.json()
