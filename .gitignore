@@ -89,9 +89,6 @@ init_db.py
 .elasticbeanstalk/
 .ebextensions/
 
-# Render
-render.yaml
-
 # Keywords folder
 keywords/
 

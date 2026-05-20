@@ -7,6 +7,7 @@ API 路由测试
 import json
 
 import pytest
+from flask import render_template
 
 from app.models.schemas import Award
 
@@ -35,6 +36,27 @@ class TestLanguageRedirect:
 
         assert response.status_code == 302
         assert response.headers['Location'] == '/'
+
+
+@pytest.mark.routes
+class TestStylesheets:
+    def test_production_falls_back_to_source_css_when_minified_missing(self, app):
+        original_env = app.config.get('ENV')
+        original_minified = app.config.get('MINIFIED_CSS_EXISTS')
+        app.config['ENV'] = 'production'
+        app.config['MINIFIED_CSS_EXISTS'] = False
+
+        try:
+            with app.test_request_context('/'):
+                html = render_template('base.html')
+        finally:
+            app.config['ENV'] = original_env
+            app.config['MINIFIED_CSS_EXISTS'] = original_minified
+
+        assert '/static/css/base.css' in html
+        assert '/static/css/components.css' in html
+        assert '/static/css/animations.css' in html
+        assert '/static/css/all.min.css' not in html
 
 
 # ==================== 图书列表测试 ====================

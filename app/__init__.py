@@ -40,6 +40,7 @@ def create_app(config_name: str = None) -> Flask:
     app.config.from_object(config[config_name])
     app.config['APP_ENV'] = config_name
     app.config['ENV'] = config_name
+    app.config['MINIFIED_CSS_EXISTS'] = (PROJECT_ROOT / 'static' / 'css' / 'all.min.css').is_file()
     config[config_name].init_app(app)
 
     if config_name != 'testing' and app.config.get('SECRET_KEY', '').startswith('dev-secret-key'):
@@ -245,12 +246,17 @@ def _setup_db_event_listeners(app: Flask) -> None:
                 dbapi_connection.set_session(autocommit=False)
             except Exception as e:
                 app.logger.warning(f'设置连接参数失败: {e}')
-        # 使用 SQL 语句设置时区，兼容所有 PostgreSQL 驱动
-        try:
-            with dbapi_connection.cursor() as cursor:
+        module_name = dbapi_connection.__class__.__module__
+        if 'psycopg' in module_name:
+            cursor = None
+            try:
+                cursor = dbapi_connection.cursor()
                 cursor.execute("SET TIME ZONE 'UTC'")
-        except Exception as e:
-            app.logger.warning(f'设置时区失败: {e}')
+            except Exception as e:
+                app.logger.warning(f'设置时区失败: {e}')
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
     @event.listens_for(Pool, 'reset')
     def on_reset(dbapi_connection: Any, connection_record: Any, reset_state: Any = None) -> None:

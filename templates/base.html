@@ -37,7 +37,7 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
 
     <!-- Main Stylesheets -->
-    {% if config.get('ENV') == 'production' %}
+    {% if config.get('ENV') == 'production' and config.get('MINIFIED_CSS_EXISTS') %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
     {% else %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
