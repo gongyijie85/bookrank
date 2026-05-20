@@ -1,6 +1,6 @@
 import pytest
 
-from app.models.schemas import SearchHistory, UserCategory, UserPreference, UserViewedBook
+from app.models.schemas import BookMetadata, SearchHistory, UserCategory, UserPreference, UserViewedBook
 from app.services.user_service import UserService
 
 
@@ -80,3 +80,15 @@ class TestUserServicePreferences:
         db.session.commit()
         prefs = user_service.get_preferences(session_id)
         assert prefs['view_mode'] == 'grid'
+
+
+class TestUserServiceBookTranslation:
+    def test_save_book_translation_creates_metadata_with_required_fields(self, app, db, user_service):
+        result = user_service.save_book_translation('9780143127550', title_zh='测试书名')
+
+        assert result is True
+        meta = db.session.get(BookMetadata, '9780143127550')
+        assert meta is not None
+        assert meta.title == '测试书名'
+        assert meta.author == 'Unknown Author'
+        assert meta.title_zh == '测试书名'

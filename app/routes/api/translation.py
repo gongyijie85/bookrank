@@ -2,6 +2,7 @@ import logging
 
 from flask import request
 
+from ...utils.admin_auth import admin_required
 from ...utils.api_helpers import APIResponse, csrf_protect, handle_api_errors, validate_isbn
 from ...utils.service_helpers import get_book_service
 from . import api_bp
@@ -97,6 +98,7 @@ def translate_book(isbn: str):
 
 
 @api_bp.route('/translate/cache/stats')
+@admin_required
 @handle_api_errors
 def get_translation_cache_stats():
     """获取翻译缓存统计信息"""
@@ -132,6 +134,7 @@ def get_translation_cache_stats():
 
 
 @api_bp.route('/translate/cache/recent')
+@admin_required
 @handle_api_errors
 def get_translation_cache_recent():
     """获取最近的翻译缓存记录"""
@@ -168,6 +171,7 @@ def get_translation_cache_recent():
 
 @api_bp.route('/translate/cache/clear', methods=['POST'])
 @csrf_protect
+@admin_required
 @handle_api_errors
 def clear_translation_cache():
     """清理翻译缓存"""

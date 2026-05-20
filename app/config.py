@@ -24,6 +24,7 @@ class Config:
     BASE_URL: str = os.environ.get('BASE_URL', '')
 
     SECRET_KEY: str = 'dev-secret-key-for-local-development-only-do-not-use-in-production'
+    ADMIN_SECRET: str = os.environ.get('ADMIN_SECRET', '')
     SESSION_COOKIE_SECURE: bool = True
     SESSION_COOKIE_HTTPONLY: bool = True
     SESSION_COOKIE_SAMESITE: str = 'Lax'

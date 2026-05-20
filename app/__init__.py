@@ -38,6 +38,8 @@ def create_app(config_name: str = None) -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / 'templates'), static_folder=str(PROJECT_ROOT / 'static'))
 
     app.config.from_object(config[config_name])
+    app.config['APP_ENV'] = config_name
+    app.config['ENV'] = config_name
     config[config_name].init_app(app)
 
     if config_name != 'testing' and app.config.get('SECRET_KEY', '').startswith('dev-secret-key'):
@@ -144,7 +146,7 @@ def _init_extensions(app: Flask, config_name: str) -> None:
 
     _setup_db_event_listeners(app)
 
-    if config_name != 'testing':
+    if config_name not in ('production', 'testing'):
         _auto_init_awards(app)
 
     from .setup import init_services
@@ -240,12 +242,18 @@ def _setup_db_event_listeners(app: Flask) -> None:
         app.logger.debug('数据库新连接已建立')
         if hasattr(dbapi_connection, 'set_session'):
             try:
-                dbapi_connection.set_session(autocommit=False, timezone='UTC')
+                dbapi_connection.set_session(autocommit=False)
             except Exception as e:
                 app.logger.warning(f'设置连接参数失败: {e}')
+        # 使用 SQL 语句设置时区，兼容所有 PostgreSQL 驱动
+        try:
+            with dbapi_connection.cursor() as cursor:
+                cursor.execute("SET TIME ZONE 'UTC'")
+        except Exception as e:
+            app.logger.warning(f'设置时区失败: {e}')
 
     @event.listens_for(Pool, 'reset')
-    def on_reset(dbapi_connection: Any, connection_record: Any) -> None:
+    def on_reset(dbapi_connection: Any, connection_record: Any, reset_state: Any = None) -> None:
         try:
             if hasattr(dbapi_connection, 'rollback'):
                 dbapi_connection.rollback()
@@ -319,7 +327,7 @@ def _apply_security_headers(app: Flask) -> None:
         for header, value in security_headers.items():
             response.headers[header] = value
 
-        if app.config.get('ENV') == 'production':
+        if app.config.get('APP_ENV') == 'production':
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
 
         request_path = request.path if request else ''

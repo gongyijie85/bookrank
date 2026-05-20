@@ -62,11 +62,15 @@ def is_safe_redirect_url(url, allowed_hosts=None):
         return False
 
     parsed = urlparse(url)
+    if parsed.scheme and parsed.scheme not in ('http', 'https'):
+        return False
+    if url.startswith('//') or '\\' in url:
+        return False
 
-    if allowed_hosts:
-        return parsed.netloc in allowed_hosts
+    if parsed.netloc:
+        return bool(allowed_hosts and parsed.netloc in allowed_hosts)
 
-    return parsed.scheme in ['http', 'https'] and parsed.netloc
+    return url.startswith('/')
 
 
 def log_safe(message, **kwargs):

@@ -8,6 +8,8 @@ import pytest
 
 from app import create_app
 
+ADMIN_HEADERS = {'X-Admin-Secret': 'test-admin-secret'}
+
 
 class TestApiRoutes:
     """API路由测试类"""
@@ -17,6 +19,7 @@ class TestApiRoutes:
         """创建测试应用实例"""
         app = create_app('testing')
         app.config['CATEGORIES'] = {'hardcover-fiction': '精装小说', 'hardcover-nonfiction': '精装非虚构'}
+        app.config['ADMIN_SECRET'] = 'test-admin-secret'
         return app
 
     @pytest.fixture
@@ -186,7 +189,7 @@ class TestApiRoutes:
     def test_get_translation_cache_stats(self, client):
         """测试获取翻译缓存统计信息"""
         # 执行测试
-        response = client.get('/api/translate/cache/stats')
+        response = client.get('/api/translate/cache/stats', headers=ADMIN_HEADERS)
 
         # 验证结果
         assert response.status_code == 200
@@ -197,7 +200,7 @@ class TestApiRoutes:
     def test_get_translation_cache_recent(self, client):
         """测试获取最近的翻译缓存记录"""
         # 执行测试
-        response = client.get('/api/translate/cache/recent')
+        response = client.get('/api/translate/cache/recent', headers=ADMIN_HEADERS)
 
         # 验证结果
         assert response.status_code == 200
@@ -208,7 +211,7 @@ class TestApiRoutes:
     def test_get_api_cache_stats(self, client):
         """测试获取API缓存统计信息"""
         # 执行测试
-        response = client.get('/api/cache/stats')
+        response = client.get('/api/cache/stats', headers=ADMIN_HEADERS)
 
         # 验证结果
         assert response.status_code == 200
@@ -218,7 +221,7 @@ class TestApiRoutes:
     def test_get_api_cache_recent(self, client):
         """测试获取最近的API缓存记录"""
         # 执行测试
-        response = client.get('/api/cache/recent')
+        response = client.get('/api/cache/recent', headers=ADMIN_HEADERS)
 
         # 验证结果
         assert response.status_code == 200

@@ -20,6 +20,7 @@ from ..utils import (
     clean_translation_text,
 )
 from ..utils.api_helpers import APIResponse, handle_api_errors
+from ..utils.security import is_safe_redirect_url
 from ..utils.service_helpers import get_book_service, get_google_books_client, submit_background_task
 
 main_bp = Blueprint('main', __name__)
@@ -891,6 +892,8 @@ def set_language():
     if lang not in ('en', 'zh'):
         lang = 'en'
     next_url = request.args.get('next', '/')
+    if not is_safe_redirect_url(next_url, allowed_hosts={request.host}):
+        next_url = '/'
     response = make_response(redirect(next_url))
     # 获取当前请求的域名用于设置 cookie domain
     host = request.host.split(':')[0]  # 去掉端口号

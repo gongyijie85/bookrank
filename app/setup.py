@@ -164,6 +164,10 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     """
     global _scheduler
 
+    if app.config.get('TESTING'):
+        app.logger.info('⏸️ 测试环境跳过后台任务调度器')
+        return
+
     if os.environ.get('DISABLE_BACKGROUND_THREADS', '').lower() == 'true':
         app.logger.info('⏸️ 后台任务已禁用（DISABLE_BACKGROUND_THREADS=true）')
         return

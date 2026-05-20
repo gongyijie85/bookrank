@@ -9,11 +9,14 @@ import pytest
 from app import create_app
 from app.models.database import db as _db
 
+ADMIN_HEADERS = {'X-Admin-Secret': 'test-admin-secret'}
+
 
 @pytest.fixture(scope='module')
 def app():
     """创建测试应用实例并初始化数据库"""
     app = create_app('testing')
+    app.config['ADMIN_SECRET'] = 'test-admin-secret'
     with app.app_context():
         _db.create_all()
         yield app
@@ -67,7 +70,7 @@ class TestTranslationAPI:
 
     def test_translate_cache_stats(self, client):
         """测试获取翻译缓存统计信息"""
-        response = client.get('/api/translate/cache/stats')
+        response = client.get('/api/translate/cache/stats', headers=ADMIN_HEADERS)
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
@@ -75,7 +78,7 @@ class TestTranslationAPI:
 
     def test_translate_cache_recent(self, client):
         """测试获取最近的翻译缓存记录"""
-        response = client.get('/api/translate/cache/recent?limit=5')
+        response = client.get('/api/translate/cache/recent?limit=5', headers=ADMIN_HEADERS)
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
@@ -100,14 +103,19 @@ class TestCSRFProtection:
 class TestCacheAPI:
     """缓存API测试类"""
 
+    def test_cache_stats_requires_admin(self, client):
+        """测试缓存统计需要管理员认证"""
+        response = client.get('/api/cache/stats')
+        assert response.status_code == 403
+
     def test_cache_stats(self, client):
         """测试获取缓存统计信息"""
-        response = client.get('/api/cache/stats')
+        response = client.get('/api/cache/stats', headers=ADMIN_HEADERS)
         assert response.status_code == 200
 
     def test_cache_recent(self, client):
         """测试获取最近缓存记录"""
-        response = client.get('/api/cache/recent?limit=5')
+        response = client.get('/api/cache/recent?limit=5', headers=ADMIN_HEADERS)
         assert response.status_code == 200
 
     def test_cache_clear_without_csrf(self, client):

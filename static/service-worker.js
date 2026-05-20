@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nytimes-books-cache-v2';
+const CACHE_NAME = 'nytimes-books-cache-v3';
 const STATIC_ASSETS = [
     '/static/default-cover.png',
     '/static/css/all.min.css',
@@ -28,16 +28,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     if (event.request.url.includes('/api/') && event.request.method === 'GET') {
-        event.respondWith(
-            caches.open(CACHE_NAME).then((cache) => {
-                return fetch(event.request)
-                    .then((response) => {
-                        cache.put(event.request, response.clone());
-                        return response;
-                    })
-                    .catch(() => cache.match(event.request));
-            })
-        );
+        event.respondWith(fetch(event.request));
     } else if (event.request.url.includes('/cache/images/')) {
         event.respondWith(
             caches.open(CACHE_NAME).then((cache) => {

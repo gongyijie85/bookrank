@@ -62,7 +62,7 @@ class BookService:
         for callback in self._on_data_refreshed_callbacks:
             try:
                 callback()
-            except (RuntimeError, AttributeError, TypeError) as e:
+            except Exception as e:
                 logger.warning(f'数据刷新回调执行失败: {e}')
 
     def get_book_by_isbn(self, isbn: str) -> dict[str, Any] | None:

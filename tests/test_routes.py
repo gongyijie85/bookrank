@@ -28,6 +28,15 @@ class TestHealthCheck:
         assert data['data']['status'] == 'healthy'
 
 
+@pytest.mark.routes
+class TestLanguageRedirect:
+    def test_set_language_rejects_external_redirect(self, client):
+        response = client.get('/set-language?lang=en&next=https%3A%2F%2Fexample.com', follow_redirects=False)
+
+        assert response.status_code == 302
+        assert response.headers['Location'] == '/'
+
+
 # ==================== 图书列表测试 ====================
 
 
@@ -242,9 +251,9 @@ class TestTranslationAPI:
             assert data['success'] is True
             assert 'translated' in data['data']
 
-    def test_translation_cache_stats(self, client):
+    def test_translation_cache_stats(self, client, admin_headers):
         """测试翻译缓存统计"""
-        response = client.get('/api/translate/cache/stats')
+        response = client.get('/api/translate/cache/stats', headers=admin_headers)
 
         assert response.status_code == 200
         data = json.loads(response.data)

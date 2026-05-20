@@ -12,6 +12,9 @@ class CSRFToken(db.Model):
 
     __table_args__ = (db.Index('idx_csrf_tokens_created_at', 'created_at'),)
 
+    # 禁用删除行数确认警告，避免并发请求重复删除同一token时产生SAWarning
+    __mapper_args__ = {'confirm_deleted_rows': False}
+
 
 class UserPreference(db.Model):
     """用户偏好设置"""

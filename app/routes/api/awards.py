@@ -27,13 +27,13 @@ def get_awards():
 def get_award_books(award_id: int):
     """获取指定奖项的图书列表（通过 Service 层）"""
     try:
-        award = _award_service.get_award_by_id(award_id)
-        if not award:
-            return APIResponse.error('奖项不存在', 404)
-
         year = request.args.get('year', type=int)
         if year and (year < 1900 or year > 2100):
             return APIResponse.error('无效的年份', 400)
+
+        award = _award_service.get_award_by_id(award_id)
+        if not award:
+            return APIResponse.error('奖项不存在', 404)
 
         category = request.args.get('category')
         page, limit = validate_pagination(

@@ -245,10 +245,10 @@
         // CSRF Token management
         let csrfToken = null;
         
-        async function getCsrfToken() {
-            if (csrfToken) return csrfToken;
+        async function getCsrfToken(forceRefresh = false) {
+            if (csrfToken && !forceRefresh) return csrfToken;
             try {
-                const response = await fetch('/api/csrf-token');
+                const response = await fetch('/api/csrf-token', { cache: 'no-store' });
                 const result = await response.json();
                 if (result.success && result.data.csrf_token) {
                     csrfToken = result.data.csrf_token;
@@ -263,14 +263,21 @@
         // Add CSRF token to all POST requests
         const originalFetch = window.fetch;
         window.fetch = async function(url, options = {}) {
-            if (options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
+            const method = (options.method || 'GET').toUpperCase();
+            const needsCsrf = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
+            if (needsCsrf) {
                 const token = await getCsrfToken();
                 if (token) {
-                    options.headers = options.headers || {};
-                    options.headers['X-CSRF-Token'] = token;
+                    const headers = new Headers(options.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    options.headers = headers;
                 }
             }
-            return originalFetch(url, options);
+            const response = await originalFetch(url, options);
+            if (needsCsrf) {
+                csrfToken = null;
+            }
+            return response;
         };
     </script>
 

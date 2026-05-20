@@ -4,7 +4,9 @@ import json
 import logging
 import re
 from datetime import date
+from html import escape
 from typing import Any
+from urllib.parse import urlparse
 
 from ..models.schemas import WeeklyReport, db
 from .book_service import BookService
@@ -46,8 +48,14 @@ def _cover_html(cover: str) -> str:
     """生成封面图HTML标签（统一60px宽度，邮件/摘要通用）"""
     if not cover:
         return ''
+    parsed = urlparse(cover)
+    if parsed.scheme and parsed.scheme not in ('http', 'https'):
+        return ''
+    if not parsed.scheme and not cover.startswith('/'):
+        return ''
+    safe_cover = escape(cover, quote=True)
     return (
-        f'<img src="{cover}" style="max-width:60px;height:auto;width:auto;'
+        f'<img src="{safe_cover}" style="max-width:60px;height:auto;width:auto;'
         f'max-height:90px;border-radius:4px;vertical-align:middle;margin-right:10px;'
         f'box-shadow:0 1px 3px rgba(0,0,0,0.1);">'
     )
@@ -543,6 +551,18 @@ class WeeklyReportService:
             summary += '整体来看，本周榜单有所回调，新书入榜值得关注。'
         else:
             summary += '整体来看，本周榜单保持相对稳定。'
+
+        cover_items = []
+        for book in top_changes[:1] + analysis.get('featured_books', [])[:1]:
+            cover = _cover_html(book.get('cover') or book.get('original_cover', ''))
+            if cover:
+                title = _format_book_title(book.get('title', ''))
+                cover_items.append(
+                    f'<span style="display:inline-flex;align-items:center;margin-right:16px;">{cover}{title}</span>'
+                )
+
+        if cover_items:
+            summary += '\n\n' + ''.join(cover_items)
 
         summary += '\n\n*切换至「数据可视化」和「详细分析」标签页查看完整数据分析。*'
 

@@ -1,5 +1,28 @@
 # Change Log
 
+## v0.9.17 - 2026-05-19 - 修复 CSRF Token SAWarning + Render 数据库恢复
+
+### 修复内容
+
+#### 1. 修复 SQLAlchemy SAWarning 警告
+**问题**: 日志中出现 `SAWarning: DELETE statement on table 'csrf_tokens' expected to delete 1 row(s); 0 were matched`
+**根因**: 并发请求时，同一 CSRF token 可能被重复删除，第二次删除时记录已不存在
+**修复**: 在 `CSRFToken` 模型添加 `__mapper_args__ = {'confirm_deleted_rows': False}`，禁用删除行数确认警告
+**文件**: `app/models/schemas.py`
+
+#### 2. 修复 PostgreSQL 时区设置警告
+**问题**: 日志中出现 `'timezone' is an invalid keyword argument for this function`
+**根因**: `psycopg2` 的 `set_session()` 方法不支持 `timezone` 参数
+**修复**: 移除 `timezone` 参数，改用 `SET TIME ZONE 'UTC'` SQL 语句设置时区
+**文件**: `app/__init__.py`
+
+#### 3. Render 生产环境数据库恢复
+**问题**: Render 免费版 PostgreSQL 因长时间未使用被暂停，导致 Web Service 部署失败
+**解决**: 重建 `bookrank_db` 数据库，更新 `DATABASE_URL` 环境变量，重新部署成功
+**状态**: 生产环境已恢复，域名 `https://bookrank-ckml.onrender.com` 正常访问
+
+---
+
 ## v0.9.16 - 2026-05-18 - ISBN 格式严格校验 + 详情页硬编码中文修复
 
 ### 热修复

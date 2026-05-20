@@ -30,6 +30,7 @@ def app():
     """
     # 使用测试配置创建应用
     app = create_app('testing')
+    app.config['ADMIN_SECRET'] = 'test-admin-secret'
 
     # 确保测试配置正确
     assert app.config['TESTING'] is True
@@ -104,6 +105,11 @@ def runner(app):
         CLI 运行器
     """
     return app.test_cli_runner()
+
+
+@pytest.fixture
+def admin_headers():
+    return {'X-Admin-Secret': 'test-admin-secret'}
 
 
 @pytest.fixture

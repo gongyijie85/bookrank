@@ -1,70 +1,16 @@
 import logging
-import os
 import re
-import secrets
-import time
-from functools import wraps
 
 from flask import Blueprint, request
 
 from ..models.database import db
 from ..utils.api_helpers import APIResponse, csrf_protect
+from ..utils.admin_auth import admin_required
 from ..utils.error_tracker import error_tracker
 from ..utils.service_helpers import get_book_service, get_google_books_client
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 logger = logging.getLogger(__name__)
-
-ADMIN_SECRET = os.environ.get('ADMIN_SECRET', '')
-
-# 认证失败限流状态
-_auth_failures: dict[str, dict] = {}  # ip -> {'count': int, 'blocked_until': float}
-_AUTH_MAX_FAILURES = 5
-_AUTH_BLOCK_SECONDS = 900  # 15分钟
-
-
-def admin_required(f):
-    """管理员认证装饰器：通过 X-Admin-Secret 请求头验证，含限流和审计日志"""
-
-    @wraps(f)
-    def wrapped(*args, **kwargs):
-        if not ADMIN_SECRET:
-            logger.warning('ADMIN_SECRET 未配置，管理员接口已禁用')
-            return APIResponse.error('管理员接口未配置，请设置 ADMIN_SECRET 环境变量', 503)
-
-        client_ip = request.remote_addr or 'unknown'
-        now = time.time()
-
-        # 检查是否被临时封禁
-        if client_ip in _auth_failures:
-            state = _auth_failures[client_ip]
-            if now < state.get('blocked_until', 0):
-                logger.warning(f'管理员认证被限流 (IP: {client_ip}, 封禁至: {state["blocked_until"]})')
-                return APIResponse.error('认证失败次数过多，请稍后重试', 429)
-            # 封禁时间已过，清除计数
-            if now >= state.get('blocked_until', 0) and state.get('count', 0) >= _AUTH_MAX_FAILURES:
-                _auth_failures.pop(client_ip, None)
-
-        auth_header = request.headers.get('X-Admin-Secret', '')
-
-        # 常量时间比较，防止时序攻击
-        if not secrets.compare_digest(auth_header, ADMIN_SECRET):
-            # 记录认证失败
-            state = _auth_failures.setdefault(client_ip, {'count': 0, 'blocked_until': 0})
-            state['count'] += 1
-            logger.warning(f'管理员认证失败 (IP: {client_ip}, 尝试: {state["count"]}/{_AUTH_MAX_FAILURES})')
-
-            if state['count'] >= _AUTH_MAX_FAILURES:
-                state['blocked_until'] = now + _AUTH_BLOCK_SECONDS
-                logger.warning(f'管理员认证封禁 (IP: {client_ip}, 封禁 {_AUTH_BLOCK_SECONDS}s)')
-
-            return APIResponse.error('需要管理员权限', 403)
-
-        # 认证成功，清除失败计数
-        _auth_failures.pop(client_ip, None)
-        return f(*args, **kwargs)
-
-    return wrapped
 
 
 @admin_bp.route('/award-covers/sync', methods=['POST'])
@@ -412,8 +358,8 @@ def fix_truncated_titles():
         book_metadata_map = {}
         all_books = BookMetadata.query.all()
         for book in all_books:
-            if book.isbn and book.title_cn:
-                book_metadata_map[book.isbn] = book.title_cn
+            if book.isbn and book.title_zh:
+                book_metadata_map[book.isbn] = book.title_zh
 
         reports = WeeklyReport.query.all()
         fixed_count = 0

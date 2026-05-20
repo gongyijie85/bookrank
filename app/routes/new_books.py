@@ -9,6 +9,7 @@ from flask import Blueprint, make_response, request
 
 from ..models.database import db
 from ..services.new_book_service import NewBookService
+from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect, validate_pagination
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ def get_publisher(publisher_id: int):
 
 @new_books_bp.route('/publishers/<int:publisher_id>/status', methods=['POST'])
 @csrf_protect
+@admin_required
 def update_publisher_status(publisher_id: int):
     """更新出版社状态"""
     try:
@@ -195,6 +197,7 @@ def get_categories():
 
 @new_books_bp.route('/sync', methods=['POST'])
 @csrf_protect
+@admin_required
 def sync_all_publishers():
     """同步所有出版社新书（含冷却时间限制）"""
     global _last_sync_time
@@ -234,6 +237,7 @@ def sync_all_publishers():
 
 @new_books_bp.route('/sync/<int:publisher_id>', methods=['POST'])
 @csrf_protect
+@admin_required
 def sync_publisher(publisher_id: int):
     """同步指定出版社新书（含冷却时间限制）"""
     global _last_sync_time
@@ -338,6 +342,7 @@ def export_csv():
 
 @new_books_bp.route('/init', methods=['POST'])
 @csrf_protect
+@admin_required
 def init_publishers():
     """初始化出版社数据"""
     try:

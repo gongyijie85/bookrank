@@ -10,5 +10,8 @@ def init_db(app):
     db.init_app(app)
     migrate.init_app(app, db)
 
+    if app.config.get('APP_ENV') == 'production':
+        return
+
     with app.app_context():
         db.create_all()

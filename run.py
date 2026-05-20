@@ -10,6 +10,8 @@ import os
 import logging
 import threading
 
+from sqlalchemy import inspect
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,13 @@ from app import app, db
 
 _db_init_lock = threading.Lock()
 _db_initialized = False
+
+HEALTH_CHECK_PATHS = {
+    '/api/health',
+    '/health',
+    '/health/detailed',
+    '/health/ready',
+}
 
 
 def _cleanup_dirty_translations():
@@ -72,10 +81,26 @@ def _run_migrations():
             db.text("SELECT version_num FROM alembic_version")
         ).fetchone()
         if result:
+            from flask_migrate import upgrade as _upgrade
+
+            _upgrade()
             logger.info(f"数据库迁移已是最新版本: {result[0]}")
             return True
     except Exception:
-        logger.info("alembic_version 表不存在，需要执行迁移")
+        db.session.rollback()
+        logger.info("alembic_version 表不存在，需要检查当前 schema")
+
+    has_app_tables, schema_is_current = _inspect_schema_state()
+    if schema_is_current:
+        return _stamp_current_schema("现有 schema 已完整，写入 Alembic 版本")
+
+    if not has_app_tables:
+        try:
+            db.create_all()
+            return _stamp_current_schema("新数据库已按当前模型创建，写入 Alembic 版本")
+        except Exception as e:
+            db.session.rollback()
+            logger.warning(f"按模型创建数据库失败: {e}")
 
     try:
         from flask_migrate import upgrade as _upgrade
@@ -83,7 +108,45 @@ def _run_migrations():
         logger.info("数据库迁移完成")
         return True
     except Exception as e:
+        db.session.rollback()
         logger.warning(f"迁移失败: {e}")
+        return False
+
+
+def _inspect_schema_state():
+    """检查当前数据库是否已具备模型要求的表和字段。"""
+    try:
+        inspector = inspect(db.engine)
+        existing_tables = set(inspector.get_table_names())
+        model_tables = set(db.metadata.tables.keys())
+        has_app_tables = bool(existing_tables & model_tables)
+
+        if not model_tables.issubset(existing_tables):
+            return has_app_tables, False
+
+        for table_name, table in db.metadata.tables.items():
+            existing_columns = {column['name'] for column in inspector.get_columns(table_name)}
+            expected_columns = set(table.columns.keys())
+            if not expected_columns.issubset(existing_columns):
+                return has_app_tables, False
+
+        return has_app_tables, True
+    except Exception as e:
+        logger.warning(f"检查数据库 schema 失败: {e}")
+        return False, False
+
+
+def _stamp_current_schema(reason):
+    """把已存在的当前 schema 标记为 Alembic head。"""
+    try:
+        from flask_migrate import stamp as _stamp
+
+        _stamp(revision='head')
+        logger.info(reason)
+        return True
+    except Exception as e:
+        db.session.rollback()
+        logger.warning(f"写入 Alembic 版本失败: {e}")
         return False
 
 
@@ -134,6 +197,11 @@ def _init_database_lazy():
 @app.before_request
 def _ensure_db_ready():
     """确保数据库已初始化（惰性）"""
+    from flask import request
+
+    if request.path in HEALTH_CHECK_PATHS or request.path.startswith('/static/'):
+        return
+
     _init_database_lazy()
 
 

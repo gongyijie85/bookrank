@@ -108,7 +108,7 @@ class UserService:
         try:
             meta = db.session.get(BookMetadata, isbn)
             if not meta:
-                meta = BookMetadata(isbn=isbn)
+                meta = BookMetadata(isbn=isbn, title=title_zh or isbn, author='Unknown Author')
                 db.session.add(meta)
 
             if title_zh:
