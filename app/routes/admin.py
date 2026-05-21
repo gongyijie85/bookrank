@@ -7,7 +7,7 @@ from ..models.database import db
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.admin_auth import admin_required
 from ..utils.error_tracker import error_tracker
-from ..utils.service_helpers import get_book_service, get_google_books_client
+from ..utils.service_helpers import get_book_service, get_google_books_client, get_image_cache_service
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def sync_award_covers():
                 api_key=Config.GOOGLE_API_KEY, base_url='https://www.googleapis.com/books/v1/volumes'
             )
 
-        sync_service = AwardCoverSyncService(google_client)
+        sync_service = AwardCoverSyncService(google_client, image_cache=get_image_cache_service())
 
         data = request.get_json(silent=True) or {}
         batch_size = min(max(1, data.get('batch_size', 10)), 50)

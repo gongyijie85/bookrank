@@ -132,7 +132,7 @@ class OpenLibraryClient:
         if size not in ['S', 'M', 'L']:
             size = 'L'
 
-        cover_url = f'{self._covers_url}/b/isbn/{clean_isbn}-{size}.jpg'
+        cover_url = f'{self._covers_url}/b/isbn/{clean_isbn}-{size}.jpg?default=false'
 
         try:
             response = self._session.head(cover_url, timeout=5)

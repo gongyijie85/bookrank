@@ -178,6 +178,7 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
 
     is_render_free = os.environ.get('RENDER', '').lower() == 'true'
     initial_delay = 1800 if is_render_free else 300  # 30 分钟 / 5 分钟
+    cover_sync_delay = 120 if is_render_free else 60
 
     _scheduler = BackgroundScheduler(
         daemon=False,  # 非 daemon：进程退出前等待任务完成
@@ -230,11 +231,11 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
 
         _scheduler.add_job(
             func=_scheduler_wrapper(app, _cover_sync_task),
-            trigger=DateTrigger(run_date=now + timedelta(seconds=initial_delay), timezone=UTC),
+            trigger=DateTrigger(run_date=now + timedelta(seconds=cover_sync_delay), timezone=UTC),
             id='cover_sync_init',
             name='获奖书籍封面同步',
         )
-        app.logger.info(f'📅 获奖书籍封面同步已安排（{initial_delay}秒后）')
+        app.logger.info(f'📅 获奖书籍封面同步已安排（{cover_sync_delay}秒后）')
 
     # 4. 翻译缓存自动清理（每 30 分钟一次，避免限流中间件混杂非幂等副作用）
     if translation_service:
@@ -364,7 +365,10 @@ def _cover_sync_task(app):
                 api_key=Config.GOOGLE_API_KEY, base_url='https://www.googleapis.com/books/v1/volumes'
             )
 
-        sync_service = AwardCoverSyncService(google_client)
+        sync_service = AwardCoverSyncService(
+            google_client,
+            image_cache=app.extensions.get('image_cache_service'),
+        )
 
         result = sync_service.sync_missing_covers(batch_size=30, delay=0.5)
 

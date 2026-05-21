@@ -4,7 +4,7 @@ import logging
 import time
 
 from ..models.schemas import AwardBook, db
-from .api_client import GoogleBooksClient, OpenLibraryClient
+from .api_client import GoogleBooksClient, ImageCacheService, OpenLibraryClient
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +12,15 @@ logger = logging.getLogger(__name__)
 class AwardCoverSyncService:
     """获奖书籍封面同步服务"""
 
-    def __init__(self, google_client: GoogleBooksClient, openlibrary_client: OpenLibraryClient | None = None):
+    def __init__(
+        self,
+        google_client: GoogleBooksClient,
+        openlibrary_client: OpenLibraryClient | None = None,
+        image_cache: ImageCacheService | None = None,
+    ):
         self._google_client = google_client
         self._openlibrary_client = openlibrary_client or OpenLibraryClient()
+        self._image_cache = image_cache
         self._is_running = False
 
     def sync_missing_covers(self, batch_size: int = 10, delay: float = 1.5) -> dict:
@@ -39,9 +45,15 @@ class AwardCoverSyncService:
             # 查找缺少封面的书籍
             books_to_update = (
                 AwardBook.query.filter(
-                    (AwardBook.cover_original_url is None) | (AwardBook.cover_original_url == ''),
-                    AwardBook.isbn13 is not None,
-                    AwardBook.is_displayable,
+                    db.or_(
+                        AwardBook.cover_original_url.is_(None),
+                        AwardBook.cover_original_url == '',
+                        AwardBook.cover_local_path.is_(None),
+                        AwardBook.cover_local_path == '',
+                        AwardBook.cover_local_path == '/static/default-cover.png',
+                    ),
+                    AwardBook.isbn13.isnot(None),
+                    AwardBook.is_displayable.is_(True),
                 )
                 .limit(batch_size)
                 .all()
@@ -57,10 +69,19 @@ class AwardCoverSyncService:
             for i, book in enumerate(books_to_update, 1):
                 try:
                     result['total_checked'] += 1
-                    cover_url = self._fetch_cover_for_book(book)
+                    cover_url = (book.cover_original_url or '').strip()
+                    cached_cover = self._cache_cover(cover_url) if cover_url else None
+
+                    if not cover_url or (not cached_cover and self._should_refresh_cover_source(cover_url)):
+                        fetched_cover = self._fetch_cover_for_book(book)
+                        if fetched_cover:
+                            cover_url = fetched_cover
+                            cached_cover = self._cache_cover(cover_url)
 
                     if cover_url:
                         book.cover_original_url = cover_url
+                        if cached_cover:
+                            book.cover_local_path = cached_cover
                         db.session.commit()
                         result['updated'] += 1
                         logger.info(f'[{i}/{len(books_to_update)}] ✅ {book.title}: 封面已更新')
@@ -133,6 +154,24 @@ class AwardCoverSyncService:
                     return result['cover_url']
             except Exception as e:
                 logger.debug(f'Google Books书名搜索失败 ({title}): {e}')
+
+        return None
+
+    def _should_refresh_cover_source(self, cover_url: str) -> bool:
+        """Open Library may return placeholders; prefer Google when cache validation fails."""
+        return 'covers.openlibrary.org' in cover_url
+
+    def _cache_cover(self, cover_url: str) -> str | None:
+        """下载封面到本地缓存，失败时保留原始 URL 作为前端兜底。"""
+        if not self._image_cache:
+            return None
+
+        try:
+            cached_path = self._image_cache.get_cached_image_url(cover_url, ttl=86400 * 365)
+            if cached_path and cached_path != '/static/default-cover.png':
+                return cached_path
+        except Exception as e:
+            logger.debug(f'封面缓存失败 ({cover_url}): {e}')
 
         return None
 
