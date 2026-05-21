@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 
 import requests
@@ -144,6 +145,65 @@ class OpenLibraryClient:
             pass
 
         return None
+
+    def get_cover_url_by_title(self, title: str, author: str | None = None, size: str = 'L') -> str | None:
+        """通过书名/作者搜索 Open Library cover_id，再生成封面 URL。"""
+        if not title:
+            return None
+
+        size = size.upper()
+        if size not in ['S', 'M', 'L']:
+            size = 'L'
+
+        query = f'{title} {author or ""}'.strip()
+        try:
+            books = self.search_books(query, limit=5)
+            match = self._select_cover_match(books, title, author)
+            cover_id = match.get('cover_id') if match else None
+            if not cover_id:
+                return None
+
+            cover_url = f'{self._covers_url}/b/id/{cover_id}-{size}.jpg?default=false'
+            response = self._session.head(cover_url, timeout=5, allow_redirects=True)
+            if response.status_code == 200:
+                return cover_url
+        except requests.RequestException as e:
+            logger.debug(f'Open Library封面搜索失败 ({title}): {e}')
+
+        return None
+
+    def _select_cover_match(self, books: list[dict], title: str, author: str | None = None) -> dict | None:
+        """从 Open Library 搜索结果中选择最可能的封面结果。"""
+        if not books:
+            return None
+
+        target_title = self._normalize_search_text(title)
+        target_author = self._normalize_search_text(author or '')
+        first_with_cover = None
+
+        for book in books:
+            if not book.get('cover_id'):
+                continue
+
+            if first_with_cover is None:
+                first_with_cover = book
+
+            book_title = self._normalize_search_text(book.get('title') or '')
+            if book_title != target_title and target_title not in book_title:
+                continue
+
+            if target_author:
+                book_author = self._normalize_search_text(book.get('author') or '')
+                if target_author and target_author not in book_author:
+                    continue
+
+            return book
+
+        return first_with_cover
+
+    @staticmethod
+    def _normalize_search_text(value: str) -> str:
+        return re.sub(r'[^a-z0-9]+', ' ', value.lower()).strip()
 
     def search_books(self, query: str, limit: int = 10) -> list:
         """搜索图书"""

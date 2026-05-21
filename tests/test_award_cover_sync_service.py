@@ -14,6 +14,9 @@ class FakeOpenLibraryClient:
     def get_cover_url(self, isbn, size='L'):
         return None
 
+    def get_cover_url_by_title(self, title, author=None, size='L'):
+        return None
+
 
 class FakeImageCache:
     def __init__(self):
@@ -98,3 +101,55 @@ def test_sync_missing_covers_replaces_uncacheable_openlibrary_source(db):
     assert result['updated'] == 1
     assert book.cover_original_url == 'https://books.google.com/books/content?id=9780143127550&img=1'
     assert book.cover_local_path is None
+
+
+def test_sync_missing_covers_uses_openlibrary_title_search_before_google(db):
+    class TitleSearchOpenLibraryClient:
+        def get_cover_url(self, isbn, size='L'):
+            return None
+
+        def get_cover_url_by_title(self, title, author=None, size='L'):
+            return 'https://covers.openlibrary.org/b/id/14631041-L.jpg?default=false'
+
+    google_client = FakeGoogleBooksClient()
+    google_client.fetch_calls = 0
+
+    def fetch_book_details(isbn):
+        google_client.fetch_calls += 1
+        return {'cover_url': f'https://books.google.com/books/content?id={isbn}&img=1'}
+
+    google_client.fetch_book_details = fetch_book_details
+
+    award = Award(name='Test Award', description='Test award', country='US')
+    db.session.add(award)
+    db.session.flush()
+
+    book = AwardBook(
+        award_id=award.id,
+        year=2025,
+        category='Fiction',
+        rank=1,
+        title='The Safekeep',
+        author='Yael van der Wouden',
+        isbn13='9781668052541',
+        is_displayable=True,
+        cover_original_url=None,
+        cover_local_path=None,
+    )
+    db.session.add(book)
+    db.session.commit()
+
+    image_cache = FakeImageCache()
+    service = AwardCoverSyncService(
+        google_client,
+        openlibrary_client=TitleSearchOpenLibraryClient(),
+        image_cache=image_cache,
+    )
+
+    result = service.sync_missing_covers(batch_size=10, delay=0)
+
+    db.session.refresh(book)
+    assert result['updated'] == 1
+    assert google_client.fetch_calls == 0
+    assert book.cover_original_url == 'https://covers.openlibrary.org/b/id/14631041-L.jpg?default=false'
+    assert book.cover_local_path == '/cache/images/test-cover.jpg'

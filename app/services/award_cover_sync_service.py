@@ -2,6 +2,7 @@
 
 import logging
 import time
+from pathlib import Path
 
 from ..models.schemas import AwardBook, db
 from .api_client import GoogleBooksClient, ImageCacheService, OpenLibraryClient
@@ -14,7 +15,7 @@ class AwardCoverSyncService:
 
     def __init__(
         self,
-        google_client: GoogleBooksClient,
+        google_client: GoogleBooksClient | None,
         openlibrary_client: OpenLibraryClient | None = None,
         image_cache: ImageCacheService | None = None,
     ):
@@ -22,6 +23,36 @@ class AwardCoverSyncService:
         self._openlibrary_client = openlibrary_client or OpenLibraryClient()
         self._image_cache = image_cache
         self._is_running = False
+
+    def resolve_cover_for_book(self, book: AwardBook, persist: bool = True) -> str | None:
+        """解析单本获奖书籍的最佳封面 URL，并尽量回写缓存结果。"""
+        local_path = (book.cover_local_path or '').strip()
+        if self._is_cached_path_available(local_path):
+            return local_path
+
+        cover_url = (book.cover_original_url or '').strip()
+        if cover_url:
+            cached_cover = self._cache_cover(cover_url)
+            if cached_cover:
+                if persist and cached_cover != book.cover_local_path:
+                    book.cover_local_path = cached_cover
+                    db.session.commit()
+                return cached_cover
+
+            if not self._should_refresh_cover_source(cover_url):
+                return cover_url
+
+        fetched_cover = self._fetch_cover_for_book(book)
+        if not fetched_cover:
+            return cover_url or None
+
+        cached_cover = self._cache_cover(fetched_cover)
+        if persist:
+            book.cover_original_url = fetched_cover
+            book.cover_local_path = cached_cover
+            db.session.commit()
+
+        return cached_cover or fetched_cover
 
     def sync_missing_covers(self, batch_size: int = 10, delay: float = 1.5) -> dict:
         """
@@ -127,7 +158,29 @@ class AwardCoverSyncService:
         title = book.title
         author = book.author
 
-        # 方法1：Google Books API（通过ISBN查询）
+        # 方法1：Open Library（通过ISBN查询，无需 API Key）
+        if isbn:
+            try:
+                ol_cover = self._openlibrary_client.get_cover_url(isbn, size='L')
+                if ol_cover:
+                    return ol_cover
+            except Exception as e:
+                logger.debug(f'Open Library ISBN查询失败 ({isbn}): {e}')
+
+        # 方法2：Open Library（通过书名+作者搜索 cover_id）
+        if title:
+            try:
+                ol_cover = self._openlibrary_client.get_cover_url_by_title(title, author, size='L')
+                if ol_cover:
+                    logger.info(f'通过Open Library书名搜索找到封面: {title}')
+                    return ol_cover
+            except Exception as e:
+                logger.debug(f'Open Library书名搜索失败 ({title}): {e}')
+
+        if not self._google_client:
+            return None
+
+        # 方法3：Google Books API（通过ISBN查询）
         if isbn:
             try:
                 result = self._google_client.fetch_book_details(isbn)
@@ -136,16 +189,7 @@ class AwardCoverSyncService:
             except Exception as e:
                 logger.debug(f'Google Books ISBN查询失败 ({isbn}): {e}')
 
-        # 方法2：Open Library（通过ISBN查询）
-        if isbn:
-            try:
-                ol_cover = self._openlibrary_client.get_cover_url(isbn, size='L')
-                if ol_cover:
-                    return ol_cover
-            except Exception as e:
-                logger.debug(f'Open Library查询失败 ({isbn}): {e}')
-
-        # 方法3：Google Books API（通过书名+作者搜索）- 备选方案
+        # 方法4：Google Books API（通过书名+作者搜索）- 备选方案
         if title and author:
             try:
                 result = self._google_client.search_book_by_title(title, author)
@@ -158,8 +202,25 @@ class AwardCoverSyncService:
         return None
 
     def _should_refresh_cover_source(self, cover_url: str) -> bool:
-        """Open Library may return placeholders; prefer Google when cache validation fails."""
+        """Open Library ISBN URLs may 404; refresh them when cache validation fails."""
         return 'covers.openlibrary.org' in cover_url
+
+    def _is_cached_path_available(self, local_path: str) -> bool:
+        if not local_path or local_path == '/static/default-cover.png':
+            return False
+
+        if not local_path.startswith('/cache/images/'):
+            return True
+
+        if not self._image_cache:
+            return True
+
+        cache_dir = getattr(self._image_cache, '_cache_dir', None)
+        if not cache_dir:
+            return True
+
+        filename = local_path.rsplit('/', 1)[-1]
+        return (Path(cache_dir) / filename).is_file()
 
     def _cache_cover(self, cover_url: str) -> str | None:
         """下载封面到本地缓存，失败时保留原始 URL 作为前端兜底。"""

@@ -20,19 +20,9 @@
     <!-- 左侧：封面 + 购买链接 -->
     <div class="detail-left-section">
         <div class="detail-cover">
-            {% if book.cover_local_path %}
-            <img src="{{ url_for('main.cached_image', filename=book.cover_local_path.split('/')[-1]) }}" 
-                 alt="{{ book.title }} {{ _('封面') }}" 
+            <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+                 alt="{{ book.title }} {{ _('封面') }}"
                  data-fallback="{{ url_for('static', filename='default-cover.png') }}">
-            {% elif book.cover_original_url %}
-            <img src="{{ book.cover_original_url }}" 
-                 alt="{{ book.title }} {{ _('封面') }}" 
-                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
-            {% else %}
-            <div style="width: 100%; height: 100%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
-                <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>
-            </div>
-            {% endif %}
         </div>
 
         <!-- 购买链接 -->

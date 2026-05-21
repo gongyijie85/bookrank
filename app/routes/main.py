@@ -11,6 +11,7 @@ from flask import (
     render_template,
     request,
     send_from_directory,
+    url_for,
 )
 from werkzeug.utils import secure_filename
 
@@ -21,7 +22,12 @@ from ..utils import (
 )
 from ..utils.api_helpers import APIResponse, handle_api_errors
 from ..utils.security import is_safe_redirect_url
-from ..utils.service_helpers import get_book_service, get_google_books_client, submit_background_task
+from ..utils.service_helpers import (
+    get_book_service,
+    get_google_books_client,
+    get_image_cache_service,
+    submit_background_task,
+)
 
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
@@ -201,6 +207,29 @@ def cached_image(filename: str):
     cache_dir = current_app.config.get('IMAGE_CACHE_DIR', Path('cache/images'))
 
     return send_from_directory(cache_dir, safe_filename)
+
+
+@main_bp.route('/award-book/<int:book_id>/cover')
+def award_book_cover(book_id: int):
+    """解析获奖图书封面，缺失时按 ISBN/书名补全并回写。"""
+    from ..models.schemas import AwardBook
+    from ..services.award_cover_sync_service import AwardCoverSyncService
+
+    book = AwardBook.query.get_or_404(book_id)
+    sync_service = AwardCoverSyncService(
+        get_google_books_client(),
+        image_cache=get_image_cache_service(),
+    )
+
+    try:
+        cover_url = sync_service.resolve_cover_for_book(book)
+    except Exception as e:
+        logger.warning(f'获奖图书封面解析失败 book_id={book_id}: {e}')
+        cover_url = (book.cover_original_url or '').strip()
+
+    response = redirect(cover_url or url_for('static', filename='default-cover.png'), code=302)
+    response.headers['Cache-Control'] = 'public, max-age=86400' if cover_url else 'no-store'
+    return response
 
 
 @main_bp.route('/awards')
