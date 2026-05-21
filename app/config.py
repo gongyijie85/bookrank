@@ -86,6 +86,9 @@ class Config:
     # BookService 默认缓存 TTL（秒）
     BOOK_SERVICE_CACHE_TTL: int = 86400  # 24 小时
 
+    # NYT 排行榜自动刷新间隔（天）；刷新后会补充资料、翻译并写入语言包
+    NYT_RANKING_SYNC_DAYS: int = int(os.environ.get('NYT_RANKING_SYNC_DAYS', 7))
+
     # 内存缓存最大条目数
     MEMORY_CACHE_MAX_SIZE: int = 1000
 

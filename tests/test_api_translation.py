@@ -94,8 +94,17 @@ class TestCSRFProtection:
         data = response.get_json()
         assert 'csrf_token' in data['data']
 
-    def test_translate_without_csrf(self, client):
+    def test_translate_without_csrf(self, client, monkeypatch):
         """测试不带CSRF令牌发起翻译请求"""
+        class FakeTranslationService:
+            def translate(self, text, source_lang='en', target_lang='zh', field_type='text'):
+                return '你好'
+
+        monkeypatch.setattr(
+            'app.services.zhipu_translation_service.get_translation_service',
+            lambda: FakeTranslationService(),
+        )
+
         response = client.post('/api/translate', json={'text': 'Hello'})
         assert response.status_code in (200, 400, 403)
 

@@ -93,6 +93,19 @@ def translate_book(isbn: str):
 
     service = get_translation_service()
     translated_data = service.translate_book_info(book_data)
+    if translated_data:
+        try:
+            book_service.save_book_translation(
+                isbn=isbn,
+                title_zh=translated_data.get('title_zh'),
+                description_zh=translated_data.get('description_zh'),
+                details_zh=translated_data.get('details_zh'),
+            )
+            language_pack = getattr(book_service, '_language_pack', None)
+            if language_pack:
+                language_pack.store_books([translated_data])
+        except Exception as e:
+            logger.warning('翻译结果写入语言包失败 %s: %s', isbn, e)
 
     return APIResponse.success(data={'book': translated_data})
 

@@ -167,7 +167,7 @@
 {# 新书速递卡片宏 #}
 {% macro new_book_card(book) %}
 {% set _l = get_locale() %}
-<div class="book-card" data-book-id="{{ book.id }}">
+<div class="book-card" data-book-id="{{ book.id }}" data-isbn="{{ book.isbn13 or book.isbn10 or '' }}">
     <div class="book-cover-wrapper">
         {% if book.cover_url %}
         <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="book-cover" loading="lazy"

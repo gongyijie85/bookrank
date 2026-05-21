@@ -3,6 +3,7 @@ import threading
 import weakref
 from collections.abc import Callable
 from datetime import UTC
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -13,6 +14,7 @@ from ..models.book import Book
 from ..models.schemas import BookMetadata, db
 from ..utils.exceptions import APIException, APIRateLimitException, ExternalAPIError
 from .api_client import GoogleBooksClient, ImageCacheService, NYTApiClient
+from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ class BookService:
         app: Flask | None = None,
         max_workers: int = 4,
         categories: dict | None = None,
+        language_pack_path: str | Path | None = None,
     ):
         self._nyt_client = nyt_client
         self._google_client = google_client
@@ -38,6 +41,7 @@ class BookService:
         self._app = app
         self._max_workers = max_workers
         self._categories = categories or {}
+        self._language_pack = BookLanguagePack(language_pack_path or self._resolve_language_pack_path(app))
 
         self._translation_lock = threading.Lock()
         self._translation_thread_active = False
@@ -56,6 +60,12 @@ class BookService:
     def cache(self) -> object:
         """公开访问缓存服务实例（只读属性替代直接访问私有 _cache）"""
         return self._cache
+
+    @staticmethod
+    def _resolve_language_pack_path(app: Flask | None) -> Path | None:
+        if not app or not app.static_folder:
+            return None
+        return Path(app.static_folder) / 'data' / 'book_language_pack.zh.json'
 
     def _notify_data_refreshed(self) -> None:
         """通知所有注册的回调：数据已刷新"""
@@ -80,7 +90,7 @@ class BookService:
             return {
                 'title': metadata.title or '',
                 'author': metadata.author or '',
-                'description': metadata.description_zh or metadata.description or '',
+                'description': metadata.description_zh or metadata.details or '',
                 'isbn13': isbn,
             }
         return None
@@ -95,7 +105,14 @@ class BookService:
                 books.append(Book(**book_data))
             except TypeError as e:
                 logger.warning(f'Invalid cached book for {category_id}: {e}')
+        self._hydrate_language_pack(books)
         return books
+
+    def _hydrate_language_pack(self, books: list[Book]) -> None:
+        try:
+            self._language_pack.hydrate_books(books)
+        except Exception as e:
+            logger.debug('Book language-pack hydration skipped: %s', e)
 
     def _get_stale_cached_books(self, cache_key: str, category_id: str) -> list[Book]:
         get_stale = getattr(self._cache, 'get_stale', None)
@@ -108,13 +125,21 @@ class BookService:
             logger.warning(f'Returning stale cached books for {category_id}')
         return books
 
-    def get_books_by_category(self, category_id: str, force_refresh: bool = False) -> list[Book]:
+    def get_books_by_category(
+        self,
+        category_id: str,
+        force_refresh: bool = False,
+        auto_translate: bool = True,
+        notify_refresh: bool = True,
+    ) -> list[Book]:
         """
         获取指定分类的图书列表
 
         Args:
             category_id: 分类ID
             force_refresh: 是否强制刷新缓存
+            auto_translate: 是否启动后台预翻译
+            notify_refresh: 是否通知数据刷新回调
 
         Returns:
             图书列表
@@ -149,11 +174,13 @@ class BookService:
 
             logger.info(f'Fetched and cached {len(books)} books for {category_id}')
 
-            # 启动后台预翻译（不阻塞响应）
-            self._auto_translate_books(books)
+            if auto_translate:
+                # 启动后台预翻译（不阻塞响应）
+                self._auto_translate_books(books)
 
             # 通知数据刷新回调
-            self._notify_data_refreshed()
+            if notify_refresh:
+                self._notify_data_refreshed()
 
             return books
 
@@ -205,30 +232,14 @@ class BookService:
                 logger.error(f'Error processing book: {e}')
 
         processed_books.sort(key=lambda x: x.rank)
+        self._hydrate_language_pack(processed_books)
         return processed_books
 
     def _batch_get_translations(self, isbns: list[str]) -> dict[str, dict]:
         """批量获取翻译数据，避免在子线程中访问数据库"""
-        translations = {}
         if not isbns:
-            return translations
-        try:
-            from ..models.schemas import BookMetadata
-
-            records = BookMetadata.query.filter(BookMetadata.isbn.in_(isbns)).all()
-            for r in records:
-                translations[r.isbn] = {
-                    'title_zh': r.title_zh,
-                    'description_zh': r.description_zh,
-                    'details_zh': r.details_zh,
-                }
-        except (IntegrityError, OperationalError, SQLAlchemyError) as e:
-            logger.debug(f'批量获取翻译失败: {e}')
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-        return translations
+            return {}
+        return self._language_pack.get_book_metadata_translations(isbns)
 
     def _batch_get_supplements(self, isbns: list[str]) -> dict[str, dict]:
         """并发获取Google Books补充信息，提升批量查询效率"""
@@ -322,6 +333,73 @@ class BookService:
                 return func()
         return func()
 
+    @staticmethod
+    def _book_value(book: Book | dict[str, Any], attr: str) -> Any:
+        return book.get(attr) if isinstance(book, dict) else getattr(book, attr, None)
+
+    @staticmethod
+    def _book_isbn(book: Book | dict[str, Any]) -> str:
+        return str(BookService._book_value(book, 'isbn13') or BookService._book_value(book, 'isbn10') or '').strip()
+
+    @staticmethod
+    def _parse_page_count(value: Any) -> int | None:
+        if value in (None, '', 'Unknown', '未知'):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def save_book_metadata(self, book: Book | dict[str, Any]) -> bool:
+        """保存NYT图书英文资料到后台元数据表，供后续补齐和排查使用。"""
+        isbn = self._book_isbn(book)
+        if not isbn:
+            return False
+
+        def _save():
+            from ..models.database import db
+            from ..models.schemas import BookMetadata
+
+            title = str(self._book_value(book, 'title') or isbn)
+            author = str(self._book_value(book, 'author') or 'Unknown Author')
+
+            metadata = db.session.get(BookMetadata, isbn)
+            if not metadata:
+                metadata = BookMetadata(isbn=isbn, title=title, author=author)
+                db.session.add(metadata)
+
+            metadata.title = title
+            metadata.author = author
+
+            details = self._book_value(book, 'details')
+            if details and details != 'No detailed description available.':
+                metadata.details = str(details)
+
+            page_count = self._parse_page_count(self._book_value(book, 'page_count'))
+            if page_count is not None:
+                metadata.page_count = page_count
+
+            language = self._book_value(book, 'language')
+            if language and language != 'Unknown':
+                metadata.language = str(language)
+
+            publication_date = self._book_value(book, 'publication_dt') or self._book_value(book, 'published_date')
+            if publication_date and publication_date != 'Unknown':
+                metadata.publication_date = str(publication_date)
+
+            db.session.commit()
+            return True
+
+        try:
+            return self._run_with_context(_save)
+        except (IntegrityError, OperationalError, SQLAlchemyError) as e:
+            logger.error(f'保存图书元数据失败: {e}')
+            try:
+                self._run_with_context(lambda: db.session.rollback())
+            except (IntegrityError, OperationalError, SQLAlchemyError):
+                pass
+            return False
+
     def save_book_translation(
         self, isbn: str, title_zh: str | None = None, description_zh: str | None = None, details_zh: str | None = None
     ) -> bool:
@@ -337,7 +415,7 @@ class BookService:
 
             metadata = db.session.get(BookMetadata, isbn)
             if not metadata:
-                metadata = BookMetadata(isbn=isbn, title='', author='')
+                metadata = BookMetadata(isbn=isbn, title=isbn, author='Unknown Author')
                 db.session.add(metadata)
 
             if title_zh:
@@ -362,6 +440,108 @@ class BookService:
                 pass
             return False
 
+    @staticmethod
+    def _translator_is_available(service: Any | None) -> bool:
+        if not service or not hasattr(service, 'translate'):
+            return False
+        is_available = getattr(service, 'is_available', None)
+        if callable(is_available):
+            return bool(is_available())
+        return True
+
+    def _get_translation_service(self) -> Any | None:
+        try:
+            from .zhipu_translation_service import get_translation_service
+
+            return get_translation_service(app=self._app)
+        except Exception as e:
+            logger.warning('翻译服务不可用: %s', e)
+            return None
+
+    def _translate_books_now(self, books: list[Book], translator: Any | None = None) -> dict[str, int]:
+        service = translator or self._get_translation_service()
+        if not self._translator_is_available(service):
+            logger.warning('翻译服务不可用，跳过语言包写入')
+            return {
+                'books_seen': len(books),
+                'books_missing': 0,
+                'fields_from_pack': 0,
+                'fields_stored': 0,
+                'fields_translated': 0,
+                'failures': 0,
+                'pack_writes': 0,
+            }
+
+        return self._language_pack.translate_and_store_books(
+            books,
+            translator=service,
+            save_metadata=self.save_book_translation,
+        )
+
+    def sync_all_categories(
+        self,
+        categories: list[str] | None = None,
+        force_refresh: bool = True,
+        translate: bool = True,
+        translator: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        """强制同步全部NYT分类，补充图书资料，并把翻译写入语言包/数据库。"""
+        category_ids = categories or list(self._categories.keys())
+        results: list[dict[str, Any]] = []
+
+        for category_id in category_ids:
+            category_name = self._categories.get(category_id, category_id)
+            try:
+                books = self.get_books_by_category(
+                    category_id,
+                    force_refresh=force_refresh,
+                    auto_translate=False,
+                    notify_refresh=False,
+                )
+                metadata_saved = sum(1 for book in books if self.save_book_metadata(book))
+                language_pack_stats = (
+                    self._translate_books_now(books, translator=translator)
+                    if translate
+                    else {
+                        'books_seen': len(books),
+                        'books_missing': 0,
+                        'fields_from_pack': 0,
+                        'fields_stored': 0,
+                        'fields_translated': 0,
+                        'failures': 0,
+                        'pack_writes': 0,
+                    }
+                )
+
+                results.append(
+                    {
+                        'category_id': category_id,
+                        'category_name': category_name,
+                        'success': True,
+                        'books': len(books),
+                        'metadata_saved': metadata_saved,
+                        'language_pack': language_pack_stats,
+                    }
+                )
+            except Exception as e:
+                logger.error('NYT分类同步失败 %s: %s', category_id, e, exc_info=True)
+                results.append(
+                    {
+                        'category_id': category_id,
+                        'category_name': category_name,
+                        'success': False,
+                        'books': 0,
+                        'metadata_saved': 0,
+                        'language_pack': {},
+                        'error': str(e),
+                    }
+                )
+
+        if any(result.get('success') for result in results):
+            self._notify_data_refreshed()
+
+        return results
+
     def _auto_translate_books(self, books: list[Book]) -> None:
         """
         自动预翻译图书信息（后台异步执行）
@@ -372,6 +552,11 @@ class BookService:
         Args:
             books: 图书列表
         """
+        if self._app and self._app.config.get('TESTING'):
+            return
+        if self._app is None and getattr(self._language_pack, '_pack_path', None) is None:
+            return
+
         with self._translation_lock:
             if self._translation_thread_active:
                 logger.info('预翻译线程已在运行中，跳过重复启动')
@@ -381,53 +566,17 @@ class BookService:
                 return
             self._translation_thread_active = True
 
-        import time
-
         def translate_in_background():
             """后台线程执行翻译任务"""
             try:
-                from .zhipu_translation_service import get_translation_service
+                stats = self._translate_books_now(books)
 
-                service = get_translation_service()
-                if not service or not service.zhipu.is_available():
-                    logger.warning('智谱AI不可用，跳过预翻译')
-                    return
-
-                translated_count = 0
-                for book in books:
-                    isbn = book.isbn13 or book.isbn10
-                    if not isbn:
-                        continue
-
-                    if book.title_zh and book.description_zh:
-                        continue
-
-                    try:
-                        title_zh = None
-                        if not book.title_zh and book.title:
-                            title_zh = service.translate(book.title, 'en', 'zh', field_type='title')
-                            if title_zh:
-                                logger.info(f'预翻译书名: {book.title[:30]}... -> {title_zh[:30]}...')
-
-                        desc_zh = None
-                        if book.description:
-                            desc_zh = service.translate(book.description, 'en', 'zh', field_type='description')
-                            if desc_zh:
-                                logger.debug(f'预翻译描述: {isbn}')
-
-                        if title_zh or desc_zh:
-                            self.save_book_translation(
-                                isbn=isbn, title_zh=title_zh, description_zh=desc_zh, details_zh=book.details_zh
-                            )
-                            translated_count += 1
-
-                        time.sleep(0.2)
-
-                    except (ExternalAPIError, ConnectionError, TimeoutError, ValueError) as e:
-                        logger.error(f'预翻译失败 {isbn}: {e}')
-                        continue
-
-                logger.info(f'批量预翻译完成: 共翻译 {translated_count} 本图书')
+                logger.info(
+                    '批量预翻译完成: 图书%s本, 翻译字段%s个, 语言包写入%s次',
+                    stats.get('books_missing', 0),
+                    stats.get('fields_translated', 0),
+                    stats.get('pack_writes', 0),
+                )
 
             except (RuntimeError, AttributeError) as e:
                 logger.error(f'后台翻译线程异常: {e}')

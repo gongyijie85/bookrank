@@ -12,10 +12,14 @@ import gc
 import logging
 import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
+
+from flask import current_app, has_app_context
 
 from ..models.database import db
 from ..models.new_book import NewBook, Publisher
+from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -84,16 +88,36 @@ class NewBookService:
     def reset_instance(cls) -> None:
         cls._instance = None
 
-    def __init__(self, cache_service: CacheService | None = None, translation_service: Any | None = None):
+    def __init__(
+        self,
+        cache_service: CacheService | None = None,
+        translation_service: Any | None = None,
+        language_pack_path: str | Path | None = None,
+    ):
         if hasattr(self, '_initialized') and self._initialized:
             if cache_service and not self._cache:
                 self._cache = cache_service
             if translation_service and not self._translator:
                 self._translator = translation_service
+            if language_pack_path:
+                self._language_pack = BookLanguagePack(language_pack_path)
+            elif not hasattr(self, '_language_pack'):
+                self._language_pack = BookLanguagePack(self._resolve_language_pack_path())
+            elif getattr(self._language_pack, '_pack_path', None) is None:
+                resolved_pack_path = self._resolve_language_pack_path()
+                if resolved_pack_path:
+                    self._language_pack = BookLanguagePack(resolved_pack_path)
             return
         self._cache = cache_service
         self._translator = translation_service
+        self._language_pack = BookLanguagePack(language_pack_path or self._resolve_language_pack_path())
         self._initialized = True
+
+    @staticmethod
+    def _resolve_language_pack_path() -> Path | None:
+        if has_app_context() and current_app.static_folder:
+            return Path(current_app.static_folder) / 'data' / 'book_language_pack.zh.json'
+        return None
 
     # ==================== 分类校验 ====================
 
@@ -385,6 +409,7 @@ class NewBookService:
         }
 
         batch_commit_interval = 10
+        touched_books: list[NewBook] = []
 
         try:
             logger.info(f'开始同步 {publisher.name_en} 新书...')
@@ -394,7 +419,13 @@ class NewBookService:
                     result['total'] += 1
 
                     try:
-                        save_result = self._save_book(publisher, book_info, translate, auto_commit=False)
+                        save_result = self._save_book(
+                            publisher,
+                            book_info,
+                            translate,
+                            auto_commit=False,
+                            touched_books=touched_books,
+                        )
 
                         if save_result == 'added':
                             result['added'] += 1
@@ -409,6 +440,8 @@ class NewBookService:
 
                     if result['total'] % batch_commit_interval == 0:
                         db.session.commit()
+
+            result['language_pack'] = self._translate_and_store_language_pack(touched_books, translate=translate)
 
             publisher.last_sync_at = datetime.now(UTC)
             publisher.sync_count += 1
@@ -478,7 +511,14 @@ class NewBookService:
 
     # ==================== 书籍管理 ====================
 
-    def _save_book(self, publisher: Publisher, book_info, translate: bool = True, auto_commit: bool = True) -> str:
+    def _save_book(
+        self,
+        publisher: Publisher,
+        book_info,
+        translate: bool = True,
+        auto_commit: bool = True,
+        touched_books: list[NewBook] | None = None,
+    ) -> str:
         """
         保存书籍到数据库
 
@@ -487,6 +527,7 @@ class NewBookService:
             book_info: 书籍信息
             translate: 是否翻译
             auto_commit: 是否自动提交（批量同步时设为False）
+            touched_books: 收集本轮同步触达的书籍，用于批量写入语言包
 
         Returns:
             操作结果: 'added', 'updated', 'skipped'
@@ -506,7 +547,16 @@ class NewBookService:
 
         if existing:
             updated = self._update_book_fields(existing, book_info, auto_commit=auto_commit)
+            translated = False
+            if translate and self._translator:
+                translated = self._translate_book(existing)
+            if touched_books is not None:
+                touched_books.append(existing)
             if updated:
+                return 'updated'
+            if translated:
+                if auto_commit:
+                    db.session.commit()
                 return 'updated'
             return 'skipped'
 
@@ -533,6 +583,8 @@ class NewBookService:
             self._translate_book(new_book)
 
         db.session.add(new_book)
+        if touched_books is not None:
+            touched_books.append(new_book)
         if auto_commit:
             db.session.commit()
 
@@ -554,6 +606,7 @@ class NewBookService:
 
         if book_info.description and book_info.description != book.description:
             book.description = book_info.description
+            book.description_zh = None
             updated = True
 
         if book_info.cover_url and book_info.cover_url != book.cover_url:
@@ -605,7 +658,7 @@ class NewBookService:
             except Exception:
                 pass
 
-    def _translate_book(self, book: NewBook) -> None:
+    def _translate_book(self, book: NewBook) -> bool:
         """
         翻译书籍信息
 
@@ -613,12 +666,14 @@ class NewBookService:
             book: 书籍对象
         """
         if not self._translator:
-            return
+            return False
 
         try:
+            changed = False
             # 翻译书名
             if book.title and not book.title_zh:
                 book.title_zh = self._translator.translate(book.title, 'en', 'zh', field_type='title')
+                changed = bool(book.title_zh)
 
             # 翻译简介
             if book.description and not book.description_zh:
@@ -628,9 +683,52 @@ class NewBookService:
                     'zh',
                     field_type='description',
                 )
+                changed = bool(book.description_zh) or changed
+            return changed
 
         except Exception as e:
             logger.warning(f'翻译失败: {book.title} - {e}')
+            return False
+
+    def _hydrate_language_pack(self, books: list[NewBook]) -> None:
+        try:
+            self._language_pack.hydrate_books(books)
+        except Exception as e:
+            logger.debug('新书语言包补齐跳过: %s', e)
+
+    def _translate_and_store_language_pack(self, books: list[NewBook], translate: bool = True) -> dict[str, int]:
+        if not books:
+            return {
+                'books_seen': 0,
+                'books_missing': 0,
+                'fields_from_pack': 0,
+                'fields_stored': 0,
+                'fields_translated': 0,
+                'failures': 0,
+                'pack_writes': 0,
+            }
+
+        translator = self._translator if translate else None
+        try:
+            stats = self._language_pack.translate_and_store_books(books, translator=translator)
+            logger.info(
+                '新书语言包同步完成: 触达%s本, 新翻译字段%s个, 写入%s次',
+                stats.get('books_seen', 0),
+                stats.get('fields_translated', 0),
+                stats.get('pack_writes', 0),
+            )
+            return stats
+        except Exception as e:
+            logger.warning('新书语言包同步失败: %s', e)
+            return {
+                'books_seen': len(books),
+                'books_missing': 0,
+                'fields_from_pack': 0,
+                'fields_stored': 0,
+                'fields_translated': 0,
+                'failures': len(books),
+                'pack_writes': 0,
+            }
 
     # ==================== 查询接口 ====================
 
@@ -671,6 +769,7 @@ class NewBookService:
         query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        self._hydrate_language_pack(pagination.items)
 
         return pagination.items, pagination.total
 
@@ -686,7 +785,10 @@ class NewBookService:
         """
         from sqlalchemy.orm import joinedload
 
-        return NewBook.query.options(joinedload(NewBook.publisher)).get(book_id)
+        book = NewBook.query.options(joinedload(NewBook.publisher)).get(book_id)
+        if book:
+            self._hydrate_language_pack([book])
+        return book
 
     def search_books(self, keyword: str, page: int = 1, per_page: int = 20) -> tuple[list[NewBook], int]:
         """
@@ -721,6 +823,7 @@ class NewBookService:
         query = query.order_by(NewBook.created_at.desc())
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        self._hydrate_language_pack(pagination.items)
 
         return pagination.items, pagination.total
 

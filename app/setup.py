@@ -225,7 +225,24 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info(f'📅 新书速递自动同步已安排（每14天，首次{initial_delay * 2}秒后）')
 
-    # 3. 获奖书籍封面同步（一次性，延迟执行）
+    # 3. NYT排行榜自动同步（每周一次）：刷新榜单、补充资料、翻译并写入语言包
+    if book_service:
+        from datetime import timedelta
+
+        interval_days = app.config.get('NYT_RANKING_SYNC_DAYS', 7)
+        _scheduler.add_job(
+            func=_scheduler_wrapper(app, _nyt_ranking_sync_task),
+            trigger=IntervalTrigger(
+                days=interval_days,
+                start_date=now + timedelta(seconds=initial_delay * 3),
+                timezone=UTC,
+            ),
+            id='nyt_ranking_sync',
+            name='NYT排行榜语言包同步',
+        )
+        app.logger.info(f'📅 NYT排行榜语言包同步已安排（每{interval_days}天，首次{initial_delay * 3}秒后）')
+
+    # 4. 获奖书籍封面同步（一次性，延迟执行）
     if google_client:
         from datetime import timedelta
 
@@ -237,7 +254,7 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info(f'📅 获奖书籍封面同步已安排（{cover_sync_delay}秒后）')
 
-    # 4. 翻译缓存自动清理（每 30 分钟一次，避免限流中间件混杂非幂等副作用）
+    # 5. 翻译缓存自动清理（每 30 分钟一次，避免限流中间件混杂非幂等副作用）
     if translation_service:
         from datetime import timedelta
 
@@ -343,6 +360,60 @@ def _auto_sync_task(app):
     except Exception as e:
         app.logger.error(f'自动同步失败: {e}', exc_info=True)
         _log_failure(app, 'last_sync_failure')
+
+
+def _nyt_ranking_sync_task(app):
+    """NYT排行榜自动同步任务：强制刷新榜单并写入中文语言包。"""
+    try:
+        service = app.extensions.get('book_service')
+        if not service:
+            app.logger.warning('缺少 BookService，跳过NYT排行榜同步')
+            return
+
+        interval_days = int(app.config.get('NYT_RANKING_SYNC_DAYS', 7))
+        last_sync = SystemConfig.get_value('last_nyt_ranking_sync_time')
+        if last_sync:
+            last_sync_time = datetime.fromisoformat(last_sync)
+            if last_sync_time.tzinfo is None:
+                last_sync_time = last_sync_time.replace(tzinfo=UTC)
+            days_since = (datetime.now(UTC) - last_sync_time).days
+            if days_since < interval_days:
+                app.logger.info(f'距离上次NYT同步仅 {days_since} 天，跳过')
+                return
+
+        app.logger.info('开始自动同步NYT排行榜并写入语言包...')
+        results = service.sync_all_categories(
+            force_refresh=True,
+            translate=True,
+            translator=app.extensions.get('translation_service'),
+        )
+
+        successful = [result for result in results if result.get('success')]
+        total_books = sum(result.get('books', 0) for result in successful)
+        metadata_saved = sum(result.get('metadata_saved', 0) for result in successful)
+        translated_fields = sum(
+            result.get('language_pack', {}).get('fields_translated', 0) for result in successful
+        )
+        failures = [result for result in results if not result.get('success')]
+
+        if successful:
+            SystemConfig.set_value('last_nyt_ranking_sync_time', datetime.now(UTC).isoformat())
+
+        if failures:
+            app.logger.warning('NYT排行榜同步部分失败：%s/%s 个分类失败', len(failures), len(results))
+            _log_failure(app, 'last_nyt_ranking_sync_failure')
+
+        app.logger.info(
+            'NYT排行榜同步完成：分类%s个, 图书%s本, 元数据%s条, 翻译字段%s个',
+            len(successful),
+            total_books,
+            metadata_saved,
+            translated_fields,
+        )
+
+    except Exception as e:
+        app.logger.error(f'NYT排行榜同步失败: {e}', exc_info=True)
+        _log_failure(app, 'last_nyt_ranking_sync_failure')
 
 
 def _cover_sync_task(app):

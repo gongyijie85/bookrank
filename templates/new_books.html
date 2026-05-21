@@ -227,14 +227,6 @@ window.addEventListener('languagechange', function(e) {
     }
     if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
         BookI18n.applyLanguage(currentLanguage);
-        if (currentLanguage === 'zh') {
-            var missing = BookI18n.getMissingTranslations('zh');
-            if (missing.length > 0) {
-                for (var m = 0; m < missing.length; m++) {
-                    translateSingleBookByIsbn(missing[m]);
-                }
-            }
-        }
     } else {
         loadBooks();
     }
@@ -357,16 +349,10 @@ function renderBooks(data) {
         BookI18n.registerAll(books);
         if (currentLanguage === 'zh') {
             BookI18n.applyLanguage('zh');
-            var missing = BookI18n.getMissingTranslations('zh');
-            if (missing.length > 0) {
-                for (var m = 0; m < missing.length; m++) {
-                    translateSingleBookByIsbn(missing[m]);
-                }
-            }
         }
     } else {
-        if (currentLanguage === 'zh') {
-            translateAllBooks();
+        if (typeof applyPageTranslation === 'function') {
+            applyPageTranslation(currentLanguage);
         }
     }
 }
@@ -400,7 +386,7 @@ function renderBookCard(book) {
         ? '<span class="book-price">' + escapeHtml(book.price) + '</span>'
         : '';
 
-    return '<div class="book-card" data-book-id="' + book.id + '">' +
+    return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + escapeHtml(book.isbn13 || book.isbn10 || '') + '">' +
         '<div class="book-cover-wrapper">' + coverHtml + '</div>' +
         '<div class="book-info">' +
         '<div class="book-title" title="' + escapeHtml(titleDisplay) + '" data-en="' + escapeHtml(book.title) + '" data-zh="' + escapeHtml(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '">' + escapeHtml(titleDisplay) + '</div>' +
@@ -576,10 +562,6 @@ function syncNewBooks() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (currentLanguage === 'zh') {
-        translateAllBooks();
-    }
-
     // {{ _('筛选器事件绑定') }}
     document.getElementById('publisher-filter')?.addEventListener('change', applyFilter);
     document.getElementById('category-filter')?.addEventListener('change', applyFilter);

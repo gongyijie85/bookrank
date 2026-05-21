@@ -9,7 +9,7 @@ var BookI18n = (function() {
 
     var TITLE_SELECTORS = '.card-title, .list-item-title, .book-title, .detail-title, .recommendation-title, .change-title';
     var DESC_SELECTORS = '.card-desc, .list-item-desc, .book-description, .detail-description';
-    var CAT_SELECTORS = '.card-category-tag, .book-category';
+    var CAT_SELECTORS = '.card-category-tag, .book-category, .list-item-meta .card-tag:first-child';
 
     function _extractBookData(book) {
         var isbn = book.isbn13 || book.isbn10 || '';

@@ -4,13 +4,16 @@
 测试 BookService 的核心功能，包括获取图书列表、搜索图书、保存翻译等
 """
 
+import json
 from unittest.mock import Mock, patch
 
 import pytest
 
 from app.models.book import Book
-from app.models.schemas import BookMetadata
+from app.models.schemas import BookMetadata, SystemConfig, TranslationCache
+from app.services.book_language_pack import BookLanguagePack
 from app.services.book_service import BookService
+from app.services.translation_cache_service import TranslationCacheService
 from app.utils.exceptions import APIException
 
 
@@ -129,6 +132,195 @@ class TestBookService:
         assert len(books) == 1
         assert books[0].title == 'Cached Book'
         assert books[0].author == 'Cached Author'
+
+    def test_get_books_by_category_hydrates_cached_books_from_static_language_pack(self, book_service, tmp_path):
+        """测试缓存图书会从静态语言包补齐中文字段"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        pack_path.write_text(
+            json.dumps(
+                {
+                    'books': {
+                        '9780143127550': {
+                            'title_zh': '缓存书名',
+                            'description_zh': '缓存简介',
+                        }
+                    }
+                },
+                ensure_ascii=False,
+            ),
+            encoding='utf-8',
+        )
+        book_service._language_pack = BookLanguagePack(pack_path)
+        book_service._cache.get.return_value = [
+            {
+                'id': '9780143127550',
+                'title': 'Cached Book',
+                'author': 'Cached Author',
+                'publisher': 'Test Publisher',
+                'cover': '',
+                'list_name': 'Test List',
+                'category_id': 'hardcover-fiction',
+                'category_name': 'Hardcover Fiction',
+                'rank': 1,
+                'weeks_on_list': 1,
+                'rank_last_week': '0',
+                'published_date': '2024-01-01',
+                'description': 'Test description',
+                'details': 'Test details',
+                'publication_dt': '2024-01-01',
+                'page_count': '200',
+                'language': 'English',
+                'buy_links': [],
+                'isbn13': '9780143127550',
+                'isbn10': '0143127550',
+                'price': '19.99',
+            }
+        ]
+
+        books = book_service.get_books_by_category('hardcover-fiction')
+
+        assert books[0].title_zh == '缓存书名'
+        assert books[0].description_zh == '缓存简介'
+
+    def test_get_books_by_category_hydrates_cached_books_from_translation_cache(self, book_service, db):
+        """测试缓存图书会从翻译缓存补齐中文字段"""
+        for source, translated in [('Cached Book', '缓存书名'), ('Test description', '缓存简介')]:
+            db.session.add(
+                TranslationCache(
+                    source_hash=TranslationCacheService._compute_source_hash(source),
+                    source_text=source,
+                    source_lang='en',
+                    target_lang='zh',
+                    translated_text=translated,
+                    model_name='test',
+                )
+            )
+        db.session.commit()
+
+        book_service._cache.get.return_value = [
+            {
+                'id': '9780143127550',
+                'title': 'Cached Book',
+                'author': 'Cached Author',
+                'publisher': 'Test Publisher',
+                'cover': '',
+                'list_name': 'Test List',
+                'category_id': 'hardcover-fiction',
+                'category_name': 'Hardcover Fiction',
+                'rank': 1,
+                'weeks_on_list': 1,
+                'rank_last_week': '0',
+                'published_date': '2024-01-01',
+                'description': 'Test description',
+                'details': 'Test details',
+                'publication_dt': '2024-01-01',
+                'page_count': '200',
+                'language': 'English',
+                'buy_links': [],
+                'isbn13': '9780143127550',
+                'isbn10': '0143127550',
+                'price': '19.99',
+            }
+        ]
+
+        books = book_service.get_books_by_category('hardcover-fiction')
+
+        assert books[0].title_zh == '缓存书名'
+        assert books[0].description_zh == '缓存简介'
+
+    def test_language_pack_translates_and_writes_missing_fields(self, tmp_path):
+        """测试语言包会翻译缺失字段并写回JSON文件"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book = Book(
+            id='9780143127550',
+            title='Test Book',
+            author='Test Author',
+            publisher='Test Publisher',
+            cover='',
+            list_name='Hardcover Fiction',
+            category_id='hardcover-fiction',
+            category_name='精装小说',
+            rank=1,
+            weeks_on_list=1,
+            rank_last_week='0',
+            published_date='2024-01-01',
+            description='A test description',
+            details='Detailed book description',
+            publication_dt='2024-01-01',
+            page_count='200',
+            language='English',
+            buy_links=[],
+            isbn13='9780143127550',
+            isbn10='0143127550',
+            price='19.99',
+        )
+
+        class FakeTranslator:
+            def translate(self, text, source_lang='en', target_lang='zh', field_type='text'):
+                return {
+                    'title': '测试书名',
+                    'description': '测试简介',
+                    'details': '测试详情',
+                }[field_type]
+
+        stats = BookLanguagePack(pack_path).translate_and_store_books([book], translator=FakeTranslator())
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert stats['fields_translated'] == 3
+        assert saved['books']['9780143127550']['title_zh'] == '测试书名'
+        assert saved['books']['9780143127550']['description_zh'] == '测试简介'
+        assert saved['books']['9780143127550']['details_zh'] == '测试详情'
+        assert book.title_zh == '测试书名'
+
+    def test_sync_all_categories_refreshes_metadata_and_language_pack(self, book_service, db, tmp_path):
+        """测试每周NYT同步会补资料、翻译并写入语言包和数据库"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book_service._language_pack = BookLanguagePack(pack_path)
+
+        class FakeTranslator:
+            def translate(self, text, source_lang='en', target_lang='zh', field_type='text'):
+                return {
+                    'title': '测试书名',
+                    'description': '测试简介',
+                    'details': '测试详情',
+                }[field_type]
+
+        with patch.object(book_service, '_auto_translate_books') as auto_translate:
+            results = book_service.sync_all_categories(translator=FakeTranslator())
+
+        assert results == [
+            {
+                'category_id': 'hardcover-fiction',
+                'category_name': '精装小说',
+                'success': True,
+                'books': 1,
+                'metadata_saved': 1,
+                'language_pack': {
+                    'books_seen': 1,
+                    'books_missing': 1,
+                    'fields_from_pack': 0,
+                    'fields_stored': 0,
+                    'fields_translated': 3,
+                    'failures': 0,
+                    'pack_writes': 1,
+                },
+            }
+        ]
+        auto_translate.assert_not_called()
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert saved['books']['9780143127550']['title_zh'] == '测试书名'
+        assert saved['books']['9780143127550']['description_zh'] == '测试简介'
+        assert saved['books']['9780143127550']['details_zh'] == '测试详情'
+
+        metadata = db.session.get(BookMetadata, '9780143127550')
+        assert metadata is not None
+        assert metadata.title == 'Test Book Title'
+        assert metadata.author == 'Test Author'
+        assert metadata.details == 'Detailed book description from Google Books.'
+        assert metadata.title_zh == '测试书名'
+        assert metadata.description_zh == '测试简介'
+        assert metadata.details_zh == '测试详情'
 
     def test_get_books_by_category_returns_stale_cache_on_api_failure(self, book_service):
         """测试API失败时返回过期文件缓存"""
@@ -278,3 +470,44 @@ class TestBookService:
 
         # 验证结果
         assert cache_time == '暂无数据'
+
+
+def test_nyt_ranking_sync_task_refreshes_all_categories(app, db):
+    """测试后台NYT任务会触发全分类刷新和语言包写入"""
+    from app.setup import _nyt_ranking_sync_task
+
+    book_service = Mock()
+    translator = Mock()
+    book_service.sync_all_categories.return_value = [
+        {
+            'success': True,
+            'books': 2,
+            'metadata_saved': 2,
+            'language_pack': {'fields_translated': 4},
+        }
+    ]
+    original_book_service = app.extensions.get('book_service')
+    original_translation_service = app.extensions.get('translation_service')
+
+    try:
+        app.extensions['book_service'] = book_service
+        app.extensions['translation_service'] = translator
+
+        with app.app_context():
+            _nyt_ranking_sync_task(app)
+
+            book_service.sync_all_categories.assert_called_once_with(
+                force_refresh=True,
+                translate=True,
+                translator=translator,
+            )
+            assert SystemConfig.get_value('last_nyt_ranking_sync_time') is not None
+    finally:
+        if original_book_service is not None:
+            app.extensions['book_service'] = original_book_service
+        else:
+            app.extensions.pop('book_service', None)
+        if original_translation_service is not None:
+            app.extensions['translation_service'] = original_translation_service
+        else:
+            app.extensions.pop('translation_service', None)

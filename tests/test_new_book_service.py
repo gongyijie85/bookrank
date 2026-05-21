@@ -4,6 +4,7 @@
 测试 NewBookService 的核心功能，包括出版社管理、爬虫管理、书籍管理等
 """
 
+import json
 from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
@@ -15,6 +16,12 @@ from app.services.new_book_service import NewBookService
 
 class TestNewBookService:
     """新书服务测试类"""
+
+    @pytest.fixture(autouse=True)
+    def reset_service_singleton(self):
+        NewBookService.reset_instance()
+        yield
+        NewBookService.reset_instance()
 
     @pytest.fixture
     def new_book_service(self):
@@ -275,3 +282,49 @@ class TestNewBookService:
 
             assert isinstance(results, list)
             assert len(results) > 0
+
+    def test_sync_publisher_books_writes_language_pack(self, db, tmp_path):
+        """测试同步新书时会把翻译写入语言包"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        mock_translator = Mock()
+
+        def translate(text, source_lang='en', target_lang='zh', field_type='text'):
+            return {'title': '测试新书名', 'description': '测试新书简介'}[field_type]
+
+        mock_translator.translate.side_effect = translate
+        service = NewBookService(translation_service=mock_translator, language_pack_path=pack_path)
+        service.init_publishers()
+
+        publisher = Publisher.query.first()
+        assert publisher is not None
+
+        mock_crawler = Mock()
+        mock_crawler.__enter__ = Mock(return_value=mock_crawler)
+        mock_crawler.__exit__ = Mock(return_value=None)
+
+        mock_book_info = Mock()
+        mock_book_info.title = 'New Test Book'
+        mock_book_info.author = 'Test Author'
+        mock_book_info.isbn13 = '9780000000002'
+        mock_book_info.isbn10 = '0000000002'
+        mock_book_info.description = 'New test description'
+        mock_book_info.cover_url = 'https://example.com/cover.jpg'
+        mock_book_info.category = 'Fiction'
+        mock_book_info.publication_date = datetime.now(UTC)
+        mock_book_info.price = '29.99'
+        mock_book_info.page_count = 300
+        mock_book_info.language = 'en'
+        mock_book_info.source_url = 'https://example.com/book'
+        mock_book_info.buy_links = []
+
+        mock_crawler.get_new_books.return_value = [mock_book_info]
+        mock_crawler_cls = Mock(return_value=mock_crawler)
+
+        with patch('app.services.publisher_crawler.get_crawler_class', side_effect=lambda name: mock_crawler_cls):
+            result = service.sync_publisher_books(publisher.id, max_books=1)
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert result['success'] is True
+        assert result['language_pack']['pack_writes'] == 1
+        assert saved['books']['9780000000002']['title_zh'] == '测试新书名'
+        assert saved['books']['9780000000002']['description_zh'] == '测试新书简介'

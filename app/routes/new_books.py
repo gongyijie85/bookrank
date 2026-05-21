@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from io import StringIO
 from urllib.parse import quote
 
-from flask import Blueprint, make_response, request
+from flask import Blueprint, current_app, make_response, request
 
 from ..models.database import db
 from ..services.new_book_service import NewBookService
@@ -22,7 +22,7 @@ _SYNC_COOLDOWN_SECONDS: int = 60
 
 def get_new_book_service() -> NewBookService:
     """获取新书服务单例"""
-    return NewBookService()
+    return NewBookService(translation_service=current_app.extensions.get('translation_service'))
 
 
 def _check_sync_cooldown() -> str | None:

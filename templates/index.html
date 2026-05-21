@@ -215,6 +215,7 @@
 <section class="books-list {% if view_mode == 'list' %}active{% endif %}" id="books-list" aria-label="{{ _('图书列表视图') }}" data-i18n-aria-label="books_list_view">
     {% for book in books %}
     <article class="list-item card-animate"
+             data-isbn="{{ book.isbn13 or book.isbn10 }}"
              data-index="{{ loop.index - 1 }}"
              role="button"
              tabindex="0"
@@ -1757,12 +1758,13 @@
     
     translationCache.load();
 
-    // 页面加载完成后，如果用户偏好是中文或浏览器是中文环境，自动翻译
+    // 页面加载完成后，如果用户偏好是中文或浏览器是中文环境，应用本地语言包
     document.addEventListener('DOMContentLoaded', () => {
         if (currentLanguage === 'zh') {
             updateLanguageButtons('zh');
-            // 使用setTimeout确保DOM已渲染完成
-            setTimeout(() => translateAllBooks(), 100);
+            if (typeof BookI18n !== 'undefined') {
+                BookI18n.applyLanguage('zh');
+            }
         }
     });
     
@@ -1781,9 +1783,15 @@
         localStorage.setItem('bookrank_language', lang);
         
         if (lang === 'zh') {
-            await translateAllBooks();
+            if (typeof BookI18n !== 'undefined') {
+                BookI18n.applyLanguage('zh');
+            }
         } else {
-            restoreAllBooks();
+            if (typeof BookI18n !== 'undefined') {
+                BookI18n.applyLanguage('en');
+            } else {
+                restoreAllBooks();
+            }
         }
     }
     
@@ -2127,12 +2135,11 @@
         // 更新语言按钮
         updateLanguageButtons(currentLanguage);
         
-        // 如果是中文模式，自动翻译
+        // 如果是中文模式，应用本地语言包
         if (currentLanguage === 'zh') {
-            // 延迟一点，确保 DOM 完全加载
-            setTimeout(() => {
-                translateAllBooks();
-            }, 500);
+            if (typeof BookI18n !== 'undefined') {
+                BookI18n.applyLanguage('zh');
+            }
         }
     });
 
@@ -2227,10 +2234,6 @@
 
             if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
                 BookI18n.applyLanguage('zh');
-                var missing = BookI18n.getMissingTranslations('zh');
-                if (missing.length > 0) {
-                    setTimeout(function() { translateMissingBooks(missing); }, 300);
-                }
             }
             
         } catch (error) {
@@ -2266,6 +2269,7 @@
                 const catLabel = isZh ? (book.category_name || '虚构类') : (book.list_name || book.category_name || 'Fiction');
                 return `
                 <article class="card card-animate"
+                         data-isbn="${escapeHtml(book.isbn13 || book.isbn10 || '')}"
                          data-index="${index}"
                          role="button"
                          tabindex="0"
@@ -2314,6 +2318,7 @@
                 const catLabel = isZh ? (book.category_name || '虚构类') : (book.list_name || book.category_name || 'Fiction');
                 return `
                 <article class="list-item card-animate"
+                         data-isbn="${escapeHtml(book.isbn13 || book.isbn10 || '')}"
                          data-index="${index}"
                          role="button"
                          tabindex="0"
@@ -2690,13 +2695,6 @@
 
         if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
             BookI18n.applyLanguage(lang);
-
-            if (lang === 'zh') {
-                var missing = BookI18n.getMissingTranslations('zh');
-                if (missing.length > 0) {
-                    translateMissingBooks(missing);
-                }
-            }
         } else {
             _handleLanguageChange(lang);
         }
