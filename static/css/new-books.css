@@ -6,7 +6,7 @@
 .new-books-header {
     background: var(--card-bg, #ffffff);
     border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 16px;
+    border-radius: 8px;
     padding: 2rem 2.5rem;
     margin-bottom: 1.5rem;
     position: relative;
@@ -31,7 +31,7 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    letter-spacing: -0.625px;
+    letter-spacing: 0;
 }
 
 .new-books-header h1 .text-gold {
@@ -75,7 +75,7 @@
     gap: 1rem;
     background: var(--card-bg, #ffffff);
     border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 16px;
+    border-radius: 8px;
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
@@ -167,6 +167,25 @@
     margin-left: auto;
 }
 
+.result-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: -0.5rem 0 1.25rem;
+    color: var(--text-secondary, #615d59);
+    font-size: 0.8125rem;
+}
+
+.result-summary strong {
+    color: var(--text-primary, rgba(0, 0, 0, 0.95));
+    font-weight: 700;
+}
+
+.summary-muted {
+    color: var(--text-muted, #a39e98);
+}
+
 /* 按钮样式 */
 .btn {
     display: inline-flex;
@@ -174,7 +193,7 @@
     gap: 0.5rem;
     padding: 0.5rem 1rem;
     border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 9999px;
+    border-radius: 8px;
     background: var(--card-bg, #ffffff);
     color: var(--text-secondary, #615d59);
     font-size: 0.875rem;
@@ -223,7 +242,7 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.875rem 1.25rem;
-    border-radius: 12px;
+    border-radius: 8px;
     margin-bottom: 1.5rem;
     font-size: 0.875rem;
     font-weight: 500;
@@ -258,7 +277,7 @@
 .skeleton-card {
     background: var(--card-bg, #ffffff);
     border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 16px;
+    border-radius: 8px;
     overflow: hidden;
 }
 
@@ -309,7 +328,7 @@
 .book-card {
     background: var(--card-bg, #ffffff);
     border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 16px;
+    border-radius: 8px;
     overflow: hidden;
     transition: all 0.25s ease;
     cursor: pointer;
@@ -363,7 +382,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     line-height: 1.4;
-    letter-spacing: -0.125px;
+    letter-spacing: 0;
 }
 
 .book-author {
@@ -382,15 +401,21 @@
     font-size: 0.6875rem;
     color: var(--text-muted, #a39e98);
     margin-bottom: 0.5rem;
+    gap: 0.5rem;
 }
 
 .book-publisher {
     display: flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .book-price {
+    flex: 0 0 auto;
     font-weight: 600;
     color: #0075de;
 }
@@ -420,9 +445,14 @@
     color: var(--text-secondary, #615d59);
 }
 
+.book-tag.tag-date,
 .book-tag.tag-new {
     background: #fef3c7;
     color: #92400e;
+}
+
+.book-tag .icon {
+    flex: 0 0 auto;
 }
 
 .book-tag.tag-translation {
@@ -587,6 +617,7 @@
     color: var(--text-secondary, #a0a0a0);
 }
 
+[data-theme="dark"] .book-tag.tag-date,
 [data-theme="dark"] .book-tag.tag-new {
     background: rgba(254, 243, 199, 0.2);
     color: #fbbf24;
@@ -651,6 +682,11 @@
         justify-content: flex-end;
     }
 
+    .result-summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
     .books-grid,
     .skeleton-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -673,7 +709,7 @@
 @media (max-width: 480px) {
     .new-books-header {
         padding: 1.25rem;
-        border-radius: 12px;
+        border-radius: 8px;
     }
 
     .new-books-header h1 {
@@ -681,7 +717,7 @@
     }
 
     .filter-bar {
-        border-radius: 12px;
+        border-radius: 8px;
     }
 
     .hide-mobile {

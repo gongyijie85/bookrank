@@ -431,6 +431,17 @@ class NewBookService:
         return None
 
     @staticmethod
+    def _coerce_publication_date(value: Any) -> date | None:
+        """Normalize crawler/static publication dates before storage."""
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        return NewBookService._parse_static_date(value)
+
+    @staticmethod
     def _parse_int(value: Any) -> int | None:
         if value is None or value == '':
             return None
@@ -467,6 +478,7 @@ class NewBookService:
 
         results = (
             db.session.query(NewBook.publisher_id, func.count(NewBook.id).label('count'))
+            .filter(NewBook.is_displayable.is_(True))
             .group_by(NewBook.publisher_id)
             .all()
         )
@@ -744,7 +756,7 @@ class NewBookService:
             description=book_info.description,
             cover_url=book_info.cover_url,
             category=self._sanitize_category(book_info.category),
-            publication_date=book_info.publication_date,
+            publication_date=self._coerce_publication_date(book_info.publication_date),
             price=book_info.price,
             page_count=book_info.page_count,
             language=book_info.language,
@@ -788,8 +800,33 @@ class NewBookService:
             book.cover_url = book_info.cover_url
             updated = True
 
+        category = self._sanitize_category(getattr(book_info, 'category', None))
+        if category and category != book.category:
+            book.category = category
+            updated = True
+
+        publication_date = self._coerce_publication_date(getattr(book_info, 'publication_date', None))
+        if publication_date and publication_date != book.publication_date:
+            book.publication_date = publication_date
+            updated = True
+
         if book_info.price and book_info.price != book.price:
             book.price = book_info.price
+            updated = True
+
+        page_count = getattr(book_info, 'page_count', None)
+        if page_count and page_count != book.page_count:
+            book.page_count = page_count
+            updated = True
+
+        language = getattr(book_info, 'language', None)
+        if language and language != book.language:
+            book.language = language
+            updated = True
+
+        source_url = getattr(book_info, 'source_url', None)
+        if source_url and source_url != book.source_url:
+            book.source_url = source_url
             updated = True
 
         if book_info.buy_links:
@@ -907,6 +944,29 @@ class NewBookService:
 
     # ==================== 查询接口 ====================
 
+    @staticmethod
+    def _apply_publication_window(query, days: int):
+        """Filter to recently published books, falling back to sync time only when publication date is absent."""
+        today = datetime.now(UTC).date()
+        cutoff_date = today - timedelta(days=days)
+        cutoff_datetime = datetime.combine(cutoff_date, datetime.min.time()).replace(tzinfo=UTC)
+        tomorrow_datetime = datetime.combine(today + timedelta(days=1), datetime.min.time()).replace(tzinfo=UTC)
+
+        return query.filter(
+            db.or_(
+                db.and_(
+                    NewBook.publication_date.isnot(None),
+                    NewBook.publication_date >= cutoff_date,
+                    NewBook.publication_date <= today,
+                ),
+                db.and_(
+                    NewBook.publication_date.is_(None),
+                    NewBook.created_at >= cutoff_datetime,
+                    NewBook.created_at < tomorrow_datetime,
+                ),
+            )
+        )
+
     def get_new_books(
         self,
         publisher_id: int | None = None,
@@ -932,8 +992,7 @@ class NewBookService:
 
         query = NewBook.query.options(joinedload(NewBook.publisher)).filter(NewBook.is_displayable.is_(True))
 
-        cutoff_date = datetime.now(UTC) - timedelta(days=days)
-        query = query.filter(NewBook.created_at >= cutoff_date)
+        query = self._apply_publication_window(query, days)
 
         if publisher_id:
             query = query.filter(NewBook.publisher_id == publisher_id)
@@ -965,7 +1024,15 @@ class NewBookService:
             self._hydrate_language_pack([book])
         return book
 
-    def search_books(self, keyword: str, page: int = 1, per_page: int = 20) -> tuple[list[NewBook], int]:
+    def search_books(
+        self,
+        keyword: str,
+        page: int = 1,
+        per_page: int = 20,
+        publisher_id: int | None = None,
+        category: str | None = None,
+        days: int | None = None,
+    ) -> tuple[list[NewBook], int]:
         """
         搜索书籍
 
@@ -973,6 +1040,9 @@ class NewBookService:
             keyword: 搜索关键词
             page: 页码
             per_page: 每页数量
+            publisher_id: 出版社ID筛选
+            category: 分类筛选
+            days: 最近出版天数筛选，为 None 时搜索全量可展示书籍
 
         Returns:
             (书籍列表, 总数)
@@ -995,7 +1065,16 @@ class NewBookService:
             .filter(NewBook.is_displayable.is_(True))
         )
 
-        query = query.order_by(NewBook.created_at.desc())
+        if publisher_id:
+            query = query.filter(NewBook.publisher_id == publisher_id)
+
+        if category:
+            query = query.filter(NewBook.category == category)
+
+        if days is not None:
+            query = self._apply_publication_window(query, days)
+
+        query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         self._hydrate_language_pack(pagination.items)
@@ -1037,9 +1116,14 @@ class NewBookService:
         total_publishers = Publisher.query.count()
         active_publishers = Publisher.query.filter_by(is_active=True).count()
 
-        # 最近7天新增
-        week_ago = datetime.now(UTC) - timedelta(days=7)
-        recent_books = NewBook.query.filter(NewBook.created_at >= week_ago).count()
+        # 最近7天出版，避免同步入库时间误导页面统计
+        today = datetime.now(UTC).date()
+        week_ago = today - timedelta(days=7)
+        recent_books = NewBook.query.filter(
+            NewBook.is_displayable.is_(True),
+            NewBook.publication_date >= week_ago,
+            NewBook.publication_date <= today,
+        ).count()
 
         # 分类统计
         category_stats = (

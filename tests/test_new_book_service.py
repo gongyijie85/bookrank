@@ -5,7 +5,7 @@
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -168,6 +168,140 @@ class TestNewBookService:
             # 验证结果
             assert total >= 1
             assert len(books) >= 1
+
+    def test_get_new_books_filters_by_publication_date(self, new_book_service, db):
+        """新书时间范围应按出版日期过滤，而不是按同步入库时间过滤"""
+        new_book_service.init_publishers()
+        publisher = Publisher.query.first()
+        assert publisher is not None
+
+        today = datetime.now(UTC).date()
+        now = datetime.now(UTC)
+        rows = [
+            NewBook(
+                publisher_id=publisher.id,
+                title='Recent Publication',
+                author='Author',
+                isbn13='9780000000101',
+                category='Fiction',
+                publication_date=today - timedelta(days=5),
+                created_at=now - timedelta(days=120),
+                is_displayable=True,
+            ),
+            NewBook(
+                publisher_id=publisher.id,
+                title='Old Publication Synced Today',
+                author='Author',
+                isbn13='9780000000102',
+                category='Fiction',
+                publication_date=today - timedelta(days=120),
+                created_at=now,
+                is_displayable=True,
+            ),
+            NewBook(
+                publisher_id=publisher.id,
+                title='Future Publication',
+                author='Author',
+                isbn13='9780000000103',
+                category='Fiction',
+                publication_date=today + timedelta(days=30),
+                created_at=now,
+                is_displayable=True,
+            ),
+            NewBook(
+                publisher_id=publisher.id,
+                title='No Date Recent Sync',
+                author='Author',
+                isbn13='9780000000104',
+                category='Fiction',
+                publication_date=None,
+                created_at=now,
+                is_displayable=True,
+            ),
+        ]
+        db.session.add_all(rows)
+        db.session.commit()
+
+        books, total = new_book_service.get_new_books(days=30)
+
+        titles = {book.title for book in books}
+        assert total == 2
+        assert titles == {'Recent Publication', 'No Date Recent Sync'}
+
+    def test_search_books_honors_publication_window(self, new_book_service, db):
+        """搜索也应遵守当前新书出版时间范围"""
+        new_book_service.init_publishers()
+        publisher = Publisher.query.first()
+        assert publisher is not None
+
+        today = datetime.now(UTC).date()
+        db.session.add_all(
+            [
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Window Match',
+                    author='Author',
+                    isbn13='9780000000111',
+                    publication_date=today - timedelta(days=3),
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Window Match Old',
+                    author='Author',
+                    isbn13='9780000000112',
+                    publication_date=today - timedelta(days=80),
+                    is_displayable=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        books, total = new_book_service.search_books('Window Match', days=30)
+
+        assert total == 1
+        assert books[0].title == 'Window Match'
+
+    def test_update_book_fields_refreshes_publication_metadata(self, new_book_service, db):
+        """已有书籍再次同步时应更新出版日期等元数据，便于纠正旧日期"""
+        new_book_service.init_publishers()
+        publisher = Publisher.query.first()
+        assert publisher is not None
+
+        book = NewBook(
+            publisher_id=publisher.id,
+            title='Metadata Book',
+            author='Author',
+            isbn13='9780000000121',
+            category='Old Category',
+            publication_date=date(2025, 1, 1),
+            page_count=120,
+            language='en',
+            source_url='https://example.com/old',
+            is_displayable=True,
+        )
+        db.session.add(book)
+        db.session.commit()
+
+        book_info = Mock()
+        book_info.description = None
+        book_info.cover_url = None
+        book_info.price = None
+        book_info.buy_links = []
+        book_info.category = 'Fiction'
+        book_info.publication_date = date(2026, 5, 1)
+        book_info.page_count = 256
+        book_info.language = 'en-US'
+        book_info.source_url = 'https://example.com/new'
+
+        updated = new_book_service._update_book_fields(book, book_info, auto_commit=False)
+
+        assert updated is True
+        assert book.category == 'Fiction'
+        assert book.publication_date == date(2026, 5, 1)
+        assert book.page_count == 256
+        assert book.language == 'en-US'
+        assert book.source_url == 'https://example.com/new'
 
     def test_get_book(self, new_book_service, db):
         """测试获取单本书籍详情"""

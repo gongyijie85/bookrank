@@ -212,8 +212,11 @@
             <span class="book-tag tag-category">{{ book.category }}</span>
             {% endif %}
             {% if book.publication_date %}
-            {% set pub_date = book.publication_date.strftime('%Y-%m') if book.publication_date is not string else book.publication_date[:7] %}
-            <span class="book-tag tag-new">{{ pub_date }}</span>
+            {% set pub_date = book.publication_date.strftime('%Y-%m-%d') if book.publication_date is not string else book.publication_date[:10] %}
+            <span class="book-tag tag-date" title="{{ _('出版日期') }} {{ pub_date }}">
+                <svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>
+                {{ pub_date }}
+            </span>
             {% endif %}
         </div>
         {% endif %}

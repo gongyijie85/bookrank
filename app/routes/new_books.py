@@ -117,15 +117,26 @@ def get_new_books():
         publisher_id = request.args.get('publisher', type=int)
         category = request.args.get('category')
         days = min(max(1, request.args.get('days', 30, type=int)), 365)
+        search_query = request.args.get('search', '').strip()[:100]
         page, per_page = validate_pagination(
             request.args.get('page', 1, type=int), request.args.get('per_page', 20, type=int), max_limit=50
         )
 
         service = get_new_book_service()
         _ensure_static_seeded(service)
-        books, total = service.get_new_books(
-            publisher_id=publisher_id, category=category, days=days, page=page, per_page=per_page
-        )
+        if search_query:
+            books, total = service.search_books(
+                search_query,
+                page,
+                per_page,
+                publisher_id=publisher_id,
+                category=category,
+                days=days,
+            )
+        else:
+            books, total = service.get_new_books(
+                publisher_id=publisher_id, category=category, days=days, page=page, per_page=per_page
+            )
 
         return APIResponse.success(
             data={

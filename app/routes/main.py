@@ -387,7 +387,14 @@ def new_books():
 
     try:
         if search_query:
-            books, total = service.search_books(search_query, page, per_page)
+            books, total = service.search_books(
+                search_query,
+                page,
+                per_page,
+                publisher_id=selected_publisher if selected_publisher else None,
+                category=selected_category if selected_category else None,
+                days=selected_days,
+            )
         else:
             books, total = service.get_new_books(
                 publisher_id=selected_publisher if selected_publisher else None,
