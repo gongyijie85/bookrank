@@ -351,6 +351,11 @@ def new_books():
     service = NewBookService()
 
     try:
+        service.ensure_static_data_seeded()
+    except Exception as e:
+        logger.warning(f'新书静态数据兜底初始化失败: {e}')
+
+    try:
         publishers = service.get_publishers(active_only=True)
     except Exception as e:
         logger.warning(f'获取出版社列表失败: {e}')
@@ -766,6 +771,20 @@ def weekly_reports():
 
     report_service = WeeklyReportService(book_service)
     reports = report_service.get_reports()
+
+    if not reports:
+        try:
+            from ..tasks.weekly_report_task import generate_weekly_report
+
+            generated_report = generate_weekly_report()
+            if generated_report:
+                reports = report_service.get_reports()
+        except Exception as e:
+            current_app.logger.warning(f'周报空列表兜底生成失败: {e}')
+
+    for report in reports:
+        report.content_data = _parse_report_content(report) or {}
+
     return render_template('weekly_reports.html', reports=reports)
 
 

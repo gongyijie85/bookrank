@@ -213,17 +213,17 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info(f'📅 周报启动检查已安排（{initial_delay}秒后）')
 
-    # 2. 新书速递自动同步（每14天一次）
-    if translation_service:
-        from datetime import timedelta
+    # 2. 新书速递自动同步（每14天一次，翻译服务不可用时仍同步英文原始数据）
+    from datetime import timedelta
 
-        _scheduler.add_job(
-            func=_scheduler_wrapper(app, _auto_sync_task),
-            trigger=IntervalTrigger(days=14, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC),
-            id='auto_sync',
-            name='新书速递自动同步',
-        )
-        app.logger.info(f'📅 新书速递自动同步已安排（每14天，首次{initial_delay * 2}秒后）')
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _auto_sync_task),
+        trigger=IntervalTrigger(days=14, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC),
+        id='auto_sync',
+        name='新书速递自动同步',
+    )
+    translation_status = '含翻译' if translation_service else '不含翻译'
+    app.logger.info(f'📅 新书速递自动同步已安排（每14天，首次{initial_delay * 2}秒后，{translation_status}）')
 
     # 3. NYT排行榜自动同步（每周一次）：刷新榜单、补充资料、翻译并写入语言包
     if book_service:

@@ -9,9 +9,10 @@
 """
 
 import gc
+import json
 import logging
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,16 @@ class NewBookService:
             'crawler_class': 'MacmillanCrawler',
         },
     ]
+
+    STATIC_DATA_FILES = {
+        'google_books_books.json': 'Google Books',
+        'open_library_books.json': 'Open Library',
+        'penguin_random_house_books.json': 'Penguin Random House',
+        'simon_schuster_books.json': 'Simon & Schuster',
+        'hachette_books.json': 'Hachette',
+        'harpercollins_books.json': 'HarperCollins',
+        'macmillan_books.json': 'Macmillan',
+    }
 
     _instance: 'NewBookService | None' = None
 
@@ -263,6 +274,170 @@ class NewBookService:
             logger.info('所有出版社已存在，无需创建')
 
         return count
+
+    def ensure_static_data_seeded(self) -> dict[str, Any] | None:
+        """Seed bundled new-book data when the database has no displayable books."""
+        existing_books = NewBook.query.filter(NewBook.is_displayable.is_(True)).count()
+        if existing_books > 0:
+            return None
+        return self.seed_from_static_data()
+
+    def seed_from_static_data(self, static_data_dir: str | Path | None = None) -> dict[str, Any]:
+        """Import bundled static new-book JSON files into the database.
+
+        The static files are a safe fallback for fresh deployments where the
+        scheduled crawler has not run yet or external crawler credentials are
+        unavailable.
+        """
+        from .publisher_crawler.base_crawler import BookInfo
+
+        self.init_publishers()
+
+        data_dir = self._resolve_static_data_dir(static_data_dir)
+        result: dict[str, Any] = {
+            'success': True,
+            'files_seen': 0,
+            'total': 0,
+            'added': 0,
+            'updated': 0,
+            'skipped': 0,
+            'errors': 0,
+        }
+
+        for filename, publisher_name in self.STATIC_DATA_FILES.items():
+            path = data_dir / filename
+            if not path.exists():
+                continue
+
+            publisher = Publisher.query.filter_by(name_en=publisher_name).first()
+            if not publisher:
+                logger.warning('静态新书导入跳过，出版社不存在: %s', publisher_name)
+                continue
+
+            result['files_seen'] += 1
+            try:
+                rows = json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning('静态新书文件读取失败 %s: %s', path, e)
+                result['errors'] += 1
+                continue
+
+            if not isinstance(rows, list):
+                logger.warning('静态新书文件格式无效: %s', path)
+                result['errors'] += 1
+                continue
+
+            touched_books: list[NewBook] = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    result['skipped'] += 1
+                    continue
+
+                title = (row.get('title') or '').strip()
+                author = (row.get('author') or '').strip()
+                if not title or not author:
+                    result['skipped'] += 1
+                    continue
+
+                try:
+                    book_info = BookInfo(
+                        title=title,
+                        author=author,
+                        isbn13=self._normalize_isbn(row.get('isbn13'), 13),
+                        isbn10=self._normalize_isbn(row.get('isbn10'), 10),
+                        description=row.get('description'),
+                        cover_url=row.get('cover_url'),
+                        category=row.get('category'),
+                        publication_date=self._parse_static_date(row.get('publication_date')),
+                        price=row.get('price'),
+                        page_count=self._parse_int(row.get('page_count')),
+                        language=row.get('language'),
+                        buy_links=row.get('buy_links') if isinstance(row.get('buy_links'), list) else [],
+                        source_url=row.get('source_url'),
+                    )
+                    save_result = self._save_book(
+                        publisher,
+                        book_info,
+                        translate=False,
+                        auto_commit=False,
+                        touched_books=touched_books,
+                    )
+                    result['total'] += 1
+                    if save_result == 'added':
+                        result['added'] += 1
+                    elif save_result == 'updated':
+                        result['updated'] += 1
+                    else:
+                        result['skipped'] += 1
+                except Exception as e:
+                    logger.warning('静态新书导入失败: %s - %s', title, e)
+                    result['errors'] += 1
+
+            try:
+                self._translate_and_store_language_pack(touched_books, translate=False)
+                publisher.last_sync_at = datetime.now(UTC)
+                if touched_books:
+                    publisher.sync_count = (publisher.sync_count or 0) + 1
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                logger.warning('静态新书批量提交失败 %s: %s', filename, e)
+                result['errors'] += 1
+
+        logger.info(
+            '静态新书兜底导入完成: 文件%s个, 新增%s本, 更新%s本, 跳过%s本, 错误%s',
+            result['files_seen'],
+            result['added'],
+            result['updated'],
+            result['skipped'],
+            result['errors'],
+        )
+        return result
+
+    @staticmethod
+    def _resolve_static_data_dir(static_data_dir: str | Path | None = None) -> Path:
+        if static_data_dir:
+            return Path(static_data_dir)
+        if has_app_context() and current_app.static_folder:
+            return Path(current_app.static_folder) / 'data'
+        return Path(__file__).resolve().parents[2] / 'static' / 'data'
+
+    @staticmethod
+    def _normalize_isbn(value: Any, length: int) -> str | None:
+        if not value:
+            return None
+        clean = re.sub(r'[^0-9Xx]', '', str(value)).upper()
+        return clean if len(clean) == length else None
+
+    @staticmethod
+    def _parse_static_date(value: Any) -> date | None:
+        if not value:
+            return None
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        text = str(value).strip()
+        for fmt in ('%Y-%m-%d', '%Y-%m', '%Y'):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                if fmt == '%Y':
+                    return date(parsed.year, 1, 1)
+                if fmt == '%Y-%m':
+                    return date(parsed.year, parsed.month, 1)
+                return parsed.date()
+            except ValueError:
+                continue
+        return None
+
+    @staticmethod
+    def _parse_int(value: Any) -> int | None:
+        if value is None or value == '':
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
     def get_publishers(self, active_only: bool = True) -> list[Publisher]:
         """

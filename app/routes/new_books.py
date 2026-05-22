@@ -25,6 +25,13 @@ def get_new_book_service() -> NewBookService:
     return NewBookService(translation_service=current_app.extensions.get('translation_service'))
 
 
+def _ensure_static_seeded(service: NewBookService) -> None:
+    try:
+        service.ensure_static_data_seeded()
+    except Exception as e:
+        logger.warning(f'新书静态数据兜底初始化失败: {e}')
+
+
 def _check_sync_cooldown() -> str | None:
     """检查同步冷却时间，返回错误消息或None"""
     global _last_sync_time
@@ -40,6 +47,7 @@ def get_publishers():
     """获取出版社列表（批量查询书籍数量，避免N+1）"""
     try:
         service = get_new_book_service()
+        _ensure_static_seeded(service)
         publishers = service.get_publishers(active_only=True)
         book_counts = service.get_publisher_book_counts()
 
@@ -114,6 +122,7 @@ def get_new_books():
         )
 
         service = get_new_book_service()
+        _ensure_static_seeded(service)
         books, total = service.get_new_books(
             publisher_id=publisher_id, category=category, days=days, page=page, per_page=per_page
         )
@@ -164,6 +173,7 @@ def search_new_books():
         )
 
         service = get_new_book_service()
+        _ensure_static_seeded(service)
         books, total = service.search_books(keyword, page, per_page)
 
         return APIResponse.success(
@@ -188,6 +198,7 @@ def get_categories():
     """获取分类列表"""
     try:
         service = get_new_book_service()
+        _ensure_static_seeded(service)
         categories = service.get_categories()
         return APIResponse.success(data={'categories': categories})
     except Exception as e:
@@ -267,6 +278,7 @@ def get_statistics():
     """获取统计数据"""
     try:
         service = get_new_book_service()
+        _ensure_static_seeded(service)
         stats = service.get_statistics()
         return APIResponse.success(data=stats)
     except Exception as e:
@@ -279,6 +291,7 @@ def export_csv():
     """导出CSV格式（限制最大导出数量）"""
     try:
         service = get_new_book_service()
+        _ensure_static_seeded(service)
         publisher_id = request.args.get('publisher_id', type=int)
         category = request.args.get('category')
         days = min(max(1, request.args.get('days', 30, type=int)), 365)

@@ -74,8 +74,8 @@
                     <!-- 新闻亮点 -->
                     <div class="news-highlights">
                         <ul class="highlights-list">
-                            {% if report.content %}
-                            {% set content = report.content %}
+                            {% if report.content_data %}
+                            {% set content = report.content_data %}
                             {% if content.top_changes %}
                             <li>
                                 <svg class="icon" width="14" height="14"><use href="#icon-arrow-up"/></svg>

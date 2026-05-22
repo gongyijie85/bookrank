@@ -128,10 +128,12 @@
             <svg class="icon" width="18" height="18"><use href="#icon-file-excel"/></svg>
             <span class="hide-mobile">{{ _('导出') }}</span>
         </button>
+        {% if config.get('ENABLE_PUBLIC_NEW_BOOK_SYNC') %}
         <button class="btn btn-primary" id="sync-btn">
             <svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg>
             <span class="hide-mobile">{{ _('同步新书') }}</span>
         </button>
+        {% endif %}
     </div>
 </div>
 
@@ -179,9 +181,9 @@
 <div class="empty-state">
     <svg class="icon" width="48" height="48"><use href="#icon-book-open"/></svg>
     <h3>{{ _('暂无新书数据') }}</h3>
-    <p>{{ _('点击') }}"{{ _('同步新书') }}"{{ _('按钮从出版社获取最新数据') }}</p>
-    <button class="btn btn-primary" id="btn-sync-empty" style="margin-top: 1rem;">
-        <svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg> {{ _('同步新书') }}
+    <p>{{ _('系统正在初始化新书数据，请稍后刷新') }}</p>
+    <button class="btn btn-primary" id="btn-refresh-empty" style="margin-top: 1rem;">
+        <svg class="icon" width="18" height="18"><use href="#icon-refresh"/></svg> {{ _('刷新') }}
     </button>
 </div>
 {% endif %}
@@ -573,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // {{ _('工具栏按钮事件绑定') }}
     document.getElementById('btn-export')?.addEventListener('click', exportExcel);
     document.getElementById('sync-btn')?.addEventListener('click', syncNewBooks);
-    document.getElementById('btn-sync-empty')?.addEventListener('click', syncNewBooks);
+    document.getElementById('btn-refresh-empty')?.addEventListener('click', function() { location.reload(); });
 
     // {{ _('侧边栏出版社筛选事件委托') }}
     document.addEventListener('click', function(e) {

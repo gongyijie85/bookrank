@@ -43,6 +43,43 @@ class TestNewBookService:
         assert count > 0
         assert Publisher.query.count() >= count
 
+    def test_seed_from_static_data(self, new_book_service, db, tmp_path):
+        """测试从静态新书 JSON 兜底导入"""
+        static_file = tmp_path / 'google_books_books.json'
+        static_file.write_text(
+            json.dumps(
+                [
+                    {
+                        'title': 'Static Test Book',
+                        'author': 'Static Author',
+                        'isbn13': '9780000000999',
+                        'isbn10': '0000000999',
+                        'description': 'Static description',
+                        'cover_url': 'https://example.com/static.jpg',
+                        'category': 'Fiction',
+                        'publication_date': '2026-05-01',
+                        'page_count': 240,
+                        'language': 'en',
+                        'buy_links': [{'name': 'Google Books', 'url': 'https://example.com/book'}],
+                        'source_url': 'https://example.com/book',
+                    }
+                ]
+            ),
+            encoding='utf-8',
+        )
+
+        result = new_book_service.seed_from_static_data(tmp_path)
+
+        assert result['added'] == 1
+        assert NewBook.query.count() == 1
+        book = NewBook.query.first()
+        assert book.title == 'Static Test Book'
+        assert book.publisher.name_en == 'Google Books'
+        assert book.publication_date.isoformat() == '2026-05-01'
+        assert book.get_buy_links()[0]['name'] == 'Google Books'
+
+        assert new_book_service.ensure_static_data_seeded() is None
+
     def test_get_publishers(self, new_book_service, db):
         """测试获取出版社列表"""
         # 先初始化出版社
