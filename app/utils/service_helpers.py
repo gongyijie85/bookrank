@@ -29,6 +29,11 @@ def get_image_cache_service() -> ImageCacheService | None:
     return current_app.extensions.get('image_cache_service')
 
 
+def get_translation_service():
+    """获取翻译服务"""
+    return current_app.extensions.get('translation_service')
+
+
 def require_book_service() -> BookService:
     service = get_book_service()
     if service is None:

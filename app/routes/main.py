@@ -21,11 +21,13 @@ from ..utils import (
     clean_translation_text,
 )
 from ..utils.api_helpers import APIResponse, handle_api_errors
+from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.security import is_safe_redirect_url
 from ..utils.service_helpers import (
     get_book_service,
     get_google_books_client,
     get_image_cache_service,
+    get_translation_service,
     submit_background_task,
 )
 
@@ -476,7 +478,7 @@ def new_book_detail(book_id):
         return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
 
     if not book.title_zh or not book.description_zh:
-        translation_service = current_app.extensions.get('translation_service')
+        translation_service = get_translation_service()
         if translation_service:
             def translate_book_async():
                 service.translate_book_background(book_id, translation_service)
@@ -540,8 +542,8 @@ def _fetch_google_books_details(book: dict, isbn: str) -> None:
         book_service = get_book_service()
         if book_service:
             cache_service = book_service.cache
-    except Exception:
-        pass
+    except Exception as e:
+        log_error(ErrorCategory.CACHE, f'获取 book_service 缓存失败: {e}', level='warning')
 
     if cache_service:
         try:
@@ -549,8 +551,8 @@ def _fetch_google_books_details(book: dict, isbn: str) -> None:
             if cached:
                 _update_book_from_google_books(book, cached)
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            log_error(ErrorCategory.CACHE, f'读取 Google Books 缓存失败 ISBN {isbn}: {e}', level='warning')
 
     google_client = get_google_books_client()
     if not google_client:
@@ -566,8 +568,8 @@ def _fetch_google_books_details(book: dict, isbn: str) -> None:
         if cache_service:
             try:
                 cache_service.set(cache_key, details, ttl=604800)
-            except Exception:
-                pass
+            except Exception as e:
+                log_error(ErrorCategory.CACHE, f'写入 Google Books 缓存失败 ISBN {isbn}: {e}', level='warning')
 
     except Exception as e:
         logger.warning(f'Google Books API 调用失败 ISBN {isbn}: {e}')
@@ -576,7 +578,7 @@ def _fetch_google_books_details(book: dict, isbn: str) -> None:
 def _translate_field_async(book: dict, source_field: str, target_field: str) -> None:
     """异步翻译书籍字段（不阻塞响应）"""
     app = current_app._get_current_object()
-    translation_service = app.extensions.get('translation_service')
+    translation_service = get_translation_service()
 
     def _do_translate():
         try:
@@ -668,7 +670,7 @@ def _merge_or_translate_book(book: dict, isbn: str) -> None:
         if not needs_title and not needs_desc and not needs_details:
             return
 
-        translation_service = current_app.extensions.get('translation_service')
+        translation_service = get_translation_service()
         if not translation_service:
             return
         app = current_app._get_current_object()

@@ -282,13 +282,13 @@
     </script>
 
     <!-- Translation System -->
-    <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/translations.min.js' if config.get('ENV') == 'production' and config.get('MINIFIED_JS_EXISTS') else 'js/translations.js') }}"></script>
 
     <!-- Book Content Language Pack -->
-    <script src="{{ url_for('static', filename='js/book-i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/book-i18n.min.js' if config.get('ENV') == 'production' and config.get('MINIFIED_JS_EXISTS') else 'js/book-i18n.js') }}"></script>
 
     <!-- Base JavaScript -->
-    <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/base.min.js' if config.get('ENV') == 'production' and config.get('MINIFIED_JS_EXISTS') else 'js/base.js') }}"></script>
 
     {% block extra_js %}{% endblock %}
 

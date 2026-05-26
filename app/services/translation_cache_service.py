@@ -69,7 +69,8 @@ class TranslationCacheService:
                         try:
                             db.session.delete(cache)
                             db.session.commit()
-                        except Exception:
+                        except Exception as e:
+                            logger.warning('删除过期缓存失败(版本检查): %s', e)
                             db.session.rollback()
                         return None
                 except (ValueError, TypeError):
@@ -80,7 +81,8 @@ class TranslationCacheService:
                 try:
                     db.session.delete(cache)
                     db.session.commit()
-                except Exception:
+                except Exception as e:
+                    logger.warning('删除过期缓存失败(无版本号): %s', e)
                     db.session.rollback()
                 return None
 

@@ -16,7 +16,7 @@ from ...utils.api_helpers import (
     clean_translation_text,
     validate_isbn,
 )
-from ...utils.service_helpers import get_book_service
+from ...utils.service_helpers import get_book_service, get_translation_service
 from . import api_bp, get_session_id, validate_category
 
 logger = logging.getLogger(__name__)
@@ -284,7 +284,7 @@ def get_book_details(isbn: str):
         # 如果没有翻译，尝试同步翻译
         if details_en and not details_zh:
             try:
-                translation_service = current_app.extensions.get('translation_service')
+                translation_service = get_translation_service()
                 if translation_service:
                     details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
             except Exception as e:

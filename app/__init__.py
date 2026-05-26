@@ -41,6 +41,7 @@ def create_app(config_name: str = None) -> Flask:
     app.config['APP_ENV'] = config_name
     app.config['ENV'] = config_name
     app.config['MINIFIED_CSS_EXISTS'] = (PROJECT_ROOT / 'static' / 'css' / 'all.min.css').is_file()
+    app.config['MINIFIED_JS_EXISTS'] = (PROJECT_ROOT / 'static' / 'js' / 'base.min.js').is_file()
     config[config_name].init_app(app)
 
     if config_name != 'testing' and app.config.get('SECRET_KEY', '').startswith('dev-secret-key'):
@@ -197,7 +198,7 @@ def _register_error_handlers(app: Flask) -> None:
         try:
             db.session.rollback()
         except Exception:
-            pass
+            db.session.remove()
         logging.error(f'Internal error: {error}', exc_info=True)
         try:
             from .utils.error_tracker import error_tracker
@@ -208,8 +209,8 @@ def _register_error_handlers(app: Flask) -> None:
                 path=request.path if request else '',
                 method=request.method if request else '',
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f'ErrorTracker 记录失败: {e}')
         return {'success': False, 'message': 'Internal server error'}, 500
 
 

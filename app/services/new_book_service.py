@@ -11,7 +11,6 @@
 import gc
 import json
 import logging
-import re
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -22,6 +21,7 @@ from ..models.database import db
 from ..models.new_book import NewBook, Publisher
 from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
+from . import publisher_data as pd
 
 logger = logging.getLogger(__name__)
 
@@ -33,60 +33,9 @@ class NewBookService:
     管理出版社爬虫、数据同步和翻译。
     """
 
-    DEFAULT_PUBLISHERS = [
-        {
-            'name': 'Google Books',
-            'name_en': 'Google Books',
-            'website': 'https://books.google.com',
-            'crawler_class': 'GoogleBooksCrawler',
-        },
-        {
-            'name': 'Open Library',
-            'name_en': 'Open Library',
-            'website': 'https://openlibrary.org',
-            'crawler_class': 'OpenLibraryCrawler',
-        },
-        {
-            'name': '企鹅兰登',
-            'name_en': 'Penguin Random House',
-            'website': 'https://www.penguinrandomhouse.com',
-            'crawler_class': 'PenguinRandomHouseCrawler',
-        },
-        {
-            'name': '西蒙舒斯特',
-            'name_en': 'Simon & Schuster',
-            'website': 'https://www.simonandschuster.com',
-            'crawler_class': 'SimonSchusterGoogleCrawler',
-        },
-        {
-            'name': '阿歇特',
-            'name_en': 'Hachette',
-            'website': 'https://www.hachettebookgroup.com',
-            'crawler_class': 'HachetteCrawler',
-        },
-        {
-            'name': '哈珀柯林斯',
-            'name_en': 'HarperCollins',
-            'website': 'https://www.harpercollins.com',
-            'crawler_class': 'HarperCollinsCrawler',
-        },
-        {
-            'name': '麦克米伦',
-            'name_en': 'Macmillan',
-            'website': 'https://us.macmillan.com',
-            'crawler_class': 'MacmillanCrawler',
-        },
-    ]
+    DEFAULT_PUBLISHERS = pd.DEFAULT_PUBLISHERS
 
-    STATIC_DATA_FILES = {
-        'google_books_books.json': 'Google Books',
-        'open_library_books.json': 'Open Library',
-        'penguin_random_house_books.json': 'Penguin Random House',
-        'simon_schuster_books.json': 'Simon & Schuster',
-        'hachette_books.json': 'Hachette',
-        'harpercollins_books.json': 'HarperCollins',
-        'macmillan_books.json': 'Macmillan',
-    }
+    STATIC_DATA_FILES = pd.STATIC_DATA_FILES
 
     _instance: 'NewBookService | None' = None
 
@@ -133,102 +82,20 @@ class NewBookService:
     # ==================== 分类校验 ====================
 
     # 合法的分类列表（中英文）
-    VALID_CATEGORIES = {
-        '小说',
-        '非虚构',
-        '悬疑',
-        '言情',
-        '惊悚',
-        '科幻',
-        '奇幻',
-        '传记',
-        '历史',
-        '儿童读物',
-        '青少年',
-        '商业',
-        '自助',
-        'Fiction',
-        'Nonfiction',
-        'Mystery',
-        'Romance',
-        'Thriller',
-        'Science Fiction',
-        'Fantasy',
-        'Biography',
-        'History',
-        'Children',
-        'Young Adult',
-        'Business',
-        'Self-Help',
-    }
+    VALID_CATEGORIES = pd.VALID_CATEGORIES
 
     @staticmethod
     def _sanitize_category(category: str | None) -> str | None:
-        """
-        清洗分类数据，过滤掉无效的营销文案
-
-        Args:
-            category: 原始分类字符串
-
-        Returns:
-            清洗后的分类，无效则返回 None
-        """
-        if not category:
-            return None
-
-        category = category.strip()
-
-        # 长度检查：分类通常不超过20个字符
-        if len(category) > 30:
-            return None
-
-        # 包含营销关键词的过滤
-        marketing_keywords = [
-            'learn more',
-            'read more',
-            'see what',
-            'take the quiz',
-            'join our',
-            'browse all',
-            'how to',
-            'on the rise',
-            'you need to',
-            'you love',
-            'audiobook',
-            'events',
-            'new releases',
-            'new stories',
-            'lists, essays',
-        ]
-        category_lower = category.lower()
-        for keyword in marketing_keywords:
-            if keyword in category_lower:
-                return None
-
-        # 包含特殊字符的过滤（>、<、!、http等）
-        if re.search(r'[>!<]|http[s]?://', category):
-            return None
-
-        # 包含引号的过滤
-        if '"' in category or '"' in category or '"' in category:
-            return None
-
-        return category
+        """清洗分类数据（委托到 publisher_data）"""
+        return pd.sanitize_category(category)
 
     # ==================== 出版社管理 ====================
 
     # 旧爬虫 -> 新爬虫的迁移映射
-    # v1.6.0: HTML 爬虫 -> Google Books 搜索爬虫
-    # v1.7.0: Google Books 搜索爬虫 -> 官网直接爬虫（如有）
-    _CRAWLER_MIGRATION = {
-        'SimonSchusterCrawler': 'SimonSchusterGoogleCrawler',
-        'HachetteCrawler': 'HachetteCrawler',  # 自身已是最新
-        'HarperCollinsCrawler': 'HarperCollinsCrawler',
-        'MacmillanCrawler': 'MacmillanCrawler',
-        'HachetteGoogleCrawler': 'HachetteCrawler',
-        'HarperCollinsGoogleCrawler': 'HarperCollinsCrawler',
-        'MacmillanGoogleCrawler': 'MacmillanCrawler',
-    }
+    _CRAWLER_MIGRATION = pd.CRAWLER_MIGRATION
+
+    # Google Books 搜索爬虫（需要 API key）
+    _GOOGLE_BOOKS_CRAWLERS = pd.GOOGLE_BOOKS_CRAWLERS
 
     def init_publishers(self) -> int:
         """
@@ -395,60 +262,26 @@ class NewBookService:
         return result
 
     @staticmethod
+    @staticmethod
     def _resolve_static_data_dir(static_data_dir: str | Path | None = None) -> Path:
-        if static_data_dir:
-            return Path(static_data_dir)
-        if has_app_context() and current_app.static_folder:
-            return Path(current_app.static_folder) / 'data'
-        return Path(__file__).resolve().parents[2] / 'static' / 'data'
+        return pd.resolve_static_data_dir(static_data_dir)
 
     @staticmethod
     def _normalize_isbn(value: Any, length: int) -> str | None:
-        if not value:
-            return None
-        clean = re.sub(r'[^0-9Xx]', '', str(value)).upper()
-        return clean if len(clean) == length else None
+        return pd.normalize_isbn(value, length)
 
     @staticmethod
     def _parse_static_date(value: Any) -> date | None:
-        if not value:
-            return None
-        if isinstance(value, date) and not isinstance(value, datetime):
-            return value
-        if isinstance(value, datetime):
-            return value.date()
-        text = str(value).strip()
-        for fmt in ('%Y-%m-%d', '%Y-%m', '%Y'):
-            try:
-                parsed = datetime.strptime(text, fmt)
-                if fmt == '%Y':
-                    return date(parsed.year, 1, 1)
-                if fmt == '%Y-%m':
-                    return date(parsed.year, parsed.month, 1)
-                return parsed.date()
-            except ValueError:
-                continue
-        return None
+        return pd.parse_static_date(value)
 
     @staticmethod
     def _coerce_publication_date(value: Any) -> date | None:
         """Normalize crawler/static publication dates before storage."""
-        if not value:
-            return None
-        if isinstance(value, datetime):
-            return value.date()
-        if isinstance(value, date):
-            return value
-        return NewBookService._parse_static_date(value)
+        return pd.coerce_publication_date(value)
 
     @staticmethod
     def _parse_int(value: Any) -> int | None:
-        if value is None or value == '':
-            return None
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            return None
+        return pd.parse_int_safe(value)
 
     def get_publishers(self, active_only: bool = True) -> list[Publisher]:
         """
@@ -867,8 +700,8 @@ class NewBookService:
             logger.warning(f'Background translation failed for book {book_id}: {e}')
             try:
                 db.session.rollback()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning('Background translation rollback 失败 for book %s: %s', book_id, e)
 
     def _translate_book(self, book: NewBook) -> bool:
         """

@@ -64,8 +64,8 @@ def _safe_cache_set(
         return
     try:
         cache_service.set(namespace, key, data, ttl_seconds=ttl_seconds, is_error=is_error, error_message=error_message)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning('安全写入缓存失败 [%s/%s]: %s', namespace, key, e)
 
 
 def api_retry(max_attempts: int = 3, backoff_factor: float = 2.0):

@@ -5,12 +5,13 @@ from datetime import UTC, datetime
 from io import StringIO
 from urllib.parse import quote
 
-from flask import Blueprint, current_app, make_response, request
+from flask import Blueprint, make_response, request
 
 from ..models.database import db
 from ..services.new_book_service import NewBookService
 from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect, validate_pagination
+from ..utils.service_helpers import get_translation_service
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ _SYNC_COOLDOWN_SECONDS: int = 60
 
 def get_new_book_service() -> NewBookService:
     """获取新书服务单例"""
-    return NewBookService(translation_service=current_app.extensions.get('translation_service'))
+    return NewBookService(translation_service=get_translation_service())
 
 
 def _ensure_static_seeded(service: NewBookService) -> None:

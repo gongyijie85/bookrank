@@ -1,5 +1,11 @@
 # BookRank
 
+[![Test & Coverage](https://github.com/gongyijie85/bookrank/actions/workflows/test.yml/badge.svg)](https://github.com/gongyijie85/bookrank/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/gongyijie85/bookrank/branch/main/graph/badge.svg)](https://codecov.io/gh/gongyijie85/bookrank)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![Flask 3.1](https://img.shields.io/badge/flask-3.1-black.svg)](https://flask.palletsprojects.com/)
+[![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 纽约时报畅销书排行榜应用，追踪国际大型出版社最新出版物，展示各类图书奖项。
 
 ## 项目简介

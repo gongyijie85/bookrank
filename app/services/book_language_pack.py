@@ -184,8 +184,8 @@ class BookLanguagePack:
             logger.debug('BookMetadata language-pack lookup skipped: %s', e)
             try:
                 db.session.rollback()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning('BookMetadata rollback 失败: %s', e)
             return {}
 
     def _apply_isbn_translations(self, books: list[Any], translations: dict[str, dict[str, str | None]]) -> None:
@@ -249,8 +249,8 @@ class BookLanguagePack:
             logger.debug('TranslationCache language-pack lookup skipped: %s', e)
             try:
                 db.session.rollback()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning('BookMetadata rollback 失败: %s', e)
             return {}
         except Exception as e:
             logger.debug('TranslationCache language-pack lookup unavailable: %s', e)

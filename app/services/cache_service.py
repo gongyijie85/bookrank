@@ -210,7 +210,8 @@ class FileCache(CacheStrategy):
 
             dt = datetime.fromtimestamp(mtime, UTC)
             return dt.strftime('%Y-%m-%d %H:%M:%S')
-        except Exception:
+        except Exception as e:
+            logger.warning('获取缓存文件修改时间失败: %s', e)
             return None
 
 

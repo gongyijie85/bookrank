@@ -381,8 +381,8 @@ class ZhipuTranslationService:
                         cached = cache_service.get(field, source_lang, target_lang)
                         if cached:
                             result[key] = clean_translation_text(cached.translated_text, field_type=field_type)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning('读取翻译缓存失败 key=%s: %s', key, e)
 
         uncached_fields = []
         if title and title.strip() and not result['title_zh']:
@@ -739,8 +739,8 @@ class HybridTranslationService:
                     if cached:
                         results[i] = clean_translation_text(cached.translated_text)
                         continue
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning('批量翻译缓存查找失败 text[%d]=%s: %s', i, text[:30], e)
             to_translate.append((i, text))
 
         # 第二步：并行翻译
