@@ -23,7 +23,7 @@ def _format_book_title(title: str) -> str:
     text = re.sub(r'\*{1,2}|_{1,2}|`', '', text)
     # 如果文本中有换行，只取第一行（书名）
     if '\n' in text:
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
         if lines:
             text = lines[0]
     # 如果文本中已有《》，提取《》内的内容
@@ -697,6 +697,7 @@ class WeeklyReportService:
         """检查用户是否已阅读过该周报"""
         try:
             from ..models.schemas import ReportView
+
             return ReportView.query.filter_by(report_id=report_id, session_id=session_id).first() is not None
         except Exception as e:
             logger.error(f'检查阅读记录失败: {e!s}')

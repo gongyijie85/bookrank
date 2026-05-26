@@ -338,11 +338,14 @@ def awards():
 @main_bp.route('/new-books')
 def new_books():
     """新书速递页面"""
-    selected_publisher = request.args.get('publisher', '', type=int)
+    selected_publisher_raw = request.args.get('publisher', '')
+    selected_publisher = (
+        int(selected_publisher_raw) if selected_publisher_raw and selected_publisher_raw.isdigit() else None
+    )
     selected_category = request.args.get('category', '')
-    selected_days = min(max(1, request.args.get('days', 30, type=int)), 365)
+    selected_days = min(max(1, int(request.args.get('days', '30'))), 365)
     search_query = request.args.get('search', '').strip()[:100]
-    page = min(max(1, request.args.get('page', 1, type=int)), 10000)
+    page = min(max(1, int(request.args.get('page', '1'))), 10000)
     per_page = 20
     view_mode = request.args.get('view', 'grid')
     if view_mode not in ['grid', 'list']:
@@ -393,13 +396,13 @@ def new_books():
                 search_query,
                 page,
                 per_page,
-                publisher_id=selected_publisher if selected_publisher else None,
+                publisher_id=selected_publisher,
                 category=selected_category if selected_category else None,
                 days=selected_days,
             )
         else:
             books, total = service.get_new_books(
-                publisher_id=selected_publisher if selected_publisher else None,
+                publisher_id=selected_publisher,
                 category=selected_category if selected_category else None,
                 days=selected_days,
                 page=page,
@@ -480,6 +483,7 @@ def new_book_detail(book_id):
     if not book.title_zh or not book.description_zh:
         translation_service = get_translation_service()
         if translation_service:
+
             def translate_book_async():
                 service.translate_book_background(book_id, translation_service)
 
@@ -687,7 +691,9 @@ def _merge_or_translate_book(book: dict, isbn: str) -> None:
 
                     if needs_title:
                         try:
-                            title_zh = translation_service.translate(book.get('title', ''), 'en', 'zh', field_type='title')
+                            title_zh = translation_service.translate(
+                                book.get('title', ''), 'en', 'zh', field_type='title'
+                            )
                         except Exception as e:
                             logger.warning(f'异步书名翻译失败: {e}')
 
@@ -701,11 +707,15 @@ def _merge_or_translate_book(book: dict, isbn: str) -> None:
 
                     if needs_details:
                         try:
-                            details_zh = translation_service.translate(book.get('details', ''), 'en', 'zh', field_type='details')
+                            details_zh = translation_service.translate(
+                                book.get('details', ''), 'en', 'zh', field_type='details'
+                            )
                         except Exception as e:
                             logger.warning(f'异步详情翻译失败: {e}')
 
-                    user_svc.save_book_translation(isbn, title_zh=title_zh, description_zh=desc_zh, details_zh=details_zh)
+                    user_svc.save_book_translation(
+                        isbn, title_zh=title_zh, description_zh=desc_zh, details_zh=details_zh
+                    )
                     logger.info(f'异步翻译完成: {isbn}')
                 except Exception as e:
                     logger.warning(f'异步翻译失败 {isbn}: {e}')
@@ -956,12 +966,5 @@ def set_language():
     host = request.host.split(':')[0]  # 去掉端口号
     # 对于 Render 等部署平台，需要设置正确的 domain
     cookie_domain = host if '.' in host else None
-    response.set_cookie(
-        'lang',
-        lang,
-        max_age=60 * 60 * 24 * 365,
-        samesite='Lax',
-        domain=cookie_domain,
-        path='/'
-    )
+    response.set_cookie('lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax', domain=cookie_domain, path='/')
     return response

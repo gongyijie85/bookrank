@@ -7,8 +7,6 @@ from urllib.parse import quote
 
 from flask import current_app, make_response, request
 
-from ...models.schemas import BookMetadata
-from ...models.database import db
 from ...services.user_service import UserService
 from ...utils.api_helpers import (
     APIResponse,

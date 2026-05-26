@@ -28,11 +28,13 @@ def app():
     Returns:
         Flask 应用实例
     """
-    # 使用测试配置创建应用
+    from app.utils.rate_limiter import _global_rate_limiters
+
+    _global_rate_limiters.clear()
+
     app = create_app('testing')
     app.config['ADMIN_SECRET'] = 'test-admin-secret'
 
-    # 确保测试配置正确
     assert app.config['TESTING'] is True
     assert 'memory' in app.config['SQLALCHEMY_DATABASE_URI']
 
@@ -61,13 +63,16 @@ def db(app):
     Returns:
         数据库实例
     """
+    from app.utils.rate_limiter import _global_rate_limiters
+
+    for limiter in _global_rate_limiters.values():
+        limiter._requests.clear()
+
     with app.app_context():
-        # 创建所有表
         _db.create_all()
 
         yield _db
 
-        # 测试结束后清理
         _db.session.remove()
         _db.drop_all()
 

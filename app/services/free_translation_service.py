@@ -102,11 +102,11 @@ class FreeTranslationService:
         target_lang: str = 'zh',
         progress_callback=None,
         max_workers: int = 3,
-    ) -> list[str]:
+    ) -> list[str | None]:
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         total = len(texts)
-        results = [None] * total
+        results: list[str | None] = [None] * total
 
         def _translate_item(item):
             idx, txt = item
@@ -116,12 +116,10 @@ class FreeTranslationService:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_item = {executor.submit(_translate_item, (i, text)): i for i, text in enumerate(texts)}
 
-            completed = 0
-            for future in as_completed(future_to_item):
+            for i, future in enumerate(as_completed(future_to_item)):
                 idx, result = future.result()
                 results[idx] = result
-                completed += 1
                 if progress_callback:
-                    progress_callback(completed, total)
+                    progress_callback(i + 1, total)
 
         return results

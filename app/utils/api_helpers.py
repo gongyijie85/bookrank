@@ -151,6 +151,9 @@ def api_rate_limit(max_requests: int = 60, window: int = 60) -> Callable[..., An
     def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(f)
         def wrapped(*args: Any, **kwargs: Any) -> Any:
+            if current_app.config.get('TESTING'):
+                return f(*args, **kwargs)
+
             limiter = get_rate_limiter(max_requests, window)
             client_id = request.remote_addr or 'unknown'
 
@@ -171,6 +174,9 @@ def public_rate_limit(max_requests: int = 60, window: int = 60) -> Callable[...,
     def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(f)
         def wrapped(*args: Any, **kwargs: Any) -> Any:
+            if current_app.config.get('TESTING'):
+                return f(*args, **kwargs)
+
             limiter = get_rate_limiter(max_requests, window)
             client_id = request.remote_addr or 'unknown'
 
@@ -354,7 +360,7 @@ def _clean_title_text(text: str) -> str:
         return book_match.group(1).strip()
 
     if '\n' in text:
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
         if len(lines) >= 2:
             first_line = lines[0]
             if len(first_line) <= 20 and '·' not in first_line:

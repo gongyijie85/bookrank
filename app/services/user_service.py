@@ -92,7 +92,9 @@ class UserService:
             logger.error(f'获取图书元数据失败: {e}')
             return None
 
-    def save_book_translation(self, isbn: str, title_zh: str | None = None, description_zh: str | None = None, details_zh: str | None = None) -> bool:
+    def save_book_translation(
+        self, isbn: str, title_zh: str | None = None, description_zh: str | None = None, details_zh: str | None = None
+    ) -> bool:
         """
         保存或更新图书翻译缓存
 

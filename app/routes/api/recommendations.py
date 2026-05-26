@@ -100,9 +100,7 @@ def smart_search():
     if search_type not in valid_types:
         search_type = 'all'
 
-    page, limit = validate_pagination(
-        request.args.get('page', 1, type=int), request.args.get('limit', 20, type=int)
-    )
+    page, limit = validate_pagination(request.args.get('page', 1, type=int), request.args.get('limit', 20, type=int))
     offset = (page - 1) * limit
 
     categories = current_app.config.get('CATEGORIES', {})

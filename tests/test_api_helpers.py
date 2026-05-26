@@ -133,74 +133,82 @@ class TestHandleApiErrors:
 
     def test_catches_validation_exception(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise ValidationException('missing field')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 400
 
     def test_catches_data_not_found(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise DataNotFoundError('no such book')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 404
 
     def test_catches_rate_limit(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise APIRateLimitException('too fast')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 429
 
     def test_catches_external_api_error(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise ExternalAPIError('down')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 503
 
     def test_catches_value_error(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise ValueError('bad input')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 400
 
     def test_catches_key_error(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise KeyError('missing_key')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 400
 
     def test_catches_timeout_error(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise TimeoutError('timed out')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 504
 
     def test_catches_generic_exception(self, app):
         with app.app_context():
+
             @handle_api_errors
             def bad_func():
                 raise RuntimeError('unknown crash')
 
-            response, status = bad_func()
+            _response, status = bad_func()
             assert status == 500
 
 

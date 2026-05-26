@@ -266,7 +266,7 @@ class ZhipuTranslationService:
         target_lang: str = 'zh',
         progress_callback=None,
         max_workers: int = 3,
-    ) -> list[str]:
+    ) -> list[str | None]:
         """
         批量翻译，使用缓存避免重复翻译，支持并行处理
 
@@ -284,7 +284,7 @@ class ZhipuTranslationService:
 
         total = len(texts)
         cache_hits = 0
-        results = [None] * total
+        results: list[str | None] = [None] * total
         to_translate = []  # (index, text) 需要翻译的项
 
         cache_service = self._get_cache_service()
@@ -304,7 +304,7 @@ class ZhipuTranslationService:
                         results[i] = clean_translation_text(cached.translated_text)
                         cache_hits += 1
                         continue
-                except (requests.RequestException, ValueError, KeyError) as e:
+                except (ValueError, KeyError) as e:
                     logger.debug(f'缓存读取失败: {e}')
 
             to_translate.append((i, text))
@@ -320,14 +320,12 @@ class ZhipuTranslationService:
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_item = {executor.submit(_translate_item, item): item for item in to_translate}
 
-                completed = 0
-                for future in as_completed(future_to_item):
+                for completed, future in enumerate(as_completed(future_to_item)):
                     idx, result = future.result()
                     results[idx] = result
-                    completed += 1
 
                     if progress_callback:
-                        progress_callback(total - len(to_translate) + completed, total)
+                        progress_callback(total - len(to_translate) + completed + 1, total)
 
         logger.info(f'批量翻译完成: 共{total}条, 缓存命中{cache_hits}条, 并行翻译{len(to_translate)}条')
         return results
@@ -495,6 +493,8 @@ class ZhipuTranslationService:
                                 translated_val = result.get(dst_key)
                                 if src_text and translated_val:
                                     try:
+                                        from .translation_cache_service import TranslationCacheService
+
                                         cache_service.set(
                                             src_text,
                                             translated_val,
@@ -705,7 +705,7 @@ class HybridTranslationService:
         target_lang: str = 'zh',
         progress_callback=None,
         max_workers: int = 2,
-    ) -> list[str]:
+    ) -> list[str | None]:
         """
         批量翻译（缓存预检+并行翻译）
 
@@ -754,14 +754,12 @@ class HybridTranslationService:
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_item = {executor.submit(_translate_item, item): item for item in to_translate}
 
-                completed = 0
-                for future in as_completed(future_to_item):
+                for completed, future in enumerate(as_completed(future_to_item)):
                     idx, result = future.result()
                     results[idx] = result
-                    completed += 1
                     if progress_callback:
                         cache_hits = total - len(to_translate)
-                        progress_callback(cache_hits + completed, total)
+                        progress_callback(cache_hits + completed + 1, total)
 
         logger.info(f'批量翻译完成: 共{total}条, 缓存命中{total - len(to_translate)}条, 并行翻译{len(to_translate)}条')
         return results

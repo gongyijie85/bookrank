@@ -4,7 +4,6 @@
 从 NewBookService 中提取，与实例状态分离。
 """
 
-import json
 import logging
 import re
 from datetime import date, datetime
@@ -71,11 +70,32 @@ STATIC_DATA_FILES: dict[str, str] = {
 }
 
 VALID_CATEGORIES: set[str] = {
-    '小说', '非虚构', '悬疑', '言情', '惊悚', '科幻', '奇幻',
-    '传记', '历史', '儿童读物', '青少年', '商业', '自助',
-    'Fiction', 'Nonfiction', 'Mystery', 'Romance', 'Thriller',
-    'Science Fiction', 'Fantasy', 'Biography', 'History',
-    'Children', 'Young Adult', 'Business', 'Self-Help',
+    '小说',
+    '非虚构',
+    '悬疑',
+    '言情',
+    '惊悚',
+    '科幻',
+    '奇幻',
+    '传记',
+    '历史',
+    '儿童读物',
+    '青少年',
+    '商业',
+    '自助',
+    'Fiction',
+    'Nonfiction',
+    'Mystery',
+    'Romance',
+    'Thriller',
+    'Science Fiction',
+    'Fantasy',
+    'Biography',
+    'History',
+    'Children',
+    'Young Adult',
+    'Business',
+    'Self-Help',
 }
 
 # 旧爬虫 -> 新爬虫的迁移映射
@@ -100,10 +120,21 @@ GOOGLE_BOOKS_CRAWLERS: set[str] = {
 
 # 营销关键词过滤（_sanitize_category 使用）
 MARKETING_KEYWORDS: list[str] = [
-    'learn more', 'read more', 'see what', 'take the quiz',
-    'join our', 'browse all', 'how to', 'on the rise',
-    'you need to', 'you love', 'audiobook', 'events',
-    'new releases', 'new stories', 'lists, essays',
+    'learn more',
+    'read more',
+    'see what',
+    'take the quiz',
+    'join our',
+    'browse all',
+    'how to',
+    'on the rise',
+    'you need to',
+    'you love',
+    'audiobook',
+    'events',
+    'new releases',
+    'new stories',
+    'lists, essays',
 ]
 
 

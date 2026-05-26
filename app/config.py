@@ -203,6 +203,7 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI: str = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED: bool = False
     SESSION_COOKIE_SECURE: bool = False
+    API_RATE_LIMIT: int = 10000
 
 
 config: dict[str, type[Config]] = {

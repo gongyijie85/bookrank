@@ -262,10 +262,8 @@ class HachetteGoogleCrawler(GoogleBooksPublisherCrawler):
                 break
             old_name = self.PUBLISHER_NAME_EN
             self.PUBLISHER_NAME_EN = sub_pub
-            count_before = 0
-            for book in super().get_new_books(category, min(10, remaining), year_from):
+            for _i, book in enumerate(super().get_new_books(category, min(10, remaining), year_from)):
                 yield book
-                count_before += 1
                 remaining -= 1
             self.PUBLISHER_NAME_EN = old_name
 

@@ -311,11 +311,9 @@ class HachetteCrawler(BaseCrawler):
                 # 查找包含较多文本的段落
                 for p in soup.find_all(['p', 'div']):
                     text = self._clean_text(p.get_text())
-                    if len(text) > 100 and len(text) < 2000:
-                        # 排除导航、页脚等
-                        if not p.find('a', href=True):
-                            result['description'] = text
-                            break
+                    if len(text) > 100 and len(text) < 2000 and not p.find('a', href=True):
+                        result['description'] = text
+                        break
 
             # 提取出版社：查找 "Publisher" 文本后的链接
             for text_node in soup.find_all(string=re.compile(r'Publisher')):

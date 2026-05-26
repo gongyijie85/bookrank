@@ -15,7 +15,7 @@ from datetime import datetime
 
 import requests
 
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, SimpleResponse
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +66,13 @@ class OpenLibraryCrawler(BaseCrawler):
     def _check_crawl4ai(self) -> bool:
         """检查 Crawl4AI 是否可用"""
         try:
-            import crawl4ai
+            import importlib.util
+
+            importlib.util.find_spec('crawl4ai')
 
             logger.info('✅ OpenLibrary: Crawl4AI 可用')
             return True
-        except ImportError:
+        except (ImportError, ModuleNotFoundError):
             logger.info('ℹ️ OpenLibrary: Crawl4AI 未安装，仅使用传统 API')
             return False
 
@@ -108,7 +110,7 @@ class OpenLibraryCrawler(BaseCrawler):
             logger.warning(f'⚠️ OpenLibrary: Crawl4AI 同步调用失败: {e}')
             return None
 
-    def _make_request_with_fallback(self, url: str) -> requests.Response | None:
+    def _make_request_with_fallback(self, url: str) -> requests.Response | SimpleResponse | None:
         """
         带降级的请求方法
 

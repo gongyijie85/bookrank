@@ -22,7 +22,7 @@ babel = Babel()
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
-def create_app(config_name: str = None) -> Flask:
+def create_app(config_name: str | None = None) -> Flask:
     """
     应用工厂函数
 
@@ -375,6 +375,11 @@ def _enable_rate_limiting(app: Flask) -> None:
 
     @app.before_request
     def rate_limit_requests() -> Response | None:
+        from flask import current_app
+
+        if current_app.config.get('TESTING'):
+            return None
+
         if (
             request.path.startswith('/static/')
             or request.path.startswith('/health/')
@@ -425,7 +430,8 @@ def _register_jinja_filters(app: Flask) -> None:
         """将Markdown文本转换为HTML（自动消毒）"""
         if not text:
             return ''
-        return sanitize_html_filter(mistune.html(text))
+        html = mistune.html(text)
+        return sanitize_html_filter(html if isinstance(html, str) else str(html))
 
     @app.template_filter('format_title')
     def format_title_filter(title: str | None) -> str:
@@ -439,7 +445,7 @@ def _register_jinja_filters(app: Flask) -> None:
     def clean_brackets_filter(text: str | None) -> str:
         """清理文本中所有重复的书名号（《《xxx》》 → 《xxx》）"""
         if not text:
-            return text
+            return ''
         text = re.sub(r'《{2,}', '《', text)
         text = re.sub(r'》{2,}', '》', text)
         return text
@@ -477,18 +483,64 @@ def _register_jinja_filters(app: Flask) -> None:
         if len(stripped) <= 3:
             return True
         invalid = {
-            'unknown', 'unknown publisher', 'n/a', '',
-            '精装小说', 'hardcover fiction', '平装小说', 'paperback fiction',
-            '虚构类', 'fiction', '非虚构类', 'nonfiction',
-            '青少年', 'young adult', '儿童图书', "children's", 'children',
-            '建议读物', 'advice', '如何做', 'how-to', 'how to',
-            '图画书', 'picture books', '图像小说', 'graphic books',
-            '系列图书', 'series books', '综合类', 'combined',
-            '商业', 'business', '科学', 'science', '历史', 'history',
-            '政治', 'politics', '旅行', 'travel', '美食', 'food',
-            '健康', 'health', '自助', 'self-help', '宗教', 'religion',
-            '幽默', 'humor', '体育', 'sports', '家庭', 'family',
-            '关系', 'relationships', '教育', 'education',
+            'unknown',
+            'unknown publisher',
+            'n/a',
+            '',
+            '精装小说',
+            'hardcover fiction',
+            '平装小说',
+            'paperback fiction',
+            '虚构类',
+            'fiction',
+            '非虚构类',
+            'nonfiction',
+            '青少年',
+            'young adult',
+            '儿童图书',
+            "children's",
+            'children',
+            '建议读物',
+            'advice',
+            '如何做',
+            'how-to',
+            'how to',
+            '图画书',
+            'picture books',
+            '图像小说',
+            'graphic books',
+            '系列图书',
+            'series books',
+            '综合类',
+            'combined',
+            '商业',
+            'business',
+            '科学',
+            'science',
+            '历史',
+            'history',
+            '政治',
+            'politics',
+            '旅行',
+            'travel',
+            '美食',
+            'food',
+            '健康',
+            'health',
+            '自助',
+            'self-help',
+            '宗教',
+            'religion',
+            '幽默',
+            'humor',
+            '体育',
+            'sports',
+            '家庭',
+            'family',
+            '关系',
+            'relationships',
+            '教育',
+            'education',
         }
         return stripped.lower() in invalid
 

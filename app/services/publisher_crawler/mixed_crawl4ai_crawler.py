@@ -76,11 +76,13 @@ class MixedCrawl4AICrawler(BaseCrawler):
     def _check_crawl4ai(self) -> bool:
         """检查 Crawl4AI 是否可用"""
         try:
-            import crawl4ai
+            import importlib.util
+
+            importlib.util.find_spec('crawl4ai')
 
             logger.info(f'✅ {self.PUBLISHER_NAME_EN}: Crawl4AI 可用')
             return True
-        except ImportError:
+        except (ImportError, ModuleNotFoundError):
             logger.info(f'ℹ️ {self.PUBLISHER_NAME_EN}: Crawl4AI 未安装，仅使用传统 requests')
             return False
 

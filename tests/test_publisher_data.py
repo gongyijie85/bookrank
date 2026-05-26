@@ -2,14 +2,12 @@
 
 from datetime import date, datetime
 
-import pytest
-
 from app.services.publisher_data import (
+    CRAWLER_MIGRATION,
     DEFAULT_PUBLISHERS,
+    GOOGLE_BOOKS_CRAWLERS,
     STATIC_DATA_FILES,
     VALID_CATEGORIES,
-    CRAWLER_MIGRATION,
-    GOOGLE_BOOKS_CRAWLERS,
     coerce_publication_date,
     normalize_isbn,
     parse_int_safe,
@@ -84,7 +82,7 @@ class TestNormalizeIsbn:
     def test_valid_isbn10(self):
         assert normalize_isbn('0306406152', 10) == '0306406152'
 
-    def test_isbn10_with_X(self):
+    def test_isbn10_with_x(self):
         assert normalize_isbn('080442957X', 10) == '080442957X'
         assert normalize_isbn('080442957x', 10) == '080442957X'
 

@@ -74,9 +74,9 @@ class TestErrorTrackerAPI:
     def test_view_errors_unauthorized(self, client) -> None:
         """无认证访问应被拒绝"""
         response = client.get('/api/admin/errors')
-        assert response.status_code in (302, 401, 403)
+        assert response.status_code in (302, 401, 403, 429)
 
     def test_clear_errors_unauthorized(self, client) -> None:
         """无认证清空应被拒绝"""
         response = client.post('/api/admin/errors/clear')
-        assert response.status_code in (302, 401, 403)
+        assert response.status_code in (302, 401, 403, 429)

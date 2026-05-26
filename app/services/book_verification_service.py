@@ -17,8 +17,8 @@ class BookVerificationService:
 
     def __init__(self, app=None):
         self.app = app
-        self.errors = []
-        self.warnings = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
     def verify_book(self, book: AwardBook) -> tuple[bool, dict]:
         """

@@ -19,9 +19,9 @@ from flask import current_app, has_app_context
 
 from ..models.database import db
 from ..models.new_book import NewBook, Publisher
+from . import publisher_data as pd
 from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
-from . import publisher_data as pd
 
 logger = logging.getLogger(__name__)
 
@@ -418,7 +418,7 @@ class NewBookService:
         if not crawler:
             return {'success': False, 'error': '爬虫不可用'}
 
-        result = {
+        result: dict[str, bool | str | int] = {
             'success': True,
             'publisher': publisher.name_en,
             'total': 0,
@@ -687,9 +687,7 @@ class NewBookService:
                 return
 
             if not book.title_zh and book.title:
-                book.title_zh = translation_service.translate(
-                    book.title, 'en', 'zh', field_type='title'
-                )
+                book.title_zh = translation_service.translate(book.title, 'en', 'zh', field_type='title')
             if book.description and not book.description_zh:
                 book.description_zh = translation_service.translate(
                     book.description[:1000], 'en', 'zh', field_type='description'

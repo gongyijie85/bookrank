@@ -70,7 +70,13 @@ class AwardCoverSyncService:
             return {'status': 'already_running'}
 
         self._is_running = True
-        result = {'total_checked': 0, 'updated': 0, 'failed': 0, 'skipped': 0, 'errors': []}
+        result: dict[str, str | int | list[str]] = {
+            'total_checked': 0,
+            'updated': 0,
+            'failed': 0,
+            'skipped': 0,
+            'errors': [],
+        }
 
         try:
             # 查找缺少封面的书籍
@@ -238,9 +244,9 @@ class AwardCoverSyncService:
 
     def get_sync_status(self) -> dict:
         """获取同步状态"""
-        total = AwardBook.query.filter(AwardBook.is_displayable).count()
-        has_cover = AwardBook.query.filter(
-            AwardBook.cover_original_url is not None, AwardBook.cover_original_url != '', AwardBook.is_displayable
+        total: int = AwardBook.query.filter(AwardBook.is_displayable).count()
+        has_cover: int = AwardBook.query.filter(
+            AwardBook.cover_original_url.isnot(None), AwardBook.cover_original_url != '', AwardBook.is_displayable
         ).count()
         missing = total - has_cover
 

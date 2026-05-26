@@ -1,7 +1,6 @@
 """rate_limiter 模块单元测试"""
 
 import time
-import pytest
 
 from app.utils.rate_limiter import IPRateLimiter, RateLimiter, get_rate_limiter
 

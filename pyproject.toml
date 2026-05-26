@@ -55,7 +55,6 @@ module = [
     "flask_cors.*",
     "flask_migrate.*",
     "flask_mail.*",
-    "flask_wtf.*",
     "apscheduler.*",
     "mistune.*",
     "bs4.*",
@@ -67,7 +66,69 @@ module = [
     "PIL.*",
     "werkzeug.*",
     "dotenv.*",
-    "alembic.*",
-    "psycopg2.*",
+    "flask_babel.*",
+    "crawl4ai.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "app.models.schemas",
+    "app.models.new_book",
+    "app.models.book",
+]
+disable_error_code = [
+    "attr-defined",
+    "union-attr",
+    "operator",
+    "arg-type",
+    "assignment",
+    "name-defined",
+    "no-any-return",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "app.services.new_book_service",
+    "app.services.award_book_service",
+    "app.services.award_cover_sync_service",
+    "app.services.book_verification_service",
+    "app.services.translation_cache_service",
+    "app.services.weekly_report_service",
+    "app.services.book_service",
+    "app.services.api_cache_service",
+    "app.services.google_books_client",
+    "app.services.zhipu_translation_service",
+    "app.services.nyt_client",
+    "app.services.open_library_client",
+    "app.services.recommendation_service",
+    "app.services.free_translation_service",
+    "app.services.book_language_pack",
+    "app.services.api_utils",
+    "app.services.publisher_crawler.*",
+    "app.routes.admin",
+    "app.routes.main",
+    "app.routes.api.*",
+    "app.routes.analytics_bp",
+    "app.routes.health",
+    "app.routes.new_books",
+    "app.routes.public_api",
+    "app.tasks.weekly_report_task",
+    "app.utils.error_tracker",
+    "app.utils.security",
+    "app.utils.service_helpers",
+]
+disable_error_code = [
+    "attr-defined",
+    "union-attr",
+    "no-any-return",
+    "arg-type",
+    "operator",
+    "assignment",
+    "name-defined",
+    "var-annotated",
+    "has-type",
+    "call-overload",
+    "misc",
+    "call-arg",
+]

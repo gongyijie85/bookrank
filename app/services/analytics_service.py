@@ -61,9 +61,7 @@ class AnalyticsService:
             total_views = sum(item['view_count'] for item in view_stats)
             avg_views = total_views / len(view_stats) if view_stats else 0
 
-            logger.info(
-                f'周报阅读统计完成: {len(view_stats)}条记录, 总阅读量{total_views}, 平均阅读量{avg_views:.2f}'
-            )
+            logger.info(f'周报阅读统计完成: {len(view_stats)}条记录, 总阅读量{total_views}, 平均阅读量{avg_views:.2f}')
 
             return {
                 'total_views': total_views,
@@ -146,9 +144,7 @@ class AnalyticsService:
 
             daily_list = []
             for date, count in daily_stats:
-                daily_list.append(
-                    {'date': date.isoformat() if hasattr(date, 'isoformat') else date, 'count': count}
-                )
+                daily_list.append({'date': date.isoformat() if hasattr(date, 'isoformat') else date, 'count': count})
 
             logger.info(f'每日统计完成: {len(daily_list)}天数据')
 

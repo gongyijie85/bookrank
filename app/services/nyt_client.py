@@ -15,7 +15,9 @@ class NYTApiClient:
 
     DEFAULT_CACHE_TTL = 86400 * 7  # 默认值，可通过配置覆盖
 
-    def __init__(self, api_key: str, base_url: str, rate_limiter: RateLimiter, timeout: int = 15, cache_ttl: int | None = None):
+    def __init__(
+        self, api_key: str, base_url: str, rate_limiter: RateLimiter, timeout: int = 15, cache_ttl: int | None = None
+    ):
         self._api_key = api_key
         self._base_url = base_url
         self._rate_limiter = rate_limiter

@@ -46,6 +46,7 @@ class Book:
         if not value:
             return False
         import re
+
         clean = re.sub(r'[\s\-]', '', value)
         if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
             return True

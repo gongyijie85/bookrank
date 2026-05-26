@@ -482,7 +482,12 @@ class AwardBookService:
                 )
 
             total = query.count()
-            books = query.order_by(AwardBook.year.desc(), AwardBook.rank.asc()).offset((page - 1) * limit).limit(limit).all()
+            books = (
+                query.order_by(AwardBook.year.desc(), AwardBook.rank.asc())
+                .offset((page - 1) * limit)
+                .limit(limit)
+                .all()
+            )
             return books, total
         except Exception as e:
             logger.error(f'查询获奖图书失败: {e}')
@@ -496,9 +501,7 @@ class AwardBookService:
             logger.error(f'获取获奖图书失败: {e}')
             return None
 
-    def search_award_books(
-        self, keyword: str, page: int = 1, limit: int = 20
-    ) -> tuple[list[AwardBook], int]:
+    def search_award_books(self, keyword: str, page: int = 1, limit: int = 20) -> tuple[list[AwardBook], int]:
         """搜索获奖图书（标题/作者/中文标题）"""
         try:
             escaped = keyword.replace('%', r'\%').replace('_', r'\_')
@@ -532,6 +535,7 @@ class AwardBookService:
         """获取每个奖项的图书计数"""
         try:
             from sqlalchemy import func
+
             query = db.session.query(AwardBook.award_id, func.count(AwardBook.id)).group_by(AwardBook.award_id)
             if displayable_only:
                 query = query.filter(AwardBook.is_displayable)

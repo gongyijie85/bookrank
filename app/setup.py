@@ -391,9 +391,7 @@ def _nyt_ranking_sync_task(app):
         successful = [result for result in results if result.get('success')]
         total_books = sum(result.get('books', 0) for result in successful)
         metadata_saved = sum(result.get('metadata_saved', 0) for result in successful)
-        translated_fields = sum(
-            result.get('language_pack', {}).get('fields_translated', 0) for result in successful
-        )
+        translated_fields = sum(result.get('language_pack', {}).get('fields_translated', 0) for result in successful)
         failures = [result for result in results if not result.get('success')]
 
         if successful:
