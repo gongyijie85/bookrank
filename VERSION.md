@@ -1,11 +1,18 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.28
+**当前版本**：v0.9.29
 **发布日期**：2026-05-27
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.29 (2026-05-27) — 前端瘦身
+- **CSS 提取**：index.html 1093 行内联 CSS → `static/css/index.css` 独立文件
+- **JS 提取**：index.html 1250 行内联 JS → `static/js/index.js` ES Module
+- **Jinja2 变量处理**：配置变量（defaultCover、currentCategory）提取到 `window.APP_CONFIG` 对象
+- **模板瘦身**：index.html 从 2703 行减至约 580 行（减少 78%）
+- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.46%
 
 ### v0.9.28 (2026-05-27) — 地基修复
 - **render.yaml**：Python 3.11→3.13，构建改用 requirements-prod.txt

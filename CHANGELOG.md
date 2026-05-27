@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.9.29 - 2026-05-27
+
+### refactor: 前端瘦身 — CSS/JS 提取与模板精简
+
+**CSS 提取**：
+- `templates/index.html` 1093 行内联 CSS → `static/css/index.css` 独立文件
+- 通过 `{% block extra_css %}` + `<link>` 标签引用，保留 CSP nonce
+
+**JS 提取**：
+- `templates/index.html` 1250 行内联 JS → `static/js/index.js` ES Module
+- Jinja2 模板变量（defaultCover、currentCategory）提取到 `window.APP_CONFIG` 配置对象
+- 通过 `<script type="module">` 加载，保留 CSP nonce
+
+**模板瘦身**：
+- `index.html` 从 2703 行减至约 580 行（减少 78%）
+- 保留最小化内联 script 块传递服务端配置变量
+
+**验证**：ruff 0 错误 | mypy 0 错误 | pytest 953 passed | 覆盖率 60.46%
+
 ## v0.9.28 - 2026-05-27
 
 ### chore: 地基修复 — 统一 Python 版本与 CI 门禁
