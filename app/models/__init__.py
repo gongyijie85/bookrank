@@ -12,6 +12,7 @@ from .schemas import (
     SystemConfig,
     TranslationCache,
     UserBehavior,
+    UserFavorite,
     UserPreference,
     WeeklyReport,
 )
@@ -30,6 +31,7 @@ __all__ = [
     'SystemConfig',
     'TranslationCache',
     'UserBehavior',
+    'UserFavorite',
     'UserPreference',
     'WeeklyReport',
     'db',

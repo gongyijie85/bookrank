@@ -322,24 +322,34 @@
     function toggleFavorite(button, bookId) {
         if (!button) return;
 
-        const isActive = button.classList.toggle('active');
-        const icon = button.querySelector('i');
+        const isActive = button.classList.contains('active');
+        const method = isActive ? 'DELETE' : 'POST';
+        const url = isActive ? `/api/favorites/${bookId}` : '/api/favorites';
 
-        if (icon) {
-            icon.className = isActive ? 'icon' : 'icon';
-            icon.innerHTML = isActive ? '<use href="#icon-heart-filled"/>' : '<use href="#icon-heart"/>';
-        }
-
-        // Add heart beat animation
-        button.classList.add('heart-beat');
-        setTimeout(() => {
-            button.classList.remove('heart-beat');
-        }, 500);
-
-        showToast(isActive ? '已添加到收藏' : '已取消收藏', 'success');
-
-        // TODO: Save to backend
-        console.log('Favorite toggled:', bookId, isActive);
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: method === 'POST' ? JSON.stringify({ isbn: bookId }) : undefined,
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                button.classList.toggle('active');
+                const icon = button.querySelector('i');
+                const nowActive = button.classList.contains('active');
+                if (icon) {
+                    icon.innerHTML = nowActive
+                        ? '<use href="#icon-heart-filled"/>'
+                        : '<use href="#icon-heart"/>';
+                }
+                button.classList.add('heart-beat');
+                setTimeout(() => button.classList.remove('heart-beat'), 500);
+                showToast(nowActive ? '已添加到收藏' : '已取消收藏', 'success');
+            } else {
+                showToast(data.message || '操作失败', 'error');
+            }
+        })
+        .catch(() => showToast('网络错误，请重试', 'error'));
     }
 
     // ===== Filter Functions =====

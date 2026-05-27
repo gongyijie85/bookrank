@@ -18,6 +18,7 @@ os.environ['FLASK_ENV'] = 'testing'
 # 导入所有模型类，确保它们被 SQLAlchemy 注册
 from app import create_app
 from app.models.database import db as _db
+from app.models.schemas import UserFavorite  # noqa: F401 — 注册模型到 SQLAlchemy
 
 
 @pytest.fixture(scope='session')

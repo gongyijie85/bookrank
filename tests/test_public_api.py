@@ -3,6 +3,8 @@
 import json
 from unittest.mock import MagicMock, patch
 
+from app.models.new_book import Publisher
+
 
 class TestApiInfo:
     """测试 /api/public/ 端点"""
@@ -13,7 +15,7 @@ class TestApiInfo:
         data = json.loads(response.data)
         assert data['success'] is True
         assert 'endpoints' in data['data']
-        assert data['data']['version'] == '1.1.0'
+        assert data['data']['version'] == '1.2.0'
 
 
 class TestGetAllBestsellers:
@@ -96,3 +98,57 @@ class TestGetWeeklyReportByDate:
         response = client.get('/api/public/reports/weekly/not-a-date')
         data = json.loads(response.data)
         assert data['success'] is False
+
+
+class TestGetNewBooks:
+    """测试 /api/public/new-books"""
+
+    def test_empty_new_books(self, client, db):
+        response = client.get('/api/public/new-books')
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['data']['books'] == []
+        assert data['data']['total'] == 0
+
+    def test_new_books_pagination(self, client, db):
+        response = client.get('/api/public/new-books?page=1&per_page=10')
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['data']['page'] == 1
+        assert data['data']['per_page'] == 10
+
+    def test_new_books_with_category_filter(self, client, db):
+        response = client.get('/api/public/new-books?category=fiction')
+        data = json.loads(response.data)
+        assert data['success'] is True
+
+    def test_new_books_publisher_not_found(self, client, db):
+        response = client.get('/api/public/new-books/nonexistent-publisher')
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert response.status_code == 404
+
+    def test_new_books_by_publisher(self, client, db, app):
+        with app.app_context():
+            pub = Publisher(name='测试出版社', name_en='TestPub', crawler_class='RssCrawler', is_active=True)
+            db.session.add(pub)
+            db.session.commit()
+            response = client.get('/api/public/new-books/测试出版社')
+            data = json.loads(response.data)
+            assert data['success'] is True
+            assert data['data']['publisher']['name'] == '测试出版社'
+
+
+class TestGetRecommendations:
+    """测试 /api/public/recommendations"""
+
+    def test_empty_recommendations(self, client, db):
+        response = client.get('/api/public/recommendations')
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert 'recommendations' in data['data']
+
+    def test_recommendations_limit(self, client, db):
+        response = client.get('/api/public/recommendations?limit=5')
+        data = json.loads(response.data)
+        assert data['success'] is True

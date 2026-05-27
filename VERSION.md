@@ -1,11 +1,18 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.29
+**当前版本**：v0.9.30
 **发布日期**：2026-05-27
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.30 (2026-05-27) — 功能补全
+- **收藏持久化**：新建 `UserFavorite` 模型 + `POST/DELETE/GET /api/favorites` API + 前端 toggleFavorite 对接后端
+- **新书公共 API**：`/api/public/new-books` + `/api/public/new-books/<publisher>` 端点
+- **推荐公共 API**：`/api/public/recommendations` 端点（智能推荐策略）
+- **搜索扩展**：SmartSearchService 同时搜索 AwardBook + NewBook，结果合并排序
+- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.11%
 
 ### v0.9.29 (2026-05-27) — 前端瘦身
 - **CSS 提取**：index.html 1093 行内联 CSS → `static/css/index.css` 独立文件

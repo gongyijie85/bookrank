@@ -13,6 +13,7 @@ from typing import Any
 
 from sqlalchemy import func, or_
 
+from ..models.new_book import NewBook
 from ..models.schemas import AwardBook, SearchHistory, db
 from ..utils.error_handler import ErrorCategory, log_error
 
@@ -61,41 +62,47 @@ class SmartSearchService:
             搜索结果字典
         """
         try:
-            # 验证和清理关键词
             keyword = self._sanitize_keyword(keyword)
             if not keyword:
                 return self._empty_search_result()
 
-            # 限制搜索范围
             limit = min(max(1, limit), 100)
             offset = max(0, offset)
 
-            # 构建查询
-            query = AwardBook.query.filter(AwardBook.is_displayable.is_(True))
-
-            # 应用搜索条件
-            query = self._apply_search_conditions(query, keyword, search_type)
-
-            # 应用筛选条件
+            award_query = AwardBook.query.filter(AwardBook.is_displayable.is_(True))  # type: ignore[attr-defined]
+            award_query = self._apply_award_search_conditions(award_query, keyword, search_type)
             if year:
-                query = query.filter(AwardBook.year == year)
+                award_query = award_query.filter(AwardBook.year == year)
             if award_id:
-                query = query.filter(AwardBook.award_id == award_id)
+                award_query = award_query.filter(AwardBook.award_id == award_id)
 
-            # 获取总数
-            total = query.count()
+            award_total = award_query.count()
+            award_books = (
+                award_query.order_by(AwardBook.year.desc(), AwardBook.rank.asc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+            award_results = [self._format_book(b) for b in award_books]
 
-            # 获取分页结果
-            books = query.order_by(AwardBook.year.desc(), AwardBook.rank.asc()).offset(offset).limit(limit).all()
+            new_book_query = NewBook.query.filter(NewBook.is_displayable.is_(True))  # type: ignore[attr-defined]
+            new_book_query = self._apply_new_book_search_conditions(new_book_query, keyword, search_type)
+            new_book_total = new_book_query.count()
+            new_book_books = (
+                new_book_query.order_by(NewBook.publication_date.desc().nullslast())  # type: ignore[union-attr,attr-defined]
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+            new_book_results = [self._format_new_book(b) for b in new_book_books]
 
-            # 格式化结果
-            results = [self._format_book(book) for book in books]
+            all_results = award_results + new_book_results
+            total = award_total + new_book_total
 
-            # 生成搜索建议（用于相关搜索）
             suggestions = self._generate_suggestions(keyword, search_type)
 
             return {
-                'results': results,
+                'results': all_results,
                 'total': total,
                 'keyword': keyword,
                 'search_type': search_type,
@@ -131,45 +138,31 @@ class SmartSearchService:
 
         return keyword[:100]  # 限制长度
 
-    def _apply_search_conditions(self, query, keyword: str, search_type: str):
-        """
-        应用搜索条件到查询
-
-        Args:
-            query:对象
-            keyword: 搜索关键词 SQLAlchemy 查询
-            search_type: 搜索类型
-
-        Returns:
-            过滤后的查询对象
-        """
-        # 转义特殊SQL字符
+    def _apply_award_search_conditions(self, query, keyword: str, search_type: str):
         escaped_keyword = keyword.replace('%', r'\%').replace('_', r'\_')
-
-        # 构建搜索条件
         conditions = []
-
-        if search_type == 'all' or search_type == 'title':
-            # 书名搜索 - 支持模糊匹配和分词匹配
+        if search_type in ('all', 'title'):
             conditions.append(AwardBook.title.ilike(f'%{escaped_keyword}%'))
-            #  also search in Chinese title
             conditions.append(AwardBook.title_zh.ilike(f'%{escaped_keyword}%'))
-
-        if search_type == 'all' or search_type == 'author':
-            # 作者搜索
+        if search_type in ('all', 'author'):
             conditions.append(AwardBook.author.ilike(f'%{escaped_keyword}%'))
-
-        if search_type == 'all' or search_type == 'publisher':
-            # 出版社搜索
+        if search_type in ('all', 'publisher'):
             conditions.append(AwardBook.publisher.ilike(f'%{escaped_keyword}%'))
+        return query.filter(or_(*conditions)) if conditions else query
 
-        if not conditions:
-            return query
-
-        return query.filter(or_(*conditions))
+    def _apply_new_book_search_conditions(self, query, keyword: str, search_type: str):
+        escaped_keyword = keyword.replace('%', r'\%').replace('_', r'\_')
+        conditions = []
+        if search_type in ('all', 'title'):
+            conditions.append(NewBook.title.ilike(f'%{escaped_keyword}%'))  # type: ignore[attr-defined]
+            conditions.append(NewBook.title_zh.ilike(f'%{escaped_keyword}%'))  # type: ignore[union-attr,attr-defined]
+        if search_type in ('all', 'author'):
+            conditions.append(NewBook.author.ilike(f'%{escaped_keyword}%'))  # type: ignore[attr-defined]
+        if search_type in ('all', 'publisher'):
+            conditions.append(NewBook.isbn13.ilike(f'%{escaped_keyword}%'))  # type: ignore[union-attr,attr-defined]
+        return query.filter(or_(*conditions)) if conditions else query
 
     def _format_book(self, book: AwardBook) -> dict:
-        """格式化图书为搜索结果格式"""
         return {
             'id': book.id,
             'title': book.title,
@@ -181,7 +174,24 @@ class SmartSearchService:
             'rank': book.rank,
             'cover_url': book.cover_original_url,
             'isbn13': book.isbn13,
+            'source': 'award',
             'award': {'id': book.award_id, 'name': book.award.name if book.award else None} if book.award else None,
+        }
+
+    def _format_new_book(self, book: NewBook) -> dict:
+        return {
+            'id': book.id,
+            'title': book.title,
+            'title_zh': getattr(book, 'title_zh', None),
+            'author': book.author,
+            'publisher': book.publisher.name if book.publisher else None,
+            'year': book.publication_date.year if book.publication_date else None,
+            'category': book.category,
+            'rank': None,
+            'cover_url': book.cover_url,
+            'isbn13': book.isbn13,
+            'source': 'new_book',
+            'award': None,
         }
 
     def _empty_search_result(self) -> dict:

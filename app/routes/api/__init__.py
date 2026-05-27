@@ -65,4 +65,6 @@ def internal_error(error):
     return APIResponse.error('Internal server error', 500)
 
 
-from . import awards, books, cache, recommendations, translation
+from . import awards, books, cache, favorites, recommendations, translation
+
+favorites.register_favorite_routes(api_bp)

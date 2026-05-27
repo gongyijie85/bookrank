@@ -290,12 +290,106 @@ def get_weekly_report_by_date(date: str):
         return PublicAPIResponse.error('Internal server error', 500)
 
 
+@public_api_bp.route('/new-books')
+@public_rate_limit(max_requests=60, window=60)
+def get_new_books():
+    try:
+        from ..services.new_book import NewBookService
+
+        page = max(request.args.get('page', 1, type=int), 1)
+        per_page = min(request.args.get('per_page', 20, type=int), 50)
+        category = request.args.get('category')
+        publisher_id = request.args.get('publisher_id', type=int)
+
+        service = NewBookService()
+        books, total = service.get_new_books(
+            publisher_id=publisher_id, category=category, page=page, per_page=per_page
+        )
+
+        return PublicAPIResponse.success(
+            data={
+                'books': [_serialize_new_book(b) for b in books],
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+            }
+        )
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'Error in get_new_books: {e}')
+        return PublicAPIResponse.error('Internal server error', 500)
+
+
+@public_api_bp.route('/new-books/<publisher_name>')
+@public_rate_limit(max_requests=60, window=60)
+def get_new_books_by_publisher(publisher_name: str):
+    try:
+        from ..services.new_book import NewBookService
+
+        page = max(request.args.get('page', 1, type=int), 1)
+        per_page = min(request.args.get('per_page', 20, type=int), 50)
+
+        service = NewBookService()
+        publishers = service.get_publishers(active_only=True)
+        publisher = next((p for p in publishers if p.name == publisher_name), None)
+        if not publisher:
+            return PublicAPIResponse.error('Publisher not found', 404)
+
+        books, total = service.get_new_books(publisher_id=publisher.id, page=page, per_page=per_page)
+
+        return PublicAPIResponse.success(
+            data={
+                'publisher': {'id': publisher.id, 'name': publisher.name},
+                'books': [_serialize_new_book(b) for b in books],
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+            }
+        )
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'Error in get_new_books_by_publisher: {e}')
+        return PublicAPIResponse.error('Internal server error', 500)
+
+
+@public_api_bp.route('/recommendations')
+@public_rate_limit(max_requests=60, window=60)
+def get_recommendations():
+    try:
+        from ..services.recommendation_service import RecommendationService
+
+        limit = min(request.args.get('limit', 10, type=int), 50)
+
+        service = RecommendationService()
+        result = service.get_smart_recommendations(limit=limit)
+
+        return PublicAPIResponse.success(data=result)
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'Error in get_recommendations: {e}')
+        return PublicAPIResponse.error('Internal server error', 500)
+
+
+def _serialize_new_book(book) -> dict:
+    data = {
+        'id': book.id,
+        'title': book.title,
+        'author': book.author,
+        'isbn13': book.isbn13,
+        'category': book.category,
+        'cover_url': book.cover_url,
+        'publication_date': book.publication_date.isoformat() if book.publication_date else None,
+    }
+    if hasattr(book, 'title_zh') and book.title_zh:
+        data['title_zh'] = book.title_zh
+    if hasattr(book, 'publisher') and book.publisher:
+        data['publisher'] = book.publisher.name if hasattr(book.publisher, 'name') else str(book.publisher)
+    return data
+
+
 @public_api_bp.route('/')
 def api_info():
     return PublicAPIResponse.success(
         data={
             'name': 'BookRank Public API',
-            'version': '1.1.0',
+            'version': '1.2.0',
             'description': '提供畅销书排行榜和获奖图书数据的公开API',
             'endpoints': [
                 {'path': '/api/public/bestsellers', 'method': 'GET', 'description': '获取所有分类畅销书'},
@@ -309,6 +403,9 @@ def api_info():
                     'description': '获取指定奖项和年份的获奖图书',
                 },
                 {'path': '/api/public/book/<isbn>', 'method': 'GET', 'description': '获取图书详细信息'},
+                {'path': '/api/public/new-books', 'method': 'GET', 'description': '获取新书列表'},
+                {'path': '/api/public/new-books/<publisher>', 'method': 'GET', 'description': '获取指定出版社新书'},
+                {'path': '/api/public/recommendations', 'method': 'GET', 'description': '获取智能推荐'},
                 {'path': '/api/public/reports/weekly', 'method': 'GET', 'description': '获取周报列表'},
                 {'path': '/api/public/reports/weekly/latest', 'method': 'GET', 'description': '获取最新周报'},
                 {'path': '/api/public/reports/weekly/<date>', 'method': 'GET', 'description': '根据日期获取周报'},

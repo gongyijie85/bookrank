@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+from sqlalchemy.pool import StaticPool
 
 BASE_DIR: Path = Path(__file__).parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -204,6 +205,10 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED: bool = False
     SESSION_COOKIE_SECURE: bool = False
     API_RATE_LIMIT: int = 10000
+    SQLALCHEMY_ENGINE_OPTIONS: dict[str, object] = {
+        'poolclass': StaticPool,
+        'connect_args': {'check_same_thread': False},
+    }
 
 
 config: dict[str, type[Config]] = {

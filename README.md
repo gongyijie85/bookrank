@@ -236,14 +236,27 @@ docker run -p 5000:5000 --env-file .env bookrank
 ├── /awards                   # 所有奖项列表
 ├── /awards/{award_name}      # 指定奖项获奖图书
 ├── /awards/{award_name}/{year} # 指定年份获奖图书
-└── /book/{isbn}              # 图书详情
+├── /book/{isbn}              # 图书详情
+├── /new-books                # 新书列表（支持分页）
+├── /new-books/{publisher}    # 指定出版社新书
+└── /recommendations          # 智能推荐
+```
+
+### 用户 API
+
+```
+/api
+├── /favorites                # 获取收藏列表 (GET)
+├── /favorites                # 添加收藏 (POST)
+├── /favorites/{isbn}         # 取消收藏 (DELETE)
+└── /favorites/check/{isbn}   # 检查收藏状态 (GET)
 ```
 
 ## 最近更新
 
-- v0.9.27 - 服务注入标准化：service_helpers 增强，13处 app.extensions 直接访问 → 类型安全 getter
-- v0.9.26 - 大文件拆分：NewBookService 拆分为4子模块+门面类，main.py 辅助函数提取
-- v0.9.25 - 错误处理统一化：258处 except Exception → log_error(ErrorCategory, ...) 分类记录
+- v0.9.30 - 功能补全：收藏持久化、新书/推荐公共API、搜索扩展（AwardBook+NewBook）
+- v0.9.29 - 前端瘦身：index.html CSS/JS 提取，模板从 2703 行减至 580 行
+- v0.9.28 - 地基修复：Python 3.13 统一、CI 门禁修复
 - v0.9.24 - 错误日志分类记录迁移（22文件全量覆盖）
 - v0.9.22 - 全面代码质量优化：Ruff/mypy 清零，测试覆盖率 47%→60%
 - v0.9.11 - 分类切换崩溃修复 & Cookie Domain 修复

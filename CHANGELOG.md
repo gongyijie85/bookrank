@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.9.30 - 2026-05-27
+
+### feat: 功能补全 — 收藏持久化、公共API、搜索扩展
+
+**收藏持久化**：
+- 新建 `UserFavorite` 模型（session_id + isbn + created_at）
+- `POST /api/favorites` 添加收藏 | `DELETE /api/favorites/<isbn>` 取消收藏
+- `GET /api/favorites` 获取收藏列表 | `GET /api/favorites/check/<isbn>` 检查状态
+- 前端 `toggleFavorite` 对接后端 API，替换原有 console.log 占位
+
+**新书公共 API**：
+- `GET /api/public/new-books` 获取新书列表（支持分页、分类、出版社筛选）
+- `GET /api/public/new-books/<publisher>` 按出版社获取新书
+
+**推荐公共 API**：
+- `GET /api/public/recommendations` 智能推荐（自动降级到热门推荐）
+
+**搜索扩展**：
+- SmartSearchService 同时搜索 AwardBook + NewBook 两个数据源
+- 搜索结果合并，每条结果标注 `source: 'award'` 或 `'new_book'`
+
+**验证**：ruff 0 错误 | mypy 0 错误 | pytest 953 passed | 覆盖率 60.11%
+
 ## v0.9.29 - 2026-05-27
 
 ### refactor: 前端瘦身 — CSS/JS 提取与模板精简
