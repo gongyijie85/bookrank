@@ -5,6 +5,7 @@ from typing import Any
 import requests
 from flask import current_app
 
+from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import _get_api_cache_service, _safe_cache_set, api_retry, create_session_with_retry
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ class OpenLibraryClient:
             return result
 
         except requests.RequestException as e:
-            logger.warning(f'Failed to fetch Open Library data for ISBN {isbn}: {e}')
+            log_error(ErrorCategory.API_CALL, f'Failed to fetch Open Library data for ISBN {isbn}: {e}', level='warning')
             _safe_cache_set(
                 cache_service, 'open_library', cache_key, {}, ttl_seconds=300, is_error=True, error_message=str(e)
             )
@@ -168,7 +169,7 @@ class OpenLibraryClient:
             if response.status_code == 200:
                 return cover_url
         except requests.RequestException as e:
-            logger.debug(f'Open Library封面搜索失败 ({title}): {e}')
+            log_error(ErrorCategory.API_CALL, f'Open Library封面搜索失败 ({title}): {e}', level='warning')
 
         return None
 
@@ -230,5 +231,5 @@ class OpenLibraryClient:
             return books
 
         except requests.RequestException as e:
-            logger.warning(f'Failed to search Open Library: {e}')
+            log_error(ErrorCategory.API_CALL, f'Failed to search Open Library: {e}', level='warning')
             return []

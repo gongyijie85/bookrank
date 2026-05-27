@@ -4,6 +4,7 @@ from flask import request
 
 from ...utils.admin_auth import admin_required
 from ...utils.api_helpers import APIResponse, csrf_protect, handle_api_errors, validate_isbn
+from ...utils.error_handler import ErrorCategory, log_error
 from ...utils.service_helpers import get_book_service
 from . import api_bp
 
@@ -105,7 +106,7 @@ def translate_book(isbn: str):
             if language_pack:
                 language_pack.store_books([translated_data])
         except Exception as e:
-            logger.warning('翻译结果写入语言包失败 %s: %s', isbn, e)
+            log_error(ErrorCategory.TRANSLATION, f'翻译结果写入语言包失败 {isbn}: {e}', level='warning')
 
     return APIResponse.success(data={'book': translated_data})
 

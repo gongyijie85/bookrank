@@ -8,6 +8,8 @@
 import logging
 import time
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +35,7 @@ class GoogleTranslationService:
                 logger.info('Google Translate 客户端初始化成功')
             except ImportError as e:
                 if not self._deep_translator_warned:
-                    logger.debug(f'deep-translator 库未安装，Google 免费翻译不可用: {e}')
+                    log_error(ErrorCategory.TRANSLATION, f'deep-translator 库未安装，Google 免费翻译不可用: {e}', level='warning')
                     self._deep_translator_warned = True
                 return None
         return self._client

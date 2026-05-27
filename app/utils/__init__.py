@@ -30,7 +30,12 @@ from .service_helpers import (
     get_book_service,
     get_cache_service,
     get_image_cache_service,
+    get_translation_service,
+    register_service,
     require_book_service,
+    require_cache_service,
+    require_image_cache_service,
+    require_translation_service,
 )
 
 __all__ = [
@@ -57,9 +62,14 @@ __all__ = [
     'get_csrf_token',
     'get_image_cache_service',
     'get_rate_limiter',
+    'get_translation_service',
     'public_rate_limit',
     'quick_clean_translation',
+    'register_service',
     'require_book_service',
+    'require_cache_service',
+    'require_image_cache_service',
+    'require_translation_service',
     'safe_call',
     'safe_service_call',
     'validate_isbn',

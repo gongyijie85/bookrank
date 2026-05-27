@@ -18,6 +18,7 @@ from datetime import date, datetime
 
 import requests
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BookInfo, CrawlerConfig
 from .google_books import GoogleBooksCrawler
 
@@ -158,7 +159,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as exc:
-                logger.debug('印记 %s 查询失败: %s', imprint, exc)
+                log_error(ErrorCategory.CRAWLER, f'印记 {imprint} 查询失败: {exc}', level='warning')
                 break
 
             items = data.get('items', [])
@@ -219,7 +220,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 all_isbns.extend(found)
                 logger.debug('Sitemap %d: 找到 %d 个 ISBN', n, len(found))
             except Exception as exc:
-                logger.warning('Sitemap %d 获取失败: %s', n, exc)
+                log_error(ErrorCategory.CRAWLER, f'Sitemap {n} 获取失败: {exc}', level='warning')
 
         # 去重后打乱顺序，避免总是查同样的前几条
         seen: set[str] = set()
@@ -294,7 +295,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 source_url=info.get('infoLink', ''),
             )
         except Exception as exc:
-            logger.debug('ISBN %s 查询失败: %s', isbn, exc)
+            log_error(ErrorCategory.CRAWLER, f'ISBN {isbn} 查询失败: {exc}', level='warning')
             return None
 
     @staticmethod

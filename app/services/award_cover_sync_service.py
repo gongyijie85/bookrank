@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 from ..models.schemas import AwardBook, db
+from ..utils.error_handler import ErrorCategory, log_error
 from .api_client import GoogleBooksClient, ImageCacheService, OpenLibraryClient
 
 logger = logging.getLogger(__name__)
@@ -134,7 +135,7 @@ class AwardCoverSyncService:
                     result['failed'] += 1
                     error_msg = f'{book.title}: {e!s}'
                     result['errors'].append(error_msg)
-                    logger.error(f'[{i}/{len(books_to_update)}] ❌ {book.title}: {e}')
+                    log_error(ErrorCategory.API_CALL, f'[{i}/{len(books_to_update)}] {book.title}: {e}')
 
             result['status'] = 'success'
             logger.info(f'封面同步完成: 更新{result["updated"]}本, 跳过{result["skipped"]}本, 失败{result["failed"]}本')
@@ -142,7 +143,7 @@ class AwardCoverSyncService:
         except Exception as e:
             result['status'] = 'error'
             result['errors'].append(str(e))
-            logger.error(f'封面同步出错: {e}')
+            log_error(ErrorCategory.API_CALL, f'封面同步出错: {e}')
             db.session.rollback()
 
         finally:
@@ -171,7 +172,7 @@ class AwardCoverSyncService:
                 if ol_cover:
                     return ol_cover
             except Exception as e:
-                logger.debug(f'Open Library ISBN查询失败 ({isbn}): {e}')
+                log_error(ErrorCategory.API_CALL, f'Open Library ISBN查询失败 ({isbn}): {e}', level='warning')
 
         # 方法2：Open Library（通过书名+作者搜索 cover_id）
         if title:
@@ -181,7 +182,7 @@ class AwardCoverSyncService:
                     logger.info(f'通过Open Library书名搜索找到封面: {title}')
                     return ol_cover
             except Exception as e:
-                logger.debug(f'Open Library书名搜索失败 ({title}): {e}')
+                log_error(ErrorCategory.API_CALL, f'Open Library书名搜索失败 ({title}): {e}', level='warning')
 
         if not self._google_client:
             return None
@@ -193,7 +194,7 @@ class AwardCoverSyncService:
                 if result and result.get('cover_url'):
                     return result['cover_url']
             except Exception as e:
-                logger.debug(f'Google Books ISBN查询失败 ({isbn}): {e}')
+                log_error(ErrorCategory.API_CALL, f'Google Books ISBN查询失败 ({isbn}): {e}', level='warning')
 
         # 方法4：Google Books API（通过书名+作者搜索）- 备选方案
         if title and author:
@@ -203,7 +204,7 @@ class AwardCoverSyncService:
                     logger.info(f'通过书名搜索找到封面: {title}')
                     return result['cover_url']
             except Exception as e:
-                logger.debug(f'Google Books书名搜索失败 ({title}): {e}')
+                log_error(ErrorCategory.API_CALL, f'Google Books书名搜索失败 ({title}): {e}', level='warning')
 
         return None
 
@@ -238,7 +239,7 @@ class AwardCoverSyncService:
             if cached_path and cached_path != '/static/default-cover.png':
                 return cached_path
         except Exception as e:
-            logger.debug(f'封面缓存失败 ({cover_url}): {e}')
+            log_error(ErrorCategory.API_CALL, f'封面缓存失败 ({cover_url}): {e}', level='warning')
 
         return None
 

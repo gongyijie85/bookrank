@@ -21,6 +21,7 @@
 import importlib
 import logging
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
 
 logger = logging.getLogger(__name__)
@@ -91,4 +92,4 @@ def _load_all_crawlers() -> None:
             crawler_class = getattr(module, class_name)
             register_crawler(crawler_class)
         except Exception as e:
-            logger.warning(f'无法加载爬虫 {class_name}: {e}')
+            log_error(ErrorCategory.CRAWLER, f'无法加载爬虫 {class_name}: {e}', level='warning')

@@ -4,6 +4,8 @@
 
 import logging
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,12 +111,12 @@ def init_awards_data(app):
         except Exception as e:
             error_msg = str(e).lower()
             if 'no such column' in error_msg or 'no such table' in error_msg:
-                app.logger.warning(f'⚠️ 数据库表结构已改变: {e}')
+                log_error(ErrorCategory.DB_QUERY, f'数据库表结构已改变: {e}', level='warning')
                 app.logger.info('🔄 重新创建数据库表...')
                 db.drop_all()
                 db.create_all()
             else:
-                app.logger.error(f'❌ 数据库查询失败: {e}')
+                log_error(ErrorCategory.DB_QUERY, f'数据库查询失败: {e}')
                 raise
 
         app.logger.info(
@@ -179,4 +181,4 @@ def init_awards_data(app):
         init_sample_award_books(app)
 
     except Exception as e:
-        app.logger.error(f'❌ 初始化奖项数据失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'初始化奖项数据失败: {e}', exc_info=True)

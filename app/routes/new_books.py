@@ -11,6 +11,7 @@ from ..models.database import db
 from ..services.new_book_service import NewBookService
 from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect, validate_pagination
+from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import get_translation_service
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ def get_publishers():
             )
         return APIResponse.success(data={'publishers': result})
     except Exception as e:
-        logger.error(f'获取出版社列表失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取出版社列表失败: {e}', exc_info=True)
         return APIResponse.error('获取出版社列表失败', 500)
 
 
@@ -81,7 +82,7 @@ def get_publisher(publisher_id: int):
             return APIResponse.error('出版社不存在', 404)
         return APIResponse.success(data={'publisher': publisher.to_dict(include_book_count=True)})
     except Exception as e:
-        logger.error(f'获取出版社详情失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取出版社详情失败: {e}', exc_info=True)
         return APIResponse.error('获取出版社详情失败', 500)
 
 
@@ -106,7 +107,7 @@ def update_publisher_status(publisher_id: int):
 
         return APIResponse.success(message=f'出版社已{"启用" if is_active else "禁用"}')
     except Exception as e:
-        logger.error(f'更新出版社状态失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'更新出版社状态失败: {e}', exc_info=True)
         db.session.rollback()
         return APIResponse.error('更新出版社状态失败', 500)
 
@@ -152,7 +153,7 @@ def get_new_books():
             }
         )
     except Exception as e:
-        logger.error(f'获取新书列表失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取新书列表失败: {e}', exc_info=True)
         return APIResponse.error('获取新书列表失败', 500)
 
 
@@ -166,7 +167,7 @@ def get_book_detail(book_id: int):
             return APIResponse.error('图书不存在', 404)
         return APIResponse.success(data={'book': book.to_dict()})
     except Exception as e:
-        logger.error(f'获取图书详情失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取图书详情失败: {e}', exc_info=True)
         return APIResponse.error('获取图书详情失败', 500)
 
 
@@ -201,7 +202,7 @@ def search_new_books():
             }
         )
     except Exception as e:
-        logger.error(f'搜索新书失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'搜索新书失败: {e}', exc_info=True)
         return APIResponse.error('搜索失败', 500)
 
 
@@ -214,7 +215,7 @@ def get_categories():
         categories = service.get_categories()
         return APIResponse.success(data={'categories': categories})
     except Exception as e:
-        logger.error(f'获取分类列表失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取分类列表失败: {e}', exc_info=True)
         return APIResponse.error('获取分类列表失败', 500)
 
 
@@ -254,7 +255,7 @@ def sync_all_publishers():
             }
         )
     except Exception as e:
-        logger.error(f'同步新书失败: {e}', exc_info=True)
+        log_error(ErrorCategory.CRAWLER, f'同步新书失败: {e}', exc_info=True)
         return APIResponse.error(f'同步失败: {e!s}', 500)
 
 
@@ -281,7 +282,7 @@ def sync_publisher(publisher_id: int):
 
         return APIResponse.success(data=result)
     except Exception as e:
-        logger.error(f'同步出版社新书失败: {e}', exc_info=True)
+        log_error(ErrorCategory.CRAWLER, f'同步出版社新书失败: {e}', exc_info=True)
         return APIResponse.error(f'同步失败: {e!s}', 500)
 
 
@@ -294,7 +295,7 @@ def get_statistics():
         stats = service.get_statistics()
         return APIResponse.success(data=stats)
     except Exception as e:
-        logger.error(f'获取统计数据失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取统计数据失败: {e}', exc_info=True)
         return APIResponse.error('获取统计数据失败', 500)
 
 
@@ -361,7 +362,7 @@ def export_csv():
         response.headers['Content-type'] = 'text/csv; charset=utf-8'
         return response
     except Exception as e:
-        logger.error(f'导出CSV失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'导出CSV失败: {e}', exc_info=True)
         return APIResponse.error('导出失败', 500)
 
 
@@ -375,7 +376,7 @@ def init_publishers():
         count = service.init_publishers()
         return APIResponse.success(data={'created_count': count}, message=f'成功初始化 {count} 个出版社')
     except Exception as e:
-        logger.error(f'初始化出版社失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'初始化出版社失败: {e}', exc_info=True)
         db.session.rollback()
         return APIResponse.error('初始化失败', 500)
 

@@ -5,6 +5,7 @@ from flask import request
 from ...services.api_cache_service import get_api_cache_service
 from ...utils.admin_auth import admin_required
 from ...utils.api_helpers import APIResponse, csrf_protect
+from ...utils.error_handler import ErrorCategory, log_error
 from . import api_bp
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ def get_api_cache_stats():
         return APIResponse.success(data=stats)
 
     except Exception as e:
-        logger.error(f'获取API缓存统计错误: {e}', exc_info=True)
+        log_error(ErrorCategory.CACHE, f'获取API缓存统计错误: {e}', exc_info=True)
         return APIResponse.error('获取统计失败', 500)
 
 
@@ -55,7 +56,7 @@ def get_api_cache_recent():
         )
 
     except Exception as e:
-        logger.error(f'获取API缓存记录错误: {e}', exc_info=True)
+        log_error(ErrorCategory.CACHE, f'获取API缓存记录错误: {e}', exc_info=True)
         return APIResponse.error('获取缓存记录失败', 500)
 
 
@@ -74,7 +75,7 @@ def clear_api_cache():
         return APIResponse.success(message=f'已清理 {deleted} 条API缓存')
 
     except Exception as e:
-        logger.error(f'清理API缓存错误: {e}', exc_info=True)
+        log_error(ErrorCategory.CACHE, f'清理API缓存错误: {e}', exc_info=True)
         return APIResponse.error('清理缓存失败', 500)
 
 
@@ -90,5 +91,5 @@ def clear_expired_api_cache():
         return APIResponse.success(message=f'已清理 {deleted} 条过期缓存')
 
     except Exception as e:
-        logger.error(f'清理过期缓存错误: {e}', exc_info=True)
+        log_error(ErrorCategory.CACHE, f'清理过期缓存错误: {e}', exc_info=True)
         return APIResponse.error('清理缓存失败', 500)

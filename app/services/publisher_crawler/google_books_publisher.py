@@ -16,6 +16,7 @@ import logging
 from collections.abc import Generator
 from datetime import datetime
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BookInfo, CrawlerConfig
 from .google_books import GoogleBooksCrawler
 
@@ -125,7 +126,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     data = response.json()
 
                 except Exception as e:
-                    logger.error('Google Books API 请求失败: %s', e)
+                    log_error(ErrorCategory.CRAWLER, f'Google Books API 请求失败: {e}')
                     break
 
                 items = data.get('items', [])

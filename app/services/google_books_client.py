@@ -4,6 +4,7 @@ from typing import Any
 
 import requests
 
+from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import _get_api_cache_service, _safe_cache_set, api_retry, create_session_with_retry
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class GoogleBooksClient:
                 logger.warning('Google Books API Key 验证异常 (状态码:%s)，降级为无Key模式', resp.status_code)
                 self._key_is_valid = False
         except Exception as e:
-            logger.warning('Google Books API Key 验证失败: %s，降级为无Key模式', e)
+            log_error(ErrorCategory.API_CALL, f'Google Books API Key 验证失败: {e}，降级为无Key模式', level='warning')
             self._key_is_valid = False
 
         self._key_validated = True

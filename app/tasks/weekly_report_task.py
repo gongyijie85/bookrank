@@ -8,6 +8,7 @@ from flask import current_app
 
 from ..models.schemas import WeeklyReport
 from ..services.weekly_report_service import WeeklyReportService
+from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import require_book_service
 
 logger = logging.getLogger(__name__)
@@ -72,10 +73,10 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
             return None
 
     except RuntimeError as e:
-        logger.error(f'服务未初始化，无法生成周报: {e!s}')
+        log_error(ErrorCategory.API_CALL, f'服务未初始化，无法生成周报: {e!s}')
         return None
     except Exception as e:
-        logger.error(f'生成周报时出错: {e!s}')
+        log_error(ErrorCategory.API_CALL, f'生成周报时出错: {e!s}')
         return None
     finally:
         try:
@@ -239,7 +240,7 @@ def _fetch_image_as_base64(url: str, timeout: int = 10) -> str | None:
         b64 = base64.b64encode(resp.content).decode('utf-8')
         return f'data:{content_type};base64,{b64}'
     except Exception as e:
-        logger.debug(f'获取封面图失败 {url}: {e}')
+        log_error(ErrorCategory.API_CALL, f'获取封面图失败 {url}: {e}', level='warning')
         return None
 
 
@@ -280,7 +281,7 @@ def _embed_covers_in_html(html: str) -> str:
                 b64 = b64mod.b64encode(data).decode('utf-8')
                 return f'data:{mime};base64,{b64}'
             except Exception as e:
-                logger.debug(f'读取本地图片失败 {local_path}: {e}')
+                log_error(ErrorCategory.API_CALL, f'读取本地图片失败 {local_path}: {e}', level='warning')
         return None
 
     def replace_src(match):

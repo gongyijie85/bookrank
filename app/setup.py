@@ -24,6 +24,8 @@ from .services import (
     NYTApiClient,
 )
 from .utils import RateLimiter
+from .utils.error_handler import ErrorCategory, log_error
+from .utils.service_helpers import register_service
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +43,14 @@ def init_services(app):
     )
     file_cache = FileCache(cache_dir=cfg['CACHE_DIR'], default_ttl=cfg['CACHE_DEFAULT_TIMEOUT'])
     cache_service = CacheService(memory_cache, file_cache, flask_cache=None)
-    app.extensions['cache_service'] = cache_service
+    register_service(app, 'cache_service', cache_service)
     app.logger.info('缓存服务初始化成功')
 
     nyt_client = _init_nyt_client(cfg, app)
     google_client = _init_google_client(cfg, app)
     image_cache = _init_image_cache(cfg, app)
     if image_cache:
-        app.extensions['image_cache_service'] = image_cache
+        register_service(app, 'image_cache_service', image_cache)
     translation_service = _init_translation_service(app)
 
     book_service = _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg)
@@ -70,7 +72,7 @@ def _init_nyt_client(cfg, app):
         app.logger.info('NYT API 客户端初始化成功')
         return client
     except Exception as e:
-        app.logger.warning(f'NYT API 客户端初始化失败: {e}')
+        log_error(ErrorCategory.API_CALL, f'NYT API 客户端初始化失败: {e}', level='warning')
         return None
 
 
@@ -86,7 +88,7 @@ def _init_google_client(cfg, app):
         app.logger.info('Google Books 客户端初始化成功')
         return client
     except Exception as e:
-        app.logger.warning(f'Google Books 客户端初始化失败: {e}')
+        log_error(ErrorCategory.API_CALL, f'Google Books 客户端初始化失败: {e}', level='warning')
         return None
 
 
@@ -95,7 +97,7 @@ def _init_image_cache(cfg, app):
     try:
         return ImageCacheService(cache_dir=cfg['IMAGE_CACHE_DIR'], default_cover='/static/default-cover.png')
     except Exception as e:
-        app.logger.warning(f'图片缓存服务初始化失败: {e}')
+        log_error(ErrorCategory.CACHE, f'图片缓存服务初始化失败: {e}', level='warning')
         return None
 
 
@@ -105,10 +107,10 @@ def _init_translation_service(app):
         from .services.zhipu_translation_service import get_translation_service
 
         service = get_translation_service(app=app)
-        app.extensions['translation_service'] = service
+        register_service(app, 'translation_service', service)
         return service
     except Exception as e:
-        app.logger.warning(f'翻译服务初始化失败: {e}')
+        log_error(ErrorCategory.TRANSLATION, f'翻译服务初始化失败: {e}', level='warning')
         return None
 
 
@@ -128,7 +130,7 @@ def _init_book_service(nyt_client, google_client, cache_service, image_cache, ap
             max_workers=cfg['MAX_WORKERS'],
             categories=cfg['CATEGORIES'],
         )
-        app.extensions['book_service'] = book_service
+        register_service(app, 'book_service', book_service)
 
         def _trigger_weekly_report():
             with app.app_context():
@@ -138,14 +140,14 @@ def _init_book_service(nyt_client, google_client, cache_service, image_cache, ap
                     app.logger.info('排行榜数据刷新，检查是否需要生成周报...')
                     generate_weekly_report()
                 except Exception as e:
-                    app.logger.error(f'数据刷新触发周报生成失败: {e}')
+                    log_error(ErrorCategory.UNKNOWN, f'数据刷新触发周报生成失败: {e}')
 
         book_service.on_data_refreshed(_trigger_weekly_report)
 
         app.logger.info('图书服务初始化成功')
         return book_service
     except Exception as e:
-        app.logger.error(f'图书服务初始化失败: {e}')
+        log_error(ErrorCategory.UNKNOWN, f'图书服务初始化失败: {e}')
         return None
 
 
@@ -282,7 +284,7 @@ def _scheduler_wrapper(app, task_func):
             with app.app_context():
                 task_func(app)
         except Exception as e:
-            app.logger.error(f'后台任务 [{task_func.__name__}] 失败: {e}', exc_info=True)
+            log_error(ErrorCategory.UNKNOWN, f'后台任务 [{task_func.__name__}] 失败: {e}', exc_info=True)
 
     wrapper.__name__ = task_func.__name__
     return wrapper
@@ -299,7 +301,7 @@ def _translation_cache_cleanup_task(app):
                 cache_svc.auto_cleanup(max_items=8000, keep_recent_days=30)
                 app.logger.info('翻译缓存自动清理完成')
     except Exception as e:
-        app.logger.warning(f'翻译缓存自动清理跳过: {e}')
+        log_error(ErrorCategory.CACHE, f'翻译缓存自动清理跳过: {e}', level='warning')
 
 
 def shutdown_scheduler(app):
@@ -327,7 +329,7 @@ def _weekly_report_task(app):
         else:
             app.logger.warning('周报生成失败或已存在')
     except Exception as e:
-        app.logger.error(f'自动生成周报失败: {e}', exc_info=True)
+        log_error(ErrorCategory.UNKNOWN, f'自动生成周报失败: {e}', exc_info=True)
         _log_failure(app, 'last_report_failure')
 
 
@@ -335,8 +337,9 @@ def _auto_sync_task(app):
     """新书速递自动同步任务"""
     try:
         from .services.new_book_service import NewBookService
+        from .utils.service_helpers import get_translation_service
 
-        service = NewBookService(translation_service=app.extensions.get('translation_service'))
+        service = NewBookService(translation_service=get_translation_service())
 
         last_sync = SystemConfig.get_value('last_auto_sync_time')
         if last_sync:
@@ -358,14 +361,16 @@ def _auto_sync_task(app):
         app.logger.info(f'自动同步完成：新增 {total_added} 本，更新 {total_updated} 本')
 
     except Exception as e:
-        app.logger.error(f'自动同步失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'自动同步失败: {e}', exc_info=True)
         _log_failure(app, 'last_sync_failure')
 
 
 def _nyt_ranking_sync_task(app):
     """NYT排行榜自动同步任务：强制刷新榜单并写入中文语言包。"""
     try:
-        service = app.extensions.get('book_service')
+        from .utils.service_helpers import get_book_service, get_translation_service
+
+        service = get_book_service()
         if not service:
             app.logger.warning('缺少 BookService，跳过NYT排行榜同步')
             return
@@ -385,7 +390,7 @@ def _nyt_ranking_sync_task(app):
         results = service.sync_all_categories(
             force_refresh=True,
             translate=True,
-            translator=app.extensions.get('translation_service'),
+            translator=get_translation_service(),
         )
 
         successful = [result for result in results if result.get('success')]
@@ -410,7 +415,7 @@ def _nyt_ranking_sync_task(app):
         )
 
     except Exception as e:
-        app.logger.error(f'NYT排行榜同步失败: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'NYT排行榜同步失败: {e}', exc_info=True)
         _log_failure(app, 'last_nyt_ranking_sync_failure')
 
 
@@ -418,13 +423,11 @@ def _cover_sync_task(app):
     """获奖书籍封面自动同步任务"""
     try:
         from .services.award_cover_sync_service import AwardCoverSyncService
+        from .utils.service_helpers import get_google_books_client, get_image_cache_service
 
         app.logger.info('开始检查获奖书籍封面...')
 
-        book_service = app.extensions.get('book_service')
-        google_client = (
-            book_service._google_client if book_service and hasattr(book_service, '_google_client') else None
-        )
+        google_client = get_google_books_client()
 
         if not google_client:
             from .config import Config
@@ -436,7 +439,7 @@ def _cover_sync_task(app):
 
         sync_service = AwardCoverSyncService(
             google_client,
-            image_cache=app.extensions.get('image_cache_service'),
+            image_cache=get_image_cache_service(),
         )
 
         result = sync_service.sync_missing_covers(batch_size=30, delay=0.5)
@@ -449,12 +452,12 @@ def _cover_sync_task(app):
             app.logger.warning(f'封面同步状态: {result.get("status")}')
 
     except Exception as e:
-        app.logger.error(f'封面同步失败: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'封面同步失败: {e}', exc_info=True)
 
 
 def _log_failure(app, key: str):
     """记录失败时间到系统配置"""
     try:
         SystemConfig.set_value(key, datetime.now(UTC).isoformat())
-    except Exception as log_error:
-        app.logger.error(f'记录失败时间失败: {log_error}')
+    except Exception as err:
+        log_error(ErrorCategory.DB_QUERY, f'记录失败时间失败: {err}')

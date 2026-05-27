@@ -24,6 +24,8 @@ from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from ...utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -182,7 +184,7 @@ class BaseCrawler(ABC):
             self._robots_parser.read()
             logger.info(f'✅ 已加载 robots.txt: {robots_url}')
         except Exception as e:
-            logger.warning(f'⚠️ 无法加载 robots.txt: {e}')
+            log_error(ErrorCategory.CRAWLER, f'无法加载 robots.txt: {e}', level='warning')
             self._robots_parser = None
 
     def _is_url_allowed(self, url: str) -> bool:
@@ -297,7 +299,7 @@ class BaseCrawler(ABC):
                     logger.error(f'❌ 请求最终失败: {url} - 请求异常')
                     return None
             except Exception as e:
-                logger.error(f'❌ 未知错误: {url} - {e} (尝试: {attempt + 1})')
+                log_error(ErrorCategory.CRAWLER, f'未知错误: {url} - {e} (尝试: {attempt + 1})')
                 if attempt >= self.config.max_retries:
                     logger.error(f'❌ 请求最终失败: {url} - 未知错误')
                     return None
@@ -510,7 +512,7 @@ class BaseCrawler(ABC):
                     logger.info(f'📖 已爬取 {count} 本书籍...')
 
         except Exception as e:
-            logger.error(f'❌ 爬取过程中出错: {e}')
+            log_error(ErrorCategory.CRAWLER, f'爬取过程中出错: {e}')
 
         logger.info(f'✅ 爬取完成，共获取 {len(books)} 本书籍')
         return books

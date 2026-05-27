@@ -7,6 +7,8 @@ import logging
 
 from flask import Blueprint, make_response
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 health_bp = Blueprint('health', __name__)
 logger = logging.getLogger(__name__)
 
@@ -83,7 +85,7 @@ def readiness_check():
             return response
 
         except Exception as e:
-            logger.warning(f'Health check error: {e}')
+            log_error(ErrorCategory.UNKNOWN, f'Health check error: {e}', level='warning')
             response = make_response('{"success":true,"status":"ready","warning":"check_skipped"}', 200)
             response.headers['Content-Type'] = 'application/json'
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'

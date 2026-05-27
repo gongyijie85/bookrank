@@ -10,6 +10,7 @@ import requests
 from flask import current_app
 
 from ..models.schemas import AwardBook, db
+from ..utils.error_handler import ErrorCategory, log_error
 
 
 class BookVerificationService:
@@ -191,7 +192,7 @@ class BookVerificationService:
                     check['details'].append('✅ Open Library 封面可用')
                     return check
             except Exception as e:
-                current_app.logger.warning(f'Open Library 封面检查失败: {e}')
+                log_error(ErrorCategory.API_CALL, f'Open Library 封面检查失败: {e}', level='warning')
 
         self.warnings.append('封面不可用，将使用默认封面')
         check['details'].append('⚠️ 封面不可用（将使用默认封面）')
@@ -257,6 +258,7 @@ class BookVerificationService:
 
                 return check
         except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'Open Library 查询失败: {e}', level='warning')
             check['details'].append(f'⚠️ Open Library 查询失败: {str(e)[:50]}')
 
         # Open Library 失败，尝试 Google Books API
@@ -278,6 +280,7 @@ class BookVerificationService:
                 else:
                     check['details'].append(f'⚠️ Google Books 返回错误: {response.status_code}')
         except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'Google Books 查询失败: {e}', level='warning')
             check['details'].append(f'⚠️ Google Books 查询失败: {str(e)[:50]}')
 
         if not check['passed']:
@@ -327,7 +330,7 @@ class BookVerificationService:
                 current_app.logger.info(f'图书验证完成: {book.title} - {result["status"]}')
 
             except Exception as e:
-                current_app.logger.error(f'验证图书失败 {book.title}: {e}')
+                log_error(ErrorCategory.API_CALL, f'验证图书失败 {book.title}: {e}')
                 results.append({'book_id': book.id, 'title': book.title, 'status': 'error', 'error': str(e)})
 
         return results

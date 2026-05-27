@@ -14,6 +14,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ class MixedCrawl4AICrawler(BaseCrawler):
                     return result.html
             return None
         except Exception as e:
-            logger.warning(f'⚠️ {self.PUBLISHER_NAME_EN}: Crawl4AI 出错: {e}')
+            log_error(ErrorCategory.CRAWLER, f'{self.PUBLISHER_NAME_EN}: Crawl4AI 出错: {e}', level='warning')
             return None
 
     def _crawl_with_crawl4ai(self, url: str) -> str | None:
@@ -121,7 +122,7 @@ class MixedCrawl4AICrawler(BaseCrawler):
         try:
             return asyncio.run(self._crawl_with_crawl4ai_async(url))
         except Exception as e:
-            logger.warning(f'⚠️ {self.PUBLISHER_NAME_EN}: Crawl4AI 同步调用失败: {e}')
+            log_error(ErrorCategory.CRAWLER, f'{self.PUBLISHER_NAME_EN}: Crawl4AI 同步调用失败: {e}', level='warning')
             return None
 
     def _make_request_with_fallback(self, url: str) -> tuple[BeautifulSoup | None, str | None]:
@@ -324,7 +325,7 @@ class MixedCrawl4AICrawler(BaseCrawler):
                     logger.debug(f'📖 解析到书籍: {book_data["title"]} - {book_data["url"]}')
 
             except Exception as e:
-                logger.warning(f'⚠️ 解析书籍项失败: {e}')
+                log_error(ErrorCategory.CRAWLER, f'解析书籍项失败: {e}', level='warning')
                 continue
 
         logger.info(f'📖 在当前页面找到 {len(books)} 本书籍')
@@ -374,7 +375,7 @@ class MixedCrawl4AICrawler(BaseCrawler):
             return book_info
 
         except Exception as e:
-            logger.error(f'❌ 解析书籍详情失败 {book_url}: {e}')
+            log_error(ErrorCategory.CRAWLER, f'解析书籍详情失败 {book_url}: {e}')
             return None
 
     def _extract_title(self, soup) -> str:

@@ -11,6 +11,7 @@ from werkzeug.wrappers import Response
 
 from ..models.database import db
 from ..models.schemas import CSRFToken
+from .error_handler import ErrorCategory, log_error
 from .exceptions import (
     APIRateLimitException,
     BookRankException,
@@ -30,7 +31,8 @@ def _cleanup_expired_csrf_tokens() -> None:
         cutoff = datetime.now(UTC) - timedelta(seconds=_CSRF_TOKEN_TTL)
         CSRFToken.query.filter(CSRFToken.created_at < cutoff).delete()
         db.session.commit()
-    except Exception:
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'清理过期CSRF token失败: {e}')
         db.session.rollback()
 
 
@@ -199,7 +201,8 @@ def get_csrf_token() -> str:
         token_count = CSRFToken.query.count()
         if token_count % 100 == 0:
             _cleanup_expired_csrf_tokens()
-    except Exception:
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'CSRF token 创建失败: {e}')
         db.session.rollback()
     return token
 
@@ -221,7 +224,8 @@ def validate_csrf_token() -> bool:
             db.session.commit()
             return False
         return True
-    except Exception:
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'CSRF token 验证失败: {e}')
         db.session.rollback()
         return False
 
@@ -244,7 +248,8 @@ def csrf_protect(f: Callable[..., Any]) -> Callable[..., Any]:
                     if record:
                         db.session.delete(record)
                         db.session.commit()
-                except Exception:
+                except Exception as e:
+                    log_error(ErrorCategory.DB_QUERY, f'CSRF token 删除失败: {e}')
                     db.session.rollback()
         return f(*args, **kwargs)
 

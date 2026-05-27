@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import func, or_
 
 from ..models.schemas import AwardBook, SearchHistory, db
+from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class SmartSearchService:
             }
 
         except Exception as e:
-            logger.error(f'搜索失败: {e}', exc_info=True)
+            log_error(ErrorCategory.API_CALL, f'搜索失败: {e}')
             return self._empty_search_result()
 
     def _sanitize_keyword(self, keyword: str) -> str:
@@ -244,7 +245,7 @@ class SmartSearchService:
                         suggestions.append(kw)
 
         except Exception as e:
-            logger.debug(f'生成搜索建议失败: {e}')
+            log_error(ErrorCategory.API_CALL, f'生成搜索建议失败: {e}', level='warning')
 
         return suggestions[:5]
 
@@ -331,7 +332,7 @@ class SmartSearchService:
             return {'suggestions': unique_suggestions[:limit], 'prefix': prefix}
 
         except Exception as e:
-            logger.error(f'获取搜索建议失败: {e}', exc_info=True)
+            log_error(ErrorCategory.API_CALL, f'获取搜索建议失败: {e}')
             return {'suggestions': [], 'prefix': prefix, 'error': str(e)}
 
     # ==================== 热门搜索 ====================
@@ -371,7 +372,7 @@ class SmartSearchService:
             return {'popular_searches': searches, 'total': len(searches)}
 
         except Exception as e:
-            logger.error(f'获取热门搜索失败: {e}', exc_info=True)
+            log_error(ErrorCategory.API_CALL, f'获取热门搜索失败: {e}')
             return {'popular_searches': [], 'total': 0, 'error': str(e)}
 
     # ==================== 搜索历史管理 ====================
@@ -402,7 +403,7 @@ class SmartSearchService:
             return True
 
         except Exception as e:
-            logger.error(f'保存搜索历史失败: {e}')
+            log_error(ErrorCategory.API_CALL, f'保存搜索历史失败: {e}')
             db.session.rollback()
             return False
 
@@ -438,7 +439,7 @@ class SmartSearchService:
             return keywords
 
         except Exception as e:
-            logger.error(f'获取搜索历史失败: {e}')
+            log_error(ErrorCategory.API_CALL, f'获取搜索历史失败: {e}')
             return []
 
     def clear_search_history(self, session_id: str) -> bool:
@@ -457,6 +458,6 @@ class SmartSearchService:
             return True
 
         except Exception as e:
-            logger.error(f'清除搜索历史失败: {e}')
+            log_error(ErrorCategory.API_CALL, f'清除搜索历史失败: {e}')
             db.session.rollback()
             return False

@@ -14,6 +14,7 @@ from ...utils.api_helpers import (
     clean_translation_text,
     validate_isbn,
 )
+from ...utils.error_handler import ErrorCategory, log_error
 from ...utils.service_helpers import get_book_service, get_translation_service
 from . import api_bp, get_session_id, validate_category
 
@@ -64,7 +65,7 @@ def get_books(category: str):
             )
 
     except Exception as e:
-        logger.error(f'Unexpected error in get_books: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Unexpected error in get_books: {e}', exc_info=True)
         return APIResponse.error('Internal server error', 500)
 
 
@@ -105,7 +106,7 @@ def search_books():
         )
 
     except Exception as e:
-        logger.error(f'Search error: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Search error: {e}', exc_info=True)
         return APIResponse.error('Search failed', 500)
 
 
@@ -121,7 +122,7 @@ def get_search_history():
         return APIResponse.success(data={'history': history})
 
     except Exception as e:
-        logger.error(f'Get search history error: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Get search history error: {e}', exc_info=True)
         return APIResponse.error('Failed to get search history', 500)
 
 
@@ -160,7 +161,7 @@ def user_preferences():
             return APIResponse.success(data={'preferences': preferences})
 
     except Exception as e:
-        logger.error(f'User preferences error: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'User preferences error: {e}', exc_info=True)
         return APIResponse.error('Failed to process preferences', 500)
 
 
@@ -231,7 +232,7 @@ def export_csv(category: str):
         return response
 
     except Exception as e:
-        logger.error(f'Export CSV error: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Export CSV error: {e}', exc_info=True)
         return APIResponse.error('Export failed', 500)
 
 
@@ -277,7 +278,7 @@ def get_book_details(isbn: str):
             if meta and meta.details_zh:
                 details_zh = clean_translation_text(meta.details_zh, 'details')
         except Exception as e:
-            logger.debug(f'查询翻译缓存失败: {e}')
+            log_error(ErrorCategory.API_CALL, f'查询翻译缓存失败: {e}', level='warning')
 
         # 如果没有翻译，尝试同步翻译
         if details_en and not details_zh:
@@ -286,7 +287,7 @@ def get_book_details(isbn: str):
                 if translation_service:
                     details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
             except Exception as e:
-                logger.debug(f'详情翻译失败: {e}')
+                log_error(ErrorCategory.API_CALL, f'详情翻译失败: {e}', level='warning')
 
         return APIResponse.success(
             data={
@@ -303,5 +304,5 @@ def get_book_details(isbn: str):
         )
 
     except Exception as e:
-        logger.error(f'Get book details error: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Get book details error: {e}', exc_info=True)
         return APIResponse.error('Failed to fetch book details', 500)

@@ -19,6 +19,7 @@ from collections.abc import Generator
 from datetime import date, datetime
 from typing import Any
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class PublisherRSSCrawler(BaseCrawler):
                         collected += 1
 
             except Exception as e:
-                logger.error('解析 RSS Feed 失败 %s: %s', feed_url, e)
+                log_error(ErrorCategory.CRAWLER, f'解析 RSS Feed 失败 {feed_url}: {e}')
                 continue
 
         if collected == 0:

@@ -13,6 +13,8 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -192,7 +194,7 @@ class ZhipuTranslationService:
 
                 self._cache_service = get_translation_cache_service()
             except (ImportError, ModuleNotFoundError) as e:
-                logger.warning(f'翻译缓存服务初始化失败: {e}')
+                log_error(ErrorCategory.TRANSLATION, f'翻译缓存服务初始化失败: {e}', level='warning')
         return self._cache_service
 
     def translate(
@@ -255,7 +257,7 @@ class ZhipuTranslationService:
                     return result
 
         except Exception as e:
-            logger.warning(f'智谱AI翻译失败(重试耗尽): {e}')
+            log_error(ErrorCategory.TRANSLATION, f'智谱AI翻译失败(重试耗尽): {e}', level='warning')
 
         return None
 
@@ -305,7 +307,7 @@ class ZhipuTranslationService:
                         cache_hits += 1
                         continue
                 except (ValueError, KeyError) as e:
-                    logger.debug(f'缓存读取失败: {e}')
+                    log_error(ErrorCategory.TRANSLATION, f'缓存读取失败: {e}', level='warning')
 
             to_translate.append((i, text))
 
@@ -380,7 +382,7 @@ class ZhipuTranslationService:
                         if cached:
                             result[key] = clean_translation_text(cached.translated_text, field_type=field_type)
                     except Exception as e:
-                        logger.warning('读取翻译缓存失败 key=%s: %s', key, e)
+                        log_error(ErrorCategory.TRANSLATION, f'读取翻译缓存失败 key={key}: {e}', level='warning')
 
         uncached_fields = []
         if title and title.strip() and not result['title_zh']:
@@ -503,8 +505,8 @@ class ZhipuTranslationService:
                                             model_name=self.model,
                                             model_version=str(TranslationCacheService.CACHE_VERSION),
                                         )
-                                    except Exception:
-                                        pass
+                                    except Exception as cache_err:
+                                        logger.debug(f'翻译缓存写入失败: {cache_err}')
 
                         return result
 
@@ -622,7 +624,7 @@ class HybridTranslationService:
 
                 self._cache_service = get_translation_cache_service()
             except Exception as e:
-                logger.warning(f'翻译缓存服务初始化失败: {e}')
+                log_error(ErrorCategory.TRANSLATION, f'翻译缓存服务初始化失败: {e}', level='warning')
         return self._cache_service
 
     def _get_fallback(self):
@@ -660,7 +662,7 @@ class HybridTranslationService:
                     logger.debug('缓存命中，返回翻译结果（已后处理）')
                     return result
             except Exception as e:
-                logger.debug(f'缓存读取失败: {e}')
+                log_error(ErrorCategory.TRANSLATION, f'缓存读取失败: {e}', level='warning')
 
         translated = None
 
@@ -691,7 +693,7 @@ class HybridTranslationService:
                 )
                 logger.info('翻译结果已缓存')
             except Exception as e:
-                logger.warning(f'缓存翻译结果失败: {e}')
+                log_error(ErrorCategory.TRANSLATION, f'缓存翻译结果失败: {e}', level='warning')
 
         if not translated:
             logger.error('所有翻译服务都不可用')
@@ -740,7 +742,7 @@ class HybridTranslationService:
                         results[i] = clean_translation_text(cached.translated_text)
                         continue
                 except Exception as e:
-                    logger.warning('批量翻译缓存查找失败 text[%d]=%s: %s', i, text[:30], e)
+                    log_error(ErrorCategory.TRANSLATION, f'批量翻译缓存查找失败 text[{i}]={text[:30]}: {e}', level='warning')
             to_translate.append((i, text))
 
         # 第二步：并行翻译

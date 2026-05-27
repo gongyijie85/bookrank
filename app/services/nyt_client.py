@@ -3,6 +3,7 @@ from typing import Any
 
 import requests
 
+from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.exceptions import APIException, APIRateLimitException
 from ..utils.rate_limiter import RateLimiter
 from .api_utils import _get_api_cache_service, _safe_cache_set, api_retry, create_session_with_retry
@@ -61,7 +62,7 @@ class NYTApiClient:
                 logger.warning('NYT API Key 验证异常 (状态码:%s)', resp.status_code)
                 self._key_is_valid = False
         except Exception as e:
-            logger.warning('NYT API Key 验证请求失败: %s', e)
+            log_error(ErrorCategory.API_CALL, f'NYT API Key 验证请求失败: {e}', level='warning')
             self._key_is_valid = False
 
         self._key_validated = True

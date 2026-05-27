@@ -9,6 +9,8 @@ from fpdf import FPDF
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 # 中文字体路径（项目内置SimHei黑体）
@@ -34,7 +36,7 @@ class ExportService:
                 pdf.add_font('SimHei', 'B', str(CHINESE_FONT))
                 return True
             except Exception as e:
-                logger.warning(f'加载中文字体失败: {e}')
+                log_error(ErrorCategory.UNKNOWN, f'加载中文字体失败: {e}', level='warning')
                 return False
         logger.warning(f'中文字体文件不存在: {CHINESE_FONT}')
         return False
@@ -160,7 +162,7 @@ class ExportService:
             return buffer
 
         except Exception as e:
-            logger.error(f'PDF导出失败: {e!s}')
+            log_error(ErrorCategory.UNKNOWN, f'PDF导出失败: {e!s}')
             return None
 
     def export_weekly_report_excel(self, report) -> BytesIO | None:
@@ -281,5 +283,5 @@ class ExportService:
             return buffer
 
         except Exception as e:
-            logger.error(f'Excel导出失败: {e!s}')
+            log_error(ErrorCategory.UNKNOWN, f'Excel导出失败: {e!s}')
             return None

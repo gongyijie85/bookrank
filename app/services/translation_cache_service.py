@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..models.database import db
 from ..models.schemas import TranslationCache
+from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class TranslationCacheService:
                             db.session.delete(cache)
                             db.session.commit()
                         except Exception as e:
-                            logger.warning('删除过期缓存失败(版本检查): %s', e)
+                            log_error(ErrorCategory.TRANSLATION, f'删除过期缓存失败(版本检查): {e}', level='warning')
                             db.session.rollback()
                         return None
                 except (ValueError, TypeError):
@@ -82,7 +83,7 @@ class TranslationCacheService:
                     db.session.delete(cache)
                     db.session.commit()
                 except Exception as e:
-                    logger.warning('删除过期缓存失败(无版本号): %s', e)
+                    log_error(ErrorCategory.TRANSLATION, f'删除过期缓存失败(无版本号): {e}', level='warning')
                     db.session.rollback()
                 return None
 
@@ -172,7 +173,7 @@ class TranslationCacheService:
                 return existing
             raise
         except Exception as e:
-            logger.error(f'保存翻译缓存失败: {e}')
+            log_error(ErrorCategory.TRANSLATION, f'保存翻译缓存失败: {e}')
             db.session.rollback()
             raise
 
@@ -332,7 +333,7 @@ class TranslationCacheService:
             logger.info(f'自动清理完成，删除了 {deleted} 条缓存记录')
             return deleted
         except Exception as e:
-            logger.error(f'自动清理缓存失败: {e}')
+            log_error(ErrorCategory.TRANSLATION, f'自动清理缓存失败: {e}')
             db.session.rollback()
             raise
 
@@ -368,7 +369,7 @@ class TranslationCacheService:
             logger.info(f'已删除 {deleted_count} 条翻译缓存')
             return deleted_count
         except Exception as e:
-            logger.error(f'删除翻译缓存失败: {e}')
+            log_error(ErrorCategory.TRANSLATION, f'删除翻译缓存失败: {e}')
             db.session.rollback()
             raise
 
@@ -385,7 +386,7 @@ class TranslationCacheService:
             logger.warning(f'已清空所有翻译缓存（{count}条）')
             return count
         except Exception as e:
-            logger.error(f'清空翻译缓存失败: {e}')
+            log_error(ErrorCategory.TRANSLATION, f'清空翻译缓存失败: {e}')
             db.session.rollback()
             raise
 

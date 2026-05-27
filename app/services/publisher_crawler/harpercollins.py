@@ -15,6 +15,7 @@ import logging
 import re
 from collections.abc import Generator
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo
 
 logger = logging.getLogger(__name__)
@@ -186,7 +187,7 @@ class HarperCollinsCrawler(BaseCrawler):
                 count += 1
 
             except Exception as e:
-                logger.error(f'❌ 处理书籍时出错: {e}')
+                log_error(ErrorCategory.CRAWLER, f'处理书籍时出错: {e}')
                 continue
 
         logger.info(f'✅ HarperCollins 爬取完成，共获取 {count} 本新书')

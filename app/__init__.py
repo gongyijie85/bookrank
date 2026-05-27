@@ -16,6 +16,7 @@ from .initialization import init_awards_data, init_sample_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
+from .utils.error_handler import ErrorCategory, log_error
 
 babel = Babel()
 
@@ -199,7 +200,7 @@ def _register_error_handlers(app: Flask) -> None:
             db.session.rollback()
         except Exception:
             db.session.remove()
-        logging.error(f'Internal error: {error}', exc_info=True)
+        log_error(ErrorCategory.UNKNOWN, f'Internal error: {error}', exc_info=True)
         try:
             from .utils.error_tracker import error_tracker
 
@@ -210,7 +211,7 @@ def _register_error_handlers(app: Flask) -> None:
                 method=request.method if request else '',
             )
         except Exception as e:
-            logging.warning(f'ErrorTracker 记录失败: {e}')
+            log_error(ErrorCategory.UNKNOWN, f'ErrorTracker 记录失败: {e}', level='warning')
         return {'success': False, 'message': 'Internal server error'}, 500
 
 
@@ -228,7 +229,7 @@ def _setup_db_event_listeners(app: Flask) -> None:
             cursor.fetchone()
             cursor.close()
         except Exception as e:
-            app.logger.warning(f'数据库连接检查失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'数据库连接检查失败: {e}', level='warning')
             raise DisconnectionError('Connection check failed')
 
     @event.listens_for(Pool, 'checkin')
@@ -237,7 +238,7 @@ def _setup_db_event_listeners(app: Flask) -> None:
             if hasattr(dbapi_connection, 'rollback'):
                 dbapi_connection.rollback()
         except Exception as e:
-            app.logger.warning(f'连接归还时回滚失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'连接归还时回滚失败: {e}', level='warning')
 
     @event.listens_for(Pool, 'connect')
     def on_connect(dbapi_connection: Any, connection_record: Any) -> None:
@@ -246,7 +247,7 @@ def _setup_db_event_listeners(app: Flask) -> None:
             try:
                 dbapi_connection.set_session(autocommit=False)
             except Exception as e:
-                app.logger.warning(f'设置连接参数失败: {e}')
+                log_error(ErrorCategory.DB_QUERY, f'设置连接参数失败: {e}', level='warning')
         module_name = dbapi_connection.__class__.__module__
         if 'psycopg' in module_name:
             cursor = None
@@ -254,7 +255,7 @@ def _setup_db_event_listeners(app: Flask) -> None:
                 cursor = dbapi_connection.cursor()
                 cursor.execute("SET TIME ZONE 'UTC'")
             except Exception as e:
-                app.logger.warning(f'设置时区失败: {e}')
+                log_error(ErrorCategory.DB_QUERY, f'设置时区失败: {e}', level='warning')
             finally:
                 if cursor is not None:
                     cursor.close()
@@ -265,7 +266,7 @@ def _setup_db_event_listeners(app: Flask) -> None:
             if hasattr(dbapi_connection, 'rollback'):
                 dbapi_connection.rollback()
         except Exception as e:
-            app.logger.warning(f'连接重置时回滚失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'连接重置时回滚失败: {e}', level='warning')
 
 
 def _configure_logging(app: Flask) -> None:

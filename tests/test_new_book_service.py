@@ -294,7 +294,7 @@ class TestNewBookService:
         book_info.language = 'en-US'
         book_info.source_url = 'https://example.com/new'
 
-        updated = new_book_service._update_book_fields(book, book_info, auto_commit=False)
+        updated = new_book_service._sync_engine._update_book_fields(book, book_info, auto_commit=False)
 
         assert updated is True
         assert book.category == 'Fiction'
@@ -448,7 +448,7 @@ class TestNewBookService:
         mock_crawler_cls = Mock()
         mock_crawler_cls.return_value = mock_crawler
 
-        with patch('app.services.publisher_crawler.get_crawler_class', side_effect=lambda name: mock_crawler_cls):
+        with patch('app.services.new_book.sync_engine.get_crawler_class', side_effect=lambda name: mock_crawler_cls):
             results = new_book_service.sync_all_publishers(max_books_per_publisher=1)
 
             assert isinstance(results, list)
@@ -491,7 +491,7 @@ class TestNewBookService:
         mock_crawler.get_new_books.return_value = [mock_book_info]
         mock_crawler_cls = Mock(return_value=mock_crawler)
 
-        with patch('app.services.publisher_crawler.get_crawler_class', side_effect=lambda name: mock_crawler_cls):
+        with patch('app.services.new_book.sync_engine.get_crawler_class', side_effect=lambda name: mock_crawler_cls):
             result = service.sync_publisher_books(publisher.id, max_books=1)
 
         saved = json.loads(pack_path.read_text(encoding='utf-8'))

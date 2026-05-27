@@ -7,6 +7,8 @@
 
 import logging
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -327,4 +329,4 @@ def init_sample_award_books(app):
             app.logger.info('⏭️ 没有添加新图书（可能已存在）')
 
     except Exception as e:
-        app.logger.error(f'❌ 初始化预置获奖图书失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'初始化预置获奖图书失败: {e}', exc_info=True)

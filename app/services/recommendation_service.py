@@ -12,6 +12,7 @@ from collections import Counter
 from typing import Any
 
 from ..models.schemas import AwardBook, BookMetadata, UserCategory, UserViewedBook, db
+from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class RecommendationService:
             }
 
         except Exception as e:
-            logger.error(f'获取个性化推荐失败: {e}', exc_info=True)
+            log_error(ErrorCategory.API_CALL, f'获取个性化推荐失败: {e}')
             return self._get_popular_recommendations(limit)
 
     def _get_viewed_books(self, session_id: str) -> list[UserViewedBook]:
@@ -318,7 +319,7 @@ class RecommendationService:
             return self._get_popular_recommendations(limit)
 
         except Exception as e:
-            logger.error(f'获取相似推荐失败: {e}', exc_info=True)
+            log_error(ErrorCategory.API_CALL, f'获取相似推荐失败: {e}')
             return self._get_popular_recommendations(limit)
 
     def _recommend_similar_books(self, target_book: AwardBook, limit: int) -> dict[str, Any]:

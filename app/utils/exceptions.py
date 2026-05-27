@@ -20,6 +20,8 @@ import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from .error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,11 +161,7 @@ def safe_call(fallback: Any = None, log_level: str = 'warning'):
                 e.log()
                 return fallback
             except Exception as e:
-                logger.log(
-                    getattr(logging, log_level.upper(), logging.WARNING),
-                    f'[{func.__name__}] Unexpected: {e}',
-                    exc_info=True,
-                )
+                log_error(ErrorCategory.UNKNOWN, f'[{func.__name__}] Unexpected: {e}', exc_info=True)
                 return fallback
 
         return wrapper  # type: ignore
@@ -196,7 +194,7 @@ def safe_service_call(service_name: str, operation: str, fallback: Any = None):
                 e.log()
                 return fallback
             except Exception as e:
-                logger.warning(f'[{service_name}.{operation}] Failed: {e}', exc_info=True)
+                log_error(ErrorCategory.UNKNOWN, f'[{service_name}.{operation}] Failed: {e}', exc_info=True, level='warning')
                 return fallback
 
         return wrapper

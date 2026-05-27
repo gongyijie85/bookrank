@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from ..models.database import db
 from ..models.schemas import BookMetadata, TranslationCache
 from ..utils.api_helpers import clean_translation_text
+from ..utils.error_handler import ErrorCategory, log_error
 from .translation_cache_service import TranslationCacheService
 
 logger = logging.getLogger(__name__)
@@ -181,11 +182,11 @@ class BookLanguagePack:
                 }
             return translations
         except Exception as e:
-            logger.debug('BookMetadata language-pack lookup skipped: %s', e)
+            log_error(ErrorCategory.TRANSLATION, f'BookMetadata language-pack lookup skipped: {e}', level='warning')
             try:
                 db.session.rollback()
             except Exception as e:
-                logger.warning('BookMetadata rollback 失败: %s', e)
+                log_error(ErrorCategory.TRANSLATION, f'BookMetadata rollback 失败: {e}', level='warning')
             return {}
 
     def _apply_isbn_translations(self, books: list[Any], translations: dict[str, dict[str, str | None]]) -> None:
@@ -246,14 +247,14 @@ class BookLanguagePack:
                     translations[row.source_text] = row.translated_text
             return translations
         except SQLAlchemyError as e:
-            logger.debug('TranslationCache language-pack lookup skipped: %s', e)
+            log_error(ErrorCategory.TRANSLATION, f'TranslationCache language-pack lookup skipped: {e}', level='warning')
             try:
                 db.session.rollback()
             except Exception as e:
-                logger.warning('BookMetadata rollback 失败: %s', e)
+                log_error(ErrorCategory.TRANSLATION, f'BookMetadata rollback 失败: {e}', level='warning')
             return {}
         except Exception as e:
-            logger.debug('TranslationCache language-pack lookup unavailable: %s', e)
+            log_error(ErrorCategory.TRANSLATION, f'TranslationCache language-pack lookup unavailable: {e}', level='warning')
             return {}
 
     def _load_static_pack(self) -> dict[str, dict[str, str]]:
@@ -283,7 +284,7 @@ class BookLanguagePack:
             self._pack_books = normalized
             return self._pack_books
         except Exception as e:
-            logger.warning('Failed to load book language pack %s: %s', self._pack_path, e)
+            log_error(ErrorCategory.TRANSLATION, f'Failed to load book language pack {self._pack_path}: {e}', level='warning')
             self._pack_mtime = None
             self._pack_books = {}
             return {}
@@ -306,7 +307,7 @@ class BookLanguagePack:
         try:
             raw = json.loads(self._pack_path.read_text(encoding='utf-8'))
         except Exception as e:
-            logger.warning('Failed to load writable book language pack %s: %s', self._pack_path, e)
+            log_error(ErrorCategory.TRANSLATION, f'Failed to load writable book language pack {self._pack_path}: {e}', level='warning')
             return default_doc
 
         if not isinstance(raw, dict):
@@ -382,7 +383,7 @@ class BookLanguagePack:
         except TypeError:
             return translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type)
         except Exception as e:
-            logger.warning('Language-pack translation failed for %s: %s', field_type, e)
+            log_error(ErrorCategory.TRANSLATION, f'Language-pack translation failed for {field_type}: {e}', level='warning')
             return None
 
     @staticmethod
@@ -406,4 +407,4 @@ class BookLanguagePack:
                 translations.get('details_zh'),
             )
         except Exception as e:
-            logger.warning('Saving language-pack metadata failed for %s: %s', isbn, e)
+            log_error(ErrorCategory.TRANSLATION, f'Saving language-pack metadata failed for {isbn}: {e}', level='warning')

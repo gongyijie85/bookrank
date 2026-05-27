@@ -2,7 +2,7 @@
 
 [![Test & Coverage](https://github.com/gongyijie85/bookrank/actions/workflows/test.yml/badge.svg)](https://github.com/gongyijie85/bookrank/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/gongyijie85/bookrank/branch/main/graph/badge.svg)](https://codecov.io/gh/gongyijie85/bookrank)
-[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![Flask 3.1](https://img.shields.io/badge/flask-3.1-black.svg)](https://flask.palletsprojects.com/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -125,7 +125,13 @@ BookRank3/
 │   ├── services/                 # 业务服务层
 │   │   ├── api_client.py         # NYT/Google API 客户端
 │   │   ├── book_service.py       # 图书服务
-│   │   ├── new_book_service.py   # 新书速递服务
+│   │   ├── new_book_service.py   # 新书速递服务（重导出）
+│   │   ├── new_book/             # 新书速递子模块（拆分）
+│   │   │   ├── publisher_manager.py  # 出版社管理
+│   │   │   ├── sync_engine.py        # 数据同步引擎
+│   │   │   ├── translation_pipeline.py # 翻译管道
+│   │   │   └── query_service.py      # 查询服务
+│   │   ├── book_detail_service.py # 书籍详情服务
 │   │   ├── cache_service.py      # 缓存服务
 │   │   ├── translation_cache_service.py # 翻译缓存
 │   │   ├── zhipu_translation_service.py # 智谱AI翻译
@@ -137,7 +143,11 @@ BookRank3/
 │   └── utils/                    # 工具模块
 │       ├── exceptions.py         # 自定义异常
 │       ├── rate_limiter.py       # 限流器
+│       ├── error_handler.py      # 错误分类处理
 │       ├── error_tracker.py      # 内存错误追踪
+│       ├── service_helpers.py    # 服务注入注册
+│       ├── book_filters.py       # 图书过滤排序
+│       ├── date_helpers.py       # 日期工具函数
 │       └── security.py           # 安全工具
 ├── static/                       # 静态资源
 │   ├── css/                      # CSS样式
@@ -231,9 +241,14 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
-- v0.9.11 - 分类切换崩溃修复 & Cookie Domain 修复：changeCategory() API 数据路径错误修复，/set-language 自动获取域名解决 Render 部署 cookie 不生效
-- v0.9.10 - 语言切换完整修复：base.html内联脚本语言同步优化，所有翻译文件重新编译，导航菜单完整显示中文
-- v0.9.9 - 分类切换报错修复与语言同步优化：`/api/category-books` 异常处理增强，语言切换后 localStorage 不再被服务端覆盖
+- v0.9.27 - 服务注入标准化：service_helpers 增强，13处 app.extensions 直接访问 → 类型安全 getter
+- v0.9.26 - 大文件拆分：NewBookService 拆分为4子模块+门面类，main.py 辅助函数提取
+- v0.9.25 - 错误处理统一化：258处 except Exception → log_error(ErrorCategory, ...) 分类记录
+- v0.9.24 - 错误日志分类记录迁移（22文件全量覆盖）
+- v0.9.22 - 全面代码质量优化：Ruff/mypy 清零，测试覆盖率 47%→60%
+- v0.9.11 - 分类切换崩溃修复 & Cookie Domain 修复
+- v0.9.10 - 语言切换完整修复
+- v0.9.9 - 分类切换报错修复与语言同步优化
 - v0.9.8 - 语言切换按钮修复：切换中文版后导航栏按钮状态同步，消除竞态条件
 - v0.9.7 - 路由层 db.session 治理 & 前端 XSS 加固：消除路由层直接 DB 操作，Service 层统一管理翻译持久化，前端 XSS 防护完善
 - v0.9.6 - 配置项集中管理 & 图表颜色规范化：6 个配置项迁移到 config.py，图表颜色统一由 chartColors 对象管理

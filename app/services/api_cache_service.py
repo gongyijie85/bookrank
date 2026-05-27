@@ -12,6 +12,7 @@ from sqlalchemy import func
 
 from ..models.database import db
 from ..models.schemas import APICache
+from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ class APICacheService:
             logger.info(f'API缓存已保存: {api_source} - {request_key}')
             return existing
         except Exception as e:
-            logger.error(f'保存API缓存失败: {e}')
+            log_error(ErrorCategory.CACHE, f'保存API缓存失败: {e}')
             db.session.rollback()
             raise
 
@@ -158,7 +159,7 @@ class APICacheService:
             logger.info(f'已删除 {deleted_count} 条API缓存')
             return deleted_count
         except Exception as e:
-            logger.error(f'删除API缓存失败: {e}')
+            log_error(ErrorCategory.CACHE, f'删除API缓存失败: {e}')
             db.session.rollback()
             raise
 
@@ -171,7 +172,7 @@ class APICacheService:
             logger.info(f'已清理 {deleted} 条过期API缓存')
             return deleted
         except Exception as e:
-            logger.error(f'清理过期缓存失败: {e}')
+            log_error(ErrorCategory.CACHE, f'清理过期缓存失败: {e}')
             db.session.rollback()
             raise
 
@@ -217,7 +218,7 @@ class APICacheService:
                 query = query.filter_by(api_source=api_source)
             return query.order_by(APICache.last_used_at.desc()).limit(limit).all()
         except Exception as e:
-            logger.error(f'获取最近缓存记录失败: {e}')
+            log_error(ErrorCategory.CACHE, f'获取最近缓存记录失败: {e}')
             return []
 
 

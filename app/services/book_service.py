@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from ..models.book import Book
 from ..models.schemas import BookMetadata, db
+from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.exceptions import APIException, APIRateLimitException, ExternalAPIError
 from .api_client import GoogleBooksClient, ImageCacheService, NYTApiClient
 from .book_language_pack import BookLanguagePack
@@ -73,7 +74,7 @@ class BookService:
             try:
                 callback()
             except Exception as e:
-                logger.warning(f'数据刷新回调执行失败: {e}')
+                log_error(ErrorCategory.CACHE, f'数据刷新回调执行失败: {e}', level='warning')
 
     def get_book_by_isbn(self, isbn: str) -> dict[str, Any] | None:
         """通过ISBN查找图书数据（遍历所有分类缓存）"""
@@ -112,7 +113,7 @@ class BookService:
         try:
             self._language_pack.hydrate_books(books)
         except Exception as e:
-            logger.debug('Book language-pack hydration skipped: %s', e)
+            log_error(ErrorCategory.CACHE, f'Book language-pack hydration skipped: {e}', level='warning')
 
     def _get_stale_cached_books(self, cache_key: str, category_id: str) -> list[Book]:
         get_stale = getattr(self._cache, 'get_stale', None)
@@ -266,7 +267,7 @@ class BookService:
                     isbn, result = future.result()
                     supplements[isbn] = result
         except Exception as e:
-            logger.debug('并发获取补充信息失败，降级为串行: %s', e)
+            log_error(ErrorCategory.API_CALL, f'并发获取补充信息失败，降级为串行: {e}', level='warning')
             for isbn in valid_isbns:
                 try:
                     supplements[isbn] = self._google_client.fetch_book_details(isbn)
@@ -455,7 +456,7 @@ class BookService:
 
             return get_translation_service(app=self._app)
         except Exception as e:
-            logger.warning('翻译服务不可用: %s', e)
+            log_error(ErrorCategory.API_CALL, f'翻译服务不可用: {e}', level='warning')
             return None
 
     def _translate_books_now(self, books: list[Book], translator: Any | None = None) -> dict[str, int]:
@@ -524,7 +525,7 @@ class BookService:
                     }
                 )
             except Exception as e:
-                logger.error('NYT分类同步失败 %s: %s', category_id, e, exc_info=True)
+                log_error(ErrorCategory.API_CALL, f'NYT分类同步失败 {category_id}: {e}')
                 results.append(
                     {
                         'category_id': category_id,

@@ -9,6 +9,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -211,7 +213,7 @@ class FileCache(CacheStrategy):
             dt = datetime.fromtimestamp(mtime, UTC)
             return dt.strftime('%Y-%m-%d %H:%M:%S')
         except Exception as e:
-            logger.warning('获取缓存文件修改时间失败: %s', e)
+            log_error(ErrorCategory.CACHE, f'获取缓存文件修改时间失败: {e}', level='warning')
             return None
 
 
@@ -241,7 +243,7 @@ class CacheService:
                     self._memory.set(key, value)
                     return value
             except Exception as e:
-                logger.warning(f'Flask cache error: {e}')
+                log_error(ErrorCategory.CACHE, f'Flask cache error: {e}', level='warning')
 
         # 3. 尝试从文件缓存获取
         value = self._file.get(key)
@@ -269,7 +271,7 @@ class CacheService:
             try:
                 self._flask_cache.set(key, value, timeout=ttl)
             except Exception as e:
-                logger.warning(f'Flask cache set error: {e}')
+                log_error(ErrorCategory.CACHE, f'Flask cache set error: {e}', level='warning')
 
         self._file.set(key, value, ttl)
 
@@ -282,7 +284,7 @@ class CacheService:
             try:
                 self._flask_cache.delete(key)
             except Exception as e:
-                logger.warning(f'Flask cache delete error: {e}')
+                log_error(ErrorCategory.CACHE, f'Flask cache delete error: {e}', level='warning')
         self._file.delete(key)
         logger.debug(f'Cache deleted: {key}')
 
@@ -293,7 +295,7 @@ class CacheService:
             try:
                 self._flask_cache.clear()
             except Exception as e:
-                logger.warning(f'Flask cache clear error: {e}')
+                log_error(ErrorCategory.CACHE, f'Flask cache clear error: {e}', level='warning')
         self._file.clear()
         logger.info('All caches cleared')
 

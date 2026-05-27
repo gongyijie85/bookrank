@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, request
 
 from ..services.award_book_service import AwardBookService
 from ..utils.api_helpers import PublicAPIResponse, public_rate_limit, validate_isbn
+from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import get_book_service
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ def get_all_bestsellers():
         )
 
     except Exception as e:
-        logger.error(f'Error in get_all_bestsellers: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_all_bestsellers: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -64,7 +65,7 @@ def get_bestsellers_by_category(category: str):
         )
 
     except Exception as e:
-        logger.error(f'Error in get_bestsellers_by_category: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_bestsellers_by_category: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -94,7 +95,7 @@ def search_bestsellers():
         )
 
     except Exception as e:
-        logger.error(f'Error in search_bestsellers: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in search_bestsellers: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -121,7 +122,7 @@ def get_all_awards():
         return PublicAPIResponse.success(data={'awards': awards_data, 'total': len(awards_data)})
 
     except Exception as e:
-        logger.error(f'Error in get_all_awards: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_all_awards: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -156,7 +157,7 @@ def get_award_books(award_name: str):
         )
 
     except Exception as e:
-        logger.error(f'Error in get_award_books: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_award_books: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -185,7 +186,7 @@ def get_award_books_by_year(award_name: str, year: int):
         )
 
     except Exception as e:
-        logger.error(f'Error in get_award_books_by_year: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_award_books_by_year: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -214,7 +215,7 @@ def get_book_details(isbn: str):
         return PublicAPIResponse.error('Book not found', 404)
 
     except Exception as e:
-        logger.error(f'Error in get_book_details: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_book_details: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -236,7 +237,7 @@ def get_weekly_reports():
         )
 
     except Exception as e:
-        logger.error(f'Error in get_weekly_reports: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_weekly_reports: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -258,7 +259,7 @@ def get_latest_weekly_report():
         return PublicAPIResponse.success(data={'report': report.to_dict()})
 
     except Exception as e:
-        logger.error(f'Error in get_latest_weekly_report: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_latest_weekly_report: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 
@@ -285,7 +286,7 @@ def get_weekly_report_by_date(date: str):
         return PublicAPIResponse.success(data={'report': report.to_dict()})
 
     except Exception as e:
-        logger.error(f'Error in get_weekly_report_by_date: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'Error in get_weekly_report_by_date: {e}')
         return PublicAPIResponse.error('Internal server error', 500)
 
 

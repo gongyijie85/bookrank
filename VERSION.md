@@ -1,11 +1,42 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.22
+**当前版本**：v0.9.27
 **发布日期**：2026-05-27
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.27 (2026-05-27) — 服务注入标准化
+- **service_helpers 增强**：`get_translation_service()` 添加类型注解，新增 `register_service()`、`require_*` 系列
+- **app.extensions 消除**：setup.py 10 处、batch_translate.py 3 处直接访问 → 类型安全 getter
+- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.46%
+
+### v0.9.26 (2026-05-27) — NewBookService 拆分为子模块
+- **4 子模块 + 1 门面类**：PublisherManager(81行)、SyncEngine(416行)、TranslationPipeline(105行)、NewBookQueryService(159行)、NewBookService 门面(154行)
+- **向后兼容**：原 `new_book_service.py` 改为重导出，所有公开 API 签名不变
+- **Bug 修复**：移除重复 `@staticmethod` 装饰器，统一 `_GOOGLE_BOOKS_CRAWLERS` 定义
+- **Ruff**: 0 错误 | **Format**: 6 files already formatted
+
+### v0.9.25 (2026-05-27) — 错误处理统一化阶段1完成
+- **P0 修复**：3 处静默吞没（`except Exception: pass` / 无日志降级）→ 添加 `log_error` 日志
+- **P1 修复**：4 处回滚无日志（`db.session.rollback()` 无日志）→ 添加 `log_error(ErrorCategory.DB_QUERY, ...)`
+- **P2 路由层**：5 文件 66 处 `logger.error/warning` → `log_error(ErrorCategory, ...)`
+- **P3 全量覆盖**：27 文件 92 处日志分类记录（服务层+爬虫层+工具层+初始化层）
+- **Bug 修复**：`csrf_protect` 装饰器缺少 `return wrapped` 导致蓝图注册失败
+- **配置更新**：mypy overrides 新增 `app.utils.api_helpers` 和 `return` 错误码
+- **总计**：38 个文件，约 180 处 `log_error(ErrorCategory, ...)` 替换
+- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.36%
+
+### v0.9.24 (2026-05-27) — 错误日志分类记录迁移（22 文件全量覆盖）
+- **22 个文件**：`except Exception as e: logger.error/warning/debug(...)` → `log_error(ErrorCategory.xxx, ...)`
+- **路由层**（5 文件）：books(8处)、translation(1处)、cache(4处)、awards(5处)、health(1处)
+- **应用初始化**（1 文件）：\_\_init\_\_.py(7处)，UNKNOWN/DB_QUERY 分类
+- **爬虫层**（10 文件）：25 处 CRAWLER 分类，`%s` 格式统一转 f-string
+- **任务和工具**（3 文件）：weekly_report_task(4处)、service_helpers(1处)、exceptions(2处)
+- **初始化数据**（3 文件）：sample_books(1处)、sample_award_books(1处)、awards(3处)
+- **导入排序修正**：ruff isort 自动修复 10 个文件
+- **Ruff check**: All checks passed
 
 ### v0.9.22 (2026-05-27) — 全面代码质量优化
 - **Ruff 代码检查清零**：32 个错误全部修复（导入排序、未使用导入、未定义名称、歧义变量名等）

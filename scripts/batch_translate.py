@@ -19,6 +19,7 @@ from app.services.zhipu_translation_service import get_translation_service
 from app.services import BookService
 from app.models.database import db
 from app.models.schemas import BookMetadata
+from app.utils.service_helpers import get_book_service
 
 
 def batch_translate_all_books():
@@ -26,8 +27,7 @@ def batch_translate_all_books():
     app = create_app()
     
     with app.app_context():
-        # 获取图书服务
-        book_service = app.extensions.get('book_service')
+        book_service = get_book_service()
         if not book_service:
             print("错误: 无法获取图书服务")
             return
@@ -133,11 +133,11 @@ def translate_single_book(isbn: str):
     app = create_app()
     
     with app.app_context():
-        book_service = app.extensions.get('book_service')
+        book_service = get_book_service()
         if not book_service:
             print("错误: 无法获取图书服务")
             return
-        
+
         translation_service = get_translation_service(app=app)
         
         # 搜索图书
@@ -214,11 +214,11 @@ def show_translation_status():
     app = create_app()
     
     with app.app_context():
-        book_service = app.extensions.get('book_service')
+        book_service = get_book_service()
         if not book_service:
             print("错误: 无法获取图书服务")
             return
-        
+
         categories = app.config.get('CATEGORIES', {})
         
         total_books = 0

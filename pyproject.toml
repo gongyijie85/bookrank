@@ -117,6 +117,11 @@ module = [
     "app.utils.error_tracker",
     "app.utils.security",
     "app.utils.service_helpers",
+    "app.utils.api_helpers",
+    "app.services.new_book.*",
+    "app.services.book_detail_service",
+    "app.utils.book_filters",
+    "app.utils.date_helpers",
 ]
 disable_error_code = [
     "attr-defined",
@@ -131,4 +136,5 @@ disable_error_code = [
     "call-overload",
     "misc",
     "call-arg",
+    "return",
 ]

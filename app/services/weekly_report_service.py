@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ..models.schemas import WeeklyReport, db
+from ..utils.error_handler import ErrorCategory, log_error
 from .book_service import BookService
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ class WeeklyReportService:
 
                 self._translation_service = get_translation_service()
             except Exception as e:
-                logger.warning(f'无法初始化翻译服务: {e}')
+                log_error(ErrorCategory.TRANSLATION, f'无法初始化翻译服务: {e}', level='warning')
         return self._translation_service
 
     def generate_report(self, week_start: date, week_end: date, force_regenerate: bool = False) -> WeeklyReport | None:
@@ -170,7 +171,7 @@ class WeeklyReportService:
             return report
 
         except Exception as e:
-            logger.error(f'生成周报时出错: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'生成周报时出错: {e!s}')
             db.session.rollback()
             # 出错时再次检查是否已存在报告
             existing_report = WeeklyReport.query.filter(
@@ -256,7 +257,7 @@ class WeeklyReportService:
                             }
                         )
                 except Exception as e:
-                    logger.error(f'获取分类 {category_name} 数据时出错: {e!s}')
+                    log_error(ErrorCategory.API_CALL, f'获取分类 {category_name} 数据时出错: {e!s}')
                     continue
 
             # 如果没有数据，返回空数据
@@ -267,7 +268,7 @@ class WeeklyReportService:
             return weekly_data
 
         except Exception as e:
-            logger.error(f'收集周报数据时出错: {e!s}')
+            log_error(ErrorCategory.API_CALL, f'收集周报数据时出错: {e!s}')
             # 出错时返回空数据
             return {
                 'books': [],
@@ -358,7 +359,7 @@ class WeeklyReportService:
             }
 
         except Exception as e:
-            logger.error(f'分析榜单变化时出错: {e!s}')
+            log_error(ErrorCategory.API_CALL, f'分析榜单变化时出错: {e!s}')
             return {
                 'top_changes': [],
                 'new_books': [],
@@ -489,7 +490,7 @@ class WeeklyReportService:
             return self._generate_default_summary(analysis, week_start, week_end)
 
         except Exception as e:
-            logger.error(f'生成AI摘要时出错: {e!s}')
+            log_error(ErrorCategory.API_CALL, f'生成AI摘要时出错: {e!s}')
             return self._generate_default_summary(analysis, week_start, week_end)
 
     def _generate_default_summary(self, analysis: dict[str, Any], week_start: date, week_end: date) -> str:
@@ -580,7 +581,7 @@ class WeeklyReportService:
         try:
             return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all()
         except Exception as e:
-            logger.error(f'获取周报列表时出错: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'获取周报列表时出错: {e!s}')
             return []
 
     def get_report_by_date(self, report_date: date) -> WeeklyReport | None:
@@ -595,7 +596,7 @@ class WeeklyReportService:
         try:
             return WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first()
         except Exception as e:
-            logger.error(f'根据日期获取周报时出错: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'根据日期获取周报时出错: {e!s}')
             return None
 
     def get_report_by_week_end(self, week_end: date) -> WeeklyReport | None:
@@ -610,7 +611,7 @@ class WeeklyReportService:
         try:
             return WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first()
         except Exception as e:
-            logger.error(f'根据周结束日期获取周报时出错: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'根据周结束日期获取周报时出错: {e!s}')
             return None
 
     def get_latest_report(self) -> WeeklyReport | None:
@@ -622,7 +623,7 @@ class WeeklyReportService:
         try:
             return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first()
         except Exception as e:
-            logger.error(f'获取最新周报时出错: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'获取最新周报时出错: {e!s}')
             return None
 
     # ==================== 报告视图和用户行为服务方法 ====================
@@ -664,7 +665,7 @@ class WeeklyReportService:
             db.session.commit()
             return True
         except Exception as e:
-            logger.error(f'记录周报阅读失败: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'记录周报阅读失败: {e!s}')
             db.session.rollback()
             return False
 
@@ -689,7 +690,7 @@ class WeeklyReportService:
             db.session.commit()
             return True
         except Exception as e:
-            logger.error(f'记录周报导出失败: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'记录周报导出失败: {e!s}')
             db.session.rollback()
             return False
 
@@ -700,5 +701,5 @@ class WeeklyReportService:
 
             return ReportView.query.filter_by(report_id=report_id, session_id=session_id).first() is not None
         except Exception as e:
-            logger.error(f'检查阅读记录失败: {e!s}')
+            log_error(ErrorCategory.DB_QUERY, f'检查阅读记录失败: {e!s}')
             return False

@@ -15,6 +15,7 @@ import re
 import time
 from collections.abc import Generator
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo
 
 logger = logging.getLogger(__name__)
@@ -220,7 +221,7 @@ class HachetteCrawler(BaseCrawler):
                 count += 1
 
             except Exception as e:
-                logger.error(f'❌ 处理书籍时出错: {e}, URL: {book_data.get("url")}')
+                log_error(ErrorCategory.CRAWLER, f'处理书籍时出错: {e}, URL: {book_data.get("url")}')
                 continue
 
         logger.info(f'✅ Hachette 爬取完成，共获取 {count} 本新书')
@@ -348,7 +349,7 @@ class HachetteCrawler(BaseCrawler):
                 result['cover_url'] = og_image.get('content', '')
 
         except Exception as e:
-            logger.error(f'❌ 获取详情页失败: {e}, URL: {book_url}')
+            log_error(ErrorCategory.CRAWLER, f'获取详情页失败: {e}, URL: {book_url}')
 
         return result
 

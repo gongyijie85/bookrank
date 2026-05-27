@@ -19,6 +19,7 @@ from typing import Any
 
 import requests
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ class GoogleBooksCrawler(BaseCrawler):
                 )
                 self._key_is_valid = False
         except Exception as e:
-            logger.warning('Google Books API Key 验证失败: %s，降级为无Key模式', e)
+            log_error(ErrorCategory.CRAWLER, f'Google Books API Key 验证失败: {e}，降级为无Key模式', level='warning')
             self._key_is_valid = False
 
         self._key_validated = True
@@ -331,7 +332,7 @@ class GoogleBooksCrawler(BaseCrawler):
             )
 
         except Exception as e:
-            logger.warning('解析 Google Books 卷信息失败: %s', e)
+            log_error(ErrorCategory.CRAWLER, f'解析 Google Books 卷信息失败: {e}', level='warning')
             return None
 
     def get_book_details(self, book_url: str) -> BookInfo | None:
@@ -364,5 +365,5 @@ class GoogleBooksCrawler(BaseCrawler):
             return self._parse_volume_info(volume_info, 'general')
 
         except Exception as e:
-            logger.error('获取 Google Books 详情失败: %s', e)
+            log_error(ErrorCategory.CRAWLER, f'获取 Google Books 详情失败: {e}')
             return None

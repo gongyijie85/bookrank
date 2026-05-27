@@ -15,6 +15,7 @@ from datetime import datetime
 
 import requests
 
+from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, SimpleResponse
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ class OpenLibraryCrawler(BaseCrawler):
                     return result.html
             return None
         except Exception as e:
-            logger.warning(f'⚠️ OpenLibrary: Crawl4AI 出错: {e}')
+            log_error(ErrorCategory.CRAWLER, f'OpenLibrary: Crawl4AI 出错: {e}', level='warning')
             return None
 
     def _crawl_with_crawl4ai(self, url: str) -> str | None:
@@ -107,7 +108,7 @@ class OpenLibraryCrawler(BaseCrawler):
         try:
             return asyncio.run(self._crawl_with_crawl4ai_async(url))
         except Exception as e:
-            logger.warning(f'⚠️ OpenLibrary: Crawl4AI 同步调用失败: {e}')
+            log_error(ErrorCategory.CRAWLER, f'OpenLibrary: Crawl4AI 同步调用失败: {e}', level='warning')
             return None
 
     def _make_request_with_fallback(self, url: str) -> requests.Response | SimpleResponse | None:
@@ -143,7 +144,7 @@ class OpenLibraryCrawler(BaseCrawler):
 
                         return SimpleResponse(json.loads(json_match.group(1)))
                 except Exception as e:
-                    logger.warning('OpenLibrary: 从 HTML 提取 JSON 失败: %s', e)
+                    log_error(ErrorCategory.CRAWLER, f'OpenLibrary: 从 HTML 提取 JSON 失败: {e}', level='warning')
 
         logger.error('OpenLibrary: 所有方法都失败: %s', url)
         return None
@@ -218,7 +219,7 @@ class OpenLibraryCrawler(BaseCrawler):
                     count += 1
 
         except Exception as e:
-            logger.error(f'❌ 解析 Open Library 数据失败: {e}')
+            log_error(ErrorCategory.CRAWLER, f'解析 Open Library 数据失败: {e}')
 
     def _parse_work(self, work: dict, default_category: str) -> BookInfo | None:
         """解析单个书籍数据"""
@@ -269,7 +270,7 @@ class OpenLibraryCrawler(BaseCrawler):
             )
 
         except Exception as e:
-            logger.warning(f'⚠️ 解析书籍数据失败: {e}')
+            log_error(ErrorCategory.CRAWLER, f'解析书籍数据失败: {e}', level='warning')
             return None
 
     def _generate_buy_links(self, isbn13: str | None, isbn10: str | None, title: str) -> list[dict[str, str]]:
@@ -334,5 +335,5 @@ class OpenLibraryCrawler(BaseCrawler):
             )
 
         except Exception as e:
-            logger.error(f'❌ 解析书籍详情失败: {e}')
+            log_error(ErrorCategory.CRAWLER, f'解析书籍详情失败: {e}')
             return None

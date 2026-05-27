@@ -4,6 +4,8 @@
 
 import logging
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -424,7 +426,7 @@ def init_sample_books(app):
         #         app.logger.error(f"❌ 图书验证失败: {verify_error}")
 
     except Exception as e:
-        app.logger.error(f'❌ 初始化示例图书失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'初始化示例图书失败: {e}', exc_info=True)
         from ..models.database import db
 
         db.session.rollback()

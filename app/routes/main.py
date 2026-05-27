@@ -16,11 +16,11 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
-from ..utils import (
-    ExternalAPIError,
-    clean_translation_text,
-)
+from ..services.book_detail_service import fetch_google_books_details, is_valid_isbn, merge_or_translate_book
+from ..utils import ExternalAPIError
 from ..utils.api_helpers import APIResponse, handle_api_errors
+from ..utils.book_filters import filter_books_by_publisher, filter_books_by_search, filter_books_by_weeks, sort_books
+from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.security import is_safe_redirect_url
 from ..utils.service_helpers import (
@@ -33,21 +33,6 @@ from ..utils.service_helpers import (
 
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
-
-
-def _is_valid_isbn(value: str | None) -> bool:
-    """校验字符串是否为合法 ISBN-10 或 ISBN-13"""
-    if not value:
-        return False
-    clean = re.sub(r'[\s\-]', '', value)
-    if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
-        return True
-    if len(clean) == 10:
-        prefix = clean[:9]
-        suffix = clean[9]
-        if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
-            return True
-    return False
 
 
 def _get_books_for_category(category: str) -> tuple[list, str | None]:
@@ -73,71 +58,11 @@ def _get_books_for_category(category: str) -> tuple[list, str | None]:
 
     try:
         update_time = book_service.get_cache_time(category)
-    except Exception:
+    except Exception as e:
+        log_error(ErrorCategory.CACHE, f'获取缓存时间失败: {e}')
         update_time = None
 
     return books_data, update_time
-
-
-def _filter_books_by_search(books_data: list, search_query: str) -> list:
-    """根据搜索词过滤书籍列表"""
-    if not search_query or not books_data:
-        return books_data
-
-    search_lower = search_query.lower()
-    return [
-        b
-        for b in books_data
-        if search_lower in b.get('title', '').lower() or search_lower in b.get('author', '').lower()
-    ]
-
-
-def _filter_books_by_publisher(books_data: list, publisher: str) -> list:
-    """根据出版社过滤书籍列表"""
-    if not publisher or not books_data:
-        return books_data
-    publisher_lower = publisher.lower()
-    return [b for b in books_data if publisher_lower in b.get('publisher', '').lower()]
-
-
-def _filter_books_by_weeks(books_data: list, weeks_filter: str) -> list:
-    """根据上榜周数过滤书籍列表"""
-    if not weeks_filter or not books_data:
-        return books_data
-
-    if weeks_filter == 'new':
-        return [b for b in books_data if b.get('weeks_on_list', 0) <= 1]
-    elif weeks_filter == 'trending':
-        return [b for b in books_data if 2 <= b.get('weeks_on_list', 0) <= 4]
-    elif weeks_filter == 'classic':
-        return [b for b in books_data if b.get('weeks_on_list', 0) >= 5]
-    return books_data
-
-
-def _sort_books(books_data: list, sort_by: str) -> list:
-    """对书籍列表进行排序"""
-    if not books_data:
-        return books_data
-
-    if sort_by == 'rank_change':
-
-        def rank_change_key(b):
-            try:
-                last_week = int(b.get('rank_last_week', '0') or '0')
-                current = b.get('rank', 999)
-                return abs(last_week - current) if last_week > 0 else 0
-            except (ValueError, TypeError):
-                return 0
-
-        return sorted(books_data, key=rank_change_key, reverse=True)
-
-    elif sort_by == 'weeks_desc':
-        return sorted(books_data, key=lambda b: b.get('weeks_on_list', 0), reverse=True)
-
-    elif sort_by == 'weeks_asc':
-        return sorted(books_data, key=lambda b: b.get('weeks_on_list', 999))
-
-    return books_data
 
 
 @main_bp.route('/')
@@ -167,14 +92,14 @@ def index():
         # 降级：用空列表渲染页面，不崩溃
 
     if search_query:
-        books_data = _filter_books_by_search(books_data, search_query)
+        books_data = filter_books_by_search(books_data, search_query)
     if publisher_filter:
-        books_data = _filter_books_by_publisher(books_data, publisher_filter)
+        books_data = filter_books_by_publisher(books_data, publisher_filter)
     if weeks_filter:
-        books_data = _filter_books_by_weeks(books_data, weeks_filter)
+        books_data = filter_books_by_weeks(books_data, weeks_filter)
 
     if sort_by:
-        books_data = _sort_books(books_data, sort_by)
+        books_data = sort_books(books_data, sort_by)
 
     publishers = sorted(
         set(
@@ -226,7 +151,7 @@ def award_book_cover(book_id: int):
     try:
         cover_url = sync_service.resolve_cover_for_book(book)
     except Exception as e:
-        logger.warning(f'获奖图书封面解析失败 book_id={book_id}: {e}')
+        log_error(ErrorCategory.API_CALL, f'获奖图书封面解析失败 book_id={book_id}: {e}', level='warning')
         cover_url = (book.cover_original_url or '').strip()
 
     response = redirect(cover_url or url_for('static', filename='default-cover.png'), code=302)
@@ -264,13 +189,13 @@ def awards():
     try:
         awards_list = award_service.get_all_awards()
     except Exception as e:
-        logger.error(f'奖项列表查询失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'奖项列表查询失败: {e}', exc_info=True)
         awards_list = []
 
     try:
         years = award_service.get_distinct_years()
     except Exception as e:
-        logger.warning(f'年份列表查询失败: {e}')
+        log_error(ErrorCategory.DB_QUERY, f'年份列表查询失败: {e}', level='warning')
         years = []
 
     try:
@@ -318,7 +243,7 @@ def awards():
             award_item.book_count = book_counts.get(award_item.id, 0)
 
     except Exception as e:
-        logger.error(f'获奖图书数据加载失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获奖图书数据加载失败: {e}', exc_info=True)
         books_data = []
 
     # ===== 渲染（无论数据是否完整都渲染页面） =====
@@ -358,30 +283,31 @@ def new_books():
     try:
         service.ensure_static_data_seeded()
     except Exception as e:
-        logger.warning(f'新书静态数据兜底初始化失败: {e}')
+        log_error(ErrorCategory.DB_QUERY, f'新书静态数据兜底初始化失败: {e}', level='warning')
 
     try:
         publishers = service.get_publishers(active_only=True)
     except Exception as e:
-        logger.warning(f'获取出版社列表失败: {e}')
+        log_error(ErrorCategory.DB_QUERY, f'获取出版社列表失败: {e}', level='warning')
         publishers = []
 
     publisher_book_counts = {}
     try:
         publisher_book_counts = service.get_publisher_book_counts()
-    except Exception:
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'获取出版社图书计数失败: {e}')
         publisher_book_counts = {}
 
     try:
         categories = service.get_categories()
     except Exception as e:
-        logger.warning(f'获取分类列表失败: {e}')
+        log_error(ErrorCategory.DB_QUERY, f'获取分类列表失败: {e}', level='warning')
         categories = []
 
     try:
         stats = service.get_statistics()
     except Exception as e:
-        logger.warning(f'获取统计数据失败: {e}')
+        log_error(ErrorCategory.DB_QUERY, f'获取统计数据失败: {e}', level='warning')
         stats = {
             'total_books': 0,
             'total_publishers': 0,
@@ -409,7 +335,7 @@ def new_books():
                 per_page=per_page,
             )
     except Exception as e:
-        logger.warning(f'获取书籍数据失败: {e}')
+        log_error(ErrorCategory.DB_QUERY, f'获取书籍数据失败: {e}', level='warning')
         books, total = [], 0
 
     total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
@@ -524,9 +450,9 @@ def book_detail(book_index):
     book = books_data[book_index]
 
     isbn = book.get('isbn13') or book.get('isbn10')
-    if isbn and _is_valid_isbn(isbn):
-        _fetch_google_books_details(book, isbn)
-        _merge_or_translate_book(book, isbn)
+    if isbn and is_valid_isbn(isbn):
+        fetch_google_books_details(book, isbn)
+        merge_or_translate_book(book, isbn)
 
     return render_template(
         'book_detail.html',
@@ -535,195 +461,6 @@ def book_detail(book_index):
         category=category,
         back_url=request.referrer or '/?category=' + category,
     )
-
-
-def _fetch_google_books_details(book: dict, isbn: str) -> None:
-    """从 Google Books API 获取详细信息并更新 book 字典（带缓存）"""
-    cache_key = f'google_books_detail:{isbn}'
-    cache_service = None
-
-    try:
-        book_service = get_book_service()
-        if book_service:
-            cache_service = book_service.cache
-    except Exception as e:
-        log_error(ErrorCategory.CACHE, f'获取 book_service 缓存失败: {e}', level='warning')
-
-    if cache_service:
-        try:
-            cached = cache_service.get(cache_key)
-            if cached:
-                _update_book_from_google_books(book, cached)
-                return
-        except Exception as e:
-            log_error(ErrorCategory.CACHE, f'读取 Google Books 缓存失败 ISBN {isbn}: {e}', level='warning')
-
-    google_client = get_google_books_client()
-    if not google_client:
-        return
-
-    try:
-        details = google_client.fetch_book_details(isbn)
-        if not details:
-            return
-
-        _update_book_from_google_books(book, details)
-
-        if cache_service:
-            try:
-                cache_service.set(cache_key, details, ttl=604800)
-            except Exception as e:
-                log_error(ErrorCategory.CACHE, f'写入 Google Books 缓存失败 ISBN {isbn}: {e}', level='warning')
-
-    except Exception as e:
-        logger.warning(f'Google Books API 调用失败 ISBN {isbn}: {e}')
-
-
-def _translate_field_async(book: dict, source_field: str, target_field: str) -> None:
-    """异步翻译书籍字段（不阻塞响应）"""
-    app = current_app._get_current_object()
-    translation_service = get_translation_service()
-
-    def _do_translate():
-        try:
-            if translation_service:
-                with app.app_context():
-                    text = book.get(source_field, '')
-                    if text and not book.get(target_field):
-                        ft = (
-                            'title'
-                            if target_field == 'title_zh'
-                            else 'description'
-                            if target_field == 'description_zh'
-                            else 'details'
-                            if target_field == 'details_zh'
-                            else 'text'
-                        )
-                        translated = translation_service.translate(text, 'en', 'zh', field_type=ft)
-                        if translated:
-                            book[target_field] = translated
-                            logger.info(f'已翻译 {source_field} -> {target_field}')
-        except Exception as e:
-            logger.warning(f'异步翻译失败 {source_field}: {e}')
-
-    submit_background_task(_do_translate)
-
-
-def _update_book_from_google_books(book: dict, details: dict) -> None:
-    """使用 Google Books 数据更新 book 字典，并异步翻译中文"""
-    if details.get('details') and details['details'] != 'No detailed description available.':
-        book['details'] = details['details']
-        _translate_field_async(book, 'details', 'details_zh')
-
-    if details.get('page_count') and details['page_count'] != 'Unknown':
-        book['page_count'] = str(details['page_count'])
-
-    if details.get('publication_dt') and details['publication_dt'] != 'Unknown':
-        book['publication_dt'] = details['publication_dt']
-
-    if details.get('language') and details['language'] != 'Unknown':
-        book['language'] = details['language']
-
-    if details.get('publisher') and details['publisher'] not in ('Unknown', 'Unknown Publisher'):
-        current_publisher = book.get('publisher', '')
-        if not current_publisher or current_publisher in ('Unknown', 'Unknown Publisher'):
-            book['publisher'] = details['publisher']
-
-    if details.get('cover_url') and not book.get('cover'):
-        book['cover'] = details['cover_url']
-
-    if details.get('isbn_13') and _is_valid_isbn(details['isbn_13']) and not book.get('isbn13'):
-        book['isbn13'] = details['isbn_13']
-    if details.get('isbn_10') and _is_valid_isbn(details['isbn_10']) and not book.get('isbn10'):
-        book['isbn10'] = details['isbn_10']
-
-    if book.get('description') and not book.get('description_zh'):
-        _translate_field_async(book, 'description', 'description_zh')
-
-
-def _merge_or_translate_book(book: dict, isbn: str) -> None:
-    """从数据库合并中文翻译，未翻译的启动后台线程异步翻译"""
-    try:
-        from ..services.user_service import UserService
-
-        user_service = UserService()
-        meta = user_service.get_book_metadata(isbn)
-        if meta:
-            if meta.description_zh and not book.get('description_zh'):
-                book['description_zh'] = clean_translation_text(meta.description_zh, 'description')
-            if meta.details_zh and not book.get('details_zh'):
-                book['details_zh'] = clean_translation_text(meta.details_zh, 'details')
-            if meta.title_zh and not book.get('title_zh'):
-                book['title_zh'] = clean_translation_text(meta.title_zh, 'title')
-
-            if meta.title_zh and meta.description_zh and meta.details_zh:
-                return
-
-        needs_title = bool(book.get('title') and not book.get('title_zh'))
-        needs_desc = bool(
-            book.get('description')
-            and book.get('description') != 'No summary available.'
-            and not book.get('description_zh')
-        )
-        needs_details = bool(
-            book.get('details')
-            and book.get('details') != 'No detailed description available.'
-            and not book.get('details_zh')
-        )
-
-        if not needs_title and not needs_desc and not needs_details:
-            return
-
-        translation_service = get_translation_service()
-        if not translation_service:
-            return
-        app = current_app._get_current_object()
-
-        def _translate_async():
-            with app.app_context():
-                try:
-                    from ..services.user_service import UserService
-
-                    user_svc = UserService()
-                    title_zh = None
-                    desc_zh = None
-                    details_zh = None
-
-                    if needs_title:
-                        try:
-                            title_zh = translation_service.translate(
-                                book.get('title', ''), 'en', 'zh', field_type='title'
-                            )
-                        except Exception as e:
-                            logger.warning(f'异步书名翻译失败: {e}')
-
-                    if needs_desc:
-                        try:
-                            desc_zh = translation_service.translate(
-                                book.get('description', ''), 'en', 'zh', field_type='description'
-                            )
-                        except Exception as e:
-                            logger.warning(f'异步简介翻译失败: {e}')
-
-                    if needs_details:
-                        try:
-                            details_zh = translation_service.translate(
-                                book.get('details', ''), 'en', 'zh', field_type='details'
-                            )
-                        except Exception as e:
-                            logger.warning(f'异步详情翻译失败: {e}')
-
-                    user_svc.save_book_translation(
-                        isbn, title_zh=title_zh, description_zh=desc_zh, details_zh=details_zh
-                    )
-                    logger.info(f'异步翻译完成: {isbn}')
-                except Exception as e:
-                    logger.warning(f'异步翻译失败 {isbn}: {e}')
-
-        submit_background_task(_translate_async)
-
-    except Exception as e:
-        logger.warning(f'合并图书翻译失败 {isbn}: {e}')
 
 
 @main_bp.route('/api/book-details')
@@ -770,11 +507,11 @@ def api_category_books():
                     books_data = [book.to_dict() for book in books]
                     update_time = book_service.get_cache_time(category)
             except Exception as e:
-                logger.error(f'获取分类 {category} 图书失败: {e}', exc_info=True)
+                log_error(ErrorCategory.API_CALL, f'获取分类 {category} 图书失败: {e}', exc_info=True)
                 # 降级返回空列表，前端会显示空状态
                 books_data = []
     except Exception as e:
-        logger.error(f'图书服务不可用: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'图书服务不可用: {e}', exc_info=True)
 
     return APIResponse.success(data={'books': books_data, 'category': category, 'update_time': update_time})
 
@@ -799,41 +536,12 @@ def weekly_reports():
             if generated_report:
                 reports = report_service.get_reports()
         except Exception as e:
-            current_app.logger.warning(f'周报空列表兜底生成失败: {e}')
+            log_error(ErrorCategory.API_CALL, f'周报空列表兜底生成失败: {e}', level='warning')
 
     for report in reports:
-        report.content_data = _parse_report_content(report) or {}
+        report.content_data = parse_report_content(report) or {}
 
     return render_template('weekly_reports.html', reports=reports)
-
-
-def _parse_report_content(report):
-    """解析周报内容 JSON"""
-    import json
-
-    if not report or not report.content:
-        return None
-    try:
-        content = json.loads(report.content) if isinstance(report.content, str) else report.content
-    except (json.JSONDecodeError, TypeError):
-        return None
-    return content
-
-
-def _validate_date(date_str: str) -> tuple:
-    """验证日期字符串，返回 (是否有效, 错误消息, 日期对象)"""
-    from datetime import datetime
-
-    if not date_str or len(date_str) != 10 or date_str[4] != '-' or date_str[7] != '-':
-        return False, '日期格式错误', None
-    try:
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-        current_date = datetime.now().date()
-        if date_obj.year < 2020 or date_obj > current_date:
-            return False, '无效的日期范围', None
-        return True, None, date_obj
-    except ValueError:
-        return False, '日期格式错误', None
 
 
 @main_bp.route('/reports/weekly/<date>')
@@ -847,7 +555,7 @@ def weekly_report_detail(date):
     if not book_service:
         return render_template('error.html', message='服务不可用', back_url='/reports/weekly')
 
-    is_valid, error_msg, report_date = _validate_date(date)
+    is_valid, error_msg, report_date = validate_date(date)
     if not is_valid:
         return render_template('error.html', message=error_msg, back_url='/reports/weekly')
 
@@ -865,7 +573,6 @@ def weekly_report_detail(date):
         raw_ip = request.remote_addr
         ip_address = hashlib.sha256((raw_ip or 'unknown').encode()).hexdigest()[:16] if raw_ip else None
 
-        # 通过 Service 层记录阅读行为
         report_service.record_report_view(
             report_id=report.id,
             session_id=session_id,
@@ -873,11 +580,11 @@ def weekly_report_detail(date):
             ip_address=ip_address,
         )
 
-        content_data = _parse_report_content(report)
+        content_data = parse_report_content(report)
         return render_template('weekly_report_detail.html', report=report, content=content_data)
 
     except Exception as e:
-        current_app.logger.error(f'周报详情渲染错误: {e!s}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'周报详情渲染错误: {e!s}', exc_info=True)
         return render_template('error.html', message='周报加载失败，请稍后再试', back_url='/reports/weekly'), 500
 
 
@@ -894,7 +601,7 @@ def export_weekly_report(date):
     if not book_service:
         return render_template('error.html', message='服务不可用', back_url='/reports/weekly')
 
-    is_valid, error_msg, report_date = _validate_date(date)
+    is_valid, error_msg, report_date = validate_date(date)
     if not is_valid:
         return render_template('error.html', message=error_msg, back_url='/reports/weekly')
 
@@ -948,7 +655,7 @@ def export_weekly_report(date):
         return send_file(buffer, as_attachment=True, download_name=config['filename'], mimetype=config['mimetype'])
 
     except Exception as e:
-        current_app.logger.error(f'导出周报时出错: {e!s}')
+        log_error(ErrorCategory.UNKNOWN, f'导出周报时出错: {e!s}')
         return render_template('error.html', message='导出失败', back_url=f'/reports/weekly/{date}')
 
 

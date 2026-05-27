@@ -13,6 +13,7 @@ from typing import Any
 
 from ..models import db
 from ..models.schemas import Award, AwardBook, SystemConfig
+from ..utils.error_handler import ErrorCategory, log_error
 from .api_client import GoogleBooksClient, ImageCacheService, OpenLibraryClient, WikidataClient
 
 logger = logging.getLogger(__name__)
@@ -164,7 +165,7 @@ class AwardBookService:
                     stats['processed_awards'] += 1
                 except Exception as e:
                     error_msg = f'处理 {award_key} 失败: {e}'
-                    logger.error(error_msg)
+                    log_error(ErrorCategory.API_CALL, error_msg)
                     stats['errors'].append(error_msg)
 
             # 更新刷新时间
@@ -174,7 +175,7 @@ class AwardBookService:
 
         except Exception as e:
             error_msg = f'刷新过程出错: {e}'
-            logger.error(error_msg)
+            log_error(ErrorCategory.API_CALL, error_msg)
             stats['errors'].append(error_msg)
 
         return stats
@@ -214,7 +215,7 @@ class AwardBookService:
                 process_result = self._process_single_book(award, book_data, category)
                 result[process_result] += 1
             except Exception as e:
-                logger.error(f'处理图书失败 {book_data.get("title")}: {e}')
+                log_error(ErrorCategory.API_CALL, f'处理图书失败 {book_data.get("title")}: {e}')
                 result['failed'] += 1
 
             # 延迟避免请求过快
@@ -389,7 +390,7 @@ class AwardBookService:
                 time.sleep(0.3)
 
             except Exception as e:
-                logger.error(f'❌ 获取封面失败: {e}')
+                log_error(ErrorCategory.API_CALL, f'❌ 获取封面失败: {e}')
                 stats['failed'] += 1
 
         db.session.commit()
@@ -426,7 +427,7 @@ class AwardBookService:
         try:
             return Award.query.all()
         except Exception as e:
-            logger.error(f'获取奖项列表失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'获取奖项列表失败: {e}')
             return []
 
     def get_award_by_id(self, award_id: int) -> Award | None:
@@ -434,7 +435,7 @@ class AwardBookService:
         try:
             return db.session.get(Award, award_id)
         except Exception as e:
-            logger.error(f'获取奖项失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'获取奖项失败: {e}')
             return None
 
     def get_award_by_name(self, name: str) -> Award | None:
@@ -442,7 +443,7 @@ class AwardBookService:
         try:
             return Award.query.filter_by(name=name).first()
         except Exception as e:
-            logger.error(f'获取奖项失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'获取奖项失败: {e}')
             return None
 
     def get_award_books(
@@ -490,7 +491,7 @@ class AwardBookService:
             )
             return books, total
         except Exception as e:
-            logger.error(f'查询获奖图书失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'查询获奖图书失败: {e}')
             return [], 0
 
     def get_award_book_by_id(self, book_id: int) -> AwardBook | None:
@@ -498,7 +499,7 @@ class AwardBookService:
         try:
             return db.session.get(AwardBook, book_id)
         except Exception as e:
-            logger.error(f'获取获奖图书失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'获取获奖图书失败: {e}')
             return None
 
     def search_award_books(self, keyword: str, page: int = 1, limit: int = 20) -> tuple[list[AwardBook], int]:
@@ -516,7 +517,7 @@ class AwardBookService:
             books = query.order_by(AwardBook.year.desc()).offset((page - 1) * limit).limit(limit).all()
             return books, total
         except Exception as e:
-            logger.error(f'搜索获奖图书失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'搜索获奖图书失败: {e}')
             return [], 0
 
     def get_distinct_years(self, award_id: int | None = None) -> list[int]:
@@ -528,7 +529,7 @@ class AwardBookService:
             query = query.order_by(AwardBook.year.desc())
             return [y[0] for y in query.all() if y[0]]
         except Exception as e:
-            logger.error(f'获取年份列表失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'获取年份列表失败: {e}')
             return []
 
     def get_book_counts_by_award(self, displayable_only: bool = False) -> dict[int, int]:
@@ -541,7 +542,7 @@ class AwardBookService:
                 query = query.filter(AwardBook.is_displayable)
             return dict(query.all())
         except Exception as e:
-            logger.error(f'获取图书计数失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'获取图书计数失败: {e}')
             return {}
 
     def find_award_book_by_isbn(self, isbn: str) -> AwardBook | None:
@@ -549,5 +550,5 @@ class AwardBookService:
         try:
             return AwardBook.query.filter_by(isbn13=isbn).first()
         except Exception as e:
-            logger.error(f'根据 ISBN 查找获奖图书失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'根据 ISBN 查找获奖图书失败: {e}')
             return None

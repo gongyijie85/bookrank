@@ -4,6 +4,7 @@ from flask import request
 
 from ...services.award_book_service import AwardBookService
 from ...utils.api_helpers import APIResponse, validate_pagination
+from ...utils.error_handler import ErrorCategory, log_error
 from . import api_bp
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ def get_awards():
         return APIResponse.success(data={'awards': [award.to_dict() for award in awards]})
 
     except Exception as e:
-        logger.error(f'获取奖项列表错误: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'获取奖项列表错误: {e}', exc_info=True)
         return APIResponse.error('获取奖项列表失败', 500)
 
 
@@ -53,7 +54,7 @@ def get_award_books(award_id: int):
         )
 
     except Exception as e:
-        logger.error(f'获取奖项图书错误: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'获取奖项图书错误: {e}', exc_info=True)
         return APIResponse.error('获取图书列表失败', 500)
 
 
@@ -84,7 +85,7 @@ def get_all_award_books():
         )
 
     except Exception as e:
-        logger.error(f'获取图书列表错误: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'获取图书列表错误: {e}', exc_info=True)
         return APIResponse.error('获取图书列表失败', 500)
 
 
@@ -99,7 +100,7 @@ def get_award_book_detail(book_id: int):
         return APIResponse.success(data={'book': book.to_dict(include_zh=True)})
 
     except Exception as e:
-        logger.error(f'获取图书详情错误: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'获取图书详情错误: {e}', exc_info=True)
         return APIResponse.error('获取图书详情失败', 500)
 
 
@@ -128,5 +129,5 @@ def search_award_books():
         )
 
     except Exception as e:
-        logger.error(f'搜索图书错误: {e}', exc_info=True)
+        log_error(ErrorCategory.API_CALL, f'搜索图书错误: {e}', exc_info=True)
         return APIResponse.error('搜索失败', 500)

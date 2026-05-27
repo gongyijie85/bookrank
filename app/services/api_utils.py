@@ -10,6 +10,8 @@ from requests.adapters import HTTPAdapter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from urllib3.util.retry import Retry
 
+from ..utils.error_handler import ErrorCategory, log_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +48,7 @@ def _get_api_cache_service():
 
         return get_api_cache_service()
     except Exception as e:
-        logger.warning(f'API缓存服务初始化失败: {e}')
+        log_error(ErrorCategory.API_CALL, f'API缓存服务初始化失败: {e}', level='warning')
         return None
 
 
@@ -65,7 +67,7 @@ def _safe_cache_set(
     try:
         cache_service.set(namespace, key, data, ttl_seconds=ttl_seconds, is_error=is_error, error_message=error_message)
     except Exception as e:
-        logger.warning('安全写入缓存失败 [%s/%s]: %s', namespace, key, e)
+        log_error(ErrorCategory.API_CALL, f'安全写入缓存失败 [{namespace}/{key}]: {e}', level='warning')
 
 
 def api_retry(max_attempts: int = 3, backoff_factor: float = 2.0):
@@ -130,7 +132,7 @@ class ImageCacheService:
             return relative_path
 
         except Exception as e:
-            logger.warning(f'Failed to cache image from {original_url}: {e}')
+            log_error(ErrorCategory.API_CALL, f'Failed to cache image from {original_url}: {e}', level='warning')
             return self._default_cover
 
     def _update_memory_cache(self, key: str, value: str, timestamp: float):

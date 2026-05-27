@@ -6,6 +6,7 @@ from flask import Blueprint, request
 from ..models.database import db
 from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
+from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.error_tracker import error_tracker
 from ..utils.service_helpers import get_book_service, get_google_books_client, get_image_cache_service
 
@@ -40,7 +41,7 @@ def sync_award_covers():
         return APIResponse.success(data=result, message=f'同步完成: 更新{result.get("updated", 0)}本')
 
     except Exception as e:
-        logger.error(f'同步获取书籍封面失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'同步获取书籍封面失败: {e}', exc_info=True)
         return APIResponse.error('同步失败', 500)
 
 
@@ -63,7 +64,7 @@ def get_award_covers_status():
         return APIResponse.success(data=status)
 
     except Exception as e:
-        logger.error(f'获取封面状态失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取封面状态失败: {e}', exc_info=True)
         return APIResponse.error('获取状态失败', 500)
 
 
@@ -118,7 +119,7 @@ def regenerate_weekly_report():
             return APIResponse.error('生成失败：数据不足或AI服务异常', 500)
 
     except Exception as e:
-        logger.error(f'重新生成周报失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'重新生成周报失败: {e}', exc_info=True)
         return APIResponse.error(f'重新生成失败: {e!s}', 500)
 
 
@@ -178,7 +179,7 @@ def regenerate_all_weekly_reports():
         )
 
     except Exception as e:
-        logger.error(f'批量重新生成周报失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'批量重新生成周报失败: {e}', exc_info=True)
         return APIResponse.error(f'批量修复失败: {e!s}', 500)
 
 
@@ -234,7 +235,7 @@ def cleanup_categories():
             )
 
     except Exception as e:
-        logger.error(f'清理分类数据失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'清理分类数据失败: {e}', exc_info=True)
         return APIResponse.error(f'清理失败: {e!s}', 500)
 
 
@@ -336,7 +337,7 @@ def clean_report_brackets():
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f'清理周报书名号失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'清理周报书名号失败: {e}', exc_info=True)
         return APIResponse.error(f'清理失败: {e!s}', 500)
 
 
@@ -418,7 +419,7 @@ def fix_truncated_titles():
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f'修复截断书名失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'修复截断书名失败: {e}', exc_info=True)
         return APIResponse.error(f'修复失败: {e!s}', 500)
 
 
@@ -529,7 +530,7 @@ def cleanup_translations():
             )
 
     except Exception as e:
-        logger.error(f'清理翻译缓存失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'清理翻译缓存失败: {e}', exc_info=True)
         return APIResponse.error(f'清理失败: {e!s}', 500)
 
 
@@ -548,7 +549,7 @@ def view_errors():
             }
         )
     except Exception as e:
-        logger.error(f'获取错误记录失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'获取错误记录失败: {e}', exc_info=True)
         return APIResponse.error('获取失败', 500)
 
 
@@ -561,5 +562,5 @@ def clear_errors():
         error_tracker.clear()
         return APIResponse.success(message='错误记录已清空')
     except Exception as e:
-        logger.error(f'清空错误记录失败: {e}', exc_info=True)
+        log_error(ErrorCategory.DB_QUERY, f'清空错误记录失败: {e}', exc_info=True)
         return APIResponse.error('清空失败', 500)

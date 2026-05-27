@@ -4,6 +4,7 @@ from typing import Any
 
 from ..models.database import db
 from ..models.schemas import BookMetadata, SearchHistory, UserCategory, UserPreference, UserViewedBook
+from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class UserService:
 
             db.session.commit()
         except Exception as e:
-            logger.error(f'Failed to save user categories: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'Failed to save user categories: {e}')
             db.session.rollback()
 
     def save_viewed_books(self, session_id: str, isbns: list[str]) -> None:
@@ -38,7 +39,7 @@ class UserService:
                     db.session.add(UserViewedBook(session_id=session_id, isbn=isbn))
             db.session.commit()
         except Exception as e:
-            logger.error(f'Failed to save viewed books: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'Failed to save viewed books: {e}')
             db.session.rollback()
 
     def save_search_history(self, session_id: str, keyword: str, result_count: int) -> None:
@@ -47,7 +48,7 @@ class UserService:
             db.session.add(SearchHistory(session_id=session_id, keyword=keyword, result_count=result_count))
             db.session.commit()
         except Exception as e:
-            logger.error(f'Failed to save search history: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'Failed to save search history: {e}')
             db.session.rollback()
 
     def get_preferences(self, session_id: str) -> dict[str, Any]:
@@ -71,7 +72,7 @@ class UserService:
 
             db.session.commit()
         except Exception as e:
-            logger.error(f'Failed to update preferences: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'Failed to update preferences: {e}')
             db.session.rollback()
 
     def get_search_history(self, session_id: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -89,7 +90,7 @@ class UserService:
         try:
             return db.session.get(BookMetadata, isbn)
         except Exception as e:
-            logger.error(f'获取图书元数据失败: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'获取图书元数据失败: {e}')
             return None
 
     def save_book_translation(
@@ -124,6 +125,6 @@ class UserService:
             db.session.commit()
             return True
         except Exception as e:
-            logger.error(f'保存翻译失败 ISBN {isbn}: {e}')
+            log_error(ErrorCategory.DB_QUERY, f'保存翻译失败 ISBN {isbn}: {e}')
             db.session.rollback()
             return False
