@@ -50,7 +50,7 @@ jobs:
       - name: Lint check
         run: |
           pip install ruff
-          ruff check app/ --select=E,F --exit-zero
+          ruff check app/
 
       - name: Build static assets
         run: python build.py

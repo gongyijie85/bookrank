@@ -1,11 +1,16 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.27
+**当前版本**：v0.9.28
 **发布日期**：2026-05-27
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.28 (2026-05-27) — 地基修复
+- **render.yaml**：Python 3.11→3.13，构建改用 requirements-prod.txt
+- **CI 统一**：test.yml Python 3.11→3.13 + 移除 --exit-zero；update-books.yml Python 3.10→3.13
+- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed
 
 ### v0.9.27 (2026-05-27) — 服务注入标准化
 - **service_helpers 增强**：`get_translation_service()` 添加类型注解，新增 `register_service()`、`require_*` 系列

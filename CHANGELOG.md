@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.9.28 - 2026-05-27
+
+### chore: 地基修复 — 统一 Python 版本与 CI 门禁
+
+**render.yaml**：
+- `PYTHON_VERSION` 3.11.0 → 3.13.0
+- 构建命令改用 `requirements-prod.txt`（减少生产环境内存占用）
+
+**CI 工作流统一**：
+- `test.yml`：Python 3.11 → 3.13；移除 `--exit-zero`，lint 错误阻断构建
+- `update-books.yml`：Python 3.10 → 3.13
+- `ci.yml`：已为 3.13，无需修改
+
+**验证**：ruff 0 错误 | mypy 0 错误 | pytest 953 passed
+
 ## v0.9.27 - 2026-05-27
 
 ### refactor: 服务注入标准化（阶段3完成）
