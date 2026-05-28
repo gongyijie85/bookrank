@@ -38,7 +38,7 @@ class WikidataClient:
 
     @api_retry(max_attempts=2, backoff_factor=1.5)
     def query_award_winners(
-        self, award_key: str, start_year: int = 2020, end_year: int = 2025, limit: int = 100
+        self, award_key: str, start_year: int = 2020, end_year: int = 2026, limit: int = 100
     ) -> list:
         """查询指定奖项的获奖图书"""
         award_id = self.AWARD_IDS.get(award_key)
@@ -115,7 +115,7 @@ class WikidataClient:
 
         return books
 
-    def get_all_award_books(self, awards: list | None = None, start_year: int = 2020, end_year: int = 2025) -> dict:
+    def get_all_award_books(self, awards: list | None = None, start_year: int = 2020, end_year: int = 2026) -> dict:
         """获取多个奖项的获奖图书"""
         if awards is None:
             awards = list(self.AWARD_IDS.keys())

@@ -118,7 +118,7 @@ class AwardBookService:
         logger.info('✅ 已更新刷新时间')
 
     def refresh_award_books(
-        self, award_keys: list[str] = None, start_year: int = 2020, end_year: int = 2025, force: bool = False
+        self, award_keys: list[str] = None, start_year: int = 2020, end_year: int = 2026, force: bool = False
     ) -> dict[str, Any]:
         """
         刷新获奖图书数据
