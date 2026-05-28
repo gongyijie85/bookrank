@@ -5,8 +5,10 @@ CSS + JS 构建脚本 - 压缩静态资源
 CSS: 合并 base + components + animations → all.min.css
 JS:  各文件独立压缩 → *.min.js
 """
+
 import os
 import re
+
 import rcssmin
 
 STATIC_CSS_DIR = os.path.join(os.path.dirname(__file__), 'static', 'css')
@@ -74,7 +76,7 @@ def build_js():
             total_compressed += compressed
             continue
 
-        with open(src, 'r', encoding='utf-8') as f:
+        with open(src, encoding='utf-8') as f:
             original = f.read()
 
         compressed = minify_js(original)
@@ -124,7 +126,7 @@ def build_css():
         filepath = os.path.join(STATIC_CSS_DIR, filename)
         if not os.path.exists(filepath):
             continue
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding='utf-8') as f:
             content = f.read()
         combined += content + '\n'
         print(f'  - {filename} ({len(content)} bytes)')

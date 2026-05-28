@@ -151,7 +151,7 @@ class NewBookQueryService:
                     NewBook.publication_date <= today,  # type: ignore[operator]
                 ),
                 db.and_(
-                    NewBook.publication_date == None,  # noqa: E711
+                    NewBook.publication_date.is_(None),
                     NewBook.created_at >= cutoff_datetime,
                     NewBook.created_at < tomorrow_datetime,
                 ),

@@ -39,7 +39,7 @@ class TranslationPipeline:
 
     def translate_book_background(self, book_id: int, translation_service: Any) -> None:
         try:
-            book = NewBook.query.get(book_id)
+            book = db.session.get(NewBook, book_id)
             if not book:
                 return
 

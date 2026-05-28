@@ -372,7 +372,7 @@ class SyncEngine:
         return result
 
     def ensure_static_data_seeded(self) -> dict[str, Any] | None:
-        existing_books = NewBook.query.filter(NewBook.is_displayable == True).count()  # noqa: E712
+        existing_books = NewBook.query.filter(NewBook.is_displayable.is_(True)).count()
         if existing_books > 0:
             return None
         return self.seed_from_static_data()

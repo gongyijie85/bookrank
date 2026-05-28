@@ -127,7 +127,9 @@ def main() -> int:
     parser.add_argument('--pack', default='static/data/book_language_pack.zh.json', help='Language pack JSON path')
     parser.add_argument('--cache-dir', default='cache', help='Book cache directory')
     parser.add_argument('--static-data-dir', default='static/data', help='Static data directory')
-    parser.add_argument('--skip-static-new-books', action='store_true', help='Do not translate static new-book JSON files')
+    parser.add_argument(
+        '--skip-static-new-books', action='store_true', help='Do not translate static new-book JSON files'
+    )
     parser.add_argument('--skip-db-new-books', action='store_true', help='Do not translate new_books rows from the DB')
     parser.add_argument('--limit', type=int, default=0, help='Limit translated books for debugging')
     args = parser.parse_args()

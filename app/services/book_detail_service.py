@@ -1,5 +1,4 @@
 import logging
-import re
 
 from flask import current_app
 
@@ -15,18 +14,11 @@ from ..utils.service_helpers import (
 logger = logging.getLogger(__name__)
 
 
+
 def is_valid_isbn(value: str | None) -> bool:
-    if not value:
-        return False
-    clean = re.sub(r'[\s\-]', '', value)
-    if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
-        return True
-    if len(clean) == 10:
-        prefix = clean[:9]
-        suffix = clean[9]
-        if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
-            return True
-    return False
+    """验证ISBN格式（委托给 api_helpers.validate_isbn）"""
+    from ..utils.api_helpers import validate_isbn
+    return validate_isbn(value)
 
 
 def fetch_google_books_details(book: dict, isbn: str) -> None:
@@ -43,7 +35,7 @@ def fetch_google_books_details(book: dict, isbn: str) -> None:
     if cache_service:
         try:
             cached = cache_service.get(cache_key)
-            if cached:
+            if cached and isinstance(cached, dict):
                 update_book_from_google_books(book, cached)
                 return
         except Exception as e:
@@ -55,7 +47,7 @@ def fetch_google_books_details(book: dict, isbn: str) -> None:
 
     try:
         details = google_client.fetch_book_details(isbn)
-        if not details:
+        if not details or not isinstance(details, dict):
             return
 
         update_book_from_google_books(book, details)

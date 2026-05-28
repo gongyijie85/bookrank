@@ -79,6 +79,20 @@ def db_transaction() -> Generator[Session]:
         raise
 
 
+def get_or_create_google_books_client() -> GoogleBooksClient:
+    """获取 GoogleBooksClient，若未初始化则创建兜底实例"""
+    client = get_google_books_client()
+    if client:
+        return client
+    from ..config import Config
+    from ..services.google_books_client import GoogleBooksClient
+
+    return GoogleBooksClient(
+        api_key=Config.GOOGLE_API_KEY,
+        base_url='https://www.googleapis.com/books/v1/volumes',
+    )
+
+
 def get_google_books_client() -> GoogleBooksClient | None:
     book_service = get_book_service()
     if book_service and hasattr(book_service, '_google_client'):

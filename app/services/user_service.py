@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ..models.database import db
-from ..models.schemas import BookMetadata, SearchHistory, UserCategory, UserPreference, UserViewedBook
+from ..models.schemas import BookMetadata, SearchHistory, UserCategory, UserFavorite, UserPreference, UserViewedBook
 from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class UserService:
     def save_user_categories(self, session_id: str, category_ids: list[str]) -> None:
         """保存用户分类偏好"""
         try:
-            preference = UserPreference.query.get(session_id)
+            preference = db.session.get(UserPreference, session_id)
             if not preference:
                 preference = UserPreference(session_id=session_id)
                 db.session.add(preference)
@@ -84,6 +84,35 @@ class UserService:
             .all()
         )
         return [h.to_dict() for h in history]
+
+    def get_favorites(self, session_id: str) -> list[dict]:
+        """获取用户收藏列表"""
+        favorites = UserFavorite.query.filter_by(session_id=session_id).order_by(UserFavorite.created_at.desc()).all()
+        return [f.to_dict() for f in favorites]
+
+    def add_favorite(self, session_id: str, isbn: str) -> tuple[dict, bool]:
+        """添加收藏，返回 (收藏对象字典, 是否新增)"""
+        existing = UserFavorite.query.filter_by(session_id=session_id, isbn=isbn).first()
+        if existing:
+            return existing.to_dict(), False
+        fav = UserFavorite(session_id=session_id, isbn=isbn)
+        db.session.add(fav)
+        db.session.commit()
+        return fav.to_dict(), True
+
+    def remove_favorite(self, session_id: str, isbn: str) -> bool:
+        """删除收藏，返回是否成功"""
+        fav = UserFavorite.query.filter_by(session_id=session_id, isbn=isbn).first()
+        if not fav:
+            return False
+        db.session.delete(fav)
+        db.session.commit()
+        return True
+
+    def check_favorite(self, session_id: str, isbn: str) -> bool:
+        """检查是否已收藏"""
+        fav = UserFavorite.query.filter_by(session_id=session_id, isbn=isbn).first()
+        return fav is not None
 
     def get_book_metadata(self, isbn: str) -> BookMetadata | None:
         """获取图书元数据（翻译缓存）"""

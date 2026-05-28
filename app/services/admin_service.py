@@ -17,21 +17,6 @@ def batch_update_categories(id_to_category: dict[int, str]) -> int:
     db.session.commit()
     return len(books)
 
-
-def commit_batch_fix(items: list, fix_fn) -> int:
-    """通用批量修复：对每条记录执行 fix_fn，返回修复条数"""
-    updated = 0
-    for item in items:
-        obj = db.session.get(
-            type(item) if hasattr(item, '__class__') else item.__class__, item.id if hasattr(item, 'id') else item
-        )
-        if obj:
-            fix_fn(obj)
-            updated += 1
-    db.session.commit()
-    return updated
-
-
 def get_weekly_report_by_id(report_id: int):
     """获取周报记录"""
     from ..models.schemas import WeeklyReport

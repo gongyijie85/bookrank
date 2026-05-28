@@ -11,9 +11,8 @@
 - 请勿删除此文件，保留历史记录
 - 全新环境请按顺序执行所有迁移
 """
-from alembic import op
-import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '3d9883f1b5ed'

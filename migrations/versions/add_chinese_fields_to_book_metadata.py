@@ -5,9 +5,9 @@ Revises: 3d9883f1b5ed
 Create Date: 2026-04-16 16:50:00.000000
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'add_chinese_fields'

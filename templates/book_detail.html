@@ -4,13 +4,6 @@
 {% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
 {% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
 
-{% block extra_css %}
-<style nonce="{{ csp_nonce() }}">
-/* Inline critical above-fold styles for book detail */
-.detail-cover img { border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-</style>
-{% endblock %}
-
 {% block content %}
 
 <!-- Book Structured Data for SEO -->
@@ -219,6 +212,8 @@
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce() }}">
+/* Inline critical above-fold styles */
+.detail-cover img { border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 /* ============================================
    书籍详情页样式 (Apple Design System)
    ============================================ */

@@ -157,16 +157,10 @@ class TestContextProcessors:
         fn = app.jinja_env.globals['get_locale']
         assert callable(fn)
 
-    def test_inject_locale_returns_get_locale(self, app):
+    def test_get_locale_via_jinja_globals(self, app):
         with app.app_context(), app.test_request_context('/?lang=zh'):
-            processors = app.template_context_processors[None]
-            inject_locale = None
-            for proc in processors:
-                result = proc()
-                if 'get_locale' in result:
-                    inject_locale = proc
-                    break
-            assert inject_locale is not None
+            assert 'get_locale' in app.jinja_env.globals
+            assert app.jinja_env.globals['get_locale']() == 'zh'
 
     def test_csp_nonce_in_jinja_globals(self, app):
         with app.app_context():

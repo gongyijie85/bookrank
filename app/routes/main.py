@@ -1,5 +1,5 @@
-import pathlib
 import logging
+import pathlib
 import re
 from pathlib import Path
 
@@ -664,13 +664,13 @@ def export_weekly_report(date):
 
 @main_bp.route('/robots.txt')
 def robots_txt():
-    """Serve robots.txt for search engine crawlers""" 
+    """Serve robots.txt for search engine crawlers"""
     return send_from_directory(str(PROJECT_ROOT / 'static'), 'robots.txt', mimetype='text/plain')
 
 
 @main_bp.route('/sitemap.xml')
 def sitemap_xml():
-    """Serve sitemap.xml for search engine crawlers""" 
+    """Serve sitemap.xml for search engine crawlers"""
     return send_from_directory(str(PROJECT_ROOT / 'static'), 'sitemap.xml', mimetype='application/xml')
 
 

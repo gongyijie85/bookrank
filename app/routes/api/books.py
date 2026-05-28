@@ -243,17 +243,8 @@ def get_book_details(isbn: str):
         if not validate_isbn(isbn):
             return APIResponse.error('Invalid ISBN format', 400)
 
-        book_service = get_book_service()
-        google_client = book_service._google_client if book_service else None
-
-        if not google_client:
-            from ...services.api_client import GoogleBooksClient
-
-            google_client = GoogleBooksClient(
-                api_key=current_app.config.get('GOOGLE_API_KEY'),
-                base_url=current_app.config.get('GOOGLE_BOOKS_API_URL', 'https://www.googleapis.com/books/v1/volumes'),
-                timeout=10,
-            )
+        from ...utils.service_helpers import get_or_create_google_books_client
+        google_client = get_or_create_google_books_client()
 
         try:
             book_data = google_client.fetch_book_details(isbn)

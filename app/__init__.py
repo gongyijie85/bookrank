@@ -89,11 +89,6 @@ def create_app(config_name: str | None = None) -> Flask:
     # 将 get_locale 注入 Jinja2 全局命名空间（确保所有模板包括导入的宏都能访问）
     app.jinja_env.globals['get_locale'] = _get_locale
 
-    # 同时注入模板上下文（兼容旧代码）
-    @app.context_processor
-    def inject_locale():
-        return {'get_locale': _get_locale}
-
     import atexit
 
     atexit.register(lambda: shutdown_scheduler(app))
@@ -103,8 +98,6 @@ def create_app(config_name: str | None = None) -> Flask:
 
 def _get_locale() -> str:
     """语言选择器：URL参数 > Cookie > Accept-Language > 默认en"""
-    from flask import request
-
     # 1. URL 参数
     lang = request.args.get('lang')
     if lang in ('en', 'zh'):
@@ -476,20 +469,9 @@ def _register_jinja_filters(app: Flask) -> None:
 
     @app.template_filter('is_valid_isbn')
     def is_valid_isbn_filter(value: str | None) -> bool:
-        """校验字符串是否为合法 ISBN-10 或 ISBN-13"""
-        if not value:
-            return False
-        clean = re.sub(r'[\s\-]', '', value)
-        # ISBN-13: 必须以 978/979 开头，13 位纯数字
-        if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
-            return True
-        # ISBN-10: 10 位，前 9 位数字，末位可为 X/x
-        if len(clean) == 10:
-            prefix = clean[:9]
-            suffix = clean[9]
-            if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
-                return True
-        return False
+        """校验字符串是否为合法 ISBN-10 或 ISBN-13（委托给 validate_isbn）"""
+        from .utils.api_helpers import validate_isbn
+        return validate_isbn(value)
 
     @app.template_filter('clean_isbn')
     def clean_isbn_filter(value: str | None) -> str:

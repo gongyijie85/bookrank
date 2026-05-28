@@ -15,9 +15,9 @@ Create Date: 2026-05-14 00:00:00.000000
   - publishers（出版社）
   - new_books（新书）
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'create_all_missing_tables'
@@ -121,7 +121,10 @@ def upgrade():
         sa.Column('user_agent', sa.String(length=500), nullable=True),
         sa.Column('ip_address', sa.String(length=50), nullable=True),
         sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['report_id'], ['weekly_reports.id'], ),
+        sa.ForeignKeyConstraint(
+            ['report_id'],
+            ['weekly_reports.id'],
+        ),
     )
     with op.batch_alter_table('report_views', schema=None) as batch_op:
         batch_op.create_index('idx_report_views_report_session', ['report_id', 'session_id'], unique=False)

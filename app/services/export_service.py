@@ -1,4 +1,4 @@
-"""导出服务"""
+﻿"""导出服务"""
 
 import json
 import logging
@@ -13,31 +13,42 @@ from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
 
-# 中文字体路径（项目内置SimHei黑体）
+# 中文字体路径（项目内置SimHei黑体，回退系统字体）
 FONT_DIR = Path(__file__).parent.parent.parent / 'static' / 'fonts'
 CHINESE_FONT = FONT_DIR / 'simhei.ttf'
+_SYSTEM_FONT_CANDIDATES = [
+    Path('C:/Windows/Fonts/simhei.ttf'),
+    Path('C:/Windows/Fonts/msyh.ttc'),
+    Path('/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc'),
+    Path('/System/Library/Fonts/PingFang.ttc'),
+]
 
 
 class ExportService:
     """导出服务类"""
 
     def _init_pdf_font(self, pdf: FPDF) -> bool:
-        """初始化PDF中文字体
-
-        Args:
-            pdf: FPDF实例
-
-        Returns:
-            bool: 是否成功注册中文字体
-        """
+        """初始化PDF中文字体（项目字体 -> 系统字体 -> 回退ASCII）"""
+        # 1. 尝试项目内置字体
         if CHINESE_FONT.exists():
             try:
-                pdf.add_font('SimHei', '', str(CHINESE_FONT))
-                pdf.add_font('SimHei', 'B', str(CHINESE_FONT))
+                pdf.add_font("SimHei", "", str(CHINESE_FONT))
+                pdf.add_font("SimHei", "B", str(CHINESE_FONT))
                 return True
             except Exception as e:
-                log_error(ErrorCategory.UNKNOWN, f'加载中文字体失败: {e}', level='warning')
-                return False
+                log_error(ErrorCategory.UNKNOWN, f"加载项目中文字体失败: {e}", level="warning")
+        # 2. 尝试系统字体
+        for font_path in _SYSTEM_FONT_CANDIDATES:
+            if font_path.exists():
+                try:
+                    pdf.add_font("SimHei", "", str(font_path))
+                    pdf.add_font("SimHei", "B", str(font_path))
+                    logger.info(f"使用系统中文字体: {font_path}")
+                    return True
+                except Exception:
+                    continue
+        logger.warning("未找到可用的中文字体，PDF将仅支持ASCII字符")
+        return False
         logger.warning(f'中文字体文件不存在: {CHINESE_FONT}')
         return False
 

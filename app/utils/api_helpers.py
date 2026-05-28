@@ -128,18 +128,19 @@ def handle_api_errors(f: Callable[..., Any]) -> Callable[..., Any]:
     return wrapped
 
 
-def validate_isbn(isbn: str) -> bool:
-    """验证ISBN格式（ISBN-10 或 ISBN-13）"""
-    if not isbn:
+def validate_isbn(value: str | None) -> bool:
+    """验证ISBN格式（ISBN-10 或 ISBN-13，严格校验978/979前缀）"""
+    if not value:
         return False
-    clean_isbn = re.sub(r'[^0-9X]', '', isbn.upper())
-    if len(clean_isbn) == 10:
-        return bool(re.match(r'^\d{9}[\dX]$', clean_isbn))
-    elif len(clean_isbn) == 13:
-        return bool(re.match(r'^\d{13}$', clean_isbn))
+    clean = re.sub(r'[\s\-]', '', value)
+    if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
+        return True
+    if len(clean) == 10:
+        prefix = clean[:9]
+        suffix = clean[9]
+        if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
+            return True
     return False
-
-
 def validate_pagination(page: int, limit: int, max_limit: int = 50) -> tuple[int, int]:
     """验证并规范化分页参数"""
     page = min(max(1, page), 10000)

@@ -21,7 +21,7 @@ from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.error_tracker import error_tracker
-from ..utils.service_helpers import get_book_service, get_google_books_client, get_image_cache_service
+from ..utils.service_helpers import get_book_service, get_image_cache_service
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 logger = logging.getLogger(__name__)
@@ -36,15 +36,8 @@ def sync_award_covers():
     """手动触发获奖书籍封面同步"""
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
-
-        google_client = get_google_books_client()
-        if not google_client:
-            from ..config import Config
-            from ..services.google_books_client import GoogleBooksClient
-
-            google_client = GoogleBooksClient(
-                api_key=Config.GOOGLE_API_KEY, base_url='https://www.googleapis.com/books/v1/volumes'
-            )
+        from ..utils.service_helpers import get_or_create_google_books_client
+        google_client = get_or_create_google_books_client()
 
         sync_service = AwardCoverSyncService(google_client, image_cache=get_image_cache_service())
 
@@ -66,12 +59,8 @@ def get_award_covers_status():
     """获取获奖书籍封面同步状态"""
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
-
-        google_client = get_google_books_client()
-        if not google_client:
-            from ..services.google_books_client import GoogleBooksClient
-
-            google_client = GoogleBooksClient(api_key=None, base_url='https://www.googleapis.com/books/v1/volumes')
+        from ..utils.service_helpers import get_or_create_google_books_client
+        google_client = get_or_create_google_books_client()
 
         sync_service = AwardCoverSyncService(google_client)
         status = sync_service.get_sync_status()

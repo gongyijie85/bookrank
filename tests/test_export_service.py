@@ -62,6 +62,7 @@ class TestInitPdfFont:
         result = export_service._init_pdf_font(pdf)
         assert isinstance(result, bool)
 
+    @patch('app.services.export_service._SYSTEM_FONT_CANDIDATES', [])
     @patch('app.services.export_service.CHINESE_FONT')
     def test_font_not_exists(self, mock_font_path, export_service):
         from fpdf import FPDF

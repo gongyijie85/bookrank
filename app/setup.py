@@ -423,19 +423,12 @@ def _cover_sync_task(app):
     """获奖书籍封面自动同步任务"""
     try:
         from .services.award_cover_sync_service import AwardCoverSyncService
-        from .utils.service_helpers import get_google_books_client, get_image_cache_service
+        from .utils.service_helpers import get_image_cache_service
 
         app.logger.info('开始检查获奖书籍封面...')
 
-        google_client = get_google_books_client()
-
-        if not google_client:
-            from .config import Config
-            from .services.google_books_client import GoogleBooksClient
-
-            google_client = GoogleBooksClient(
-                api_key=Config.GOOGLE_API_KEY, base_url='https://www.googleapis.com/books/v1/volumes'
-            )
+        from .utils.service_helpers import get_or_create_google_books_client
+        google_client = get_or_create_google_books_client()
 
         sync_service = AwardCoverSyncService(
             google_client,

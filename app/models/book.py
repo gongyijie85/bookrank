@@ -42,20 +42,9 @@ class Book:
 
     @classmethod
     def _is_valid_isbn(cls, value: str) -> bool:
-        """校验字符串是否为合法 ISBN-10 或 ISBN-13"""
-        if not value:
-            return False
-        import re
-
-        clean = re.sub(r'[\s\-]', '', value)
-        if len(clean) == 13 and clean.startswith(('978', '979')) and clean.isdigit():
-            return True
-        if len(clean) == 10:
-            prefix = clean[:9]
-            suffix = clean[9]
-            if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
-                return True
-        return False
+        """校验字符串是否为合法 ISBN-10 或 ISBN-13（委托给 api_helpers.validate_isbn）"""
+        from ..utils.api_helpers import validate_isbn
+        return validate_isbn(value)
 
     @classmethod
     def from_api_response(

@@ -9,9 +9,10 @@
     2. 将这些分类置为 NULL
     3. 输出清理统计
 """
+
+import os
 import re
 import sys
-import os
 
 # 将项目根目录加入 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,13 +21,23 @@ from app import create_app
 from app.models.database import db
 from app.models.new_book import NewBook
 
-
 # 营销关键词列表
 MARKETING_KEYWORDS = [
-    'learn more', 'read more', 'see what', 'take the quiz',
-    'join our', 'browse all', 'how to', 'on the rise',
-    'you need to', 'you love', 'audiobook', 'events',
-    'new releases', 'new stories', 'lists, essays',
+    'learn more',
+    'read more',
+    'see what',
+    'take the quiz',
+    'join our',
+    'browse all',
+    'how to',
+    'on the rise',
+    'you need to',
+    'you love',
+    'audiobook',
+    'events',
+    'new releases',
+    'new stories',
+    'lists, essays',
 ]
 
 
@@ -52,10 +63,7 @@ def is_invalid_category(category: str) -> bool:
         return True
 
     # 引号检查
-    if '"' in category or '"' in category or '"' in category:
-        return True
-
-    return False
+    return '"' in category or '"' in category or '"' in category
 
 
 def cleanup_categories(dry_run: bool = True):
@@ -69,12 +77,9 @@ def cleanup_categories(dry_run: bool = True):
 
     with app.app_context():
         # 查询所有有分类的书籍
-        books = NewBook.query.filter(
-            NewBook.category.isnot(None),
-            NewBook.is_displayable == True
-        ).all()
+        books = NewBook.query.filter(NewBook.category.isnot(None), NewBook.is_displayable).all()
 
-        print(f"共找到 {len(books)} 本有分类的书籍")
+        print(f'共找到 {len(books)} 本有分类的书籍')
 
         # 找出无效分类
         invalid_books = []
@@ -82,30 +87,30 @@ def cleanup_categories(dry_run: bool = True):
             if is_invalid_category(book.category):
                 invalid_books.append(book)
 
-        print(f"其中 {len(invalid_books)} 本有无效分类：")
-        print("-" * 60)
+        print(f'其中 {len(invalid_books)} 本有无效分类：')
+        print('-' * 60)
 
         for book in invalid_books:
-            print(f"  ID: {book.id}")
-            print(f"  书名: {book.title}")
-            print(f"  分类: {book.category[:80]}...")
+            print(f'  ID: {book.id}')
+            print(f'  书名: {book.title}')
+            print(f'  分类: {book.category[:80]}...')
             print()
 
         if not invalid_books:
-            print("没有发现无效分类数据！")
+            print('没有发现无效分类数据！')
             return
 
         if dry_run:
-            print("=" * 60)
-            print("这是预览模式，不会实际修改数据库。")
-            print("要执行清理，请运行：python scripts/cleanup_categories.py --execute")
+            print('=' * 60)
+            print('这是预览模式，不会实际修改数据库。')
+            print('要执行清理，请运行：python scripts/cleanup_categories.py --execute')
         else:
             # 执行清理
             for book in invalid_books:
                 book.category = None
 
             db.session.commit()
-            print(f"已清理 {len(invalid_books)} 条无效分类数据。")
+            print(f'已清理 {len(invalid_books)} 条无效分类数据。')
 
 
 if __name__ == '__main__':

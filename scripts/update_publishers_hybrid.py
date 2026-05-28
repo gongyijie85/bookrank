@@ -1,6 +1,7 @@
 """
 批量给出版社添加混合架构支持
 """
+
 import re
 
 # 混合架构代码模板 - 需要添加到每个出版社爬虫的 __init__ 后面
@@ -81,65 +82,64 @@ HYBRID_CODE_TEMPLATE = """
 
 def update_publisher_file(file_path):
     """更新单个出版社文件"""
-    print(f"\n📄 处理: {file_path}")
-    
-    with open(file_path, 'r', encoding='utf-8') as f:
+    print(f'\n📄 处理: {file_path}')
+
+    with open(file_path, encoding='utf-8') as f:
         content = f.read()
-    
+
     # 检查是否已经更新过了
     if '_crawl4ai_available' in content:
-        print(f"   ✅ 已经包含混合架构，跳过")
+        print('   ✅ 已经包含混合架构，跳过')
         return False
-    
+
     # 找到 __init__ 方法
     init_pattern = r'(def __init__\(self, config: CrawlerConfig \| None = None\):\s+super\(\).__init__\(config\)\s+if config is None:\s+self\.config\.request_delay = [\d.]+)'
-    
+
     match = re.search(init_pattern, content, re.MULTILINE | re.DOTALL)
-    
+
     if not match:
-        print(f"   ❌ 找不到 __init__ 方法")
+        print('   ❌ 找不到 __init__ 方法')
         return False
-    
+
     # 在 __init__ 后面插入混合架构代码
     old_init = match.group(1)
     new_init = old_init + HYBRID_CODE_TEMPLATE
-    
+
     content = content.replace(old_init, new_init)
-    
+
     # 替换 get_new_books 中的 response = self._make_request(url)
     content = re.sub(
         r'(response = self\._make_request\(url\)\s+if not response:\s+break\s+\s+soup = self\._parse_html\(response\.text\))',
         r'soup, source = self._make_request_with_fallback(url)\n        if not soup:\n            break\n\n        logger.info(f"✅ 使用 {source} 获取页面成功")',
-        content
+        content,
     )
-    
+
     # 替换 get_book_details 中的 response = self._make_request(book_url)
     content = re.sub(
         r'(response = self\._make_request\(book_url\)\s+if not response:\s+return None\s+\s+soup = self\._parse_html\(response\.text\))',
         r'soup, source = self._make_request_with_fallback(book_url)\n        if not soup:\n            return None\n\n        logger.info(f"✅ 使用 {source} 获取书籍详情成功")',
-        content
+        content,
     )
-    
+
     # 写入更新后的内容
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(content)
-    
-    print(f"   ✅ 更新成功")
+
+    print('   ✅ 更新成功')
     return True
 
 
 def main():
     """主函数"""
-    print("="*60)
-    print("🔧 批量更新出版社混合架构")
-    print("="*60)
-    
-    import sys
+    print('=' * 60)
+    print('🔧 批量更新出版社混合架构')
+    print('=' * 60)
+
     from pathlib import Path
-    
+
     project_root = Path(__file__).parent
     crawler_dir = project_root / 'app' / 'services' / 'publisher_crawler'
-    
+
     # 要更新的文件列表
     publishers = [
         'simon_schuster.py',
@@ -147,7 +147,7 @@ def main():
         'harpercollins.py',
         'macmillan.py',
     ]
-    
+
     updated_count = 0
     for pub_file in publishers:
         file_path = crawler_dir / pub_file
@@ -155,13 +155,12 @@ def main():
             if update_publisher_file(str(file_path)):
                 updated_count += 1
         else:
-            print(f"\n❌ 文件不存在: {file_path}")
-    
-    print("\n" + "="*60)
-    print(f"✅ 完成！更新了 {updated_count} 个文件")
-    print("="*60)
+            print(f'\n❌ 文件不存在: {file_path}')
+
+    print('\n' + '=' * 60)
+    print(f'✅ 完成！更新了 {updated_count} 个文件')
+    print('=' * 60)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-

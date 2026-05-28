@@ -5,9 +5,9 @@ Revises: add_chinese_fields
 Create Date: 2026-05-09 12:00:00.000000
 
 """
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 revision = 'add_csrf_tokens_table'
 down_revision = 'add_chinese_fields'

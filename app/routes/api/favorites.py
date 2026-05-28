@@ -2,8 +2,7 @@ import logging
 
 from flask import session
 
-from ...models.database import db
-from ...models.schemas import UserFavorite
+from ...services.user_service import UserService
 from ...utils.api_helpers import APIResponse
 from ...utils.error_handler import ErrorCategory, log_error
 
@@ -24,11 +23,11 @@ def register_favorite_routes(bp):
             if not sid:
                 return APIResponse.success(data={'favorites': [], 'total': 0})
 
-            favorites = UserFavorite.query.filter_by(session_id=sid).order_by(UserFavorite.created_at.desc()).all()
-            return APIResponse.success(data={'favorites': [f.to_dict() for f in favorites], 'total': len(favorites)})
+            _user_svc = UserService()
+            favorites = _user_svc.get_favorites(sid)
+            return APIResponse.success(data={'favorites': favorites, 'total': len(favorites)})
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取收藏列表失败: {e}')
-            db.session.rollback()
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites', methods=['POST'])
@@ -45,17 +44,13 @@ def register_favorite_routes(bp):
             if not sid:
                 return APIResponse.error('会话无效', 400)
 
-            existing = UserFavorite.query.filter_by(session_id=sid, isbn=isbn).first()
-            if existing:
-                return APIResponse.success(data=existing.to_dict(), message='已在收藏中')
-
-            fav = UserFavorite(session_id=sid, isbn=isbn)
-            db.session.add(fav)
-            db.session.commit()
-            return APIResponse.success(data=fav.to_dict(), message='收藏成功', status_code=201)
+            _user_svc = UserService()
+            result, is_new = _user_svc.add_favorite(sid, isbn)
+            if is_new:
+                return APIResponse.success(data=result, message='收藏成功', status_code=201)
+            return APIResponse.success(data=result, message='已在收藏中')
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'添加收藏失败: {e}')
-            db.session.rollback()
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites/<isbn>', methods=['DELETE'])
@@ -65,16 +60,13 @@ def register_favorite_routes(bp):
             if not sid:
                 return APIResponse.error('会话无效', 400)
 
-            fav = UserFavorite.query.filter_by(session_id=sid, isbn=isbn).first()
-            if not fav:
+            _user_svc = UserService()
+            removed = _user_svc.remove_favorite(sid, isbn)
+            if not removed:
                 return APIResponse.error('收藏不存在', 404)
-
-            db.session.delete(fav)
-            db.session.commit()
             return APIResponse.success(message='已取消收藏')
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'删除收藏失败: {e}')
-            db.session.rollback()
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites/check/<isbn>', methods=['GET'])
@@ -84,8 +76,9 @@ def register_favorite_routes(bp):
             if not sid:
                 return APIResponse.success(data={'is_favorited': False})
 
-            fav = UserFavorite.query.filter_by(session_id=sid, isbn=isbn).first()
-            return APIResponse.success(data={'is_favorited': fav is not None})
+            _user_svc = UserService()
+            is_fav = _user_svc.check_favorite(sid, isbn)
+            return APIResponse.success(data={'is_favorited': is_fav})
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'检查收藏状态失败: {e}')
             return APIResponse.error('Internal server error', 500)

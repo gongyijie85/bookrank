@@ -28,7 +28,7 @@ class TestSyncAwardCovers:
         mock_sync_service.sync_missing_covers.return_value = {'updated': 3, 'skipped': 2}
 
         with (
-            patch('app.routes.admin.get_google_books_client', return_value=MagicMock()),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
@@ -50,7 +50,7 @@ class TestSyncAwardCovers:
         mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
 
         with (
-            patch('app.routes.admin.get_google_books_client', return_value=MagicMock()),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
@@ -73,7 +73,7 @@ class TestSyncAwardCovers:
         mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
 
         with (
-            patch('app.routes.admin.get_google_books_client', return_value=MagicMock()),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
@@ -94,7 +94,7 @@ class TestSyncAwardCovers:
         mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
 
         with (
-            patch('app.routes.admin.get_google_books_client', return_value=MagicMock()),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
@@ -115,7 +115,7 @@ class TestSyncAwardCovers:
         mock_sync_service.sync_missing_covers.return_value = {'updated': 1}
 
         with (
-            patch('app.routes.admin.get_google_books_client', return_value=None),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=None),
             patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
@@ -137,7 +137,8 @@ class TestSyncAwardCovers:
 
     def test_sync_exception(self, client, admin_headers):
         with (
-            patch('app.routes.admin.get_google_books_client', side_effect=RuntimeError('连接失败')),
+            patch('app.utils.service_helpers.get_google_books_client', return_value=None),
+            patch('app.services.google_books_client.GoogleBooksClient', side_effect=RuntimeError('连接失败')),
             patch('app.routes.admin.log_error'),
         ):
             response = client.post(
@@ -170,7 +171,7 @@ class TestGetAwardCoversStatus:
         }
 
         with (
-            patch('app.routes.admin.get_google_books_client', return_value=MagicMock()),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -186,7 +187,7 @@ class TestGetAwardCoversStatus:
         mock_sync_service.get_sync_status.return_value = {'total_award_books': 0}
 
         with (
-            patch('app.routes.admin.get_google_books_client', return_value=None),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=None),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -202,7 +203,8 @@ class TestGetAwardCoversStatus:
 
     def test_get_status_exception(self, client, admin_headers):
         with (
-            patch('app.routes.admin.get_google_books_client', side_effect=RuntimeError('错误')),
+            patch('app.utils.service_helpers.get_google_books_client', return_value=None),
+            patch('app.services.google_books_client.GoogleBooksClient', side_effect=RuntimeError('错误')),
             patch('app.routes.admin.log_error'),
         ):
             response = client.get('/api/admin/award-covers/status', headers=admin_headers)

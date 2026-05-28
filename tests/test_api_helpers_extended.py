@@ -265,7 +265,7 @@ class TestValidateCsrfToken:
 
             token = 'valid_naive_token'
             record = CSRFToken(token=token)
-            record.created_at = datetime.utcnow()
+            record.created_at = datetime.now(UTC)
             db.session.add(record)
             db.session.commit()
 
