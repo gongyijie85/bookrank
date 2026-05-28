@@ -23,6 +23,11 @@
 
 **验证**：ruff 0 错误 | mypy 0 错误 | pytest 987 passed
 
+### fix(ci): ruff format 修复
+
+- 运行 `ruff format` 修正 10 个文件的格式问题
+- CI Code Quality (Ruff) format check 从失败变为通过
+
 ## v0.9.30 - 2026-05-27
 
 ### feat: 功能补全 — 收藏持久化、公共API、搜索扩展
