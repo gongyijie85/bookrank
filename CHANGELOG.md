@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.9.40 - 2026-05-28
+
+### fix(ci): 修复 update-books 工作流并发运行导致超时问题
+
+**问题**：
+- `push` 触发器导致每次代码推送都触发新的爬取任务，多个任务并发运行
+- 并发任务同时请求 Google Books API，触发 429 限流
+- 爬取耗时超过 30 分钟限制，任务被取消
+
+**修复内容**：
+- `.github/workflows/update-books.yml`：
+  - 移除 `push` 触发器，仅保留 `schedule`（每周一）和 `workflow_dispatch`（手动触发）
+  - 添加 `concurrency` 配置，防止多个爬取任务同时运行
+  - `timeout-minutes` 从 30 增加到 45 分钟
+  - 定时任务从每天改为每周一执行（减少 API 调用频率）
+
 ## v0.9.39 - 2026-05-28
 
 ### feat: 更新2025-2026年国际图书大奖数据
