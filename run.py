@@ -6,8 +6,9 @@ Render 部署启动入口（免费版优化版）
 2. 减少启动时的数据库查询次数
 3. 缩短连接超时，适应 Render 免费版限制
 """
-import os
+
 import logging
+import os
 import threading
 
 from sqlalchemy import inspect
@@ -32,11 +33,11 @@ def _cleanup_dirty_translations():
     """一次性清理数据库中残留的翻译脏数据（如末尾'译'字、Markdown标记等）"""
     try:
         from app.utils.api_helpers import clean_translation_text
-        import re
 
         count = 0
 
-        from app.models.schemas import BookMetadata, AwardBook
+        from app.models.schemas import AwardBook, BookMetadata
+
         for Model in (BookMetadata, AwardBook):
             try:
                 records = Model.query.filter(Model.title_zh.isnot(None)).all()
@@ -50,6 +51,7 @@ def _cleanup_dirty_translations():
                 pass
 
         from app.models.new_book import NewBook
+
         try:
             records = NewBook.query.filter(NewBook.title_zh.isnot(None)).all()
             for record in records:
@@ -63,11 +65,11 @@ def _cleanup_dirty_translations():
 
         if count > 0:
             db.session.commit()
-            logger.info(f"翻译脏数据清理完成: 修复 {count} 条记录")
+            logger.info(f'翻译脏数据清理完成: 修复 {count} 条记录')
         else:
-            logger.info("翻译数据干净，无需清理")
+            logger.info('翻译数据干净，无需清理')
     except Exception as e:
-        logger.warning(f"翻译脏数据清理跳过: {e}")
+        logger.warning(f'翻译脏数据清理跳过: {e}')
         db.session.rollback()
 
 
@@ -77,39 +79,38 @@ def _run_migrations():
     调用方需确保已在 app.app_context() 内。
     """
     try:
-        result = db.session.execute(
-            db.text("SELECT version_num FROM alembic_version")
-        ).fetchone()
+        result = db.session.execute(db.text('SELECT version_num FROM alembic_version')).fetchone()
         if result:
             from flask_migrate import upgrade as _upgrade
 
             _upgrade()
-            logger.info(f"数据库迁移已是最新版本: {result[0]}")
+            logger.info(f'数据库迁移已是最新版本: {result[0]}')
             return True
     except Exception:
         db.session.rollback()
-        logger.info("alembic_version 表不存在，需要检查当前 schema")
+        logger.info('alembic_version 表不存在，需要检查当前 schema')
 
     has_app_tables, schema_is_current = _inspect_schema_state()
     if schema_is_current:
-        return _stamp_current_schema("现有 schema 已完整，写入 Alembic 版本")
+        return _stamp_current_schema('现有 schema 已完整，写入 Alembic 版本')
 
     if not has_app_tables:
         try:
             db.create_all()
-            return _stamp_current_schema("新数据库已按当前模型创建，写入 Alembic 版本")
+            return _stamp_current_schema('新数据库已按当前模型创建，写入 Alembic 版本')
         except Exception as e:
             db.session.rollback()
-            logger.warning(f"按模型创建数据库失败: {e}")
+            logger.warning(f'按模型创建数据库失败: {e}')
 
     try:
         from flask_migrate import upgrade as _upgrade
+
         _upgrade()
-        logger.info("数据库迁移完成")
+        logger.info('数据库迁移完成')
         return True
     except Exception as e:
         db.session.rollback()
-        logger.warning(f"迁移失败: {e}")
+        logger.warning(f'迁移失败: {e}')
         return False
 
 
@@ -132,7 +133,7 @@ def _inspect_schema_state():
 
         return has_app_tables, True
     except Exception as e:
-        logger.warning(f"检查数据库 schema 失败: {e}")
+        logger.warning(f'检查数据库 schema 失败: {e}')
         return False, False
 
 
@@ -146,7 +147,7 @@ def _stamp_current_schema(reason):
         return True
     except Exception as e:
         db.session.rollback()
-        logger.warning(f"写入 Alembic 版本失败: {e}")
+        logger.warning(f'写入 Alembic 版本失败: {e}')
         return False
 
 
@@ -161,37 +162,45 @@ def _init_database_lazy():
             return
 
         with app.app_context():
-            logger.info("首次请求，初始化数据库...")
+            logger.info('首次请求，初始化数据库...')
 
             if not _run_migrations():
                 try:
                     db.create_all()
-                    logger.info("使用 create_all 创建表")
+                    logger.info('使用 create_all 创建表')
                 except Exception as e:
-                    logger.error(f"创建表失败: {e}")
+                    logger.error(f'创建表失败: {e}')
 
             try:
-                from app.models.schemas import Award
-                from app.models.new_book import Publisher
                 from app.initialization import init_awards_data
+                from app.models.new_book import Publisher
+                from app.models.schemas import Award
 
                 if db.session.query(Award).count() == 0:
-                    logger.info("初始化奖项数据...")
+                    logger.info('初始化奖项数据...')
                     init_awards_data(app)
 
                 if db.session.query(Publisher).count() == 0:
-                    logger.info("初始化出版社数据...")
+                    logger.info('初始化出版社数据...')
                     from app.services.new_book_service import NewBookService
+
                     service = NewBookService()
                     service.init_publishers()
 
             except Exception as e:
-                logger.warning(f"基础数据初始化跳过: {e}")
+                logger.warning(f'基础数据初始化跳过: {e}')
 
             _cleanup_dirty_translations()
 
+            # 补种缺失的预置获奖图书（如2026年新获奖数据）
+            try:
+                from app.initialization.sample_award_books import init_sample_award_books
+                init_sample_award_books(app)
+            except Exception as e:
+                logger.warning(f'预置获奖图书补种跳过: {e}')
+
             _db_initialized = True
-            logger.info("数据库初始化完成")
+            logger.info('数据库初始化完成')
 
 
 @app.before_request
@@ -207,5 +216,5 @@ def _ensure_db_ready():
 
 application = app
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)))
