@@ -26,14 +26,14 @@ SAMPLE_AWARD_BOOKS = [
     },
     {
         'award_name': '布克奖',
-        'year': 2026,
+        'year': 2025,
         'category': '小说',
         'title': 'Flesh',
         'title_zh': '肉体',
         'author': 'David Szalay',
         'isbn13': '9780224099790',
-        'description': 'A novel by the Hungarian-British author exploring masculinity and identity, winner of the 2025 Booker Prize.',
-        'description_zh': '匈牙利裔英国作家大卫·萨莱的小说，探讨男性气质与身份认同，获2025年布克奖。',
+        'description': 'A novel by Canadian-Hungarian author David Szalay exploring masculinity and identity, winner of the 2025 Booker Prize.',
+        'description_zh': '加拿大-匈牙利裔作家大卫·萨莱的小说，探讨男性气质与身份认同，获2025年布克奖。',
     },
     {
         'award_name': '雨果奖',
