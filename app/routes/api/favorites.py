@@ -24,14 +24,8 @@ def register_favorite_routes(bp):
             if not sid:
                 return APIResponse.success(data={'favorites': [], 'total': 0})
 
-            favorites = (
-                UserFavorite.query.filter_by(session_id=sid)
-                .order_by(UserFavorite.created_at.desc())
-                .all()
-            )
-            return APIResponse.success(
-                data={'favorites': [f.to_dict() for f in favorites], 'total': len(favorites)}
-            )
+            favorites = UserFavorite.query.filter_by(session_id=sid).order_by(UserFavorite.created_at.desc()).all()
+            return APIResponse.success(data={'favorites': [f.to_dict() for f in favorites], 'total': len(favorites)})
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取收藏列表失败: {e}')
             db.session.rollback()

@@ -78,10 +78,7 @@ class SmartSearchService:
 
             award_total = award_query.count()
             award_books = (
-                award_query.order_by(AwardBook.year.desc(), AwardBook.rank.asc())
-                .offset(offset)
-                .limit(limit)
-                .all()
+                award_query.order_by(AwardBook.year.desc(), AwardBook.rank.asc()).offset(offset).limit(limit).all()
             )
             award_results = [self._format_book(b) for b in award_books]
 

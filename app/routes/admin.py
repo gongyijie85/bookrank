@@ -603,18 +603,22 @@ def run_crawler(publisher_name: str):
                 max_books=max_books,
                 translate=True,
             )
-            _crawler_status[publisher_name].update({
-                'status': 'completed',
-                'finished_at': datetime.now(UTC).isoformat(),
-                'last_result': result,
-            })
+            _crawler_status[publisher_name].update(
+                {
+                    'status': 'completed',
+                    'finished_at': datetime.now(UTC).isoformat(),
+                    'last_result': result,
+                }
+            )
             return APIResponse.success(data=result, message=f'{publisher_name} 爬虫执行完成')
         except Exception as e:
-            _crawler_status[publisher_name].update({
-                'status': 'failed',
-                'finished_at': datetime.now(UTC).isoformat(),
-                'error': str(e),
-            })
+            _crawler_status[publisher_name].update(
+                {
+                    'status': 'failed',
+                    'finished_at': datetime.now(UTC).isoformat(),
+                    'error': str(e),
+                }
+            )
             raise
 
     except Exception as e:
@@ -634,18 +638,22 @@ def crawler_status():
 
         publishers_info = []
         for p in publishers:
-            publishers_info.append({
-                'name': p.name,
-                'crawler_class': p.crawler_class,
-                'book_count': pub_book_counts.get(p.id, 0),
-                'last_run': _crawler_status.get(p.name, {}),
-            })
+            publishers_info.append(
+                {
+                    'name': p.name,
+                    'crawler_class': p.crawler_class,
+                    'book_count': pub_book_counts.get(p.id, 0),
+                    'last_run': _crawler_status.get(p.name, {}),
+                }
+            )
 
-        return APIResponse.success(data={
-            'publishers': publishers_info,
-            'total_publishers': len(publishers_info),
-            'active_crawlers': sum(1 for s in _crawler_status.values() if s.get('status') == 'running'),
-        })
+        return APIResponse.success(
+            data={
+                'publishers': publishers_info,
+                'total_publishers': len(publishers_info),
+                'active_crawlers': sum(1 for s in _crawler_status.values() if s.get('status') == 'running'),
+            }
+        )
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'获取爬虫状态失败: {e}', exc_info=True)
         return APIResponse.error('获取状态失败', 500)
@@ -683,24 +691,26 @@ def system_status():
         except Exception:
             error_stats = {}
 
-        return APIResponse.success(data={
-            'process': {
-                'pid': process.pid,
-                'memory_rss_mb': round(memory_info.rss / (1024 * 1024), 2),
-                'memory_vms_mb': round(memory_info.vms / (1024 * 1024), 2),
-                'memory_percent': round(memory_percent, 2),
-                'cpu_percent': process.cpu_percent(interval=0.1),
-                'threads': process.num_threads(),
-            },
-            'database': {
-                'type': db_type,
-                'pool_status': 'ok',
-            },
-            'cache': cache_stats,
-            'errors': error_stats,
-            'uptime_seconds': round(time.time() - process.create_time(), 0),
-            'timestamp': datetime.now(UTC).isoformat(),
-        })
+        return APIResponse.success(
+            data={
+                'process': {
+                    'pid': process.pid,
+                    'memory_rss_mb': round(memory_info.rss / (1024 * 1024), 2),
+                    'memory_vms_mb': round(memory_info.vms / (1024 * 1024), 2),
+                    'memory_percent': round(memory_percent, 2),
+                    'cpu_percent': process.cpu_percent(interval=0.1),
+                    'threads': process.num_threads(),
+                },
+                'database': {
+                    'type': db_type,
+                    'pool_status': 'ok',
+                },
+                'cache': cache_stats,
+                'errors': error_stats,
+                'uptime_seconds': round(time.time() - process.create_time(), 0),
+                'timestamp': datetime.now(UTC).isoformat(),
+            }
+        )
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'获取系统状态失败: {e}', exc_info=True)
         return APIResponse.error('获取系统状态失败', 500)

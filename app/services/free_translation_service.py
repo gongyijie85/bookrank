@@ -35,7 +35,11 @@ class GoogleTranslationService:
                 logger.info('Google Translate 客户端初始化成功')
             except ImportError as e:
                 if not self._deep_translator_warned:
-                    log_error(ErrorCategory.TRANSLATION, f'deep-translator 库未安装，Google 免费翻译不可用: {e}', level='warning')
+                    log_error(
+                        ErrorCategory.TRANSLATION,
+                        f'deep-translator 库未安装，Google 免费翻译不可用: {e}',
+                        level='warning',
+                    )
                     self._deep_translator_warned = True
                 return None
         return self._client

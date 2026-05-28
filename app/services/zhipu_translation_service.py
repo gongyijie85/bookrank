@@ -742,7 +742,9 @@ class HybridTranslationService:
                         results[i] = clean_translation_text(cached.translated_text)
                         continue
                 except Exception as e:
-                    log_error(ErrorCategory.TRANSLATION, f'批量翻译缓存查找失败 text[{i}]={text[:30]}: {e}', level='warning')
+                    log_error(
+                        ErrorCategory.TRANSLATION, f'批量翻译缓存查找失败 text[{i}]={text[:30]}: {e}', level='warning'
+                    )
             to_translate.append((i, text))
 
         # 第二步：并行翻译

@@ -302,9 +302,7 @@ def get_new_books():
         publisher_id = request.args.get('publisher_id', type=int)
 
         service = NewBookService()
-        books, total = service.get_new_books(
-            publisher_id=publisher_id, category=category, page=page, per_page=per_page
-        )
+        books, total = service.get_new_books(publisher_id=publisher_id, category=category, page=page, per_page=per_page)
 
         return PublicAPIResponse.success(
             data={

@@ -194,7 +194,9 @@ def safe_service_call(service_name: str, operation: str, fallback: Any = None):
                 e.log()
                 return fallback
             except Exception as e:
-                log_error(ErrorCategory.UNKNOWN, f'[{service_name}.{operation}] Failed: {e}', exc_info=True, level='warning')
+                log_error(
+                    ErrorCategory.UNKNOWN, f'[{service_name}.{operation}] Failed: {e}', exc_info=True, level='warning'
+                )
                 return fallback
 
         return wrapper

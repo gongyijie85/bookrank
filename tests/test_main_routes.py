@@ -20,7 +20,6 @@ from app.utils.date_helpers import (
 
 
 class TestIsValidISBN:
-
     def test_valid_isbn13(self):
         assert is_valid_isbn('9780743273565') is True
 
@@ -47,7 +46,6 @@ class TestIsValidISBN:
 
 
 class TestFilterBooksBySearch:
-
     def test_no_query(self):
         books = [{'title': 'Book A', 'author': 'Author A'}]
         assert filter_books_by_search(books, '') == books
@@ -84,7 +82,6 @@ class TestFilterBooksBySearch:
 
 
 class TestFilterBooksByPublisher:
-
     def test_no_publisher(self):
         books = [{'publisher': 'Penguin'}]
         assert filter_books_by_publisher(books, '') == books
@@ -102,7 +99,6 @@ class TestFilterBooksByPublisher:
 
 
 class TestFilterBooksByWeeks:
-
     def test_new_books(self):
         books = [
             {'weeks_on_list': 1},
@@ -141,7 +137,6 @@ class TestFilterBooksByWeeks:
 
 
 class TestSortBooks:
-
     def test_empty_books(self):
         assert sort_books([], 'rank_change') == []
 
@@ -185,7 +180,6 @@ class TestSortBooks:
 
 
 class TestValidateDate:
-
     def test_valid_date(self):
         is_valid, error, date_obj = validate_date('2024-01-15')
         assert is_valid is True
@@ -219,7 +213,6 @@ class TestValidateDate:
 
 
 class TestParseReportContent:
-
     def test_valid_json(self):
         report = MagicMock()
         report.content = json.dumps({'key': 'value'})
@@ -247,7 +240,6 @@ class TestParseReportContent:
 
 
 class TestUpdateBookFromGoogleBooks:
-
     def test_updates_details(self):
         book = {}
         details = {'details': 'A great book description'}
@@ -317,7 +309,6 @@ class TestUpdateBookFromGoogleBooks:
 
 
 class TestMainRoutes:
-
     def test_index_page(self, client):
         response = client.get('/')
         assert response.status_code == 200

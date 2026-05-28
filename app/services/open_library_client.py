@@ -80,7 +80,9 @@ class OpenLibraryClient:
             return result
 
         except requests.RequestException as e:
-            log_error(ErrorCategory.API_CALL, f'Failed to fetch Open Library data for ISBN {isbn}: {e}', level='warning')
+            log_error(
+                ErrorCategory.API_CALL, f'Failed to fetch Open Library data for ISBN {isbn}: {e}', level='warning'
+            )
             _safe_cache_set(
                 cache_service, 'open_library', cache_key, {}, ttl_seconds=300, is_error=True, error_message=str(e)
             )
