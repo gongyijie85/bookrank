@@ -123,6 +123,12 @@ def init_awards_data(app):
             f'📊 当前数据: {award_count} 个奖项, {book_count} 本图书, {publisher_count} 个出版社, {new_book_count} 本新书'
         )
 
+        # 始终检查预置获奖图书补种（不受基础数据完整度限制）
+        app.logger.info('📚 检查预置获奖图书补种...')
+        from .sample_award_books import init_sample_award_books
+
+        init_sample_award_books(app)
+
         # 检查所有必要的表是否存在
         if award_count >= 5 and book_count >= 12 and publisher_count >= 2:
             app.logger.info('✅ 基础数据已完整')
@@ -173,12 +179,6 @@ def init_awards_data(app):
         service = NewBookService()
         publisher_count = service.init_publishers()
         app.logger.info(f'✅ 已初始化 {publisher_count} 个出版社')
-
-        # 初始化预置获奖图书数据（Render 免费版优化）
-        app.logger.info('📚 检查预置获奖图书...')
-        from .sample_award_books import init_sample_award_books
-
-        init_sample_award_books(app)
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'初始化奖项数据失败: {e}', exc_info=True)
