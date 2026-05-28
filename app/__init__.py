@@ -4,10 +4,11 @@ import logging
 import os
 import re
 import secrets
+import subprocess
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, Response, request
+from flask import Flask, Response, render_template, request
 from flask_babel import Babel
 from flask_cors import CORS
 
@@ -23,6 +24,23 @@ babel = Babel()
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
+
+def _ensure_static_assets() -> None:
+    """Auto-build compressed static assets at startup if missing."""
+    min_css = PROJECT_ROOT / 'static' / 'css' / 'all.min.css'
+    if min_css.is_file():
+        return
+    try:
+        subprocess.run(
+            [os.sys.executable, str(PROJECT_ROOT / 'build.py')],
+            cwd=str(PROJECT_ROOT),
+            check=True,
+            timeout=30,
+        )
+    except Exception:
+        logging.getLogger(__name__).warning('Static asset auto-build failed')
+
+
 def create_app(config_name: str | None = None) -> Flask:
     """
     应用工厂函数
@@ -35,6 +53,8 @@ def create_app(config_name: str | None = None) -> Flask:
     """
     if config_name is None or config_name == 'default':
         config_name = 'development'
+
+    _ensure_static_assets()
 
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / 'templates'), static_folder=str(PROJECT_ROOT / 'static'))
 
@@ -183,8 +203,10 @@ def _register_error_handlers(app: Flask) -> None:
         return {'success': False, 'message': 'Bad request'}, 400
 
     @app.errorhandler(404)
-    def not_found(error: Exception) -> tuple[dict[str, bool | str], int]:
-        return {'success': False, 'message': 'Resource not found'}, 404
+    def not_found(error: Exception):
+        if request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json':
+            return {'success': False, 'message': 'Resource not found'}, 404
+        return render_template('error.html', message='Page not found', back_url='/'), 404
 
     @app.errorhandler(405)
     def method_not_allowed(error: Exception) -> tuple[dict[str, bool | str], int]:
@@ -212,7 +234,9 @@ def _register_error_handlers(app: Flask) -> None:
             )
         except Exception as e:
             log_error(ErrorCategory.UNKNOWN, f'ErrorTracker 记录失败: {e}', level='warning')
-        return {'success': False, 'message': 'Internal server error'}, 500
+        if request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json':
+            return {'success': False, 'message': 'Internal server error'}, 500
+        return render_template('error.html', message='Something went wrong', back_url='/'), 500
 
 
 def _setup_db_event_listeners(app: Flask) -> None:
@@ -319,7 +343,6 @@ def _apply_security_headers(app: Flask) -> None:
             'Content-Security-Policy': (
                 f"default-src 'self'; "
                 f"script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'nonce-{nonce}'; "
-                f"script-src-attr 'unsafe-inline'; "
                 f"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com 'nonce-{nonce}'; "
                 "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
                 'https://covers.openlibrary.org https://openlibrary.org https://archive.org https://*.archive.org '

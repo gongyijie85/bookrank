@@ -1,3 +1,4 @@
+import pathlib
 import logging
 import re
 from pathlib import Path
@@ -23,6 +24,8 @@ from ..utils.book_filters import filter_books_by_publisher, filter_books_by_sear
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.security import is_safe_redirect_url
+
+PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent
 from ..utils.service_helpers import (
     get_book_service,
     get_google_books_client,
@@ -657,6 +660,18 @@ def export_weekly_report(date):
     except Exception as e:
         log_error(ErrorCategory.UNKNOWN, f'导出周报时出错: {e!s}')
         return render_template('error.html', message='导出失败', back_url=f'/reports/weekly/{date}')
+
+
+@main_bp.route('/robots.txt')
+def robots_txt():
+    """Serve robots.txt for search engine crawlers""" 
+    return send_from_directory(str(PROJECT_ROOT / 'static'), 'robots.txt', mimetype='text/plain')
+
+
+@main_bp.route('/sitemap.xml')
+def sitemap_xml():
+    """Serve sitemap.xml for search engine crawlers""" 
+    return send_from_directory(str(PROJECT_ROOT / 'static'), 'sitemap.xml', mimetype='application/xml')
 
 
 @main_bp.route('/set-language')

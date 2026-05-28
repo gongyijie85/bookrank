@@ -13,6 +13,7 @@
     <meta property="og:description" content="{{ _('汇集纽约时报畅销书排行榜与国际图书奖项榜单') }}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:image" content="{{ url_for('static', filename='default-cover.png', _external=True) }}">
     <meta property="og:site_name" content="BookRank">
 
     <!-- Twitter Card -->
@@ -28,10 +29,10 @@
     <!-- Preconnect to external resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+
 
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 
     <!-- Icons - Local SVG Sprite (Zero Dependency) -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
@@ -44,6 +45,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
     {% endif %}
+
+    <!-- Preload SVG sprite for instant icon rendering -->
+    <link rel="preload" href="{{ url_for('static', filename='icons.svg') }}" as="image" type="image/svg+xml">
 
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">

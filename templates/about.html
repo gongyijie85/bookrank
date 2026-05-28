@@ -6,6 +6,18 @@
 {% block title %}{{ _('关于我们') }} - BookRank{% endblock %}
 
 {% block content %}
+
+<!-- About Page Structured Data -->
+<script type="application/ld+json" nonce="{{ csp_nonce() }}">
+{
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "name": "About BookRank",
+    "description": "BookRank aggregates NYT bestsellers and international book awards",
+    "url": "{{ request.url }}"
+}
+</script>
+
 <div class="about-container">
     <section class="about-hero">
         <h1 class="page-title">

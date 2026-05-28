@@ -5,6 +5,26 @@
 {% block twitter_title %}{{ report.title }} - BookRank{% endblock %}
 
 {% block content %}
+
+<!-- Weekly Report Structured Data -->
+<script type="application/ld+json" nonce="{{ csp_nonce() }}">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": {{ report.title | tojson }},
+    "datePublished": "{{ report.report_date.strftime('%Y-%m-%d') }}",
+    "author": {
+        "@type": "Organization",
+        "name": "BookRank"
+    },
+    "publisher": {
+        "@type": "Organization",
+        "name": "BookRank"
+    },
+    "description": {{ ("BookRank weekly bestseller analysis: " + report.title) | tojson }},
+    "url": "{{ request.url }}"
+}
+</script>
 <main class="main-content">
     <!-- 新闻风格头部 -->
     <div class="news-hero-section">

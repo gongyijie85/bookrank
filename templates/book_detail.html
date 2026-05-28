@@ -1,8 +1,39 @@
 {% extends "base.html" %}
 
 {% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+/* Inline critical above-fold styles for book detail */
+.detail-cover img { border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+</style>
+{% endblock %}
 
 {% block content %}
+
+<!-- Book Structured Data for SEO -->
+<script type="application/ld+json" nonce="{{ csp_nonce() }}">
+{
+    "@context": "https://schema.org",
+    "@type": "Book",
+    "name": {{ (book.title_zh or book.title) | tojson }},
+    "alternateName": {{ book.title | tojson }}{% if book.author %},
+    "author": {
+        "@type": "Person",
+        "name": {{ book.author | tojson }}
+    }{% endif %}{% if book.isbn13 %},
+    "isbn": {{ book.isbn13 | tojson }}{% endif %}{% if book.publisher and book.publisher|is_invalid_publisher == false %},
+    "publisher": {
+        "@type": "Organization",
+        "name": {{ book.publisher | tojson }}
+    }{% endif %}{% if book.description_zh or book.description %},
+    "description": {{ (book.description_zh or book.description)[:500] | tojson }}{% endif %}{% if book.cover %},
+    "image": {{ book.cover | tojson }}{% endif %},
+    "url": "{{ request.url }}"
+}
+</script>
 <main class="main-content book-detail-page">
     <!-- 返回按钮 -->
     <div class="detail-nav">

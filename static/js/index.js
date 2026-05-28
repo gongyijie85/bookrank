@@ -385,8 +385,6 @@ async function translateAllBooks() {
         toTranslate.push({ index: i, book, isbn });
     }
 
-    console.log(`翻译应用完成: ${appliedCount}本使用缓存, ${toTranslate.length}本需要API翻译`);
-
     if (toTranslate.length === 0) {
         hideTranslationProgress();
         return;
@@ -427,21 +425,21 @@ async function translateSingleBook(index, book, isbn) {
                 translatedDetails = result.data.description_zh;
             }
         } else {
-            console.log('合并翻译失败，回退到逐字段翻译');
+
             try {
                 const tResult = await api.translateText(book.title, 'en', 'zh', 'title');
                 if (tResult.success) translatedTitle = tResult.data.translated;
-            } catch (e) { console.log('标题翻译失败:', e); }
+            } catch (e) { /* 标题翻译失败: */ }
             try {
                 const dResult = await api.translateText(book.description, 'en', 'zh', 'description');
                 if (dResult.success) translatedDesc = dResult.data.translated;
-            } catch (e) { console.log('描述翻译失败:', e); }
+            } catch (e) { /* 描述翻译失败: */ }
             if (detailsText) {
                 try {
                     const dtResult = await api.translateText(detailsText, 'en', 'zh', 'details');
                     if (dtResult.success) translatedDetails = dtResult.data.translated;
                 } catch (e) {
-                    console.log('详情翻译失败:', e);
+
                     translatedDetails = translatedDesc;
                 }
             } else {
@@ -499,7 +497,7 @@ async function translateMissingBooks(missingIsbns) {
                 book.description_zh = transData.description;
             }
         } catch (e) {
-            console.log('后台翻译失败 ISBN ' + isbn + ':', e);
+
         }
     }
 
@@ -612,7 +610,7 @@ const categoryCache = {
                 }
             }
         } catch (e) {
-            console.log('Cache read error:', e);
+
         }
         return null;
     },
@@ -625,7 +623,7 @@ const categoryCache = {
             };
             localStorage.setItem(key, JSON.stringify(data));
         } catch (e) {
-            console.log('Cache write error:', e);
+
         }
     },
     preload: function(categories, currentCategory) {
@@ -634,7 +632,7 @@ const categoryCache = {
                 fetch(`/?category=${encodeURIComponent(cat)}`, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 }).then(() => {
-                    console.log(`Preloaded ${cat}`);
+
                 }).catch(() => {});
             }
         });
