@@ -39,6 +39,13 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Update books data
+        env:
+          FLASK_ENV: testing
+          SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-build-only' }}
+          DISABLE_BACKGROUND_THREADS: 'true'
+          NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           python update_books.py
 

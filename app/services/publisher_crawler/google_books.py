@@ -14,6 +14,7 @@ API文档: https://developers.google.com/books/docs/v1/getting_started
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
@@ -182,29 +183,46 @@ class GoogleBooksCrawler(BaseCrawler):
             remaining = max_books - collected
             params = self._build_query_params(subject, remaining, start_index)
 
-            try:
-                response = self._session.get(
-                    self.BASE_URL,
-                    params=params,
-                    timeout=self.config.timeout,
-                )
-
-                if response.status_code == 400 and self._key_is_valid:
-                    logger.warning('API Key 可能已失效，尝试无Key模式')
-                    self._key_is_valid = False
-                    params.pop('key', None)
+            response = None
+            for attempt in range(self.config.max_retries + 1):
+                try:
+                    time.sleep(self.config.request_delay * (attempt + 1))
                     response = self._session.get(
                         self.BASE_URL,
                         params=params,
                         timeout=self.config.timeout,
                     )
 
-                response.raise_for_status()
-                data = response.json()
+                    if response.status_code == 400 and self._key_is_valid:
+                        logger.warning('API Key 可能已失效，尝试无Key模式')
+                        self._key_is_valid = False
+                        params.pop('key', None)
+                        response = self._session.get(
+                            self.BASE_URL,
+                            params=params,
+                            timeout=self.config.timeout,
+                        )
 
-            except requests.RequestException as e:
-                logger.error('Google Books API 请求失败: %s', e)
+                    if response.status_code == 429:
+                        wait = 5 * (attempt + 1)
+                        logger.warning('Google Books 429 限流，等待 %s 秒后重试', wait)
+                        time.sleep(wait)
+                        continue
+
+                    response.raise_for_status()
+                    break
+                except requests.RequestException as e:
+                    logger.error('Google Books API 请求失败 (尝试 %s/%s): %s', attempt + 1, self.config.max_retries + 1, e)
+                    if attempt >= self.config.max_retries:
+                        response = None
+                    else:
+                        time.sleep(self.config.retry_delay * (attempt + 1))
+
+            if response is None or response.status_code != 200:
+                logger.error('Google Books API 请求最终失败，跳过本页')
                 break
+
+            data = response.json()
 
             items = data.get('items', [])
             if not items:

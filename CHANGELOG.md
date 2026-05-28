@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.9.39 - 2026-05-28
+
+### feat: 更新2025-2026年国际图书大奖数据
+
+**更新内容**：
+- `app/initialization/sample_award_books.py`：更新预置获奖图书数据
+  - 新增2026年已公布大奖：普利策小说奖（Angel Down）、国际布克奖（Taiwan Travelogue/台湾漫游录）、爱伦·坡奖（The Big Empty）
+  - 修正2025年数据：诺贝尔文学奖改为László Krasznahorkai、布克奖改为Flesh、爱伦·坡奖改为The In Crowd、国际布克奖改为Heart Lamp
+- `app/services/wikidata_client.py`：Wikidata查询年份范围扩展至2026
+- `app/services/award_book_service.py`：刷新服务年份范围扩展至2026
+
+**已确认的2025年获奖信息**：
+| 奖项 | 获奖作品 | 作者 |
+|------|----------|------|
+| 普利策小说奖 | James | Percival Everett |
+| 雨果奖最佳长篇 | The Tainted Cup | Robert Jackson Bennett |
+| 诺贝尔文学奖 | 代表作Satantango | László Krasznahorkai |
+| 爱伦·坡奖最佳小说 | The In Crowd | Charlotte Vassell |
+| 国际布克奖 | Heart Lamp | Banu Mushtaq |
+
+**已确认的2026年获奖信息**：
+| 奖项 | 获奖作品 | 作者 |
+|------|----------|------|
+| 普利策小说奖 | Angel Down | Daniel Kraus |
+| 国际布克奖 | Taiwan Travelogue（台湾漫游录） | Yáng Shuāng-zǐ（杨双子） |
+| 爱伦·坡奖最佳小说 | The Big Empty | Robert Crais |
+| 布克奖 | Flesh | David Szalay（2025年颁奖） |
+
+**尚未公布**：
+- 2026年雨果奖（LACon V，2026年8月27-31日）
+- 2026年诺贝尔文学奖（通常10月公布）
+- 2026年星云奖最佳长篇
+
+## v0.9.39 - 2026-05-28
+
+### fix: 修复 update-books 工作流 API 限流和密钥缺失问题
+
+**问题**：
+- Google Books API 大量 429 限流错误（请求过于频繁无延迟）
+- NYT API Key / 智谱 AI API Key 未配置（`app/__init__.py` 导入时自动启动 APScheduler 后台任务）
+
+**修复内容**：
+- `.github/workflows/update-books.yml`：
+  - 添加 `DISABLE_BACKGROUND_THREADS=true` 防止启动 APScheduler 后台任务
+  - 添加 `FLASK_ENV=testing` 避免自动初始化奖项数据
+  - 传递 `NYT_API_KEY`、`ZHIPU_API_KEY`、`GOOGLE_API_KEY` 环境变量（从 GitHub Secrets 读取）
+- `app/services/publisher_crawler/google_books.py`：
+  - `get_new_books()` 翻页请求间添加 `request_delay` 延迟
+  - 增加 429 限流重试逻辑（等待递增后重试）
+  - 增加请求异常重试机制
+
 ## v0.9.38 - 2026-05-28
 
 ### fix: 修复 CI test.yml 工作流 pytest-timeout 缺失导致测试失败
