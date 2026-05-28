@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 ## v0.9.41 - 2026-05-28
 
