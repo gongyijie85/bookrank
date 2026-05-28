@@ -5,6 +5,7 @@ API 路由测试
 """
 
 import json
+from unittest.mock import patch
 
 import pytest
 from flask import render_template
@@ -265,7 +266,10 @@ class TestTranslationAPI:
 
     def test_translate_with_fallback(self, client):
         """测试翻译功能（使用备用翻译服务）"""
-        response = client.post('/api/translate', data=json.dumps({'text': 'Hello'}), content_type='application/json')
+        with patch('app.utils.api_helpers.validate_csrf_token', return_value=True):
+            response = client.post(
+                '/api/translate', data=json.dumps({'text': 'Hello'}), content_type='application/json'
+            )
 
         assert response.status_code in [200, 503]
         data = json.loads(response.data)

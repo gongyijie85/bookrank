@@ -39,37 +39,50 @@ class TestGetCacheService:
 
     def test_service_exists(self, app):
         mock_service = MagicMock()
+        original = app.extensions.get('cache_service')
         with app.app_context():
             app.extensions['cache_service'] = mock_service
             result = get_cache_service()
             assert result is mock_service
-            del app.extensions['cache_service']
+        if original is not None:
+            app.extensions['cache_service'] = original
+        else:
+            app.extensions.pop('cache_service', None)
 
     def test_service_not_exists(self, app):
+        original = app.extensions.get('cache_service')
         with app.app_context():
             app.extensions.pop('cache_service', None)
             result = get_cache_service()
             assert result is None
+        if original is not None:
+            app.extensions['cache_service'] = original
 
 
 class TestGetImageCacheService:
     """测试 get_image_cache_service"""
 
     def test_service_not_exists(self, app):
+        original = app.extensions.get('image_cache_service')
         with app.app_context():
             app.extensions.pop('image_cache_service', None)
             result = get_image_cache_service()
             assert result is None
+        if original is not None:
+            app.extensions['image_cache_service'] = original
 
 
 class TestGetTranslationService:
     """测试 get_translation_service"""
 
     def test_service_not_exists(self, app):
+        original = app.extensions.get('translation_service')
         with app.app_context():
             app.extensions.pop('translation_service', None)
             result = get_translation_service()
             assert result is None
+        if original is not None:
+            app.extensions['translation_service'] = original
 
 
 class TestRequireBookService:
@@ -77,17 +90,24 @@ class TestRequireBookService:
 
     def test_service_exists(self, app):
         mock_service = MagicMock()
+        original = app.extensions.get('book_service')
         with app.app_context():
             app.extensions['book_service'] = mock_service
             result = require_book_service()
             assert result is mock_service
-            del app.extensions['book_service']
+        if original is not None:
+            app.extensions['book_service'] = original
+        else:
+            app.extensions.pop('book_service', None)
 
     def test_service_not_exists_raises(self, app):
+        original = app.extensions.get('book_service')
         with app.app_context():
             app.extensions.pop('book_service', None)
             with pytest.raises(RuntimeError, match='图书服务未初始化'):
                 require_book_service()
+        if original is not None:
+            app.extensions['book_service'] = original
 
 
 class TestDbTransaction:

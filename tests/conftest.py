@@ -19,6 +19,7 @@ os.environ['FLASK_ENV'] = 'testing'
 from app import create_app
 from app.models.database import db as _db
 from app.models.schemas import UserFavorite  # noqa: F401 — 注册模型到 SQLAlchemy
+from app.services.award_book_service import AwardBookService
 
 
 @pytest.fixture(scope='session')
@@ -237,3 +238,43 @@ def mock_google_books_response():
         'details': 'Detailed book description from Google Books.',
         'cover_url': 'https://example.com/cover.jpg',
     }
+
+
+@pytest.fixture
+def award_service():
+    return AwardBookService()
+
+
+@pytest.fixture
+def sample_award(app, db):
+    from app.models.schemas import Award
+
+    award = Award(
+        name='星云奖',
+        name_en='Nebula Award',
+        country='美国',
+        description='美国科幻奇幻作家协会颁发的年度奖项',
+    )
+    db.session.add(award)
+    db.session.commit()
+    return award.id
+
+
+@pytest.fixture
+def sample_award_book(app, db, sample_award):
+    from app.models.schemas import Award, AwardBook
+
+    award = db.session.get(Award, sample_award)
+    book = AwardBook(
+        award_id=award.id,
+        title='测试获奖图书',
+        author='测试作者',
+        year=2024,
+        category='最佳长篇小说',
+        isbn13='9780000000000',
+        description='一本优秀的测试图书',
+        cover_local_path='/covers/test_cover.jpg',
+    )
+    db.session.add(book)
+    db.session.commit()
+    return book.id

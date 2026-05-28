@@ -333,7 +333,6 @@ class AwardBookService:
         if cover_url:
             return cover_url
 
-        # TODO: 如果需要，可以添加 Google Books 作为备用
         return None
 
     def fetch_missing_covers(self, batch_size: int = 10) -> dict[str, int]:

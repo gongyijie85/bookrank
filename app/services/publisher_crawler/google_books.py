@@ -212,7 +212,9 @@ class GoogleBooksCrawler(BaseCrawler):
                     response.raise_for_status()
                     break
                 except requests.RequestException as e:
-                    logger.error('Google Books API 请求失败 (尝试 %s/%s): %s', attempt + 1, self.config.max_retries + 1, e)
+                    logger.error(
+                        'Google Books API 请求失败 (尝试 %s/%s): %s', attempt + 1, self.config.max_retries + 1, e
+                    )
                     if attempt >= self.config.max_retries:
                         response = None
                     else:

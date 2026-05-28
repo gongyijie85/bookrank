@@ -278,20 +278,40 @@
 
 ## v0.9.32 - 2026-05-28
 
-### test: 重写 recommendation_service 测试（26 个用例）
+### feat: 质量收官 — 测试覆盖率 61% → 84.12%
 
-**重写文件**：`tests/test_recommendation_service.py`
+**覆盖率提升**：
+- 新增 14 个测试文件，1047 个新测试用例（987 → 2034 passed）
+- 覆盖率从 61% 提升至 84.12%（目标 ≥80%）
 
-**测试类与覆盖场景**：
-- `TestExtractKeywords`（5 个）：正常文本、空文本、停用词过滤、短词过滤、混合过滤
-- `TestGenerateRecommendationReason`（4 个）：有作者、有分类、两者都有、两者都无
-- `TestGetSmartRecommendations`（5 个）：有 session_id、无 session_id、上限钳位 50、下限钳位 1、空个性化结果降级
-- `TestGetSimilarityRecommendations`（5 个）：by book_id、by isbn、by award_id、by category、无参数热门降级
-- `TestGetPersonalizedRecommendations`（3 个）：无浏览历史降级、有浏览历史个性化、结果不足补充热门
-- `TestFormatAwardBook`（2 个）：正常格式化、无分类时显示"获奖作品"
-- `TestGetPopularRecommendations`（2 个）：有数据返回、空数据库返回空列表
+**新增测试文件**：
+- `test_publisher_crawler_extended.py`：127 个测试，覆盖 11 个爬虫模块
+- `test_admin_routes.py`：65 个测试，覆盖原始管理路由
+- `test_main_routes_extended.py`：82 个测试，覆盖主页路由未测路径
+- `test_public_api_extended.py`：56 个测试，覆盖公共 API 未测路径
+- `test_api_helpers_extended.py`：81 个测试，覆盖 API 工具函数
+- `test_weekly_report_service_extended.py`：76 个测试，覆盖周报服务
+- `test_setup_extended.py`：56 个测试，覆盖 setup.py 初始化函数
+- `test_award_book_service_extended.py`：42 个测试，覆盖奖项服务
+- `test_zhipu_translation_extended.py`：55 个测试，覆盖翻译服务
+- `test_smart_search_service.py`：52 个测试，覆盖搜索服务
+- `test_book_detail_service.py`：67 个测试
+- `test_translation_cache_service.py`：70 个测试
+- `test_award_cover_sync_service.py`：30 个测试
+- `test_weekly_report_task.py`：50 个测试
 
-**验证**：ruff 0 错误 | pytest 26 passed
+**Bug 修复**：
+- `test_service_helpers.py`：修复 `app.extensions` 修改未恢复导致的测试隔离污染
+- `test_routes.py`：修复 CSRF token 未 mock 导致翻译 API 测试失败
+- `test_setup_app.py`：修复 session-scoped app fixture 与新建 app 实例冲突
+- `test_setup_extended.py`：修复 `_nyt_ranking_sync_task` 缺少 `get_book_service` mock
+
+**代码清理**：
+- 移除 `award_book_service.py` 中 TODO 注释
+- `pyproject.toml`：新增 `RUF059`/`SIM117`/`B011` 测试文件忽略规则
+- `ruff format` + `ruff check` 全部通过
+
+**验证**：ruff 0 错误 | mypy 0 错误 | pytest 2034 passed, 4 xfailed | 覆盖率 84.12%
 
 ## v0.9.31 - 2026-05-28
 

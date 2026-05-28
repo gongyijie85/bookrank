@@ -1,13 +1,20 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.31
+**当前版本**：v0.9.32
 **发布日期**：2026-05-28
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
 
-### v0.9.31 (2026-05-28) — 管理增强
+### v0.9.32 (2026-05-28) — 质量收官
+- **测试覆盖率提升**：61% → 84.12%（目标 ≥80%）
+- **测试用例总数**：987 → 2034 passed（+1047 个新测试）
+- **新增测试文件**：14 个（覆盖爬虫、路由、服务、工具等模块）
+- **测试隔离修复**：`test_service_helpers.py` 中 `app.extensions` 修改导致后续测试污染
+- **TODO 清理**：移除 `award_book_service.py` 中的 TODO 注释
+- **Ruff lint 优化**：新增 `RUF059`/`SIM117`/`B011` 测试文件忽略规则
+- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 2034 passed, 4 xfailed
 - **爬虫管理 API**：`POST /api/admin/crawler/run/<publisher>` 手动触发 + `GET /api/admin/crawler/status` 状态查看
 - **系统监控**：`GET /api/admin/system/status` 返回进程内存/线程数/数据库类型/缓存命中率/错误统计
 - **数据备份 API**：`GET /api/admin/backup/export` 导出全库 JSON + `POST /api/admin/backup/import` 导入恢复
