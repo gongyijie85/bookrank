@@ -1,4 +1,18 @@
-# Changelog
+﻿# Changelog
+
+## v0.9.41 - 2026-05-28
+
+### feat(awards): 2026年获奖书单数据修复与补种机制
+
+**修复内容**：
+- `app/initialization/sample_award_books.py`：
+  - 修正2026年4本获奖图书的ISBN数据（Open Library验证）：
+    - Angel Down: `9781982168322` → `9781668068458`
+    - Flesh: `9781668052541` → `9780224099790`
+    - The Big Empty: `9780593419601` → `9780525535799`
+  - 新增4本2026年图书的中文标题和描述（天使陨落/肉体/台湾漫游录/空城）
+  - `init_sample_award_books()` 改为逐条补种模式：不再仅在空库时初始化，而是检查每条 `award_id + year + title` 缺失则补种
+- `app/routes/admin.py`：新增 `POST /api/admin/awards/seed` 端点，支持手动触发补种
 
 ## v0.9.40 - 2026-05-28
 

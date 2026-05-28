@@ -18,18 +18,22 @@ SAMPLE_AWARD_BOOKS = [
         'year': 2026,
         'category': '小说',
         'title': 'Angel Down',
+        'title_zh': '天使陨落',
         'author': 'Daniel Kraus',
-        'isbn13': '9781982168322',
+        'isbn13': '9781668068458',
         'description': 'A World War I stream-of-consciousness novel about survival, supernatural wonders, and moral conflict on the battlefield.',
+        'description_zh': '一部一战意识流小说，讲述战场上的生存、超自然奇观与道德冲突。',
     },
     {
         'award_name': '布克奖',
         'year': 2026,
         'category': '小说',
         'title': 'Flesh',
+        'title_zh': '肉体',
         'author': 'David Szalay',
-        'isbn13': '9781668052541',
+        'isbn13': '9780224099790',
         'description': 'A novel by the Hungarian-British author exploring masculinity and identity, winner of the 2025 Booker Prize.',
+        'description_zh': '匈牙利裔英国作家大卫·萨莱的小说，探讨男性气质与身份认同，获2025年布克奖。',
     },
     {
         'award_name': '雨果奖',
@@ -63,18 +67,22 @@ SAMPLE_AWARD_BOOKS = [
         'year': 2026,
         'category': '翻译小说',
         'title': 'Taiwan Travelogue',
+        'title_zh': '台湾漫游录',
         'author': 'Yáng Shuāng-zǐ',
         'isbn13': '9781913505974',
         'description': 'A novel set in 1930s Japanese-colonized Taiwan, exploring food, culture, and identity. First Chinese-language work to win the International Booker Prize.',
+        'description_zh': '一部设定在1930年代日治台湾的小说，探讨美食、文化与身份认同。首部获得国际布克奖的中文作品。',
     },
     {
         'award_name': '爱伦·坡奖',
         'year': 2026,
         'category': '最佳小说',
         'title': 'The Big Empty',
+        'title_zh': '空城',
         'author': 'Robert Crais',
-        'isbn13': '9780593419601',
+        'isbn13': '9780525535799',
         'description': 'A gripping mystery novel by the bestselling author of the Cole & Pike series.',
+        'description_zh': '畅销书作家罗伯特·克莱斯的悬疑小说，Cole与Pike系列续作。',
     },
     {
         'award_name': '普利策奖',
@@ -299,23 +307,17 @@ def init_sample_award_books(app):
     """
     初始化预置获奖图书数据
 
-    仅在数据库为空时添加，避免重复
+    逐条检查 award_id + year + title 是否已存在，
+    缺失的条目自动补种，避免重复插入。
     """
     try:
         from ..models.database import db
         from ..models.schemas import Award, AwardBook
 
-        app.logger.info('📚 检查是否需要初始化预置获奖图书...')
-
-        # 检查是否已有图书数据
-        existing_count = AwardBook.query.count()
-        if existing_count > 0:
-            app.logger.info(f'✅ 已有 {existing_count} 本图书，跳过预置数据初始化')
-            return
-
-        app.logger.info('🆕 数据库为空，开始添加预置获奖图书...')
+        app.logger.info('📚 检查预置获奖图书完整性...')
 
         added_count = 0
+        skipped_count = 0
 
         for book_data in SAMPLE_AWARD_BOOKS:
             # 查找对应的奖项
@@ -324,12 +326,13 @@ def init_sample_award_books(app):
                 app.logger.warning(f'⚠️ 找不到奖项: {book_data["award_name"]}，跳过')
                 continue
 
-            # 检查图书是否已存在
+            # 检查图书是否已存在（按 award_id + year + title 去重）
             existing = AwardBook.query.filter_by(
                 award_id=award.id, year=book_data['year'], title=book_data['title']
             ).first()
 
             if existing:
+                skipped_count += 1
                 continue
 
             # 创建新图书
@@ -339,8 +342,10 @@ def init_sample_award_books(app):
                 category=book_data['category'],
                 rank=1,
                 title=book_data['title'],
+                title_zh=book_data.get('title_zh'),
                 author=book_data['author'],
                 description=book_data['description'],
+                description_zh=book_data.get('description_zh'),
                 isbn13=book_data['isbn13'],
                 is_displayable=True,
                 verification_status='verified',
@@ -351,9 +356,9 @@ def init_sample_award_books(app):
 
         if added_count > 0:
             db.session.commit()
-            app.logger.info(f'✅ 已添加 {added_count} 本预置获奖图书')
+            app.logger.info(f'✅ 已补种 {added_count} 本预置获奖图书，跳过 {skipped_count} 本已存在')
         else:
-            app.logger.info('⏭️ 没有添加新图书（可能已存在）')
+            app.logger.info(f'✅ 所有 {skipped_count} 本预置获奖图书已存在，无需补种')
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'初始化预置获奖图书失败: {e}', exc_info=True)

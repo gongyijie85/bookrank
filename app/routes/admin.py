@@ -8,7 +8,15 @@ from typing import Any
 import psutil
 from flask import Blueprint, Response, current_app, request
 
-from ..models.database import db
+from ..services.admin_service import (
+    batch_commit,
+    batch_import_from_dict,
+    batch_update_categories,
+    get_weekly_report_by_id,
+    rollback,
+    update_book_metadata_records,
+    update_translation_cache_records,
+)
 from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
@@ -217,18 +225,15 @@ def cleanup_categories():
 
         if not dry_run:
             id_to_category = {item['id']: item['new_category'] for item in invalid_books}
-            books_to_update = db.session.query(NewBook).filter(NewBook.id.in_(id_to_category.keys())).all()
-            for book in books_to_update:
-                book.category = id_to_category[book.id]
-            db.session.commit()
+            updated = batch_update_categories(id_to_category)
             return APIResponse.success(
                 data={
                     'total_checked': len(books),
                     'invalid_found': len(invalid_books),
-                    'updated': len(books_to_update),
+                    'updated': updated,
                     'details': invalid_books[:50],
                 },
-                message=f'清理完成: 修复{len(books_to_update)}条分类数据',
+                message=f'清理完成: 修复{updated}条分类数据',
             )
         else:
             return APIResponse.success(
@@ -309,7 +314,7 @@ def clean_report_brackets():
         if not dry_run:
             updated = 0
             for item in fixable:
-                report = db.session.get(WeeklyReport, item['id'])
+                report = get_weekly_report_by_id(item['id'])
                 if not report:
                     continue
 
@@ -326,7 +331,7 @@ def clean_report_brackets():
 
                 updated += 1
 
-            db.session.commit()
+            batch_commit()
             return APIResponse.success(
                 data={'total_reports': len(reports), 'fixable': len(fixable), 'updated': updated, 'details': fixable},
                 message=f'清理完成: 修复{updated}份周报',
@@ -343,7 +348,7 @@ def clean_report_brackets():
             )
 
     except Exception as e:
-        db.session.rollback()
+        rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理周报书名号失败: {e}', exc_info=True)
         return APIResponse.error(f'清理失败: {e!s}', 500)
 
@@ -412,7 +417,7 @@ def fix_truncated_titles():
                     report.content = json_lib.dumps(content, ensure_ascii=False)
 
         if not dry_run and fixed_count > 0:
-            db.session.commit()
+            batch_commit()
 
         return APIResponse.success(
             data={
@@ -425,7 +430,7 @@ def fix_truncated_titles():
         )
 
     except Exception as e:
-        db.session.rollback()
+        rollback()
         log_error(ErrorCategory.DB_QUERY, f'修复截断书名失败: {e}', exc_info=True)
         return APIResponse.error(f'修复失败: {e!s}', 500)
 
@@ -497,24 +502,16 @@ def cleanup_translations():
 
         if not dry_run:
             t_ids = [item['id'] for item in fixable_translations]
-            if t_ids:
-                t_records_to_update = db.session.query(TranslationCache).filter(TranslationCache.id.in_(t_ids)).all()
-                for record in t_records_to_update:
-                    record.translated_text = clean_translation_text(record.translated_text)
-            else:
-                t_records_to_update = []
+            t_updated = update_translation_cache_records(
+                t_ids, lambda r: setattr(r, 'translated_text', clean_translation_text(r.translated_text))
+            )
 
             m_isbn_list = [item['isbn'] for item in fixable_metadata]
-            if m_isbn_list:
-                m_records_to_update = db.session.query(BookMetadata).filter(BookMetadata.isbn.in_(m_isbn_list)).all()
-                for record in m_records_to_update:
-                    record.title_zh = clean_translation_text(record.title_zh, field_type='title')
-            else:
-                m_records_to_update = []
+            m_updated = update_book_metadata_records(
+                m_isbn_list, lambda r: setattr(r, 'title_zh', clean_translation_text(r.title_zh, field_type='title'))
+            )
 
-            db.session.commit()
-            t_updated = len(t_records_to_update)
-            m_updated = len(m_records_to_update)
+            batch_commit()
             return APIResponse.success(
                 data={
                     'translation_cache': {'total': len(t_records), 'fixed': t_updated},
@@ -537,6 +534,7 @@ def cleanup_translations():
             )
 
     except Exception as e:
+        rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理翻译缓存失败: {e}', exc_info=True)
         return APIResponse.error(f'清理失败: {e!s}', 500)
 
@@ -685,8 +683,6 @@ def system_status():
             cache_stats = {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
 
         try:
-            from ..utils.error_tracker import error_tracker
-
             error_stats = error_tracker.get_stats()
         except Exception:
             error_stats = {}
@@ -772,35 +768,35 @@ def backup_import():
             'search_histories': SearchHistory,
         }
 
-        imported_counts: dict[str, int] = {}
-        for table_name, records_data in data['tables'].items():
-            model = table_models.get(table_name)
-            if not model:
-                continue
-
-            records = records_data.get('records', []) if isinstance(records_data, dict) else records_data
-            count = 0
-            for record in records:
-                record.pop('id', None)
-                record.pop('created_at', None)
-                record.pop('updated_at', None)
-                try:
-                    obj = model(**record)
-                    db.session.add(obj)
-                    count += 1
-                except Exception:
-                    db.session.rollback()
-                    continue
-
-            imported_counts[table_name] = count
-
-        db.session.commit()
+        imported_counts = batch_import_from_dict(table_models, data['tables'])
 
         return APIResponse.success(
             data={'imported': imported_counts, 'total': sum(imported_counts.values())},
             message=f'导入完成，共导入 {sum(imported_counts.values())} 条记录',
         )
     except Exception as e:
-        db.session.rollback()
+        rollback()
         log_error(ErrorCategory.DB_QUERY, f'数据导入失败: {e}', exc_info=True)
         return APIResponse.error('数据导入失败', 500)
+
+
+@admin_bp.route('/awards/seed', methods=['POST'])
+@csrf_protect
+@admin_required
+def seed_award_books():
+    """补种缺失的预置获奖图书数据（如2026年新获奖）"""
+    try:
+        from ..initialization.sample_award_books import init_sample_award_books
+
+        init_sample_award_books(current_app._get_current_object())
+
+        from ..models.schemas import AwardBook
+
+        total = AwardBook.query.count()
+        return APIResponse.success(
+            data={'total_awards': total},
+            message=f'补种完成，当前共 {total} 本获奖图书',
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'补种获奖图书失败: {e}', exc_info=True)
+        return APIResponse.error('补种失败', 500)
