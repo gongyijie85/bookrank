@@ -49,8 +49,46 @@ class ExportService:
                     continue
         logger.warning('未找到可用的中文字体，PDF将仅支持ASCII字符')
         return False
-        logger.warning(f'中文字体文件不存在: {CHINESE_FONT}')
-        return False
+
+    @staticmethod
+    def _safe_pdf_text(text: str) -> str:
+        """Convert text to pure ASCII to avoid font errors when Chinese font is missing."""
+        try:
+            return text.encode('ascii', 'replace').decode('ascii')
+        except Exception:
+            return text.encode('ascii', 'ignore').decode('ascii')
+
+    @staticmethod
+    def _safe_pdf_text(text: str) -> str:
+        """Convert text to pure ASCII when Chinese font is missing."""
+        try:
+            return text.encode('ascii', 'replace').decode('ascii')
+        except Exception:
+            return text.encode('ascii', 'ignore').decode('ascii')
+
+    def _safe_pdf(self, pdf, font_name, has_chinese_font):
+        """Wrap pdf.cell and pdf.multi_cell to auto-sanitize text."""
+        if has_chinese_font:
+            return pdf
+        _orig_cell = pdf.cell
+        _orig_multi_cell = pdf.multi_cell
+        _safe = self._safe_pdf_text
+
+        def _patched_cell(*args, **kwargs):
+            a = list(args)
+            if len(a) >= 3 and isinstance(a[2], str):
+                a[2] = _safe(a[2])
+            return _orig_cell(*a, **kwargs)
+
+        def _patched_multi_cell(*args, **kwargs):
+            a = list(args)
+            if len(a) >= 3 and isinstance(a[2], str):
+                a[2] = _safe(a[2])
+            return _orig_multi_cell(*a, **kwargs)
+
+        pdf.cell = _patched_cell
+        pdf.multi_cell = _patched_multi_cell
+        return pdf
 
     def export_weekly_report_pdf(self, report) -> BytesIO | None:
         """导出周报为PDF
@@ -69,6 +107,8 @@ class ExportService:
             # 添加中文字体支持
             has_chinese_font = self._init_pdf_font(pdf)
             font_name = 'SimHei' if has_chinese_font else 'Arial'
+            pdf = self._safe_pdf(pdf, font_name, has_chinese_font)
+            _txt = self._safe_pdf_text if not has_chinese_font else lambda t: t
 
             pdf.add_page()
 
@@ -81,7 +121,7 @@ class ExportService:
             pdf.cell(
                 0,
                 8,
-                f'发布日期: {report.report_date.strftime("%Y年%m月%d日")}',
+                _txt(f'发布日期: {report.report_date.strftime("%Y年%m月%d日")}'),
                 new_x='LMARGIN',
                 new_y='NEXT',
                 align='C',
@@ -89,7 +129,7 @@ class ExportService:
             pdf.cell(
                 0,
                 8,
-                f'统计周期: {report.week_start.strftime("%Y-%m-%d")} 至 {report.week_end.strftime("%Y-%m-%d")}',
+                _txt(f'统计周期: {report.week_start.strftime("%Y-%m-%d")} 至 {report.week_end.strftime("%Y-%m-%d")}'),
                 new_x='LMARGIN',
                 new_y='NEXT',
                 align='C',
@@ -98,7 +138,7 @@ class ExportService:
 
             # 摘要
             pdf.set_font(font_name, 'B', 12)
-            pdf.cell(0, 10, '本周概览', new_x='LMARGIN', new_y='NEXT', align='L')
+            pdf.cell(0, 10, _txt('本周概览'), new_x='LMARGIN', new_y='NEXT', align='L')
             pdf.set_font(font_name, '', 10)
             pdf.multi_cell(0, 5, report.summary)
             pdf.ln(10)
@@ -110,18 +150,18 @@ class ExportService:
                 # 重要变化
                 if content.get('top_changes'):
                     pdf.set_font(font_name, 'B', 12)
-                    pdf.cell(0, 10, '重要变化', new_x='LMARGIN', new_y='NEXT', align='L')
+                    pdf.cell(0, 10, _txt('重要变化'), new_x='LMARGIN', new_y='NEXT', align='L')
                     pdf.set_font(font_name, '', 10)
                     for change in content['top_changes']:
                         pdf.cell(
                             0, 6, f'• {change["title"]} - {change["author"]}', new_x='LMARGIN', new_y='NEXT', align='L'
                         )
-                        pdf.cell(0, 6, f'  类别: {change["category"]}', new_x='LMARGIN', new_y='NEXT', align='L')
+                        pdf.cell(0, 6, _txt(f'  类别: {change["category"]}'), new_x='LMARGIN', new_y='NEXT', align='L')
                         if change['rank_change'] > 0:
                             pdf.cell(
                                 0,
                                 6,
-                                f'  排名变化: ↑ {change["rank_change"]} 位',
+                                _txt(f'  排名变化: ↑ {change["rank_change"]} 位'),
                                 new_x='LMARGIN',
                                 new_y='NEXT',
                                 align='L',
@@ -130,26 +170,26 @@ class ExportService:
                             pdf.cell(
                                 0,
                                 6,
-                                f'  排名变化: ↓ {abs(change["rank_change"])} 位',
+                                _txt(f'  排名变化: ↓ {abs(change["rank_change"])} 位'),
                                 new_x='LMARGIN',
                                 new_y='NEXT',
                                 align='L',
                             )
                         else:
-                            pdf.cell(0, 6, '  排名变化: → 无变化', new_x='LMARGIN', new_y='NEXT', align='L')
+                            pdf.cell(0, 6, _txt('  排名变化: → 无变化'), new_x='LMARGIN', new_y='NEXT', align='L')
                         pdf.ln(2)
                     pdf.ln(5)
 
                 # 推荐书籍
                 if content.get('featured_books'):
                     pdf.set_font(font_name, 'B', 12)
-                    pdf.cell(0, 10, '推荐书籍', new_x='LMARGIN', new_y='NEXT', align='L')
+                    pdf.cell(0, 10, _txt('推荐书籍'), new_x='LMARGIN', new_y='NEXT', align='L')
                     pdf.set_font(font_name, '', 10)
                     for book in content['featured_books']:
                         pdf.cell(
                             0, 6, f'• {book["title"]} - {book["author"]}', new_x='LMARGIN', new_y='NEXT', align='L'
                         )
-                        pdf.cell(0, 6, f'  推荐理由: {book["reason"]}', new_x='LMARGIN', new_y='NEXT', align='L')
+                        pdf.cell(0, 6, _txt(f'  推荐理由: {book["reason"]}'), new_x='LMARGIN', new_y='NEXT', align='L')
                         pdf.ln(2)
                     pdf.ln(5)
 
@@ -158,7 +198,7 @@ class ExportService:
             pdf.cell(
                 0,
                 10,
-                f'© {report.report_date.year} BookRank - 纽约时报畅销书排行榜',
+                _txt(f'© {report.report_date.year} BookRank - 纽约时报畅销书排行榜'),
                 new_x='LMARGIN',
                 new_y='NEXT',
                 align='C',
