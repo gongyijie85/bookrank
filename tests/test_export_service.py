@@ -19,11 +19,11 @@ def export_service():
 def mock_report():
     """模拟周报对象"""
     report = MagicMock()
-    report.title = '2024年第3周畅销书排行榜周报'
+    report.title = 'Weekly Bestseller Report 2024 Week 3'
     report.report_date = date(2024, 1, 21)
     report.week_start = date(2024, 1, 15)
     report.week_end = date(2024, 1, 21)
-    report.summary = '本周共有15本新书上榜，3本图书排名大幅上升。'
+    report.summary = '15 new books on the list, 3 rose significantly in rank.'
     report.content = json.dumps(
         {
             'top_changes': [

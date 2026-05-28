@@ -153,8 +153,8 @@ class TestExportService:
                 report_date=date.today(),
                 week_start=date.today() - timedelta(days=7),
                 week_end=date.today(),
-                title='测试周报',
-                summary='这是一份测试周报',
+                title='Test Weekly Report',
+                summary='This is a test weekly report',
                 content='{"top_changes": [], "new_books": [], "top_risers": [], "longest_running": [], "featured_books": []}',
             )
             db.session.add(report)
@@ -177,8 +177,8 @@ class TestExportService:
                 report_date=date.today(),
                 week_start=date.today() - timedelta(days=7),
                 week_end=date.today(),
-                title='测试周报',
-                summary='这是一份测试周报',
+                title='Test Weekly Report',
+                summary='This is a test weekly report',
                 content='{"top_changes": [], "new_books": [], "top_risers": [], "longest_running": [], "featured_books": []}',
             )
             db.session.add(report)
@@ -365,8 +365,8 @@ class TestWeeklyReportRoutes:
                 report_date=date.today(),
                 week_start=date.today() - timedelta(days=7),
                 week_end=date.today(),
-                title='测试周报',
-                summary='这是一份测试周报',
+                title='Test Weekly Report',
+                summary='This is a test weekly report',
                 content='{"top_changes": [], "new_books": [], "top_risers": [], "longest_running": [], "featured_books": []}',
             )
             db.session.add(report)
@@ -385,8 +385,8 @@ class TestWeeklyReportRoutes:
                 report_date=date.today(),
                 week_start=date.today() - timedelta(days=7),
                 week_end=date.today(),
-                title='测试周报',
-                summary='这是一份测试周报',
+                title='Test Weekly Report',
+                summary='This is a test weekly report',
                 content='{"top_changes": [], "new_books": [], "top_risers": [], "longest_running": [], "featured_books": []}',
             )
             db.session.add(report)
