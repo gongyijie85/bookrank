@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,6 @@ babel = Babel()
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
-
 def _ensure_static_assets() -> None:
     """Auto-build compressed static assets at startup if missing."""
     min_css = PROJECT_ROOT / 'static' / 'css' / 'all.min.css'
@@ -32,7 +32,7 @@ def _ensure_static_assets() -> None:
         return
     try:
         subprocess.run(
-            [os.sys.executable, str(PROJECT_ROOT / 'build.py')],
+            [sys.executable, str(PROJECT_ROOT / 'build.py')],
             cwd=str(PROJECT_ROOT),
             check=True,
             timeout=30,
@@ -210,7 +210,7 @@ def _register_error_handlers(app: Flask) -> None:
         return {'success': False, 'message': 'Rate limit exceeded. Please try again later.'}, 429
 
     @app.errorhandler(500)
-    def internal_error(error: Exception) -> tuple[dict[str, bool | str], int]:
+    def internal_error(error: Exception):
         try:
             db.session.rollback()
         except Exception:
@@ -471,6 +471,7 @@ def _register_jinja_filters(app: Flask) -> None:
     def is_valid_isbn_filter(value: str | None) -> bool:
         """校验字符串是否为合法 ISBN-10 或 ISBN-13（委托给 validate_isbn）"""
         from .utils.api_helpers import validate_isbn
+
         return validate_isbn(value)
 
     @app.template_filter('clean_isbn')

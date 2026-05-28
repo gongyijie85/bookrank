@@ -1,4 +1,4 @@
-﻿"""导出服务"""
+"""导出服务"""
 
 import json
 import logging
@@ -32,22 +32,22 @@ class ExportService:
         # 1. 尝试项目内置字体
         if CHINESE_FONT.exists():
             try:
-                pdf.add_font("SimHei", "", str(CHINESE_FONT))
-                pdf.add_font("SimHei", "B", str(CHINESE_FONT))
+                pdf.add_font('SimHei', '', str(CHINESE_FONT))
+                pdf.add_font('SimHei', 'B', str(CHINESE_FONT))
                 return True
             except Exception as e:
-                log_error(ErrorCategory.UNKNOWN, f"加载项目中文字体失败: {e}", level="warning")
+                log_error(ErrorCategory.UNKNOWN, f'加载项目中文字体失败: {e}', level='warning')
         # 2. 尝试系统字体
         for font_path in _SYSTEM_FONT_CANDIDATES:
             if font_path.exists():
                 try:
-                    pdf.add_font("SimHei", "", str(font_path))
-                    pdf.add_font("SimHei", "B", str(font_path))
-                    logger.info(f"使用系统中文字体: {font_path}")
+                    pdf.add_font('SimHei', '', str(font_path))
+                    pdf.add_font('SimHei', 'B', str(font_path))
+                    logger.info(f'使用系统中文字体: {font_path}')
                     return True
                 except Exception:
                     continue
-        logger.warning("未找到可用的中文字体，PDF将仅支持ASCII字符")
+        logger.warning('未找到可用的中文字体，PDF将仅支持ASCII字符')
         return False
         logger.warning(f'中文字体文件不存在: {CHINESE_FONT}')
         return False

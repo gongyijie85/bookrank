@@ -44,6 +44,7 @@ class Book:
     def _is_valid_isbn(cls, value: str) -> bool:
         """校验字符串是否为合法 ISBN-10 或 ISBN-13（委托给 api_helpers.validate_isbn）"""
         from ..utils.api_helpers import validate_isbn
+
         return validate_isbn(value)
 
     @classmethod

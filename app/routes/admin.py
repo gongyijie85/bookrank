@@ -37,6 +37,7 @@ def sync_award_covers():
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
         from ..utils.service_helpers import get_or_create_google_books_client
+
         google_client = get_or_create_google_books_client()
 
         sync_service = AwardCoverSyncService(google_client, image_cache=get_image_cache_service())
@@ -60,6 +61,7 @@ def get_award_covers_status():
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
         from ..utils.service_helpers import get_or_create_google_books_client
+
         google_client = get_or_create_google_books_client()
 
         sync_service = AwardCoverSyncService(google_client)

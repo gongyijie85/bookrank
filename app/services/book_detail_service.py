@@ -14,10 +14,10 @@ from ..utils.service_helpers import (
 logger = logging.getLogger(__name__)
 
 
-
 def is_valid_isbn(value: str | None) -> bool:
     """验证ISBN格式（委托给 api_helpers.validate_isbn）"""
     from ..utils.api_helpers import validate_isbn
+
     return validate_isbn(value)
 
 

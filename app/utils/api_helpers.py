@@ -141,6 +141,8 @@ def validate_isbn(value: str | None) -> bool:
         if prefix.isdigit() and (suffix.isdigit() or suffix.upper() == 'X'):
             return True
     return False
+
+
 def validate_pagination(page: int, limit: int, max_limit: int = 50) -> tuple[int, int]:
     """验证并规范化分页参数"""
     page = min(max(1, page), 10000)

@@ -244,6 +244,7 @@ def get_book_details(isbn: str):
             return APIResponse.error('Invalid ISBN format', 400)
 
         from ...utils.service_helpers import get_or_create_google_books_client
+
         google_client = get_or_create_google_books_client()
 
         try:

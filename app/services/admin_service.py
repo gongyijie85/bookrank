@@ -17,6 +17,7 @@ def batch_update_categories(id_to_category: dict[int, str]) -> int:
     db.session.commit()
     return len(books)
 
+
 def get_weekly_report_by_id(report_id: int):
     """获取周报记录"""
     from ..models.schemas import WeeklyReport

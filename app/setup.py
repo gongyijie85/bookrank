@@ -428,6 +428,7 @@ def _cover_sync_task(app):
         app.logger.info('开始检查获奖书籍封面...')
 
         from .utils.service_helpers import get_or_create_google_books_client
+
         google_client = get_or_create_google_books_client()
 
         sync_service = AwardCoverSyncService(
