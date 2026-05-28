@@ -26,6 +26,9 @@ python-dotenv==1.0.1
 # HTTP 客户端（只保留 requests，httpx 未使用）
 requests==2.32.3
 
+# 系统监控
+psutil>=5.9.0
+
 # WSGI 服务器（Render 生产环境需要）
 gunicorn==23.0.0
 

@@ -1,18 +1,18 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.30
-**发布日期**：2026-05-27
+**当前版本**：v0.9.31
+**发布日期**：2026-05-28
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
 
-### v0.9.30 (2026-05-27) — 功能补全
-- **收藏持久化**：新建 `UserFavorite` 模型 + `POST/DELETE/GET /api/favorites` API + 前端 toggleFavorite 对接后端
-- **新书公共 API**：`/api/public/new-books` + `/api/public/new-books/<publisher>` 端点
-- **推荐公共 API**：`/api/public/recommendations` 端点（智能推荐策略）
-- **搜索扩展**：SmartSearchService 同时搜索 AwardBook + NewBook，结果合并排序
-- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.11%
+### v0.9.31 (2026-05-28) — 管理增强
+- **爬虫管理 API**：`POST /api/admin/crawler/run/<publisher>` 手动触发 + `GET /api/admin/crawler/status` 状态查看
+- **系统监控**：`GET /api/admin/system/status` 返回进程内存/线程数/数据库类型/缓存命中率/错误统计
+- **数据备份 API**：`GET /api/admin/backup/export` 导出全库 JSON + `POST /api/admin/backup/import` 导入恢复
+- **psutil 集成**：系统监控指标采集（进程内存、CPU、线程数）
+- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 987 passed
 
 ### v0.9.29 (2026-05-27) — 前端瘦身
 - **CSS 提取**：index.html 1093 行内联 CSS → `static/css/index.css` 独立文件

@@ -68,6 +68,7 @@ module = [
     "dotenv.*",
     "flask_babel.*",
     "crawl4ai.*",
+    "psutil.*",
 ]
 ignore_missing_imports = true
 

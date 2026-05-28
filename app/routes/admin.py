@@ -1,7 +1,12 @@
+import json as json_lib
 import logging
 import re
+import time
+from datetime import UTC, datetime
+from typing import Any
 
-from flask import Blueprint, request
+import psutil
+from flask import Blueprint, Response, current_app, request
 
 from ..models.database import db
 from ..utils.admin_auth import admin_required
@@ -12,6 +17,8 @@ from ..utils.service_helpers import get_book_service, get_google_books_client, g
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 logger = logging.getLogger(__name__)
+
+_crawler_status: dict[str, dict[str, Any]] = {}
 
 
 @admin_bp.route('/award-covers/sync', methods=['POST'])
@@ -564,3 +571,226 @@ def clear_errors():
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'清空错误记录失败: {e}', exc_info=True)
         return APIResponse.error('清空失败', 500)
+
+
+@admin_bp.route('/crawler/run/<publisher_name>', methods=['POST'])
+@csrf_protect
+@admin_required
+def run_crawler(publisher_name: str):
+    try:
+        from ..services.new_book import NewBookService
+
+        service = NewBookService()
+        publishers = service.get_publishers(active_only=True)
+        publisher = next((p for p in publishers if p.name == publisher_name), None)
+        if not publisher:
+            return APIResponse.error(f'出版社不存在: {publisher_name}', 404)
+
+        data = request.get_json(silent=True) or {}
+        category = data.get('category')
+        max_books = min(max(1, data.get('max_books', 30)), 100)
+
+        _crawler_status[publisher_name] = {
+            'status': 'running',
+            'started_at': datetime.now(UTC).isoformat(),
+            'publisher': publisher_name,
+        }
+
+        try:
+            result = service.sync_publisher_books(
+                publisher_id=publisher.id,
+                category=category,
+                max_books=max_books,
+                translate=True,
+            )
+            _crawler_status[publisher_name].update({
+                'status': 'completed',
+                'finished_at': datetime.now(UTC).isoformat(),
+                'last_result': result,
+            })
+            return APIResponse.success(data=result, message=f'{publisher_name} 爬虫执行完成')
+        except Exception as e:
+            _crawler_status[publisher_name].update({
+                'status': 'failed',
+                'finished_at': datetime.now(UTC).isoformat(),
+                'error': str(e),
+            })
+            raise
+
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'爬虫执行失败 [{publisher_name}]: {e}', exc_info=True)
+        return APIResponse.error(f'爬虫执行失败: {e!s}', 500)
+
+
+@admin_bp.route('/crawler/status')
+@admin_required
+def crawler_status():
+    try:
+        from ..services.new_book import NewBookService
+
+        service = NewBookService()
+        publishers = service.get_publishers(active_only=True)
+        pub_book_counts = service.get_publisher_book_counts()
+
+        publishers_info = []
+        for p in publishers:
+            publishers_info.append({
+                'name': p.name,
+                'crawler_class': p.crawler_class,
+                'book_count': pub_book_counts.get(p.id, 0),
+                'last_run': _crawler_status.get(p.name, {}),
+            })
+
+        return APIResponse.success(data={
+            'publishers': publishers_info,
+            'total_publishers': len(publishers_info),
+            'active_crawlers': sum(1 for s in _crawler_status.values() if s.get('status') == 'running'),
+        })
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'获取爬虫状态失败: {e}', exc_info=True)
+        return APIResponse.error('获取状态失败', 500)
+
+
+@admin_bp.route('/system/status')
+@admin_required
+def system_status():
+    try:
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        memory_percent = process.memory_percent()
+
+        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        db_type = 'unknown'
+        if 'sqlite' in db_uri:
+            db_type = 'sqlite'
+        elif 'postgresql' in db_uri:
+            db_type = 'postgresql'
+        elif 'mysql' in db_uri:
+            db_type = 'mysql'
+
+        try:
+            from ..services.cache_service import CacheService
+
+            cache_service = CacheService()
+            cache_stats = cache_service.get_stats()
+        except Exception:
+            cache_stats = {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
+
+        try:
+            from ..utils.error_tracker import error_tracker
+
+            error_stats = error_tracker.get_stats()
+        except Exception:
+            error_stats = {}
+
+        return APIResponse.success(data={
+            'process': {
+                'pid': process.pid,
+                'memory_rss_mb': round(memory_info.rss / (1024 * 1024), 2),
+                'memory_vms_mb': round(memory_info.vms / (1024 * 1024), 2),
+                'memory_percent': round(memory_percent, 2),
+                'cpu_percent': process.cpu_percent(interval=0.1),
+                'threads': process.num_threads(),
+            },
+            'database': {
+                'type': db_type,
+                'pool_status': 'ok',
+            },
+            'cache': cache_stats,
+            'errors': error_stats,
+            'uptime_seconds': round(time.time() - process.create_time(), 0),
+            'timestamp': datetime.now(UTC).isoformat(),
+        })
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'获取系统状态失败: {e}', exc_info=True)
+        return APIResponse.error('获取系统状态失败', 500)
+
+
+@admin_bp.route('/backup/export')
+@admin_required
+def backup_export():
+    try:
+        from ..models.schemas import Award, AwardBook, BookMetadata, SearchHistory, TranslationCache, WeeklyReport
+
+        tables_to_export = {
+            'awards': Award.query.all(),
+            'award_books': AwardBook.query.all(),
+            'weekly_reports': WeeklyReport.query.all(),
+            'translation_caches': TranslationCache.query.all(),
+            'book_metadata': BookMetadata.query.all(),
+            'search_histories': SearchHistory.query.all(),
+        }
+
+        export_data: dict[str, Any] = {
+            'exported_at': datetime.now(UTC).isoformat(),
+            'tables': {},
+        }
+
+        for table_name, records in tables_to_export.items():
+            export_data['tables'][table_name] = {
+                'count': len(records),
+                'records': [r.to_dict() for r in records],
+            }
+
+        return Response(
+            json_lib.dumps(export_data, ensure_ascii=False, indent=2),
+            mimetype='application/json',
+            headers={'Content-Disposition': 'attachment; filename=bookrank_backup.json'},
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'数据导出失败: {e}', exc_info=True)
+        return APIResponse.error('数据导出失败', 500)
+
+
+@admin_bp.route('/backup/import', methods=['POST'])
+@csrf_protect
+@admin_required
+def backup_import():
+    try:
+        from ..models.schemas import Award, AwardBook, BookMetadata, SearchHistory, TranslationCache, WeeklyReport
+
+        data = request.get_json(silent=True)
+        if not data or 'tables' not in data:
+            return APIResponse.error('无效的导入数据格式', 400)
+
+        table_models = {
+            'awards': Award,
+            'award_books': AwardBook,
+            'weekly_reports': WeeklyReport,
+            'translation_caches': TranslationCache,
+            'book_metadata': BookMetadata,
+            'search_histories': SearchHistory,
+        }
+
+        imported_counts: dict[str, int] = {}
+        for table_name, records_data in data['tables'].items():
+            model = table_models.get(table_name)
+            if not model:
+                continue
+
+            records = records_data.get('records', []) if isinstance(records_data, dict) else records_data
+            count = 0
+            for record in records:
+                record.pop('id', None)
+                record.pop('created_at', None)
+                record.pop('updated_at', None)
+                try:
+                    obj = model(**record)
+                    db.session.add(obj)
+                    count += 1
+                except Exception:
+                    db.session.rollback()
+                    continue
+
+            imported_counts[table_name] = count
+
+        db.session.commit()
+
+        return APIResponse.success(
+            data={'imported': imported_counts, 'total': sum(imported_counts.values())},
+            message=f'导入完成，共导入 {sum(imported_counts.values())} 条记录',
+        )
+    except Exception as e:
+        db.session.rollback()
+        log_error(ErrorCategory.DB_QUERY, f'数据导入失败: {e}', exc_info=True)
+        return APIResponse.error('数据导入失败', 500)

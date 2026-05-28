@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.9.31 - 2026-05-28
+
+### feat: 管理增强 — 爬虫管理、系统监控、数据备份
+
+**爬虫管理 API**：
+- `POST /api/admin/crawler/run/<publisher>` 手动触发爬虫（支持 category、max_books 参数）
+- `GET /api/admin/crawler/status` 查看所有出版社爬虫状态（活跃数、上次运行时间）
+- 内存中跟踪爬虫运行状态（running/completed/failed）
+
+**系统监控**：
+- `GET /api/admin/system/status` 返回进程指标（RSS内存、VMS内存、CPU、线程数）
+- 数据库类型检测（sqlite/postgresql/mysql）
+- 缓存命中率统计、错误日志统计、进程运行时间
+
+**数据备份 API**：
+- `GET /api/admin/backup/export` 导出全库为 JSON 文件（awards、award_books、weekly_reports 等6张表）
+- `POST /api/admin/backup/import` 从 JSON 导入数据（跳过 id/timestamp 字段避免冲突）
+
+**依赖变更**：
+- 新增 `psutil>=5.9.0`（系统监控指标采集）
+
+**验证**：ruff 0 错误 | mypy 0 错误 | pytest 987 passed
+
 ## v0.9.30 - 2026-05-27
 
 ### feat: 功能补全 — 收藏持久化、公共API、搜索扩展
