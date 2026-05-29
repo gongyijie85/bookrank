@@ -278,8 +278,8 @@ class BookService:
 
             futures = {self._executor.submit(_fetch_one, isbn): isbn for isbn in valid_isbns}
             for future in as_completed(futures):
-                    isbn, result = future.result()
-                    supplements[isbn] = result
+                isbn, result = future.result()
+                supplements[isbn] = result
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'并发获取补充信息失败，降级为串行: {e}', level='warning')
             for isbn in valid_isbns:

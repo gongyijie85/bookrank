@@ -240,15 +240,10 @@ class APICacheService:
         if api_source:
             total_count = APICache.query.filter_by(api_source=api_source).count()
             expired_count = (
-                APICache.query.filter_by(api_source=api_source)
-                .filter(APICache.expires_at < datetime.now(UTC))
-                .count()
+                APICache.query.filter_by(api_source=api_source).filter(APICache.expires_at < datetime.now(UTC)).count()
             )
             total_usage = (
-                db.session.query(func.sum(APICache.usage_count))
-                .filter(APICache.api_source == api_source)
-                .scalar()
-                or 0
+                db.session.query(func.sum(APICache.usage_count)).filter(APICache.api_source == api_source).scalar() or 0
             )
             return {
                 'total_count': total_count,

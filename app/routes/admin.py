@@ -667,7 +667,9 @@ def system_status():
             from ..utils.service_helpers import get_cache_service as _get_cs
 
             cs = _get_cs()
-            cache_stats = cs.get_stats() if cs else {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
+            cache_stats = (
+                cs.get_stats() if cs else {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
+            )
         except Exception:
             cache_stats = {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
 
