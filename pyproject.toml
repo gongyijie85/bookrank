@@ -140,3 +140,7 @@ disable_error_code = [
     "call-arg",
     "return",
 ]
+
+[[tool.mypy.overrides]]
+module = ["run"]
+disable_error_code = ["union-attr"]

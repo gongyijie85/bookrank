@@ -7,8 +7,6 @@ import logging
 
 from flask import Blueprint, make_response
 
-from ..utils.error_handler import ErrorCategory, log_error
-
 health_bp = Blueprint('health', __name__)
 logger = logging.getLogger(__name__)
 

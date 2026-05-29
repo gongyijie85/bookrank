@@ -84,7 +84,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # 请求结束时清理数据库会话，防止连接泄漏
     @app.teardown_appcontext
-    def shutdown_session(exception: Exception | None = None) -> None:
+    def shutdown_session(exception: BaseException | None = None) -> None:
         db.session.remove()
 
     # 初始化 Babel（国际化）- Flask-Babel 4.0+ API
