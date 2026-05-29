@@ -176,7 +176,7 @@ class FileCache(CacheStrategy):
             # 先写入临时文件，再重命名（原子操作）
             tmp_path = cache_path.with_suffix('.tmp')
             with open(tmp_path, 'w', encoding='utf-8') as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
+                json.dump(payload, f, ensure_ascii=False, separators=(',', ':'))
             tmp_path.replace(cache_path)
         except OSError as e:
             logger.warning(f'Failed to write cache file {cache_path}: {e}')

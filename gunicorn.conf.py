@@ -12,12 +12,12 @@ bind = '0.0.0.0:' + os.environ.get('PORT', '10000')
 # Render 免费版 512MB 内存：1 个 worker 最合适
 workers = int(os.environ.get('WEB_CONCURRENCY', 1))
 
-# 工作进程类型（使用 sync 模式更稳定）
-worker_class = 'sync'
+# 工作进程类型（使用 gthread 允许单 worker 处理并发请求，比 sync 更高效）
+worker_class = 'gthread'
 
 # 每个 worker 的线程数
-# 减少线程数以降低内存使用（Render 免费版优化）
-threads = int(os.environ.get('GUNICORN_THREADS', 1))
+# gthread 模式下 2 线程可在 I/O 等待时处理其他请求，无需额外 worker 进程
+threads = int(os.environ.get('GUNICORN_THREADS', 2))
 
 # 超时时间（秒）
 # Render 免费版响应可能慢，延长超时

@@ -82,6 +82,11 @@ def create_app(config_name: str | None = None) -> Flask:
     if config_name == 'production':
         _enable_rate_limiting(app)
 
+    # 请求结束时清理数据库会话，防止连接泄漏
+    @app.teardown_appcontext
+    def shutdown_session(exception: Exception | None = None) -> None:
+        db.session.remove()
+
     # 初始化 Babel（国际化）- Flask-Babel 4.0+ API
     babel.init_app(app)
     babel.locale_selector = _get_locale
@@ -233,21 +238,13 @@ def _register_error_handlers(app: Flask) -> None:
 
 
 def _setup_db_event_listeners(app: Flask) -> None:
-    """设置数据库事件监听器，处理 Render PostgreSQL 休眠恢复"""
-    from sqlalchemy import event
-    from sqlalchemy.exc import DisconnectionError
-    from sqlalchemy.pool import Pool
+    """设置数据库事件监听器，处理 Render PostgreSQL 休眠恢复
 
-    @event.listens_for(Pool, 'checkout')
-    def handle_checkout(dbapi_connection: Any, connection_record: Any, connection_proxy: Any) -> None:
-        try:
-            cursor = dbapi_connection.cursor()
-            cursor.execute('SELECT 1')
-            cursor.fetchone()
-            cursor.close()
-        except Exception as e:
-            log_error(ErrorCategory.DB_QUERY, f'数据库连接检查失败: {e}', level='warning')
-            raise DisconnectionError('Connection check failed')
+    注意：pool_pre_ping=True 已在 config.py 中启用，它会在每次 checkout 时
+    自动执行连接活性检测，因此这里不再重复 SELECT 1 检查。
+    """
+    from sqlalchemy import event
+    from sqlalchemy.pool import Pool
 
     @event.listens_for(Pool, 'checkin')
     def handle_checkin(dbapi_connection: Any, connection_record: Any) -> None:
@@ -366,7 +363,7 @@ def _apply_security_headers(app: Flask) -> None:
                 t in response.content_type for t in ('text/', 'application/json', 'application/javascript', 'image/svg')
             )
             and response.content_length
-            and response.content_length > 500
+            and response.content_length > 1024
         ):
             response.direct_passthrough = False
             gzip_buffer = io.BytesIO()

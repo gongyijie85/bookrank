@@ -43,27 +43,12 @@ def detailed_health_check():
 
 @health_bp.route('/health/ready')
 def readiness_check():
-    """就绪检查 - 用于 Kubernetes/容器编排"""
-    import time as _time
+    """就绪检查 - 快速检测数据库连通性（不重试，减少延迟）"""
+    try:
+        from ..models.database import db
 
-    from sqlalchemy.exc import OperationalError
-
-    max_retries = 2
-    for attempt in range(max_retries + 1):
-        try:
-            from ..models.database import db
-
-            db.session.execute(db.text('SELECT 1'))
-            return _json_response('{"success":true,"status":"ready"}')
-
-        except OperationalError as e:
-            if attempt < max_retries:
-                logger.warning(f'Database retry {attempt + 1}/{max_retries}: {e}')
-                _time.sleep(2**attempt)
-                continue
-            logger.warning(f'Database check failed after retries: {e}')
-            return _json_response('{"success":true,"status":"ready","warning":"db_warming_up"}')
-
-        except Exception as e:
-            log_error(ErrorCategory.UNKNOWN, f'Health check error: {e}', level='warning')
-            return _json_response('{"success":true,"status":"ready","warning":"check_skipped"}')
+        db.session.execute(db.text('SELECT 1'))
+        return _json_response('{"success":true,"status":"ready"}')
+    except Exception as e:
+        logger.warning(f'Readiness check failed: {e}')
+        return _json_response('{"success":true,"status":"ready","warning":"db_warming_up"}')

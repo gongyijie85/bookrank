@@ -268,6 +268,17 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info('📅 翻译缓存自动清理已安排（每30分钟，首次600秒后）')
 
+    # 6. 翻译数据清理和预置获奖图书补种（一次性，延迟到后台执行，减轻冷启动负担）
+    from datetime import timedelta
+
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _deferred_init_task),
+        trigger=DateTrigger(run_date=now + timedelta(seconds=initial_delay + 60), timezone=UTC),
+        id='deferred_init',
+        name='延迟初始化（翻译清理+预置数据）',
+    )
+    app.logger.info(f'📅 延迟初始化已安排（{initial_delay + 60}秒后）')
+
     _scheduler.start()
     app.logger.info('✅ APScheduler 后台任务调度器已启动')
 
@@ -302,6 +313,26 @@ def _translation_cache_cleanup_task(app):
                 app.logger.info('翻译缓存自动清理完成')
     except Exception as e:
         log_error(ErrorCategory.CACHE, f'翻译缓存自动清理跳过: {e}', level='warning')
+
+
+def _deferred_init_task(app):
+    """延迟初始化任务：翻译数据清理 + 预置获奖图书补种（从冷启动路径移出）"""
+    try:
+        from run import _cleanup_dirty_translations
+
+        with app.app_context():
+            _cleanup_dirty_translations()
+    except Exception as e:
+        log_error(ErrorCategory.UNKNOWN, f'翻译脏数据清理跳过: {e}', level='warning')
+
+    try:
+        from app.initialization.sample_award_books import init_sample_award_books
+
+        with app.app_context():
+            init_sample_award_books(app)
+            logger.info('预置获奖图书补种完成')
+    except Exception as e:
+        log_error(ErrorCategory.UNKNOWN, f'预置获奖图书补种跳过: {e}', level='warning')
 
 
 def shutdown_scheduler(app):

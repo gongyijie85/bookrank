@@ -190,16 +190,6 @@ def _init_database_lazy():
             except Exception as e:
                 logger.warning(f'基础数据初始化跳过: {e}')
 
-            _cleanup_dirty_translations()
-
-            # 补种缺失的预置获奖图书（如2026年新获奖数据）
-            try:
-                from app.initialization.sample_award_books import init_sample_award_books
-
-                init_sample_award_books(app)
-            except Exception as e:
-                logger.warning(f'预置获奖图书补种跳过: {e}')
-
             _db_initialized = True
             logger.info('数据库初始化完成')
 
