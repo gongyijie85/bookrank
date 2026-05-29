@@ -167,7 +167,7 @@ def user_preferences():
 
 @api_bp.route('/export/<category>')
 def export_csv(category: str):
-    """导出CSV"""
+    """导出CSV（流式输出，避免内存峰值）"""
     try:
         if not validate_category(category):
             return APIResponse.error('Invalid category', 400)

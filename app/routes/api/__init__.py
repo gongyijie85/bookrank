@@ -35,8 +35,16 @@ def health_check():
 
 @api_bp.route('/csrf-token')
 def get_csrf_token_endpoint():
-    """获取CSRF令牌端点"""
+    """获取CSRF令牌端点（含速率限制：每 IP 每分钟最多 10 次）"""
+    from flask import request
+
     from ...utils.api_helpers import APIResponse, get_csrf_token
+    from ...utils.rate_limiter import get_rate_limiter
+
+    csrf_limiter = get_rate_limiter(max_requests=10, window_seconds=60)
+    client_ip = request.remote_addr or 'unknown'
+    if not csrf_limiter.is_allowed(client_ip):
+        return APIResponse.error('Too many requests', 429)
 
     token = get_csrf_token()
     return APIResponse.success(data={'csrf_token': token})

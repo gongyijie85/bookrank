@@ -1,5 +1,4 @@
 import logging
-import pathlib
 import re
 from pathlib import Path
 
@@ -25,12 +24,13 @@ from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.security import is_safe_redirect_url
 
-PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 from ..utils.service_helpers import (
     get_book_service,
     get_google_books_client,
     get_image_cache_service,
     get_translation_service,
+    hash_client_ip,
     submit_background_task,
 )
 
@@ -211,7 +211,7 @@ def awards():
         year = int(selected_year) if selected_year else None
         # 获取全部可展示图书（页面内做搜索过滤）
         books, _ = award_service.get_award_books(
-            award_id=award_id, year=year, include_displayable_only=True, page=1, limit=10000
+            award_id=award_id, year=year, include_displayable_only=True, page=1, limit=500
         )
 
         if search_query:
@@ -550,7 +550,6 @@ def weekly_reports():
 @main_bp.route('/reports/weekly/<date>')
 def weekly_report_detail(date):
     """周报详情（通过 Service 层）"""
-    import hashlib
 
     from ..services.weekly_report_service import WeeklyReportService
 
@@ -573,8 +572,7 @@ def weekly_report_detail(date):
 
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
-        raw_ip = request.remote_addr
-        ip_address = hashlib.sha256((raw_ip or 'unknown').encode()).hexdigest()[:16] if raw_ip else None
+        ip_address = hash_client_ip()
 
         report_service.record_report_view(
             report_id=report.id,
@@ -593,7 +591,7 @@ def weekly_report_detail(date):
 
 @main_bp.route('/reports/weekly/<date>/export')
 def export_weekly_report(date):
-    import hashlib
+    """导出周报（PDF/Markdown）"""
 
     from flask import send_file
 
@@ -644,8 +642,7 @@ def export_weekly_report(date):
 
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
-        raw_ip = request.remote_addr
-        ip_address = hashlib.sha256((raw_ip or 'unknown').encode()).hexdigest()[:16] if raw_ip else None
+        ip_address = hash_client_ip()
 
         # 通过 Service 层记录导出行为
         report_service.record_report_export(

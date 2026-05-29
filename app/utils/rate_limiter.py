@@ -55,6 +55,7 @@ class IPRateLimiter:
         self.window_seconds = window_seconds
         self._requests: dict[str, list[float]] = defaultdict(list)
         self._lock = Lock()
+        self._last_cleanup: float = 0.0
 
     def is_allowed(self, client_id: str) -> bool:
         """
@@ -77,10 +78,12 @@ class IPRateLimiter:
 
             self._requests[client_id].append(now)
 
-            if len(self._requests) > 10000:
-                self._requests = defaultdict(
-                    list, {k: v for k, v in self._requests.items() if v and (now - max(v)) < self.window_seconds * 2}
-                )
+            # 每 60 秒清理一次过期条目，避免 O(n*m) 的实时清理
+            if now - self._last_cleanup > 60:
+                self._last_cleanup = now
+                expired = [k for k, v in self._requests.items() if not v or (now - max(v)) > self.window_seconds * 2]
+                for k in expired:
+                    del self._requests[k]
 
             return True
 

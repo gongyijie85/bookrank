@@ -1,9 +1,10 @@
 from collections.abc import Generator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
+import hashlib
 from typing import Any
 
-from flask import current_app
+from flask import current_app, request
 from sqlalchemy.orm import Session
 
 from ..services import BookService, CacheService, ImageCacheService
@@ -98,3 +99,12 @@ def get_google_books_client() -> GoogleBooksClient | None:
     if book_service and hasattr(book_service, '_google_client'):
         return book_service._google_client
     return None
+
+
+def hash_client_ip(raw_ip: str | None = None) -> str | None:
+    """对客户端 IP 进行 SHA-256 哈希（隐私保护）"""
+    if raw_ip is None:
+        raw_ip = request.remote_addr
+    if not raw_ip:
+        return None
+    return hashlib.sha256((raw_ip or 'unknown').encode()).hexdigest()[:16]

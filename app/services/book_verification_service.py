@@ -265,8 +265,12 @@ class BookVerificationService:
         try:
             api_key = current_app.config.get('GOOGLE_API_KEY')
             if api_key:
-                url = f'https://www.googleapis.com/books/v1/volumes?q=isbn:{book.isbn13}&key={api_key}'
-                response = requests.get(url, timeout=10)
+                params = {'q': f'isbn:{book.isbn13}', 'key': api_key}
+                response = requests.get(
+                    current_app.config.get('GOOGLE_BOOKS_API_URL', 'https://www.googleapis.com/books/v1/volumes'),
+                    params=params,
+                    timeout=10,
+                )
                 if response.status_code == 200:
                     data = response.json()
                     if data.get('totalItems', 0) > 0:

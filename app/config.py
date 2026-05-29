@@ -24,12 +24,15 @@ class Config:
     # 网站基础 URL（用于邮件中构建完整图片链接）
     BASE_URL: str = os.environ.get('BASE_URL', '')
 
-    SECRET_KEY: str = 'dev-secret-key-for-local-development-only-do-not-use-in-production'
+    SECRET_KEY: str = os.environ.get('SECRET_KEY', '')
     ADMIN_SECRET: str = os.environ.get('ADMIN_SECRET', '')
     SESSION_COOKIE_SECURE: bool = True
     SESSION_COOKIE_HTTPONLY: bool = True
     SESSION_COOKIE_SAMESITE: str = 'Lax'
-    PERMANENT_SESSION_LIFETIME: int = 3600 * 24 * 7
+
+    _SECONDS_PER_DAY: int = 86400
+    _SESSION_LIFETIME_DAYS: int = 7
+    PERMANENT_SESSION_LIFETIME: int = _SECONDS_PER_DAY * _SESSION_LIFETIME_DAYS
 
     JSON_SORT_KEYS: bool = False
     JSONIFY_PRETTYPRINT_REGULAR: bool = False
@@ -77,15 +80,15 @@ class Config:
     GOOGLE_BOOKS_API_URL: str = 'https://www.googleapis.com/books/v1/volumes'
 
     # 外部 API 缓存 TTL（秒）
-    NYT_CACHE_TTL: int = 86400 * 7  # NYT 数据每周更新
-    GOOGLE_BOOKS_CACHE_TTL: int = 86400  # Google Books 缓存 24 小时
-    OPEN_LIBRARY_CACHE_TTL: int = 86400 * 3  # Open Library 缓存 3 天
+    NYT_CACHE_TTL: int = _SECONDS_PER_DAY * 7  # NYT 数据每周更新
+    GOOGLE_BOOKS_CACHE_TTL: int = _SECONDS_PER_DAY  # Google Books 缓存 24 小时
+    OPEN_LIBRARY_CACHE_TTL: int = _SECONDS_PER_DAY * 3  # Open Library 缓存 3 天
 
     # 智谱 AI 翻译模型
     ZHIPU_TRANSLATION_MODEL: str = 'glm-4.7-flash'
 
     # BookService 默认缓存 TTL（秒）
-    BOOK_SERVICE_CACHE_TTL: int = 86400  # 24 小时
+    BOOK_SERVICE_CACHE_TTL: int = _SECONDS_PER_DAY  # 24 小时
 
     # NYT 排行榜自动刷新间隔（天）；刷新后会补充资料、翻译并写入语言包
     NYT_RANKING_SYNC_DAYS: int = int(os.environ.get('NYT_RANKING_SYNC_DAYS', 7))
@@ -143,8 +146,9 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_ECHO: bool = True
     SESSION_COOKIE_SECURE: bool = False
 
-    # 开发环境可覆盖 SECRET_KEY，若未设置则使用基类固定 dev key
-    SECRET_KEY: str = os.environ.get('SECRET_KEY', Config.SECRET_KEY)
+    # 开发环境允许使用固定的 dev key（仅限本地开发）
+    _DEV_SECRET_KEY = 'dev-secret-key-for-local-development-only-do-not-use-in-production'
+    SECRET_KEY: str = os.environ.get('SECRET_KEY', _DEV_SECRET_KEY)
 
 
 class ProductionConfig(Config):
@@ -181,7 +185,7 @@ class ProductionConfig(Config):
         'pool_size': 2,  # 基础连接池（原为1，避免并发查询时阻塞）
         'max_overflow': 1,  # 最多 1 个临时连接
         'pool_timeout': 15,  # 等待时间（适当放宽避免超时）
-        'pool_recycle': 180,  # 更频繁回收连接
+        'pool_recycle': 600,  # 每 10 分钟回收连接（pool_pre_ping 已保证活性）
         'pool_pre_ping': True,  # 连接前 ping 检测
         'echo': False,
         'connect_args': {
@@ -201,6 +205,7 @@ class TestingConfig(Config):
 
     DEBUG: bool = True
     TESTING: bool = True
+    SECRET_KEY: str = 'test-secret-key-for-unit-tests-only'
     SQLALCHEMY_DATABASE_URI: str = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED: bool = False
     SESSION_COOKIE_SECURE: bool = False

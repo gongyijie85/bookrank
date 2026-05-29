@@ -15,6 +15,16 @@ logger = logging.getLogger(__name__)
 _auth_failures: dict[str, dict[str, float | int]] = {}
 _AUTH_MAX_FAILURES = 5
 _AUTH_BLOCK_SECONDS = 900
+_AUTH_MAX_ENTRIES = 10000
+
+
+def _cleanup_auth_failures(now: float) -> None:
+    """清理已过期的认证失败记录，防止内存无限增长"""
+    if len(_auth_failures) <= _AUTH_MAX_ENTRIES:
+        return
+    expired = [ip for ip, state in _auth_failures.items() if now > float(state.get('blocked_until', 0))]
+    for ip in expired:
+        _auth_failures.pop(ip, None)
 
 
 def _get_admin_secret() -> str:
@@ -33,6 +43,8 @@ def admin_required(f: Callable[..., Any]) -> Callable[..., Any]:
 
         client_ip = request.remote_addr or 'unknown'
         now = time.time()
+
+        _cleanup_auth_failures(now)
 
         if client_ip in _auth_failures:
             state = _auth_failures[client_ip]

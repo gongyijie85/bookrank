@@ -30,6 +30,7 @@ class Book:
     title_zh: str | None = None
     description_zh: str | None = None
     details_zh: str | None = None
+    _original_cover: str = ''
 
     def to_dict(self) -> dict:
         from ..utils import quick_clean_translation
@@ -65,7 +66,7 @@ class Book:
             isbn = raw_isbn10 if cls._is_valid_isbn(raw_isbn10) else ''
         if not isbn:
             id_str = f'{book_data.get("title", "")}-{book_data.get("author", "")}'
-            isbn = hashlib.md5(id_str.encode()).hexdigest()[:13]
+            isbn = hashlib.sha256(id_str.encode()).hexdigest()[:13]
 
         price_value = book_data.get('price')
         try:

@@ -12,6 +12,7 @@ from typing import Any
 from flask import Flask, Response, render_template, request
 from flask_babel import Babel
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import config
 from .initialization import init_awards_data, init_sample_books
@@ -64,6 +65,10 @@ def create_app(config_name: str | None = None) -> Flask:
     app.config['MINIFIED_CSS_EXISTS'] = (PROJECT_ROOT / 'static' / 'css' / 'all.min.css').is_file()
     app.config['MINIFIED_JS_EXISTS'] = (PROJECT_ROOT / 'static' / 'js' / 'base.min.js').is_file()
     config[config_name].init_app(app)
+
+    # 生产环境信任反向代理（Render、Nginx 等）的 X-Forwarded-For 头
+    if config_name == 'production':
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     if config_name != 'testing' and app.config.get('SECRET_KEY', '').startswith('dev-secret-key'):
         app.logger.warning(
@@ -418,26 +423,32 @@ def _enable_rate_limiting(app: Flask) -> None:
 
 def _register_jinja_filters(app: Flask) -> None:
     """注册自定义Jinja2过滤器"""
+    import bleach
     import mistune
 
-    _UNSAFE_TAGS_RE = re.compile(
-        r'<\s*/?\s*(?:script|iframe|object|embed|form|input|textarea|button|link|meta|base|applet)\b[^>]*>',
-        re.IGNORECASE,
-    )
-    _EVENT_HANDLER_RE = re.compile(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)', re.IGNORECASE)
-    _JS_URL_RE = re.compile(
-        r'(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|\'javascript:[^\']*\'|javascript:\S+)', re.IGNORECASE
-    )
+    # 允许的安全 HTML 标签和属性
+    _ALLOWED_TAGS = [
+        'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre', 'span', 'div', 'table',
+        'thead', 'tbody', 'tr', 'th', 'td', 'img', 'hr', 'sub', 'sup',
+    ]
+    _ALLOWED_ATTRS = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'title', 'width', 'height'],
+        'span': ['class'],
+        'div': ['class'],
+        'code': ['class'],
+        'pre': ['class'],
+        'td': ['colspan', 'rowspan'],
+        'th': ['colspan', 'rowspan'],
+    }
 
     @app.template_filter('sanitize_html')
     def sanitize_html_filter(text: str | None) -> str:
-        """HTML消毒：移除危险标签和事件属性，保留安全的格式标签"""
+        """HTML消毒：使用 bleach 白名单机制，保留安全的格式标签"""
         if not text:
             return ''
-        text = _UNSAFE_TAGS_RE.sub('', text)
-        text = _EVENT_HANDLER_RE.sub('', text)
-        text = _JS_URL_RE.sub('', text)
-        return text
+        return bleach.clean(text, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True)
 
     @app.template_filter('markdown')
     def markdown_filter(text: str | None) -> str:

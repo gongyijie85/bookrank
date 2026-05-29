@@ -2,6 +2,7 @@ import logging
 import threading
 import weakref
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,8 @@ class BookService:
         self._translation_lock = threading.Lock()
         self._translation_thread_active = False
         self._on_data_refreshed_callbacks: weakref.WeakSet[Callable[[], None]] = weakref.WeakSet()
+        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='bookrank-fetch')
+        self._isbn_index: dict[str, dict[str, Any]] = {}  # ISBN -> book_data 反向索引
 
     def on_data_refreshed(self, callback: Callable[[], None]) -> None:
         """注册数据刷新后的回调函数"""
@@ -77,15 +80,27 @@ class BookService:
                 log_error(ErrorCategory.CACHE, f'数据刷新回调执行失败: {e}', level='warning')
 
     def get_book_by_isbn(self, isbn: str) -> dict[str, Any] | None:
-        """通过ISBN查找图书数据（遍历所有分类缓存）"""
+        """通过ISBN查找图书数据（先查反向索引 O(1)，再回退遍历缓存）"""
+        # 1. 反向索引快速路径
+        if isbn in self._isbn_index:
+            return self._isbn_index[isbn]
+
+        # 2. 遍历缓存并构建索引
         for category_id in self._categories:
             cache_key = f'books_{category_id}'
             cached_data = self._cache.get(cache_key)
             if not cached_data:
                 continue
             for book_data in cached_data:
-                if book_data.get('isbn13') == isbn or book_data.get('isbn10') == isbn:
+                isbn13 = book_data.get('isbn13')
+                isbn10 = book_data.get('isbn10')
+                if isbn13:
+                    self._isbn_index[isbn13] = book_data
+                if isbn10:
+                    self._isbn_index[isbn10] = book_data
+                if isbn13 == isbn or isbn10 == isbn:
                     return book_data
+
         metadata = db.session.get(BookMetadata, isbn)
         if metadata:
             return {
@@ -253,7 +268,7 @@ class BookService:
             return supplements
 
         try:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from concurrent.futures import as_completed
 
             def _fetch_one(isbn: str) -> tuple[str, dict]:
                 try:
@@ -261,9 +276,8 @@ class BookService:
                 except (requests.RequestException, requests.Timeout, ValueError, KeyError):
                     return isbn, {}
 
-            with ThreadPoolExecutor(max_workers=min(self._max_workers, len(valid_isbns))) as executor:
-                futures = {executor.submit(_fetch_one, isbn): isbn for isbn in valid_isbns}
-                for future in as_completed(futures):
+            futures = {self._executor.submit(_fetch_one, isbn): isbn for isbn in valid_isbns}
+            for future in as_completed(futures):
                     isbn, result = future.result()
                     supplements[isbn] = result
         except Exception as e:
