@@ -113,7 +113,7 @@ class FileCache(CacheStrategy):
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_cache_path(self, key: str) -> Path:
-        safe_key = hashlib.md5(key.encode()).hexdigest()
+        safe_key = hashlib.sha256(key.encode()).hexdigest()
         return self._cache_dir / f'{safe_key}.json'
 
     def _read_cache_file(self, key: str) -> tuple[Any, float | None] | None:
@@ -183,7 +183,7 @@ class FileCache(CacheStrategy):
 
     def get_cache_path(self, key: str) -> Path:
         """获取缓存文件路径（公共接口）"""
-        return self._cache_dir / f'{hashlib.md5(key.encode()).hexdigest()}.json'
+        return self._cache_dir / f'{hashlib.sha256(key.encode()).hexdigest()}.json'
 
     def delete(self, key: str) -> None:
         cache_path = self.get_cache_path(key)

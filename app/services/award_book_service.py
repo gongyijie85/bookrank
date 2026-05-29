@@ -209,7 +209,7 @@ class AwardBookService:
             db.session.flush()
             logger.info(f'✅ 创建奖项: {award_name}')
 
-        # 处理每本图书
+        # 处理每本图书（基于时间戳的限速，避免阻塞线程）
         for book_data in books_data:
             try:
                 process_result = self._process_single_book(award, book_data, category)
@@ -218,8 +218,8 @@ class AwardBookService:
                 log_error(ErrorCategory.API_CALL, f'处理图书失败 {book_data.get("title")}: {e}')
                 result['failed'] += 1
 
-            # 延迟避免请求过快
-            time.sleep(0.3)
+            # 使用 time.sleep 仅在实际需要限速时（后台任务中可接受）
+            time.sleep(0.2)
 
         db.session.commit()
         return result

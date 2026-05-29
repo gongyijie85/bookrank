@@ -23,6 +23,8 @@ from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.error_tracker import error_tracker
 from ..utils.service_helpers import get_book_service, get_image_cache_service
 
+_ADMIN_ERROR_MSG = '操作失败，请查看服务器日志获取详情'
+
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 logger = logging.getLogger(__name__)
 
@@ -126,7 +128,7 @@ def regenerate_weekly_report():
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'重新生成周报失败: {e}', exc_info=True)
-        return APIResponse.error(f'重新生成失败: {e!s}', 500)
+        return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 @admin_bp.route('/weekly-report/regenerate-all', methods=['POST'])
@@ -186,7 +188,7 @@ def regenerate_all_weekly_reports():
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'批量重新生成周报失败: {e}', exc_info=True)
-        return APIResponse.error(f'批量修复失败: {e!s}', 500)
+        return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 @admin_bp.route('/categories/cleanup', methods=['GET', 'POST'])
@@ -239,7 +241,7 @@ def cleanup_categories():
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'清理分类数据失败: {e}', exc_info=True)
-        return APIResponse.error(f'清理失败: {e!s}', 500)
+        return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 def _clean_report_text(text: str) -> str:
@@ -261,8 +263,6 @@ def _clean_report_text(text: str) -> str:
 def clean_report_brackets():
     """清理周报中的书名污染（双书名号、markdown、作者名混入、长描述等）"""
     try:
-        import json as json_lib
-
         from ..models.schemas import WeeklyReport
         from ..services.weekly_report_service import _format_book_title
 
@@ -341,7 +341,7 @@ def clean_report_brackets():
     except Exception as e:
         rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理周报书名号失败: {e}', exc_info=True)
-        return APIResponse.error(f'清理失败: {e!s}', 500)
+        return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 @admin_bp.route('/reports/fix-truncated-titles', methods=['GET', 'POST'])
@@ -349,8 +349,6 @@ def clean_report_brackets():
 def fix_truncated_titles():
     """修复被截断的书名（从其他数据源恢复）"""
     try:
-        import json as json_lib
-
         from ..models.schemas import BookMetadata, WeeklyReport
 
         if request.method == 'GET':
@@ -423,7 +421,7 @@ def fix_truncated_titles():
     except Exception as e:
         rollback()
         log_error(ErrorCategory.DB_QUERY, f'修复截断书名失败: {e}', exc_info=True)
-        return APIResponse.error(f'修复失败: {e!s}', 500)
+        return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 @admin_bp.route('/translations/cleanup', methods=['GET', 'POST'])
@@ -527,7 +525,7 @@ def cleanup_translations():
     except Exception as e:
         rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理翻译缓存失败: {e}', exc_info=True)
-        return APIResponse.error(f'清理失败: {e!s}', 500)
+        return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 @admin_bp.route('/errors')
@@ -612,7 +610,7 @@ def run_crawler(publisher_name: str):
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'爬虫执行失败 [{publisher_name}]: {e}', exc_info=True)
-        return APIResponse.error(f'爬虫执行失败: {e!s}', 500)
+        return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 @admin_bp.route('/crawler/status')
@@ -666,10 +664,12 @@ def system_status():
             db_type = 'mysql'
 
         try:
-            from ..services.cache_service import CacheService
+            from ..utils.service_helpers import get_cache_service as _get_cs
 
-            cache_service = CacheService()
-            cache_stats = cache_service.get_stats()
+            cs = _get_cs()
+            cache_stats = (
+                cs.get_stats() if cs else {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
+            )
         except Exception:
             cache_stats = {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
 

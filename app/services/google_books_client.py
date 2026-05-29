@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import Any
 
 import requests
@@ -89,11 +88,6 @@ class GoogleBooksClient:
 
         try:
             response = self._session.get(self._base_url, params=params, timeout=self._timeout)
-
-            if response.status_code == 429:
-                logger.warning('Google Books API 限流 (429)，等待2秒后重试...')
-                time.sleep(2)
-                response = self._session.get(self._base_url, params=params, timeout=self._timeout)
 
             if response.status_code == 400 and self._key_is_valid:
                 logger.warning('Google Books API Key 可能已失效，尝试无Key模式')
