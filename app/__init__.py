@@ -68,7 +68,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # 生产环境信任反向代理（Render、Nginx 等）的 X-Forwarded-For 头
     if config_name == 'production':
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # type: ignore[method-assign]
 
     if config_name != 'testing' and app.config.get('SECRET_KEY', '').startswith('dev-secret-key'):
         app.logger.warning(
@@ -423,32 +423,56 @@ def _enable_rate_limiting(app: Flask) -> None:
 
 def _register_jinja_filters(app: Flask) -> None:
     """注册自定义Jinja2过滤器"""
-    import bleach
     import mistune
 
-    # 允许的安全 HTML 标签和属性
-    _ALLOWED_TAGS = [
-        'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-        'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre', 'span', 'div', 'table',
-        'thead', 'tbody', 'tr', 'th', 'td', 'img', 'hr', 'sub', 'sup',
-    ]
-    _ALLOWED_ATTRS = {
-        'a': ['href', 'title'],
-        'img': ['src', 'alt', 'title', 'width', 'height'],
-        'span': ['class'],
-        'div': ['class'],
-        'code': ['class'],
-        'pre': ['class'],
-        'td': ['colspan', 'rowspan'],
-        'th': ['colspan', 'rowspan'],
-    }
+    try:
+        import bleach as _bleach
+
+        _ALLOWED_TAGS = [
+            'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre', 'span', 'div', 'table',
+            'thead', 'tbody', 'tr', 'th', 'td', 'img', 'hr', 'sub', 'sup',
+        ]
+        _ALLOWED_ATTRS = {
+            'a': ['href', 'title'],
+            'img': ['src', 'alt', 'title', 'width', 'height'],
+            'span': ['class'],
+            'div': ['class'],
+            'code': ['class'],
+            'pre': ['class'],
+            'td': ['colspan', 'rowspan'],
+            'th': ['colspan', 'rowspan'],
+        }
+
+        def _sanitize_with_bleach(text: str) -> str:
+            return str(_bleach.clean(text, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True))
+
+        _sanitize_fn = _sanitize_with_bleach
+    except ImportError:
+        # Fallback: regex-based sanitizer when bleach is not installed
+        _UNSAFE_TAGS_RE = re.compile(
+            r'<\s*/?\s*(?:script|iframe|object|embed|form|input|textarea|button|link|meta|base|applet)\b[^>]*>',
+            re.IGNORECASE,
+        )
+        _EVENT_HANDLER_RE = re.compile(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)', re.IGNORECASE)
+        _JS_URL_RE = re.compile(
+            r'(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|\'javascript:[^\']*\'|javascript:\S+)', re.IGNORECASE
+        )
+
+        def _sanitize_with_regex(text: str) -> str:
+            text = _UNSAFE_TAGS_RE.sub('', text)
+            text = _EVENT_HANDLER_RE.sub('', text)
+            text = _JS_URL_RE.sub('', text)
+            return text
+
+        _sanitize_fn = _sanitize_with_regex
 
     @app.template_filter('sanitize_html')
     def sanitize_html_filter(text: str | None) -> str:
-        """HTML消毒：使用 bleach 白名单机制，保留安全的格式标签"""
+        """HTML消毒：移除危险标签和事件属性，保留安全的格式标签"""
         if not text:
             return ''
-        return bleach.clean(text, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True)
+        return _sanitize_fn(text)
 
     @app.template_filter('markdown')
     def markdown_filter(text: str | None) -> str:
