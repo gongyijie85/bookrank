@@ -320,6 +320,8 @@ class AwardBookService:
             cover_original_url=cover_url,
             cover_local_path=cover_local_path,
             buy_links=json.dumps(buy_links) if buy_links else None,
+            is_displayable=True,
+            verification_status='wikidata',
         )
 
         db.session.add(book)

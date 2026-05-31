@@ -302,6 +302,21 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     )
     app.logger.info(f'📅 延迟初始化已安排（{initial_delay + 60}秒后）')
 
+    # 7. 获奖图书自动刷新（每月一次，从 Wikidata 同步最新获奖数据）
+    from datetime import timedelta
+
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _award_refresh_task),
+        trigger=IntervalTrigger(
+            days=30,
+            start_date=now + timedelta(seconds=initial_delay * 4),
+            timezone=UTC,
+        ),
+        id='award_refresh',
+        name='获奖图书自动刷新（Wikidata）',
+    )
+    app.logger.info(f'📅 获奖图书自动刷新已安排（每30天，首次{initial_delay * 4}秒后）')
+
     _scheduler.start()
     app.logger.info('✅ APScheduler 后台任务调度器已启动')
 
@@ -501,6 +516,40 @@ def _cover_sync_task(app):
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'封面同步失败: {e}', exc_info=True)
+
+
+def _award_refresh_task(app):
+    """获奖图书自动刷新任务 — 从 Wikidata 同步最新获奖数据（每月执行）"""
+    try:
+        from datetime import datetime as _dt
+
+        from .services.award_book_service import AwardBookService
+
+        app.logger.info('开始检查获奖图书数据更新...')
+
+        current_year = _dt.now().year
+        service = AwardBookService(app)
+        result = service.refresh_award_books(
+            award_keys=None,  # 刷新所有奖项
+            start_year=2020,
+            end_year=current_year,  # 自动使用当前年份
+            force=False,  # 尊重刷新间隔，避免频繁调用 Wikidata
+        )
+
+        if result.get('status') == 'skipped':
+            app.logger.info(f'获奖图书刷新跳过: {result.get("message", "未达到刷新间隔")}')
+        else:
+            app.logger.info(
+                f'获奖图书刷新完成: 新增 {result.get("new_books", 0)} 本, '
+                f'更新 {result.get("updated_books", 0)} 本, '
+                f'失败 {result.get("failed_books", 0)} 本'
+            )
+            if result.get('errors'):
+                for err in result['errors'][:3]:
+                    app.logger.warning(f'  ⚠️ {err}')
+
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'获奖图书自动刷新失败: {e}', exc_info=True)
 
 
 def _log_failure(app, key: str):
