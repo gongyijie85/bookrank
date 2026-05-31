@@ -264,3 +264,105 @@ class TestGetApiCacheService:
         s2 = get_api_cache_service()
         assert s1 is s2
         mod._api_cache_service = None
+
+
+class TestMemoryLRUCache:
+    """测试内存 LRU 缓存层（_mem_get / _mem_set / 淘汰策略）"""
+
+    def test_mem_set_and_get(self, cache_service):
+        cache_service._mem_set('key1', {'data': 'a'}, ttl_seconds=60)
+        assert cache_service._mem_get('key1') == {'data': 'a'}
+
+    def test_mem_get_missing_returns_none(self, cache_service):
+        assert cache_service._mem_get('nonexistent') is None
+
+    def test_mem_get_expired_returns_none(self, cache_service):
+        # 写入立即过期的条目
+        cache_service._mem_set('expired', {'data': 'x'}, ttl_seconds=-1)
+        assert cache_service._mem_get('expired') is None
+        # 应该被自动从缓存中移除
+        assert 'expired' not in cache_service._mem_cache
+
+    def test_mem_set_moves_to_end_on_update(self, cache_service):
+        cache_service._mem_set('a', {'v': 1}, ttl_seconds=60)
+        cache_service._mem_set('b', {'v': 2}, ttl_seconds=60)
+        cache_service._mem_set('c', {'v': 3}, ttl_seconds=60)
+        # 重新写 'a'，应当被移到末尾
+        cache_service._mem_set('a', {'v': 1}, ttl_seconds=60)
+        keys = list(cache_service._mem_cache.keys())
+        assert keys[-1] == 'a'
+
+    def test_mem_lru_eviction_when_over_limit(self, cache_service):
+        """超出 _MEMORY_CACHE_MAX 时淘汰最旧条目"""
+        import app.services.api_cache_service as mod
+
+        # 临时调低上限以便测试
+        original_max = mod._MEMORY_CACHE_MAX
+        mod._MEMORY_CACHE_MAX = 3
+        try:
+            cache_service._mem_set('k1', 'v1', ttl_seconds=60)
+            cache_service._mem_set('k2', 'v2', ttl_seconds=60)
+            cache_service._mem_set('k3', 'v3', ttl_seconds=60)
+            cache_service._mem_set('k4', 'v4', ttl_seconds=60)
+
+            assert len(cache_service._mem_cache) == 3
+            # k1 是最旧的，应该被淘汰
+            assert 'k1' not in cache_service._mem_cache
+            assert 'k4' in cache_service._mem_cache
+        finally:
+            mod._MEMORY_CACHE_MAX = original_max
+
+    def test_mem_get_promotes_to_end(self, cache_service):
+        """LRU: 命中应将条目移到末尾"""
+        cache_service._mem_set('a', 1, ttl_seconds=60)
+        cache_service._mem_set('b', 2, ttl_seconds=60)
+        cache_service._mem_set('c', 3, ttl_seconds=60)
+        # 访问 'a'，使其变为最近使用
+        cache_service._mem_get('a')
+        keys = list(cache_service._mem_cache.keys())
+        assert keys[-1] == 'a'
+
+    def test_set_writes_to_memory_cache(self, app, db, cache_service):
+        """set() 应同时写通到内存缓存"""
+        with app.app_context():
+            cache_service.set('nyt', 'memwrite', {'foo': 'bar'})
+            # 直接命中内存缓存（无需查库）
+            request_hash = APICacheService._compute_hash('nyt', 'memwrite')
+            cache_key = f'nyt:{request_hash}'
+            assert cache_service._mem_get(cache_key) == {'foo': 'bar'}
+
+    def test_get_uses_memory_cache_fast_path(self, app, db, cache_service):
+        """命中内存 LRU 时不应触发数据库查询"""
+        with app.app_context():
+            cache_service.set('nyt', 'fast', {'cached': True})
+
+            with patch.object(APICache, 'query') as mock_query:
+                result = cache_service.get('nyt', 'fast')
+                assert result == {'cached': True}
+                # 因为命中了内存缓存，不应触发 .filter_by
+                mock_query.filter_by.assert_not_called()
+
+    def test_delete_by_source_clears_memory(self, app, db, cache_service):
+        """delete(api_source=...) 应同步清理内存中该 source 的条目"""
+        with app.app_context():
+            cache_service.set('nyt', 'd1', {'a': 1})
+            cache_service.set('google_books', 'd2', {'b': 2})
+
+            cache_service.delete(api_source='nyt')
+
+            # nyt 条目应被清理
+            nyt_keys = [k for k in cache_service._mem_cache if k.startswith('nyt:')]
+            assert nyt_keys == []
+            # google_books 条目保留
+            gb_keys = [k for k in cache_service._mem_cache if k.startswith('google_books:')]
+            assert len(gb_keys) >= 1
+
+    def test_delete_all_clears_memory(self, app, db, cache_service):
+        """delete() 无参数应清空整个内存缓存"""
+        with app.app_context():
+            cache_service.set('nyt', 'all1', {'a': 1})
+            cache_service.set('google_books', 'all2', {'b': 2})
+
+            cache_service.delete()
+
+            assert len(cache_service._mem_cache) == 0
