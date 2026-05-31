@@ -5,7 +5,7 @@ from datetime import datetime
 from io import StringIO
 from urllib.parse import quote
 
-from flask import current_app, make_response, request
+from flask import current_app, request
 
 from ...services.user_service import UserService
 from ...utils.api_helpers import (
@@ -21,6 +21,9 @@ from . import api_bp, get_session_id, validate_category
 logger = logging.getLogger(__name__)
 
 _user_service = UserService()
+
+# UTF-8 BOM,确保 Excel 正确识别 CSV 中的中文
+_UTF8_BOM = '﻿'.encode()
 
 
 @api_bp.route('/books/<category>')
@@ -82,7 +85,7 @@ def search_books():
             return APIResponse.error('Keyword must be at least 2 characters', 400)
         if len(keyword) > 100:
             return APIResponse.error('Keyword must be at most 100 characters', 400)
-        if not re.match(r'^[\w\s\-\u4e00-\u9fff]+$', keyword):
+        if not re.match(r'^[\w\s\-一-鿿]+$', keyword):
             return APIResponse.error('Invalid keyword format', 400)
 
         session_id = get_session_id()
@@ -167,7 +170,7 @@ def user_preferences():
 
 @api_bp.route('/export/<category>')
 def export_csv(category: str):
-    """导出CSV（流式输出，避免内存峰值）"""
+    """导出CSV（流式输出，按分类分批生成,避免 category='all' 时内存峰值）"""
     try:
         if not validate_category(category):
             return APIResponse.error('Invalid category', 400)
@@ -176,59 +179,74 @@ def export_csv(category: str):
         if not book_service:
             return APIResponse.error('Service unavailable', 503)
 
-        if category == 'all':
-            all_books = []
-            for cat_id in current_app.config['CATEGORIES']:
-                all_books.extend(book_service.get_books_by_category(cat_id))
-            books = all_books
-        else:
-            books = book_service.get_books_by_category(category)
+        # 确定要导出的分类列表（延迟到生成器中按分类加载）
+        category_ids = list(current_app.config['CATEGORIES'].keys()) if category == 'all' else [category]
 
-        output = StringIO()
-        writer = csv.writer(output)
-        writer.writerow(
-            [
-                '分类',
-                '书名',
-                '作者',
-                '出版社',
-                '当前排名',
-                '上周排名',
-                '上榜周数',
-                '出版日期',
-                '页数',
-                '语言',
-                'ISBN-13',
-                '价格',
-            ]
-        )
+        header_row = [
+            '分类',
+            '书名',
+            '作者',
+            '出版社',
+            '当前排名',
+            '上周排名',
+            '上榜周数',
+            '出版日期',
+            '页数',
+            '语言',
+            'ISBN-13',
+            '价格',
+        ]
 
-        for book in books:
-            writer.writerow(
-                [
-                    book.category_name,
-                    book.title,
-                    book.author,
-                    book.publisher,
-                    book.rank,
-                    book.rank_last_week,
-                    book.weeks_on_list,
-                    book.publication_dt,
-                    book.page_count,
-                    book.language,
-                    book.isbn13,
-                    book.price,
-                ]
-            )
+        def generate():
+            # 输出 UTF-8 BOM,确保 Excel 正确识别中文
+            yield _UTF8_BOM
 
-        output.seek(0)
-        csv_content = output.getvalue()
-        response_data = '\ufeff'.encode('utf-8') + csv_content.encode('utf-8')
+            buf = StringIO()
+            writer = csv.writer(buf)
+            writer.writerow(header_row)
+            yield buf.getvalue().encode()
+            buf.seek(0)
+            buf.truncate()
 
-        response = make_response(response_data)
+            # 按分类分批生成,降低内存峰值
+            for cat_id in category_ids:
+                try:
+                    books = book_service.get_books_by_category(cat_id)
+                except Exception as inner_err:
+                    log_error(
+                        ErrorCategory.API_CALL,
+                        f'Export load category {cat_id} failed: {inner_err}',
+                        level='warning',
+                    )
+                    continue
+
+                for book in books:
+                    writer.writerow(
+                        [
+                            book.category_name,
+                            book.title,
+                            book.author,
+                            book.publisher,
+                            book.rank,
+                            book.rank_last_week,
+                            book.weeks_on_list,
+                            book.publication_dt,
+                            book.page_count,
+                            book.language,
+                            book.isbn13,
+                            book.price,
+                        ]
+                    )
+                    yield buf.getvalue().encode()
+                    buf.seek(0)
+                    buf.truncate()
+
         filename = f'纽约时报畅销书_{category}_{datetime.now().strftime("%Y%m%d")}.csv'
+        response = current_app.response_class(
+            generate(),
+            mimetype='text/csv; charset=utf-8',
+        )
         response.headers['Content-Disposition'] = f'attachment; filename={quote(filename)}'
-        response.headers['Content-type'] = 'text/csv; charset=utf-8'
         return response
 
     except Exception as e:

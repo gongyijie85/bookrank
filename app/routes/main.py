@@ -164,19 +164,32 @@ def award_book_cover(book_id: int):
 
 @main_bp.route('/awards')
 def awards():
-    """图书奖项榜单页面（通过 Service 层）"""
+    """图书奖项榜单页面（通过 Service 层，含服务端分页）"""
     from ..services.award_book_service import AwardBookService
 
     award_service = AwardBookService()
+    params = _parse_awards_params(request.args)
+    context = _load_awards_data(award_service, params)
+    return render_template('awards.html', **context)
 
-    # ===== 参数解析（永远是安全的） =====
-    selected_award = request.args.get('award', '')
-    selected_year = request.args.get('year', '')
-    search_query = request.args.get('search', '').strip()[:100]
-    view_mode = request.args.get('view', 'grid')
 
+def _parse_awards_params(args) -> dict:
+    """从请求参数中提取并校验 awards() 所需的查询条件"""
+    selected_award = args.get('award', '')
+    selected_year = args.get('year', '')
+    search_query = args.get('search', '').strip()[:100]
+    view_mode = args.get('view', 'grid')
     if view_mode not in ['grid', 'list']:
         view_mode = 'grid'
+
+    try:
+        page = max(1, int(args.get('page', '1')))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = min(max(10, int(args.get('per_page', '24'))), 100)
+    except (ValueError, TypeError):
+        per_page = 24
 
     if selected_year:
         try:
@@ -186,8 +199,22 @@ def awards():
         except (ValueError, TypeError):
             selected_year = ''
 
-    # ===== 数据加载（用 try 隔离，各自独立降级） =====
-    awards_list, years, books_data = [], [], []
+    return {
+        'selected_award': selected_award,
+        'selected_year': selected_year,
+        'search_query': search_query,
+        'view_mode': view_mode,
+        'page': page,
+        'per_page': per_page,
+    }
+
+
+def _load_awards_data(award_service, params: dict) -> dict:
+    """加载 awards() 渲染所需的所有数据，返回模板上下文 dict（含分页元信息）"""
+    awards_list: list = []
+    years: list = []
+    books_data: list = []
+    total_books = 0
 
     try:
         awards_list = award_service.get_all_awards()
@@ -203,22 +230,21 @@ def awards():
 
     try:
         award_id = None
-        if selected_award:
-            award = award_service.get_award_by_name(selected_award)
+        if params['selected_award']:
+            award = award_service.get_award_by_name(params['selected_award'])
             if award:
                 award_id = award.id
 
-        year = int(selected_year) if selected_year else None
-        # 获取全部可展示图书（页面内做搜索过滤）
-        books, _ = award_service.get_award_books(
-            award_id=award_id, year=year, include_displayable_only=True, page=1, limit=500
+        year = int(params['selected_year']) if params['selected_year'] else None
+        books, total_books = award_service.get_award_books(
+            award_id=award_id,
+            year=year,
+            keyword=params['search_query'] or None,
+            include_displayable_only=True,
+            page=params['page'],
+            limit=params['per_page'],
         )
 
-        if search_query:
-            search_lower = search_query.lower()
-            books = [b for b in books if search_lower in b.title.lower() or search_lower in b.author.lower()]
-
-        books_data = []
         for book in books:
             books_data.append(
                 {
@@ -240,7 +266,6 @@ def awards():
                 }
             )
 
-        # 各奖项图书计数
         book_counts = award_service.get_book_counts_by_award(displayable_only=True)
         for award_item in awards_list:
             award_item.book_count = book_counts.get(award_item.id, 0)
@@ -248,41 +273,77 @@ def awards():
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获奖图书数据加载失败: {e}', exc_info=True)
         books_data = []
+        total_books = 0
 
-    # ===== 渲染（无论数据是否完整都渲染页面） =====
-    return render_template(
-        'awards.html',
-        awards=awards_list,
-        books=books_data,
-        years=years,
-        selected_award=selected_award,
-        selected_year=selected_year if selected_year else None,
-        search_query=search_query,
-        view_mode=view_mode,
-        total_books=len(books_data),
-    )
+    per_page = params['per_page']
+    page = params['page']
+    total_pages = max(1, (total_books + per_page - 1) // per_page) if total_books else 1
+
+    return {
+        'awards': awards_list,
+        'books': books_data,
+        'years': years,
+        'selected_award': params['selected_award'],
+        'selected_year': params['selected_year'] if params['selected_year'] else None,
+        'search_query': params['search_query'],
+        'view_mode': params['view_mode'],
+        'total_books': total_books,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': total_pages,
+        'has_prev': page > 1,
+        'has_next': page < total_pages,
+    }
 
 
 @main_bp.route('/new-books')
 def new_books():
     """新书速递页面"""
-    selected_publisher_raw = request.args.get('publisher', '')
+    from ..services.new_book_service import NewBookService
+
+    params = _parse_new_books_params(request.args)
+    service = NewBookService()
+    context = _load_new_books_data(service, params)
+    return render_template('new_books.html', **context)
+
+
+def _parse_new_books_params(args) -> dict:
+    """解析 new_books() 的查询参数（含安全的数值钳制）"""
+    selected_publisher_raw = args.get('publisher', '')
     selected_publisher = (
         int(selected_publisher_raw) if selected_publisher_raw and selected_publisher_raw.isdigit() else None
     )
-    selected_category = request.args.get('category', '')
-    selected_days = min(max(1, int(request.args.get('days', '30'))), 365)
-    search_query = request.args.get('search', '').strip()[:100]
-    page = min(max(1, int(request.args.get('page', '1'))), 10000)
-    per_page = 20
-    view_mode = request.args.get('view', 'grid')
+    selected_category = args.get('category', '')
+
+    try:
+        selected_days = min(max(1, int(args.get('days', '30'))), 365)
+    except (ValueError, TypeError):
+        selected_days = 30
+
+    search_query = args.get('search', '').strip()[:100]
+
+    try:
+        page = min(max(1, int(args.get('page', '1'))), 10000)
+    except (ValueError, TypeError):
+        page = 1
+
+    view_mode = args.get('view', 'grid')
     if view_mode not in ['grid', 'list']:
         view_mode = 'grid'
 
-    from ..services.new_book_service import NewBookService
+    return {
+        'selected_publisher': selected_publisher,
+        'selected_category': selected_category,
+        'selected_days': selected_days,
+        'search_query': search_query,
+        'page': page,
+        'per_page': 20,
+        'view_mode': view_mode,
+    }
 
-    service = NewBookService()
 
+def _load_new_books_data(service, params: dict) -> dict:
+    """加载 new_books() 渲染所需数据，每段查询独立降级"""
     try:
         service.ensure_static_data_seeded()
     except Exception as e:
@@ -294,7 +355,6 @@ def new_books():
         log_error(ErrorCategory.DB_QUERY, f'获取出版社列表失败: {e}', level='warning')
         publishers = []
 
-    publisher_book_counts = {}
     try:
         publisher_book_counts = service.get_publisher_book_counts()
     except Exception as e:
@@ -318,6 +378,13 @@ def new_books():
             'recent_books_7d': 0,
             'top_categories': [],
         }
+
+    page = params['page']
+    per_page = params['per_page']
+    selected_publisher = params['selected_publisher']
+    selected_category = params['selected_category']
+    selected_days = params['selected_days']
+    search_query = params['search_query']
 
     try:
         if search_query:
@@ -343,23 +410,22 @@ def new_books():
 
     total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
 
-    return render_template(
-        'new_books.html',
-        publishers=publishers,
-        publisher_book_counts=publisher_book_counts,
-        categories=categories,
-        books=books,
-        stats=stats,
-        selected_publisher=selected_publisher,
-        selected_category=selected_category,
-        selected_days=selected_days,
-        search_query=search_query,
-        view_mode=view_mode,
-        page=page,
-        total=total,
-        total_pages=total_pages,
-        per_page=per_page,
-    )
+    return {
+        'publishers': publishers,
+        'publisher_book_counts': publisher_book_counts,
+        'categories': categories,
+        'books': books,
+        'stats': stats,
+        'selected_publisher': selected_publisher,
+        'selected_category': selected_category,
+        'selected_days': selected_days,
+        'search_query': search_query,
+        'view_mode': params['view_mode'],
+        'page': page,
+        'total': total,
+        'total_pages': total_pages,
+        'per_page': per_page,
+    }
 
 
 @main_bp.route('/favicon.ico')

@@ -50,6 +50,9 @@ class BookService:
         self._on_data_refreshed_callbacks: weakref.WeakSet[Callable[[], None]] = weakref.WeakSet()
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='bookrank-fetch')
         self._isbn_index: dict[str, dict[str, Any]] = {}  # ISBN -> book_data 反向索引
+        # 跟踪每个分类贡献给 _isbn_index 的 ISBN 列表，便于缓存刷新时清理失效条目
+        self._isbn_index_by_category: dict[str, set[str]] = {}
+        self._isbn_index_lock = threading.Lock()
 
     def on_data_refreshed(self, callback: Callable[[], None]) -> None:
         """注册数据刷新后的回调函数"""
@@ -91,15 +94,19 @@ class BookService:
             cached_data = self._cache.get(cache_key)
             if not cached_data:
                 continue
-            for book_data in cached_data:
-                isbn13 = book_data.get('isbn13')
-                isbn10 = book_data.get('isbn10')
-                if isbn13:
-                    self._isbn_index[isbn13] = book_data
-                if isbn10:
-                    self._isbn_index[isbn10] = book_data
-                if isbn13 == isbn or isbn10 == isbn:
-                    return book_data
+            with self._isbn_index_lock:
+                cat_isbns = self._isbn_index_by_category.setdefault(category_id, set())
+                for book_data in cached_data:
+                    isbn13 = book_data.get('isbn13')
+                    isbn10 = book_data.get('isbn10')
+                    if isbn13:
+                        self._isbn_index[isbn13] = book_data
+                        cat_isbns.add(isbn13)
+                    if isbn10:
+                        self._isbn_index[isbn10] = book_data
+                        cat_isbns.add(isbn10)
+                    if isbn13 == isbn or isbn10 == isbn:
+                        return book_data
 
         metadata = db.session.get(BookMetadata, isbn)
         if metadata:
@@ -110,6 +117,31 @@ class BookService:
                 'isbn13': isbn,
             }
         return None
+
+    def _invalidate_isbn_index_for_category(self, category_id: str) -> None:
+        """清除某个分类先前贡献给反向索引的所有 ISBN 条目，避免缓存刷新后旧数据残留"""
+        with self._isbn_index_lock:
+            stale_isbns = self._isbn_index_by_category.pop(category_id, None)
+            if not stale_isbns:
+                return
+            for isbn in stale_isbns:
+                # 仅在索引仍属于该分类时移除（其他分类可能也包含同 ISBN）
+                self._isbn_index.pop(isbn, None)
+
+    def _register_isbn_index_for_category(self, category_id: str, books_data: list[dict[str, Any]]) -> None:
+        """登记某分类的 ISBN 反向索引（缓存写入后立即调用）"""
+        with self._isbn_index_lock:
+            cat_isbns: set[str] = set()
+            for book_data in books_data:
+                isbn13 = book_data.get('isbn13')
+                isbn10 = book_data.get('isbn10')
+                if isbn13:
+                    self._isbn_index[isbn13] = book_data
+                    cat_isbns.add(isbn13)
+                if isbn10:
+                    self._isbn_index[isbn10] = book_data
+                    cat_isbns.add(isbn10)
+            self._isbn_index_by_category[category_id] = cat_isbns
 
     def _books_from_cache_data(self, cached_data: list[dict[str, Any]] | None, category_id: str) -> list[Book]:
         if not cached_data:
@@ -186,7 +218,10 @@ class BookService:
             # 缓存结果 - 缓存 TTL 从配置读取
             books_data = [book.to_dict() for book in books]
             cache_ttl = self._app.config.get('BOOK_SERVICE_CACHE_TTL', 86400) if self._app else 86400
+            # 写缓存前清理该分类的旧 ISBN 反向索引条目，再登记新条目，避免内存只增不减
+            self._invalidate_isbn_index_for_category(category_id)
             self._cache.set(cache_key, books_data, ttl=cache_ttl)
+            self._register_isbn_index_for_category(category_id, books_data)
 
             logger.info(f'Fetched and cached {len(books)} books for {category_id}')
 

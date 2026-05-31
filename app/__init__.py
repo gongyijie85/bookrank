@@ -331,10 +331,8 @@ def _apply_security_headers(app: Flask) -> None:
 
         security_headers = {
             'X-Frame-Options': 'SAMEORIGIN',
-            'X-XSS-Protection': '1; mode=block',
             'X-Content-Type-Options': 'nosniff',
             'Referrer-Policy': 'strict-origin-when-cross-origin',
-            'Server': 'BookRank',
             'Content-Security-Policy': (
                 f"default-src 'self'; "
                 f"script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'nonce-{nonce}'; "
@@ -353,6 +351,9 @@ def _apply_security_headers(app: Flask) -> None:
 
         for header, value in security_headers.items():
             response.headers[header] = value
+
+        # 显式移除 Server 头（默认会泄露 Werkzeug/Flask 版本）
+        response.headers.pop('Server', None)
 
         if app.config.get('APP_ENV') == 'production':
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'

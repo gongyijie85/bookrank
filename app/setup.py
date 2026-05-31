@@ -55,7 +55,30 @@ def init_services(app):
 
     book_service = _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg)
 
+    _init_recommendation_and_search_services(app, cfg)
+
     _start_background_tasks(app, book_service, translation_service, google_client)
+
+
+def _init_recommendation_and_search_services(app, cfg):
+    """初始化推荐和智能搜索服务（单例,挂到 app.extensions）"""
+    try:
+        from .services.recommendation_service import RecommendationService
+
+        categories = cfg.get('CATEGORIES', {})
+        register_service(app, 'recommendation_service', RecommendationService(categories))
+        app.logger.info('推荐服务初始化成功（单例）')
+    except Exception as e:
+        log_error(ErrorCategory.UNKNOWN, f'推荐服务初始化失败: {e}', level='warning')
+
+    try:
+        from .services.smart_search_service import SmartSearchService
+
+        categories = cfg.get('CATEGORIES', {})
+        register_service(app, 'smart_search_service', SmartSearchService(categories))
+        app.logger.info('智能搜索服务初始化成功（单例）')
+    except Exception as e:
+        log_error(ErrorCategory.UNKNOWN, f'智能搜索服务初始化失败: {e}', level='warning')
 
 
 def _init_nyt_client(cfg, app):

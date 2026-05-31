@@ -39,6 +39,38 @@ def get_translation_service() -> HybridTranslationService | None:
     return current_app.extensions.get('translation_service')
 
 
+def get_recommendation_service() -> Any | None:
+    """获取已注册的 RecommendationService 单例，缺失时返回 None"""
+    return current_app.extensions.get('recommendation_service')
+
+
+def get_smart_search_service() -> Any | None:
+    """获取已注册的 SmartSearchService 单例，缺失时返回 None"""
+    return current_app.extensions.get('smart_search_service')
+
+
+def get_or_create_recommendation_service() -> Any:
+    """获取已注册的 RecommendationService；若未注册则按当前 CATEGORIES 兜底创建"""
+    svc = get_recommendation_service()
+    if svc is not None:
+        return svc
+    from ..services.recommendation_service import RecommendationService
+
+    categories = current_app.config.get('CATEGORIES', {})
+    return RecommendationService(categories)
+
+
+def get_or_create_smart_search_service() -> Any:
+    """获取已注册的 SmartSearchService；若未注册则按当前 CATEGORIES 兜底创建"""
+    svc = get_smart_search_service()
+    if svc is not None:
+        return svc
+    from ..services.smart_search_service import SmartSearchService
+
+    categories = current_app.config.get('CATEGORIES', {})
+    return SmartSearchService(categories)
+
+
 def require_book_service() -> BookService:
     service = get_book_service()
     if service is None:
