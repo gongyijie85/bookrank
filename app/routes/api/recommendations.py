@@ -1,6 +1,6 @@
 import logging
 
-from flask import current_app, request
+from flask import request
 
 from ...utils.api_helpers import APIResponse, handle_api_errors, validate_pagination
 from ...utils.service_helpers import (
