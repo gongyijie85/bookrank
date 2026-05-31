@@ -325,7 +325,7 @@ SAMPLE_AWARD_BOOKS = [
         'title_zh': '内塔尼亚胡一家',
         'author': 'Joshua Cohen',
         'isbn13': '9781681376070',
-        'description': 'A comic novel about a Jewish historian who meets the Netanyahu family in 1959 when the future Israeli prime minister\'s father applies for a teaching position.',
+        'description': "A comic novel about a Jewish historian who meets the Netanyahu family in 1959 when the future Israeli prime minister's father applies for a teaching position.",
         'description_zh': '一部喜剧小说，讲述一位犹太历史学家在1959年遇见内塔尼亚胡一家的故事。',
     },
     {
@@ -470,10 +470,10 @@ def init_sample_award_books(app):
         for book_data in SAMPLE_AWARD_BOOKS:
             award = Award.query.filter_by(name=book_data['award_name']).first()
             if award:
-                key = (award.id, book_data['year'])
+                key = (int(award.id), int(book_data['year']))  # type: ignore[call-overload]
                 if key not in seed_titles_by_key:
                     seed_titles_by_key[key] = set()
-                seed_titles_by_key[key].add(book_data['title'])
+                seed_titles_by_key[key].add(str(book_data['title']))
 
         for (award_id, year), valid_titles in seed_titles_by_key.items():
             stale = AwardBook.query.filter(

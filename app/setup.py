@@ -530,7 +530,6 @@ def _award_refresh_task(app):
         current_year = _dt.now().year
         service = AwardBookService(app)
         result = service.refresh_award_books(
-            award_keys=None,  # 刷新所有奖项
             start_year=2020,
             end_year=current_year,  # 自动使用当前年份
             force=False,  # 尊重刷新间隔，避免频繁调用 Wikidata
