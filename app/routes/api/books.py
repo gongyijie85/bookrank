@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 _user_service = UserService()
 
 # UTF-8 BOM,确保 Excel 正确识别 CSV 中的中文
-_UTF8_BOM = '﻿'.encode('utf-8')
+_UTF8_BOM = '﻿'.encode()
 
 
 @api_bp.route('/books/<category>')
@@ -207,7 +207,7 @@ def export_csv(category: str):
             buf = StringIO()
             writer = csv.writer(buf)
             writer.writerow(header_row)
-            yield buf.getvalue().encode('utf-8')
+            yield buf.getvalue().encode()
             buf.seek(0)
             buf.truncate()
 
@@ -240,7 +240,7 @@ def export_csv(category: str):
                             book.price,
                         ]
                     )
-                    yield buf.getvalue().encode('utf-8')
+                    yield buf.getvalue().encode()
                     buf.seek(0)
                     buf.truncate()
 

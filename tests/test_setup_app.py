@@ -197,16 +197,18 @@ class TestSecurityHeaders:
         assert response.headers.get('X-Content-Type-Options') == 'nosniff'
 
     def test_x_xss_protection(self, client):
+        """X-XSS-Protection is deprecated and should not be present (modern CSP handles this)"""
         response = client.get('/health')
-        assert response.headers.get('X-XSS-Protection') == '1; mode=block'
+        assert 'X-XSS-Protection' not in response.headers
 
     def test_referrer_policy(self, client):
         response = client.get('/health')
         assert response.headers.get('Referrer-Policy') == 'strict-origin-when-cross-origin'
 
     def test_server_header(self, client):
+        """Server header is explicitly removed to avoid leaking Werkzeug/Flask version"""
         response = client.get('/health')
-        assert response.headers.get('Server') == 'BookRank'
+        assert 'Server' not in response.headers
 
     def test_csp_header_present(self, client):
         response = client.get('/health')
