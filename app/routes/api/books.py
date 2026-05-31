@@ -180,9 +180,7 @@ def export_csv(category: str):
             return APIResponse.error('Service unavailable', 503)
 
         # 确定要导出的分类列表（延迟到生成器中按分类加载）
-        category_ids = (
-            list(current_app.config['CATEGORIES'].keys()) if category == 'all' else [category]
-        )
+        category_ids = list(current_app.config['CATEGORIES'].keys()) if category == 'all' else [category]
 
         header_row = [
             '分类',
