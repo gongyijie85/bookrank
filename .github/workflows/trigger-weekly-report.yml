@@ -1,0 +1,69 @@
+name: Trigger Weekly Report
+
+# 免费层方案说明：
+# Render 免费层 15 分钟无请求即休眠。GitHub Actions 调用 webhook 时，
+# 如果应用处于休眠状态，第一次请求会触发冷启动（约 10-20 秒）。
+# 本工作流通过"唤醒 + 重试"机制确保可靠性：
+# 1. 先 ping 健康端点唤醒应用
+# 2. 等待冷启动完成
+# 3. 调用 webhook 生成周报，失败时自动重试
+
+on:
+  schedule:
+    # 每周五 08:00 UTC（此时 NYT 周三/周四排行榜数据已就绪，
+    # generate_weekly_report 的 Thu-Sun 分支会生成本周周报）
+    - cron: '0 8 * * 5'
+  workflow_dispatch:
+
+concurrency:
+  group: trigger-weekly-report
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Wake up Render app (free tier cold start)
+        run: |
+          echo "唤醒 Render 应用（免费层冷启动）..."
+          # 先 ping 健康端点触发冷启动，不检查返回码
+          curl -s --max-time 30 \
+            "https://bookrank-ckml.onrender.com/api/health" > /dev/null || true
+          echo "等待冷启动完成..."
+          sleep 15
+
+      - name: Trigger weekly report generation
+        run: |
+          set -e
+          MAX_RETRIES=3
+          RETRY_DELAY=30
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "尝试 $i/$MAX_RETRIES: 触发周报生成..."
+
+            HTTP_CODE=$(curl -s -o /tmp/weekly-report-response.json -w '%{http_code}' \
+              --max-time 240 \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "https://bookrank-ckml.onrender.com/api/cron/trigger-weekly-report")
+
+            echo "HTTP 状态码: $HTTP_CODE"
+            cat /tmp/weekly-report-response.json | python3 -m json.tool || cat /tmp/weekly-report-response.json
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ 周报触发成功"
+              exit 0
+            elif [ "$HTTP_CODE" = "401" ]; then
+              echo "❌ 认证失败，请检查 CRON_SECRET"
+              exit 1
+            fi
+
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "请求失败，${RETRY_DELAY}秒后重试..."
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo "❌ $MAX_RETRIES 次尝试后仍失败"
+          exit 1

@@ -202,7 +202,7 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         return
 
     is_render_free = os.environ.get('RENDER', '').lower() == 'true'
-    initial_delay = 1800 if is_render_free else 300  # 30 分钟 / 5 分钟
+    initial_delay = 120 if is_render_free else 300  # Render 免费层 2 分钟 / 其他 5 分钟
     cover_sync_delay = 120 if is_render_free else 60
 
     _scheduler = BackgroundScheduler(

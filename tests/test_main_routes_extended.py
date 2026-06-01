@@ -103,7 +103,7 @@ class TestAwardBookCover:
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
         assert response.location == 'https://example.com/cover.jpg'
-        assert 'max-age=86400' in response.headers.get('Cache-Control', '')
+        assert 'max-age=3600' in response.headers.get('Cache-Control', '')
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
     @patch('app.routes.main.get_image_cache_service')

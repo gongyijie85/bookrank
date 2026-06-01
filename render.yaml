@@ -29,6 +29,8 @@ services:
         value: production
       - key: SECRET_KEY
         generateValue: true
+      - key: CRON_SECRET
+        sync: false
       - key: NYT_API_KEY
         sync: false
       - key: GOOGLE_API_KEY
