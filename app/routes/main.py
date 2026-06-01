@@ -158,7 +158,7 @@ def award_book_cover(book_id: int):
         cover_url = (book.cover_original_url or '').strip()
 
     response = redirect(cover_url or url_for('static', filename='default-cover.png'), code=302)
-    response.headers['Cache-Control'] = 'public, max-age=86400' if cover_url else 'no-store'
+    response.headers['Cache-Control'] = 'public, max-age=3600' if cover_url else 'no-store'
     return response
 
 
