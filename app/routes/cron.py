@@ -40,23 +40,27 @@ def trigger_weekly_report() -> tuple[Any, int]:
         report = generate_weekly_report()
 
         if report:
-            return jsonify({
-                'success': True,
-                'message': f'周报已生成: {report.title}',
-                'data': {
-                    'report_id': report.id,
-                    'report_date': report.report_date.isoformat(),
-                    'week_start': report.week_start.isoformat(),
-                    'week_end': report.week_end.isoformat(),
-                    'title': report.title,
-                },
-            })
+            return jsonify(
+                {
+                    'success': True,
+                    'message': f'周报已生成: {report.title}',
+                    'data': {
+                        'report_id': report.id,
+                        'report_date': report.report_date.isoformat(),
+                        'week_start': report.week_start.isoformat(),
+                        'week_end': report.week_end.isoformat(),
+                        'title': report.title,
+                    },
+                }
+            ), 200
         else:
-            return jsonify({
-                'success': True,
-                'message': '周报已存在或生成被跳过（冷却中/进行中）',
-                'data': None,
-            })
+            return jsonify(
+                {
+                    'success': True,
+                    'message': '周报已存在或生成被跳过（冷却中/进行中）',
+                    'data': None,
+                }
+            ), 200
     except Exception as e:
         logger.error(f'Cron 触发周报生成失败: {e}', exc_info=True)
         return jsonify({'success': False, 'message': '周报生成失败，请查看服务器日志'}), 500
