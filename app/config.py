@@ -26,6 +26,7 @@ class Config:
 
     SECRET_KEY: str = os.environ.get('SECRET_KEY', '')
     ADMIN_SECRET: str = os.environ.get('ADMIN_SECRET', '')
+    CRON_SECRET: str = os.environ.get('CRON_SECRET', '')
     SESSION_COOKIE_SECURE: bool = True
     SESSION_COOKIE_HTTPONLY: bool = True
     SESSION_COOKIE_SAMESITE: str = 'Lax'

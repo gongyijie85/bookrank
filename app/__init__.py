@@ -17,7 +17,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import config
 from .initialization import init_awards_data, init_sample_books
 from .models import db, init_db
-from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
+from .routes import admin_bp, analytics_bp, api_bp, cron_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
 from .utils.error_handler import ErrorCategory, log_error
 
@@ -196,6 +196,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(new_books_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(analytics_bp)
+    app.register_blueprint(cron_bp)
 
 
 def _register_error_handlers(app: Flask) -> None:
@@ -403,6 +404,7 @@ def _enable_rate_limiting(app: Flask) -> None:
         if (
             request.path.startswith('/static/')
             or request.path.startswith('/health/')
+            or request.path.startswith('/api/cron/')
             or not request.path.startswith('/api/')
         ):
             return None

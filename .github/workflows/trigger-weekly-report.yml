@@ -1,0 +1,40 @@
+name: Trigger Weekly Report
+
+on:
+  schedule:
+    # 每周五 08:00 UTC（此时 NYT 周三/周四排行榜数据已就绪，
+    # generate_weekly_report 的 Thu-Sun 分支会生成本周周报）
+    - cron: '0 8 * * 5'
+  workflow_dispatch:
+
+concurrency:
+  group: trigger-weekly-report
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger weekly report generation
+        run: |
+          set -e
+          echo "触发周报生成..."
+          HTTP_CODE=$(curl -s -o /tmp/weekly-report-response.json -w '%{http_code}' \
+            --max-time 240 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://bookrank-ckml.onrender.com/api/cron/trigger-weekly-report")
+
+          echo "HTTP 状态码: $HTTP_CODE"
+          cat /tmp/weekly-report-response.json | python3 -m json.tool || cat /tmp/weekly-report-response.json
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "周报触发成功"
+          elif [ "$HTTP_CODE" = "401" ]; then
+            echo "认证失败，请检查 CRON_SECRET"
+            exit 1
+          else
+            echo "触发返回非预期状态码: $HTTP_CODE"
+            exit 1
+          fi
