@@ -241,10 +241,92 @@ def fix_award_book_titles():
                 f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 项'
             )
             return APIResponse.success(
-                data={'fixed_count': len(fixed_entries), 'fixed': fixed_entries[:50]}
+                data={
+                    'fixed_count': len(fixed_entries),
+                    'fixed': fixed_entries[:50],
+                    'debug_count': len(debug_entries),
+                    'debug_sample': debug_entries[:10],
+                }
             )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'修复 AwardBook 标题失败: {e}', exc_info=True)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return APIResponse.error(f'修复失败: {e}', 500)
+
+
+@api_bp.route('/admin/fix-award-book-titles-by-ids', methods=['POST'])
+def fix_award_book_titles_by_ids():
+    """按 ID 批量修复 AwardBook.title_zh（处理非种子的脏数据）
+
+    触发方式：POST /api/admin/fix-award-book-titles-by-ids
+    鉴权：需要请求头 X-Admin-Token 匹配环境变量 ADMIN_TOKEN
+    请求体：{"items": [{"id": 1, "title_zh": "詹姆斯"}, ...]}
+    """
+
+    admin_token = os.environ.get('ADMIN_TOKEN', '')
+    if not admin_token:
+        return APIResponse.error('ADMIN_TOKEN 未配置', 403)
+    provided = request.headers.get('X-Admin-Token', '')
+    if provided != admin_token:
+        return APIResponse.error('鉴权失败', 403)
+
+    if not request.is_json:
+        return APIResponse.error('Content-Type must be application/json', 400)
+
+    data = request.get_json() or {}
+    items = data.get('items', [])
+    if not isinstance(items, list) or not items:
+        return APIResponse.error('items 必须是非空数组', 400)
+
+    try:
+        from flask import current_app
+
+        with current_app.app_context():
+            from ...models.database import db
+            from ...models.schemas import AwardBook
+
+            fixed_entries: list[dict] = []
+            skipped: list[dict] = []
+
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                book_id = item.get('id')
+                new_title_zh = (item.get('title_zh') or '').strip()
+                if not book_id or not new_title_zh:
+                    skipped.append({'id': book_id, 'reason': 'missing id or title_zh'})
+                    continue
+                book = db.session.get(AwardBook, int(book_id))
+                if not book:
+                    skipped.append({'id': book_id, 'reason': 'not_found'})
+                    continue
+                old_title_zh = book.title_zh
+                book.title_zh = new_title_zh
+                fixed_entries.append(
+                    {
+                        'id': book.id,
+                        'field': 'title_zh',
+                        'from': old_title_zh,
+                        'to': new_title_zh,
+                    }
+                )
+
+            db.session.commit()
+            current_app.logger.info(
+                f'🔧 admin fix-award-book-titles-by-ids: 修复 {len(fixed_entries)} 项'
+            )
+            return APIResponse.success(
+                data={
+                    'fixed_count': len(fixed_entries),
+                    'fixed': fixed_entries,
+                    'skipped': skipped,
+                }
+            )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'按 ID 修复 AwardBook 中文标题失败: {e}', exc_info=True)
         try:
             db.session.rollback()
         except Exception:
