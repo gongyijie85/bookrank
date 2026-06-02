@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.9.51 - 2026-06-02
+
+### style(css): 网格视图图书卡片封面留白，避免 hover 放大压到下半段文字
+
+**问题**：
+畅销书排行网格视图（`.card-image`）的图书封面默认 `object-fit: cover` 铺满 2/3 区域，悬浮时再 `transform: scale(1.05)` 放大，整本封面贴紧下方的 `.card-content` 文字信息，视觉上把"第N名 / 标题 / 作者 / 简介"挤到下沿。
+
+**改动**（仅 `static/css/components.css`）：
+
+#### `.card-image`（行 220-231）
+- 新增 `padding: 14px`，封面四周留出 14px 空白
+- 新增 `display: flex; align-items: center; justify-content: center;`，封面在容器内居中
+
+#### `.card-image img`（行 257-265）
+- `object-fit: cover` → `object-fit: contain`，整本封面完整显示，不再被裁切上下
+- 删除 `position: relative`（父级 flex 接管）
+- 移除 `transform var(--transition-slow)`（不再做 hover 缩放）
+
+#### `.card:hover .card-image img`（行 281-284）
+- `transform: scale(1.05)` → `transform: none`，去掉 hover 放大
+
+#### 桌面端增强块 `@media (min-width: 1400px)`（行 1528-1535）
+- `.card-image img` transition 由 `transform` 改为 `opacity`
+- `.card:hover .card-image img` `scale(1.08)` → `transform: none`
+
+**说明**：
+- 角标（`.card-badge` / `.card-category-tag` / `.rank-change`）位置不动，仍固定在 `.card-image` 四角
+- 留白背景沿用现有 `--bg-tertiary` 变量（与 shimmer 动画、`.card-tag` 一致）
+- 列表视图（`.list-item-image`，行 1500+ 之后）不受影响，未改动
+
+**验证**：
+- [x] 浏览器网格视图：封面居中、四周留白 14px，下半段标题/作者/简介不再被贴近
+- [x] 桌面端 hover：封面静止，仅卡片阴影变化
+- [x] 角标可读性：排名/分类徽章仍清晰可见
+
 ## v0.9.50 - 2026-06-02
 
 ### chore(ci): 修复 v0.9.49 推送后 CI 失败的 2 个遗留问题

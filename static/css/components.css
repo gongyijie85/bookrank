@@ -223,6 +223,11 @@
     overflow: hidden;
     background: var(--bg-tertiary);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    /* 网格视图封面留白：封面只占上半部分，四周留出 14px 空白，避免压到下半段文字 */
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Image loading placeholder */
@@ -252,9 +257,9 @@
 .card-image img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    transition: transform var(--transition-slow), opacity var(--transition-normal);
-    position: relative;
+    /* 网格视图封面：contain 让整本封面完整显示，不再裁切上下；不足处露出 --bg-tertiary 底色 */
+    object-fit: contain;
+    transition: opacity var(--transition-normal);
     z-index: 2;
     opacity: 0;
 }
@@ -273,8 +278,9 @@
     animation: fadeIn 0.3s ease;
 }
 
+/* 网格视图封面：去掉 hover 放大，避免封面贴近下方文字 */
 .card:hover .card-image img {
-    transform: scale(1.05);
+    transform: none;
 }
 
 /* Card Badge - Vercel Style */
@@ -1520,11 +1526,12 @@
     }
 
     .card-image img {
-        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    /* 网格视图封面：桌面端也不再放大 hover */
     .card:hover .card-image img {
-        transform: scale(1.08);
+        transform: none;
     }
 
     /* Smooth scrollbar for desktop */

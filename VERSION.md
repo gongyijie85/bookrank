@@ -1,11 +1,21 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.50
+**当前版本**：v0.9.51
 **发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.51 (2026-06-02) — 网格视图图书卡片封面留白
+- **问题**：畅销书网格视图（`.card-image`）封面 `object-fit: cover` 铺满 + hover `scale(1.05)`，封面贴紧下方文字
+- **修复**（仅 `static/css/components.css`）：
+  - `.card-image` 新增 `padding: 14px` + `display: flex` 居中
+  - `.card-image img` `object-fit: cover` → `contain`，整本封面完整显示
+  - 去掉 `.card:hover .card-image img` 的 `scale(1.05)` / 桌面端 `scale(1.08)`
+  - 留白区域沿用 `--bg-tertiary` 变量
+- **未改动**：角标位置、卡片阴影 hover、`.list-item-image` 列表视图
+- **验证**：浏览器目测，封面居中、四周留白 14px、hover 无放大
 
 ### v0.9.50 (2026-06-02) — 修复 v0.9.49 推送后 CI 失败（彻底修复）
 - **`ruff format` 修复**：2 个文件因多行调用未合并被格式检查拦截
