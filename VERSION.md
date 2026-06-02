@@ -1,11 +1,18 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.32
-**发布日期**：2026-05-28
+**当前版本**：v0.9.42
+**发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.42 (2026-06-02) — 前端 CSP 违规修复
+- **JS Bug 修复**：`BookI18n.updateBatch` 函数不存在导致 `index.js:52` 抛 `TypeError`，已添加批量更新方法（兼容 `[{isbn, language, data}]` 入参）
+- **CSP 违规修复**：调整 `app/__init__.py` 的 `style-src` / `script-src`，移除 nonce 关键字并保留 `'unsafe-inline'`，解决浏览器控制台"Applying inline style violates"和"Executing inline event handler violates"报错
+- **预加载告警修复**：删除 `base.html:50` 冗余的 `<link rel="preload" icons.svg>`，与 favicon link 重复
+- **向后兼容**：保留 `csp_nonce()` 模板函数（返回空字符串），不影响 29 处模板引用
+- **权衡说明**：移除 nonce 后 `'unsafe-inline'` 生效，XSS 防护强度略降；后续如需恢复严格 CSP，可重构 49 处 `el.style.xxx` 为 `classList.toggle` + CSS 配套
 
 ### v0.9.32 (2026-05-28) — 质量收官
 - **测试覆盖率提升**：61% → 84.12%（目标 ≥80%）

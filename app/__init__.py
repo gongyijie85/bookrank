@@ -3,7 +3,6 @@ import io
 import logging
 import os
 import re
-import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -310,34 +309,21 @@ def _configure_logging(app: Flask) -> None:
 def _apply_security_headers(app: Flask) -> None:
     """应用安全响应头和静态资源缓存"""
 
-    @app.before_request
-    def set_csp_nonce() -> None:
-        """为每个请求生成唯一的 CSP nonce"""
-        from flask import g
-
-        g.csp_nonce = secrets.token_urlsafe(16)
-
     @app.context_processor
     def inject_csp_nonce() -> dict[str, Any]:
-        """将 CSP nonce 注入模板上下文"""
-        from flask import g
-
-        return {'csp_nonce': lambda: getattr(g, 'csp_nonce', '')}
+        """保留 csp_nonce() 模板函数（向后兼容，CSP 头已不再使用 nonce）"""
+        return {'csp_nonce': lambda: ''}
 
     @app.after_request
     def add_security_headers(response: Response) -> Response:
-        from flask import g
-
-        nonce = getattr(g, 'csp_nonce', secrets.token_urlsafe(16))
-
         security_headers = {
             'X-Frame-Options': 'SAMEORIGIN',
             'X-Content-Type-Options': 'nosniff',
             'Referrer-Policy': 'strict-origin-when-cross-origin',
             'Content-Security-Policy': (
-                f"default-src 'self'; "
-                f"script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'nonce-{nonce}'; "
-                f"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com 'nonce-{nonce}'; "
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
                 "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
                 'https://covers.openlibrary.org https://openlibrary.org https://archive.org https://*.archive.org '
                 'https://*.penguinrandomhouse.com https://*.harpercollins.com '

@@ -85,6 +85,19 @@ var BookI18n = (function() {
         if (data.details) entry[lang].details = data.details;
     }
 
+    /**
+     * 批量更新翻译（兼容 items: [{isbn, language, data}]）
+     * 解决 index.js 调用 BookI18n.updateBatch 不存在的报错
+     */
+    function updateBatch(items) {
+        if (!Array.isArray(items)) return;
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            if (!item || !item.isbn) continue;
+            updateTranslation(item.isbn, item.language || 'zh', item.data || {});
+        }
+    }
+
     function hasTranslation(isbn, lang) {
         var entry = _store.get(isbn);
         if (!entry) return false;
@@ -211,6 +224,7 @@ var BookI18n = (function() {
         get: get,
         getRaw: getRaw,
         updateTranslation: updateTranslation,
+        updateBatch: updateBatch,
         hasTranslation: hasTranslation,
         getMissingTranslations: getMissingTranslations,
         applyLanguage: applyLanguage,

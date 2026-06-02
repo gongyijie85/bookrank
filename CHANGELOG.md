@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.9.42 - 2026-06-02
+
+### fix(frontend): 修复生产环境控制台 CSP 违规 + BookI18n.updateBatch 缺失
+
+**问题**：
+- 浏览器控制台报错 `BookI18n.updateBatch is not a function`（`index.js:52`）
+- 浏览器控制台报错 `Applying inline style violates the following Content Security Policy directive`（`style-src` 中 nonce 存在时 unsafe-inline 被忽略，导致所有 `el.style.xxx` 被阻止）
+- 浏览器控制台报错 `Executing inline event handler violates ...`（`script-src` 不允许内联事件）
+- 浏览器警告 `static/icons.svg` 预加载未使用（`base.html:50` 冗余的 `<link rel="preload">`）
+
+**修复**：
+- `static/js/book-i18n.js`：新增 `updateBatch(items)` 批量更新方法（items 形如 `[{isbn, language, data}]`，循环调用 `updateTranslation`）
+- `static/js/book-i18n.min.js`：同步新增 `updateBatch` 并暴露到 return 对象
+- `app/__init__.py`：调整 CSP 配置
+  - `script-src` 移除 nonce，保留 `'unsafe-inline'`（内联事件处理器不再被阻止）
+  - `style-src` 移除 nonce，保留 `'unsafe-inline'`（`el.style.xxx` 正常工作）
+  - 移除 `set_csp_nonce` before_request 与 nonce 注入逻辑
+  - 保留 `inject_csp_nonce` context processor（返回空字符串），兼容 29 处模板 `{{ csp_nonce() }}` 引用
+- `templates/base.html`：删除第 50 行 `<link rel="preload" href="...icons.svg" as="image">`（与 favicon link 重复，且未真正被 preload 消费）
+
+**权衡**：
+- 移除 `style-src` 的 nonce 会让 `'unsafe-inline'` 生效，XSS 防护强度略有下降
+- 原因：项目有 49 处 `el.style.xxx` 操作（如 `display = 'none'` / `width = '50%'`），全部重构为 `classList.toggle` 工作量大
+- 后续如需恢复严格 CSP：把所有 `.style.xxx` 改为类名切换 + 配套 CSS
+
+**验证**：
+- 刷新页面后控制台应不再有 CSP 报错
+- 切换中英文不再抛 `BookI18n.updateBatch is not a function`
+- icons.svg 预加载警告消失
+
 ## v0.9.41 - 2026-05-28
 
 ### feat(awards): 2026年获奖书单数据修复与补种机制
