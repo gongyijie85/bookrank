@@ -162,11 +162,19 @@ def fix_award_book_titles():
             from ...models.schemas import Award, AwardBook
 
             fixed_entries: list[dict] = []
+            debug_entries: list[dict] = []
             award_id_by_name = {a.name: a.id for a in Award.query.all()}
 
             for book_data in SAMPLE_AWARD_BOOKS:
                 award_id = award_id_by_name.get(book_data['award_name'])
                 if not award_id:
+                    debug_entries.append(
+                        {
+                            'isbn': book_data.get('isbn13'),
+                            'skip': 'award_name_not_found',
+                            'seed_award_name': book_data.get('award_name'),
+                        }
+                    )
                     continue
                 target_isbn = book_data.get('isbn13') or ''
                 if not target_isbn:
@@ -177,6 +185,14 @@ def fix_award_book_titles():
                     AwardBook.isbn13 == target_isbn,
                 ).first()
                 if not existing:
+                    debug_entries.append(
+                        {
+                            'isbn': target_isbn,
+                            'award_id': award_id,
+                            'year': book_data['year'],
+                            'skip': 'not_matched_by_isbn_year_award',
+                        }
+                    )
                     continue
                 seed_title = book_data.get('title') or ''
                 seed_title_zh = book_data.get('title_zh') or ''
