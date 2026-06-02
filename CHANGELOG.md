@@ -3,7 +3,6 @@
 ## v0.9.45 - 2026-06-02
 
 ### fix(awards): 修复详情页 `title_zh` 字段被错误写入 ISBN（v0.9.44 未根治）
-
 **问题**：
 - v0.9.44 修复后，`/award-book/1` 详情页仍显示 ISBN "9780385550369" 而非 "James"
 - `/awards` 列表页（grid view 和 list view）依然异常
