@@ -8,6 +8,7 @@
 - _fetch_image_as_base64
 - _embed_covers_in_html
 - schedule_weekly_report
+- compute_expected_week_range（v0.9.46 新增）
 """
 
 import base64
@@ -872,3 +873,61 @@ class TestScheduleWeeklyReport:
                 result = mod.schedule_weekly_report()
 
             assert result is None
+
+
+class TestComputeExpectedWeekRange:
+    """v0.9.46: 周报任务辅助函数测试"""
+
+    def test_monday_returns_last_week(self):
+        """周一（weekday=0）→ 期望上周的周报"""
+        from app.tasks.weekly_report_task_helpers import compute_expected_week_range
+
+        # 2026-06-01 是周一
+        week_start, week_end = compute_expected_week_range(date(2026, 6, 1))
+        assert week_start == date(2026, 5, 25)
+        assert week_end == date(2026, 5, 31)
+
+    def test_tuesday_returns_last_week(self):
+        """周二（weekday=1）→ 期望上周的周报"""
+        from app.tasks.weekly_report_task_helpers import compute_expected_week_range
+
+        # 2026-06-02 是周二
+        week_start, week_end = compute_expected_week_range(date(2026, 6, 2))
+        assert week_start == date(2026, 5, 25)
+        assert week_end == date(2026, 5, 31)
+
+    def test_wednesday_returns_last_week(self):
+        """周三（weekday=2）→ 期望上周的周报"""
+        from app.tasks.weekly_report_task_helpers import compute_expected_week_range
+
+        # 2026-06-03 是周三
+        week_start, week_end = compute_expected_week_range(date(2026, 6, 3))
+        assert week_start == date(2026, 5, 25)
+        assert week_end == date(2026, 5, 31)
+
+    def test_thursday_returns_current_week(self):
+        """周四（weekday=3）→ 期望本周的周报"""
+        from app.tasks.weekly_report_task_helpers import compute_expected_week_range
+
+        # 2026-06-04 是周四
+        week_start, week_end = compute_expected_week_range(date(2026, 6, 4))
+        assert week_start == date(2026, 6, 1)
+        assert week_end == date(2026, 6, 7)
+
+    def test_friday_returns_current_week(self):
+        """周五（weekday=4）→ 期望本周的周报"""
+        from app.tasks.weekly_report_task_helpers import compute_expected_week_range
+
+        # 2026-06-05 是周五
+        week_start, week_end = compute_expected_week_range(date(2026, 6, 5))
+        assert week_start == date(2026, 6, 1)
+        assert week_end == date(2026, 6, 7)
+
+    def test_sunday_returns_current_week(self):
+        """周日（weekday=6）→ 期望本周的周报"""
+        from app.tasks.weekly_report_task_helpers import compute_expected_week_range
+
+        # 2026-06-07 是周日
+        week_start, week_end = compute_expected_week_range(date(2026, 6, 7))
+        assert week_start == date(2026, 6, 1)
+        assert week_end == date(2026, 6, 7)

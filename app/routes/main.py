@@ -6,6 +6,7 @@ from flask import (
     Blueprint,
     abort,
     current_app,
+    jsonify,
     make_response,
     redirect,
     render_template,
@@ -593,7 +594,12 @@ def api_category_books():
 
 @main_bp.route('/reports/weekly')
 def weekly_reports():
-    """周报列表"""
+    """周报列表
+
+    v0.9.46 自愈机制：调用 service.get_or_trigger_current_week_report()
+    检查 expected week 是否存在，缺失时后台线程异步补生成。
+    页面继续展示最新已有周报 + 顶部黄色横幅 + 30s 轮询状态。
+    """
     from ..services.weekly_report_service import WeeklyReportService
 
     book_service = get_book_service()
@@ -601,22 +607,50 @@ def weekly_reports():
         return render_template('error.html', message='服务不可用', back_url='/')
 
     report_service = WeeklyReportService(book_service)
+    latest_report, is_generating = report_service.get_or_trigger_current_week_report()
     reports = report_service.get_reports()
-
-    if not reports:
-        try:
-            from ..tasks.weekly_report_task import generate_weekly_report
-
-            generated_report = generate_weekly_report()
-            if generated_report:
-                reports = report_service.get_reports()
-        except Exception as e:
-            log_error(ErrorCategory.API_CALL, f'周报空列表兜底生成失败: {e}', level='warning')
 
     for report in reports:
         report.content_data = parse_report_content(report) or {}
 
-    return render_template('weekly_reports.html', reports=reports)
+    return render_template(
+        'weekly_reports.html',
+        reports=reports,
+        latest_report=latest_report,
+        is_generating=is_generating,
+    )
+
+
+@main_bp.route('/api/weekly-report/status')
+def weekly_report_status():
+    """周报状态轮询端点（v0.9.46 新增）
+
+    供前端 30s 轮询检查 expected week 周报是否已生成。
+    仅查 DB，不调 NYT API，对 Render 免费版几乎无压力。
+    """
+    from datetime import date
+
+    from ..services.weekly_report_service import WeeklyReportService
+    from ..tasks.weekly_report_task_helpers import compute_expected_week_range
+
+    book_service = get_book_service()
+    if not book_service:
+        return jsonify({'error': '服务不可用'}), 503
+
+    report_service = WeeklyReportService(book_service)
+    today = date.today()
+    week_start, week_end = compute_expected_week_range(today)
+    has_current = report_service.is_current_week_report_ready()
+    latest = report_service.get_latest_report()
+
+    return jsonify(
+        {
+            'has_current_week': has_current,
+            'expected_week_start': week_start.isoformat(),
+            'expected_week_end': week_end.isoformat(),
+            'latest_week_end': latest.week_end.isoformat() if latest else None,
+        }
+    )
 
 
 @main_bp.route('/reports/weekly/<date>')

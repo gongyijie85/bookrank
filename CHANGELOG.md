@@ -1,6 +1,71 @@
 # Changelog
 
-## v0.9.46 - 2026-06-02
+## v0.9.47 - 2026-06-02
+
+### feat(weekly-report): 周报自愈机制（三重保险）
+
+**背景**：
+2026-05-29 GitHub Actions 定时任务漏跑，导致 05-25 至 05-31 周报缺失，依赖手动 `workflow_dispatch` 触发才能补生成。Render 免费版 15 分钟休眠 + GitHub Actions 免费层 cron 队列延迟是根本原因。
+
+**变更**：
+
+#### 新增辅助函数
+- `app/tasks/weekly_report_task_helpers.py`（新文件）：
+  - `compute_expected_week_range(today)` - 复用周区间计算逻辑
+  - 业务规则：周一/二/三期望上周周报，周四/五/六/日期望本周周报
+
+#### 服务层
+- `app/services/weekly_report_service.py`：
+  - 新增 `get_or_trigger_current_week_report()` 方法
+    - 检查 expected week 周报是否存在
+    - 缺失时启动后台线程调用 `generate_weekly_report()`
+    - 复用 `_weekly_report_lock` + 300s 冷却时间防止重复触发
+  - 新增 `is_current_week_report_ready()` 轻量查询方法
+  - 返回 `(latest_report, is_generating)` 元组供路由层使用
+
+#### 路由层
+- `app/routes/main.py`：
+  - `weekly_reports` 路由改为调用 `get_or_trigger_current_week_report()`
+  - 移除旧的"reports 为空时阻塞生成"逻辑（已被自愈机制替代）
+  - 新增 `GET /api/weekly-report/status` 轻量轮询端点
+    - 仅查 DB，不调 NYT API
+    - 返回 `has_current_week`、`expected_week_end`、`latest_week_end`
+
+#### 任务层
+- `app/tasks/weekly_report_task.py`：
+  - 重构 `generate_weekly_report()` 使用 `compute_expected_week_range()` 辅助函数
+  - 消除 11 行重复代码
+
+#### 前端
+- `templates/weekly_reports.html`：
+  - 顶部黄色横幅（`is_generating=True` 时显示）
+  - 30 秒轮询 `/api/weekly-report/status`，生成完成自动 `location.reload()`
+  - 轮询失败用 `console.debug` 静默处理，不阻塞页面
+
+#### CI
+- `.github/workflows/trigger-weekly-report.yml`：
+  - cron 从 `0 8 * * 5` 改为 `0 8 * * 5,6,0`（周五/六/日 08:00 UTC 三次兜底）
+
+**三重保险机制**：
+1. **GitHub Actions** 多时间点 cron（周五/六/日）
+2. **数据刷新回调** `book_service.on_data_refreshed`（v0.9.40+ 已有）
+3. **应用层自愈** 用户访问 `/reports/weekly` 时自动补生成
+
+**测试**：
+- `tests/test_weekly_report_task.py`：新增 6 个 `compute_expected_week_range` 测试（周一~周日全覆盖）
+- `tests/test_weekly_report_service_extended.py`：新增 7 个自愈机制测试
+  - 正常存在 → 返回 False
+  - 缺失 + 冷却中 → 不启动新线程
+  - 缺失 + 冷却外 → 启动后台线程
+  - 异常 → 降级返回 False
+
+**回滚**：
+- 所有改动**向后兼容**，新增方法/端点不破坏现有调用
+- 可单独 revert 服务层或路由层，HTML 横幅无影响
+
+---
+
+## v0.9.45 - 2026-06-02
 
 ### chore(ci): 修复 v0.9.45 CI 失败的 3 个遗留问题
 

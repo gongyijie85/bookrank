@@ -10,6 +10,7 @@ from ..models.schemas import WeeklyReport
 from ..services.weekly_report_service import WeeklyReportService
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import require_book_service
+from .weekly_report_task_helpers import compute_expected_week_range
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +38,7 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
         book_service = require_book_service()
 
         today = datetime.date.today()
-        current_monday = today - datetime.timedelta(days=today.weekday())
-
-        if today.weekday() <= 2:
-            last_monday = current_monday - datetime.timedelta(days=7)
-            last_sunday = current_monday - datetime.timedelta(days=1)
-            week_start = last_monday
-            week_end = last_sunday
-        else:
-            week_start = current_monday
-            week_end = current_monday + datetime.timedelta(days=6)
+        week_start, week_end = compute_expected_week_range(today)
 
         existing_report = WeeklyReport.query.filter(
             WeeklyReport.week_start == week_start, WeeklyReport.week_end == week_end
