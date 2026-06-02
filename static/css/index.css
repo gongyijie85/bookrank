@@ -745,12 +745,6 @@
     gap: 0.25rem;
 }
 
-.list-item-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 /* 加载指示器 */
 .loading-overlay {
     position: fixed;

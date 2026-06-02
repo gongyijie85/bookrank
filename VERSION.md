@@ -1,11 +1,22 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.46
+**当前版本**：v0.9.49
 **发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.49 (2026-06-02) — 排行榜 list 视图 NYT 风格化
+- **移除行动按钮**：排行榜默认 list 视图（`books-list` 段）每行右侧的「收藏/分享/购买」按钮全部删除
+- **设计参考**：完全对齐 [NYT 畅销书榜单](https://www.nytimes.com/books/best-sellers/) 视觉密度（单列、左封面、右信息、无内联按钮）
+- **功能未丢失**：收藏 / 分享 / 购买路径改由详情页（`/book/<index>`）承载
+- **变更文件**：
+  - `templates/index.html`（删除 `.list-item-actions` 块 23 行）
+  - `static/js/index.js`（删除 `renderBooks()` 模板字符串中的对应块 8 行）
+  - `static/css/index.css`（删除孤儿 `.list-item-actions` CSS 5 行）
+- **Grid 视图**：未改动，保持原样
+- **视图切换**：grid / list 按钮正常工作，用户偏好（`view_mode`）不变
 
 ### v0.9.46 (2026-06-02) — 修复 v0.9.45 CI 失败
 - **CI 修复**：#95 CI 失败的 3 个遗留问题

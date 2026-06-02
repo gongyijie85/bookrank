@@ -798,14 +798,6 @@ function updateBooksOnPage(books, category, updateTime) {
                         ${book.publisher ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ${escapeHtml(book.publisher)}</span>` : ''}
                     </div>
                 </div>
-                <div class="list-item-actions">
-                    <button class="btn btn-icon btn-outline btn-favorite"
-                            data-isbn="${book.isbn13 || ''}"
-                            aria-label="收藏 ${escapeHtml(title)}"
-                            aria-pressed="false">
-                        <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
-                    </button>
-                </div>
             </article>
         `}).join('');
     }

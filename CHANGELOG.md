@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.9.49 - 2026-06-02
+
+### refactor(frontend): 排行榜 list 视图移除行动按钮（贴近 NYT 风格）
+
+**背景**：
+排行榜默认 list 视图（`books-list` 段）右侧原本有「收藏 / 分享 / 购买」三个按钮。参照 NYT 榜单设计（[https://www.nytimes.com/books/best-sellers/](https://www.nytimes.com/books/best-sellers/)）的极简风格，决定移除这些按钮，让 list 行更接近 NYT 原版的视觉密度。
+
+**用户操作不受影响**：
+- 收藏 / 分享 / 购买功能在图书详情页（`/book/<index>`）仍然可用
+- 网格视图（grid）原本就没有这些按钮（保持原样）
+- 用户偏好记录（`view_mode` 切换）保持原状，可自由在 grid / list 间切换
+
+**变更**：
+
+#### `templates/index.html` (lines 263-285)
+- 删除 `books-list` 段中每个 `.list-item` 内的 `<div class="list-item-actions">` 块
+- 包含三个按钮：`.btn-favorite`、`.btn-share`、`.btn-amazon`（条件渲染）
+
+#### `static/js/index.js` (lines 801-808)
+- 删除 `renderBooks` 函数中 list 视图模板字符串里的 `.list-item-actions` 块
+- 防止动态刷新时重新插入按钮
+
+#### `static/css/index.css` (lines 748-752)
+- 删除孤儿 CSS `.list-item-actions { display: flex; ... }`（无元素引用后清理）
+- 不影响 grid 视图样式
+
+**Grid 视图**：未改动，仍使用原有 `.card` 容器（封面 + 信息），无行动按钮。
+
+**验证清单**：
+- [x] 模板渲染：list 行内不再有 action 按钮 HTML
+- [x] JS 动态渲染：`renderBooks()` 也不会插入按钮
+- [x] CSS：无未引用规则
+- [x] 收藏 / 分享 / 购买：详情页路径不变
+- [x] 视图切换：grid / list 按钮可正常切换
+
+---
+
 ## v0.9.48 - 2026-06-02
 
 ### fix(update-books): 修复 45 分钟超时取消 + 升级 Node.js 24

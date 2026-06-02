@@ -260,29 +260,6 @@
                 {% endif %}
             </div>
         </div>
-        <div class="list-item-actions">
-            <button class="btn btn-icon btn-outline btn-favorite"
-                    data-isbn="{{ book.isbn13 }}"
-                    aria-label="{{ _('收藏') }} {{ book.title }}"
-                    aria-pressed="false">
-                <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
-            </button>
-            <button class="btn btn-icon btn-outline btn-share"
-                    data-title="{{ book.title }}"
-                    data-author="{{ book.author }}"
-                    aria-label="{{ _('分享') }} {{ book.title }}">
-                <svg class="icon" width="18" height="18"><use href="#icon-share"/></svg>
-            </button>
-            {% if book.amazon_url %}
-            <a class="btn btn-icon btn-outline btn-amazon"
-               href="{{ book.amazon_url }}"
-               target="_blank"
-               rel="noopener noreferrer"
-               aria-label="{{ _('在亚马逊购买') }} {{ book.title }}">
-                <svg class="icon" width="18" height="18"><use href="#icon-cart"/></svg>
-            </a>
-            {% endif %}
-        </div>
     </article>
     {% endfor %}
 </section>
