@@ -178,23 +178,51 @@ def fix_award_book_titles():
                 ).first()
                 if not existing:
                     continue
+                seed_title = book_data.get('title') or ''
+                seed_title_zh = book_data.get('title_zh') or ''
+
                 if (
-                    not existing.title
-                    or existing.title == target_isbn
-                    or _looks_like_isbn(existing.title)
+                    seed_title
+                    and (
+                        not existing.title
+                        or existing.title == target_isbn
+                        or _looks_like_isbn(existing.title)
+                    )
                 ):
-                    old = existing.title
-                    existing.title = book_data['title']
+                    old_title = existing.title
+                    existing.title = seed_title
                     if existing.verification_status == 'deprecated':
                         existing.verification_status = 'verified'
                     existing.is_displayable = True
                     fixed_entries.append(
-                        {'id': existing.id, 'from': old, 'to': book_data['title']}
+                        {
+                            'id': existing.id,
+                            'field': 'title',
+                            'from': old_title,
+                            'to': seed_title,
+                        }
+                    )
+
+                if seed_title_zh and (
+                    not existing.title_zh
+                    or existing.title_zh == target_isbn
+                    or existing.title_zh == existing.title
+                    or _looks_like_isbn(existing.title_zh)
+                ):
+                    old_title_zh = existing.title_zh
+                    existing.title_zh = seed_title_zh
+                    fixed_entries.append(
+                        {
+                            'id': existing.id,
+                            'field': 'title_zh',
+                            'from': old_title_zh,
+                            'to': seed_title_zh,
+                        }
                     )
 
             db.session.commit()
             current_app.logger.info(
-                f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 本'
+                f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 项'
             )
             return APIResponse.success(
                 data={'fixed_count': len(fixed_entries), 'fixed': fixed_entries[:50]}

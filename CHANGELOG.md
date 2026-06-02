@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.9.45 - 2026-06-02
+
+### fix(awards): 修复详情页 `title_zh` 字段被错误写入 ISBN（v0.9.44 未根治）
+
+**问题**：
+- v0.9.44 修复后，`/award-book/1` 详情页仍显示 ISBN "9780385550369" 而非 "James"
+- `/awards` 列表页（grid view 和 list view）依然异常
+- 生产数据库实际状态：`title` 字段正确（"James"），但 `title_zh` 字段被填入 ISBN "9780385550369"
+- 全 38 本书中，**33 本** 的 `title_zh` 字段值是 13 位 ISBN 数字（不是中文书名）
+
+**根因（v0.9.44 错位）**：
+- 模板渲染 `{{ book.title_zh or book.title }}`：**优先使用 `title_zh`**
+- v0.9.44 只修复了 `title` 字段（因为旧脏数据是 `title` 存了 ISBN）
+- 但实际生产数据**反过来**：`title_zh` 存了 ISBN，`title` 是正确的
+- v0.9.44 的 `init_sample_award_books` 修复逻辑只检查 `existing.title`，没检查 `existing.title_zh`
+- admin 端点 `fix-award-book-titles` 同样只修复 `title` 字段
+- 历史脏数据来源（推测）：早期版本 `translate_book_info` 链路上某处把 `isbn13` 误写入了 `title_zh`
+
+**API 验证**：
+```bash
+curl https://bookrank-ckml.onrender.com/api/award-books/1
+# 返回 {"id":1,"title":"James","title_zh":"9780385550369","isbn13":"9780385550369",...}
+# 模板中 {{ book.title_zh or book.title }} 因 title_zh 非空，显示 ISBN
+```
+
+**修复**：
+- `app/initialization/sample_award_books.py::init_sample_award_books`：
+  - 新增 `need_fix_title_zh` 条件分支：当 `existing.title_zh` 为空/等于 ISBN/等于 title/看起来像 ISBN 时，用 seed `title_zh` 修复
+  - 触发时机：app 启动时自动跑
+- `app/routes/api/awards.py::fix_award_book_titles`（admin 端点）：
+  - 增加 `field` 字段到返回的 `fixed` 列表（区分 `title` 和 `title_zh` 修复）
+  - 新增 `title_zh` 修复分支（条件同上）
+
+**触发修复**：
+```bash
+curl -X POST https://bookrank-ckml.onrender.com/api/admin/fix-award-book-titles \
+  -H "X-Admin-Token: BookRank2026Fix978"
+# 预期返回: {"data":{"fixed":[{id:1,field:"title_zh",from:"9780385550369",to:"詹姆斯"},...], "fixed_count": 33}, ...}
+```
+
+**验证**：
+- 访问 `/award-book/1` 标题应显示 "詹姆斯"（中文优先，英文 fallback 到 "James"）
+- 访问 `/awards` 所有书的中文标题都是正确的中文书名
+
 ## v0.9.44 - 2026-06-02
 
 ### fix(awards): 修复详情页书名显示为 ISBN 的历史脏数据

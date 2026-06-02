@@ -504,6 +504,7 @@ def init_sample_award_books(app):
                     )
 
                 if existing:
+                    target_title_zh = book_data.get('title_zh') or ''
                     need_fix_title = (
                         (
                             not existing.title
@@ -521,6 +522,22 @@ def init_sample_award_books(app):
                         fixed_count += 1
                         app.logger.info(
                             f'🔧 修复 AwardBook 标题: id={existing.id} {old_title!r} -> {book_data["title"]!r}'
+                        )
+
+                    need_fix_title_zh = (
+                        target_title_zh
+                        and (
+                            not existing.title_zh
+                            or existing.title_zh == target_isbn
+                            or existing.title_zh == existing.title
+                            or _looks_like_isbn(existing.title_zh)
+                        )
+                    )
+                    if need_fix_title_zh:
+                        old_title_zh = existing.title_zh
+                        existing.title_zh = target_title_zh
+                        app.logger.info(
+                            f'🔧 修复 AwardBook 中文标题: id={existing.id} {old_title_zh!r} -> {target_title_zh!r}'
                         )
 
                     if existing.verification_status not in ('verified', 'wikidata'):

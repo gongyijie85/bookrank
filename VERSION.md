@@ -1,11 +1,20 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.44
+**当前版本**：v0.9.45
 **发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.45 (2026-06-02) — 详情页 `title_zh` 字段 ISBN 脏数据修复（v0.9.44 后续）
+- **Bug 修复**：`/award-book/<id>` 详情页仍显示 ISBN（v0.9.44 没根治）
+- **根因**：生产数据是 `title_zh` 字段存了 ISBN（不是 `title`），v0.9.44 只修了 `title` 字段；模板 `{{ book.title_zh or book.title }}` 优先用 `title_zh`
+- **影响**：33/38 本书的 `title_zh` 字段是 13 位 ISBN 数字
+- **修复**：
+  - `init_sample_award_books` 增加 `title_zh` 修复分支
+  - admin 端点 `POST /api/admin/fix-award-book-titles` 同时修复 `title` 和 `title_zh`（返回 `field` 字段区分）
+- **触发修复**：`curl -X POST .../api/admin/fix-award-book-titles -H "X-Admin-Token: ..."`
 
 ### v0.9.44 (2026-06-02) — 获奖书单详情页 ISBN 脏数据修复
 - **Bug 修复**：`/award-book/<id>` 详情页书名显示为 ISBN 编号（生产数据库历史脏数据）
