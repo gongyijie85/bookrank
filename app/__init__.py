@@ -15,6 +15,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import config
 from .initialization import init_awards_data, init_sample_books
+from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, cron_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler

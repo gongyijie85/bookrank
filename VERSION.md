@@ -1,11 +1,21 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.43
+**当前版本**：v0.9.44
 **发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.44 (2026-06-02) — 获奖书单详情页 ISBN 脏数据修复
+- **Bug 修复**：`/award-book/<id>` 详情页书名显示为 ISBN 编号（生产数据库历史脏数据）
+- **根因**：`init_sample_award_books` 旧版用 title 匹配 existing，对 title=ISBN 的脏数据永远查不到；`get_award_book_by_id` 不过滤 `is_displayable`
+- **修复**：
+  - `init_sample_award_books` 改用 isbn13 匹配 existing + 增加主动修复逻辑
+  - `award_book_detail` 路由增加 `is_displayable` 过滤
+  - 新增 admin 端点 `POST /api/admin/fix-award-book-titles`（需 `ADMIN_TOKEN` 环境变量）用于立即修复生产数据
+  - 新增 `_looks_like_isbn` 工具函数
+- **使用方式**：Render 设置 `ADMIN_TOKEN` 后 `curl -X POST .../api/admin/fix-award-book-titles -H "X-Admin-Token: <token>"`
 
 ### v0.9.43 (2026-06-02) — 获奖书单翻译 404 修复
 - **Bug 修复**：`POST /api/translate/book/<isbn>` 对获奖书单 ISBN 全部返回 404

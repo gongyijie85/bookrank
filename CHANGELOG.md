@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.9.44 - 2026-06-02
+
+### fix(awards): 修复详情页书名显示为 ISBN 的历史脏数据
+
+**问题**：
+- 访问 `/award-book/1`（"James" - 普利策奖 2025 小说）详情页，标题位置显示 ISBN 编号 "9780385550369" 而不是 "James"
+- `/awards` 列表页 grid view 和 list view 同样问题
+
+**根因**：
+- 生产数据库 `award_books` 表存在历史脏数据：title 字段被填为 ISBN（不是书名）
+- `init_sample_award_books` 旧版只按 `award_id + year + title` 过滤 existing，对于 title=ISBN 的脏数据永远查不到，新数据被 add，但脏数据 `is_displayable=True` 仍可见
+- `get_award_book_by_id(book_id)` 不过滤 `is_displayable`，详情页直接返回脏数据
+- 详情页和列表页都渲染 `{{ book.title_zh or book.title }}`，脏数据 title=ISBN 时直接显示 ISBN
+
+**修复**：
+- `app/initialization/sample_award_books.py`：
+  - 新增 `_looks_like_isbn(text)` 工具函数（检测 10/13 位纯数字字符串）
+  - `init_sample_award_books` 改用 `award_id + year + isbn13` 精确匹配 existing（之前用 title 匹配）
+  - 增加**主动修复**逻辑：当 existing.title 异常（为空/等于 ISBN/看起来像 ISBN）时，用 seed 数据更新
+  - cleanup 步骤只在 title 看起来像 ISBN 时才标记 deprecated（之前无条件标记）
+- `app/routes/main.py`：`award_book_detail` 路由增加 `is_displayable` 过滤（脏数据 `is_displayable=False` 返回 error.html）
+- `app/routes/api/awards.py`：新增 `POST /api/admin/fix-award-book-titles` 端点
+  - 鉴权：请求头 `X-Admin-Token` 必须匹配环境变量 `ADMIN_TOKEN`
+  - 无 ADMIN_TOKEN 配置时拒绝（403）
+  - 触发后立即遍历 seed 数据，修复生产数据库历史脏数据
+
+**使用 admin 端点修复**（推荐）：
+```bash
+# Render 环境变量添加 ADMIN_TOKEN=你的随机密钥
+# 然后用 curl 触发修复：
+curl -X POST https://bookrank-ckml.onrender.com/api/admin/fix-award-book-titles \
+  -H "X-Admin-Token: 你的随机密钥"
+```
+
+**自动修复路径**：
+- 修复后的 `init_sample_award_books` 在 `init_awards_data` 末尾调用，下次部署启动时自动修复
+- 不依赖 admin 端点
+
+**验证**：
+- 访问 `/award-book/1` 标题应显示 "James"（不是 "9780385550369"）
+- 访问 `/awards` 所有书的标题都是正确书名
+- 控制台 `Unchecked runtime.lastError` 是 Chrome 扩展消息通道警告（uBlock/翻译扩展等），与本应用无关，可忽略
+
 ## v0.9.43 - 2026-06-02
 
 ### fix(api): 修复获奖书单图书翻译 404 错误

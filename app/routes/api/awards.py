@@ -1,4 +1,5 @@
 import logging
+import os
 
 from flask import request
 
@@ -131,3 +132,77 @@ def search_award_books():
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'搜索图书错误: {e}', exc_info=True)
         return APIResponse.error('搜索失败', 500)
+
+
+@api_bp.route('/admin/fix-award-book-titles', methods=['POST'])
+def fix_award_book_titles():
+    """修复历史脏数据：把 title 字段为 ISBN 的 AwardBook 记录用种子数据修正
+
+    触发方式：POST /api/admin/fix-award-book-titles
+    鉴权：需要请求头 X-Admin-Token 匹配环境变量 ADMIN_TOKEN（无配置时拒绝）
+    """
+
+    admin_token = os.environ.get('ADMIN_TOKEN', '')
+    if not admin_token:
+        return APIResponse.error('ADMIN_TOKEN 未配置', 403)
+
+    provided = request.headers.get('X-Admin-Token', '')
+    if provided != admin_token:
+        return APIResponse.error('鉴权失败', 403)
+
+    try:
+        from flask import current_app
+
+        with current_app.app_context():
+            from ...initialization.sample_award_books import (
+                SAMPLE_AWARD_BOOKS,
+                _looks_like_isbn,
+            )
+            from ...models.database import db
+            from ...models.schemas import Award, AwardBook
+
+            fixed_entries: list[dict] = []
+            award_id_by_name = {a.name: a.id for a in Award.query.all()}
+
+            for book_data in SAMPLE_AWARD_BOOKS:
+                award_id = award_id_by_name.get(book_data['award_name'])
+                if not award_id:
+                    continue
+                target_isbn = book_data.get('isbn13') or ''
+                if not target_isbn:
+                    continue
+                existing = AwardBook.query.filter(
+                    AwardBook.award_id == award_id,
+                    AwardBook.year == book_data['year'],
+                    AwardBook.isbn13 == target_isbn,
+                ).first()
+                if not existing:
+                    continue
+                if (
+                    not existing.title
+                    or existing.title == target_isbn
+                    or _looks_like_isbn(existing.title)
+                ):
+                    old = existing.title
+                    existing.title = book_data['title']
+                    if existing.verification_status == 'deprecated':
+                        existing.verification_status = 'verified'
+                    existing.is_displayable = True
+                    fixed_entries.append(
+                        {'id': existing.id, 'from': old, 'to': book_data['title']}
+                    )
+
+            db.session.commit()
+            current_app.logger.info(
+                f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 本'
+            )
+            return APIResponse.success(
+                data={'fixed_count': len(fixed_entries), 'fixed': fixed_entries[:50]}
+            )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'修复 AwardBook 标题失败: {e}', exc_info=True)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return APIResponse.error(f'修复失败: {e}', 500)

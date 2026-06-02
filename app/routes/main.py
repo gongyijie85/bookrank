@@ -496,6 +496,12 @@ def award_book_detail(book_id):
     book = award_service.get_award_book_by_id(book_id)
 
     if book:
+        if not book.is_displayable:
+            return render_template(
+                'error.html',
+                message='该获奖图书已下架',
+                back_url=request.referrer or '/awards',
+            )
         return render_template('award_book_detail.html', book=book, back_url=request.referrer or '/awards')
     else:
         return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/awards')
