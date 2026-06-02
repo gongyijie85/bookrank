@@ -17,7 +17,12 @@ concurrency:
 jobs:
   update-books:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # v0.9.47：45 → 60 分钟（并行优化后通常 15-20 分钟，留足余量）
+    timeout-minutes: 60
+
+    # v0.9.47：升级到 Node.js 24（2026-09-16 强制要求）
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
       - name: Checkout repository
@@ -27,6 +32,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+          # v0.9.47：启用 pip 缓存（省 5-8 分钟）
+          cache: 'pip'
 
       - name: Install dependencies
         run: |

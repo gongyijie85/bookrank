@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.9.48 - 2026-06-02
+
+### fix(update-books): 修复 45 分钟超时取消 + 升级 Node.js 24
+
+**问题**：
+- Update Books Data #322 运行 45 分 18 秒后被 GitHub Actions 自动取消（撞上 45min timeout）
+- 7 个出版社爬虫串行执行总耗时 ~48 分钟 > 45min 上限
+- 工作流使用 Node.js 20 弃用警告（GitHub 公告：2026-06-16 强制 Node.js 24，2026-09-16 完全移除 Node.js 20）
+
+**变更**：
+
+#### `update_books.py`
+- `sync_all_publishers()` 改为 `ThreadPoolExecutor` 并行（max_workers=7）
+- 抽出 `_sync_one()` 内部函数封装单 publisher 同步逻辑
+- 失败隔离：单个 publisher 异常不影响其他
+- 爬虫是 IO 密集型（HTTP 请求），线程足够，无需 multiprocessing
+
+#### `.github/workflows/update-books.yml`
+- `timeout-minutes: 45` → `60`（并行优化后通常 15-20 分钟，留足余量）
+- 新增 `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'`（升级 Node.js 24，零侵入）
+- `setup-python` 加 `cache: 'pip'`（依赖缓存，省 5-8 分钟）
+
+**预期效果**：
+| 指标 | 修复前 | 修复后（预估） |
+|------|--------|---------------|
+| 总耗时 | ~48 min | ~15-20 min（取决于最慢单 publisher）|
+| 超时风险 | 高（45min 上限）| 低（60min 上限 + 并行）|
+| 依赖安装 | 5-8 min | 1-2 min（缓存命中）|
+| Node.js 警告 | 每次运行都警告 | 消失 |
+
+**回滚**：
+- `update_books.py` 可单独 revert，恢复串行执行
+- workflow 文件可单独 revert，恢复 45min timeout + 无缓存
+
+---
+
 ## v0.9.47 - 2026-06-02
 
 ### feat(weekly-report): 周报自愈机制（三重保险）

@@ -28,7 +28,11 @@ os.makedirs(STATIC_DATA_DIR, exist_ok=True)
 
 
 def sync_all_publishers():
-    """同步所有出版社数据"""
+    """并行同步所有出版社数据
+
+    v0.9.47：7 个出版社爬虫改为 ThreadPoolExecutor 并行。
+    爬虫是 IO 密集型（HTTP 请求），线程足够，无需 multiprocessing。
+    """
     try:
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
         from app.services.publisher_crawler.hachette import HachetteCrawler
@@ -51,19 +55,33 @@ def sync_all_publishers():
         'open_library': OpenLibraryCrawler(),
     }
 
-    all_books = {}
+    def _sync_one(item: tuple) -> tuple:
+        """单个 publisher 同步任务（线程 worker）
 
-    for publisher_name, crawler in publishers.items():
-        logger.info(f'开始同步 {publisher_name}...')
+        失败隔离：单个 publisher 失败不影响其他。
+        """
+        name, crawler = item
+        logger.info(f'开始同步 {name}...')
         try:
             books = crawler.crawl()
-            # 转换为字典格式
-            books_dict = [book.to_dict() for book in books]
-            all_books[publisher_name] = books_dict
-            logger.info(f'{publisher_name} 同步完成，获取到 {len(books_dict)} 本书籍')
+            return name, [book.to_dict() for book in books]
         except Exception as e:
-            logger.error(f'同步 {publisher_name} 失败: {e}')
-            all_books[publisher_name] = []
+            logger.error(f'同步 {name} 失败: {e}')
+            return name, []
+
+    all_books: dict = {}
+
+    # v0.9.47：使用线程池并行，max_workers 与 publisher 数量一致
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    with ThreadPoolExecutor(
+        max_workers=len(publishers), thread_name_prefix='pub-crawl'
+    ) as executor:
+        futures = {executor.submit(_sync_one, item): item[0] for item in publishers.items()}
+        for future in as_completed(futures):
+            name, books = future.result()
+            all_books[name] = books
+            logger.info(f'{name} 同步完成，获取到 {len(books)} 本书籍')
 
     return all_books
 
