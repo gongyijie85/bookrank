@@ -197,13 +197,8 @@ def fix_award_book_titles():
                 seed_title = book_data.get('title') or ''
                 seed_title_zh = book_data.get('title_zh') or ''
 
-                if (
-                    seed_title
-                    and (
-                        not existing.title
-                        or existing.title == target_isbn
-                        or _looks_like_isbn(existing.title)
-                    )
+                if seed_title and (
+                    not existing.title or existing.title == target_isbn or _looks_like_isbn(existing.title)
                 ):
                     old_title = existing.title
                     existing.title = seed_title
@@ -237,9 +232,7 @@ def fix_award_book_titles():
                     )
 
             db.session.commit()
-            current_app.logger.info(
-                f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 项'
-            )
+            current_app.logger.info(f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 项')
             return APIResponse.success(
                 data={
                     'fixed_count': len(fixed_entries),
@@ -315,9 +308,7 @@ def fix_award_book_titles_by_ids():
                 )
 
             db.session.commit()
-            current_app.logger.info(
-                f'🔧 admin fix-award-book-titles-by-ids: 修复 {len(fixed_entries)} 项'
-            )
+            current_app.logger.info(f'🔧 admin fix-award-book-titles-by-ids: 修复 {len(fixed_entries)} 项')
             return APIResponse.success(
                 data={
                     'fixed_count': len(fixed_entries),

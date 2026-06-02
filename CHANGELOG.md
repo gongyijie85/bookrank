@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.9.46 - 2026-06-02
+
+### chore(ci): 修复 v0.9.45 CI 失败的 3 个遗留问题
+
+**背景**：
+v0.9.45 commit 触发的 CI 失败（#95）：Code Quality (Ruff)、Type Check (mypy)、Unit Tests 三项均失败。
+
+**修复**：
+- **Ruff format check 失败**（3 个文件未格式化）：
+  - `app/initialization/sample_award_books.py` — `init_sample_award_books` 修复分支
+  - `app/routes/api/awards.py` — admin 端点 + 新增 `fix-award-book-titles-by-ids`
+  - `app/services/award_book_service.py` — 之前 v0.9.43 修复时的格式遗留
+  - 处理：`ruff format` 自动修复
+- **mypy 失败**（2 个 pre-existing 错误）：
+  - `app/initialization/sample_award_books.py:570` — `int(award.id)` 中 `award.id` 推断为 `object`，无 overload 匹配 → 改用 `cast('tuple[int, int]', ...)` 显式标注
+  - `app/__init__.py:419` — `import bleach` 缺 type stubs → 在 `pyproject.toml` 的 mypy overrides 中加 `bleach.*`
+  - 新增 `from typing import cast` 到 `sample_award_books.py`
+- **Unit Tests 失败**（1 个 pre-existing 错误）：
+  - `tests/test_app_init.py::TestSecurityHeaders::test_csp_nonce_injected` 期望 CSP 含 `nonce-`，但 v0.9.42 决策已移除 nonce（用 `'unsafe-inline'` 替代）
+  - 修复：测试改为验证 `'unsafe-inline'` 在 `script-src` 和 `style-src` 中都存在（反映 v0.9.42 的设计决策）
+
+**验证**：
+- `ruff check app/ tests/`: All checks passed ✓
+- `ruff format --check app/ tests/`: 155 files already formatted ✓
+- `mypy app/`: Success: no issues found in 87 source files ✓
+- `pytest tests/`: 2060 passed, 4 xfailed, 0 failed ✓
+
 ## v0.9.45 - 2026-06-02
 
 ### fix(awards): 修复详情页 `title_zh` 字段被错误写入 ISBN（v0.9.44 未根治）

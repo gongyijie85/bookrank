@@ -508,9 +508,7 @@ class AwardBookService:
         if not isbn:
             return None
         try:
-            return AwardBook.query.filter(
-                db.or_(AwardBook.isbn13 == isbn, AwardBook.isbn10 == isbn)
-            ).first()
+            return AwardBook.query.filter(db.or_(AwardBook.isbn13 == isbn, AwardBook.isbn10 == isbn)).first()
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'按ISBN获取获奖图书失败 {isbn}: {e}')
             return None

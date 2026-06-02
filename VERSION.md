@@ -1,11 +1,24 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.45
+**当前版本**：v0.9.46
 **发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.46 (2026-06-02) — 修复 v0.9.45 CI 失败
+- **CI 修复**：#95 CI 失败的 3 个遗留问题
+  - `ruff format` 3 个文件未格式化
+  - mypy 2 个 pre-existing 错误（int(award.id) + bleach stubs）
+  - `test_csp_nonce_injected` 期望 nonce 但 v0.9.42 改用 unsafe-inline
+- **修改文件**：
+  - `app/initialization/sample_award_books.py`（format + `from typing import cast` + `cast('tuple[int, int]', ...)`）
+  - `app/routes/api/awards.py`（format）
+  - `app/services/award_book_service.py`（format）
+  - `tests/test_app_init.py`（更新 csp 测试）
+  - `pyproject.toml`（mypy overrides 加 `bleach.*`）
+- **验证全过**：ruff check + format + mypy + 2060 个 pytest ✓
 
 ### v0.9.45 (2026-06-02) — 详情页 `title_zh` 字段 ISBN 脏数据修复（v0.9.44 后续）
 - **Bug 修复**：`/award-book/<id>` 详情页仍显示 ISBN（v0.9.44 没根治）

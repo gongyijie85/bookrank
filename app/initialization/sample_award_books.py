@@ -9,6 +9,7 @@
 """
 
 import logging
+from typing import cast
 
 from ..utils.error_handler import ErrorCategory, log_error
 
@@ -481,38 +482,27 @@ def init_sample_award_books(app):
                 if not target_isbn:
                     continue
 
-                existing = (
-                    AwardBook.query.filter(
-                        AwardBook.award_id == award.id,
-                        AwardBook.year == book_data['year'],
-                        AwardBook.isbn13 == target_isbn,
-                    )
-                    .first()
-                )
+                existing = AwardBook.query.filter(
+                    AwardBook.award_id == award.id,
+                    AwardBook.year == book_data['year'],
+                    AwardBook.isbn13 == target_isbn,
+                ).first()
 
                 if not existing:
-                    existing = (
-                        AwardBook.query.filter(
-                            AwardBook.award_id == award.id,
-                            AwardBook.year == book_data['year'],
-                            db.or_(
-                                AwardBook.isbn13 == target_isbn,
-                                AwardBook.title == target_isbn,
-                            ),
-                        )
-                        .first()
-                    )
+                    existing = AwardBook.query.filter(
+                        AwardBook.award_id == award.id,
+                        AwardBook.year == book_data['year'],
+                        db.or_(
+                            AwardBook.isbn13 == target_isbn,
+                            AwardBook.title == target_isbn,
+                        ),
+                    ).first()
 
                 if existing:
                     target_title_zh = book_data.get('title_zh') or ''
                     need_fix_title = (
-                        (
-                            not existing.title
-                            or existing.title == target_isbn
-                            or _looks_like_isbn(existing.title)
-                        )
-                        and book_data.get('title')
-                    )
+                        not existing.title or existing.title == target_isbn or _looks_like_isbn(existing.title)
+                    ) and book_data.get('title')
                     if need_fix_title:
                         old_title = existing.title
                         existing.title = book_data['title']
@@ -524,14 +514,11 @@ def init_sample_award_books(app):
                             f'🔧 修复 AwardBook 标题: id={existing.id} {old_title!r} -> {book_data["title"]!r}'
                         )
 
-                    need_fix_title_zh = (
-                        target_title_zh
-                        and (
-                            not existing.title_zh
-                            or existing.title_zh == target_isbn
-                            or existing.title_zh == existing.title
-                            or _looks_like_isbn(existing.title_zh)
-                        )
+                    need_fix_title_zh = target_title_zh and (
+                        not existing.title_zh
+                        or existing.title_zh == target_isbn
+                        or existing.title_zh == existing.title
+                        or _looks_like_isbn(existing.title_zh)
                     )
                     if need_fix_title_zh:
                         old_title_zh = existing.title_zh
@@ -581,7 +568,7 @@ def init_sample_award_books(app):
             for book_data in SAMPLE_AWARD_BOOKS:
                 award = Award.query.filter_by(name=book_data['award_name']).first()
                 if award:
-                    key = (int(award.id), int(book_data['year']))
+                    key = cast('tuple[int, int]', (award.id, book_data['year']))
                     if key not in seed_titles_by_key:
                         seed_titles_by_key[key] = set()
                     seed_titles_by_key[key].add(str(book_data['title']))
