@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.9.43 - 2026-06-02
+
+### fix(api): 修复获奖书单图书翻译 404 错误
+
+**问题**：
+- 访问 `/awards` 页面时，控制台批量报错 `POST /api/translate/book/<isbn> 404 (Not Found)`
+- 受影响 ISBN 示例：`9781668068458`、`9780224099790`、`9780525535799` 等 20+ 个
+
+**根因**：
+- `app/routes/api/translation.py` 的 `translate_book` 路由只查询 `book_service.get_book_by_isbn()`
+- 该方法只查 NYT 分类的 books 缓存和 `BookMetadata` 表
+- 获奖书单数据存储在 `AwardBook` 表（`app/models/schemas.py:199`），不在查询范围
+- 所有获奖书单的 ISBN 都返回 404 "图书不存在"
+
+**修复**：
+- `app/services/award_book_service.py`：
+  - 新增 `get_award_book_by_isbn(isbn)` 方法（按 isbn13 / isbn10 查询 AwardBook）
+  - 新增 `save_award_book_translation(isbn, title_zh, description_zh)` 方法（写翻译回 AwardBook 表；AwardBook 模型无 `details_zh` 字段，只写 title_zh 和 description_zh）
+- `app/routes/api/translation.py`：
+  - `translate_book` 路由添加 AwardBook fallback
+  - 当 `book_service.get_book_by_isbn` 找不到时，回退查询 `AwardBook` 表
+  - 翻译结果同时写回 `BookMetadata`（保持语言包一致）和 `AwardBook`
+  - 移除"图书服务不可用 503"硬错误，允许在 book_service 缺失时仅用 award_book_service 工作
+
+**验证**：
+- 访问 `/awards` 页面，控制台不再有 404 翻译请求
+- 首次访问时翻译 API 成功，标题显示中文
+- 二次访问走数据库缓存，无 API 调用
+
 ## v0.9.42 - 2026-06-02
 
 ### fix(frontend): 修复生产环境控制台 CSP 违规 + BookI18n.updateBatch 缺失

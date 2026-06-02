@@ -78,17 +78,27 @@ def translate_book_fields():
 @csrf_protect
 @handle_api_errors
 def translate_book(isbn: str):
-    """翻译图书信息"""
+    """翻译图书信息（同时支持 NYT 分类图书和 AwardBook 获奖书单）"""
     if not validate_isbn(isbn):
         return APIResponse.error('无效的ISBN格式', 400)
 
+    from ...services.award_book_service import AwardBookService
     from ...services.zhipu_translation_service import get_translation_service
 
     book_service = get_book_service()
-    if not book_service:
-        return APIResponse.error('图书服务不可用', 503)
+    book_data = book_service.get_book_by_isbn(isbn) if book_service else None
 
-    book_data = book_service.get_book_by_isbn(isbn)
+    # Fallback: 查询 AwardBook 表（获奖书单数据不在主 books 缓存中）
+    award_book_service = AwardBookService()
+    award_book = award_book_service.get_award_book_by_isbn(isbn)
+    if award_book and not book_data:
+        book_data = {
+            'title': award_book.title or '',
+            'description': award_book.description or '',
+            'details': award_book.details or '',
+            'isbn13': award_book.isbn13 or isbn,
+        }
+
     if not book_data:
         return APIResponse.error('图书不存在', 404)
 
@@ -96,15 +106,19 @@ def translate_book(isbn: str):
     translated_data = service.translate_book_info(book_data)
     if translated_data:
         try:
-            book_service.save_book_translation(
-                isbn=isbn,
-                title_zh=translated_data.get('title_zh'),
-                description_zh=translated_data.get('description_zh'),
-                details_zh=translated_data.get('details_zh'),
-            )
-            language_pack = getattr(book_service, '_language_pack', None)
-            if language_pack:
-                language_pack.store_books([translated_data])
+            if book_service:
+                book_service.save_book_translation(
+                    isbn=isbn,
+                    title_zh=translated_data.get('title_zh'),
+                    description_zh=translated_data.get('description_zh'),
+                    details_zh=translated_data.get('details_zh'),
+                )
+            if award_book:
+                award_book_service.save_award_book_translation(
+                    isbn=isbn,
+                    title_zh=translated_data.get('title_zh'),
+                    description_zh=translated_data.get('description_zh'),
+                )
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'翻译结果写入语言包失败 {isbn}: {e}', level='warning')
 

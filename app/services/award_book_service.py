@@ -503,6 +503,46 @@ class AwardBookService:
             log_error(ErrorCategory.DB_QUERY, f'获取获奖图书失败: {e}')
             return None
 
+    def get_award_book_by_isbn(self, isbn: str) -> AwardBook | None:
+        """根据 ISBN13/ISBN10 获取获奖图书"""
+        if not isbn:
+            return None
+        try:
+            return AwardBook.query.filter(
+                db.or_(AwardBook.isbn13 == isbn, AwardBook.isbn10 == isbn)
+            ).first()
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'按ISBN获取获奖图书失败 {isbn}: {e}')
+            return None
+
+    def save_award_book_translation(
+        self,
+        isbn: str,
+        title_zh: str | None = None,
+        description_zh: str | None = None,
+    ) -> bool:
+        """保存获奖图书的中文翻译到数据库（AwardBook 模型无 details_zh 字段）"""
+        if not isbn:
+            return False
+        try:
+            award_book = self.get_award_book_by_isbn(isbn)
+            if not award_book:
+                return False
+            if title_zh:
+                award_book.title_zh = title_zh
+            if description_zh:
+                award_book.description_zh = description_zh
+            db.session.commit()
+            logger.info(f'获奖图书翻译已保存: {isbn}')
+            return True
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'保存获奖图书翻译失败 {isbn}: {e}')
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            return False
+
     def search_award_books(self, keyword: str, page: int = 1, limit: int = 20) -> tuple[list[AwardBook], int]:
         """搜索获奖图书（标题/作者/中文标题）"""
         try:

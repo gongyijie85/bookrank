@@ -1,11 +1,17 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.42
+**当前版本**：v0.9.43
 **发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.43 (2026-06-02) — 获奖书单翻译 404 修复
+- **Bug 修复**：`POST /api/translate/book/<isbn>` 对获奖书单 ISBN 全部返回 404
+- **根因**：路由只查 `book_service.get_book_by_isbn()`（覆盖 NYT 分类 books 和 `BookMetadata`），未查 `AwardBook` 表
+- **修复**：`AwardBookService` 新增 `get_award_book_by_isbn` 和 `save_award_book_translation` 方法；`translate_book` 路由添加 AwardBook fallback，翻译结果同时写回两张表
+- **影响范围**：20+ 个获奖书单 ISBN（如 `9781668068458`、`9780224099790`、`9780525535799` 等）
 
 ### v0.9.42 (2026-06-02) — 前端 CSP 违规修复
 - **JS Bug 修复**：`BookI18n.updateBatch` 函数不存在导致 `index.js:52` 抛 `TypeError`，已添加批量更新方法（兼容 `[{isbn, language, data}]` 入参）
