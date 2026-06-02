@@ -668,9 +668,7 @@ class WeeklyReportService:
                 return self.get_latest_report(), True
 
             # 3. 启动后台线程补生成（不阻塞页面渲染）
-            logger.info(
-                f'expected week 周报缺失（{week_start} 至 {week_end}），后台异步补生成'
-            )
+            logger.info(f'expected week 周报缺失（{week_start} 至 {week_end}），后台异步补生成')
 
             def _run_in_thread() -> None:
                 try:
@@ -678,9 +676,7 @@ class WeeklyReportService:
                 except Exception as e:
                     log_error(ErrorCategory.API_CALL, f'自愈触发周报生成失败: {e!s}')
 
-            thread = threading.Thread(
-                target=_run_in_thread, daemon=True, name='weekly-report-self-heal'
-            )
+            thread = threading.Thread(target=_run_in_thread, daemon=True, name='weekly-report-self-heal')
             thread.start()
 
             return self.get_latest_report(), True

@@ -657,6 +657,8 @@ class TestWeeklyReports:
         mock_report.content = '{"key": "value"}'
 
         mock_svc = MagicMock()
+        # v0.9.47 自愈机制：route 额外调用 get_or_trigger_current_week_report() 返回 2-tuple
+        mock_svc.get_or_trigger_current_week_report.return_value = (mock_report, False)
         mock_svc.get_reports.return_value = [mock_report]
         MockWRS.return_value = mock_svc
 
@@ -673,6 +675,8 @@ class TestWeeklyReports:
     @patch('app.services.weekly_report_service.WeeklyReportService')
     def test_empty_reports_triggers_generation(self, MockWRS, client, app):
         mock_svc = MagicMock()
+        # v0.9.47 自愈机制：缺失周报时返回 (None, True) 标记后台补生成中
+        mock_svc.get_or_trigger_current_week_report.return_value = (None, True)
         mock_svc.get_reports.return_value = []
         MockWRS.return_value = mock_svc
 
@@ -692,6 +696,8 @@ class TestWeeklyReports:
     @patch('app.services.weekly_report_service.WeeklyReportService')
     def test_generation_exception(self, MockWRS, client, app):
         mock_svc = MagicMock()
+        # v0.9.47 自愈机制：自愈检查自身出错时返回 (latest, False)
+        mock_svc.get_or_trigger_current_week_report.return_value = (None, False)
         mock_svc.get_reports.return_value = []
         MockWRS.return_value = mock_svc
 

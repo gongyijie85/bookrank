@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.9.50 - 2026-06-02
+
+### chore(ci): 修复 v0.9.49 推送后 CI 失败的 2 个遗留问题
+
+**背景**：
+v0.9.49（排行榜 NYT 风格化）推送后 CI 报错，2 个独立问题：
+
+1. **`ruff format` 检查失败**：`weekly_report_service.py` 2 处 `logger.info` / `threading.Thread` 调用跨多行，但 ruff format 要求单行（≤120 字符），需要重新合并
+2. **3 个 pytest 用例失败**：`test_main_routes_extended.py::TestWeeklyReports` 中 3 个用例 `ValueError: not enough values to unpack (expected 2, got 0)`
+
+**根因（pytest）**：
+v0.9.47 引入自愈机制时，路由 `weekly_reports()` 改为先调用 `report_service.get_or_trigger_current_week_report()`（返回 `tuple[WeeklyReport|None, bool]`）再调用 `get_reports()`。但 `test_main_routes_extended.py` 的 3 个测试只 mock 了 `get_reports`，没有 mock 新的自愈方法。`MagicMock()` 默认值无法解包成 2-tuple，导致 `latest_report, is_generating = ...` 抛出 `ValueError`。
+
+**修复**：
+
+#### `app/services/weekly_report_service.py` + `tests/test_weekly_report_service_extended.py`
+- `ruff format app/ tests/` 自动合并多行调用
+
+#### `tests/test_main_routes_extended.py`（`TestWeeklyReports` 类的 3 个测试）
+- `test_with_reports`：新增 `mock_svc.get_or_trigger_current_week_report.return_value = (mock_report, False)`
+- `test_empty_reports_triggers_generation`：新增 `mock_svc.get_or_trigger_current_week_report.return_value = (None, True)`
+- `test_generation_exception`：新增 `mock_svc.get_or_trigger_current_week_report.return_value = (None, False)`
+
+**验证**：
+- [x] `ruff check app/ tests/`：All checks passed!
+- [x] `ruff format --check app/ tests/`：156 files already formatted
+- [x] `mypy app/ --ignore-missing-imports`：Success: no issues found in 88 source files
+- [x] `pytest tests/ -m "not slow" --cov-fail-under=60`：**2073 passed, 4 xfailed**，覆盖率 **81.54%**
+
+---
+
 ## v0.9.49 - 2026-06-02
 
 ### refactor(frontend): 排行榜 list 视图移除行动按钮（贴近 NYT 风格）

@@ -254,6 +254,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.50 - 修复 v0.9.49 推送后 CI 失败：ruff format 合并 2 文件多行调用 + 3 个 TestWeeklyReports 测试补充 `get_or_trigger_current_week_report` mock（2073 passed, 覆盖率 81.54%）
 - v0.9.49 - 排行榜 list 视图 NYT 风格化：移除行内「收藏/分享/购买」按钮，对齐 NYT 视觉密度（功能改由详情页承载）
 - v0.9.32 - 质量收官：测试覆盖率 61%→84.12%，新增 14 个测试文件（2034 passed），TODO 清理
 - v0.9.31 - 管理增强：爬虫管理 API、系统监控、数据备份 API

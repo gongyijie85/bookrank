@@ -1,11 +1,25 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.49
+**当前版本**：v0.9.50
 **发布日期**：2026-06-02
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.50 (2026-06-02) — 修复 v0.9.49 推送后 CI 失败（彻底修复）
+- **`ruff format` 修复**：2 个文件因多行调用未合并被格式检查拦截
+  - `app/services/weekly_report_service.py`：`logger.info` 和 `threading.Thread` 2 处多行调用合并为单行
+  - `tests/test_weekly_report_service_extended.py`：删除文件末尾空行
+- **3 个 pytest 用例修复**：`test_main_routes_extended.py::TestWeeklyReports`
+  - v0.9.47 引入周报自愈机制时，路由 `weekly_reports()` 改为调用 `get_or_trigger_current_week_report()` 返回 2-tuple
+  - 3 个测试只 mock 了 `get_reports`，未 mock 新方法，`MagicMock` 默认值无法解包为 2-tuple → `ValueError`
+  - 修复：3 个测试均补充 `mock_svc.get_or_trigger_current_week_report.return_value = (...)` mock
+- **CI 4 job 全过**：
+  - `lint`（ruff check + format）：✅
+  - `typecheck`（mypy 88 文件）：✅
+  - `test`（pytest 2073 用例 + 覆盖率 81.54% ≥ 60%）：✅
+  - `test-root`（根目录 test_*.py）：✅（无文件，跳过）
 
 ### v0.9.49 (2026-06-02) — 排行榜 list 视图 NYT 风格化
 - **移除行动按钮**：排行榜默认 list 视图（`books-list` 段）每行右侧的「收藏/分享/购买」按钮全部删除

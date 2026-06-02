@@ -1175,4 +1175,3 @@ class TestGetOrTriggerCurrentWeekReport:
                 latest, is_generating = service.get_or_trigger_current_week_report()
                 assert is_generating is False
                 assert latest is None  # DB 无数据时返回 None
-
