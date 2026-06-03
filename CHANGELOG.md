@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.9.56 - 2026-06-03
+
+### fix(i18n): translations.min.js 缺失 card_* 翻译键导致首页 key 字符串泄露
+
+**问题**：用户截图显示首页图书卡片上直接出现了 `card_rank_aria`、`card_weeks_suffix`、`card_isbn_prefix` 等 CSS class 名，而不是中文"第 X 名 / X 周 / ISBN: ..."，看起来像是"显示出错了"。
+
+**根因**：
+- `translations.js` 在 v0.9.55 增加 ~16 个 card 相关翻译键（`card_rank_aria` / `card_weeks_suffix` / `card_isbn_prefix` / `card_new_badge` 等）
+- `translations.min.js` 没有同步重新压缩 → 键数 95 → 95（实际是 95 = 111 - 16）
+- 生产环境 `base.html` 优先加载 `translations.min.js`（`MINIFIED_JS_EXISTS=True`）
+- `t('card_rank_aria', ...)` 在 `dict[key] || TRANSLATIONS['zh'][key] || key` 三段兜底全部 miss，最终返回 key 字符串本身
+- 字符串直接拼到 `card-rank-row` 文字区，浏览器就显示了 `card_rank_aria` 字面量
+
+**修复**：把 16 个缺失键补回 `static/js/translations.min.js`（zh + en 各 16 条，与 `translations.js` 完全一致，键总数 95 → 111）。
+
+**harness 教训**：
+- min.js 是手工维护的"压缩版"，**源码改了必须同步 min.js**，否则生产环境静默退化
+- 兜底链 `dict[key] || TRANSLATIONS['zh'][key] || key` 在键缺失时**返回 key 字符串**，会泄露内部命名（`data-i18n` 在 SSR 阶段会被 `{{ _() }}` 覆盖所以正常，**只有 JS 重渲染路径会暴露**）
+- 后续建议（不在本次范围）：把 min.js 改成 `build.py` 自动从 `translations.js` 压缩生成，删除手工维护源
+
+**验证（全部 PASS）**：
+- `node -e "global.window=global; require('./static/js/translations.min.js')"` → zh/en 各 111 key，`card_rank_aria` = "第 {n} 名" / "Rank {n}"，`card_weeks_suffix` = "{n} 周" / "{n} wk"，`card_isbn_prefix` = "ISBN:" / "ISBN:"
+- 跨文件 key 用量扫描：`static/js/*.js`（排除 min.js）`t(...)` 调用 13 个 key 全部在 `translations.js` 翻译表内
+
+**改动文件**（1 个）：
+- `static/js/translations.min.js`：+32 行 / -0 行（zh 段 87-102 行新增 16 键，en 段 204-219 行新增 16 键）
+
 ## v0.9.55 - 2026-06-03
 
 ### perf(i18n): 分类按需加载 + 共享 categories 模块 + 详情页分类一致性

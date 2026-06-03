@@ -1,11 +1,19 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.55
+**当前版本**：v0.9.56
 **发布日期**：2026-06-03
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.56 (2026-06-03) — 修复首页 card 翻译键字符串泄露
+- **问题**：用户截图显示首页图书卡片上直接出现 `card_rank_aria` / `card_weeks_suffix` / `card_isbn_prefix` 字面量
+- **根因**：`translations.js` v0.9.55 增加 16 个 card_* 翻译键，但 `translations.min.js` 是手工维护的压缩版，未同步更新；生产环境优先加载 min.js，`t()` 兜底链返回 key 字符串
+- **修复**：在 `static/js/translations.min.js` 的 zh 段（87-102 行）和 en 段（204-219 行）补回 16 个缺失键，与 `translations.js` 完全对齐（各 111 个键）
+- **harness 教训**：min.js 是手工维护版本，**源码改了必须同步 min.js**；后续建议把 min.js 改成 `build.py` 自动从 `translations.js` 压缩生成
+- **验证**：Node 模拟 `window` 加载 min.js，zh/en 各 111 key，`card_rank_aria`/`card_weeks_suffix`/`card_isbn_prefix` 全部命中
+- **改动文件**：1 个（`static/js/translations.min.js`，+32/-0）
 
 ### v0.9.55 (2026-06-03) — 分类按需加载 + 共享 categories 模块 + 详情页分类一致性
 - **8 分类预拉取彻底移除**：之前每次打开首页都浪费 8 次 NYT 配额，改成"按需加载 + 内存热层缓存"后，首页 0 API、二次切换 0 API

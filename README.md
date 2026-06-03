@@ -254,6 +254,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.56 - 修复首页 card 翻译键字符串泄露：`translations.min.js` 缺失 v0.9.55 新增的 16 个 card_* 键，`t()` 兜底返回 key 字面量导致卡片显示 `card_rank_aria` / `card_weeks_suffix` / `card_isbn_prefix`；min.js 补回 16 键后 zh/en 各 111 键对齐（手工维护 min.js 必须随源码同步，**已记入 harness 教训**）
 - v0.9.55 - i18n 性能与一致性：8 分类预拉取彻底移除（按需加载 + 内存热层），首页 0 API / 二次切换 0 API；首次切换分类显示 8 个 skeleton 骨架卡；抽出 `static/js/categories.js` 共享 CATEGORIES 模块；详情页分类字段参与 CATEGORY_LABELS 映射（带短路保护）；新增 3 个 Playwright E2E 测试脚本 + `docs/I18N_TEST.md`
 - v0.9.54 - 语言切换时图书动态内容即时重渲染：`rerenderCurrentBooks(lang)` 重新调用 `updateBooksOnPage()`，所有文案走 `t()`；`formatLocalTime` 时间本地化（zh ISO，en "Jun 3, 2026 8:08 AM"）；模板 SSR 嵌入 `initial-books-data` 作为回退数据源
 - v0.9.53 - 夜晚模式图书分类标签对比度修复：删除 `index.css` 中 `.card-category-tag` 的 `color: var(--white)` 覆盖（夜晚模式变成 `#1e293b`），统一由 `components.css` 用 `var(--badge-bg)` / `var(--badge-text)` 主题变量管理
