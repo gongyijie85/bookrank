@@ -1,11 +1,23 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.51
-**发布日期**：2026-06-02
+**当前版本**：v0.9.52
+**发布日期**：2026-06-03
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.52 (2026-06-03) — 网格视图封面完整显示（v0.9.51 修复真正落地）
+- **v0.9.51 根因**：v0.9.51 只改了 `components.css`，但 `index.css`（通过 `{% block extra_css %}` 晚于 components.css 加载）完全覆盖了修复，v0.9.51 推送后封面依然被裁切
+- **修复方案**（3:2 容器内嵌 2:3 画框）：
+  - `.card-image` 容器保持 3:2 横向（卡片高度不变）
+  - 新增 `.cover-frame` 画框（2:3 纵向，`height: 100%` 贴齐容器高度，`object-fit: contain` 完整显示）
+  - 删除 `index.css` 中冲突的 `.card-image` 覆盖规则
+  - 3 个 HTML 模板（index/awards/_macros）+ 1 个 JS 渲染都加 `cover-frame` 包装层
+  - 移除 `scale(1.05)` hover 放大
+- **未改动**：角标位置、列表视图（`.list-item-image`）、shimmer 动画
+- **harness 教训**：改 CSS 前必须 grep `{% block extra_css %}` 检查页面专属 CSS 加载顺序
+- **验证**：浏览器目测，封面以 2:3 原始比例完整显示，画框外有灰色留白
 
 ### v0.9.51 (2026-06-02) — 网格视图图书卡片封面留白
 - **问题**：畅销书网格视图（`.card-image`）封面 `object-fit: cover` 铺满 + hover `scale(1.05)`，封面贴紧下方文字

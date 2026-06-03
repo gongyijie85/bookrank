@@ -254,6 +254,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.52 - 网格视图封面完整显示（v0.9.51 修复真正落地）：3:2 容器内嵌 2:3 `.cover-frame` 画框，`object-fit: contain` 完整显示，删除 `index.css` 中冲突的 v0.9.51 之前覆盖规则
 - v0.9.51 - 网格视图图书卡片封面留白：`.card-image` 新增 `padding: 14px` + flex 居中，`object-fit: cover` → `contain` 整本封面完整显示，移除 hover 放大（scale 1.05 / 桌面端 1.08），下半段文字不再被贴近
 - v0.9.50 - 修复 v0.9.49 推送后 CI 失败：ruff format 合并 2 文件多行调用 + 3 个 TestWeeklyReports 测试补充 `get_or_trigger_current_week_report` mock（2073 passed, 覆盖率 81.54%）
 - v0.9.49 - 排行榜 list 视图 NYT 风格化：移除行内「收藏/分享/购买」按钮，对齐 NYT 视觉密度（功能改由详情页承载）

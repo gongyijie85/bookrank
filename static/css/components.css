@@ -219,15 +219,14 @@
 
 .card-image {
     position: relative;
-    aspect-ratio: 2/3;
+    aspect-ratio: 3/2;
     overflow: hidden;
     background: var(--bg-tertiary);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    /* 网格视图封面留白：封面只占上半部分，四周留出 14px 空白，避免压到下半段文字 */
-    padding: 14px;
+    /* 网格视图封面：容器 3:2 横向，内部 .cover-frame 画框是 2:3 纵向，封面 contain 完整显示 */
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;     /* 画框上对齐容器顶部 */
+    justify-content: center;     /* 画框水平居中 */
 }
 
 /* Image loading placeholder */
@@ -254,18 +253,30 @@
     }
 }
 
-.card-image img {
+/* 2:3 封面画框：高度贴齐 .card-image 容器高度，宽度由 aspect-ratio 推出 */
+.cover-frame {
+    aspect-ratio: 2/3;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    /* 让 z-index 层级合理：画框在 shimmer 之上 */
+    position: relative;
+    z-index: 2;
+}
+
+.cover-frame img {
     width: 100%;
     height: 100%;
-    /* 网格视图封面：contain 让整本封面完整显示，不再裁切上下；不足处露出 --bg-tertiary 底色 */
+    /* 网格视图封面：contain 让整本封面完整显示，不足处露出画框底色 --bg-tertiary */
     object-fit: contain;
     transition: opacity var(--transition-normal);
-    z-index: 2;
     opacity: 0;
 }
 
-.card-image img[src]:not([src=""]),
-.card-image.loaded img {
+.cover-frame img[src]:not([src=""]),
+.card-image.loaded .cover-frame img {
     opacity: 1;
 }
 
@@ -274,12 +285,12 @@
     to { opacity: 1; }
 }
 
-.card-image img[src]:not([src=""]) {
+.cover-frame img[src]:not([src=""]) {
     animation: fadeIn 0.3s ease;
 }
 
 /* 网格视图封面：去掉 hover 放大，避免封面贴近下方文字 */
-.card:hover .card-image img {
+.card:hover .cover-frame img {
     transform: none;
 }
 
@@ -1525,12 +1536,13 @@
         box-shadow: 0 20px 40px rgba(255, 107, 53, 0.2);
     }
 
-    .card-image img {
+    /* 桌面端封面 fadeIn 过渡：与 .cover-frame img 保持一致 */
+    .cover-frame img {
         transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     /* 网格视图封面：桌面端也不再放大 hover */
-    .card:hover .card-image img {
+    .card:hover .cover-frame img {
         transform: none;
     }
 

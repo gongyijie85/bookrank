@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.9.52 - 2026-06-03
+
+### fix(css): 网格视图封面完整显示（v0.9.51 修复未生效的根本修正）
+
+**v0.9.51 根因**：
+- v0.9.51 仅修改了 `static/css/components.css`，未意识到 `templates/index.html` 通过 `{% block extra_css %}` 注入了 `static/css/index.css`（加载顺序晚于 components.css）
+- `index.css:415-431` 的旧规则（`aspect-ratio: 3/2` + `object-fit: cover` + `scale(1.05)`）完全覆盖了 components.css 的修复
+- 结果：v0.9.51 推送后 GitHub 上无任何视觉变化，封面依然被裁切
+
+**v0.9.52 修复方案**（3:2 容器内嵌 2:3 画框）：
+- 容器 `.card-image` 保持 3:2 横向（卡片高度不变），改为 flex 居中布局
+- 新增 `.cover-frame` 画框（2:3 纵向，`height: 100%` 贴齐容器高度，`object-fit: contain` 完整显示）
+- 删除 `index.css` 中冲突的 `.card-image` 覆盖规则（`.books-grid .card .card-image .card-badge` 等子规则保留）
+- 桌面端 `.cover-frame img` transition `transform` → `opacity`（保持淡入）
+- 移除 `scale(1.05)` hover 放大
+- 角标、列表视图（`.list-item-image`）、shimmer 动画不受影响
+
+**改动文件**（6 个）：
+- `static/css/components.css`：`+19 / -9`（`.card-image` 改回 3:2 + flex，新增 `.cover-frame` 规则）
+- `static/css/index.css`：删除 v0.9.51 之前的 `.card-image` / `.card-image img` / `.card:hover .card-image img` 冲突规则（`-15 / +3`，保留 `.card-category-tag` 和 badge 子规则）
+- `templates/index.html`：`<img>` 外加 `<div class="cover-frame">` 包装
+- `templates/awards.html`：同上
+- `templates/_macros.html`：同上
+- `static/js/index.js`：`renderBooks()` 动态渲染时同样加 `cover-frame` 包装
+
+**harness engineering 教训**：
+- 改 CSS 前必须 grep `{% block extra_css %}` 检查页面专属 CSS 加载顺序
+- 提交前应在浏览器实际验证（不仅是 ruff/mypy）
+- 涉及样式覆盖的修改，要在多个页面（index/awards/new_books）交叉验证
+
+**验证清单**：
+- [x] `ruff check app/ tests/`：All checks passed!
+- [x] `mypy app/ --ignore-missing-imports`：Success: no issues found in 88 source files
+- [x] 浏览器目测：网格视图卡片高度不变（保持 3:2 视觉密度），封面以 2:3 原始比例完整显示在画框内，画框外有灰色留白
+- [x] 角标可读性：排名/分类徽章位置不动
+- [x] 列表视图（`.list-item-image`）：未改动，仍用原样式
+
+---
+
 ## v0.9.51 - 2026-06-02
 
 ### style(css): 网格视图图书卡片封面留白，避免 hover 放大压到下半段文字

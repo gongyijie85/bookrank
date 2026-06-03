@@ -717,12 +717,14 @@ function updateBooksOnPage(books, category, updateTime) {
                      tabindex="0"
                      aria-label="${escapeHtml(title)} - 第${index + 1}名">
                 <div class="card-image">
-                    <img src="${book.cover || defaultCover}"
-                         alt="${escapeHtml(title)}封面"
-                         loading="lazy"
-                         width="280"
-                         height="240"
-                         data-fallback="${defaultCover}">
+                    <div class="cover-frame">
+                        <img src="${book.cover || defaultCover}"
+                             alt="${escapeHtml(title)}封面"
+                             loading="lazy"
+                             width="280"
+                             height="240"
+                             data-fallback="${defaultCover}">
+                    </div>
                     <span class="card-category-tag">${escapeHtml(catLabel)}</span>
                     <span class="card-badge ${index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : 'other'}"
                           aria-label="排名: 第${index + 1}名">

@@ -12,12 +12,14 @@
          tabindex="0"
          aria-label="{{ book.title }} - {{ _('第') }}{{ book_index + 1 }}{{ _('名') }}">
     <div class="card-image">
-        <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
-             alt="{{ book.title }}{{ _('封面') }}"
-             loading="lazy"
-             width="280"
-             height="240"
-             data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+        <div class="cover-frame">
+            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+                 alt="{{ book.title }}{{ _('封面') }}"
+                 loading="lazy"
+                 width="280"
+                 height="240"
+                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+        </div>
 
         <!-- Category Tag -->
         {% if _l == 'zh' %}

@@ -236,12 +236,14 @@
              tabindex="0"
              aria-label="{{ book.title }} - {{ book.author }} - {{ book.award_name }}">
         <div class="card-image">
-            <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
-                 alt="{% if _l == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %} 封面"
-                 loading="lazy"
-                 width="280"
-                 height="240"
-                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            <div class="cover-frame">
+                <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+                     alt="{% if _l == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %} 封面"
+                     loading="lazy"
+                     width="280"
+                     height="240"
+                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            </div>
 
             <!-- Award Badge -->
             <span class="card-badge award" aria-label="获奖图书">

@@ -112,12 +112,14 @@
              tabindex="0"
              aria-label="{{ book.title }} - {{ _('第') }}{{ loop.index }}{{ _('名') }}">
         <div class="card-image">
-            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
-                 alt="{{ book.title }}{{ _('封面') }}"
-                 loading="lazy"
-                 width="280"
-                 height="240"
-                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            <div class="cover-frame">
+                <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+                     alt="{{ book.title }}{{ _('封面') }}"
+                     loading="lazy"
+                     width="280"
+                     height="240"
+                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            </div>
             {% if _locale == 'zh' %}
             <span class="card-category-tag">{{ book.category_name if book.category_name else _('虚构类') }}</span>
             {% else %}
