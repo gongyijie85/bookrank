@@ -254,6 +254,9 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.55 - i18n 性能与一致性：8 分类预拉取彻底移除（按需加载 + 内存热层），首页 0 API / 二次切换 0 API；首次切换分类显示 8 个 skeleton 骨架卡；抽出 `static/js/categories.js` 共享 CATEGORIES 模块；详情页分类字段参与 CATEGORY_LABELS 映射（带短路保护）；新增 3 个 Playwright E2E 测试脚本 + `docs/I18N_TEST.md`
+- v0.9.54 - 语言切换时图书动态内容即时重渲染：`rerenderCurrentBooks(lang)` 重新调用 `updateBooksOnPage()`，所有文案走 `t()`；`formatLocalTime` 时间本地化（zh ISO，en "Jun 3, 2026 8:08 AM"）；模板 SSR 嵌入 `initial-books-data` 作为回退数据源
+- v0.9.53 - 夜晚模式图书分类标签对比度修复：删除 `index.css` 中 `.card-category-tag` 的 `color: var(--white)` 覆盖（夜晚模式变成 `#1e293b`），统一由 `components.css` 用 `var(--badge-bg)` / `var(--badge-text)` 主题变量管理
 - v0.9.52 - 网格视图封面完整显示（v0.9.51 修复真正落地）：3:2 容器内嵌 2:3 `.cover-frame` 画框，`object-fit: contain` 完整显示，删除 `index.css` 中冲突的 v0.9.51 之前覆盖规则
 - v0.9.51 - 网格视图图书卡片封面留白：`.card-image` 新增 `padding: 14px` + flex 居中，`object-fit: cover` → `contain` 整本封面完整显示，移除 hover 放大（scale 1.05 / 桌面端 1.08），下半段文字不再被贴近
 - v0.9.50 - 修复 v0.9.49 推送后 CI 失败：ruff format 合并 2 文件多行调用 + 3 个 TestWeeklyReports 测试补充 `get_or_trigger_current_week_report` mock（2073 passed, 覆盖率 81.54%）
