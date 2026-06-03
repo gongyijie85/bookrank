@@ -1,6 +1,9 @@
 /**
- * BookRank 翻译系统
+ * 翻译系统
  * 提供中英文 UI 文字切换功能
+ *
+ * 注意：分类中英映射表（CATEGORY_LABELS / getCategoryLabel）
+ * 已抽到 categories.js 共享模块。必须在 translations.js 之前加载。
  */
 
 const TRANSLATIONS = {
@@ -95,6 +98,23 @@ const TRANSLATIONS = {
         'pages_label': '页数',
         'publisher_label': '出版社',
         'default_category': '虚构类',
+        // 卡片渲染（JS 重渲染时用）
+        'card_cover_alt': '{title} 封面',
+        'card_rank_aria': '第 {n} 名',
+        'card_badge_aria': '排名: 第 {n} 名',
+        'card_rank_up_aria': '上升 {n} 名',
+        'card_rank_down_aria': '下降 {n} 名',
+        'card_new_aria': '新书上榜',
+        'card_new_badge': '新',
+        'card_weeks_suffix': '{n} 周',
+        'card_pages_suffix': '{n} 页',
+        'card_isbn_prefix': 'ISBN:',
+        'card_no_results': '未找到匹配的图书',
+        'time_updated_at': '更新于: {time}',
+        'time_just_now': '刚刚',
+        'toast_category_load_failed': '加载失败，请重试',
+        'toast_view_changed_grid': '已切换到网格视图',
+        'toast_view_changed_list': '已切换到列表视图',
         // 周报
         'weekly_report': '畅销书周报',
         'report_summary': '周报摘要',
@@ -205,6 +225,23 @@ const TRANSLATIONS = {
         'pages_label': 'Pages',
         'publisher_label': 'Publisher',
         'default_category': 'Fiction',
+        // Card rendering keys (used during JS re-render on language switch)
+        'card_cover_alt': '{title} cover',
+        'card_rank_aria': 'Rank {n}',
+        'card_badge_aria': 'Rank: #{n}',
+        'card_rank_up_aria': 'Up {n} positions',
+        'card_rank_down_aria': 'Down {n} positions',
+        'card_new_aria': 'New on the list',
+        'card_new_badge': 'NEW',
+        'card_weeks_suffix': '{n} wk',
+        'card_pages_suffix': '{n} pp',
+        'card_isbn_prefix': 'ISBN:',
+        'card_no_results': 'No matching books found',
+        'time_updated_at': 'Updated: {time}',
+        'time_just_now': 'Just now',
+        'toast_category_load_failed': 'Load failed, please retry',
+        'toast_view_changed_grid': 'Switched to grid view',
+        'toast_view_changed_list': 'Switched to list view',
         // Weekly
         'weekly_report': 'Weekly Report',
         'report_summary': 'Summary',

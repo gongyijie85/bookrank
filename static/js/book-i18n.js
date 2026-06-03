@@ -15,18 +15,31 @@ var BookI18n = (function() {
         var isbn = book.isbn13 || book.isbn10 || '';
         if (!isbn) return null;
 
+        // 分类标签：优先用 window.CATEGORIES 共享映射表（与首页一致）
+        // 当 book.category_id 存在时查表；缺失则回退到后端 list_name / category_name
+        var categoryId = book.category_id || '';
+        var enCat, zhCat;
+        if (categoryId && typeof window !== 'undefined' && window.CATEGORIES && window.CATEGORIES.getLabel) {
+            enCat = window.CATEGORIES.getLabel(categoryId, 'en');
+            zhCat = window.CATEGORIES.getLabel(categoryId, 'zh');
+        } else {
+            enCat = book.list_name || book.category_name || 'Fiction';
+            zhCat = book.category_name || enCat;
+        }
+
         return {
             isbn: isbn,
+            category_id: categoryId,
             en: {
                 title: book.title || '',
                 description: book.description || '',
-                category: book.list_name || book.category_name || 'Fiction',
+                category: enCat,
                 details: book.details || ''
             },
             zh: {
                 title: book.title_zh || '',
                 description: book.description_zh || '',
-                category: book.category_name || '',
+                category: zhCat,
                 details: book.details_zh || ''
             },
             _raw: book

@@ -4,6 +4,26 @@ import { api } from './api.js';
    BookRank 首页交互逻辑 (Notion 设计系统)
    ============================================ */
 
+// 模块级状态：当前加载的图书数据 + 分类
+// 用于切换语言时本地重渲染（无需重新请求 API）
+let booksData = [];
+let currentCategory = '';
+
+// 启动时从服务端嵌入的 JSON 节点读取初始数据（首页 SSR 渲染时已生成）
+(function initModuleState() {
+    var node = document.getElementById('initial-books-data');
+    if (node) {
+        try {
+            booksData = JSON.parse(node.textContent || '[]');
+        } catch (e) {
+            console.warn('initModuleState: 解析 initial-books-data 失败', e);
+        }
+    }
+    if (window.APP_CONFIG && window.APP_CONFIG.currentCategory) {
+        currentCategory = window.APP_CONFIG.currentCategory;
+    }
+})();
+
 // 语言控制变量
 let currentLanguage = localStorage.getItem('bookrank_language') || 'en';
 
@@ -263,6 +283,50 @@ function shareBook(title, author) {
 }
 
 // ========== UI 辅助函数 ==========
+
+/**
+ * v0.9.55: 共享分类映射表的本地别名（指向 window.CATEGORIES.getLabel）
+ * 之前由 translations.js 暴露为全局函数；现在改从 categories.js 共享模块取
+ */
+function getCategoryLabel(categoryId, lang) {
+    if (typeof window !== 'undefined' && window.CATEGORIES && window.CATEGORIES.getLabel) {
+        return window.CATEGORIES.getLabel(categoryId, lang);
+    }
+    return categoryId;
+}
+
+/**
+ * v0.9.55: 8 个 skeleton 骨架卡 HTML（与真实卡片等高、动画流畅）
+ * 用于分类切换的"按需加载"过程，避免出现空白闪烁
+ */
+function buildSkeletonCardsHTML(count) {
+    var n = count || 8;
+    var html = '';
+    for (var i = 0; i < n; i++) {
+        html += '<article class="card card-skeleton" aria-hidden="true">'
+              + '    <div class="skeleton skeleton-image"></div>'
+              + '    <div class="skeleton-content">'
+              + '        <div class="skeleton skeleton-title"></div>'
+              + '        <div class="skeleton skeleton-author"></div>'
+              + '        <div class="skeleton skeleton-tag"></div>'
+              + '    </div>'
+              + '</article>';
+    }
+    return html;
+}
+
+function showSkeleton() {
+    var grid = document.getElementById('books-grid');
+    var list = document.getElementById('books-list');
+    if (grid) grid.innerHTML = buildSkeletonCardsHTML(8);
+    if (list) list.innerHTML = '';
+}
+
+function hideSkeleton() {
+    // 实际渲染由 updateBooksOnPage 完成；这里只做兜底清理
+    var skeletons = document.querySelectorAll('.card-skeleton');
+    skeletons.forEach(function(el) { if (el.parentNode) el.parentNode.removeChild(el); });
+}
 
 function showLoading(text) {
     const overlay = document.getElementById('loading-overlay');
@@ -598,50 +662,84 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ========== 原有功能保持不变 ==========
 
+/**
+ * v0.9.55: 分类缓存（localStorage 持久层 + 内存热层）
+ * 内存热层：本次会话内已加载的分类瞬时切换不消耗 NYT API
+ * localStorage 持久层：跨会话 24h 内切换同分类也走缓存
+ */
+const _memoryCategoryCache = new Map();
+
 const categoryCache = {
     get: function(category) {
+        // 1) 内存热层（本次会话）
+        if (_memoryCategoryCache.has(category)) {
+            return _memoryCategoryCache.get(category);
+        }
+        // 2) localStorage 持久层（24h 跨会话）
         try {
             const key = `bookrank_category_${category}`;
             const data = localStorage.getItem(key);
             if (data) {
                 const parsed = JSON.parse(data);
                 if (Date.now() - parsed.timestamp < 86400000) {
+                    // 命中后回填内存热层，下次切换瞬时
+                    _memoryCategoryCache.set(category, parsed.books);
                     return parsed.books;
                 }
             }
-        } catch (e) {
-
-        }
+        } catch (e) { /* 忽略 */ }
         return null;
     },
     set: function(category, books) {
+        // 内存热层立即写入
+        _memoryCategoryCache.set(category, books);
+        // localStorage 持久化（24h TTL）
         try {
             const key = `bookrank_category_${category}`;
-            const data = {
-                timestamp: Date.now(),
-                books: books
-            };
+            const data = { timestamp: Date.now(), books: books };
             localStorage.setItem(key, JSON.stringify(data));
-        } catch (e) {
-
-        }
+        } catch (e) { /* 忽略 */ }
     },
-    preload: function(categories, currentCategory) {
-        categories.forEach(cat => {
-            if (cat !== currentCategory && !this.get(cat)) {
-                fetch(`/?category=${encodeURIComponent(cat)}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                }).then(() => {
-
-                }).catch(() => {});
-            }
-        });
-    }
+    /**
+     * v0.9.55: 移除批量预拉取（preload）
+     * 改为按需加载：用户切换到哪个分类才请求哪个，避免每天 500 次 NYT 配额被浪费
+     * 保留方法名仅供向后兼容（不执行任何网络请求）
+     */
+    preload: function(_categories, _currentCategory) { /* no-op, v0.9.55 按需加载 */ }
 };
 
+/**
+ * v0.9.55: 切换分类 - 优先走缓存，未命中才请求 API
+ */
 async function changeCategory(category) {
     if (category === window.currentCategory) return;
 
+    // 命中缓存：本地已有数据 → 直接渲染，不显示 skeleton
+    const cachedBooks = categoryCache.get(category);
+    if (Array.isArray(cachedBooks) && cachedBooks.length > 0) {
+        window.currentCategory = category;
+        window.booksData = cachedBooks;
+        currentCategory = category;
+        booksData = cachedBooks;
+
+        if (typeof BookI18n !== 'undefined') {
+            BookI18n.clear();
+            BookI18n.registerAll(cachedBooks);
+        }
+        // 缓存命中时使用页面上已存在的更新时间（避免显示"刚刚"）
+        const timeEl = document.querySelector('.page-subtitle time');
+        const cachedTime = timeEl ? timeEl.getAttribute('datetime') : null;
+        updateBooksOnPage(cachedBooks, category, cachedTime);
+        const newUrl = `/?category=${encodeURIComponent(category)}`;
+        window.history.pushState({ category }, '', newUrl);
+        if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
+            BookI18n.applyLanguage('zh');
+        }
+        return;
+    }
+
+    // 未命中缓存：显示 skeleton 占位 + 全屏 loading
+    showSkeleton();
     showLoading('加载中...');
 
     try {
@@ -662,8 +760,13 @@ async function changeCategory(category) {
         const apiData = data.data || data;
         const books = apiData.books || [];
 
+        // 写入缓存（内存 + localStorage）
+        categoryCache.set(category, books);
+
         window.currentCategory = category;
         window.booksData = books;
+        currentCategory = category;     // 模块级，供 rerenderCurrentBooks 使用
+        booksData = books;             // 模块级，供 rerenderCurrentBooks 使用
 
         if (typeof BookI18n !== 'undefined') {
             BookI18n.clear();
@@ -683,15 +786,102 @@ async function changeCategory(category) {
 
     } catch (error) {
         console.error('分类切换失败:', error);
-        showToast('加载失败，请重试', 'error');
+        showToast(t('toast_category_load_failed', currentLanguage), 'error');
+        hideSkeleton();
         hideLoading();
         document.getElementById('category-select').value = window.currentCategory;
     }
 }
 
+/**
+ * 根据当前语言解析图书分类标签
+ * 优先级：1) book 数据自带的中英文名 → 2) CATEGORY_LABELS 映射表 → 3) 默认兜底
+ * @param {Object} book - 图书数据对象
+ * @param {string} categoryId - 服务端 CATEGORIES 的 key
+ * @param {string} lang - 'zh' | 'en'
+ * @returns {string} 分类标签文本
+ */
+function resolveCategoryLabel(book, categoryId, lang) {
+    if (lang === 'zh') {
+        return book.category_name
+            || (typeof getCategoryLabel === 'function' ? getCategoryLabel(categoryId, 'zh') : null)
+            || '虚构类';
+    }
+    return book.list_name
+        || book.category_name
+        || (typeof getCategoryLabel === 'function' ? getCategoryLabel(categoryId, 'en') : null)
+        || 'Fiction';
+}
+
+/**
+ * 用指定语言重渲染当前已加载的图书（grid + list 视图）
+ * 切换语言时被 languagechange 监听器调用，不重新请求 API
+ * 数据来源优先级：1) 分类切换后的内存变量 booksData  2) 服务端嵌入的 initial-books-data
+ * @param {string} lang - 'zh' | 'en'
+ */
+function rerenderCurrentBooks(lang) {
+    var books = booksData;
+    if (!Array.isArray(books) || books.length === 0) {
+        var node = document.getElementById('initial-books-data');
+        if (node) {
+            try { books = JSON.parse(node.textContent || '[]'); } catch (e) { books = []; }
+        }
+    }
+    if (!Array.isArray(books) || books.length === 0) {
+        return;
+    }
+    var category = currentCategory || (window.APP_CONFIG && window.APP_CONFIG.currentCategory) || 'hardcover-fiction';
+    var timeEl = document.querySelector('.page-subtitle time');
+    var updateTime = timeEl ? timeEl.getAttribute('datetime') : null;
+    try {
+        updateBooksOnPage(books, category, updateTime);
+    } catch (e) {
+        console.error('[rerenderCurrentBooks] FAILED:', e.message);
+    }
+}
+
+/**
+ * 把分类下拉框的 option 文本切换到指定语言
+ * @param {string} lang - 'zh' | 'en'
+ */
+function updateCategorySelectOptions(lang) {
+    var selectEl = document.getElementById('category-select');
+    if (!selectEl || typeof getCategoryLabel !== 'function') return;
+    Array.from(selectEl.options).forEach(function(opt) {
+        opt.textContent = getCategoryLabel(opt.value, lang);
+    });
+}
+
+/**
+ * 按当前语言格式化更新时间
+ * 中文：原样保留（YYYY-MM-DD HH:mm:ss）
+ * 英文：月日年 + 12 小时制（Jun 3, 2026 8:08 AM）
+ * @param {string} isoTime - 'YYYY-MM-DD HH:mm:ss'
+ * @param {string} lang - 'zh' | 'en'
+ * @returns {string} 格式化后的时间字符串
+ */
+function formatLocalTime(isoTime, lang) {
+    if (!isoTime) return '';
+    if (lang === 'zh') return isoTime;
+
+    var parts = String(isoTime).match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!parts) return isoTime;
+
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var year = parts[1];
+    var month = months[parseInt(parts[2], 10) - 1] || parts[2];
+    var day = parseInt(parts[3], 10);
+    var hour24 = parseInt(parts[4], 10);
+    var min = parts[5];
+    var ampm = hour24 >= 12 ? 'PM' : 'AM';
+    var hour12 = hour24 % 12 || 12;
+    return month + ' ' + day + ', ' + year + ' ' + hour12 + ':' + min + ' ' + ampm;
+}
+
 function updateBooksOnPage(books, category, updateTime) {
     const isZh = currentLanguage === 'zh';
     const defaultCover = window.APP_CONFIG.defaultCover;
+    const lang = currentLanguage;  // 显式捕获当前语言，供所有内嵌字符串使用
 
     const selectEl = document.getElementById('category-select');
     if (selectEl) {
@@ -699,8 +889,11 @@ function updateBooksOnPage(books, category, updateTime) {
     }
 
     const timeEl = document.querySelector('.page-subtitle time');
-    if (timeEl && updateTime) {
-        timeEl.textContent = `更新于: ${updateTime}`;
+    if (timeEl) {
+        var formattedTime = formatLocalTime(updateTime, lang);
+        timeEl.textContent = formattedTime
+            ? t('time_updated_at', lang, { time: formattedTime })
+            : t('time_just_now', lang);
     }
 
     const gridEl = document.getElementById('books-grid');
@@ -708,18 +901,19 @@ function updateBooksOnPage(books, category, updateTime) {
         gridEl.innerHTML = books.map((book, index) => {
             const title = isZh ? (book.title_zh || book.title) : book.title;
             const desc = isZh ? (book.description_zh || book.description || '') : (book.description || '');
-            const catLabel = isZh ? (book.category_name || '虚构类') : (book.list_name || book.category_name || 'Fiction');
+            // 分类标签：优先双语映射表 → book 数据 → 默认
+            const catLabel = resolveCategoryLabel(book, category, lang);
             return `
             <article class="card card-animate"
                      data-isbn="${escapeHtml(book.isbn13 || book.isbn10 || '')}"
                      data-index="${index}"
                      role="button"
                      tabindex="0"
-                     aria-label="${escapeHtml(title)} - 第${index + 1}名">
+                     aria-label="${escapeHtml(title)} - ${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="card-image">
                     <div class="cover-frame">
                         <img src="${book.cover || defaultCover}"
-                             alt="${escapeHtml(title)}封面"
+                             alt="${escapeHtml(t('card_cover_alt', lang, { title }))}"
                              loading="lazy"
                              width="280"
                              height="240"
@@ -727,27 +921,27 @@ function updateBooksOnPage(books, category, updateTime) {
                     </div>
                     <span class="card-category-tag">${escapeHtml(catLabel)}</span>
                     <span class="card-badge ${index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : 'other'}"
-                          aria-label="排名: 第${index + 1}名">
+                          aria-label="${escapeHtml(t('card_badge_aria', lang, { n: index + 1 }))}">
                         ${index + 1}
                     </span>
                     ${book.rank_last_week && book.rank_last_week !== '0' ?
                         (() => {
                             const change = parseInt(book.rank_last_week) - (index + 1);
-                            if (change > 0) return `<span class="rank-change up" aria-label="上升${change}名">+${change}</span>`;
-                            if (change < 0) return `<span class="rank-change down" aria-label="下降${Math.abs(change)}名">-${Math.abs(change)}</span>`;
+                            if (change > 0) return `<span class="rank-change up" aria-label="${escapeHtml(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
+                            if (change < 0) return `<span class="rank-change down" aria-label="${escapeHtml(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
                             return '';
                         })() :
-                        `<span class="rank-change new" aria-label="新书上榜">NEW</span>`
+                        `<span class="rank-change new" aria-label="${escapeHtml(t('card_new_aria', lang))}">${escapeHtml(t('card_new_badge', lang))}</span>`
                     }
                 </div>
                 <div class="card-content">
                     <div class="card-rank-row">
-                        <span class="card-rank-badge">第${index + 1}名</span>
-                        ${book.weeks_on_list ? `<span class="card-weeks"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${book.weeks_on_list}周</span>` : ''}
+                        <span class="card-rank-badge">${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}</span>
+                        ${book.weeks_on_list ? `<span class="card-weeks"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${escapeHtml(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                     </div>
                     <h3 class="card-title" title="${escapeHtml(title)}">${escapeHtml(title)}</h3>
                     <p class="card-author">${escapeHtml(book.author)}</p>
-                    ${book.isbn13 ? `<p class="card-isbn">ISBN: ${escapeHtml(book.isbn13)}</p>` : book.isbn10 ? `<p class="card-isbn">ISBN: ${escapeHtml(book.isbn10)}</p>` : ''}
+                    ${book.isbn13 ? `<p class="card-isbn">${escapeHtml(t('card_isbn_prefix', lang))} ${escapeHtml(book.isbn13)}</p>` : book.isbn10 ? `<p class="card-isbn">${escapeHtml(t('card_isbn_prefix', lang))} ${escapeHtml(book.isbn10)}</p>` : ''}
                     ${desc ? `<p class="card-desc">${escapeHtml(desc.slice(0, 100))}${desc.length > 100 ? '...' : ''}</p>` : ''}
                 </div>
             </article>
@@ -759,17 +953,17 @@ function updateBooksOnPage(books, category, updateTime) {
         listEl.innerHTML = books.map((book, index) => {
             const title = isZh ? (book.title_zh || book.title) : book.title;
             const desc = isZh ? (book.description_zh || book.description || '') : (book.description || '');
-            const catLabel = isZh ? (book.category_name || '虚构类') : (book.list_name || book.category_name || 'Fiction');
+            const catLabel = resolveCategoryLabel(book, category, lang);
             return `
             <article class="list-item card-animate"
                      data-isbn="${escapeHtml(book.isbn13 || book.isbn10 || '')}"
                      data-index="${index}"
                      role="button"
                      tabindex="0"
-                     aria-label="${escapeHtml(title)} - 第${index + 1}名">
+                     aria-label="${escapeHtml(title)} - ${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="list-item-image">
                     <img src="${book.cover || defaultCover}"
-                         alt="${escapeHtml(title)}封面"
+                         alt="${escapeHtml(t('card_cover_alt', lang, { title }))}"
                          loading="lazy"
                          width="100"
                          height="150"
@@ -778,17 +972,17 @@ function updateBooksOnPage(books, category, updateTime) {
                 <div class="list-item-content">
                     <div class="list-item-header">
                         <span class="list-item-rank ${index === 0 ? 'rank-gold' : index === 1 ? 'rank-silver' : index === 2 ? 'rank-bronze' : ''}"
-                              aria-label="第${index + 1}名">
+                              aria-label="${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}">
                             ${index + 1}
                         </span>
                         ${book.rank_last_week && book.rank_last_week !== '0' ?
                             (() => {
                                 const change = parseInt(book.rank_last_week) - (index + 1);
-                                if (change > 0) return `<span class="rank-change-badge up" aria-label="上升${change}名">+${change}</span>`;
-                                if (change < 0) return `<span class="rank-change-badge down" aria-label="下降${Math.abs(change)}名">-${Math.abs(change)}</span>`;
+                                if (change > 0) return `<span class="rank-change-badge up" aria-label="${escapeHtml(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
+                                if (change < 0) return `<span class="rank-change-badge down" aria-label="${escapeHtml(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
                                 return '';
                             })() :
-                            `<span class="rank-change-badge new" aria-label="新书上榜">NEW</span>`
+                            `<span class="rank-change-badge new" aria-label="${escapeHtml(t('card_new_aria', lang))}">${escapeHtml(t('card_new_badge', lang))}</span>`
                         }
                         <h3 class="list-item-title">${escapeHtml(title)}</h3>
                     </div>
@@ -796,7 +990,7 @@ function updateBooksOnPage(books, category, updateTime) {
                     ${desc ? `<p class="list-item-desc">${escapeHtml(desc.slice(0, 200))}${desc.length > 200 ? '...' : ''}</p>` : ''}
                     <div class="list-item-meta">
                         <span class="card-tag">${escapeHtml(catLabel)}</span>
-                        ${book.weeks_on_list ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${book.weeks_on_list}周</span>` : ''}
+                        ${book.weeks_on_list ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${escapeHtml(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                         ${book.publisher ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ${escapeHtml(book.publisher)}</span>` : ''}
                     </div>
                 </div>
@@ -808,30 +1002,17 @@ function updateBooksOnPage(books, category, updateTime) {
     if (exportActions) {
         const infoEl = exportActions.querySelector('.export-info');
         if (infoEl) {
-            infoEl.innerHTML = `共 <strong>${books.length}</strong> 本图书`;
+            // 共 N 本图书 / {count} books total
+            const countText = t('books_count', lang, { count: books.length });
+            infoEl.innerHTML = countText.replace(/(\d+)/, '<strong>$1</strong>');
         }
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    const categories = Array.from(document.querySelectorAll('#category-select option')).map(opt => opt.value);
-    const currentCategory = window.currentCategory;
-
-    setTimeout(() => {
-        categories.forEach(cat => {
-            if (cat !== currentCategory) {
-                fetch(`/api/category-books?category=${encodeURIComponent(cat)}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                }).then(response => response.json())
-                  .then(data => {
-                      if (data.success) {
-                          categoryCache.set(cat, data.books);
-                      }
-                  }).catch(() => {});
-            }
-        });
-    }, 5000);
-});
+// v0.9.55: 已移除 8 分类批量预拉取（每天浪费 8 次 NYT 配额）
+// 改为按需加载：用户切换到哪个分类才请求哪个，首次切换显示 skeleton 占位
+// （实现见 changeCategory() 和 categoryCache.get()）
+document.addEventListener('DOMContentLoaded', function() { /* on-demand loading, no prefetch */ });
 
 window.addEventListener('popstate', function(e) {
     if (e.state && e.state.category) {
@@ -1096,9 +1277,18 @@ window.addEventListener('languagechange', function(e) {
         applyPageTranslation(lang);
     }
 
+    // 切换分类下拉框 option 文本（中英）
+    if (typeof updateCategorySelectOptions === 'function') {
+        try { updateCategorySelectOptions(lang); } catch(err) { console.warn('updateCategorySelectOptions:', err); }
+    }
+
+    // 重渲染图书卡片（grid + list），无需重新请求 API
+    if (typeof rerenderCurrentBooks === 'function') {
+        try { rerenderCurrentBooks(lang); } catch(err) { console.warn('rerenderCurrentBooks:', err); }
+    }
+
+    // BookI18n 兜底（用于更新仍未迁移到 renderBooks 的 DOM 节点）
     if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
-        BookI18n.applyLanguage(lang);
-    } else {
-        _handleLanguageChange(lang);
+        try { BookI18n.applyLanguage(lang); } catch(e) { console.warn('BookI18n error:', e); }
     }
 });

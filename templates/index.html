@@ -309,5 +309,12 @@
         currentCategory: '{{ current_category }}'
     };
 </script>
+<!--
+  初始渲染的图书数据，用于切换语言时重渲染（避免重新请求 API）。
+  type="application/json" 不会被当作 JS 执行，无 CSP 限制。
+-->
+<script type="application/json" id="initial-books-data">
+{{ books|tojson }}
+</script>
 <script type="module" src="{{ url_for('static', filename='js/index.js') }}" nonce="{{ csp_nonce() }}"></script>
 {% endblock %}

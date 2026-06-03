@@ -1,5 +1,116 @@
 # Changelog
 
+## v0.9.55 - 2026-06-03
+
+### perf(i18n): 分类按需加载 + 共享 categories 模块 + 详情页分类一致性
+
+**4 项用户问题 + 1 项性能优化**：
+
+1. **8 分类批量预拉取浪费 NYT 配额**
+   - 旧行为：每次打开首页，`DOMContentLoaded` 5 秒后用 setTimeout 预拉取全部 8 个分类 → 每天 500 次 NYT 配额严重浪费
+   - 新行为：**按需加载 + 内存热层缓存**。用户首次切到新分类时显示 8 个 skeleton 骨架卡（shimmer 动画），同会话再次切换瞬时 0 API
+   - 性能提升：首页 0 API（之前 8 次）；二次切换 0 API（之前 1 次）
+
+2. **CATEGORY_LABELS 数据源不统一**
+   - 旧行为：`translations.js` 维护一份 CATEGORY_LABELS，`app/config.py` 维护另一份 CATEGORIES
+   - 新行为：抽出 `static/js/categories.js` 共享模块（IIFE 暴露 `window.CATEGORIES`），`translations.js` 删除重复定义
+   - 必须早于 `translations.js` / `book-i18n.js` / `index.js` 加载（已在 `base.html` 调整顺序）
+
+3. **详情页分类字段不受 `book-i18n.js` 控制**
+   - 旧行为：详情页用模板硬编码 `{{ book.category_name or book.list_name }}`，不参与 CATEGORY_LABELS 映射
+   - 新行为：`book-i18n.js` 的 `_extractBookData` 优先用 `book.category_id` + `CATEGORIES.getLabel` 查表，缺失时回退到 `list_name` / `category_name`
+   - 增加短路保护：`if (categoryId && window.CATEGORIES.getLabel)` 防止 `category_id` 缺失时返回空串把元素清空
+
+4. **首次切换分类时无视觉反馈**
+   - 旧行为：全屏 loading overlay 弹出但内容区空白 300-800ms，用户困惑
+   - 新行为：显示 8 个 `.card-skeleton` 骨架卡（`buildSkeletonCardsHTML(8)`）+ 全屏 loading 文字
+   - 复用 `static/css/animations.css` 的 `.skeleton` shimmer 动画，新增 `.card-skeleton` 容器样式（2:3 封面、保持卡片高度一致）
+
+**改动文件**（6 个）：
+- `static/js/categories.js`：**新增** 96 行共享映射模块
+- `static/js/translations.js`：删除 26 行重复 CATEGORY_LABELS（`-26 / +3`）
+- `static/js/book-i18n.js`：`_extractBookData` 增加 `category_id` 查表逻辑（`+13 / -3`）
+- `static/js/index.js`：移除 8 分类预拉取（`-19 / +3`），changeCategory 加缓存命中分支和 skeleton（`+44 / -7`），清理调试 console.log（`-4`），新增 `getCategoryLabel` / `showSkeleton` / `hideSkeleton` 辅助函数（`+44`）
+- `static/css/index.css`：新增 `.card-skeleton` 布局样式（`+47`）
+- `templates/base.html`：`<script>` 加载顺序 categories.js 早于 translations.js（`+2`）
+
+**新增测试脚本**（3 个）：
+- `scripts/_verify_i18n.py`：首页语言切换 E2E（10 项断言）
+- `scripts/_verify_cache.py`：按需加载 + 内存缓存 E2E（4 项断言）
+- `scripts/_verify_detail_i18n.py`：详情页分类一致性 E2E（4 项断言）
+
+**新增文档**：
+- `docs/I18N_TEST.md`：手动验证步骤 + 性能基准 + 常见问题排查
+
+**harness 教训**：
+- v0.9.54 留下的 8 次预拉取 API 调用本次彻底解决（之前以为是 pre-existing 不动，本次主动优化）
+- 共享 JS 模块（IIFE + `window` 暴露）比 ES Module 更适合"普通脚本 + ES Module 混用"的项目结构
+- `_extractBookData` 这种"提供默认值的工具函数"必须做短路保护，否则上游缺失字段会清空下游 DOM
+
+**验证（全部 PASS）**：
+- `_verify_i18n.py`：10/10 断言通过；切换语言 0 API 请求
+- `_verify_cache.py`：4/4 断言通过；初始 0 API，二次切换 0 API
+- `_verify_detail_i18n.py`：4/4 断言通过；详情页切换 0 API
+
+## v0.9.54 - 2026-06-03
+
+### fix(i18n): 语言切换时图书动态内容即时重渲染（不需刷新）
+
+**问题**：切换语言时按钮/标签等静态 UI 跟着语言包更新，但**动态加载的图书内容**（标题、作者、分类、排名、周数、NEW 徽章）不会自动切换语言，需要刷新页面才能看到新语言。
+
+**根因**：
+- `index.js` 的 `languagechange` 监听器只调用了 `applyPageTranslation()` 处理静态 UI 元素（带 `data-i18n` 属性的）
+- 图书数据通过 `updateBooksOnPage()` 渲染到 DOM，渲染时**绑死了当时语言**；切语言后这些 DOM 节点没被重新生成
+- `book-i18n.js` 已有 `applyLanguage()` 但未被 `languagechange` 触发
+- 模板 SSR 时把 books 数据嵌入到 `<script id="initial-books-data">`（v0.9.54 新增）作为切语言时的回退数据源
+
+**修复**：
+- `index.js` 加 `rerenderCurrentBooks(lang)`：用当前 `booksData`（或回退到 `initial-books-data`）调用 `updateBooksOnPage()` 重渲染
+- `updateBooksOnPage` 重构为接受 `lang` 参数，所有文案统一走 `t()` 翻译函数（卡片标题、作者、分类、排名徽章、周数、NEW、ISBN 前缀等）
+- `updateCategorySelectOptions(lang)`：下拉框 option 文本跟语言切换
+- `formatLocalTime(isoTime, lang)`：时间格式本地化（zh 保留 ISO，en 用 "Jun 3, 2026 8:08 AM"）
+- `translations.js` 新增约 30 个 i18n 键（`card_cover_alt` / `card_rank_aria` / `card_weeks_suffix` / `time_updated_at` 等）
+- `book-i18n.js` 的 `applyLanguage` 现在被 `languagechange` 监听器调用
+
+**改动文件**（3 个）：
+- `static/js/translations.js`：新增 ~30 个 i18n 键（`+60`）
+- `static/js/index.js`：`+155 / -25`（rerenderCurrentBooks、updateCategorySelectOptions、formatLocalTime、languagechange 监听器、booksData 模块级状态、initial-books-data 回退）
+- `templates/index.html`：新增 `<script type="application/json" id="initial-books-data">` 节点（`+5`）
+
+**harness 教训**：
+- 切换语言是 v0.9.x 系列反复修过的功能，本次发现"按钮会变、卡片不会变"说明测试覆盖不到位
+- ES Module 作用域：函数定义在 `index.js` 内部时，外部 Playwright 脚本访问不到；同模块内仍可通过闭包互相调用
+- Flask 模板缓存：修改模板后必须重启或开启 `TEMPLATES_AUTO_RELOAD = True`，否则改的 HTML 不会生效
+
+**验证**：`_verify_i18n.py` 10/10 断言通过；截图见 `docs/preview/i18n_{zh,en}_*.png`
+
+## v0.9.53 - 2026-06-03
+
+### fix(css): 夜晚模式图书分类标签对比度修复
+
+**问题**：首页图书卡片左上角的分类标签（`.card-category-tag`，如"精装小说"），白天模式显示清晰，夜晚模式几乎看不清（深底深字）。
+
+**根因**：
+- `components.css:342-356` 原本为该标签定义了 `--badge-bg` / `--badge-text` 主题色变量，夜晚模式是橙底橙字（`#ff6b35`）
+- 但 `index.css:420-431` 后加载（通过 `{% block extra_css %}` 注入）用 `color: var(--white)` 覆盖了文字色
+- `base.css:108` 夜晚模式把 `--white` 改写为 `#1e293b`（深石板色）→ 黑底深字，对比度极差
+
+**修复方案**：
+- 删除 `index.css` 中对 `.card-category-tag` 的颜色覆盖（`background` 和 `color`），让 `components.css` 的橙色主题色变量接管
+- 保留位置、圆角、字号等排版规则
+- 单源原则：标签颜色由 `components.css` 统一管理，与品牌主色一致
+
+**改动文件**（1 个）：
+- `static/css/index.css`：删除 11 行冲突的 `.card-category-tag` 颜色定义，替换为注释说明（`-11 / +3`）
+
+**harness 教训**（与 v0.9.52 同源）：
+- v0.9.52 已踩过 `{% block extra_css %}` 加载顺序的坑，本次同样要先 grep 确认覆盖关系再改
+- `--white` 不是真正的"白色"，而是当前主题的反色，**禁止**用于需要"始终白"的元素
+
+**验证**：
+- 浏览器目测：夜晚模式橙底橙字，清晰可读；白天模式浅蓝底深蓝字，风格不变
+- 截图见 `docs/preview/card_dark_fixed.png` 和 `card_light_fixed.png`
+
 ## v0.9.52 - 2026-06-03
 
 ### fix(css): 网格视图封面完整显示（v0.9.51 修复未生效的根本修正）

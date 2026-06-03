@@ -283,6 +283,8 @@
     </script>
 
     <!-- Translation System -->
+    <!-- 注意：categories.js 必须在 translations.js / book-i18n.js 之前加载（共享 CATEGORIES 映射） -->
+    <script src="{{ url_for('static', filename='js/categories.js') }}"></script>
     <script src="{{ url_for('static', filename='js/translations.min.js' if config.get('ENV') == 'production' and config.get('MINIFIED_JS_EXISTS') else 'js/translations.js') }}"></script>
 
     <!-- Book Content Language Pack -->

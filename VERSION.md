@@ -1,11 +1,49 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.52
+**当前版本**：v0.9.55
 **发布日期**：2026-06-03
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.55 (2026-06-03) — 分类按需加载 + 共享 categories 模块 + 详情页分类一致性
+- **8 分类预拉取彻底移除**：之前每次打开首页都浪费 8 次 NYT 配额，改成"按需加载 + 内存热层缓存"后，首页 0 API、二次切换 0 API
+- **首次切换分类显示 8 个 skeleton 骨架卡**（shimmer 动画），与真实卡片等高，避免 300-800ms 空白闪烁
+- **CATEGORY_LABELS 数据源统一**：抽出 `static/js/categories.js` 共享模块（IIFE 暴露 `window.CATEGORIES`），`translations.js` / `book-i18n.js` / `index.js` 全部从同一处查表
+- **详情页分类字段参与 CATEGORY_LABELS 映射**：`book-i18n.js` 的 `_extractBookData` 优先用 `book.category_id` + `CATEGORIES.getLabel` 查表，缺失时回退到 `list_name` / `category_name`（短路保护防止清空 DOM）
+- **新增 3 个 Playwright E2E 测试脚本**：`scripts/_verify_i18n.py`、`scripts/_verify_cache.py`、`scripts/_verify_detail_i18n.py`，全部通过
+- **新增手动验证文档**：`docs/I18N_TEST.md`
+- **harness 教训**：
+  - 共享 JS 模块（IIFE + `window` 暴露）比 ES Module 更适合"普通脚本 + ES Module 混用"的项目
+  - `_extractBookData` 这种"提供默认值的工具函数"必须做短路保护
+- **验证（全部 PASS）**：首页语言切换 10/10、按需加载 4/4、详情页分类一致性 4/4
+- **改动文件**：6 个（+225 / -50）
+  - 新增 `static/js/categories.js`
+  - 修改 `static/js/translations.js` / `book-i18n.js` / `index.js` / `static/css/index.css` / `templates/base.html`
+
+### v0.9.54 (2026-06-03) — 语言切换时图书动态内容即时重渲染
+- **问题**：切换语言时静态 UI 跟着语言包更新，但图书内容（标题/作者/分类/排名/周数）不会自动切换语言，需要刷新页面
+- **根因**：`languagechange` 监听器只处理 `data-i18n` 静态元素，没调用 `updateBooksOnPage()` 重渲染图书 DOM
+- **修复**：
+  - `index.js` 新增 `rerenderCurrentBooks(lang)`，调用 `updateBooksOnPage()` 重渲染
+  - `updateBooksOnPage` 接受 `lang` 参数，所有文案走 `t()` 翻译函数
+  - `updateCategorySelectOptions(lang)`：下拉框 option 文本跟语言切换
+  - `formatLocalTime(isoTime, lang)`：时间格式本地化（zh ISO，en "Jun 3, 2026 8:08 AM"）
+  - `translations.js` 新增 ~30 个 i18n 键
+  - 模板 SSR 嵌入 `<script type="application/json" id="initial-books-data">` 作为回退数据源
+- **harness 教训**：ES Module 作用域，外部 Playwright 无法访问模块内部函数
+- **验证**：`_verify_i18n.py` 10/10 断言通过
+
+### v0.9.53 (2026-06-03) — 夜晚模式图书分类标签对比度修复
+- **问题**：首页图书卡片左上角分类标签（`.card-category-tag`，如"精装小说"）夜晚模式几乎看不清
+- **根因**：
+  - `components.css` 用 `--badge-bg` / `--badge-text` 主题色（夜晚模式橙底橙字 #ff6b35）
+  - `index.css:420-431` 后加载用 `color: var(--white)` 覆盖文字色
+  - `base.css:108` 夜晚模式把 `--white` 改写为 `#1e293b`（深石板色）→ 黑底深字
+- **修复**：删除 `index.css` 中冲突的 `.card-category-tag` 颜色定义，让 `components.css` 主题色接管
+- **harness 教训**：`--white` 不是真正的"白色"，是当前主题的反色，**禁止**用于需要"始终白"的元素
+- **验证**：浏览器目测 + Playwright 截图（`docs/preview/card_{dark,light}_fixed.png`），夜晚模式橙底橙字清晰可读
 
 ### v0.9.52 (2026-06-03) — 网格视图封面完整显示（v0.9.51 修复真正落地）
 - **v0.9.51 根因**：v0.9.51 只改了 `components.css`，但 `index.css`（通过 `{% block extra_css %}` 晚于 components.css 加载）完全覆盖了修复，v0.9.51 推送后封面依然被裁切
