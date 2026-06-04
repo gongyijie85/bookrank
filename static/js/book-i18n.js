@@ -11,6 +11,15 @@ var BookI18n = (function() {
     var DESC_SELECTORS = '.card-desc, .list-item-desc, .book-description, .detail-description';
     var CAT_SELECTORS = '.card-category-tag, .book-category, .list-item-meta .card-tag:first-child';
 
+    /**
+     * 简易 ISBN 检测（10 或 13 位纯数字，可含连字符/空格）
+     */
+    function _looksLikeIsbn(text) {
+        if (!text) return false;
+        var cleaned = text.replace(/[-\s]/g, '');
+        return /^\d+$/.test(cleaned) && (cleaned.length === 10 || cleaned.length === 13);
+    }
+
     function _extractBookData(book) {
         var isbn = book.isbn13 || book.isbn10 || '';
         if (!isbn) return null;
@@ -27,17 +36,29 @@ var BookI18n = (function() {
             zhCat = book.category_name || enCat;
         }
 
+        var enTitle = book.title || '';
+        var zhTitle = book.title_zh || '';
+
+        // 安全网：如果英文标题看起来是 ISBN，尝试用中文标题替代
+        if (_looksLikeIsbn(enTitle)) {
+            enTitle = zhTitle || enTitle;
+        }
+        // 同理处理中文标题
+        if (_looksLikeIsbn(zhTitle)) {
+            zhTitle = enTitle || zhTitle;
+        }
+
         return {
             isbn: isbn,
             category_id: categoryId,
             en: {
-                title: book.title || '',
+                title: enTitle,
                 description: book.description || '',
                 category: enCat,
                 details: book.details || ''
             },
             zh: {
-                title: book.title_zh || '',
+                title: zhTitle,
                 description: book.description_zh || '',
                 category: zhCat,
                 details: book.details_zh || ''
@@ -92,7 +113,8 @@ var BookI18n = (function() {
         var entry = _store.get(isbn);
         if (!entry) return;
         if (!entry[lang]) entry[lang] = {};
-        if (data.title) entry[lang].title = data.title;
+        // 防止 ISBN 脏数据被写入标题
+        if (data.title && !_looksLikeIsbn(data.title)) entry[lang].title = data.title;
         if (data.description) entry[lang].description = data.description;
         if (data.category) entry[lang].category = data.category;
         if (data.details) entry[lang].details = data.details;

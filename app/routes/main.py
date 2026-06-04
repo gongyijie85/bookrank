@@ -247,10 +247,19 @@ def _load_awards_data(award_service, params: dict) -> dict:
         )
 
         for book in books:
+            # title_en: 原始 DB title 供前端 data-en 使用；
+            # 若原始 title 是 ISBN 脏数据则退回 display_title
+            raw_title = (book.title or '').strip()
+            _cleaned = raw_title.replace('-', '').replace(' ', '')
+            if raw_title and _cleaned.isdigit() and len(_cleaned) in (10, 13):
+                title_en = book.display_title or ''
+            else:
+                title_en = raw_title or book.display_title or ''
             books_data.append(
                 {
                     'id': book.id,
                     'title': book.display_title,
+                    'title_en': title_en,
                     'title_zh': quick_clean_translation(book.title_zh, 'title'),
                     'description': book.description,
                     'description_zh': quick_clean_translation(book.description_zh, 'description'),
