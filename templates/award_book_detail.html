@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block title %}{{ safe_title_zh }} - BookRank{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -9,9 +9,9 @@
         <svg class="icon" width="24" height="24"><use href="#icon-arrow-left"/></svg>
     </button>
     <h1 class="page-title"
-        data-en="{{ book.title }}"
-        data-zh="{{ book.title_zh or book.title }}">
-        {{ book.title_zh or book.title }}
+        data-en="{{ safe_title_en }}"
+        data-zh="{{ safe_title_zh }}">
+        {{ safe_title_zh }}
     </h1>
 </header>
 
@@ -21,7 +21,7 @@
     <div class="detail-left-section">
         <div class="detail-cover">
             <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
-                 alt="{{ book.title }} {{ _('封面') }}"
+                 alt="{{ safe_title_en }} {{ _('封面') }}"
                  data-fallback="{{ url_for('static', filename='default-cover.png') }}">
         </div>
 
@@ -44,8 +44,8 @@
     <!-- 右侧：书籍信息 -->
     <div class="detail-info-section">
         <div class="detail-header-info">
-            <h2 data-en="{{ book.title }}" data-zh="{{ book.title_zh or book.title }}">
-                {{ book.title_zh or book.title }}
+            <h2 data-en="{{ safe_title_en }}" data-zh="{{ safe_title_zh }}">
+                {{ safe_title_zh }}
             </h2>
             <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
         </div>
@@ -184,6 +184,19 @@
             this.src = this.dataset.fallback;
         }, { once: true });
     });
+
+    // 语言切换：监听全局 languagechange 事件，更新 data-en/data-zh 元素
+    function applyDetailLanguage(lang) {
+        document.querySelectorAll('[data-zh][data-en]').forEach(el => {
+            el.textContent = lang === 'zh' ? el.getAttribute('data-zh') : el.getAttribute('data-en');
+        });
+    }
+    window.addEventListener('languagechange', e => {
+        applyDetailLanguage(e.detail.language);
+    });
+    // 初始化时根据当前语言应用一次
+    var currentLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'zh';
+    applyDetailLanguage(currentLang);
 </script>
 
 <style nonce="{{ csp_nonce() }}">

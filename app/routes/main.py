@@ -510,6 +510,7 @@ def new_book_detail(book_id):
 def award_book_detail(book_id):
     """获奖图书详情（通过 Service 层）"""
     from ..services.award_book_service import AwardBookService
+    from ..models.schemas import AwardBook
 
     award_service = AwardBookService()
     book = award_service.get_award_book_by_id(book_id)
@@ -521,7 +522,27 @@ def award_book_detail(book_id):
                 message='该获奖图书已下架',
                 back_url=request.referrer or '/awards',
             )
-        return render_template('award_book_detail.html', book=book, back_url=request.referrer or '/awards')
+
+        # 清理 title 字段中的 ISBN 脏数据
+        raw_title = (book.title or '').strip()
+        safe_title_en = '' if AwardBook._looks_like_isbn(raw_title) else raw_title
+
+        raw_zh = quick_clean_translation(book.title_zh, 'title')
+        safe_title_zh = '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or '')
+
+        # 兜底：如果两个字段都是 ISBN，使用 display_title
+        display_title = book.display_title
+        if not safe_title_en and not safe_title_zh:
+            safe_title_en = display_title
+            safe_title_zh = display_title
+
+        return render_template(
+            'award_book_detail.html',
+            book=book,
+            safe_title_en=safe_title_en or display_title,
+            safe_title_zh=safe_title_zh or safe_title_en,
+            back_url=request.referrer or '/awards',
+        )
     else:
         return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/awards')
 
