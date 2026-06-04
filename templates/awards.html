@@ -266,17 +266,17 @@
             <span class="card-award-tag">{{ book.award_name }}</span>
             {% if _l == 'zh' %}
             <h3 class="card-title"
-                title="{{ book.title_zh or book.title }}"
+                title="{{ book.title_zh or book.title_en or book.title }}"
                 data-en="{{ book.title_en or book.title }}"
-                data-zh="{{ book.title_zh or book.title }}"
+                data-zh="{{ book.title_zh or book.title_en or book.title }}"
                 data-isbn="{{ book.isbn13 or '' }}">
-                {{ book.title_zh or book.title }}
+                {{ book.title_zh or book.title_en or book.title }}
             </h3>
             {% else %}
             <h3 class="card-title"
                 title="{{ book.title }}"
                 data-en="{{ book.title_en or book.title }}"
-                data-zh="{{ book.title_zh or book.title }}"
+                data-zh="{{ book.title_zh or book.title_en or book.title }}"
                 data-isbn="{{ book.isbn13 or '' }}">
                 {{ book.title }}
             </h3>
@@ -323,14 +323,14 @@
                 {% if _l == 'zh' %}
                 <h3 class="list-item-title"
                     data-en="{{ book.title_en or book.title }}"
-                    data-zh="{{ book.title_zh or book.title }}"
+                    data-zh="{{ book.title_zh or book.title_en or book.title }}"
                     data-isbn="{{ book.isbn13 or '' }}">
-                    {{ book.title_zh or book.title }}
+                    {{ book.title_zh or book.title_en or book.title }}
                 </h3>
                 {% else %}
                 <h3 class="list-item-title"
                     data-en="{{ book.title_en or book.title }}"
-                    data-zh="{{ book.title_zh or book.title }}"
+                    data-zh="{{ book.title_zh or book.title_en or book.title }}"
                     data-isbn="{{ book.isbn13 or '' }}">
                     {{ book.title }}
                 </h3>

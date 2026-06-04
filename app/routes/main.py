@@ -246,21 +246,29 @@ def _load_awards_data(award_service, params: dict) -> dict:
             limit=params['per_page'],
         )
 
+        def _is_isbn(text: str) -> bool:
+            """简易 ISBN 检测：10/13 位纯数字（可含连字符/空格）"""
+            if not text:
+                return False
+            c = text.replace('-', '').replace(' ', '')
+            return c.isdigit() and len(c) in (10, 13)
+
         for book in books:
             # title_en: 原始 DB title 供前端 data-en 使用；
             # 若原始 title 是 ISBN 脏数据则退回 display_title
             raw_title = (book.title or '').strip()
-            _cleaned = raw_title.replace('-', '').replace(' ', '')
-            if raw_title and _cleaned.isdigit() and len(_cleaned) in (10, 13):
-                title_en = book.display_title or ''
-            else:
-                title_en = raw_title or book.display_title or ''
+            title_en = book.display_title or '' if _is_isbn(raw_title) else (raw_title or book.display_title or '')
+
+            # title_zh: 清理后的中文标题；ISBN 脏数据直接清空
+            raw_zh = quick_clean_translation(book.title_zh, 'title')
+            title_zh = '' if _is_isbn(raw_zh or '') else (raw_zh or '')
+
             books_data.append(
                 {
                     'id': book.id,
                     'title': book.display_title,
                     'title_en': title_en,
-                    'title_zh': quick_clean_translation(book.title_zh, 'title'),
+                    'title_zh': title_zh,
                     'description': book.description,
                     'description_zh': quick_clean_translation(book.description_zh, 'description'),
                     'details': book.details,

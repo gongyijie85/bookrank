@@ -96,8 +96,13 @@ var BookI18n = (function() {
         if (!entry) return null;
         var localized = entry[lang] || {};
         var base = entry.en;
+        // 最终防线：如果取到的标题仍是 ISBN，回退到另一语言
+        var title = localized.title || base.title;
+        if (_looksLikeIsbn(title)) {
+            title = (lang === 'zh' ? base.title : localized.title) || title;
+        }
         return {
-            title: localized.title || base.title,
+            title: title,
             description: localized.description || base.description,
             category: localized.category || base.category,
             details: localized.details || base.details
