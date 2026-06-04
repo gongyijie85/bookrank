@@ -395,6 +395,12 @@
 {% block extra_js %}
 <script nonce="{{ csp_nonce() }}">
     // 客户端翻译系统
+    function _looksLikeIsbn(text) {
+        if (!text) return false;
+        var c = text.replace(/[-\s]/g, '');
+        return /^\d+$/.test(c) && (c.length === 10 || c.length === 13);
+    }
+
     const translationCache = {
         getBook(isbn) {
             if (!isbn) return null;
@@ -423,14 +429,14 @@
             const titleEl = titleEls[i];
             const titleZh = titleEl.dataset.zh || '';
             const titleEn = titleEl.dataset.en || '';
-            if (titleZh && titleZh !== titleEn) {
+            if (titleZh && titleZh !== titleEn && !_looksLikeIsbn(titleZh)) {
                 titleEl.textContent = titleZh;
                 continue;
             }
 
             const isbn = titleEl.dataset.isbn || '';
             const cached = translationCache.getBook(isbn);
-            if (cached && cached.title_zh) {
+            if (cached && cached.title_zh && !_looksLikeIsbn(cached.title_zh)) {
                 titleEl.textContent = cached.title_zh;
                 continue;
             }
@@ -454,7 +460,8 @@
             var data = await response.json();
             if (data.success && data.data && data.data.book) {
                 var book = data.data.book;
-                if (book.title_zh) {
+                // 关键防护：API 返回的 title_zh 可能是 ISBN（翻译模型回显了输入中的 ISBN）
+                if (book.title_zh && !_looksLikeIsbn(book.title_zh)) {
                     titleEl.textContent = book.title_zh;
                     titleEl.dataset.zh = book.title_zh;
                 }
@@ -473,7 +480,8 @@
 
     async function translateSingleBookByIsbn(isbn) {
         if (!isbn) return;
-        var titleEl = document.querySelector('[data-isbn="' + isbn + '"] .card-title, [data-isbn="' + isbn + '"] .list-item-title, [data-isbn="' + isbn + '"]');
+        // 精确定位标题元素，避免匹配到其他 data-isbn 元素
+        var titleEl = document.querySelector('.card-title[data-isbn="' + isbn + '"], .list-item-title[data-isbn="' + isbn + '"]');
         if (!titleEl) return;
         await translateSingleBook(0, titleEl, isbn);
     }
