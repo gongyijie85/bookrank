@@ -142,6 +142,9 @@ class NewBook(db.Model):
             'id': self.id,
             'publisher_id': self.publisher_id,
             'publisher_name': self.publisher.name if self.publisher else None,
+            'publisher_name_en': (
+                (self.publisher.name_en or self.publisher.name) if self.publisher else None
+            ),
             'title': self.title,
             'author': self.author,
             'description': self.description,

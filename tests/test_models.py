@@ -255,6 +255,78 @@ class TestAwardBook:
         assert result is not None
         assert result.year == 2024
 
+    def test_display_title_normal(self, db):
+        """display_title 正常场景：title 是真标题时直接返回"""
+        award = Award(name='t1', name_en='t1', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='A Real Title',
+            author='A',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == 'A Real Title'
+
+    def test_display_title_fallback_when_title_is_isbn(self, db):
+        """display_title 兜底：title 是 ISBN 时回退到 title_zh"""
+        award = Award(name='t2', name_en='t2', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='9781668017159',
+            title_zh='血中流淌的花',
+            author='Haley Cohen Gilliland',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == '血中流淌的花'
+
+    def test_display_title_isbn_in_both_fields(self, db):
+        """display_title 兜底：title 和 title_zh 都是 ISBN 时返回原 title"""
+        award = Award(name='t3', name_en='t3', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='9781668017159',
+            title_zh='9781668017159',
+            author='A',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == '9781668017159'
+
+    def test_display_title_isbn_with_dashes(self, db):
+        """display_title 兜底：带连字符的 ISBN 也算 ISBN"""
+        award = Award(name='t4', name_en='t4', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='978-0-7432-7356-5',
+            title_zh='真正的书名',
+            author='A',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == '真正的书名'
+
+    def test_looks_like_isbn_helper(self, db):
+        """_looks_like_isbn 静态方法边界条件"""
+        assert AwardBook._looks_like_isbn('9781668017159') is True
+        assert AwardBook._looks_like_isbn('978-0-7432-7356-5') is True
+        assert AwardBook._looks_like_isbn('080442957X') is False  # 含 X 视为非纯数字
+        assert AwardBook._looks_like_isbn('A Flower Traveled in My Blood') is False
+        assert AwardBook._looks_like_isbn(None) is False
+        assert AwardBook._looks_like_isbn('') is False
+
 
 # ==================== SystemConfig 模型测试 ====================
 

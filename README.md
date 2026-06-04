@@ -254,6 +254,9 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.59 - 切换语言时获奖页面书名不更新修复：`book-i18n.js` 的 `applyLanguage` 用 `card.querySelector(TITLE_SELECTORS)` 在获奖页面失效（h3 自身带 `data-isbn` 是 card，`h3.querySelector` 返回 null）；新增 `_updateTitleInCard(card, text)` 辅助函数，优先 `card.matches(TITLE_SELECTORS)` 直接更新 card 自身（h3-as-card 场景），否则退化到 `card.querySelector`（兼容详情页/首页嵌套结构）；同步 `book-i18n.min.js`
+- v0.9.58 - 新书推介页 i18n 完整修复：英文模式下"中英混杂"现象（出版社名阿歇特/Hachette、过滤项最近7天/Last 7 days、统计当前结果/Results、placeholder、按钮文案）三根因叠加 — en.po 缺失 ~13 msgid（Flask-Babel 回退中文）+ 模板硬编码 `{{ pub.name }}` 中文 + JS `applyPageTranslation` 不支持占位符 / option 文本不刷新；修复：po +13 键补全、translations.js / min.js 各 +39 键（111→150）、`NewBook.to_dict()` 新增 `publisher_name_en` 字段、模板/卡片/侧边栏/option 加 `data-pub-name-*` 属性、新增 `applyNewBooksLanguage(lang)` JS 函数；新增 `tests/test_new_books_i18n.py` 18 个测试（18/18 PASSED）
+- v0.9.57 - 获奖书单列表页书名 ISBN 修复：`AwardBook.display_title` 属性避开 ISBN-as-title，路由 `_load_awards_data` 改用安全字段
 - v0.9.56 - 修复首页 card 翻译键字符串泄露：`translations.min.js` 缺失 v0.9.55 新增的 16 个 card_* 键，`t()` 兜底返回 key 字面量导致卡片显示 `card_rank_aria` / `card_weeks_suffix` / `card_isbn_prefix`；min.js 补回 16 键后 zh/en 各 111 键对齐（手工维护 min.js 必须随源码同步，**已记入 harness 教训**）
 - v0.9.55 - i18n 性能与一致性：8 分类预拉取彻底移除（按需加载 + 内存热层），首页 0 API / 二次切换 0 API；首次切换分类显示 8 个 skeleton 骨架卡；抽出 `static/js/categories.js` 共享 CATEGORIES 模块；详情页分类字段参与 CATEGORY_LABELS 映射（带短路保护）；新增 3 个 Playwright E2E 测试脚本 + `docs/I18N_TEST.md`
 - v0.9.54 - 语言切换时图书动态内容即时重渲染：`rerenderCurrentBooks(lang)` 重新调用 `updateBooksOnPage()`，所有文案走 `t()`；`formatLocalTime` 时间本地化（zh ISO，en "Jun 3, 2026 8:08 AM"）；模板 SSR 嵌入 `initial-books-data` 作为回退数据源

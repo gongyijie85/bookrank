@@ -771,13 +771,65 @@ msgid "家出版社"
 msgstr "publishers"
 
 #: templates/new_books.html:84
+msgid "近7天出版"
+msgstr "Past 7 days:"
+
+#: templates/new_books.html:84
 msgid "近7天新增"
 msgstr ""
 
 #: templates/new_books.html:84 templates/new_books.html:518
 #: templates/weekly_report_detail.html:1316 templates/weekly_reports.html:94
 msgid "本"
-msgstr ""
+msgstr "books"
+
+#: templates/new_books.html:113
+msgid "最近7天出版"
+msgstr "Last 7 days"
+
+#: templates/new_books.html:114
+msgid "最近30天出版"
+msgstr "Last 30 days"
+
+#: templates/new_books.html:115
+msgid "最近90天出版"
+msgstr "Last 90 days"
+
+#: templates/new_books.html:116
+msgid "最近半年出版"
+msgstr "Last 6 months"
+
+#: templates/new_books.html:117
+msgid "最近一年出版"
+msgstr "Last year"
+
+#: templates/new_books.html:123
+msgid "搜索书名、作者、"
+msgstr "Search title, author, "
+
+#: templates/new_books.html:141
+msgid "当前结果"
+msgstr "Results:"
+
+#: templates/new_books.html:142
+msgid "按出版日期筛选最近"
+msgstr "Published in the last"
+
+#: templates/new_books.html:142
+msgid "天已出版图书"
+msgstr "days"
+
+#: templates/new_books.html:189
+msgid "当前出版时间范围暂无新书，可放宽时间范围或稍后刷新"
+msgstr "No new books in this time range. Try widening the range or refresh later."
+
+#: templates/new_books.html:191
+msgid "刷新"
+msgstr "Refresh"
+
+#: templates/new_books.html:339
+msgid "尝试放宽出版时间范围或搜索其他关键词"
+msgstr "Try widening the time range or search with other keywords"
 
 #: templates/new_books.html:92
 msgid "选择出版社"

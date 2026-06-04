@@ -133,6 +133,47 @@ const TRANSLATIONS = {
         // 图书网格/列表视图
         'books_grid_view': '图书网格视图',
         'books_list_view': '图书列表视图',
+        // 新书推介页
+        'nb_header_subtitle': '追踪国际大型出版社最新出版物',
+        'nb_total_pre': '共',
+        'nb_total_new_books': '共 {count} 本新书',
+        'nb_total_new_books_suffix': '本新书',
+        'nb_active_publishers': '{count} 家出版社',
+        'nb_publishers_suffix': '家出版社',
+        'nb_recent_7d_label': '近7天出版',
+        'nb_recent_7d_count': '{count} 本',
+        'nb_filter_publisher_label': '出版社',
+        'nb_filter_publisher_all': '全部出版社',
+        'nb_filter_category_label': '分类',
+        'nb_filter_category_all': '全部分类',
+        'nb_filter_time_label': '时间',
+        'nb_time_7': '最近7天出版',
+        'nb_time_30': '最近30天出版',
+        'nb_time_90': '最近90天出版',
+        'nb_time_180': '最近半年出版',
+        'nb_time_365': '最近一年出版',
+        'nb_search_placeholder': '搜索书名、作者、',
+        'nb_search_label': '搜索新书',
+        'nb_export_btn': '导出',
+        'nb_sync_btn': '同步新书',
+        'nb_result_summary': '当前结果',
+        'nb_result_unit': '本',
+        'nb_filtered_by_date': '按出版日期筛选最近 {days} 天已出版图书',
+        'nb_empty_title': '暂无新书数据',
+        'nb_empty_desc': '当前出版时间范围暂无新书，可放宽时间范围或稍后刷新',
+        'nb_empty_refresh': '刷新',
+        'nb_load_failed': '加载失败',
+        'nb_retry': '重试',
+        'nb_no_match': '暂无匹配结果',
+        'nb_no_match_desc': '尝试放宽出版时间范围或搜索其他关键词',
+        'nb_unknown': '未知',
+        'nb_syncing': '同步中',
+        'nb_syncing_desc': '正在从出版社获取新书数据',
+        'nb_sync_done_added': '同步完成！新增 {n} 本',
+        'nb_sync_done_updated': '更新 {n} 本',
+        'nb_sync_failed': '同步失败',
+        'nb_translate_failed': '翻译失败',
+        'nb_pub_date': '出版日期',
     },
     en: {
         // Navigation
@@ -260,6 +301,47 @@ const TRANSLATIONS = {
         // Books grid/list view
         'books_grid_view': 'Books Grid View',
         'books_list_view': 'Books List View',
+        // New Books page
+        'nb_header_subtitle': 'Tracking latest publications from major international publishers',
+        'nb_total_pre': '',
+        'nb_total_new_books': '{count} new books',
+        'nb_total_new_books_suffix': 'new books',
+        'nb_active_publishers': '{count} publishers',
+        'nb_publishers_suffix': 'publishers',
+        'nb_recent_7d_label': 'Past 7 days:',
+        'nb_recent_7d_count': '{count} books',
+        'nb_filter_publisher_label': 'Publishers',
+        'nb_filter_publisher_all': 'All publishers',
+        'nb_filter_category_label': 'Category',
+        'nb_filter_category_all': 'All categories',
+        'nb_filter_time_label': 'Time',
+        'nb_time_7': 'Last 7 days',
+        'nb_time_30': 'Last 30 days',
+        'nb_time_90': 'Last 90 days',
+        'nb_time_180': 'Last 6 months',
+        'nb_time_365': 'Last year',
+        'nb_search_placeholder': 'Search title, author, ',
+        'nb_search_label': 'Search new books',
+        'nb_export_btn': 'Export',
+        'nb_sync_btn': 'Sync new books',
+        'nb_result_summary': 'Results:',
+        'nb_result_unit': 'books',
+        'nb_filtered_by_date': 'Published in the last {days} days',
+        'nb_empty_title': 'No new book data',
+        'nb_empty_desc': 'No new books in this time range. Try widening the range or refresh later.',
+        'nb_empty_refresh': 'Refresh',
+        'nb_load_failed': 'Failed to load',
+        'nb_retry': 'Retry',
+        'nb_no_match': 'No matching results',
+        'nb_no_match_desc': 'Try widening the time range or search with other keywords',
+        'nb_unknown': 'Unknown',
+        'nb_syncing': 'Syncing',
+        'nb_syncing_desc': 'Fetching new book data from publishers',
+        'nb_sync_done_added': 'Sync complete! Added {n} books',
+        'nb_sync_done_updated': 'Updated {n} books',
+        'nb_sync_failed': 'Sync failed',
+        'nb_translate_failed': 'Translation failed',
+        'nb_pub_date': 'Published',
     }
 };
 
@@ -292,7 +374,14 @@ function applyPageTranslation(lang) {
     // 翻译所有带 data-i18n 属性的元素
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        const translated = t(key, lang);
+        // 收集 data-i18n-params-* 占位符
+        const params = {};
+        for (const attr of el.attributes) {
+            if (attr.name.startsWith('data-i18n-params-')) {
+                params[attr.name.replace('data-i18n-params-', '')] = attr.value;
+            }
+        }
+        const translated = t(key, lang, params);
         if (translated !== key) {
             // 保留子元素（如图标），只替换文本节点
             const textNode = Array.from(el.childNodes).find(
@@ -331,6 +420,9 @@ function applyPageTranslation(lang) {
         const key = el.getAttribute('data-i18n-aria-label');
         el.setAttribute('aria-label', t(key, lang));
     });
+
+    // 翻译 select option（option 内的 data-i18n 自动被 querySelectorAll 捕获，
+    // 但部分浏览器渲染的 select 选择项会显示原生文本，已在上面循环处理）
 
     // 更新页面标题（如果 html 有 data-i18n-title）
     const pageTitleEl = document.querySelector('title[data-i18n]');

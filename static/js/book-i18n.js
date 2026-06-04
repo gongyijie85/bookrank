@@ -137,6 +137,22 @@ var BookI18n = (function() {
         }
     }
 
+    /**
+     * 更新卡片标题：兼容两种结构
+     * - 卡片本身就是标题元素（如获奖页面 h3.card-title 自身带 data-isbn）
+     * - 卡片内部嵌套标题元素（如详情页/首页的 .book-card > .card-title）
+     *
+     * 修复前对获奖页面失效，因为 h3.querySelector(TITLE_SELECTORS) 返回 null
+     */
+    function _updateTitleInCard(card, text) {
+        if (!card) return;
+        if (card.matches && card.matches(TITLE_SELECTORS)) {
+            _updateElement(card, text);
+        } else {
+            _updateElement(card.querySelector(TITLE_SELECTORS), text);
+        }
+    }
+
     function _findMetaValueByLabelKey(labelKey) {
         var labels = document.querySelectorAll('.detail-meta-grid .meta-label[data-i18n="' + labelKey + '"]');
         for (var i = 0; i < labels.length; i++) {
@@ -161,7 +177,7 @@ var BookI18n = (function() {
                 var cards = document.querySelectorAll('[data-isbn="' + isbn + '"]');
                 for (var c = 0; c < cards.length; c++) {
                     var card = cards[c];
-                    _updateElement(card.querySelector(TITLE_SELECTORS), data.title);
+                    _updateTitleInCard(card, data.title);
                     _updateElement(card.querySelector(DESC_SELECTORS), data.description, 80);
                     _updateElement(card.querySelector(CAT_SELECTORS), data.category);
                 }

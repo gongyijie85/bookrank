@@ -241,6 +241,30 @@ class AwardBook(db.Model):
         db.Index('idx_award_books_displayable_year', 'is_displayable', 'year'),
     )
 
+    @staticmethod
+    def _looks_like_isbn(text: str | None) -> bool:
+        """检测字符串是否像 ISBN（10/13 位纯数字，可能带连字符）"""
+        if not text:
+            return False
+        cleaned = text.replace('-', '').replace(' ', '')
+        if not cleaned.isdigit():
+            return False
+        return len(cleaned) in (10, 13)
+
+    @property
+    def display_title(self) -> str:
+        """返回安全的书名：自动避开 title 字段被存为 ISBN 的历史脏数据
+
+        - 优先返回非 ISBN 的 title
+        - 退化到非 ISBN 的 title_zh
+        - 最后回退到原 title（兜底，避免空字符串）
+        """
+        if self.title and not self._looks_like_isbn(self.title):
+            return self.title
+        if self.title_zh and not self._looks_like_isbn(self.title_zh):
+            return self.title_zh
+        return self.title or self.title_zh or ''
+
     def to_dict(self, include_zh: bool = True) -> dict:
         data = {
             'id': self.id,

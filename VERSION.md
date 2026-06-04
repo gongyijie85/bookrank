@@ -1,11 +1,49 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.56
+**当前版本**：v0.9.59
 **发布日期**：2026-06-03
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.59 (2026-06-03) — 切换语言时获奖页面书名不更新修复
+- **问题**：用户在 `/awards` 页面切换语言后，书名卡片没有更新到对应语言；部分场景下用户会感知为"切换语言后 ISBN 出现"
+- **根因**：`book-i18n.js` 的 `applyLanguage` 用 `card.querySelector(TITLE_SELECTORS)` 找标题元素。获奖页面 `<h3 class="card-title">` 自身带 `data-isbn`，h3 本身就是"卡片"，`h3.querySelector` 返回 `null`（h3 内部没嵌套元素），标题从未被切换
+- **修复**：
+  - `book-i18n.js` 新增 `_updateTitleInCard(card, text)` 辅助函数
+  - 优先 `card.matches(TITLE_SELECTORS)`，是的话**直接更新 card 自身**（覆盖 h3-as-card 场景）
+  - 否则退化到 `card.querySelector(TITLE_SELECTORS)`（兼容详情页/首页的嵌套结构）
+  - 同步更新 `book-i18n.min.js`
+- **harness 教训**：`card.querySelector` 假设 card 是父容器，忽略 card 自身可能是目标元素的场景；"切换没反应"和"切换触发 bug"在用户视角常常混淆
+- **改动文件**：2 个（`static/js/book-i18n.js` +15/-1，`static/js/book-i18n.min.js` +9/-1）
+
+### v0.9.58 (2026-06-03) — 新书推介页 i18n 完整修复
+- **问题**：用户截图 `/new-books` 页（英文模式）出现"中英混杂"现象：出版社名称（阿歇特/Hachette）、过滤项（最近7天出版/Last 7 days）、统计（当前结果/Results）、搜索 placeholder、按钮文案等均未翻译
+- **根因（3 个独立 bug 叠加）**：
+  1. `en.po` 缺失 ~13 个新书页翻译键（Flask-Babel 回退到 msgid 中文）
+  2. 模板硬编码 `{{ pub.name }}` / `{{ book.publisher.name }}`（永远是中文）
+  3. JS 端 `applyPageTranslation` 不支持 `data-i18n-params-*` 占位符、option 文本不刷新
+- **修复**：
+  - **翻译键补全**：zh.po / en.po 各 +13 msgid，pybabel 重新编译 .mo
+  - **JS 翻译表 + min.js 同步**：translations.js / translations.min.js 各 +39 键（111 → 150），`applyPageTranslation` 支持 `data-i18n-params-*` 占位符
+  - **出版社名称双语化**：`NewBook.to_dict()` 新增 `publisher_name_en` 字段；模板/卡片/侧边栏/筛选 option 全部加 `data-pub-name-zh` / `data-pub-name-en` 属性
+  - **新增 `applyNewBooksLanguage(lang)` JS 函数**：处理 3 处动态内容（侧边栏、option、book 卡片），在 `languagechange` 监听器 + `DOMContentLoaded` 首屏校正时调用
+- **harness 教训**：翻译键缺失 + 模板硬编码中文 + JS 切换机制不完善，**3 个独立 bug 叠加**才能产生"中英混杂"；截图诊断需分辨 msgid 回退（英文下残留中文） vs min.js 缺失（中文下残留英文） vs 硬编码（任意模式都残留）
+- **新增 18 个 i18n 测试**（`tests/test_new_books_i18n.py`）：TRANSLATIONS 字典完整性、min.js 同步、po 文件完整性、data-i18n 属性齐全、SSR 渲染、to_dict() 字段
+- **验证**：`tests/test_new_books_i18n.py` 18/18 PASSED | `ruff check` 0 错误 | 模板语法 OK | 单跑 `test_new_books_routes.py` 18/18 PASSED
+- **改动文件**：8 个（`translations/zh+en/messages.po` + `.mo`、`static/js/translations.js` / `translations.min.js`、`templates/new_books.html` / `_macros.html`、`app/models/new_book.py`、`tests/test_new_books_i18n.py` 新增）
+
+### v0.9.57 (2026-06-03) — 获奖书单列表页书名 ISBN 修复
+- **问题**：`/awards` 列表页（中文模式）所有 2026 普利策奖非虚构类图书书名直接显示为 ISBN 数字（如 `9781668017159`）
+- **根因**：生产数据库 `award_books.title` 字段被存成了 ISBN；v0.9.44/45 修复了详情页和 admin 端点，但列表页路由 `_load_awards_data` 直接用 `book.title`，没有防御
+- **修复**：
+  - `AwardBook` 模型新增 `display_title` 属性（自动避开 ISBN-as-title，title 退化到 title_zh，最后兜底原 title）
+  - 同模型下加 `_looks_like_isbn` 静态方法
+  - 路由 `_load_awards_data` 数据构建改用 `book.display_title`
+- **harness 教训**：数据修复（admin 端点）必须配合**路由层防御**；列表/详情页应共享"安全字段"方法，不要各自直接读 `book.title`
+- **验证**：中文模式 4 本书名 ISBN → `血中流淌的花` / `以马内利教堂` / `天使陨落` / `无处安身`；英文模式 ISBN → 真实英文标题
+- **改动文件**：3 个（`app/models/schemas.py` +24/-0，`app/routes/main.py` +1/-1，`scripts/fix_award_book_titles.py` 新增 +71/-0）
 
 ### v0.9.56 (2026-06-03) — 修复首页 card 翻译键字符串泄露
 - **问题**：用户截图显示首页图书卡片上直接出现 `card_rank_aria` / `card_weeks_suffix` / `card_isbn_prefix` 字面量

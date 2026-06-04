@@ -19,7 +19,7 @@ from werkzeug.utils import secure_filename
 from ..data.publishers import PUBLISHERS_DATA
 from ..services.book_detail_service import fetch_google_books_details, is_valid_isbn, merge_or_translate_book
 from ..utils import ExternalAPIError
-from ..utils.api_helpers import APIResponse, handle_api_errors
+from ..utils.api_helpers import APIResponse, handle_api_errors, quick_clean_translation
 from ..utils.book_filters import filter_books_by_publisher, filter_books_by_search, filter_books_by_weeks, sort_books
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
@@ -250,9 +250,10 @@ def _load_awards_data(award_service, params: dict) -> dict:
             books_data.append(
                 {
                     'id': book.id,
-                    'title': book.title,
-                    'author': book.author,
+                    'title': book.display_title,
+                    'title_zh': quick_clean_translation(book.title_zh, 'title'),
                     'description': book.description,
+                    'description_zh': quick_clean_translation(book.description_zh, 'description'),
                     'details': book.details,
                     'cover_local_path': book.cover_local_path,
                     'cover_original_url': book.cover_original_url,

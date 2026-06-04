@@ -1,5 +1,145 @@
 # Changelog
 
+## v0.9.58 - 2026-06-03
+
+### fix(i18n): 新书推介页语言切换后出版社名称 / 过滤项 / 状态文字未刷新
+
+**问题**：用户截图 `/new-books` 页（英文模式）出现以下未翻译的"残留中文"：
+- 出版社名称侧边栏：`阿歇特 100`、`哈珀柯林斯 100`、`麦克米伦 51`、`企鹅兰登 1`、`西蒙舒斯特 0`（应为 Hachette / HarperCollins / Macmillan / Penguin Random House / Simon & Schuster）
+- 顶部统计：`共 260 new books`、`近7天出版 0 本`（应为 `260 new books`、`Past 7 days: 0 books`）
+- 底部：`当前结果 157 本`、`按出版日期筛选最近 30 天已出版图书`（应为 `Results: 157 books`、`Published in the last 30 days`）
+- 筛选下拉框 option：`最近7天出版` 等 5 项时间选项（应为 `Last 7 days` 等）
+- 搜索框 placeholder：`搜索书名、作者、ISBN...`（应为 `Search title, author, ISBN...`）
+- 空状态文案、导出/同步按钮、刷新按钮等
+
+**根因**（3 个独立问题叠加）：
+1. **`.po` 翻译键缺失**：`en.po` 中 `最近7天出版` / `近7天出版` / `当前结果` / `按出版日期筛选最近` / `天已出版图书` / `当前出版时间范围暂无新书...` / `尝试放宽出版时间范围...` 等 ~13 个 msgid **完全缺失**，Flask-Babel 回退到 msgid（中文）渲染
+2. **出版社名称数据源单一**：模板中 `{{ pub.name }}` / `{{ book.publisher.name }}` 永远显示中文，**没有 `name_en` 字段的 JS 端切换**
+3. **JS 端 `applyPageTranslation` 不刷新 select option / 不支持占位符插值**：option 内的 `data-i18n` 浏览器不一定按预期渲染文本，且 `{count}` 占位符无法被 `t()` 函数填充
+
+**修复**：
+
+#### 翻译键补全
+- `translations/zh/messages.po`：新增 13 个新书页 msgid（保持中文）
+- `translations/en/messages.po`：同上 13 个英文翻译（`Last 7 days` / `Past 7 days:` / `Results:` / `Published in the last {days} days` 等）
+- `pybabel compile -d translations` 重新生成 `.mo`
+
+#### JS 翻译表 + min.js 同步（v0.9.56 教训）
+- `static/js/translations.js`：zh/en 各新增 39 个 `nb_*` 键
+- `static/js/translations.min.js`：**同步** 同步压缩版（v0.9.56 的根因不能再犯）
+- 新增 key 数量统计：111 → 150（zh/en 各 +39）
+- `applyPageTranslation()` 扩展支持 `data-i18n-params-*` 占位符（`{days}` / `{count}`）
+
+#### 出版社名称双语化
+- `app/models/new_book.py`：`NewBook.to_dict()` 新增 `publisher_name_en` 字段（fallback 到 `publisher.name`）
+- `templates/_macros.html`：book 卡片 `.book-publisher` 加 `data-pub-name-zh` / `data-pub-name-en` 属性
+- `templates/new_books.html`：
+  - 侧边栏 publisher 链接加 `data-pub-name-*`
+  - 筛选下拉框 `publisher-filter` 的 option 加 `data-pub-name-*`
+  - 新增 `applyNewBooksLanguage(lang)` JS 函数处理 3 处动态内容（侧边栏、option、book 卡片）
+- `applyNewBooksLanguage` 在 `languagechange` 监听器 + `DOMContentLoaded`（首屏 localStorage 校正）时调用
+
+#### 模板 data-i18n 属性
+- 所有可翻译元素加 `data-i18n` / `data-i18n-placeholder` / `data-i18n-aria-label` / `data-i18n-params-*` 属性
+- option 也加 `data-i18n` 配合 `applyNewBooksLanguage` 二次处理
+
+**新增测试**（`tests/test_new_books_i18n.py`，18 个用例）：
+- `TestNewBookI18nKeys`（3）：TRANSLATIONS 字典键完整性 + min.js 同步
+- `TestNewBookPoFiles`（3）：msgid 完整性 + .mo 编译时间
+- `TestNewBooksTemplate`（8）：data-i18n 属性齐全 + applyNewBooksLanguage 定义
+- `TestNewBookMacros`（1）：_macros.html 卡片双语
+- `TestNewBookToDict`（1）：to_dict() 含 publisher_name_en
+- `TestNewBookPageClientI18n`（2）：SSR 页面包含所有 data-i18n 属性
+
+**harness 教训**：
+- 翻译键缺失 + 模板硬编码中文 + JS 切换机制不完善，**3 个独立 bug 叠加**才能产生"中英混杂"现象
+- 截图诊断：英文模式下残留中文 = msgid 回退；中文模式下残留英文 = min.js 缺失（v0.9.56）
+- 任何 `{{ pub.name }}` 类硬编码都要考虑 i18n，不能只做 `{{ _() }}` 翻译
+- `applyPageTranslation` 不能只处理 data-i18n，要支持占位符、placeholder、aria-label、option 文本等多场景
+
+**验证**：
+- `tests/test_new_books_i18n.py`：**18/18 PASSED**（含 SSR 渲染、to_dict、min.js 同步、po 文件完整性、data-i18n 属性齐全）
+- `ruff check app/ tests/test_new_books_i18n.py`：All checks passed
+- 模板语法 `jinja2.Environment.parse()`：OK
+- 单跑 `test_new_books_routes.py`：**18/18 PASSED**（含 SSR 端点 + API 端点）
+
+**改动文件**（8 个）：
+- `translations/zh/LC_MESSAGES/messages.po`：+13 msgid
+- `translations/en/LC_MESSAGES/messages.po`：+13 msgid
+- `translations/zh/LC_MESSAGES/messages.mo` + `en/.../messages.mo`：重新编译
+- `static/js/translations.js`：+80 行（39 键 × 2 语言 + applyPageTranslation 占位符支持）
+- `static/js/translations.min.js`：+40 行（同步）
+- `templates/new_books.html`：~50 行（data-i18n 属性 + applyNewBooksLanguage JS 函数）
+- `templates/_macros.html`：~6 行（book 卡片双语）
+- `app/models/new_book.py`：+3 行（publisher_name_en 字段）
+- `tests/test_new_books_i18n.py`：**新增** 200+ 行
+
+## v0.9.59 - 2026-06-03
+
+### fix(i18n): 切换语言时获奖页面书名不更新修复
+
+**问题**：用户在 `/awards` 页面切换语言后，书名卡片没有更新到对应语言（虽然数据已修复，但切换语言无任何变化，部分场景下还会让用户感知到"切换语言触发了 ISBN 显示"）。
+
+**根因**：
+- `static/js/book-i18n.js` 的 `applyLanguage` 用 `card.querySelector(TITLE_SELECTORS)` 找标题元素
+- 获奖页面的 `<h3 class="card-title">` 自身带 `data-isbn` 属性，h3 本身就是"卡片"
+- `h3.querySelector(TITLE_SELECTORS)` 返回 `null`（h3 内部没有嵌套元素，只有文本）
+- `_updateElement(null, ...)` 静默返回，标题从未被切换
+
+**为什么用户感知为"切换语言后 ISBN"**：
+- 部分用户首次进入页面时浏览器走的是**旧缓存 JS + 旧服务端渲染路径**，且缓存的页面里数据尚未修复
+- 切换语言理论上应该重新拉服务端数据，但实际只跑客户端 JS
+- 客户端 JS 又因为上述 bug 没更新 DOM → 用户看到的就是"刷新前 + 没切换"的混合状态
+
+**修复**：
+- `book-i18n.js` 新增 `_updateTitleInCard(card, text)` 辅助函数
+- 优先判断 `card.matches(TITLE_SELECTORS)`，是的话**直接更新 card 自身**（覆盖 h3-as-card 场景）
+- 否则退化到 `card.querySelector(TITLE_SELECTORS)`（兼容详情页/首页的嵌套结构）
+- 同步更新 `book-i18n.min.js`
+
+**harness 教训**：
+- `card.querySelector(SELECTOR)` 这种模式假设 card 是"父容器"，忽略了 card 自身可能就是目标元素的场景
+- 获奖页面和其他页面用了不同的 DOM 结构，但 JS 是同一份 → 必须兼容两种结构
+- "切换语言没反应"和"切换语言触发 bug"在用户视角常常混淆；写测试时应该断言**两次切换后 DOM 都与对应语言一致**
+
+**验证**：
+- 在浏览器 DevTools 跑 `BookI18n.applyLanguage('zh')` 和 `BookI18n.applyLanguage('en')` 各一次，所有 `.card-title` 的 `textContent` 都应跟随变化
+- 切换前后 `h3.textContent` 不再卡住
+
+**改动文件**（2 个）：
+- `static/js/book-i18n.js`：新增 `_updateTitleInCard`，applyLanguage 改用它（+15/-1）
+- `static/js/book-i18n.min.js`：同步压缩版（+9/-1）
+
+## v0.9.57 - 2026-06-03
+
+### fix(awards): 获奖书单列表页书名显示 ISBN 修复
+
+**问题**：用户截图显示 `/awards` 页面（中文模式）所有 2026 普利策奖非虚构类图书的书名直接显示为 ISBN 数字（如 `9781668017159`、`9781524761301`），作者名等其他字段正常。
+
+**根因**：
+- 生产数据库历史脏数据，`award_books.title` 字段被存成了 ISBN 号码
+- v0.9.44 / v0.9.45 修复了详情页 `/award-book/<id>` 和 admin 端点 `POST /api/admin/fix-award-book-titles`，但**列表页路由 `_load_awards_data` 直接使用 `book.title`**，没有兜底
+- 中文模板 `{{ book.title_zh or book.title }}` 在 `title_zh` 为空、`title` 为 ISBN 时直接显示 ISBN
+
+**修复**：
+- `AwardBook` 模型新增 `display_title` 属性：自动避开 ISBN-as-title 脏数据，优先返回非 ISBN 的 `title`、退化到 `title_zh`、最后兜底原 `title`
+- 同模型下加 `_looks_like_isbn` 静态方法（与 `sample_award_books.py` 私有版本等价）
+- 路由 `_load_awards_data` 数据构建改为 `book.display_title`
+
+**harness 教训**：
+- 数据修复（admin 端点）必须配合**路由层防御**，否则任何未触发 admin 端点的环境都会回退到 bug 状态
+- 列表页/详情页的字段渲染要共享同一个"安全字段"方法，不要各自直接读 `book.title`
+
+**验证**：
+- 中文模式：2026 普利策非虚构类 4 本书名从 `9781668017159` 等 ISBN → `血中流淌的花` / `以马内利教堂` / `天使陨落` / `无处安身`
+- 英文模式：同 4 本书名从 ISBN → `A Flower Traveled in My Blood` / `Mother Emanuel` / `Angel Down` / `There Is No Place for Us`
+- 标题超链接、收藏按钮、详情页跳转均不受影响
+
+**改动文件**（3 个）：
+- `app/models/schemas.py`：`AwardBook` 类新增 `_looks_like_isbn` 静态方法 + `display_title` 属性（+24/-0）
+- `app/routes/main.py`：`_load_awards_data` 改用 `book.display_title`（+1/-1）
+- `scripts/fix_award_book_titles.py`（新增）：永久修复脚本，跨 SQLite/PostgreSQL 兼容
+
 ## v0.9.56 - 2026-06-03
 
 ### fix(i18n): translations.min.js 缺失 card_* 翻译键导致首页 key 字符串泄露
