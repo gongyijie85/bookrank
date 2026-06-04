@@ -114,6 +114,32 @@ class TestNewBookI18nKeys:
             f'min.js 与 src.js 同步异常: src-only={sorted(src_keys - min_keys)}, min-only={sorted(min_keys - src_keys)}'
         )
 
+    def test_min_matches_build_output(self):
+        """min.js 必须与 build.py 重新生成的内容字节级一致（v0.9.58 教训）。
+
+        背景：v0.9.58 在 translations.js 改了 applyPageTranslation（加 data-i18n-params-*
+        占位符支持），但 min.js 漏同步。test_min_matches_src 只比对 key 集合过不了，
+        因为 key 集合没变。CI 跑 build.py 时 mtime 检查触发重生成 → 污染 working tree。
+
+        本测试直接调 build.minify_js 处理 src.js 一次，与磁盘上的 min.js 字节级对比：
+        - src 改了但 min 没同步 → 立即 fail
+        - 提示用户跑 `python build.py` 后再 commit
+        """
+        import sys
+
+        sys.path.insert(0, str(ROOT))
+        from build import minify_js  # type: ignore[import-not-found]
+
+        src_content = _read(TR_SRC)
+        expected_min = minify_js(src_content)
+        actual_min = _read(TR_MIN)
+        assert expected_min == actual_min, (
+            'translations.min.js 与 build.py 重新生成内容不一致！\n'
+            '说明：src.js 改了但 min.js 没同步（v0.9.58 漏同步教训）。\n'
+            '执行 `python build.py` 同步 min.js 后再 commit。\n'
+            f'expected len={len(expected_min)}, actual len={len(actual_min)}'
+        )
+
 
 class TestNewBookPoFiles:
     """msgid 完整性。"""

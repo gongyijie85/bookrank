@@ -74,6 +74,24 @@
 - `app/models/new_book.py`：+3 行（publisher_name_en 字段）
 - `tests/test_new_books_i18n.py`：**新增** 200+ 行
 
+## v0.9.60 - 2026-06-04
+
+### 修复
+- **Bug**: `/awards` 页面书名初次显示正常，"过一会儿"自动刷新成 ISBN
+  - **根因**: `/api/translate/book/<isbn>` 端点的 AwardBook fallback 分支使用 `award_book.title`（原始字段）作为翻译源，但 v0.9.57 修复前的脏数据里 `title` 本身就是 ISBN。模型收到 ISBN 字符串后原样返回，前端 `translateSingleBook` 把 `book.title_zh` 写回 `titleEl.textContent`。
+  - **修复**: fallback 改用 `award_book.display_title`（已内置 ISBN 退化逻辑），保证翻译源永远是真实书名
+  - **关联测试**: `tests/test_api_translation.py::TestTranslateAwardBookDisplayTitle`（2 个用例：脏数据场景 + 干净数据兼容场景）
+
+### 工具链
+- **修复 CI**: `ruff format` 应用到 `app/models/new_book.py`（`publisher_name_en` 单行化），恢复 `ruff format --check` 通过
+- **同步 min.js**: v0.9.58 在 `translations.js` 的 `applyPageTranslation` 加了 `data-i18n-params-*` 占位符支持，但 `translations.min.js` 漏同步（v0.9.56 已踩过同类坑）。CI 跑 `build.py` 时 mtime 检查触发重生成 → 污染 working tree。已同步重生成 `translations.min.js`。
+- **防护测试**: `tests/test_new_books_i18n.py::test_min_matches_build_output` — 字节级校验 `min.js == build.minify_js(src.js)`，未来 src.js 改动但 min.js 漏同步时**直接 fail**（比 `test_min_matches_src` 严格，能 catch 键集合不变但函数体变化的漏同步）
+
+### 影响
+- 已部署的生产数据库残留脏 `title_zh` 数据需手动调 `admin` 端点清理（v0.9.44 起支持）
+- 修复上线后，前端不会再次写入 ISBN 到书名元素
+- `translations.min.js` 12,241 字节（含占位符支持），`/new-books` 等页面 i18n 实际生效
+
 ## v0.9.59 - 2026-06-03
 
 ### fix(i18n): 切换语言时获奖页面书名不更新修复

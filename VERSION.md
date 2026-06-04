@@ -1,11 +1,36 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.59
-**发布日期**：2026-06-03
+**当前版本**：v0.9.60
+**发布日期**：2026-06-04
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.60 (2026-06-04) — 翻译 API fallback ISBN 脏数据修复 + CI 修复
+- **Bug 修复**：`/awards` 页面"打开正常 → 过一会儿变 ISBN"（v0.9.57 修复的盲点）
+- **根因链路**：
+  1. `/api/translate/book/<isbn>` 端点的 AwardBook fallback 分支用 `award_book.title`（原始字段）作翻译源
+  2. v0.9.57 修复前存进数据库的脏数据里 `title` 本身就是 ISBN（v0.9.45 修复过 `title_zh`，但生产环境残留可能没覆盖全）
+  3. 翻译模型收到 ISBN 字符串后原样返回（或返回乱码）
+  4. 前端 `translateSingleBook`（`awards.html`）把 `book.title_zh` 写回 `titleEl.textContent` → 标题变成 ISBN
+  5. 触发时机：页面 SSR 渲染后，`BookI18n.getMissingTranslations('zh')` 把所有书判定为"缺中文"，批量触发翻译 API
+- **修复**：`translate_book` 路由 fallback 分支用 `award_book.display_title` 替代 `award_book.title`（`display_title` 已内置 ISBN 退化逻辑，2026-06-03 v0.9.57 引入）
+- **harness 教训**：
+  - 路由层防御（`display_title`）和数据层修复（admin 端点）**必须配套**，单独做任何一项都不够
+  - "过一会儿才出错"的 bug 多半是**异步副作用**（定时器、事件监听、后台 API 调用）掩盖了真凶
+  - 凡是"读数据库原始字段送进外部服务（翻译/AI/三方 API）"的地方都应先过 `display_*` 安全字段
+- **CI 修复**：`ruff format` 应用到 `app/models/new_book.py`（`publisher_name_en` 单行化），恢复 `ruff format --check` 通过
+- **同步 min.js**: v0.9.58 在 `translations.js` 的 `applyPageTranslation` 加了 `data-i18n-params-*` 占位符支持，但 `translations.min.js` 漏同步（v0.9.56 已踩过同类坑）。CI 跑 `build.py` 时 mtime 检查触发重生成 → 污染 working tree。已同步重生成 `translations.min.js`（12,241 字节）
+- **防护测试**: `tests/test_new_books_i18n.py::test_min_matches_build_output` — 字节级校验 `min.js == build.minify_js(src.js)`，未来 src.js 改动但 min.js 漏同步时**直接 fail**（比 `test_min_matches_src` 严格，能 catch 键集合不变但函数体变化的漏同步）
+- **新增测试**：`tests/test_api_translation.py::TestTranslateAwardBookDisplayTitle`（2 个用例：脏数据 ISBN 不应送翻译 + 干净数据行为兼容）
+- **验证**：`ruff check` 0 错误 | `ruff format --check` 0 错误 | `mypy` 0 错误 | `pytest` 2098 passed + 4 xfailed | **覆盖率 82.05%**
+- **改动文件**：4 个（`app/routes/api/translation.py` +6/-1，`app/models/new_book.py` 自动 format，`tests/test_api_translation.py` +98 行）
+- **部署注意**：代码修复后，残留的脏 `title_zh` 数据不会自动修复；需手动调 admin 端点（v0.9.44/v0.9.45 已支持）：
+  ```bash
+  curl -X POST https://bookrank-ckml.onrender.com/api/admin/fix-award-book-titles \
+    -H "X-Admin-Token: $ADMIN_TOKEN"
+  ```
 
 ### v0.9.59 (2026-06-03) — 切换语言时获奖页面书名不更新修复
 - **问题**：用户在 `/awards` 页面切换语言后，书名卡片没有更新到对应语言；部分场景下用户会感知为"切换语言后 ISBN 出现"

@@ -89,11 +89,13 @@ def translate_book(isbn: str):
     book_data = book_service.get_book_by_isbn(isbn) if book_service else None
 
     # Fallback: 查询 AwardBook 表（获奖书单数据不在主 books 缓存中）
+    # 注意：用 display_title 替代原始 title，避免 v0.9.57 修复前的 ISBN 脏数据
+    # 被当作"书名"送进翻译 API，模型返回 ISBN 字面量后被前端写回页面
     award_book_service = AwardBookService()
     award_book = award_book_service.get_award_book_by_isbn(isbn)
     if award_book and not book_data:
         book_data = {
-            'title': award_book.title or '',
+            'title': award_book.display_title or '',
             'description': award_book.description or '',
             'details': award_book.details or '',
             'isbn13': award_book.isbn13 or isbn,
