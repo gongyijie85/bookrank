@@ -1,9 +1,9 @@
 import logging
-import os
 
 from flask import request
 
 from ...services.award_book_service import AwardBookService
+from ...utils.admin_auth import admin_required
 from ...utils.api_helpers import APIResponse, validate_pagination
 from ...utils.error_handler import ErrorCategory, log_error
 from . import api_bp
@@ -135,24 +135,17 @@ def search_award_books():
 
 
 @api_bp.route('/admin/fix-award-book-titles', methods=['POST'])
+@admin_required
 def fix_award_book_titles():
     """修复历史脏数据：把 title 字段为 ISBN 的 AwardBook 记录用种子数据修正
 
     触发方式：POST /api/admin/fix-award-book-titles
-    鉴权：需要请求头 X-Admin-Token 匹配环境变量 ADMIN_TOKEN（无配置时拒绝）
+    鉴权：需要请求头 X-Admin-Secret 匹配 ADMIN_SECRET（由 @admin_required 装饰器统一处理，含失败计数 / IP 封禁 / SystemConfig 持久化）
     """
-
-    admin_token = os.environ.get('ADMIN_TOKEN', '')
-    if not admin_token:
-        return APIResponse.error('ADMIN_TOKEN 未配置', 403)
-
-    provided = request.headers.get('X-Admin-Token', '')
-    if provided != admin_token:
-        return APIResponse.error('鉴权失败', 403)
-
     try:
         from flask import current_app
 
+        # TODO: 清理冗余 app_context（独立 issue）
         with current_app.app_context():
             from ...initialization.sample_award_books import (
                 SAMPLE_AWARD_BOOKS,
@@ -251,20 +244,14 @@ def fix_award_book_titles():
 
 
 @api_bp.route('/admin/fix-award-book-titles-by-ids', methods=['POST'])
+@admin_required
 def fix_award_book_titles_by_ids():
     """按 ID 批量修复 AwardBook.title_zh（处理非种子的脏数据）
 
     触发方式：POST /api/admin/fix-award-book-titles-by-ids
-    鉴权：需要请求头 X-Admin-Token 匹配环境变量 ADMIN_TOKEN
+    鉴权：需要请求头 X-Admin-Secret 匹配 ADMIN_SECRET（由 @admin_required 装饰器统一处理）
     请求体：{"items": [{"id": 1, "title_zh": "詹姆斯"}, ...]}
     """
-
-    admin_token = os.environ.get('ADMIN_TOKEN', '')
-    if not admin_token:
-        return APIResponse.error('ADMIN_TOKEN 未配置', 403)
-    provided = request.headers.get('X-Admin-Token', '')
-    if provided != admin_token:
-        return APIResponse.error('鉴权失败', 403)
 
     if not request.is_json:
         return APIResponse.error('Content-Type must be application/json', 400)
@@ -277,6 +264,7 @@ def fix_award_book_titles_by_ids():
     try:
         from flask import current_app
 
+        # TODO: 清理冗余 app_context（独立 issue）
         with current_app.app_context():
             from ...models.database import db
             from ...models.schemas import AwardBook

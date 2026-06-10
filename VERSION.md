@@ -1,11 +1,39 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.60
-**发布日期**：2026-06-04
+**当前版本**：v0.9.61
+**发布日期**：2026-06-10
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.61 (2026-06-10) — 统一 admin 鉴权协议
+- **背景**：`app/routes/api/awards.py` 2 个管理端点（`fix-award-book-titles`、`fix-award-book-titles-by-ids`）使用 `X-Admin-Token + ADMIN_TOKEN` 协议，与项目其他 27 个 admin 端点的 `X-Admin-Secret + ADMIN_SECRET` 协议分裂
+- **修复**：
+  - 两个端点改用 `@admin_required` 装饰器（统一失败计数 / IP 封禁 / SystemConfig 持久化）
+  - 删除 14 行旧协议手工鉴权代码
+  - 未配置 secret 行为由"403"改为"503"（与 `admin.py` 一致）
+- **迁移指南**（必读）：
+  ```bash
+  # 旧（v0.9.60 及之前，已废弃）
+  curl -X POST https://bookrank-ckml.onrender.com/api/admin/fix-award-book-titles \
+    -H "X-Admin-Token: <your-admin-token>"
+
+  # 新（v0.9.61+，必用）
+  curl -X POST https://bookrank-ckml.onrender.com/api/admin/fix-award-book-titles \
+    -H "X-Admin-Secret: <your-admin-secret>"
+  ```
+- **部署步骤**：
+  1. Render 控制台删除 `ADMIN_TOKEN` 环境变量
+  2. 确认 `ADMIN_SECRET` 已存在（其他 27 个 admin 端点依赖）
+  3. 自动化脚本 / curl 改为 `X-Admin-Secret` 头
+- **新增测试**：`tests/test_api_awards.py::TestAdminAwardFixEndpoints`（6 个用例覆盖 403/400/405/429/200）
+- **改动文件**：
+  - `app/routes/api/awards.py`
+  - `tests/test_api_awards.py`
+  - `tests/conftest.py`
+  - `tests/test_admin_auth.py`
+  - `CHANGELOG.md` / `VERSION.md` / `README.md`
 
 ### v0.9.60 (2026-06-04) — 翻译 API fallback ISBN 脏数据修复 + CI 修复
 - **Bug 修复**：`/awards` 页面"打开正常 → 过一会儿变 ISBN"（v0.9.57 修复的盲点）
@@ -27,9 +55,10 @@
 - **验证**：`ruff check` 0 错误 | `ruff format --check` 0 错误 | `mypy` 0 错误 | `pytest` 2098 passed + 4 xfailed | **覆盖率 82.05%**
 - **改动文件**：4 个（`app/routes/api/translation.py` +6/-1，`app/models/new_book.py` 自动 format，`tests/test_api_translation.py` +98 行）
 - **部署注意**：代码修复后，残留的脏 `title_zh` 数据不会自动修复；需手动调 admin 端点（v0.9.44/v0.9.45 已支持）：
+  > ⚠️ v0.9.60 的部署注意命令基于旧 X-Admin-Token 协议；v0.9.61+ 已废弃，改用 X-Admin-Secret。详见上文 v0.9.61 段。
   ```bash
   curl -X POST https://bookrank-ckml.onrender.com/api/admin/fix-award-book-titles \
-    -H "X-Admin-Token: $ADMIN_TOKEN"
+    -H "X-Admin-Secret: $ADMIN_SECRET"
   ```
 
 ### v0.9.59 (2026-06-03) — 切换语言时获奖页面书名不更新修复

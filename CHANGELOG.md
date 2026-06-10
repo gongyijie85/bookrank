@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.9.61 - 2026-06-10
+
+### refactor(admin): 统一 admin 鉴权协议（破坏性变更）
+
+**问题**：`api/awards.py` 2 个管理端点（`fix-award-book-titles`、`fix-award-book-titles-by-ids`）使用 `X-Admin-Token + ADMIN_TOKEN` 协议，与项目其他 27 个 admin 端点的 `X-Admin-Secret + ADMIN_SECRET` 协议分裂，且旧协议无失败计数 / IP 封禁 / SystemConfig 持久化保护。
+
+**修复**：
+- 两个端点改用 `@admin_required` 装饰器
+- 删除旧协议手工鉴权代码（14 行）
+- 行为变化：未配置 secret 改为返回 503（与 `admin.py` 一致）
+
+**迁移指南**（必须执行）：
+1. Render 控制台删除 `ADMIN_TOKEN` 环境变量
+2. `ADMIN_SECRET` 必须已存在（其他 27 个 admin 端点依赖它）
+3. 自动化脚本 / curl 命令改用 `X-Admin-Secret` 头
+
+**新增测试**：`tests/test_api_awards.py::TestAdminAwardFixEndpoints`（6 个用例）
+
+**改动文件**：
+- `app/routes/api/awards.py`：删 14 行手动鉴权，加 2 行装饰器
+- `tests/test_api_awards.py`：删除 module-scoped fixture 冲突，新增 6 个测试
+- `tests/conftest.py`：共享 `clear_auth_failures` fixture
+- `CHANGELOG.md` / `VERSION.md` / `README.md`：同步协议文档
+
 ## v0.9.58 - 2026-06-03
 
 ### fix(i18n): 新书推介页语言切换后出版社名称 / 过滤项 / 状态文字未刷新
