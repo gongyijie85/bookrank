@@ -509,8 +509,8 @@ def new_book_detail(book_id):
 @main_bp.route('/award-book/<int:book_id>')
 def award_book_detail(book_id):
     """获奖图书详情（通过 Service 层）"""
-    from ..services.award_book_service import AwardBookService
     from ..models.schemas import AwardBook
+    from ..services.award_book_service import AwardBookService
 
     award_service = AwardBookService()
     book = award_service.get_award_book_by_id(book_id)

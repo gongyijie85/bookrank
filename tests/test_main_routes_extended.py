@@ -497,6 +497,9 @@ class TestAwardBookDetail:
     @patch('app.services.award_book_service.AwardBookService')
     def test_award_book_found(self, MockAwardService, client):
         mock_book = MagicMock()
+        mock_book.title = 'Test Book Title'
+        mock_book.title_zh = '测试书名'
+        mock_book.is_displayable = True
         mock_svc = MagicMock()
         mock_svc.get_award_book_by_id.return_value = mock_book
         MockAwardService.return_value = mock_svc
