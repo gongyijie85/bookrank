@@ -8,6 +8,7 @@
 4. translations.js + translations.min.js 都有新书页相关 key
 5. zh.po + en.po 包含新书页相关 msgid
 6. .mo 文件已编译
+7. v0.9.62 详情页 i18n 修复 + 切语言实时刷新修复
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 TPL = ROOT / 'templates' / 'new_books.html'
+DETAIL_TPL = ROOT / 'templates' / 'new_book_detail.html'
 MACROS = ROOT / 'templates' / '_macros.html'
 TR_SRC = ROOT / 'static' / 'js' / 'translations.js'
 TR_MIN = ROOT / 'static' / 'js' / 'translations.min.js'
@@ -294,3 +296,171 @@ class TestNewBookPageClientI18n:
         # 至少一个 sidebar link 包含 data-pub-name-zh 和 data-pub-name-en
         assert 'data-pub-name-zh=' in body
         assert 'data-pub-name-en=' in body
+
+
+# ============================================================
+# v0.9.62 修复回归测试
+# ============================================================
+
+NB_DETAIL_KEYS = [
+    'nb_detail_label_isbn',
+    'nb_detail_description_title',
+    'nb_detail_no_description',
+]
+
+
+class TestNewBookDetailI18n:
+    """v0.9.62 修复：新书详情页 i18n 补全（v0.9.58 漏修的盲点）。"""
+
+    def test_translations_has_detail_keys(self):
+        """translations.js / .min.js 都包含详情页 3 个 i18n 键。"""
+        src = _read(TR_SRC)
+        min_ = _read(TR_MIN)
+        for k in NB_DETAIL_KEYS:
+            assert f"'{k}'" in src, f'translations.js 缺 {k}'
+            assert f"'{k}'" in min_, f'translations.min.js 缺 {k}'
+
+    def test_detail_template_has_i18n_attrs(self):
+        """详情页模板包含所有 i18n 数据属性。"""
+        text = _read(DETAIL_TPL)
+        # 标题/作者 data-en / data-zh
+        assert 'class="detail-title" data-en=' in text, '标题缺 data-en'
+        assert 'data-zh=' in text, '标题缺 data-zh'
+        assert 'class="detail-author" data-en=' in text, '作者缺 data-en'
+        # ISBN 标签 data-i18n
+        assert 'data-i18n="nb_detail_label_isbn"' in text, 'ISBN 标签缺 data-i18n'
+        # 出版社 data-pub-name
+        assert 'data-pub-name-zh=' in text, '出版社缺 data-pub-name-zh'
+        assert 'data-pub-name-en=' in text, '出版社缺 data-pub-name-en'
+        # 简介 data-en / data-zh + no-desc 占位
+        assert 'id="detail-description"' in text, '简介容器 id 缺失'
+        assert 'data-no-desc-zh=' in text, '简介缺 data-no-desc-zh'
+        assert 'data-no-desc-en=' in text, '简介缺 data-no-desc-en'
+        # 简介标题 data-i18n
+        assert 'data-i18n="nb_detail_description_title"' in text, '简介标题缺 data-i18n'
+
+    def test_detail_template_has_apply_function(self):
+        """详情页有 applyNewBookDetailLanguage 函数和 languagechange 监听。"""
+        text = _read(DETAIL_TPL)
+        assert 'function applyNewBookDetailLanguage' in text
+        assert "addEventListener('languagechange'" in text
+        assert 'applyNewBookDetailLanguage(e.detail.language)' in text
+
+    def test_detail_template_uses_translated_fallback(self):
+        """'暂无简介' 占位用 {{ _() }} 翻译（SSR 走 Flask-Babel）。"""
+        text = _read(DETAIL_TPL)
+        # 硬编码的"暂无简介"应该被 _() 包裹
+        assert "or _('暂无简介')" in text or "or {{ _('暂无简介') }}" in text, (
+            "详情页 '暂无简介' 占位未走 Flask-Babel，英文 SSR 模式会显示中文"
+        )
+
+    def test_en_po_has_isbn_translated(self):
+        """v0.9.62 修复：en.po 中 ISBN 翻译不能为空。"""
+        pairs = _po_pairs(_read(EN_PO))
+        v = pairs.get('ISBN', '')
+        assert v and v.strip() == 'ISBN', f'ISBN 在 en.po 翻译为空（实际: {v!r}），会导致英文模式 ISBN 标签空白'
+
+
+class TestApplyNewBooksLanguageNoMoreNoop:
+    """v0.9.62 修复：applyNewBooksLanguage 末尾的 noop 死代码，必须触发实际重渲染。"""
+
+    def test_no_comment_only_ending(self):
+        """applyNewBooksLanguage 末尾不能只有注释（v0.9.58 的 noop 死代码）。"""
+        text = _read(TPL)
+        # 找到 applyNewBooksLanguage 函数体
+        m = re.search(
+            r'function\s+applyNewBooksLanguage\s*\([^)]*\)\s*\{(.+?)\n\}',
+            text,
+            re.DOTALL,
+        )
+        assert m, 'applyNewBooksLanguage 函数未找到'
+        body = m.group(1)
+        # 末尾 200 字符内必须有 BookI18n.applyLanguage 或 registerAll 的真实调用
+        tail = body[-300:]
+        assert 'BookI18n.applyLanguage' in tail, (
+            'applyNewBooksLanguage 末尾仍是 noop 死代码（C2 未修）。'
+            '需要调用 BookI18n.applyLanguage(lang) 让已加载的卡片标题/作者/简介实时切换。'
+        )
+
+    def test_languagechange_handler_has_card_guard(self):
+        """languagechange 监听器应有"已加载卡片"守卫（L4 修复：避免空列表时多余 API 请求）。"""
+        text = _read(TPL)
+        # 找到 languagechange 监听器，允许多层嵌套花括号
+        m = re.search(
+            r"addEventListener\('languagechange',\s*function[\s\S]+?\n\}\);",
+            text,
+        )
+        assert m, 'languagechange 监听器未找到'
+        handler = m.group(0)
+        # 必须有 booksContainer 检查
+        assert 'booksContainer' in handler, (
+            'languagechange 监听器未加 booksContainer 守卫（L4 未修），空列表时仍会触发多余 loadBooks() 请求'
+        )
+
+    def test_render_books_always_apply_language(self):
+        """renderBooks 末尾的 BookI18n.applyLanguage 不应有 'zh' 守卫（L6 修复）。"""
+        text = _read(TPL)
+        # 找 renderBooks 函数最外层花括号配对
+        start = text.find('function renderBooks')
+        assert start != -1, 'renderBooks 函数未找到'
+        depth = 0
+        i = start
+        while i < len(text):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        body = text[start : i + 1]
+        # 不应再有 if (currentLanguage === 'zh') 这种条件
+        assert "if (currentLanguage === 'zh')" not in body, (
+            "renderBooks 末尾仍是 'zh only' 守卫（L6 未修），"
+            '英文模式下不会应用 BookI18n.applyLanguage，导致英文首屏 SSR 后切语言失效'
+        )
+
+
+class TestPublisherFilterFirstOption:
+    """v0.9.62 修复：publisher-filter 第一个 option（'全部出版社'）也必须有 data-pub-name-*。"""
+
+    def test_first_option_has_bilingual_attrs(self):
+        """C4 修复：第一个 option 必须有 data-pub-name-zh / data-pub-name-en。"""
+        text = _read(TPL)
+        # 第一个 option 块（value=""）
+        m = re.search(
+            r'<select\s+id="publisher-filter"[^>]*>.*?<option\s+value=""\s*([^>]*)>(.*?)</option>',
+            text,
+            re.DOTALL,
+        )
+        assert m, 'publisher-filter 第一个 option 未找到'
+        attrs = m.group(1)
+        assert 'data-pub-name-zh=' in attrs, (
+            "C4 未修：'全部出版社' 第一个 option 缺 data-pub-name-zh，"
+            '切换语言后该 option 文本不会刷新（依赖 SSR 翻译，'
+            '但 SSR 是请求时决定的，用户切语言后该值不会变）'
+        )
+        assert 'data-pub-name-en=' in attrs, '第一个 option 缺 data-pub-name-en'
+
+    def test_apply_new_books_language_handles_all_options(self):
+        """v0.9.63: applyNewBooksLanguage 委托给通用化 BookI18n.applyPublisherLanguage。"""
+        text = _read(TPL)
+        start = text.find('function applyNewBooksLanguage')
+        assert start != -1, 'applyNewBooksLanguage 函数未找到'
+        depth = 0
+        i = start
+        while i < len(text):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        body = text[start : i + 1]
+        # v0.9.63: 委托给通用化 BookI18n.applyPublisherLanguage，不再硬编码 publisher-filter
+        assert 'BookI18n.applyPublisherLanguage' in body, (
+            'v0.9.63: applyNewBooksLanguage 没有委托给通用化的 BookI18n.applyPublisherLanguage'
+        )
+        # 兜底：退化实现仍要处理 data-pub-name-zh 元素
+        assert 'data-pub-name-zh' in body, 'applyNewBooksLanguage 没有读取 data-pub-name-zh'

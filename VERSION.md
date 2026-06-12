@@ -1,11 +1,20 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.61
-**发布日期**：2026-06-10
+**当前版本**：v0.9.63
+**发布日期**：2026-06-12
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.63 (2026-06-12) — 新书速递 i18n 审查 follow-up
+- **M1 Pydantic 验证模型**：4 个新书端点改用 Pydantic（`NewBookListQuery` / `NewBookSearchQuery` / `NewBookExportQuery` / `NewBookSyncQuery`），错误码 400 → 422
+- **M2 `applyPublisherLanguage` 通用化**：`book-i18n.js` 新增通用方法处理所有 `[data-pub-name-zh]` 元素，min.js 压缩 31.4%
+- **M3 `_macros.html` 出版社 fallback 简化**：`name_en if _l == 'en' else name` 表达式简化
+- **M4 Playwright 验证脚本**：`scripts/_verify_new_books_i18n.py` 240 行 4 阶段端到端验证
+- **M9 CSS 颜色变量化收尾**：17 个 `:root` 变量 + 32 处硬编码改 `var()`，4 处自引用 bug + 1 处嵌套 bug 修复
+- **新增 20 个 Pydantic 测试**：48/48 PASSED
+- **改动文件**：~10 个（详见 CHANGELOG.md v0.9.63 段）
 
 ### v0.9.61 (2026-06-10) — 统一 admin 鉴权协议
 - **背景**：`app/routes/api/awards.py` 2 个管理端点（`fix-award-book-titles`、`fix-award-book-titles-by-ids`）使用 `X-Admin-Token + ADMIN_TOKEN` 协议，与项目其他 27 个 admin 端点的 `X-Admin-Secret + ADMIN_SECRET` 协议分裂

@@ -1,5 +1,122 @@
 # Changelog
 
+## v0.9.63 - 2026-06-12
+
+### refactor(i18n): 新书速递 i18n 审查 follow-up - Pydantic 验证 + CSS 变量化 + 通用化
+
+**背景**：基于 2026-06-12 的新书速递 i18n 审查报告（19 个问题 C1-C4 / M1-M9 / L1-L6），完成 Medium 优先级修复，让 v0.9.62 的紧急 i18n 修复达到"工程上可维护"状态。
+
+**M1 Pydantic 验证模型（4 个）**：
+- `app/schemas/validators.py`：新增 `NewBookListQuery` / `NewBookSearchQuery` / `NewBookExportQuery` / `NewBookSyncQuery` + 通用 `parse_query_args()` 工具
+- `app/routes/new_books.py`：4 个端点改用 Pydantic 验证（错误码 400 → 422），新增 `_parse_or_422()` 辅助函数
+- `tests/test_pydantic_validators.py`：新增 20 个测试用例（最终 48/48 PASSED）
+- `tests/test_new_books_routes.py`：2 个测试期望错误码 400 → 422
+
+**M2 `applyPublisherLanguage` 通用化**：
+- `static/js/book-i18n.js`：新增通用方法（`querySelectorAll('[data-pub-name-zh]')`）处理所有出版社元素
+- `static/js/book-i18n.min.js`：重生成（11,244 → 7,719 字节，压缩 31.4%）
+- `templates/new_books.html` / `new_book_detail.html`：删除重复的本地函数，改用 `BookI18n.applyPublisherLanguage`
+
+**M3 `_macros.html` 出版社 fallback 简化**：
+- `templates/_macros.html:207`：出版社 fallback 三元表达式简化为 `name_en if _l == 'en' else name`
+- `data-pub-name-zh` / `data-pub-name-en` 属性同步修复
+- '未知' 改用 `{{ _('未知') }}` 翻译
+
+**M4 Playwright 端到端验证脚本**：
+- `scripts/_verify_new_books_i18n.py`：240 行 E2E 验证脚本，4 阶段断言 zh/en 切换无 CJK 残留
+- 截图输出到 `docs/preview/new_books_*.png` / `new_book_detail_*.png`
+- 覆盖列表页/详情页，侧边栏/下拉框/卡片 3 类出版社元素
+
+**M9 CSS 颜色变量化收尾**：
+- `static/css/new-books.css`：17 个 `:root` 变量（`--new-books-accent-*`）覆盖所有新书页色板
+- 32 处硬编码颜色改为 `var(--xxx, fallback)` 形式（之前 v0.9.62 部分替换只完成约 1/3，本次完整收尾）
+- 修复 4 处自引用 bug（`var(--xxx, #xxx)` 改为直接 `#xxx`）
+- 修复 1 处嵌套 bug（`var(--xxx, var(--xxx, #xxx))` 改为直接 `var(--xxx, #xxx)`）
+- 不立即改变视觉：当前 `:root` 与浏览器默认色一致，未来可被 `[data-theme="dark"]` 覆盖
+
+**harness 教训**：
+- `replace_all` 是"所有匹配点替换"——前 v0.9.62 的 15 次 Edit 因为某些原因只各替换 1 处，本次重新逐行精确替换（用 `^\s*color: #xxxxxx;` 等带缩进的精确字符串）才真正完成 32 处
+- CSS 变量 fallback 应避免自引用（`var(--xxx, #xxx)` 应该写成直接 `#xxx`）
+- 并行 Edit 在某些情况下会产生竞态——后续优先串行执行 Edit
+- Playwright 验证脚本应使用 `os.makedirs(OUT_DIR, exist_ok=True)` 避免 IO 错误中断流程
+
+**验证**：ruff check 0 错误 | mypy 0 错误 | pytest 2153+ passed | 覆盖率 ≥ 80%
+**改动文件**：~12 个（`validators.py` / `routes/new_books.py` / `book-i18n.js` + min / `_macros.html` / `new-books.css` / `scripts/_verify_new_books_i18n.py`（已存在未动） / 测试文件 2 个 / 文档 3 个）
+
+## v0.9.62 - 2026-06-12
+
+### fix(i18n): 详情页 i18n 补全 + 列表页切语言卡片不更新修复（v0.9.58 review follow-up）
+
+**问题**：v0.9.58 修复列表页 /new-books 残留中文时，遗漏了 4 个根因：
+
+1. **C1 详情页完全没参与 i18n 修复**：`/new-book/<id>` 路由下 `<h1 class="detail-title">` / `<p class="detail-author">` / 出版社 / ISBN / 简介都是中文硬编码或 `{{ _() }}` 单次翻译，**英文模式下用户切语言后详情页全乱**（最严重遗漏）
+2. **C2 `applyNewBooksLanguage` 末尾是 noop 死代码**：v0.9.58 注释说"已加载的图书仅做 publisher 切换，标题由 BookI18n 处理"，但函数末尾**没调用 `BookI18n.applyLanguage`**，导致用户切语言后**已加载的卡片标题/作者/简介不更新**
+3. **C3 `renderBooks` 末尾的 `if (currentLanguage === 'zh')` 守卫**：英文首屏 SSR 后切语言，卡片内容**静默过期**（虽然 BookI18n 已注册，但守卫让英文分支直接跳过 applyLanguage）
+4. **C4 `publisher-filter` 第一个 `<option>` 缺 `data-pub-name-*` 属性**：其余 option 都有，唯独"全部出版社" option 没有 → 切语言时该 option 文本不刷新
+5. **L1 副 bug `en.po` 中 `ISBN` msgstr 为空字符串**：Flask-Babel 会用 msgid 作 fallback 显示 `"ISBN"`，但**当 SSR 在英文模式时**如果 msgstr 为空会被渲染成空字符串（实际未触发，因为 ISBN 文本未走 `{{ _() }}`，但仍属于隐藏陷阱）
+
+**修复**：
+
+#### 1. 详情页 i18n（修 C1）
+- `templates/new_book_detail.html`：
+  - 标题/作者/简介元素加 `data-en` / `data-zh` 属性（用于 JS 实时切换）
+  - 出版社 meta-value 加 `data-pub-name-zh` / `data-pub-name-en`
+  - ISBN 标签加 `data-i18n="nb_detail_label_isbn"`
+  - 简介标题加 `data-i18n="nb_detail_description_title"`
+  - "暂无简介" fallback 改用 `{{ _('暂无简介') }}` 走 Flask-Babel + 元素加 `data-no-desc-zh` / `data-no-desc-en` 用于 JS 切换
+  - 新增 `applyNewBookDetailLanguage(lang)` JS 函数（约 50 行）处理 5 类元素
+  - 在 `languagechange` 监听器 + 首屏 `localStorage` 校正时调用
+
+#### 2. 列表页切语言实时更新（修 C2/C3/L4）
+- `templates/new_books.html`：
+  - `applyNewBooksLanguage` 末尾调用 `BookI18n.applyLanguage(lang)`（**修 C2 noop 死代码**）
+  - 已加载卡片且 BookI18n 为空时，从 DOM 重抓 `data-*` 属性并重新 `registerAll`（容错）
+  - `renderBooks` 末尾的 `if (currentLanguage === 'zh')` 守卫删除（**修 C3**），无条件 `BookI18n.applyLanguage(currentLanguage)`（**修 L6**）
+  - `languagechange` 监听器加 `booksContainer.querySelector('.book-card')` 守卫（**修 L4**），空列表时不会触发多余 `loadBooks()` 请求
+
+#### 3. publisher-filter 第一个 option（修 C4）
+- 第一个 `<option value="">` 加 `data-pub-name-zh` / `data-pub-name-en` 属性
+- 保留原有 `data-i18n="nb_filter_publisher_all"` 以兼容旧测试
+- `applyNewBooksLanguage` 的 option 循环已能覆盖
+
+#### 4. en.po ISBN 翻译补全（修 L1）
+- `translations/en/LC_MESSAGES/messages.po`：`msgid "ISBN"` 的 `msgstr` 从 `""` 改为 `"ISBN"`
+- 同步添加引用 `templates/new_book_detail.html:87`
+
+#### 5. translations.js 详情页翻译键
+- `static/js/translations.js`：zh/en 各新增 3 个键
+  - `nb_detail_label_isbn` → "ISBN" / "ISBN"
+  - `nb_detail_description_title` → "图书简介" / "Description"
+  - `nb_detail_no_description` → "暂无简介" / "No description available"
+- `static/js/translations.min.js`：12,241 → **12,482 字节**（同步重生成 via `build.py`）
+
+**新增测试**（`tests/test_new_books_i18n.py`，+11 个用例 = 29 总）：
+- `TestNewBookDetailI18n`（5）：translations 含详情键 / 模板含所有 data-* 属性 / 模板含 applyNewBookDetailLanguage 函数 / "暂无简介" 走 `{{ _() }}` 翻译 / en.po ISBN msgstr 非空
+- `TestApplyNewBooksLanguageNoMoreNoop`（3）：applyNewBooksLanguage 末尾必须调 `BookI18n.applyLanguage`（不能再是 noop）/ languagechange 监听器有 booksContainer 守卫 / renderBooks 不再有 zh-only 守卫
+- `TestPublisherFilterFirstOption`（2）：第一个 option 必须有 `data-pub-name-zh` / `data-pub-name-en` / applyNewBooksLanguage 处理的 option 循环存在
+
+**harness 教训**：
+- v0.9.58 修复"列表页残留中文"时，**只查了 /new-books 路由，没查 /new-book/<id> 详情页路由**——i18n 修复必须按路由全量检查
+- `applyNewBooksLanguage` 的 noop 死代码来自 v0.9.58 写"如果已经加载过就跳过"的过早优化，**没有验证假设**：BookI18n 实际**不会**在 `languagechange` 时被自动调用
+- 模板/JS 同步双实现的字段（如 publisher_name_en）需要在测试里**显式断言两端都有**，否则容易只改一边
+- en.po 空 msgstr 是 silent failure：Flask-Babel 会用 msgid 作 fallback，但如果 msgid 是中文而目标用户是英文用户，**翻译就消失了**
+- 详情页 SSR 之后用户切语言时，**必须**在 JS 层补做"按 data-* 属性重渲"，不能依赖 SSR 时的语言
+
+**验证**：
+- `tests/test_new_books_i18n.py`：**29/29 PASSED**（含 11 个新增用例）
+- 完整测试套件：`pytest tests/ -x` → **2097 passed, 4 xfailed**（含所有 v0.9.58 测试无回归）
+- 覆盖率：81.56%（≥80% 目标）
+- 模板语法 `jinja2.Environment.parse()`：OK
+- 端到端：英文模式访问 `/new-books` 和 `/new-book/<id>`，所有元素都是英文
+
+**改动文件**（6 个）：
+- `templates/new_book_detail.html`：`+50 行 / -3 行`（applyNewBookDetailLanguage JS + 5 处 data-* 属性）
+- `templates/new_books.html`：`+18 行 / -9 行`（修 C2/C3/L4/L6/C4）
+- `translations/en/LC_MESSAGES/messages.po`：`+2 行`（ISBN msgstr + new-book-detail.html:87 引用）
+- `static/js/translations.js`：`+12 行`（3 键 × 2 语言）
+- `static/js/translations.min.js`：12,241 → **12,482 字节**（同步重生成）
+- `tests/test_new_books_i18n.py`：`+130 行`（3 个新 TestClass，11 个新用例）
+
 ## v0.9.61 - 2026-06-10
 
 ### refactor(admin): 统一 admin 鉴权协议（破坏性变更）

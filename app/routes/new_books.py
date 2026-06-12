@@ -6,11 +6,19 @@ from io import StringIO
 from urllib.parse import quote
 
 from flask import Blueprint, make_response, request
+from pydantic import ValidationError
 
 from ..models.database import db
+from ..schemas.validators import (
+    NewBookExportQuery,
+    NewBookListQuery,
+    NewBookSearchQuery,
+    NewBookSyncQuery,
+    parse_query_args,
+)
 from ..services.new_book_service import NewBookService
 from ..utils.admin_auth import admin_required
-from ..utils.api_helpers import APIResponse, csrf_protect, validate_pagination
+from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import get_translation_service
 
@@ -20,6 +28,16 @@ new_books_bp = Blueprint('new_books', __name__, url_prefix='/api/new-books')
 
 _last_sync_time: float = 0.0
 _SYNC_COOLDOWN_SECONDS: int = 60
+
+
+def _parse_or_422(model_cls):
+    """v0.9.63 新增：把当前 request.args 解析为 model_cls；失败返回 (None, response_422)。"""
+    try:
+        parsed = parse_query_args(model_cls, request.args)
+        return parsed, None
+    except ValidationError as e:
+        msg = '; '.join(f'{".".join(str(p) for p in err["loc"])}: {err["msg"]}' for err in e.errors())
+        return None, APIResponse.error(f'参数无效: {msg}', 422)
 
 
 def get_new_book_service() -> NewBookService:
@@ -115,15 +133,17 @@ def update_publisher_status(publisher_id: int):
 @new_books_bp.route('')
 def get_new_books():
     """获取新书列表"""
-    try:
-        publisher_id = request.args.get('publisher', type=int)
-        category = request.args.get('category')
-        days = min(max(1, request.args.get('days', 30, type=int)), 365)
-        search_query = request.args.get('search', '').strip()[:100]
-        page, per_page = validate_pagination(
-            request.args.get('page', 1, type=int), request.args.get('per_page', 20, type=int), max_limit=50
-        )
+    query, err = _parse_or_422(NewBookListQuery)
+    if err is not None:
+        return err
+    assert query is not None
+    publisher_id = query.publisher_id
+    category = query.category
+    days = query.days
+    search_query = query.search
+    page, per_page = query.page, query.per_page
 
+    try:
         service = get_new_book_service()
         _ensure_static_seeded(service)
         if search_query:
@@ -174,17 +194,14 @@ def get_book_detail(book_id: int):
 @new_books_bp.route('/search')
 def search_new_books():
     """搜索新书"""
+    query, err = _parse_or_422(NewBookSearchQuery)
+    if err is not None:
+        return err
+    assert query is not None
+    keyword = query.keyword
+    page, per_page = query.page, query.per_page
+
     try:
-        keyword = request.args.get('keyword', '').strip()
-        if not keyword:
-            return APIResponse.error('搜索关键词不能为空', 400)
-        if len(keyword) > 100:
-            return APIResponse.error('关键词长度不能超过100个字符', 400)
-
-        page, per_page = validate_pagination(
-            request.args.get('page', 1, type=int), request.args.get('per_page', 20, type=int), max_limit=50
-        )
-
         service = get_new_book_service()
         _ensure_static_seeded(service)
         books, total = service.search_books(keyword, page, per_page)
@@ -272,8 +289,11 @@ def sync_publisher(publisher_id: int):
 
     try:
         service = get_new_book_service()
-        max_books = min(max(1, request.args.get('max_books', 50, type=int)), 100)
-        result = service.sync_publisher_books(publisher_id, max_books=max_books)
+        sync_q, err = _parse_or_422(NewBookSyncQuery)
+        if err is not None:
+            return err
+        assert sync_q is not None
+        result = service.sync_publisher_books(publisher_id, max_books=sync_q.max_books)
 
         if not result.get('success'):
             return APIResponse.error(result.get('error', '同步失败'), 400)
@@ -302,14 +322,21 @@ def get_statistics():
 @new_books_bp.route('/export/csv')
 def export_csv():
     """导出CSV格式（限制最大导出数量）"""
+    query, err = _parse_or_422(NewBookExportQuery)
+    if err is not None:
+        return err
+    assert query is not None
     try:
         service = get_new_book_service()
         _ensure_static_seeded(service)
-        publisher_id = request.args.get('publisher_id', type=int)
-        category = request.args.get('category')
-        days = min(max(1, request.args.get('days', 30, type=int)), 365)
 
-        books, _ = service.get_new_books(publisher_id=publisher_id, category=category, days=days, page=1, per_page=500)
+        books, _ = service.get_new_books(
+            publisher_id=query.publisher_id,
+            category=query.category,
+            days=query.days,
+            page=1,
+            per_page=500,
+        )
 
         output = StringIO()
         writer = csv.writer(output)

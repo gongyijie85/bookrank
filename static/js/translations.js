@@ -174,6 +174,9 @@ const TRANSLATIONS = {
         'nb_sync_failed': '同步失败',
         'nb_translate_failed': '翻译失败',
         'nb_pub_date': '出版日期',
+        'nb_detail_label_isbn': 'ISBN',
+        'nb_detail_description_title': '图书简介',
+        'nb_detail_no_description': '暂无简介',
     },
     en: {
         // Navigation
@@ -342,6 +345,9 @@ const TRANSLATIONS = {
         'nb_sync_failed': 'Sync failed',
         'nb_translate_failed': 'Translation failed',
         'nb_pub_date': 'Published',
+        'nb_detail_label_isbn': 'ISBN',
+        'nb_detail_description_title': 'Description',
+        'nb_detail_no_description': 'No description available',
     }
 };
 

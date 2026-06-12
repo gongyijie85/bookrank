@@ -274,6 +274,28 @@ var BookI18n = (function() {
         return _store.size;
     }
 
+    /**
+     * v0.9.63 新增：通用化"出版社名称"语言切换。
+     *
+     * 处理任意带 `data-pub-name-zh` / `data-pub-name-en` 属性的元素：
+     * - 侧边栏链接（`.sidebar-link` / `.publisher-link`）
+     * - 筛选下拉框 option（`<option>`）
+     * - 图书卡片出版社（`.book-publisher` / `.meta-value`）
+     * - 详情页 meta-value 出版社
+     *
+     * 调用方不需关心是哪种元素，零依赖 HTML 结构。
+     */
+    function applyPublisherLanguage(lang) {
+        if (lang !== 'zh' && lang !== 'en') return;
+        var els = document.querySelectorAll('[data-pub-name-zh]');
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            var nameZh = el.getAttribute('data-pub-name-zh') || '';
+            var nameEn = el.getAttribute('data-pub-name-en') || nameZh;
+            el.textContent = (lang === 'en') ? nameEn : nameZh;
+        }
+    }
+
     return {
         register: register,
         registerAll: registerAll,
@@ -284,6 +306,7 @@ var BookI18n = (function() {
         hasTranslation: hasTranslation,
         getMissingTranslations: getMissingTranslations,
         applyLanguage: applyLanguage,
+        applyPublisherLanguage: applyPublisherLanguage,
         clear: clear,
         size: size
     };

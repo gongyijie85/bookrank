@@ -547,9 +547,9 @@ msgstr ""
 msgid "页"
 msgstr "pgs"
 
-#: templates/book_detail.html:92
+#: templates/book_detail.html:92 templates/new_book_detail.html:87
 msgid "ISBN"
-msgstr ""
+msgstr "ISBN"
 
 #: templates/book_detail.html:102 templates/new_book_detail.html:96
 #: templates/new_books.html:101

@@ -52,12 +52,14 @@ class TestNewBooksAPIRoutes:
         assert response.status_code in (200, 404, 500)
 
     def test_search_new_books_no_keyword(self, client):
+        # v0.9.63: Pydantic 验证返回 422 而不是 400
         response = client.get('/api/new-books/search')
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_search_new_books_long_keyword(self, client):
+        # v0.9.63: Pydantic 验证返回 422 而不是 400
         response = client.get('/api/new-books/search?keyword=' + 'a' * 101)
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_search_new_books_valid(self, client):
         response = client.get('/api/new-books/search?keyword=python')

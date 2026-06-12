@@ -58,7 +58,7 @@
                 <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
                 <div>
                     <div class="meta-label">{{ _('出版社') }}</div>
-                    <div class="meta-value">{{ book.publisher.name if book.publisher else '未知' }}</div>
+                    <div class="meta-value" data-pub-name-zh="{{ book.publisher.name }}" data-pub-name-en="{{ book.publisher.name_en or book.publisher.name }}">{{ book.publisher.name }}</div>
                 </div>
             </div>
             {% endif %}
@@ -84,7 +84,7 @@
             <div class="meta-card">
                 <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
                 <div>
-                    <div class="meta-label">ISBN</div>
+                    <div class="meta-label" data-i18n="nb_detail_label_isbn">ISBN</div>
                     <div class="meta-value">{{ book.isbn13 or book.isbn10 }}</div>
                 </div>
             </div>
@@ -111,13 +111,95 @@
 
         <!-- 简介 -->
         <div class="detail-description">
-            <h3 class="desc-title">{{ _('图书简介') }}</h3>
+            <h3 class="desc-title" data-i18n="nb_detail_description_title">{{ _('图书简介') }}</h3>
             <div class="desc-content">
-                <p>{{ book.description_zh or book.description or '暂无简介' }}</p>
+                <p id="detail-description"
+                   data-en="{{ book.description or '' }}"
+                   data-zh="{{ book.description_zh or book.description or '' }}"
+                   data-no-desc-zh="{{ _('暂无简介') }}"
+                   data-no-desc-en="{{ _('No description available') }}">{{ book.description_zh or book.description or _('暂无简介') }}</p>
             </div>
         </div>
     </div>
 </div>
+
+<script nonce="{{ csp_nonce() }}">
+'use strict';
+(function() {
+    /**
+     * 新书详情页 i18n 切换（v0.9.62 修复）：
+     * 修复 v0.9.58 列表页修复时遗漏的详情页 i18n
+     * - 标题/作者/简介：根据 data-en/data-zh 切换
+     * - 出版社：根据 data-pub-name-zh/-en 切换
+     * - "暂无简介" 占位文案：根据 data-no-desc-zh/-en 切换
+     */
+    function applyNewBookDetailLanguage(lang) {
+        // 1. 标题
+        const titleEl = document.querySelector('.detail-title');
+        if (titleEl) {
+            const en = titleEl.getAttribute('data-en') || '';
+            const zh = titleEl.getAttribute('data-zh') || en;
+            titleEl.textContent = (lang === 'en' && en) ? en : zh;
+        }
+
+        // 2. 标题英文副标题（如果存在）
+        const titleEnEl = document.querySelector('.detail-title-en');
+        if (titleEnEl) {
+            // 中文模式下显示英文副标题（双语呈现）；英文模式下隐藏
+            titleEnEl.style.display = (lang === 'en') ? 'none' : '';
+        }
+
+        // 3. 作者
+        const authorEl = document.querySelector('.detail-author');
+        if (authorEl) {
+            // 当前后端只存单一作者字段，data-en/data-zh 同值；保留结构便于将来扩展
+            const en = authorEl.getAttribute('data-en') || '';
+            const zh = authorEl.getAttribute('data-zh') || en;
+            authorEl.textContent = (lang === 'en' && en) ? en : zh;
+        }
+
+        // 4. 出版社（v0.9.63 使用通用化 BookI18n.applyPublisherLanguage）
+        if (typeof BookI18n !== 'undefined' && BookI18n.applyPublisherLanguage) {
+            BookI18n.applyPublisherLanguage(lang);
+        } else {
+            // 退化：本地实现
+            const pubEl = document.querySelector('.meta-value[data-pub-name-zh]');
+            if (pubEl) {
+                const nameZh = pubEl.getAttribute('data-pub-name-zh') || '';
+                const nameEn = pubEl.getAttribute('data-pub-name-en') || nameZh;
+                pubEl.textContent = (lang === 'en') ? nameEn : nameZh;
+            }
+        }
+
+        // 5. 简介：优先用 data-en / data-zh，若均为空则显示"暂无简介"占位
+        const descEl = document.getElementById('detail-description');
+        if (descEl) {
+            const en = descEl.getAttribute('data-en') || '';
+            const zh = descEl.getAttribute('data-zh') || '';
+            const noDescZh = descEl.getAttribute('data-no-desc-zh') || '暂无简介';
+            const noDescEn = descEl.getAttribute('data-no-desc-en') || 'No description available';
+            let text;
+            if (lang === 'en') {
+                text = en || noDescEn;
+            } else {
+                text = zh || en || noDescZh;
+            }
+            descEl.textContent = text;
+        }
+    }
+
+    // 首屏校正：基于 localStorage 中的语言偏好
+    const storedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'zh';
+    if (storedLang !== 'zh') {
+        applyNewBookDetailLanguage(storedLang);
+    }
+
+    // 切换语言时刷新
+    window.addEventListener('languagechange', function(e) {
+        applyNewBookDetailLanguage(e.detail.language);
+    });
+})();
+</script>
 {% endblock %}
 
 {% block extra_css %}

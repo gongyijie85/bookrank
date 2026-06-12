@@ -92,7 +92,7 @@
     <div class="filter-group">
         <label for="publisher-filter"><span data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</span>：</label>
         <select id="publisher-filter" aria-label="{{ _('选择出版社') }}">
-            <option value="" data-i18n="nb_filter_publisher_all">{{ _('全部出版社') }}</option>
+            <option value="" data-i18n="nb_filter_publisher_all" data-pub-name-zh="{{ _('全部出版社') }}" data-pub-name-en="All publishers">{{ _('全部出版社') }}</option>
             {% for pub in publishers %}
             <option value="{{ pub.id }}"
                     {% if selected_publisher == pub.id %}selected{% endif %}
@@ -238,9 +238,15 @@ window.addEventListener('languagechange', function(e) {
         applyPageTranslation(currentLanguage);
     }
     applyNewBooksLanguage(currentLanguage);
-    if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
-        BookI18n.applyLanguage(currentLanguage);
-    } else {
+    // 已加载过的卡片直接重渲；否则拉取首批（避免多余 API 请求）
+    const booksContainer = document.getElementById('books-container');
+    if (booksContainer && booksContainer.querySelector('.book-card')) {
+        if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+            BookI18n.applyLanguage(currentLanguage);
+        } else {
+            loadBooks();
+        }
+    } else if (typeof loadBooks === 'function') {
         loadBooks();
     }
 });
@@ -251,28 +257,25 @@ window.addEventListener('languagechange', function(e) {
  * 这里主要处理自定义的 data-pub-name-* 属性。
  */
 function applyNewBooksLanguage(lang) {
-    // 1. 侧边栏 publisher 链接
-    document.querySelectorAll('.sidebar-link[data-pub-name-zh]').forEach(function(el) {
-        const nameZh = el.getAttribute('data-pub-name-zh') || '';
-        const nameEn = el.getAttribute('data-pub-name-en') || nameZh;
-        const nameEl = el.querySelector('.pub-name');
-        if (nameEl) {
-            nameEl.textContent = lang === 'en' ? nameEn : nameZh;
-        }
-    });
-
-    // 2. 筛选下拉框 publisher-filter 中的 option
-    const pubFilter = document.getElementById('publisher-filter');
-    if (pubFilter) {
-        Array.from(pubFilter.options).forEach(function(opt) {
-            if (!opt.hasAttribute('data-pub-name-zh')) return;
-            const nameZh = opt.getAttribute('data-pub-name-zh') || '';
-            const nameEn = opt.getAttribute('data-pub-name-en') || nameZh;
-            opt.textContent = lang === 'en' ? nameEn : nameZh;
+    // 1. 通用化处理：所有 [data-pub-name-zh] 元素（侧边栏链接 / 详情页 meta-value）
+    if (typeof BookI18n !== 'undefined' && BookI18n.applyPublisherLanguage) {
+        BookI18n.applyPublisherLanguage(lang);
+    } else {
+        // 退化：本地实现
+        document.querySelectorAll('[data-pub-name-zh]').forEach(function(el) {
+            const nameZh = el.getAttribute('data-pub-name-zh') || '';
+            const nameEn = el.getAttribute('data-pub-name-en') || nameZh;
+            // 侧边栏链接有 .pub-name 子元素时优先用子元素
+            const nameEl = el.querySelector('.pub-name');
+            if (nameEl) {
+                nameEl.textContent = lang === 'en' ? nameEn : nameZh;
+            } else {
+                el.textContent = lang === 'en' ? nameEn : nameZh;
+            }
         });
     }
 
-    // 3. 书籍卡片内的 publisher 名称
+    // 2. 书籍卡片内的 publisher 名称（保留 SVG 图标）
     document.querySelectorAll('.book-publisher[data-pub-name-zh]').forEach(function(el) {
         const nameZh = el.getAttribute('data-pub-name-zh') || '';
         const nameEn = el.getAttribute('data-pub-name-en') || nameZh;
@@ -286,10 +289,31 @@ function applyNewBooksLanguage(lang) {
         }
     });
 
-    // 4. 重新加载图书（如果已经加载过）以应用新语言到 book-publisher 和 book-title
+    // 3. 重新加载已渲染的卡片标题/作者/简介（BookI18n 未持有卡片时回退重渲）
     const booksContainer = document.getElementById('books-container');
     if (booksContainer && booksContainer.querySelector('.book-card')) {
-        // 已加载的图书仅做 publisher 切换，标题由 BookI18n 处理
+        if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+            // 触发 BookI18n 遍历所有 .book-card，更新 .book-title / .book-author / .book-description
+            BookI18n.applyLanguage(lang);
+        } else {
+            // 退化：清空 BookI18n 后从容器内重抓数据再注册
+            const cards = booksContainer.querySelectorAll('.book-card');
+            const books = [];
+            cards.forEach(function(card) {
+                const titleEl = card.querySelector('.book-title');
+                const isbn = card.getAttribute('data-isbn') || (titleEl && titleEl.getAttribute('data-isbn')) || '';
+                const en = titleEl ? titleEl.getAttribute('data-en') : '';
+                const zh = titleEl ? titleEl.getAttribute('data-zh') : '';
+                const authorEl = card.querySelector('.book-author');
+                const author = authorEl ? authorEl.getAttribute('data-en') || authorEl.textContent : '';
+                books.push({
+                    isbn13: isbn, title: en, title_zh: zh, author: author
+                });
+            });
+            BookI18n.clear();
+            BookI18n.registerAll(books);
+            BookI18n.applyLanguage(lang);
+        }
     }
 }
 
@@ -409,9 +433,8 @@ function renderBooks(data) {
     if (typeof BookI18n !== 'undefined') {
         BookI18n.clear();
         BookI18n.registerAll(books);
-        if (currentLanguage === 'zh') {
-            BookI18n.applyLanguage('zh');
-        }
+        // 无条件按当前语言 apply（不再依赖 SSR 已渲染的英文）
+        BookI18n.applyLanguage(currentLanguage);
     } else {
         if (typeof applyPageTranslation === 'function') {
             applyPageTranslation(currentLanguage);

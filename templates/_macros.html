@@ -201,10 +201,10 @@
         <div class="book-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</div>
         <div class="book-meta">
             <span class="book-publisher"
-                  data-pub-name-zh="{{ book.publisher.name if book.publisher else '未知' }}"
-                  data-pub-name-en="{{ book.publisher.name_en if book.publisher and book.publisher.name_en else (book.publisher.name if book.publisher else '未知') }}">
+                  data-pub-name-zh="{{ book.publisher.name if book.publisher else _('未知') }}"
+                  data-pub-name-en="{{ (book.publisher.name_en or book.publisher.name) if book.publisher else _('未知') }}">
                 <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg>
-                {{ book.publisher.name_en if _l != 'zh' and book.publisher and book.publisher.name_en else (book.publisher.name if book.publisher else '未知') }}
+                {{ (book.publisher.name_en if _l == 'en' else book.publisher.name) if book.publisher else _('未知') }}
             </span>
             {% if book.price %}
             <span class="book-price">{{ book.price }}</span>
