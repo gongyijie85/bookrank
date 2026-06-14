@@ -107,7 +107,7 @@ class ImageCacheService:
             else:
                 del self._memory_cache[original_url]
 
-        filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'
+        filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'  # type: ignore[arg-type]
         cache_path = self._cache_dir / filename
         relative_path = f'/cache/images/{filename}'
 
