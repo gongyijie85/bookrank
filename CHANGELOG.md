@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.9.64 - 2026-06-14
+
+### refactor(i18n): 多 worker 安全锁 + CSV 文件名国际化 + var→const/let
+
+**背景**：基于 2026-06-12 路线图收尾，完成新书速递模块的多 worker 安全锁、CSV 文件名国际化、ES6 变量规范统一。
+
+**L1 多 worker 安全锁**：
+- `app/routes/new_books.py`：使用 `current_app.extensions` 存储同步锁和时间戳，替代全局变量
+- 新增 `_get_sync_lock()` / `_get_last_sync_time()` / `_set_last_sync_time()` 函数
+- 确保跨 worker 同步操作安全，避免并发冲突
+
+**L2 CSV 文件名 RFC 5987 国际化**：
+- `app/routes/new_books.py`：CSV 导出使用 `filename*=UTF-8''` 格式
+- 同时提供 ASCII 备用名兼容旧浏览器
+- 修复中文文件名乱码问题
+
+**L3 var → const/let 统一**：
+- `templates/new_books.html`：将 `var card` / `var bookCard` 替换为 `const`
+- 符合 ES6 规范，提升代码质量
+
+**L5 全局图片错误处理验证**：
+- `static/js/base.js`：确认 `initImageErrorHandler` 已实现基于 `data-fallback` 属性的统一监听
+- 无需额外修改，机制已就绪
+
+**M7/M8 详情页 i18n 通用化（已在 v0.9.62 完成）**：
+- `templates/new_book_detail.html`：所有文本使用 `{{ _() }}` 翻译
+- `applyNewBookDetailLanguage` 函数统一处理语言切换
+- 确认无需改动，验证通过
+
+**测试修复**：
+- `tests/test_new_books_routes.py`：适配多 worker 安全锁，使用 `app.app_context()` 和 `_set_last_sync_time()`
+- 移除未使用的导入，修复 Ruff F401 警告
+- 18/18 测试通过
+
 ## v0.9.63 - 2026-06-12
 
 ### refactor(i18n): 新书速递 i18n 审查 follow-up - Pydantic 验证 + CSS 变量化 + 通用化

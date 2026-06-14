@@ -1,11 +1,12 @@
 import csv
 import logging
+import threading
 import time
 from datetime import UTC, datetime
 from io import StringIO
 from urllib.parse import quote
 
-from flask import Blueprint, make_response, request
+from flask import Blueprint, current_app, make_response, request
 from pydantic import ValidationError
 
 from ..models.database import db
@@ -26,8 +27,24 @@ logger = logging.getLogger(__name__)
 
 new_books_bp = Blueprint('new_books', __name__, url_prefix='/api/new-books')
 
-_last_sync_time: float = 0.0
 _SYNC_COOLDOWN_SECONDS: int = 60
+
+
+def _get_sync_lock() -> threading.Lock:
+    """获取应用级同步锁（多 worker 安全）"""
+    if 'sync_lock' not in current_app.extensions:
+        current_app.extensions['sync_lock'] = threading.Lock()
+    return current_app.extensions['sync_lock']
+
+
+def _get_last_sync_time() -> float:
+    """获取上次同步时间（存储在 app.extensions）"""
+    return current_app.extensions.get('last_sync_time', 0.0)
+
+
+def _set_last_sync_time(timestamp: float) -> None:
+    """设置上次同步时间（存储在 app.extensions）"""
+    current_app.extensions['last_sync_time'] = timestamp
 
 
 def _parse_or_422(model_cls):
@@ -53,12 +70,14 @@ def _ensure_static_seeded(service: NewBookService) -> None:
 
 
 def _check_sync_cooldown() -> str | None:
-    """检查同步冷却时间，返回错误消息或None"""
-    global _last_sync_time
-    elapsed = time.time() - _last_sync_time
-    if elapsed < _SYNC_COOLDOWN_SECONDS:
-        remaining = int(_SYNC_COOLDOWN_SECONDS - elapsed)
-        return f'同步操作过于频繁，请 {remaining} 秒后再试'
+    """检查同步冷却时间，返回错误消息或None（多 worker 安全）"""
+    lock = _get_sync_lock()
+    with lock:
+        last_time = _get_last_sync_time()
+        elapsed = time.time() - last_time
+        if elapsed < _SYNC_COOLDOWN_SECONDS:
+            remaining = int(_SYNC_COOLDOWN_SECONDS - elapsed)
+            return f'同步操作过于频繁，请 {remaining} 秒后再试'
     return None
 
 
@@ -241,8 +260,6 @@ def get_categories():
 @admin_required
 def sync_all_publishers():
     """同步所有出版社新书（含冷却时间限制）"""
-    global _last_sync_time
-
     cooldown_error = _check_sync_cooldown()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
@@ -254,7 +271,10 @@ def sync_all_publishers():
         max_books = min(max(1, request.args.get('max_books', 30, type=int)), 100)
         results = service.sync_all_publishers(max_books_per_publisher=max_books)
 
-        _last_sync_time = time.time()
+        # 更新同步时间（多 worker 安全）
+        lock = _get_sync_lock()
+        with lock:
+            _set_last_sync_time(time.time())
 
         total_added = sum(r.get('added', 0) for r in results)
         total_updated = sum(r.get('updated', 0) for r in results)
@@ -281,8 +301,6 @@ def sync_all_publishers():
 @admin_required
 def sync_publisher(publisher_id: int):
     """同步指定出版社新书（含冷却时间限制）"""
-    global _last_sync_time
-
     cooldown_error = _check_sync_cooldown()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
@@ -298,7 +316,10 @@ def sync_publisher(publisher_id: int):
         if not result.get('success'):
             return APIResponse.error(result.get('error', '同步失败'), 400)
 
-        _last_sync_time = time.time()
+        # 更新同步时间（多 worker 安全）
+        lock = _get_sync_lock()
+        with lock:
+            _set_last_sync_time(time.time())
 
         return APIResponse.success(data=result)
     except Exception as e:
@@ -384,8 +405,13 @@ def export_csv():
         response_data = '\ufeff'.encode('utf-8') + csv_content.encode('utf-8')
 
         response = make_response(response_data)
-        filename = f'新书速递_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-        response.headers['Content-Disposition'] = f'attachment; filename={quote(filename)}'
+        # v0.9.64 L2: RFC 5987 国际化文件名（支持 UTF-8 编码）
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename_ascii = f'NewBooks_{timestamp}.csv'  # ASCII 备用名（旧浏览器）
+        filename_utf8 = f'新书速递_{timestamp}.csv'  # UTF-8 编码（现代浏览器）
+        response.headers['Content-Disposition'] = (
+            f'attachment; filename="{filename_ascii}"; filename*=UTF-8\'\'{quote(filename_utf8)}'
+        )
         response.headers['Content-type'] = 'text/csv; charset=utf-8'
         return response
     except Exception as e:

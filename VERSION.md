@@ -1,11 +1,20 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.63
-**发布日期**：2026-06-12
+**当前版本**：v0.9.64
+**发布日期**：2026-06-14
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.64 (2026-06-14) — 多 worker 安全锁 + CSV 文件名国际化
+- **L1 多 worker 安全锁**：`app/routes/new_books.py` 使用 `current_app.extensions` 存储同步锁和时间戳，替代全局变量，确保跨 worker 同步操作安全
+- **L2 CSV 文件名 RFC 5987 国际化**：CSV 导出使用 `filename*=UTF-8''` 格式，同时提供 ASCII 备用名，修复中文文件名乱码问题
+- **L3 var → const/let 统一**：`templates/new_books.html` 将 `var card` / `var bookCard` 替换为 `const`，符合 ES6 规范
+- **L5 全局图片错误处理验证**：`static/js/base.js` 的 `initImageErrorHandler` 已实现基于 `data-fallback` 属性的统一监听
+- **M7/M8 详情页 i18n 通用化**：确认 v0.9.62 已完成，无需改动
+- **测试修复**：`tests/test_new_books_routes.py` 适配多 worker 安全锁，18/18 测试通过
+- **改动文件**：3 个（`app/routes/new_books.py`、`templates/new_books.html`、`tests/test_new_books_routes.py`）
 
 ### v0.9.63 (2026-06-12) — 新书速递 i18n 审查 follow-up
 - **M1 Pydantic 验证模型**：4 个新书端点改用 Pydantic（`NewBookListQuery` / `NewBookSearchQuery` / `NewBookExportQuery` / `NewBookSyncQuery`），错误码 400 → 422

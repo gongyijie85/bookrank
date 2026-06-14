@@ -607,9 +607,9 @@ async function translateSingleBook(card, isbn) {
 
 async function translateSingleBookByIsbn(isbn) {
     if (!isbn) return;
-    var card = document.querySelector('.book-card .book-title[data-isbn="' + isbn + '"]');
+    const card = document.querySelector('.book-card .book-title[data-isbn="' + isbn + '"]');
     if (!card) return;
-    var bookCard = card.closest('.book-card');
+    const bookCard = card.closest('.book-card');
     if (!bookCard) return;
     await translateSingleBook(bookCard, isbn);
 }

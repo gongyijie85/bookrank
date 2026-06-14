@@ -1,27 +1,31 @@
 """新书路由测试"""
 
-from app.routes.new_books import _check_sync_cooldown
-
 
 class TestCheckSyncCooldown:
-    """测试 _check_sync_cooldown"""
+    """测试 _check_sync_cooldown（v0.9.64: 适配多 worker 安全锁）"""
 
-    def test_no_cooldown(self):
+    def test_no_cooldown(self, app):
+        """测试无冷却时返回 None"""
         import app.routes.new_books as mod
 
-        mod._last_sync_time = 0.0
-        result = _check_sync_cooldown()
-        assert result is None
+        # 设置同步时间为 0（很久之前）
+        with app.app_context():
+            mod._set_last_sync_time(0.0)
+            result = mod._check_sync_cooldown()
+            assert result is None
 
-    def test_in_cooldown(self):
+    def test_in_cooldown(self, app):
+        """测试冷却中返回剩余秒数"""
         import time
 
         import app.routes.new_books as mod
 
-        mod._last_sync_time = time.time()
-        result = _check_sync_cooldown()
-        assert result is not None
-        assert '秒' in result
+        # 设置同步时间为当前
+        with app.app_context():
+            mod._set_last_sync_time(time.time())
+            result = mod._check_sync_cooldown()
+            assert result is not None
+            assert '秒' in result
 
 
 class TestNewBooksAPIRoutes:
