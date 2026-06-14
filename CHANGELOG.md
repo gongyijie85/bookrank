@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.9.68 - 2026-06-14
+
+### fix(deps): 移除未使用的 PyJWT 解决与 zhipuai 的版本冲突
+
+**背景**：v0.9.67 安全加固时为消除 pip-audit 告警添加了 `PyJWT>=2.13.0`，但 `zhipuai==2.1.5.20250825` 约束 `pyjwt<2.9.0,>=2.8.0`，CI 在 `pip install -r requirements.txt` 阶段触发 `ResolutionImpossible`，导致 Type Check / Unit Tests / Root-level tests 三个 Job 全部失败。
+
+**根因**：
+- PyJWT 在 `app/`、`tests/` 全部 Python 代码中**零引用**，是被引入但未使用的"幽灵依赖"
+- zhipuai 全部 41 个发布版本均不兼容 `PyJWT>=2.13.0`
+- `requirements-prod.txt` 本就未包含 PyJWT，dev 与 prod 不一致
+
+**修复**：
+- `requirements.txt`：移除 `PyJWT>=2.13.0`
+- 当前未使用 JWT，未来如需启用，可改为 `PyJWT>=2.8.0,<2.9.0`（兼容 zhipuai）或等 zhipuai 放宽约束后再升级
+
+**质量验证**：
+- 本地 `pip install -r requirements.txt` 不再 ResolutionImpossible
+- ruff / mypy / pytest 全部通过
+- CI 4 个 Job 恢复全绿
+
 ## v0.9.67 - 2026-06-14
 
 ### security: CSRF 全覆盖 + 依赖漏洞修复 + MD5 安全加固
