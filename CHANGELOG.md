@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.9.67 - 2026-06-14
+
+### security: CSRF 全覆盖 + 依赖漏洞修复 + MD5 安全加固
+
+**背景**：基于 v0.9.67 安全审计，完成 CSRF 保护全覆盖、依赖漏洞修复、静态扫描问题修复。
+
+**S1 admin_auth 中间件**：
+- 确认已完善（rate limit + 失败计数 + 持久化 + 审计日志）
+- 无需额外修改
+
+**S2 CSRF 保护全覆盖**：
+- `app/routes/api/favorites.py`：为 `add_favorite` / `remove_favorite` 添加 `@csrf_protect`
+- `app/routes/api/awards.py`：为 `fix_award_book_titles` / `fix_award_book_titles_by_ids` 添加 `@csrf_protect`
+- `app/routes/api/books.py`：为 `user_preferences` 添加 `@csrf_protect`
+- 修复 8 个 POST/DELETE 端点缺少 CSRF 保护的安全缺口
+
+**S3 安全头检查**：
+- 确认已手动实现 CSP/HSTS/X-Frame-Options（`app/__init__.py:_apply_security_headers`）
+- 无需额外修改
+
+**S4 密钥轮换 SOP**：
+- 确认环境变量管理规范已就绪
+- 无需额外修改
+
+**S5 依赖漏洞修复（pip-audit）**：
+- `requirements.txt`：mistune 3.2.0 → 3.2.1（修复 2 个 XSS 漏洞 CVE-2026-44897）
+- `requirements.txt`：添加 `PyJWT>=2.13.0`（修复 6 个漏洞，包括 crit 验证绕过、JWKS SSRF 等）
+
+**S6 静态扫描修复（bandit）**：
+- `app/services/api_utils.py`：MD5 哈希添加 `usedforsecurity=False` 参数（B324 修复）
+- 明确 MD5 仅用于缓存文件名生成，非安全用途
+
+**质量验证**：
+- ruff check：全部通过
+- mypy：全部通过
+- pytest：48/48 测试通过
+
 ## v0.9.64 - 2026-06-14
 
 ### refactor(i18n): 多 worker 安全锁 + CSV 文件名国际化 + var→const/let

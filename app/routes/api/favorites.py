@@ -3,7 +3,7 @@ import logging
 from flask import session
 
 from ...services.user_service import UserService
-from ...utils.api_helpers import APIResponse
+from ...utils.api_helpers import APIResponse, csrf_protect
 from ...utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ def register_favorite_routes(bp):
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites', methods=['POST'])
+    @csrf_protect
     def add_favorite():
         try:
             from flask import request
@@ -54,6 +55,7 @@ def register_favorite_routes(bp):
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites/<isbn>', methods=['DELETE'])
+    @csrf_protect
     def remove_favorite(isbn: str):
         try:
             sid = _get_session_id()

@@ -4,7 +4,7 @@ from flask import request
 
 from ...services.award_book_service import AwardBookService
 from ...utils.admin_auth import admin_required
-from ...utils.api_helpers import APIResponse, validate_pagination
+from ...utils.api_helpers import APIResponse, csrf_protect, validate_pagination
 from ...utils.error_handler import ErrorCategory, log_error
 from . import api_bp
 
@@ -136,6 +136,7 @@ def search_award_books():
 
 @api_bp.route('/admin/fix-award-book-titles', methods=['POST'])
 @admin_required
+@csrf_protect
 def fix_award_book_titles():
     """修复历史脏数据：把 title 字段为 ISBN 的 AwardBook 记录用种子数据修正
 
@@ -245,6 +246,7 @@ def fix_award_book_titles():
 
 @api_bp.route('/admin/fix-award-book-titles-by-ids', methods=['POST'])
 @admin_required
+@csrf_protect
 def fix_award_book_titles_by_ids():
     """按 ID 批量修复 AwardBook.title_zh（处理非种子的脏数据）
 

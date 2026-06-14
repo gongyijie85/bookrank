@@ -1,11 +1,21 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.64
+**当前版本**：v0.9.67
 **发布日期**：2026-06-14
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.67 (2026-06-14) — 安全审计：CSRF 全覆盖 + 依赖漏洞修复
+- **S1 admin_auth 中间件**：确认已完善（rate limit + 失败计数 + 持久化 + 审计日志）
+- **S2 CSRF 保护全覆盖**：为 `favorites` / `awards` / `books` 模块的 8 个 POST/DELETE 端点添加 `@csrf_protect`
+- **S3 安全头检查**：确认已手动实现 CSP/HSTS/X-Frame-Options
+- **S4 密钥轮换 SOP**：确认环境变量管理规范已就绪
+- **S5 依赖漏洞修复（pip-audit）**：mistune 3.2.0 → 3.2.1（修复 2 个 XSS 漏洞），添加 PyJWT>=2.13.0（修复 6 个漏洞）
+- **S6 静态扫描修复（bandit）**：MD5 哈希添加 `usedforsecurity=False` 参数
+- **质量验证**：ruff check / mypy / pytest 全部通过（48/48 测试）
+- **改动文件**：5 个（`app/routes/api/favorites.py`、`app/routes/api/awards.py`、`app/routes/api/books.py`、`app/services/api_utils.py`、`requirements.txt`）
 
 ### v0.9.64 (2026-06-14) — 多 worker 安全锁 + CSV 文件名国际化
 - **L1 多 worker 安全锁**：`app/routes/new_books.py` 使用 `current_app.extensions` 存储同步锁和时间戳，替代全局变量，确保跨 worker 同步操作安全

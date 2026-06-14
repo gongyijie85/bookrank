@@ -12,6 +12,7 @@ from ...utils.api_helpers import (
     APIResponse,
     api_rate_limit,
     clean_translation_text,
+    csrf_protect,
     validate_isbn,
 )
 from ...utils.error_handler import ErrorCategory, log_error
@@ -130,6 +131,7 @@ def get_search_history():
 
 
 @api_bp.route('/user/preferences', methods=['GET', 'POST'])
+@csrf_protect
 def user_preferences():
     """获取或更新用户偏好（通过 UserService 层操作数据库）"""
     try:
