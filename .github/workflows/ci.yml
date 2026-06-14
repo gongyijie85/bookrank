@@ -113,4 +113,5 @@ jobs:
             --timeout=30 \
             --tb=short \
             -x \
-            -v || echo "Root-level tests (non-critical)"
+            -v \
+            || true

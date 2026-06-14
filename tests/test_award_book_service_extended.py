@@ -360,6 +360,9 @@ class TestProcessAwardBooks:
     @patch('app.services.award_book_service.time.sleep')
     def test_existing_award(self, mock_sleep, app, db, award_service, sample_award):
         with app.app_context():
+            award_service.openlib_client = MagicMock()
+            award_service.openlib_client.fetch_book_by_isbn.return_value = {}
+            award_service.openlib_client.get_cover_url.return_value = None
             award_service.google_books_client = MagicMock()
             award_service.google_books_client.fetch_book_details.return_value = {}
             award_service.image_cache = MagicMock()
