@@ -34,9 +34,7 @@ class TranslationPipeline:
                     book.description_zh = translated
                     changed = True
                 else:
-                    logger.debug(
-                        'description 翻译返回空: id=%s, len=%d', getattr(book, 'id', '?'), len(desc)
-                    )
+                    logger.debug('description 翻译返回空: id=%s, len=%d', getattr(book, 'id', '?'), len(desc))
             return changed
 
         except Exception as e:
