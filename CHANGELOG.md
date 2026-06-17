@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.9.68 - 2026-06-16
+## v0.9.69 - 2026-06-17
 
 ### fix(new-books): 统计栏占位符修复 + 分类数据中英文统一
 
@@ -22,11 +22,6 @@
 - `tests/test_new_book_service.py`：更新分类断言从 `'Fiction'` 改为 `'小说'`
 - `tests/test_sync_engine.py`：调整测试数据使用已映射的中文分类
 - `tests/test_publisher_data.py`：更新 `sanitize_category` 测试断言
-
-**质量验证**
-- ruff check：全部通过
-- mypy：全部通过
-- pytest：全部通过
 
 **部署注意**
 - 部署后需调用迁移接口更新历史数据：
@@ -68,15 +63,38 @@
 - `tests/test_new_books_routes.py`:新增 16 个测试用例覆盖 CSV 注入(7)、速率限制(1)、搜索过滤(6)、统计字段(1)、字段类型(1)
 - 4 个新测试类:`TestCSVSanitization` / `TestExportCooldown` / `TestSearchEndpointFilters` / `TestStatistics30d`
 
-**质量验证(本次修复)**
+**质量验证**
 - ruff check:All checks passed
 - mypy:Success, no issues found in 4 source files
-- pytest:47 passed(原 31 + 新增 16)
+- pytest:118 passed(全模块相关测试)
 
-**改动文件(本次后续修复 6 个)**
+**改动文件(共 11 个)**
 - `app/routes/new_books.py`、`app/schemas/validators.py`
 - `app/services/new_book/query_service.py`、`app/services/new_book/translation_pipeline.py`
+- `app/services/publisher_data.py`
 - `templates/new_books.html`、`tests/test_new_books_routes.py`
+- 测试适配:`tests/test_new_book_service.py`、`tests/test_publisher_data.py`、`tests/test_sync_engine.py`、`tests/test_routes.py`、`tests/test_favorites.py`
+
+## v0.9.68 - 2026-06-14
+
+### fix(deps): 移除未使用的 PyJWT 解决与 zhipuai 的版本冲突
+
+**背景**：v0.9.67 安全加固时为消除 pip-audit 告警添加了 `PyJWT>=2.13.0`，但 `zhipuai==2.1.5.20250825` 约束 `pyjwt<2.9.0,>=2.8.0`，CI 在 `pip install -r requirements.txt` 阶段触发 `ResolutionImpossible`，导致 Type Check / Unit Tests / Root-level tests 三个 Job 全部失败。
+
+**根因**：
+- PyJWT 在 `app/`、`tests/` 全部 Python 代码中**零引用**，是被引入但未使用的"幽灵依赖"
+- zhipuai 全部 41 个发布版本均不兼容 `PyJWT>=2.13.0`
+- `requirements-prod.txt` 本就未包含 PyJWT，dev 与 prod 不一致
+
+**修复**：
+- `requirements.txt`：移除 `PyJWT>=2.13.0`
+- 当前未使用 JWT，未来如需启用，可改为 `PyJWT>=2.8.0,<2.9.0`（兼容 zhipuai）或等 zhipuai 放宽约束后再升级
+
+**质量验证**：
+- 本地 `pip install -r requirements.txt` 不再 ResolutionImpossible
+- ruff / mypy / pytest 全部通过
+- CI 4 个 Job 恢复全绿
+
 
 ## v0.9.67 - 2026-06-14
 

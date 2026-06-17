@@ -44,7 +44,6 @@ deep-translator==1.11.4
 
 # 工具库（去掉 cachetools 未使用，保留 tenacity 重试）
 tenacity==9.0.0
-PyJWT>=2.13.0
 
 # 任务调度（内存队列，免费版 Render 无 Redis 所以不用 Celery）
 APScheduler==3.11.0

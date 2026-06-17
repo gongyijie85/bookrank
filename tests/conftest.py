@@ -119,6 +119,19 @@ def admin_headers():
     return {'X-Admin-Secret': 'test-admin-secret'}
 
 
+@pytest.fixture(autouse=True)
+def _restore_testing_flag(app):
+    """守护 app.config['TESTING'] 不被测试间污染。
+
+    test_api_helpers_extended.py 等用例为了覆盖非 TESTING 路径会把
+    app.config['TESTING'] 设为 False；由于 app fixture 是 session-scoped，
+    这种修改跨测试持久化，会让后续 csrf_protect / rate_limit 装饰器走真实
+    校验路径，污染依赖 TESTING 短路的测试（例如 test_favorites）。
+    """
+    yield
+    app.config['TESTING'] = True
+
+
 @pytest.fixture
 def mock_books_data():
     """
