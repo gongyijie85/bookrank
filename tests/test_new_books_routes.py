@@ -109,7 +109,7 @@ class TestCSVSanitization:
         """_sanitize_csv_field 对 = + - @ \t \r 起始的字段加单引号"""
         import app.routes.new_books as mod
 
-        assert mod._sanitize_csv_field('=cmd|..."calc"!A1') == "'=cmd|...\"calc\"!A1"
+        assert mod._sanitize_csv_field('=cmd|..."calc"!A1') == '\'=cmd|..."calc"!A1'
         assert mod._sanitize_csv_field('+sum(A1:A10)') == "'+sum(A1:A10)"
         assert mod._sanitize_csv_field('-2+3') == "'-2+3"
         assert mod._sanitize_csv_field('@SUM(A1)') == "'@SUM(A1)"
@@ -163,8 +163,7 @@ class TestCSVSanitization:
             for line in lines[1:]:  # 跳过 header
                 # 如果包含 =cmd, 必须以 ' 开头
                 if '=cmd' in line or 'cmd|' in line:
-                    assert "'=cmd" in line or "'+" in line or "'@" in line, \
-                        f"未转义: {line[:80]}"
+                    assert "'=cmd" in line or "'+" in line or "'@" in line, f'未转义: {line[:80]}'
 
 
 class TestExportCooldown:

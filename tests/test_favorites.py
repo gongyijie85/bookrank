@@ -8,10 +8,12 @@ import pytest
 @pytest.fixture
 def csrf_token(client):
     """获取CSRF令牌（返回可调用对象，每次调用获取新token）"""
+
     def _get_token():
         response = client.get('/api/csrf-token')
         data = response.get_json()
         return data['data']['csrf_token']
+
     return _get_token
 
 
