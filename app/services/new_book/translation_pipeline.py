@@ -20,21 +20,32 @@ class TranslationPipeline:
         try:
             changed = False
             if book.title and not book.title_zh:
-                book.title_zh = self._translator.translate(book.title, 'en', 'zh', field_type='title')
-                changed = bool(book.title_zh)
+                translated = self._translator.translate(book.title, 'en', 'zh', field_type='title')
+                if translated:
+                    book.title_zh = translated
+                    changed = True
+                else:
+                    logger.debug('title 翻译返回空: id=%s, len=%d', getattr(book, 'id', '?'), len(book.title))
 
             if book.description and not book.description_zh:
-                book.description_zh = self._translator.translate(
-                    book.description[:1000],
-                    'en',
-                    'zh',
-                    field_type='description',
-                )
-                changed = bool(book.description_zh) or changed
+                desc = book.description if len(book.description) <= 1000 else book.description[:1000]
+                translated = self._translator.translate(desc, 'en', 'zh', field_type='description')
+                if translated:
+                    book.description_zh = translated
+                    changed = True
+                else:
+                    logger.debug(
+                        'description 翻译返回空: id=%s, len=%d', getattr(book, 'id', '?'), len(desc)
+                    )
             return changed
 
         except Exception as e:
-            logger.warning(f'翻译失败: {book.title} - {e}')
+            logger.warning(
+                '翻译失败: %s (id=%s) - %s',
+                (book.title[:30] if book.title else '<空>'),
+                getattr(book, 'id', '?'),
+                e,
+            )
             return False
 
     def translate_book_background(self, book_id: int, translation_service: Any) -> None:

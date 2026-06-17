@@ -297,7 +297,7 @@ class TestNewBookService:
         updated = new_book_service._sync_engine._update_book_fields(book, book_info, auto_commit=False)
 
         assert updated is True
-        assert book.category == 'Fiction'
+        assert book.category == '小说'  # sanitize_category 将 'Fiction' 映射为 '小说'
         assert book.publication_date == date(2026, 5, 1)
         assert book.page_count == 256
         assert book.language == 'en-US'

@@ -118,9 +118,12 @@ class NewBookListQuery(BaseModel):
 
 
 class NewBookSearchQuery(BaseModel):
-    """v0.9.63 新增：/api/new-books/search 搜索参数。"""
+    """v0.9.63 新增:/api/new-books/search 搜索参数 (v0.9.68 增加可选过滤)。"""
 
     keyword: str = Field(min_length=1, max_length=100)
+    publisher_id: int | None = Field(default=None, ge=1)
+    category: str | None = Field(default=None, max_length=100)
+    days: int | None = Field(default=None, ge=1, le=365)
     page: int = Field(default=1, ge=1, le=10000)
     per_page: int = Field(default=20, ge=1, le=50)
 
