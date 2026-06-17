@@ -558,7 +558,7 @@ msgstr "分类"
 
 #: templates/book_detail.html:112 templates/weekly_report_detail.html:1259
 msgid "上榜周数"
-msgstr "上榜周数"
+msgstr "累计上榜周数"
 
 #: templates/book_detail.html:122
 msgid "语言"

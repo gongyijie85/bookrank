@@ -558,7 +558,7 @@ msgstr "Category"
 
 #: templates/book_detail.html:112 templates/weekly_report_detail.html:1259
 msgid "上榜周数"
-msgstr ""
+msgstr "Cumulative Weeks on List"
 
 #: templates/book_detail.html:122
 msgid "语言"

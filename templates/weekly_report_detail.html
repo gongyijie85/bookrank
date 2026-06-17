@@ -275,7 +275,7 @@
                                 {% endif %}
                                 <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
-                                <span class="book-weeks">{{ _('已上榜') }} {{ book.weeks_on_list }} {{ _('周') }}</span>
+                                <span class="book-weeks">{{ _('累计上榜') }} {{ book.weeks_on_list }} {{ _('周') }}</span>
                                 <span class="book-rank">{{ _('当前排名') }}：{{ book.rank }}</span>
                                 <button class="book-detail-btn">
                                     <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
@@ -1329,7 +1329,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (book) {
                 const changeHtml = book.rank_change && book.rank_change !== 0
                     ? `<p><strong>{{ _('排名变化') }}：</strong>${book.rank_change > 0 ? '↑' : '↓'} ${Math.abs(book.rank_change)} {{ _('位') }}</p>` : '';
-                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('上榜周数') }}：</strong>${book.weeks_on_list} {{ _('周') }}</p>` : '';
+                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('累计上榜周数') }}：</strong>${book.weeks_on_list} {{ _('周') }}</p>` : '';
                 const rankHtml = book.rank ? `<p><strong>{{ _('当前排名') }}：</strong>{{ _('第') }} ${book.rank} {{ _('名') }}</p>` : '';
                 const categoryHtml = book.category ? `<p><strong>{{ _('类别') }}：</strong>${book.category}</p>` : '';
                 const reasonHtml = book.reason ? `<p><strong>{{ _('推荐理由') }}：</strong>${book.reason}</p>` : '';

@@ -52,7 +52,7 @@
             <span class="card-rank-badge">{{ _('第') }}{{ book_index + 1 }}{{ _('名') }}</span>
             {% if book.weeks_on_list %}
             <span class="card-weeks">
-                <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}{{ _('周') }}
+                <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}
             </span>
             {% endif %}
         </div>
@@ -133,7 +133,7 @@
             <span class="card-tag">{{ book.list_name if book.list_name else 'Fiction' }}</span>
             {% endif %}
             {% if book.weeks_on_list %}
-            <span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ book.weeks_on_list }}{{ _('周') }}</span>
+            <span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>
             {% endif %}
             {% if book.publisher %}
             <span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> {{ book.publisher }}</span>
