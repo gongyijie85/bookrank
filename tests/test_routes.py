@@ -123,6 +123,18 @@ class TestSearchHistory:
 # ==================== 用户偏好测试 ====================
 
 
+@pytest.fixture
+def csrf_token(client):
+    """获取CSRF令牌（返回可调用对象，每次调用获取新token）"""
+
+    def _get_token():
+        response = client.get('/api/csrf-token')
+        data = response.get_json()
+        return data['data']['csrf_token']
+
+    return _get_token
+
+
 @pytest.mark.routes
 class TestUserPreferences:
     """测试用户偏好端点"""
@@ -135,18 +147,26 @@ class TestUserPreferences:
         data = json.loads(response.data)
         assert data['success'] is True
 
-    def test_update_preferences_invalid_content_type(self, client):
+    def test_update_preferences_invalid_content_type(self, client, db, csrf_token):
         """测试无效的内容类型"""
-        response = client.post('/api/user/preferences', data='not json', content_type='text/plain')
+        response = client.post(
+            '/api/user/preferences',
+            data='not json',
+            content_type='text/plain',
+            headers={'X-CSRF-Token': csrf_token()},
+        )
 
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['success'] is False
 
-    def test_update_preferences_view_mode(self, client, db):
+    def test_update_preferences_view_mode(self, client, db, csrf_token):
         """测试更新视图模式"""
         response = client.post(
-            '/api/user/preferences', data=json.dumps({'view_mode': 'list'}), content_type='application/json'
+            '/api/user/preferences',
+            data=json.dumps({'view_mode': 'list'}),
+            content_type='application/json',
+            headers={'X-CSRF-Token': csrf_token()},
         )
 
         assert response.status_code == 200

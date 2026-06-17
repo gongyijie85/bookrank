@@ -69,6 +69,30 @@ STATIC_DATA_FILES: dict[str, str] = {
     'macmillan_books.json': 'Macmillan',
 }
 
+# 英文分类到中文的映射表（sanitize_category 使用）
+CATEGORY_EN_TO_ZH: dict[str, str] = {
+    'Fiction': '小说',
+    'Nonfiction': '非虚构',
+    'Mystery': '悬疑',
+    'Romance': '言情',
+    'Thriller': '惊悚',
+    'Science Fiction': '科幻',
+    'Fantasy': '奇幻',
+    'Biography': '传记',
+    'History': '历史',
+    'Children': '儿童读物',
+    'Young Adult': '青少年',
+    'Business': '商业',
+    'Self-Help': '自助',
+    'General': '综合',
+    'general': '综合',
+    'Young Adult Fiction': '青少年小说',
+    'Juvenile Fiction': '儿童小说',
+    'Juvenile Nonfiction': '儿童非小说',
+    'Health & Fitness': '健康养生',
+    'Literary Criticism': '文学评论',
+}
+
 VALID_CATEGORIES: set[str] = {
     '小说',
     '非虚构',
@@ -193,7 +217,7 @@ def parse_int_safe(value: Any) -> int | None:
 
 
 def sanitize_category(category: str | None) -> str | None:
-    """清洗分类数据，过滤营销文案"""
+    """清洗分类数据，过滤营销文案，统一英文分类为中文"""
     if not category:
         return None
     category = category.strip()
@@ -207,7 +231,8 @@ def sanitize_category(category: str | None) -> str | None:
         return None
     if '"' in category or '"' in category or '"' in category:
         return None
-    return category
+    # 英文分类映射为中文
+    return CATEGORY_EN_TO_ZH.get(category, category)
 
 
 def resolve_static_data_dir(static_data_dir: str | Path | None = None) -> Path:

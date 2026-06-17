@@ -28,6 +28,31 @@ logger = logging.getLogger(__name__)
 new_books_bp = Blueprint('new_books', __name__, url_prefix='/api/new-books')
 
 _SYNC_COOLDOWN_SECONDS: int = 60
+_EXPORT_COOLDOWN_SECONDS: int = 10  # v0.9.68: CSV 导出每 IP 限速
+_CSV_INJECTION_PREFIXES: tuple[str, ...] = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _sanitize_csv_field(value: object) -> str:
+    """v0.9.68: 防止 CSV 公式注入 — 对以 = + - @ \t \r 起始的字段加单引号前缀。"""
+    if value is None:
+        return ''
+    text = str(value)
+    if text and text[0] in _CSV_INJECTION_PREFIXES:
+        return "'" + text
+    return text
+
+
+def _check_export_cooldown() -> str | None:
+    """v0.9.68: 每 IP 导出冷却(10 秒)防刷。"""
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'anon').split(',')[0].strip()
+    key = f'export_last_{ip}'
+    last = current_app.extensions.get(key, 0.0)
+    elapsed = time.time() - last
+    if elapsed < _EXPORT_COOLDOWN_SECONDS:
+        remaining = int(_EXPORT_COOLDOWN_SECONDS - elapsed)
+        return f'导出过于频繁,请 {remaining} 秒后再试'
+    current_app.extensions[key] = time.time()
+    return None
 
 
 def _get_sync_lock() -> threading.Lock:
@@ -223,7 +248,14 @@ def search_new_books():
     try:
         service = get_new_book_service()
         _ensure_static_seeded(service)
-        books, total = service.search_books(keyword, page, per_page)
+        books, total = service.search_books(
+            keyword,
+            page,
+            per_page,
+            publisher_id=query.publisher_id,
+            category=query.category,
+            days=query.days,
+        )
 
         return APIResponse.success(
             data={
@@ -342,7 +374,11 @@ def get_statistics():
 
 @new_books_bp.route('/export/csv')
 def export_csv():
-    """导出CSV格式（限制最大导出数量）"""
+    """导出CSV格式(限制最大导出数量 + 速率限制 + 公式注入防护)"""
+    cooldown_error = _check_export_cooldown()
+    if cooldown_error:
+        return APIResponse.error(cooldown_error, 429)
+
     query, err = _parse_or_422(NewBookExportQuery)
     if err is not None:
         return err
@@ -383,20 +419,20 @@ def export_csv():
         for book in books:
             writer.writerow(
                 [
-                    book.title,
-                    book.title_zh or '',
-                    book.author,
-                    book.publisher.name if book.publisher else '',
-                    book.category or '',
+                    _sanitize_csv_field(book.title),
+                    _sanitize_csv_field(book.title_zh or ''),
+                    _sanitize_csv_field(book.author),
+                    _sanitize_csv_field(book.publisher.name if book.publisher else ''),
+                    _sanitize_csv_field(book.category or ''),
                     book.publication_date.isoformat() if book.publication_date else '',
-                    book.isbn13 or '',
-                    book.isbn10 or '',
-                    book.price or '',
+                    _sanitize_csv_field(book.isbn13 or ''),
+                    _sanitize_csv_field(book.isbn10 or ''),
+                    _sanitize_csv_field(book.price or ''),
                     book.page_count or '',
-                    book.language or '',
-                    book.description or '',
-                    book.description_zh or '',
-                    book.source_url or '',
+                    _sanitize_csv_field(book.language or ''),
+                    _sanitize_csv_field(book.description or ''),
+                    _sanitize_csv_field(book.description_zh or ''),
+                    _sanitize_csv_field(book.source_url or ''),
                 ]
             )
 
@@ -432,6 +468,39 @@ def init_publishers():
         log_error(ErrorCategory.DB_QUERY, f'初始化出版社失败: {e}', exc_info=True)
         db.session.rollback()
         return APIResponse.error('初始化失败', 500)
+
+
+@new_books_bp.route('/migrate-categories', methods=['POST'])
+@csrf_protect
+@admin_required
+def migrate_categories():
+    """迁移已有书籍分类数据（英文分类统一为中文）"""
+    from ..models.new_book import NewBook
+    from ..services.publisher_data import sanitize_category
+
+    try:
+        # 查询所有有分类的书籍
+        books = NewBook.query.filter(NewBook.category.isnot(None)).all()
+        migrated_count = 0
+
+        for book in books:
+            old_category = book.category
+            new_category = sanitize_category(old_category)
+            if new_category != old_category:
+                book.category = new_category
+                migrated_count += 1
+
+        if migrated_count > 0:
+            db.session.commit()
+
+        return APIResponse.success(
+            data={'migrated_count': migrated_count, 'total_checked': len(books)},
+            message=f'成功迁移 {migrated_count} 本书籍分类',
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'迁移分类数据失败: {e}', exc_info=True)
+        db.session.rollback()
+        return APIResponse.error('迁移分类失败', 500)
 
 
 @new_books_bp.errorhandler(404)

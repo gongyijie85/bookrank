@@ -1,5 +1,80 @@
 # Changelog
 
+## v0.9.69 - 2026-06-17
+
+### fix(new-books): 统计栏占位符修复 + 分类数据中英文统一
+
+**背景**：新书速递模块（`/new-books`）存在两个问题：统计栏显示 `{count}` 占位符未替换，分类数据中英文混杂。
+
+**问题 1：统计栏 `{count}` 占位符未替换**
+- **根因**：`templates/new_books.html` 第 86 行 `<span data-i18n="nb_recent_7d_count">` 对应的翻译值包含 `{count}` 占位符，但前端 i18n 框架不支持参数插值
+- **修复**：移除 `data-i18n` 属性，直接使用 Jinja2 翻译 `{{ _('本') }}`
+- **改动文件**：`templates/new_books.html`
+
+**问题 2：分类数据中英文混杂**
+- **根因**：`sanitize_category` 函数未对英文分类进行映射转换，导致数据库中同时存在 'Fiction' 和 '小说'
+- **修复**：
+  - `app/services/publisher_data.py`：添加 `CATEGORY_EN_TO_ZH` 映射表（20 个常见分类），在 `sanitize_category` 函数中应用映射
+  - `app/routes/new_books.py`：新增 `/migrate-categories` 管理接口，批量更新已有书籍分类数据
+- **改动文件**：`app/services/publisher_data.py`、`app/routes/new_books.py`
+
+**测试修复**
+- `tests/test_new_book_service.py`：更新分类断言从 `'Fiction'` 改为 `'小说'`
+- `tests/test_sync_engine.py`：调整测试数据使用已映射的中文分类
+- `tests/test_publisher_data.py`：更新 `sanitize_category` 测试断言
+
+**部署注意**
+- 部署后需调用迁移接口更新历史数据：
+  ```bash
+  curl -X POST https://bookrank-ckml.onrender.com/new-books/migrate-categories \
+    -H "X-Admin-Secret: $ADMIN_SECRET"
+  ```
+
+### fix(new-books): 代码审查后续修复 — CSV 注入防护 + 卡片兜底 + 搜索过滤对齐
+
+**背景**:对新书速递模块进行端到端代码审查 + 线上实测后,发现 6 项问题。
+
+**修复 1:CSV 公式注入防护(HIGH)**
+- **问题**:`/api/new-books/export/csv` 字段未对 `=+-@\t\r` 起始字符做防护,Excel 打开 CSV 时会执行公式
+- **修复**:`app/routes/new_books.py` 新增 `_sanitize_csv_field()`,对 12 列文本字段加单引号前缀
+
+**修复 2:CSV 导出速率限制(HIGH)**
+- **问题**:导出端点匿名可访问且无速率限制,可被刷取全量数据
+- **修复**:`_check_export_cooldown()` 每 IP 10 秒冷却,基于 `current_app.extensions` 多 worker 安全
+
+**修复 3:卡片标签兜底显示(HIGH)**
+- **问题**:`publication_date` 与 `category` 同时为 null 时,前端 `renderBookCard` 不渲染任何标签 — 实测线上 100% 命中此情况
+- **修复**:`templates/new_books.html` 改为 if/else 结构,缺失时显示"分类未公开 / 日期未公开"占位标签
+- **附带清理**:删除 12 行旧版死代码
+
+**修复 4:统计区间与默认视图对齐(MEDIUM)**
+- **问题**:统计栏显示"近 7 天 0 本",但默认筛选是"近 30 天 108 本",用户认知冲突
+- **修复**:`get_statistics` 同时返回 `recent_books_7d` + `recent_books_30d`;模板默认显示 30 天
+
+**修复 5:搜索端点过滤维度对齐(MEDIUM)**
+- **问题**:`/api/new-books/search` 与 `/api/new-books?search=` 过滤维度不一致(后者支持 days/publisher_id/category,前者不支持)
+- **修复**:`NewBookSearchQuery` 增加可选 `publisher_id/category/days` 字段,路由层透传
+
+**修复 6:翻译诊断日志(MEDIUM)**
+- **问题**:`_translate_book` 失败/空返回值不记录上下文,description 大面积空译无从排查
+- **修复**:`translation_pipeline.py` 增加 debug 日志(id+长度) + 切片边界明确
+
+**新增测试**
+- `tests/test_new_books_routes.py`:新增 16 个测试用例覆盖 CSV 注入(7)、速率限制(1)、搜索过滤(6)、统计字段(1)、字段类型(1)
+- 4 个新测试类:`TestCSVSanitization` / `TestExportCooldown` / `TestSearchEndpointFilters` / `TestStatistics30d`
+
+**质量验证**
+- ruff check:All checks passed
+- mypy:Success, no issues found in 4 source files
+- pytest:118 passed(全模块相关测试)
+
+**改动文件(共 11 个)**
+- `app/routes/new_books.py`、`app/schemas/validators.py`
+- `app/services/new_book/query_service.py`、`app/services/new_book/translation_pipeline.py`
+- `app/services/publisher_data.py`
+- `templates/new_books.html`、`tests/test_new_books_routes.py`
+- 测试适配:`tests/test_new_book_service.py`、`tests/test_publisher_data.py`、`tests/test_sync_engine.py`、`tests/test_routes.py`、`tests/test_favorites.py`
+
 ## v0.9.68 - 2026-06-14
 
 ### fix(deps): 移除未使用的 PyJWT 解决与 zhipuai 的版本冲突
@@ -19,6 +94,7 @@
 - 本地 `pip install -r requirements.txt` 不再 ResolutionImpossible
 - ruff / mypy / pytest 全部通过
 - CI 4 个 Job 恢复全绿
+
 
 ## v0.9.67 - 2026-06-14
 

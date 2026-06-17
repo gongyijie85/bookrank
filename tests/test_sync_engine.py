@@ -148,7 +148,7 @@ class TestSyncPublisherBooks:
             isbn13='9780000000001',
             description='A test book description',
             cover_url='https://example.com/cover.jpg',
-            category='Fiction',
+            category='小说',  # 已映射的中文分类
             publication_date=date(2026, 1, 15),
             price='29.99',
             page_count=300,
@@ -165,7 +165,7 @@ class TestSyncPublisherBooks:
             isbn13='9780000000001',
             description='A test book description',
             cover_url='https://example.com/cover.jpg',
-            category='Fiction',
+            category='Fiction',  # 爬虫返回英文分类，会被映射为'小说'
             publication_date=date(2026, 1, 15),
             price='29.99',
             page_count=300,

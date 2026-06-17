@@ -113,9 +113,17 @@ class NewBookQueryService:
 
         today = datetime.now(UTC).date()
         week_ago = today - timedelta(days=7)
-        recent_books = NewBook.query.filter(
+        month_ago = today - timedelta(days=30)
+
+        recent_books_7d = NewBook.query.filter(
             NewBook.is_displayable.is_(True),
             NewBook.publication_date >= week_ago,
+            NewBook.publication_date <= today,
+        ).count()
+
+        recent_books_30d = NewBook.query.filter(
+            NewBook.is_displayable.is_(True),
+            NewBook.publication_date >= month_ago,
             NewBook.publication_date <= today,
         ).count()
 
@@ -132,7 +140,8 @@ class NewBookQueryService:
             'total_books': total_books,
             'total_publishers': total_publishers,
             'active_publishers': active_publishers,
-            'recent_books_7d': recent_books,
+            'recent_books_7d': recent_books_7d,
+            'recent_books_30d': recent_books_30d,
             'top_categories': [{'category': c.category, 'count': c.count} for c in category_stats],
         }
 

@@ -83,7 +83,7 @@
         </div>
         <div class="stat-item">
             <svg class="icon" width="20" height="20"><use href="#icon-calendar"/></svg>
-            <span><span data-i18n="nb_recent_7d_label">{{ _('近7天出版') }}</span> <strong>{{ stats.recent_books_7d }}</strong> <span data-i18n="nb_recent_7d_count">{{ _('本') }}</span></span>
+            <span><span data-i18n="nb_recent_30d_label">{{ _('近30天出版') }}</span> <strong>{{ stats.recent_books_30d }}</strong> <span>{{ _('本') }}</span></span>
         </div>
     </div>
 </div>
@@ -454,19 +454,21 @@ function renderBookCard(book) {
     const pubNameEn = book.publisher_name_en || pubNameZh;
     const pubNameDisplay = currentLanguage === 'zh' ? pubNameZh : pubNameEn;
 
-    let tagsHtml = '';
-    if (book.category || book.publication_date) {
-        tagsHtml = '<div class="book-tags">';
-        if (book.category) {
-            tagsHtml += '<span class="book-tag tag-category">' + escapeHtml(book.category) + '</span>';
-        }
-        if (book.publication_date) {
-            const pubDate = formatPublicationDate(book.publication_date);
-            tagsHtml += '<span class="book-tag tag-date" title="{{ _('出版日期') }} ' + escapeHtml(pubDate) + '">' +
-                '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + escapeHtml(pubDate) + '</span>';
-        }
-        tagsHtml += '</div>';
+    let tagsHtml = '<div class="book-tags">';
+    if (book.category) {
+        tagsHtml += '<span class="book-tag tag-category">' + escapeHtml(book.category) + '</span>';
+    } else {
+        tagsHtml += '<span class="book-tag tag-category tag-muted">{{ _("分类未公开") }}</span>';
     }
+    if (book.publication_date) {
+        const pubDate = formatPublicationDate(book.publication_date);
+        tagsHtml += '<span class="book-tag tag-date" title="{{ _("出版日期") }} ' + escapeHtml(pubDate) + '">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + escapeHtml(pubDate) + '</span>';
+    } else {
+        tagsHtml += '<span class="book-tag tag-date tag-muted">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>{{ _("日期未公开") }}</span>';
+    }
+    tagsHtml += '</div>';
 
     const isbnHtml = book.isbn13
         ? '<p class="book-isbn">' + escapeHtml(book.isbn13) + '</p>'
