@@ -10,12 +10,7 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </a>
     <span class="m-header-title">{{ _('周报详情') }}</span>
-    <button class="m-header-btn m-share-btn" type="button"
-            data-url="/reports/weekly/{{ report.week_end.isoformat() }}"
-            data-title="{{ report.title or _('周报') }}"
-            aria-label="{{ _('分享') }}">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-    </button>
+    <div class="m-header-placeholder"></div>
 </header>
 {% endblock %}
 
@@ -77,34 +72,6 @@
 </section>
 {% endif %}
 
-<!-- 排名上升最快 -->
-{% if content and content.top_risers %}
-<section class="m-report-section">
-    <h2 class="m-report-section-title">{{ _('排名上升最快') }}</h2>
-    {% for item in content.top_risers[:5] %}
-    <div class="m-report-change-item">
-        <span class="m-report-change-icon up">↑</span>
-        <span class="m-report-change-title">{{ item.title }}</span>
-        {% if item.rank_change %}<span class="m-report-change-delta">+{{ item.rank_change }}</span>{% endif %}
-    </div>
-    {% endfor %}
-</section>
-{% endif %}
-
-<!-- 持续上榜最久 -->
-{% if content and content.longest_running %}
-<section class="m-report-section">
-    <h2 class="m-report-section-title">{{ _('持续上榜最久') }}</h2>
-    {% for item in content.longest_running[:5] %}
-    <div class="m-report-change-item">
-        <span class="m-report-change-icon">·</span>
-        <span class="m-report-change-title">{{ item.title }}</span>
-        {% if item.weeks_on_list %}<span class="m-report-change-delta">{{ item.weeks_on_list }}{{ _('周') }}</span>{% endif %}
-    </div>
-    {% endfor %}
-</section>
-{% endif %}
-
 <!-- 本周新书 -->
 {% if content and content.new_books %}
 <section class="m-report-section">
@@ -156,11 +123,7 @@
 <!-- 底部 -->
 <div class="m-report-footer">
     <span class="m-text-sm m-text-hint">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}{{ _('生成') }}</span>
-    <div class="m-report-footer-actions">
-        <a href="/reports/weekly/{{ report.week_end.isoformat() }}/export?format=pdf" class="m-btn m-btn-outline m-btn-sm" target="_blank" rel="noopener noreferrer">PDF</a>
-        <a href="/reports/weekly/{{ report.week_end.isoformat() }}/export?format=excel" class="m-btn m-btn-outline m-btn-sm" target="_blank" rel="noopener noreferrer">Excel</a>
-        <a href="/reports/weekly" class="m-btn m-btn-outline m-btn-sm">{{ _('返回列表') }}</a>
-    </div>
+    <a href="/reports/weekly" class="m-btn m-btn-outline m-btn-sm">{{ _('返回列表') }}</a>
 </div>
 
 {% endblock %}

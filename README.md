@@ -256,6 +256,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.75 - 移动端精简：移除筛选（年份/日期/搜索框）、分享、收藏功能；详情页移除 Tab 切换/购买链接/英文原标题/标签行，保留 ISBN+出版社+内容简介；mobile.js 从 215 行精简至 75 行；mobile.css 移除约 400 行冗余样式
 - v0.9.74 - 数据库迁移至 Supabase Postgres + 文案统一补丁：`config.py` 新增 `_ensure_supabase_sslmode` 自动补 SSL；`Procfile` 移除 `flask db upgrade` 改为应用内惰性迁移；`render.yaml` 移除内置 Postgres 服务，`DATABASE_URL` 改为手动配置 Supabase Session Pooler；新增 `docs/supabase-migration.md` 迁移手册 + `scripts/init_external_postgres.py` 空库初始化脚本；CSV/注释 "上榜周数" → "累计上榜周数"（v0.9.69 补丁）
 - v0.9.73 - 移动端内容完善 v2：修复 3 个跳转断裂（`/award-book/<id>`、`/about`、错误页改用 `render_adaptive`）；新增 3 个移动端模板（error、about、award_book_detail）；周报详情补"排名上升最快"+"持续上榜最久"+PDF/Excel 导出；周报列表增加搜索框；base.html 加 canonical + SearchAction JSON-LD；awards 卡片加 ISBN 标签；新增 6 个测试用例
 - v0.9.72 - 移动端核心 4 页内容对齐桌面端：新增简化版周报详情页（无 Chart.js，含 Hero 数字卡 + Top 5 变化 + 本周新书 + 编辑推荐 + Article JSON-LD）；book_detail 新增排名徽章+双语标题+Tab 切换+2 列元信息网格+购买链接横滑+Book JSON-LD；awards 新增搜索框+描述预览+收藏按钮+分类标签，内联样式迁移到 mobile.css；weekly_reports 新增介绍卡+日期筛选+亮点徽章+分享按钮+30 秒轮询；修复 index.html 元信息行 Jinja2 语法 bug（namespace 方式）；全量 2115 passed / 4 xfailed，ruff + mypy 通过

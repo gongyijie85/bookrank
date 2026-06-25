@@ -20,78 +20,27 @@
 </div>
 {% endif %}
 
-<!-- 关于周报介绍卡 -->
-<div class="m-report-intro">
-    <p>{{ _('每周自动汇总纽约时报畅销书榜单变化，包含新书、上升书籍和编辑推荐。') }}</p>
-</div>
-
-<!-- 日期筛选下拉 + 搜索框 -->
 {% if reports %}
-<div class="m-list-info m-list-info-row">
-    <span class="m-text-sm m-text-hint">{{ reports|length }}{{ _('期周报') }}</span>
-    <select class="m-year-select" onchange="window.filterByDate(this.value)">
-        <option value="">{{ _('全部') }}</option>
-        <option value="month">{{ _('本月') }}</option>
-        <option value="last_month">{{ _('上月') }}</option>
-        <option value="year">{{ _('今年') }}</option>
-    </select>
-    <input class="m-award-search" type="search" name="search"
-           placeholder="{{ _('搜索周报标题或摘要') }}"
-           oninput="window.filterBySearch(this.value)"
-           aria-label="{{ _('搜索周报') }}">
-</div>
-{% endif %}
-
-{% if reports %}
-<div class="m-book-list m-report-list">
+<div class="m-book-list">
     {% for report in reports %}
-    {% set report_title = report.title or (_('周报') ~ ' ' ~ report.week_start.strftime('%m.%d') ~ ' - ' ~ report.week_end.strftime('%m.%d')) %}
-    <div class="m-card m-book-card"
-         data-href="/reports/weekly/{{ report.week_end.isoformat() }}"
-         data-report-date="{{ report.week_end.isoformat() }}"
-         data-report-title="{{ report_title }}"
-         data-report-summary="{{ report.summary or '' }}">
+    <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-book-card">
         <div class="m-book-info">
             <h3 class="m-book-title">
                 {% if report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
             </h3>
             <p class="m-book-author">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
-
-            {% if report.summary %}
-            <p class="m-report-summary">{{ report.summary[:120] }}{% if report.summary|length > 120 %}…{% endif %}</p>
-            {% endif %}
-
-            {# 亮点徽章组 #}
-            {% if report.content_data %}
-            <div class="m-report-highlights">
-                {% if report.content_data.total_books %}
-                <span class="m-report-highlight">{{ report.content_data.total_books }}{{ _('本') }}</span>
-                {% endif %}
-                {% if report.content_data.total_new %}
-                <span class="m-report-highlight">{{ report.content_data.total_new }}{{ _('新书') }}</span>
-                {% endif %}
-                {% if report.content_data.featured_books %}
-                <span class="m-report-highlight">{{ report.content_data.featured_books|length }}{{ _('推荐') }}</span>
-                {% endif %}
-            </div>
+            {% if report.content_data and report.content_data.total_books %}
+            <span class="m-book-weeks">{{ _('共') }}{{ report.content_data.total_books }}{{ _('本') }}</span>
             {% endif %}
         </div>
-
-        {# 分享按钮（由 mobile.js 统一处理） #}
-        <button class="m-share-btn" type="button"
-                data-url="/reports/weekly/{{ report.week_end.isoformat() }}"
-                data-title="{{ report.title or _('周报') }}"
-                aria-label="{{ _('分享') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-        </button>
-    </div>
+        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
     {% endfor %}
 </div>
 {% else %}
 <div class="m-empty">
     <p>{{ _('暂无周报数据') }}</p>
-    <p class="m-text-sm m-text-hint m-empty-sub">{{ _('系统会自动生成本周周报') }}</p>
-    <a href="/" class="m-btn m-btn-outline m-btn-sm m-empty-action">{{ _('刷新') }}</a>
+    <p class="m-text-sm m-text-hint" style="margin-top:8px">{{ _('系统会自动生成本周周报') }}</p>
 </div>
 {% endif %}
 
@@ -100,7 +49,6 @@
 {% block extra_js %}
 {% if is_generating %}
 <script>
-// 周报生成中：30 秒轮询刷新
 if (window.MobileApp && MobileApp.startPolling) {
     MobileApp.startPolling(30000);
 }

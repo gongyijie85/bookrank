@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.9.75 - 2026-06-25
+
+### refactor(mobile): 移动端精简 - 去筛选/分享/收藏，保留核心内容
+
+**背景**：移动端不需要筛选、分享、收藏等功能，只需保留核心内容展示。
+
+**精简内容**
+- **awards.html**：移除年份筛选 select、搜索框、描述预览、分类标签、ISBN ghost chip、收藏按钮
+- **weekly_reports.html**：移除日期筛选、搜索框、介绍卡、亮点徽章、分享按钮、刷新按钮，简化为纯列表
+- **weekly_report_detail.html**：移除分享按钮、"排名上升最快"+"持续上榜最久"区块、PDF/Excel 导出按钮
+- **book_detail.html**：移除 Tab 切换、购买链接横滑区、收藏按钮、英文原标题、标签行、展开按钮，保留 ISBN+出版社
+- **award_book_detail.html**：移除分享按钮、Tab 切换、购买链接、收藏按钮、英文原标题、标签行，保留 ISBN+出版社
+- **mobile.js**：移除分享按钮 handler、搜索筛选函数（filterByDate/filterBySearch），从 215 行精简至 75 行
+- **mobile.css**：移除约 400 行不再使用的样式（筛选面板、收藏按钮、分享按钮、Tab 切换、购买链接、排名徽章等）
+- **test_mobile_routes.py**：适配精简后的模板，移除 3 个已删功能测试，新增 1 个 Hero 区测试（共 13 个移动端测试）
+
+**保留功能**
+- SEO：canonical URL、OG/Twitter 元标签、SearchAction JSON-LD
+- 详情页：内容简介、ISBN-13/10、出版社、出版日期、页数、分类、累计上榜周数、价格
+- 周报详情：Hero 区数字卡片（总书数/新书/上升/下降）、本周概览、Top 5 排名变化、本周新书、编辑推荐
+- 通用：卡片点击导航、CSRF 缓存、Toast 通知、轮询
+
+**验证**：ruff check + mypy + pytest 全部通过（13 个移动端测试全部通过）
+
+---
+
 ## v0.9.74 - 2026-06-25
 
 ### feat(infra): 数据库迁移至 Supabase Postgres + 文案统一补丁

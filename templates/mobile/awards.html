@@ -29,26 +29,18 @@
     </div>
 </section>
 
-<!-- 年份筛选 + 搜索框 + 统计 -->
+<!-- 统计 -->
 {% if years %}
-<form class="m-list-info m-list-info-row" method="get" action="/awards">
-    {% if selected_award %}<input type="hidden" name="award" value="{{ selected_award }}">{% endif %}
-    <select class="m-year-select" name="year" onchange="this.form.submit()">
-        <option value="">{{ _('全部年份') }}</option>
-        {% for y in years %}
-        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
-        {% endfor %}
-    </select>
-    <input class="m-award-search" type="search" name="search" value="{{ search_query or '' }}" placeholder="{{ _('搜索书名或作者...') }}" aria-label="{{ _('搜索') }}">
+<div class="m-list-info">
     <span class="m-text-sm m-text-hint">{{ total_books }}{{ _('本') }}</span>
-</form>
+</div>
 {% endif %}
 
 <!-- 获奖图书列表 -->
 {% if books %}
 <div class="m-book-list">
     {% for book in books %}
-    <div class="m-card m-book-card" data-href="/award-book/{{ book.id }}">
+    <a href="/award-book/{{ book.id }}" class="m-card m-book-card">
         <div class="m-book-cover">
             <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
                  alt="{{ book.title }}"
@@ -61,28 +53,12 @@
                 {% if _locale == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %}
             </h3>
             <p class="m-book-author">{{ book.author }}</p>
-
-            {# 描述预览（100 字截断） #}
-            {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
-            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
-            <p class="m-book-card-desc">{{ desc[:100] }}{% if desc|length > 100 %}…{% endif %}</p>
-            {% endif %}
-
             <div class="m-badge-row">
                 <span class="m-badge m-badge-primary">{{ book.award_name }}</span>
                 {% if book.year %}<span class="m-badge m-badge-accent">{{ book.year }}</span>{% endif %}
-                {% if book.category %}<span class="m-chip">{{ book.category }}</span>{% endif %}
-                {% if book.isbn13 %}<span class="m-chip m-chip-ghost">ISBN: {{ book.isbn13 }}</span>{% endif %}
             </div>
         </div>
-
-        {# 收藏按钮（由 mobile.js 统一委托处理） #}
-        {% if book.isbn13 or book.isbn10 %}
-        <button class="m-fav-btn" data-isbn="{{ book.isbn13 or book.isbn10 }}" type="button" aria-label="{{ _('收藏') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
-        {% endif %}
-    </div>
+    </a>
     {% endfor %}
 </div>
 
@@ -102,7 +78,6 @@
 {% else %}
 <div class="m-empty">
     <p>{{ _('暂无获奖图书数据') }}</p>
-    <p class="m-text-sm m-text-hint m-empty-sub">{{ _('请尝试切换奖项或年份筛选') }}</p>
 </div>
 {% endif %}
 
