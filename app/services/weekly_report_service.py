@@ -216,7 +216,7 @@ class WeeklyReportService:
                     for _i, book in enumerate(books):
                         # 从NYT API真实数据中获取排名信息
                         # rank_last_week: 上周排名（数字或"无"/"0"表示新上榜）
-                        # weeks_on_list: 上榜周数（NYT API直接提供）
+                        # weeks_on_list: 累计上榜周数（NYT API直接提供）
 
                         # 解析上周排名
                         last_week_rank_str = str(book.rank_last_week).strip()

@@ -10,11 +10,23 @@ load_dotenv(BASE_DIR / '.env')
 
 
 def _build_database_uri() -> str:
-    """构建数据库URI，自动处理 Render 的 postgres:// 前缀"""
+    """Build the database URI for local SQLite or hosted PostgreSQL."""
     db_url = os.environ.get('DATABASE_URL', f'sqlite:///{BASE_DIR / "bestsellers.db"}')
     if db_url.startswith('postgres://'):
-        return db_url.replace('postgres://', 'postgresql://', 1)
-    return db_url
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    return _ensure_supabase_sslmode(db_url)
+
+
+def _ensure_supabase_sslmode(db_url: str) -> str:
+    """Supabase PostgreSQL connections should use SSL."""
+    lowered = db_url.lower()
+    is_postgres = lowered.startswith(('postgresql://', 'postgresql+psycopg2://'))
+    is_supabase = 'supabase.co' in lowered or 'pooler.supabase.com' in lowered
+    if not (is_postgres and is_supabase) or 'sslmode=' in lowered:
+        return db_url
+
+    separator = '&' if '?' in db_url else '?'
+    return f'{db_url}{separator}sslmode=require'
 
 
 class Config:
@@ -153,7 +165,7 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """生产环境配置（针对 Render 免费版优化：512MB 内存、97 连接 PostgreSQL）"""
+    """生产环境配置（适配 Render Web Service + 外部 PostgreSQL/Supabase）"""
 
     DEBUG: bool = False
     TESTING: bool = False
@@ -175,13 +187,13 @@ class ProductionConfig(Config):
                 '生成强随机密钥: python -c "import secrets; print(secrets.token_hex(32))"'
             )
 
-    # 内存缓存（免费版 Render 无 Redis）
+    # 内存缓存（当前部署无 Redis）
     CACHE_TYPE: str = 'simple'
     CACHE_DEFAULT_TIMEOUT: int = 3600  # 缩短缓存时间减少内存占用
     MEMORY_CACHE_TTL: int = 300
 
-    # 数据库连接池优化（免费 PostgreSQL 限制 97 连接）
-    # 注意：pool_size + max_overflow 不要超过 3，避免连接池耗尽
+    # 数据库连接池优化：保持较小连接数，适配 Supabase/Render 等托管 Postgres。
+    # 注意：pool_size + max_overflow 不要超过 3，避免连接池耗尽。
     SQLALCHEMY_ENGINE_OPTIONS: dict[str, object] = {
         'pool_size': 2,  # 基础连接池（原为1，避免并发查询时阻塞）
         'max_overflow': 1,  # 最多 1 个临时连接

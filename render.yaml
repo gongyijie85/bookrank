@@ -35,11 +35,10 @@ services:
         sync: false
       - key: GOOGLE_API_KEY
         sync: false
-      # 数据库连接（从数据库服务获取）
+      # 数据库连接（Supabase / 外部 PostgreSQL）
+      # 在 Render Dashboard 中手动设置为 Supabase 的 Session Pooler 或 Direct URL。
       - key: DATABASE_URL
-        fromDatabase:
-          name: bookrank-db
-          property: connectionString
+        sync: false
       # 缓存配置
       - key: CACHE_TYPE
         value: simple
@@ -51,10 +50,3 @@ services:
       - key: MAX_WORKERS
         value: "2"
 
-# PostgreSQL 数据库（免费版）
-databases:
-  - name: bookrank-db
-    region: oregon
-    plan: free
-    # 免费版限制：1GB存储，97行限制
-    # 注意：免费数据库会在90天不活跃后删除

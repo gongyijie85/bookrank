@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.9.74 - 2026-06-25
+
+### feat(infra): 数据库迁移至 Supabase Postgres + 文案统一补丁
+
+**背景**：Render 免费 PostgreSQL 已过期失效，需要切换到 Supabase 托管 Postgres。同时补齐 v0.9.69 文案统一的遗漏点。
+
+**修改文件**
+- `app/config.py`：新增 `_ensure_supabase_sslmode` 函数，自动为 Supabase 连接串补 `sslmode=require`
+- `Procfile`：移除启动命令中的 `flask db upgrade`，改由应用启动后惰性迁移逻辑处理，避免全新空库先执行历史索引迁移失败
+- `render.yaml`：移除内置 PostgreSQL 数据库服务定义，`DATABASE_URL` 改为在 Render Dashboard 手动配置（指向 Supabase Session Pooler）
+- `app/routes/api/books.py`：CSV 导出表头 "上榜周数" → "累计上榜周数"（v0.9.69 文案统一补丁）
+- `app/services/weekly_report_service.py`：注释 "上榜周数" → "累计上榜周数"（同上）
+
+**新增文件**
+- `docs/supabase-migration.md`：Render → Supabase 迁移操作手册（含数据保住判断、Session Pooler 选择、SSL 自动补全、密码特殊字符 URL encode 等注意事项）
+- `scripts/init_external_postgres.py`：外部 PostgreSQL 初始化/校验脚本，复用运行时迁移守卫，适用于全新 Supabase 空库
+
+**验证**：ruff check + mypy + pytest 全部通过（2121 passed, 4 xfailed）
+
+---
+
 ## v0.9.73 - 2026-06-25
 
 ### feat(mobile): 移动端内容完善 v2 - 修复跳转断裂 + 补全周报/SEO/ISBN
