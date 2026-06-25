@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 import time
-from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import UTC
 from pathlib import Path
@@ -14,27 +13,7 @@ from ..utils.error_handler import ErrorCategory, log_error
 logger = logging.getLogger(__name__)
 
 
-class CacheStrategy(ABC):
-    """缓存策略抽象基类"""
-
-    @abstractmethod
-    def get(self, key: str) -> Any:
-        pass
-
-    @abstractmethod
-    def set(self, key: str, value: Any, ttl: int = 300) -> None:
-        pass
-
-    @abstractmethod
-    def delete(self, key: str) -> None:
-        pass
-
-    @abstractmethod
-    def clear(self) -> None:
-        pass
-
-
-class MemoryCache(CacheStrategy):
+class MemoryCache:
     """内存缓存实现 - 带容量限制和 LRU 淘汰"""
 
     def __init__(self, default_ttl: int = 300, max_size: int = 1000):
@@ -99,7 +78,7 @@ class MemoryCache(CacheStrategy):
             }
 
 
-class FileCache(CacheStrategy):
+class FileCache:
     """文件缓存实现 - 优化版本"""
 
     _CACHE_VERSION = 1
@@ -220,32 +199,19 @@ class FileCache(CacheStrategy):
 class CacheService:
     """缓存服务 - 组合多种缓存策略"""
 
-    def __init__(self, memory_cache: MemoryCache, file_cache: FileCache, flask_cache: Any | None = None):
+    def __init__(self, memory_cache: MemoryCache, file_cache: FileCache):
         self._memory = memory_cache
         self._file = file_cache
-        self._flask_cache = flask_cache
 
     def get(self, key: str) -> Any:
-        """获取缓存（多层缓存：内存 -> Flask -> 文件）"""
+        """获取缓存（多层缓存：内存 -> 文件）"""
         # 1. 尝试从内存缓存获取
         value = self._memory.get(key)
         if value is not None:
             logger.debug(f'Memory cache hit: {key}')
             return value
 
-        # 2. 尝试从 Flask 缓存获取
-        if self._flask_cache:
-            try:
-                value = self._flask_cache.get(key)
-                if value is not None:
-                    logger.debug(f'Flask cache hit: {key}')
-                    # 同步到内存缓存
-                    self._memory.set(key, value)
-                    return value
-            except Exception as e:
-                log_error(ErrorCategory.CACHE, f'Flask cache error: {e}', level='warning')
-
-        # 3. 尝试从文件缓存获取
+        # 2. 尝试从文件缓存获取
         value = self._file.get(key)
         if value is not None:
             logger.debug(f'File cache hit: {key}')
@@ -266,13 +232,6 @@ class CacheService:
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """设置缓存（同时写入多层缓存）"""
         self._memory.set(key, value, ttl)
-
-        if self._flask_cache:
-            try:
-                self._flask_cache.set(key, value, timeout=ttl)
-            except Exception as e:
-                log_error(ErrorCategory.CACHE, f'Flask cache set error: {e}', level='warning')
-
         self._file.set(key, value, ttl)
 
         logger.debug(f'Cache set: {key}')
@@ -280,22 +239,12 @@ class CacheService:
     def delete(self, key: str) -> None:
         """删除缓存"""
         self._memory.delete(key)
-        if self._flask_cache:
-            try:
-                self._flask_cache.delete(key)
-            except Exception as e:
-                log_error(ErrorCategory.CACHE, f'Flask cache delete error: {e}', level='warning')
         self._file.delete(key)
         logger.debug(f'Cache deleted: {key}')
 
     def clear(self) -> None:
         """清空所有缓存"""
         self._memory.clear()
-        if self._flask_cache:
-            try:
-                self._flask_cache.clear()
-            except Exception as e:
-                log_error(ErrorCategory.CACHE, f'Flask cache clear error: {e}', level='warning')
         self._file.clear()
         logger.info('All caches cleared')
 
