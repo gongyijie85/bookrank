@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookRank 书榜 — 登录</title>
+    <style id="theme-vars">
+/* BookRank 书榜 — Brand CSS */
+/* 目标用户：25-40 岁上海上班族，爱读书 */
+/* 风格：现代简约，阅读感强，参考微信读书/豆瓣 */
+
+:root {
+  /* ===== Color System ===== */
+  --color-primary: #2C5F2D;
+  --color-primary-light: #3A7D3B;
+  --color-primary-dark: #1E4320;
+  --color-primary-tint: #E8F0E8;
+
+  --color-accent: #E67E22;
+  --color-accent-light: #F0923A;
+  --color-accent-dark: #C96A15;
+  --color-accent-tint: #FEF3E6;
+
+  --color-bg: #FAF6F0;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-sunken: #F0EBE3;
+
+  --color-text-primary: #333333;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #FFFFFF;
+
+  --color-border: #E8E2D8;
+  --color-border-light: #F0EBE3;
+
+  --color-state-success: #2C5F2D;
+  --color-state-warning: #E67E22;
+  --color-state-error: #C0392B;
+  --color-state-info: #2980B9;
+
+  /* ===== Typography System ===== */
+  --font-display: "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif;
+  --font-body: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-4xl: 28px;
+
+  --leading-tight: 1.4;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+
+  /* ===== Spacing System (8pt grid) ===== */
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ===== Radius System ===== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ===== Shadow System ===== */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* ===== Surface & Depth ===== */
+  --surface-default: var(--color-bg);
+  --surface-elevated: var(--color-bg-elevated);
+  --surface-sunken: var(--color-bg-sunken);
+
+  /* ===== Touch Targets ===== */
+  --touch-min: 44px;
+  --btn-height: 44px;
+  --input-height: 44px;
+
+  /* ===== Safe Area ===== */
+  --safe-top: 44px;
+  --safe-bottom: 34px;
+  --tab-height: 50px;
+}
+
+/* ===== Dark Mode ===== */
+.dark {
+  --color-primary: #4CAF50;
+  --color-primary-light: #66BB6A;
+  --color-primary-dark: #388E3C;
+  --color-primary-tint: #1B2E1C;
+
+  --color-accent: #F0923A;
+  --color-accent-light: #FFB74D;
+  --color-accent-dark: #E67E22;
+  --color-accent-tint: #2E1F0E;
+
+  --color-bg: #1A1A1A;
+  --color-bg-elevated: #242424;
+  --color-bg-sunken: #141414;
+
+  --color-text-primary: #E8E2D8;
+  --color-text-secondary: #AAAAAA;
+  --color-text-tertiary: #777777;
+  --color-text-inverse: #1A1A1A;
+
+  --color-border: #333333;
+  --color-border-light: #2A2A2A;
+
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== Typography Classes ===== */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.text-xs { font-size: var(--text-xs); line-height: var(--leading-normal); }
+.text-sm { font-size: var(--text-sm); line-height: var(--leading-normal); }
+.text-base { font-size: var(--text-base); line-height: var(--leading-normal); }
+.text-lg { font-size: var(--text-lg); line-height: var(--leading-normal); }
+.text-xl { font-size: var(--text-xl); line-height: var(--leading-tight); }
+.text-2xl { font-size: var(--text-2xl); line-height: var(--leading-tight); }
+.text-3xl { font-size: var(--text-3xl); line-height: var(--leading-tight); }
+.text-4xl { font-size: var(--text-4xl); line-height: var(--leading-tight); }
+
+/* ===== Utility Classes ===== */
+.bg-primary { background-color: var(--color-primary); }
+.bg-accent { background-color: var(--color-accent); }
+.bg-surface { background-color: var(--color-bg); }
+.bg-elevated { background-color: var(--color-bg-elevated); }
+
+.text-primary-color { color: var(--color-primary); }
+.text-accent-color { color: var(--color-accent); }
+.text-main { color: var(--color-text-primary); }
+.text-sub { color: var(--color-text-secondary); }
+.text-hint { color: var(--color-text-tertiary); }
+
+.rounded-card { border-radius: var(--radius-lg); }
+.rounded-btn { border-radius: var(--radius-md); }
+.rounded-full { border-radius: var(--radius-full); }
+
+.shadow-card { box-shadow: var(--shadow-card); }
+.shadow-float { box-shadow: var(--shadow-float); }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-primary: var(--color-primary);
+    --color-accent: var(--color-accent);
+    --color-border: var(--color-border);
+  }
+  @layer base {
+    body { background: var(--color-background); color: var(--color-text-primary); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main class="min-h-screen flex flex-col" style="background-color: var(--color-bg);">
+        <!-- Status bar spacer -->
+        <div class="h-[44px]"></div>
+
+        <!-- Brand area -->
+        <div class="flex flex-col items-center pt-10 pb-6">
+            <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <rect x="4" y="2" width="20" height="26" rx="2" stroke="var(--color-primary)" stroke-width="2" fill="none"/>
+                <rect x="8" y="6" width="12" height="2" rx="1" fill="var(--color-primary)"/>
+                <rect x="8" y="10" width="12" height="2" rx="1" fill="var(--color-primary)"/>
+                <rect x="8" y="14" width="8" height="2" rx="1" fill="var(--color-primary)"/>
+                <path d="M24 18L28 14V28L24 24V18Z" stroke="var(--color-primary)" stroke-width="2" fill="none" stroke-linejoin="round"/>
+            </svg>
+            <span class="font-display text-[20px] mt-2" style="color: var(--color-primary); letter-spacing: var(--tracking-tight);">BookRank</span>
+        </div>
+
+        <!-- Form card -->
+        <div class="mx-4 p-6 rounded-[var(--radius-lg)]" style="background-color: var(--color-bg-elevated); box-shadow: var(--shadow-card);">
+            <!-- Phone input -->
+            <label class="block mb-1 text-sm" style="color: var(--color-text-secondary); font-family: var(--font-body);">手机号</label>
+            <input
+                type="tel"
+                placeholder="请输入手机号"
+                class="w-full h-[44px] px-3 text-sm outline-none transition-colors duration-150"
+                style="border: 1px solid var(--color-border); border-radius: var(--radius-md); font-family: var(--font-body); background-color: var(--color-bg-elevated); color: var(--color-text-primary);"
+                onfocus="this.style.borderColor='var(--color-primary)'"
+                onblur="this.style.borderColor='var(--color-border)'"
+            >
+
+            <!-- Code row -->
+            <label class="block mb-1 mt-4 text-sm" style="color: var(--color-text-secondary); font-family: var(--font-body);">验证码</label>
+            <div class="flex gap-2">
+                <input
+                    type="text"
+                    placeholder="请输入验证码"
+                    class="flex-1 h-[44px] px-3 text-sm outline-none transition-colors duration-150"
+                    style="border: 1px solid var(--color-border); border-radius: var(--radius-md); font-family: var(--font-body); background-color: var(--color-bg-elevated); color: var(--color-text-primary);"
+                    onfocus="this.style.borderColor='var(--color-primary)'"
+                    onblur="this.style.borderColor='var(--color-border)'"
+                >
+                <button
+                    type="button"
+                    class="shrink-0 text-sm whitespace-nowrap"
+                    style="color: var(--color-primary); font-family: var(--font-body); min-width: 80px;"
+                >获取验证码</button>
+            </div>
+
+            <!-- Login button -->
+            <a
+                href="#"
+                data-dom-id="cta-login"
+                class="flex items-center justify-center w-full h-[44px] mt-6 text-[16px] font-semibold transition-transform duration-150 active:scale-[0.98]"
+                style="background-color: var(--color-accent); color: var(--color-text-inverse); border-radius: var(--radius-md); font-family: var(--font-body);"
+            >登录</a>
+
+            <!-- Divider -->
+            <div class="flex items-center gap-3 mt-6">
+                <div class="flex-1 h-px" style="background-color: var(--color-border);"></div>
+                <span class="text-xs" style="color: var(--color-text-tertiary); font-family: var(--font-body);">或</span>
+                <div class="flex-1 h-px" style="background-color: var(--color-border);"></div>
+            </div>
+
+            <!-- WeChat login button -->
+            <button
+                type="button"
+                class="flex items-center justify-center gap-2 w-full h-[44px] mt-4 text-[16px] font-semibold transition-transform duration-150 active:scale-[0.98]"
+                style="background-color: #07C160; color: #FFFFFF; border-radius: var(--radius-md); font-family: var(--font-body);"
+            >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm3.164 4.508c-3.71 0-7.48 2.57-7.48 5.852 0 3.352 3.472 5.852 7.48 5.852.788 0 1.56-.118 2.284-.337a.676.676 0 0 1 .557.076l1.468.86a.262.262 0 0 0 .13.043c.126 0 .226-.103.226-.23 0-.056-.023-.11-.037-.165l-.3-1.14a.46.46 0 0 1 .165-.515C21.678 19.836 22.5 18.18 22.5 16.35c0-3.282-3.07-5.852-6.738-5.852zm-2.34 3.274c.497 0 .9.41.9.915a.907.907 0 0 1-.9.913.907.907 0 0 1-.9-.913c0-.505.403-.915.9-.915zm4.68 0c.497 0 .9.41.9.915a.907.907 0 0 1-.9.913.907.907 0 0 1-.9-.913c0-.505.403-.915.9-.915z"/>
+                </svg>
+                微信登录
+            </button>
+        </div>
+
+        <!-- Bottom text -->
+        <div class="flex-1"></div>
+        <p class="text-center text-xs pb-2 pt-6" style="color: var(--color-text-tertiary); font-family: var(--font-body);">
+            登录即同意<a href="#" class="underline" style="color: var(--color-text-tertiary);">《用户协议》</a>和<a href="#" class="underline" style="color: var(--color-text-tertiary);">《隐私政策》</a>
+        </p>
+
+        <!-- Safe area bottom -->
+        <div class="h-[34px]"></div>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

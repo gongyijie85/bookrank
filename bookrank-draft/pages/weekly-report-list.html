@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookRank 书榜 — 周报列表</title>
+    <style id="theme-vars">
+:root {
+  --color-primary: #2C5F2D;
+  --color-primary-light: #3A7D3B;
+  --color-primary-dark: #1E4320;
+  --color-primary-tint: #E8F0E8;
+  --color-accent: #E67E22;
+  --color-accent-light: #F0923A;
+  --color-accent-dark: #C96A15;
+  --color-accent-tint: #FEF3E6;
+  --color-bg: #FAF6F0;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-sunken: #F0EBE3;
+  --color-text-primary: #333333;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #FFFFFF;
+  --color-border: #E8E2D8;
+  --color-border-light: #F0EBE3;
+  --color-state-success: #2C5F2D;
+  --color-state-warning: #E67E22;
+  --color-state-error: #C0392B;
+  --color-state-info: #2980B9;
+  --font-display: "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif;
+  --font-body: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --text-xs: 10px; --text-sm: 12px; --text-base: 14px; --text-lg: 16px;
+  --text-xl: 18px; --text-2xl: 20px; --text-3xl: 24px; --text-4xl: 28px;
+  --leading-tight: 1.4; --leading-normal: 1.5; --leading-relaxed: 1.6;
+  --space-0: 0px; --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-full: 9999px;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --touch-min: 44px; --btn-height: 44px; --input-height: 44px;
+  --safe-top: 44px; --safe-bottom: 34px; --tab-height: 50px;
+}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style>
+      body { background: var(--color-bg); color: var(--color-text-primary); }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .report-card { transition: box-shadow 0.2s ease, transform 0.15s ease; }
+      .report-card:active { transform: scale(0.98); }
+    </style>
+</head>
+<body>
+  <!-- Safe Top Spacer -->
+  <div style="height: var(--safe-top);"></div>
+
+  <!-- Top Nav Bar -->
+  <nav class="sticky top-0 z-40 flex items-center justify-center h-[56px] border-b" style="background: var(--color-bg-elevated); border-color: var(--color-border);">
+    <h1 class="text-[18px] font-bold" style="font-family: var(--font-display); color: var(--color-text-primary);">周报</h1>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="no-scrollbar pb-[calc(var(--tab-height)+var(--safe-bottom)+16px)]" style="overflow-y: auto;">
+
+    <!-- Report Cards List -->
+    <section class="flex flex-col gap-3 px-4 pt-4">
+
+      <!-- W25 -->
+      <a href="weekly-report.html" data-dom-id="link-weekly-report" class="report-card flex items-center gap-3 p-4 rounded-[var(--radius-lg)]" style="background: var(--color-bg-elevated); box-shadow: var(--shadow-subtle);">
+        <!-- Week Indicator -->
+        <div class="shrink-0 flex items-center justify-center w-[40px] h-[40px] rounded-[var(--radius-md)]" style="background: var(--color-primary-tint);">
+          <span class="text-[14px] font-bold" style="font-family: var(--font-display); color: var(--color-primary);">W25</span>
+        </div>
+        <!-- Text Info -->
+        <div class="flex-1 min-w-0">
+          <p class="text-[15px] font-bold truncate" style="color: var(--color-text-primary);">2025年6月第3周周报</p>
+          <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-text-tertiary);">6.17 - 6.23 · 12本新书 · 5个榜单更新</p>
+        </div>
+        <!-- Chevron Right -->
+        <i data-lucide="chevron-right" class="shrink-0" style="width: 18px; height: 18px; color: var(--color-text-tertiary);"></i>
+      </a>
+
+      <!-- W24 -->
+      <a href="weekly-report.html" data-dom-id="link-weekly-report" class="report-card flex items-center gap-3 p-4 rounded-[var(--radius-lg)]" style="background: var(--color-bg-elevated); box-shadow: var(--shadow-subtle);">
+        <div class="shrink-0 flex items-center justify-center w-[40px] h-[40px] rounded-[var(--radius-md)]" style="background: var(--color-primary-tint);">
+          <span class="text-[14px] font-bold" style="font-family: var(--font-display); color: var(--color-primary);">W24</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[15px] font-bold truncate" style="color: var(--color-text-primary);">2025年6月第2周周报</p>
+          <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-text-tertiary);">6.10 - 6.16 · 8本新书 · 3个榜单更新</p>
+        </div>
+        <i data-lucide="chevron-right" class="shrink-0" style="width: 18px; height: 18px; color: var(--color-text-tertiary);"></i>
+      </a>
+
+      <!-- W23 -->
+      <a href="weekly-report.html" data-dom-id="link-weekly-report" class="report-card flex items-center gap-3 p-4 rounded-[var(--radius-lg)]" style="background: var(--color-bg-elevated); box-shadow: var(--shadow-subtle);">
+        <div class="shrink-0 flex items-center justify-center w-[40px] h-[40px] rounded-[var(--radius-md)]" style="background: var(--color-primary-tint);">
+          <span class="text-[14px] font-bold" style="font-family: var(--font-display); color: var(--color-primary);">W23</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[15px] font-bold truncate" style="color: var(--color-text-primary);">2025年6月第1周周报</p>
+          <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-text-tertiary);">6.03 - 6.09 · 15本新书 · 7个榜单更新</p>
+        </div>
+        <i data-lucide="chevron-right" class="shrink-0" style="width: 18px; height: 18px; color: var(--color-text-tertiary);"></i>
+      </a>
+
+      <!-- W22 -->
+      <a href="weekly-report.html" data-dom-id="link-weekly-report" class="report-card flex items-center gap-3 p-4 rounded-[var(--radius-lg)]" style="background: var(--color-bg-elevated); box-shadow: var(--shadow-subtle);">
+        <div class="shrink-0 flex items-center justify-center w-[40px] h-[40px] rounded-[var(--radius-md)]" style="background: var(--color-primary-tint);">
+          <span class="text-[14px] font-bold" style="font-family: var(--font-display); color: var(--color-primary);">W22</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[15px] font-bold truncate" style="color: var(--color-text-primary);">2025年5月第4周周报</p>
+          <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-text-tertiary);">5.27 - 6.02 · 10本新书 · 4个榜单更新</p>
+        </div>
+        <i data-lucide="chevron-right" class="shrink-0" style="width: 18px; height: 18px; color: var(--color-text-tertiary);"></i>
+      </a>
+
+      <!-- W21 -->
+      <a href="weekly-report.html" data-dom-id="link-weekly-report" class="report-card flex items-center gap-3 p-4 rounded-[var(--radius-lg)]" style="background: var(--color-bg-elevated); box-shadow: var(--shadow-subtle);">
+        <div class="shrink-0 flex items-center justify-center w-[40px] h-[40px] rounded-[var(--radius-md)]" style="background: var(--color-primary-tint);">
+          <span class="text-[14px] font-bold" style="font-family: var(--font-display); color: var(--color-primary);">W21</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[15px] font-bold truncate" style="color: var(--color-text-primary);">2025年5月第3周周报</p>
+          <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-text-tertiary);">5.19 - 5.26 · 6本新书 · 2个榜单更新</p>
+        </div>
+        <i data-lucide="chevron-right" class="shrink-0" style="width: 18px; height: 18px; color: var(--color-text-tertiary);"></i>
+      </a>
+
+    </section>
+
+    <!-- Empty State (hidden by default, toggle via JS or remove cards) -->
+    <div id="empty-state" class="hidden flex-col items-center justify-center py-20">
+      <i data-lucide="inbox" style="width: 64px; height: 64px; color: var(--color-text-tertiary);"></i>
+      <p class="text-[16px] mt-4" style="color: var(--color-text-tertiary);">暂无周报数据</p>
+      <p class="text-[13px] mt-1" style="color: var(--color-text-tertiary);">每周一自动生成上周周报</p>
+    </div>
+
+  </main>
+
+  <!-- Bottom Tab Bar -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 border-t" style="background: var(--color-bg-elevated); border-color: var(--color-border); padding-bottom: var(--safe-bottom);">
+    <div class="flex items-center justify-around" style="height: var(--tab-height);">
+      <!-- Home -->
+      <a href="home.html" data-dom-id="tab-home" class="flex flex-col items-center justify-center flex-1 h-full transition-colors" style="color: var(--color-text-tertiary); min-height: var(--touch-min);">
+        <i data-lucide="house" style="width: 28px; height: 28px;"></i>
+        <span class="text-[10px] mt-0.5">首页</span>
+      </a>
+      <!-- Search -->
+      <a href="search.html" data-dom-id="tab-search" class="flex flex-col items-center justify-center flex-1 h-full transition-colors" style="color: var(--color-text-tertiary); min-height: var(--touch-min);">
+        <i data-lucide="search" style="width: 24px; height: 24px;"></i>
+        <span class="text-[10px] mt-0.5">搜索</span>
+      </a>
+      <!-- Weekly Report (Active) -->
+      <a href="weekly-report-list.html" data-dom-id="tab-weekly-report" class="flex flex-col items-center justify-center flex-1 h-full transition-colors" style="color: var(--color-primary); min-height: var(--touch-min);">
+        <i data-lucide="calendar" style="width: 24px; height: 24px; fill: var(--color-primary);"></i>
+        <span class="text-[10px] mt-0.5 font-semibold">周报</span>
+      </a>
+      <!-- Profile -->
+      <a href="profile.html" data-dom-id="tab-profile" class="flex flex-col items-center justify-center flex-1 h-full transition-colors" style="color: var(--color-text-tertiary); min-height: var(--touch-min);">
+        <i data-lucide="user" style="width: 24px; height: 24px;"></i>
+        <span class="text-[10px] mt-0.5">我的</span>
+      </a>
+    </div>
+  </nav>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

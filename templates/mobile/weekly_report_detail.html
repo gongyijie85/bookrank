@@ -18,7 +18,7 @@
 
 <!-- Hero 区：日期 + 周期 + 4 个数字卡片 -->
 <section class="m-report-hero">
-    <div class="m-report-hero-date">{{ report.week_start.strftime('%Y-%m-%d') }} ~ {{ report.week_end.strftime('%Y-%m-%d') }}</div>
+    <div class="m-report-hero-date">{{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }} · {{ _('第') }}{{ report.week_end.strftime('%V') }}{{ _('周') }}</div>
     <div class="m-report-hero-period">{{ report.title or _('周报') }}</div>
 
     <div class="m-report-hero-stats">

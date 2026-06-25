@@ -1,5 +1,64 @@
 # Changelog
 
+## v0.9.77 - 2026-06-26
+
+### feat(mobile): 移动端 UI v2.0 视觉优化
+
+**背景**：设计师提交 v2.0.0 设计稿（`bookrank-draft/`），对现有移动端页面进行视觉优化。本次仅改版现有页面，不新增启动页/登录页/榜单详情页；保持 Flask Jinja2 + 原生 CSS + 手写 SVG 技术栈，不引入 Tailwind/Lucide CDN。
+
+**改动文件**
+- `static/mobile/css/mobile.css`：
+  - 扩展 8pt 间距变量（--space-8/10/12/16）、--shadow-float、--touch-min/--btn-height/--input-height
+  - 顶部导航栏 `.m-top-nav`、搜索表单 `.m-search-form`、热门标签 `.m-hot-tag`
+  - 分类 Tab 改为底部 2px 指示条 `.m-cat-tab.active::after`
+  - 书籍卡片阴影更柔和、间距加大、封面 70x95
+  - 详情页渐变背景 `.m-detail-cover-wrap`、单列元信息 `.m-meta-list`、返回按钮区 `.m-detail-actions`
+  - 周报列表卡片 `.m-report-card`、周数指示器 `.m-report-week`、箭头 `.m-report-chevron`
+  - 周报详情 Hero 统计改为 4 列网格，推荐语气泡 `.m-report-rec-reason`
+  - 空状态 `.m-empty-icon/.m-empty-title/.m-empty-sub/.m-empty-action`
+  - 分页/小按钮最小高度统一 44px
+- `templates/mobile/base.html`：底部 Tab Bar 图标改为实心/描边两套 SVG，激活态墨绿色，首页图标 28px
+- `templates/mobile/index.html`：搜索入口改为顶部导航栏搜索图标；空状态加图标
+- `templates/mobile/book_detail.html`：描述按段落渲染；详情信息改为单列列表；底部新增"返回榜单"按钮；字段名修正为 `isbn13/isbn10/publication_dt`
+- `templates/mobile/award_book_detail.html`：布局与书籍详情统一；描述完整显示；奖项名和获奖年份用徽章展示；底部新增返回按钮
+- `templates/mobile/awards.html`：空状态加图标
+- `templates/mobile/weekly_reports.html`：列表卡片改为左右布局（周数指示器 Wxx + 标题/日期/统计 + 箭头）；标题改为"周报"
+- `templates/mobile/weekly_report_detail.html`：Hero 日期格式改为 "mm.dd - mm.dd · 第xx周"
+- `templates/mobile/profile.html`：收藏/搜索历史空状态加图标
+- `templates/mobile/search.html`：搜索表单结构优化，减少内联样式
+- `tests/test_mobile_routes.py`：新增 4 个测试（首页顶部导航栏、书籍详情单列列表/返回按钮、获奖图书返回按钮、周报列表周数指示器），共 20 个移动端测试
+
+**不实现项**
+- 不新增启动页、登录页、榜单详情页
+- 不引入 Tailwind CSS v4 / Lucide CDN
+- 不添加 ISBN 复制按钮（新增 JS 功能）
+- 空状态使用 CSS/Icon 装饰，不用真实插图
+
+**验证**：ruff check + mypy 通过；20 个移动端测试全部通过
+
+---
+
+## v0.9.76 - 2026-06-26
+
+### feat(draft): 周报列表页 + 周报详情页（bookrank-draft 设计稿）
+
+**背景**：为 bookrank-draft 移动端设计稿新增周报模块两个页面，统一设计系统 CSS 变量、底部 Tab Bar 规范和 data-dom-id 命名。
+
+**新增文件**
+- `bookrank-draft/pages/weekly-report-list.html`：周报列表页，含 5 张示例周报卡片（W25-W21）、隐藏空状态、底部 4-tab 导航栏
+- `bookrank-draft/pages/weekly-report.html`：周报详情页（完全重写），含 Hero 渐变区、4 列统计卡片、榜单变化列表（带上升/下降箭头）、本周推荐书籍（带语气泡推荐语）、分享按钮、底部 4-tab 导航栏
+
+**页面规范**
+- 设计系统 CSS 变量内联于 `<style id="theme-vars">`，与主站一致
+- Tailwind CSS CDN v4 + Lucide CDN v0.344.0
+- 底部 Tab Bar：首页图标 28px，其余 24px，active tab 使用 fill/solid + primary 色
+- data-dom-id：tab-home、tab-search、tab-weekly-report、tab-profile、link-weekly-report、share-report
+- Safe area 适配：--safe-top: 44px、--safe-bottom: 34px
+
+**验证**：HTML 结构完整，设计系统变量一致，Tab Bar 导航正确
+
+---
+
 ## v0.9.75 - 2026-06-25
 
 ### refactor(mobile): 移动端精简 - 去筛选/分享/收藏，保留核心内容

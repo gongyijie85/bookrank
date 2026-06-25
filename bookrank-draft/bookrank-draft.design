@@ -1,0 +1,325 @@
+{
+  "data": [
+    {
+      "id": "page-splash",
+      "title": "启动页",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/splash.html",
+        "interactions": [
+          {
+            "domId": "cta-enter",
+            "targetPageId": "page-login",
+            "transitionLabel": "进入登录"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-login",
+      "title": "登录页",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 420,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/login.html",
+        "interactions": [
+          {
+            "domId": "cta-login",
+            "targetPageId": "page-home",
+            "transitionLabel": "登录成功"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-home",
+      "title": "首页",
+      "type": "page",
+      "version": 2,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 840,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/home.html",
+        "interactions": [
+          {
+            "domId": "link-ranking-detail",
+            "targetPageId": "page-ranking-detail",
+            "transitionLabel": "查看榜单"
+          },
+          {
+            "domId": "tab-search",
+            "targetPageId": "page-search",
+            "hideEdge": true,
+            "transitionLabel": "搜索"
+          },
+          {
+            "domId": "tab-weekly-report",
+            "targetPageId": "page-weekly-report-list",
+            "hideEdge": true,
+            "transitionLabel": "周报"
+          },
+          {
+            "domId": "tab-profile",
+            "targetPageId": "page-profile",
+            "hideEdge": true,
+            "transitionLabel": "我的"
+          },
+          {
+            "domId": "link-book-detail",
+            "targetPageId": "page-book-detail",
+            "hideEdge": true,
+            "transitionLabel": "查看书籍"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-ranking-detail",
+      "title": "榜单详情",
+      "type": "page",
+      "version": 2,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 1260,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/ranking-detail.html",
+        "interactions": [
+          {
+            "domId": "link-book-detail",
+            "targetPageId": "page-book-detail",
+            "transitionLabel": "查看书籍"
+          },
+          {
+            "domId": "back-home",
+            "targetPageId": "page-home",
+            "hideEdge": true,
+            "transitionLabel": "返回"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-book-detail",
+      "title": "书籍详情",
+      "type": "page",
+      "version": 2,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 1680,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/book-detail.html",
+        "interactions": [
+          {
+            "domId": "back-ranking",
+            "targetPageId": "page-ranking-detail",
+            "hideEdge": true,
+            "transitionLabel": "返回"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-search",
+      "title": "搜索页",
+      "type": "page",
+      "version": 2,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 0,
+        "y": 1057,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/search.html",
+        "interactions": [
+          {
+            "domId": "tab-home",
+            "targetPageId": "page-home",
+            "hideEdge": true,
+            "transitionLabel": "首页"
+          },
+          {
+            "domId": "tab-weekly-report",
+            "targetPageId": "page-weekly-report-list",
+            "hideEdge": true,
+            "transitionLabel": "周报"
+          },
+          {
+            "domId": "tab-profile",
+            "targetPageId": "page-profile",
+            "hideEdge": true,
+            "transitionLabel": "我的"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-weekly-report-list",
+      "title": "周报列表",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 420,
+        "y": 1057,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/weekly-report-list.html",
+        "interactions": [
+          {
+            "domId": "tab-home",
+            "targetPageId": "page-home",
+            "hideEdge": true,
+            "transitionLabel": "首页"
+          },
+          {
+            "domId": "tab-search",
+            "targetPageId": "page-search",
+            "hideEdge": true,
+            "transitionLabel": "搜索"
+          },
+          {
+            "domId": "tab-profile",
+            "targetPageId": "page-profile",
+            "hideEdge": true,
+            "transitionLabel": "我的"
+          },
+          {
+            "domId": "link-weekly-report",
+            "targetPageId": "page-weekly-report",
+            "hideEdge": true,
+            "transitionLabel": "查看详情"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-weekly-report",
+      "title": "周报详情",
+      "type": "page",
+      "version": 2,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 840,
+        "y": 1057,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/weekly-report.html",
+        "interactions": [
+          {
+            "domId": "tab-home",
+            "targetPageId": "page-home",
+            "hideEdge": true,
+            "transitionLabel": "首页"
+          },
+          {
+            "domId": "tab-search",
+            "targetPageId": "page-search",
+            "hideEdge": true,
+            "transitionLabel": "搜索"
+          },
+          {
+            "domId": "tab-profile",
+            "targetPageId": "page-profile",
+            "hideEdge": true,
+            "transitionLabel": "我的"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-profile",
+      "title": "个人中心",
+      "type": "page",
+      "version": 2,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 1260,
+        "y": 1057,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/profile.html",
+        "interactions": [
+          {
+            "domId": "tab-home",
+            "targetPageId": "page-home",
+            "hideEdge": true,
+            "transitionLabel": "首页"
+          },
+          {
+            "domId": "tab-search",
+            "targetPageId": "page-search",
+            "hideEdge": true,
+            "transitionLabel": "搜索"
+          },
+          {
+            "domId": "tab-weekly-report",
+            "targetPageId": "page-weekly-report-list",
+            "hideEdge": true,
+            "transitionLabel": "周报"
+          }
+        ]
+      }
+    },
+    {
+      "id": "image-001",
+      "title": "首页横幅",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 0,
+        "y": 1837
+      },
+      "devMetadata": {
+        "imageSrc": "assets/hero-banner.jpg"
+      }
+    },
+    {
+      "id": "image-002",
+      "title": "书籍封面",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1750861200000,
+      "canvasData": {
+        "x": 420,
+        "y": 1837
+      },
+      "devMetadata": {
+        "imageSrc": "assets/book-cover.jpg"
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "mobile",
+    "projectName": "BookRank 书榜 (优化版)",
+    "showEdge": false
+  }
+}

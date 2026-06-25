@@ -147,7 +147,7 @@ class TestMobileWeeklyRoute:
         resp = client.get('/reports/weekly', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
-        assert '阅读周报'.encode() in resp.data
+        assert '周报'.encode() in resp.data
 
 
 class TestTemplateFallback:
@@ -249,3 +249,114 @@ class TestMobileWeeklyReportDetailEnhanced:
         assert b'm-report-hero' in resp.data
         assert '总书数'.encode() in resp.data
         assert 'Top 5 排名变化'.encode() in resp.data
+
+
+class TestMobileIndexSimplified:
+    """v0.9.76：移动端首页精简验证"""
+
+    @patch('app.routes.main.get_book_service')
+    def test_mobile_index_no_filter_panel(self, mock_get_svc, client) -> None:
+        """移动端首页不应渲染筛选/排序面板"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-filter-panel' not in resp.data
+        assert b'm-filter-toggle' not in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_mobile_index_no_rank_change_badges(self, mock_get_svc, client) -> None:
+        """移动端首页卡片不应显示排名变化、累计周数、分类标签"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-rank-change' not in resp.data
+        assert b'm-book-weeks' not in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_mobile_index_has_top_nav(self, mock_get_svc, client) -> None:
+        """移动端首页应渲染顶部导航栏"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-top-nav' in resp.data
+
+
+class TestMobileBookDetailV2:
+    """v0.9.77：书籍详情页 v2 视觉验证"""
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.get_book_service')
+    def test_book_detail_has_meta_list_and_back_button(
+        self, mock_get_svc, mock_fetch, mock_merge, client
+    ) -> None:
+        """移动端书籍详情应使用单列元信息列表并显示返回按钮"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-meta-list' in resp.data
+        assert b'm-detail-actions' in resp.data
+        assert b'm-btn-outline' in resp.data
+
+
+class TestMobileAwardBookDetailFullDescription:
+    """v0.9.76：获奖图书详情完整描述"""
+
+    def test_award_book_detail_shows_full_description(self, client, db, sample_award_book) -> None:
+        """获奖图书详情应显示完整描述（不截断）"""
+        from app.models.schemas import AwardBook
+
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        book.description = 'A' * 250
+        db.session.commit()
+
+        resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'A' * 250 in resp.data
+
+    def test_award_book_detail_has_back_button(self, client, db, sample_award_book) -> None:
+        """获奖图书详情应显示返回按钮"""
+        from app.models.schemas import AwardBook
+
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        db.session.commit()
+
+        resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-detail-actions' in resp.data
+        assert b'm-btn-outline' in resp.data
+
+
+class TestMobileWeeklyReportListV2:
+    """v0.9.77：周报列表 v2 视觉验证"""
+
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_book_service')
+    def test_weekly_list_shows_week_indicator(
+        self, mock_get_svc, mock_report_svc, client
+    ) -> None:
+        """移动端周报列表应显示周数指示器"""
+        from datetime import date, datetime
+
+        mock_get_svc.return_value = _mock_book_service([])
+
+        report_mock = MagicMock()
+        report_mock.id = 1
+        report_mock.week_end = date(2024, 1, 14)
+        report_mock.week_start = date(2024, 1, 8)
+        report_mock.created_at = datetime(2024, 1, 14, 10, 0)
+        report_mock.title = '测试周报'
+        report_mock.summary = '测试摘要'
+        report_mock.content_data = {'total_books': 10}
+
+        svc_mock = MagicMock()
+        svc_mock.get_or_trigger_current_week_report.return_value = (report_mock, False)
+        svc_mock.get_reports.return_value = [report_mock]
+        mock_report_svc.return_value = svc_mock
+
+        resp = client.get('/reports/weekly', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-report-week' in resp.data
+        assert b'W02' in resp.data

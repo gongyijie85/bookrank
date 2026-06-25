@@ -256,6 +256,8 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.77 - 移动端 UI v2.0 视觉优化：按设计师 v2.0.0 设计稿改版现有移动端页面；底部 Tab Bar 改为实心/描边 SVG；首页加顶部导航栏+分类 Tab 指示条；书籍详情改单列元信息+返回按钮；获奖详情统一布局+奖项徽章；周报列表加 Wxx 周数指示器；周报详情 Hero 统计 4 列+推荐语气泡；搜索页/个人中心空状态加图标；按钮/分页统一 44px 触控高度；保持原生 CSS/SVG，不引入 Tailwind/Lucide；20 个移动端测试全部通过
+- v0.9.76 - bookrank-draft 设计稿：新增周报列表页（weekly-report-list.html）和周报详情页（weekly-report.html）设计稿，含 Hero 渐变区、4 列统计、上升/下降箭头、推荐书籍语气泡、底部 Tab Bar 规范
 - v0.9.75 - 移动端精简：移除筛选（年份/日期/搜索框）、分享、收藏功能；详情页移除 Tab 切换/购买链接/英文原标题/标签行，保留 ISBN+出版社+内容简介；mobile.js 从 215 行精简至 75 行；mobile.css 移除约 400 行冗余样式
 - v0.9.74 - 数据库迁移至 Supabase Postgres + 文案统一补丁：`config.py` 新增 `_ensure_supabase_sslmode` 自动补 SSL；`Procfile` 移除 `flask db upgrade` 改为应用内惰性迁移；`render.yaml` 移除内置 Postgres 服务，`DATABASE_URL` 改为手动配置 Supabase Session Pooler；新增 `docs/supabase-migration.md` 迁移手册 + `scripts/init_external_postgres.py` 空库初始化脚本；CSV/注释 "上榜周数" → "累计上榜周数"（v0.9.69 补丁）
 - v0.9.73 - 移动端内容完善 v2：修复 3 个跳转断裂（`/award-book/<id>`、`/about`、错误页改用 `render_adaptive`）；新增 3 个移动端模板（error、about、award_book_detail）；周报详情补"排名上升最快"+"持续上榜最久"+PDF/Excel 导出；周报列表增加搜索框；base.html 加 canonical + SearchAction JSON-LD；awards 卡片加 ISBN 标签；新增 6 个测试用例

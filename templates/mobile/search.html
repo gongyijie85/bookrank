@@ -15,22 +15,22 @@
 {% block content %}
 
 <!-- 搜索表单 -->
-<form action="/" method="get" style="padding:var(--space-4)">
-    <div style="display:flex;gap:var(--space-2)">
+<form action="/" method="get" class="m-search-form">
+    <div class="m-search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="search" name="search" placeholder="{{ _('输入书名、作者...') }}"
-               style="flex:1;height:44px;padding:0 var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg-elevated);font-size:var(--text-base);color:var(--color-text-primary);outline:none"
-               required autofocus>
-        <button type="submit" class="m-btn m-btn-primary" style="min-width:72px">{{ _('搜索') }}</button>
+               required autofocus
+               aria-label="{{ _('搜索关键词') }}">
     </div>
+    <button type="submit" class="m-btn m-btn-primary">{{ _('搜索') }}</button>
 </form>
 
 <!-- 热门搜索 -->
-<section>
+<section class="m-section">
     <h2 class="m-section-title">{{ _('热门搜索') }}</h2>
-    <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);padding:0 var(--space-4)">
+    <div class="m-hot-tags">
         {% for kw in ['百年孤独', '三体', '小王子', '人类简史', '原子习惯', '置身事内'] %}
-        <a href="/?search={{ kw | urlencode }}" class="m-card" data-href="/?search={{ kw | urlencode }}"
-           style="padding:6px 12px;border-radius:var(--radius-full);font-size:var(--text-sm);color:var(--color-text-primary)">{{ kw }}</a>
+        <a href="/?search={{ kw | urlencode }}" class="m-hot-tag" data-href="/?search={{ kw | urlencode }}">{{ kw }}</a>
         {% endfor %}
     </div>
 </section>

@@ -77,7 +77,11 @@
 
 {% else %}
 <div class="m-empty">
-    <p>{{ _('暂无获奖图书数据') }}</p>
+    <div class="m-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+    </div>
+    <p class="m-empty-title">{{ _('暂无获奖图书数据') }}</p>
+    <p class="m-empty-sub">{{ _('请稍后再试或切换其他奖项') }}</p>
 </div>
 {% endif %}
 

@@ -7,7 +7,7 @@
     <a href="/" class="m-header-btn" aria-label="{{ _('返回') }}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </a>
-    <span class="m-header-title">{{ _('阅读周报') }}</span>
+    <span class="m-header-title">{{ _('周报') }}</span>
     <div class="m-header-placeholder"></div>
 </header>
 {% endblock %}
@@ -23,24 +23,32 @@
 {% if reports %}
 <div class="m-book-list">
     {% for report in reports %}
-    <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-book-card">
-        <div class="m-book-info">
-            <h3 class="m-book-title">
+    <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-report-card">
+        <div class="m-report-week">W{{ report.week_end.strftime('%V') }}</div>
+        <div class="m-report-main">
+            <h3 class="m-report-title">
                 {% if report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
             </h3>
-            <p class="m-book-author">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
-            {% if report.content_data and report.content_data.total_books %}
-            <span class="m-book-weeks">{{ _('共') }}{{ report.content_data.total_books }}{{ _('本') }}</span>
-            {% endif %}
+            <p class="m-report-sub">
+                {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}
+                {% if report.content_data and report.content_data.total_books %}
+                · {{ report.content_data.total_books }}{{ _('本新书') }}
+                {% endif %}
+            </p>
         </div>
-        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+        <span class="m-report-chevron">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </span>
     </a>
     {% endfor %}
 </div>
 {% else %}
 <div class="m-empty">
-    <p>{{ _('暂无周报数据') }}</p>
-    <p class="m-text-sm m-text-hint" style="margin-top:8px">{{ _('系统会自动生成本周周报') }}</p>
+    <div class="m-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    </div>
+    <p class="m-empty-title">{{ _('暂无周报数据') }}</p>
+    <p class="m-empty-sub">{{ _('系统会自动生成本周周报') }}</p>
 </div>
 {% endif %}
 

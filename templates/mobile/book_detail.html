@@ -41,42 +41,49 @@
 {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
 <section class="m-detail-section">
     <h2 class="m-detail-section-title">{{ _('内容简介') }}</h2>
-    <p class="m-detail-text">{{ desc }}</p>
+    <div class="m-detail-text">
+        {% for para in desc.split('\n') if para.strip() %}
+        <p>{{ para.strip() }}</p>
+        {% endfor %}
+    </div>
 </section>
 {% endif %}
 
 <!-- 详细信息 -->
 <section class="m-detail-section">
     <h2 class="m-detail-section-title">{{ _('详细信息') }}</h2>
-    <dl class="m-meta-grid">
+    <dl class="m-meta-list">
         {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('出版社') }}</dt><dd class="m-meta-grid-value">{{ book.publisher }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
         {% endif %}
-        {% if book.publication_dt and book.publication_dt not in ('Unknown', '', 'N/A') %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('出版日期') }}</dt><dd class="m-meta-grid-value">{{ book.publication_dt }}</dd></div>
+        {% if book.isbn13 or book.isbn10 %}
+        <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
         {% endif %}
-        {% if book.isbn13 %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">ISBN-13</dt><dd class="m-meta-grid-value">{{ book.isbn13 }}</dd></div>
-        {% elif book.isbn10 %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">ISBN-10</dt><dd class="m-meta-grid-value">{{ book.isbn10 }}</dd></div>
+        {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
+        <div class="m-meta-row"><dt>{{ _('出版日期') }}</dt><dd>{{ book.publication_dt }}</dd></div>
         {% endif %}
         {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('页数') }}</dt><dd class="m-meta-grid-value">{{ book.page_count }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ book.page_count }}</dd></div>
         {% endif %}
         {% if book.category_name %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('分类') }}</dt><dd class="m-meta-grid-value">{{ book.category_name }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('图书分类') }}</dt><dd>{{ book.category_name }}</dd></div>
         {% endif %}
         {% if book.weeks_on_list %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('累计上榜') }}</dt><dd class="m-meta-grid-value">{{ book.weeks_on_list }} {{ _('周') }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('累计上榜') }}</dt><dd>{{ book.weeks_on_list }}{{ _('周') }}</dd></div>
         {% endif %}
         {% if book.language and book.language not in ('Unknown', '', 'un') %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('语言') }}</dt><dd class="m-meta-grid-value">{{ book.language }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('语言') }}</dt><dd>{{ book.language }}</dd></div>
         {% endif %}
         {% if book.price and book.price != '未知' %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('价格') }}</dt><dd class="m-meta-grid-value">{{ book.price }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('价格') }}</dt><dd>{{ book.price }}</dd></div>
         {% endif %}
     </dl>
 </section>
+
+<!-- 返回按钮 -->
+<div class="m-detail-actions">
+    <a href="/?category={{ current_category }}" class="m-btn m-btn-outline">{{ _('返回榜单') }}</a>
+</div>
 
 {% endblock %}
 

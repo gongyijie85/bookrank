@@ -8,11 +8,13 @@
 <!-- 状态栏占位 -->
 <div class="m-status-bar"></div>
 
-<!-- 搜索入口 -->
-<a href="/search" class="m-search-bar" data-dom-id="tab-search">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <span>{{ _('搜索书籍、作者...') }}</span>
-</a>
+<!-- 顶部导航栏 -->
+<nav class="m-top-nav">
+    <span class="m-top-nav-title">{{ _('书榜') }}</span>
+    <a href="/search" class="m-top-nav-btn" aria-label="{{ _('搜索') }}" data-dom-id="tab-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </a>
+</nav>
 
 <!-- 分类 Tab 横向滑动 -->
 <section class="m-cat-tabs" aria-label="图书分类">
@@ -25,46 +27,6 @@
         {% endfor %}
     </div>
 </section>
-
-<!-- 筛选按钮（折叠式） -->
-{% if publishers or weeks_filter or sort_by %}
-<button class="m-filter-toggle" type="button" data-target="m-filter-panel" aria-expanded="false">
-    <span>{{ _('筛选') }}</span>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-</button>
-<div class="m-filter-panel" id="m-filter-panel">
-    {% if publishers %}
-    <div class="m-filter-row">
-        <span class="m-filter-label">{{ _('出版社') }}</span>
-        <select class="m-filter-select" onchange="window.location.href='?category={{ current_category }}' + (this.value ? '&publisher=' + encodeURIComponent(this.value) : '') + ('&weeks={{ weeks_filter or '' }}&sort={{ sort_by or '' }}' if ('{{ weeks_filter }}' or '{{ sort_by }}') else '')">
-            <option value="">{{ _('全部') }}</option>
-            {% for p in publishers %}
-            <option value="{{ p }}" {% if p == publisher_filter %}selected{% endif %}>{{ p }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    {% endif %}
-    <div class="m-filter-row">
-        <span class="m-filter-label">{{ _('上榜周数') }}</span>
-        <select class="m-filter-select" onchange="window.location.href='?category={{ current_category }}' + (this.value ? '&weeks=' + this.value : '') + ('&publisher={{ publisher_filter or '' }}&sort={{ sort_by or '' }}' if ('{{ publisher_filter }}' or '{{ sort_by }}') else '')">
-            <option value="">{{ _('全部') }}</option>
-            <option value="1" {% if weeks_filter == '1' %}selected{% endif %}>1 {{ _('周+') }}</option>
-            <option value="3" {% if weeks_filter == '3' %}selected{% endif %}>3 {{ _('周+') }}</option>
-            <option value="5" {% if weeks_filter == '5' %}selected{% endif %}>5 {{ _('周+') }}</option>
-            <option value="10" {% if weeks_filter == '10' %}selected{% endif %}>10 {{ _('周+') }}</option>
-        </select>
-    </div>
-    <div class="m-filter-row">
-        <span class="m-filter-label">{{ _('排序') }}</span>
-        <select class="m-filter-select" onchange="window.location.href='?category={{ current_category }}' + (this.value ? '&sort=' + this.value : '') + ('&publisher={{ publisher_filter or '' }}&weeks={{ weeks_filter or '' }}' if ('{{ publisher_filter }}' or '{{ weeks_filter }}') else '')">
-            <option value="">{{ _('默认') }}</option>
-            <option value="rank" {% if sort_by == 'rank' %}selected{% endif %}>{{ _('按排名') }}</option>
-            <option value="weeks" {% if sort_by == 'weeks' %}selected{% endif %}>{{ _('按上榜周数') }}</option>
-            <option value="title" {% if sort_by == 'title' %}selected{% endif %}>{{ _('按书名') }}</option>
-        </select>
-    </div>
-</div>
-{% endif %}
 
 <!-- 榜单信息 -->
 <div class="m-list-info">
@@ -105,32 +67,17 @@
             <p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length > 80 %}…{% endif %}</p>
             {% endif %}
 
-            {# 排名变化 + 累计周数 #}
-            <div class="m-badge-row">
-                {% if book.rank_last_week and book.rank_last_week not in ('无', '0', '', '-') %}
-                    {% if book.rank_last_week == 'NEW' or book.rank_last_week|int(-1) == 0 and book.rank_last_week != '0' %}
-                        {% if book.rank_last_week == 'NEW' %}
-                        <span class="m-rank-change new">NEW</span>
-                        {% endif %}
-                    {% elif book.rank_last_week|int(-1) > book.rank %}
-                        <span class="m-rank-change up">↑{{ book.rank_last_week|int - book.rank }}</span>
-                    {% elif book.rank_last_week|int(-1) < book.rank and book.rank_last_week|int(-1) > 0 %}
-                        <span class="m-rank-change down">↓{{ book.rank - book.rank_last_week|int }}</span>
-                    {% endif %}
-                {% endif %}
-                {% if book.weeks_on_list %}
-                <span class="m-book-weeks">{{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>
-                {% endif %}
-                {% if book.category_name %}<span class="m-chip">{{ book.category_name }}</span>{% endif %}
-            </div>
         </div>
     </a>
     {% endfor %}
 </div>
 {% else %}
 <div class="m-empty">
-    <p>{{ _('暂无图书数据') }}</p>
-    <p class="m-text-sm m-text-hint m-empty-sub">{{ _('请稍后再试或切换其他分类') }}</p>
+    <div class="m-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </div>
+    <p class="m-empty-title">{{ _('暂无图书数据') }}</p>
+    <p class="m-empty-sub">{{ _('请稍后再试或切换其他分类') }}</p>
     <a href="/" class="m-btn m-btn-outline m-btn-sm m-empty-action">{{ _('刷新') }}</a>
 </div>
 {% endif %}

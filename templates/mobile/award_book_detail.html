@@ -23,7 +23,7 @@
     <div class="m-detail-cover">
         <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
              alt="{{ display_title }}"
-             width="120" height="160"
+             width="130" height="175"
              onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
     </div>
 </section>
@@ -32,6 +32,12 @@
 <section class="m-detail-head">
     <h1 class="m-detail-title">{{ display_title }}</h1>
     <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
+    {% if book.award %}
+    <div class="m-detail-tags">
+        <span class="m-detail-tag">{{ book.award.name }}</span>
+        {% if book.year %}<span class="m-detail-tag" style="background: var(--color-accent-tint); color: var(--color-accent);">{{ book.year }}{{ _('年') }}</span>{% endif %}
+    </div>
+    {% endif %}
 </section>
 
 <div class="m-detail-divider"></div>
@@ -40,44 +46,55 @@
 {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
 <section class="m-detail-section">
     <h2 class="m-detail-section-title">{{ _('内容简介') }}</h2>
-    <p class="m-detail-text">{{ desc[:200] }}{% if desc|length > 200 %}...{% endif %}</p>
+    <div class="m-detail-text">
+        {% for para in desc.split('\n') if para.strip() %}
+        <p>{{ para.strip() }}</p>
+        {% endfor %}
+    </div>
 </section>
 {% elif book.details %}
 <section class="m-detail-section">
     <h2 class="m-detail-section-title">{{ _('内容简介') }}</h2>
-    <p class="m-detail-text">{{ book.details[:200] }}{% if book.details|length > 200 %}...{% endif %}</p>
+    <div class="m-detail-text">
+        {% for para in book.details.split('\n') if para.strip() %}
+        <p>{{ para.strip() }}</p>
+        {% endfor %}
+    </div>
 </section>
 {% endif %}
 
 <!-- 详细信息 -->
 <section class="m-detail-section">
     <h2 class="m-detail-section-title">{{ _('详细信息') }}</h2>
-    <dl class="m-meta-grid">
+    <dl class="m-meta-list">
         {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('出版社') }}</dt><dd class="m-meta-grid-value">{{ book.publisher }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
         {% endif %}
         {% if book.publication_year %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('出版年份') }}</dt><dd class="m-meta-grid-value">{{ book.publication_year }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('出版年份') }}</dt><dd>{{ book.publication_year }}</dd></div>
         {% endif %}
-        {% if book.isbn13 %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">ISBN-13</dt><dd class="m-meta-grid-value">{{ book.isbn13 }}</dd></div>
-        {% elif book.isbn10 %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">ISBN-10</dt><dd class="m-meta-grid-value">{{ book.isbn10 }}</dd></div>
+        {% if book.isbn13 or book.isbn10 %}
+        <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
         {% endif %}
         {% if book.award %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('奖项') }}</dt><dd class="m-meta-grid-value">{{ book.award.name }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name }}</dd></div>
         {% endif %}
         {% if book.year %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('获奖年份') }}</dt><dd class="m-meta-grid-value">{{ book.year }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('获奖年份') }}</dt><dd>{{ book.year }}</dd></div>
         {% endif %}
         {% if book.category %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('类别') }}</dt><dd class="m-meta-grid-value">{{ book.category }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('类别') }}</dt><dd>{{ book.category }}</dd></div>
         {% endif %}
         {% if book.rank %}
-        <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('名次') }}</dt><dd class="m-meta-grid-value">{{ book.rank }}</dd></div>
+        <div class="m-meta-row"><dt>{{ _('名次') }}</dt><dd>{{ book.rank }}</dd></div>
         {% endif %}
     </dl>
 </section>
+
+<!-- 返回按钮 -->
+<div class="m-detail-actions">
+    <a href="{{ back_url }}" class="m-btn m-btn-outline">{{ _('返回榜单') }}</a>
+</div>
 
 {% endblock %}
 
@@ -90,7 +107,7 @@
     "author": "{{ book.author or '' }}",
     {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% elif book.isbn10 %}"isbn": "{{ book.isbn10 }}",{% endif %}
     {% if book.publisher %}"publisher": "{{ book.publisher }}",{% endif %}
-    "description": "{{ (desc or book.details or '')[:200] | replace('"', '\\"') }}"
+    "description": "{{ (desc or book.details or '') | replace('"', '\\"') }}"
 }
 </script>
 {% endblock %}
