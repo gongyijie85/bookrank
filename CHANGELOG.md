@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.9.78 - 2026-06-26
+
+### feat(mobile): 详情页 Tab 化 + 删放大镜 + Tab 改名 + 加语言切换
+
+**背景**：v0.9.77 视觉优化后用户反馈 4 项移动端问题：①详情页缺少电脑端那种"详细信息" Tab；②首页顶部放大镜不美观；③底部 Tab 文字需改名（搜索→获奖书单、周报→出版社）；④详情页底部"返回榜单"按钮可去掉；⑤需要中文显示或中英文切换（顶部右上角）。本次仅改移动端，电脑端不动。
+
+**改动文件**
+- `templates/mobile/book_detail.html`：
+  - 删掉底部"返回榜单"按钮 `.m-detail-actions`
+  - 把"内容简介"和"详细信息"两个 section 包装进 `.m-detail-tabs-wrapper`，加 `.m-detail-tabs` + 两个 `.m-tab-btn`（图书简介 / 详细信息）和两个 `.m-tab-panel`
+  - 容器带 `data-isbn` / `data-book-index` / `data-category` 属性，供 JS 懒加载 Google Books 详细介绍
+  - "详细信息" Tab 内带 `.m-tab-panel-extra` 占位，JS 注入的详细描述会追加到这里
+- `templates/mobile/award_book_detail.html`：
+  - 同上：Tab 化 + 删返回按钮 + 容器带 `data-isbn` / `data-book-id`
+  - 简介 Tab 优先用 `book.description_zh`，否则用 `book.details`
+- `templates/mobile/index.html`：
+  - 顶部 nav 删除搜索放大镜图标，只保留"书榜"标题
+- `templates/mobile/base.html`（之前已实现）：
+  - `<head>` 引入 `book-i18n.js`（含 `.min.js` 生产环境回退）
+  - `<main class="m-page">` 内加语言切换按钮（地球图标 `.m-lang-globe-btn`）和下拉菜单（`.m-lang-dropdown`，含 zh / en 两个按钮）
+  - 底部 Tab Bar 4 个 Tab：首页 (`/`) / 获奖书单 (`/awards`) / 出版社 (`/awards`) / 我的 (`/profile`)
+- `static/mobile/css/mobile.css`：
+  - 新增 `.m-lang-globe-btn` / `.m-lang-dropdown`（fixed 定位、卡片阴影、米白背景）
+  - 新增 `.m-detail-tabs` / `.m-tab-btn` / `.m-tab-content` / `.m-tab-panel`（含 active 状态和 fade-in 动画）
+  - 新增 `.m-tab-panel-extra`（懒加载内容样式，顶部虚线分隔）
+  - 新增 `.m-detail-empty`（空状态文字样式）
+- `static/mobile/js/mobile.js`：
+  - 新增 `initLangSwitcher()`：点击地球按钮切换下拉，点击 dropdown 项调用 `BookI18n.applyLanguage()` 并持久化到 `localStorage.bookrank_language`；监听 `languagechange` 事件
+  - 新增 `switchDetailTab(tabName)` / `initDetailTabs()`：详情页 Tab 切换；切换到"详细信息"时触发 `fetchBookDetails()`
+  - 新增 `fetchBookDetails(wrapper)`：懒加载 `/api/book-details`，渲染到 `.m-tab-panel-extra`
+  - `window.MobileApp` 暴露 `switchLanguage` / `switchDetailTab` / `fetchBookDetails`
+- `tests/test_mobile_routes.py`：
+  - 调整 `TestMobileBookDetailV2.test_book_detail_has_meta_list_and_back_button` → 拆为 2 个测试（元信息列表 + 无返回按钮）
+  - 调整 `test_award_book_detail_has_back_button` → `test_award_book_detail_no_back_button`
+  - 新增 `TestMobileV978` 类（10 个测试）：语言切换器、Tab Bar 文字/链接、详情页 Tab 结构、首页无搜索图标等
+  - 移动端测试总数：20 → 30
+
+**验证**
+- `ruff check app/ tests/`：All checks passed
+- `mypy app/`：Success, no issues found in 89 source files
+- `pytest tests/`：2136 passed, 4 xfailed（无回归）
+
+---
+
 ## v0.9.77 - 2026-06-26
 
 ### feat(mobile): 移动端 UI v2.0 视觉优化

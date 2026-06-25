@@ -2,7 +2,8 @@
    - 卡片点击导航
    - CSRF token 懒加载
    - Toast 通知
-   - 30 秒轮询（周报生成） */
+   - 30 秒轮询（周报生成）
+   - v0.9.78：语言切换、详情页 Tab 切换、Google Books 详情懒加载 */
 'use strict';
 
 (function () {
@@ -62,6 +63,147 @@
         }, intervalMs || 30000);
     }
 
+    // ===== 5. v0.9.78 语言切换 =====
+    const LANG_STORAGE_KEY = 'bookrank_language';
+
+    function getSavedLanguage() {
+        try {
+            return localStorage.getItem(LANG_STORAGE_KEY) || localStorage.getItem('app_language') || 'zh';
+        } catch (e) {
+            return 'zh';
+        }
+    }
+
+    function setSavedLanguage(lang) {
+        try {
+            localStorage.setItem(LANG_STORAGE_KEY, lang);
+        } catch (e) { /* 忽略 localStorage 不可用 */ }
+    }
+
+    function applyLanguage(lang) {
+        if (typeof window.BookI18n !== 'undefined' && window.BookI18n.applyLanguage) {
+            window.BookI18n.applyLanguage(lang);
+        }
+        setSavedLanguage(lang);
+        document.documentElement.setAttribute('lang', lang === 'en' ? 'en' : 'zh-CN');
+        // 派发事件，供其他组件监听
+        try {
+            window.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } }));
+        } catch (e) { /* 旧浏览器忽略 */ }
+    }
+
+    function initLangSwitcher() {
+        const globe = document.getElementById('m-lang-globe');
+        const dropdown = document.getElementById('m-lang-dropdown');
+        if (!globe || !dropdown) return;
+
+        // 点击地球按钮：切换下拉
+        globe.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const isOpen = dropdown.classList.toggle('open');
+            globe.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+
+        // 点击下拉项：切换语言
+        dropdown.querySelectorAll('button[data-lang]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const lang = btn.getAttribute('data-lang') || 'zh';
+                applyLanguage(lang);
+                dropdown.classList.remove('open');
+                globe.setAttribute('aria-expanded', 'false');
+                toast(lang === 'en' ? 'Language switched to English' : '已切换为简体中文');
+            });
+        });
+
+        // 点击页面其他位置：关闭下拉
+        document.addEventListener('click', function (e) {
+            if (!dropdown.contains(e.target) && e.target !== globe) {
+                dropdown.classList.remove('open');
+                globe.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // 初始化：读取已保存语言
+        const saved = getSavedLanguage();
+        if (saved === 'en') {
+            applyLanguage('en');
+        }
+    }
+
+    // ===== 6. v0.9.78 详情页 Tab 切换 =====
+    function switchDetailTab(tabName) {
+        const wrapper = document.querySelector('.m-detail-tabs-wrapper');
+        if (!wrapper) return;
+        wrapper.querySelectorAll('.m-tab-btn').forEach(function (btn) {
+            const isActive = btn.getAttribute('data-tab') === tabName;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        wrapper.querySelectorAll('.m-tab-panel').forEach(function (panel) {
+            panel.classList.toggle('active', panel.getAttribute('data-panel') === tabName);
+        });
+    }
+
+    function initDetailTabs() {
+        const wrapper = document.querySelector('.m-detail-tabs-wrapper');
+        if (!wrapper) return;
+        wrapper.querySelectorAll('.m-tab-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const tabName = btn.getAttribute('data-tab');
+                if (!tabName) return;
+                switchDetailTab(tabName);
+                // 切到"详细信息"时懒加载 Google Books 详细数据
+                if (tabName === 'details') {
+                    fetchBookDetails(wrapper);
+                }
+            });
+        });
+    }
+
+    // ===== 7. v0.9.78 懒加载 Google Books 详细介绍 =====
+    function fetchBookDetails(wrapper) {
+        if (!wrapper || wrapper.dataset.loaded === '1') return;
+        const isbn = wrapper.getAttribute('data-isbn') || '';
+        const bookIndex = wrapper.getAttribute('data-book-index');
+        const category = wrapper.getAttribute('data-category') || '';
+        if (!isbn || bookIndex === null || bookIndex === '') return;
+
+        wrapper.dataset.loaded = '1';
+        const extraEl = wrapper.querySelector('[data-panel="details"] .m-tab-panel-extra');
+        if (!extraEl) return;
+
+        const params = new URLSearchParams({
+            book_index: bookIndex,
+            isbn: isbn,
+            category: category,
+        });
+
+        fetch('/api/book-details?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data || !data.data) return;
+                const details = (data.data.details || '').trim();
+                const PLACEHOLDERS = ['暂无详细介绍', 'No detailed description available.', 'No summary available.', 'No summary available'];
+                if (!details || PLACEHOLDERS.indexOf(details) !== -1) return;
+                // 渲染到 .m-tab-panel-extra
+                extraEl.innerHTML = '';
+                const heading = document.createElement('h3');
+                heading.style.cssText = 'font-size:14px;font-weight:600;margin:0 0 8px 0;color:var(--color-text-secondary);';
+                heading.textContent = 'Google Books 详细介绍';
+                extraEl.appendChild(heading);
+                details.split('\n').forEach(function (para) {
+                    const p = para.trim();
+                    if (!p) return;
+                    const node = document.createElement('p');
+                    node.textContent = p;
+                    extraEl.appendChild(node);
+                });
+            })
+            .catch(function () { /* 静默失败，详情区已有元信息列表 */ });
+    }
+
     // ===== 暴露 API =====
     window.MobileApp = {
         getCsrfToken: getCsrfToken,
@@ -70,6 +212,21 @@
         getSessionId: function () {
             const m = document.cookie.match(/(?:^|; )session_id=([^;]*)/);
             return m ? m[1] : 'anonymous';
-        }
+        },
+        // v0.9.78 新增
+        switchLanguage: applyLanguage,
+        switchDetailTab: switchDetailTab,
+        fetchBookDetails: fetchBookDetails,
     };
+
+    // ===== DOM Ready 初始化 =====
+    function ready(fn) {
+        if (document.readyState !== 'loading') fn();
+        else document.addEventListener('DOMContentLoaded', fn);
+    }
+
+    ready(function () {
+        initLangSwitcher();
+        initDetailTabs();
+    });
 })();

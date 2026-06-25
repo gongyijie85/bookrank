@@ -35,54 +35,66 @@
     <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %} · {{ book.publisher }}{% endif %}</p>
 </section>
 
-<div class="m-detail-divider"></div>
-
-<!-- 内容简介 -->
-{% if desc and desc not in ('No summary available.', 'No summary available', '') %}
-<section class="m-detail-section">
-    <h2 class="m-detail-section-title">{{ _('内容简介') }}</h2>
-    <div class="m-detail-text">
-        {% for para in desc.split('\n') if para.strip() %}
-        <p>{{ para.strip() }}</p>
-        {% endfor %}
+<!-- Tab 切换：图书简介 / 详细信息 -->
+<div class="m-detail-tabs-wrapper"
+     data-isbn="{{ book.isbn13 or book.isbn10 or '' }}"
+     data-book-index="{{ book_index }}"
+     data-category="{{ category or '' }}">
+    <div class="m-detail-tabs" role="tablist">
+        <button class="m-tab-btn active" data-tab="description" role="tab" aria-selected="true" type="button">
+            {{ _('图书简介') }}
+        </button>
+        <button class="m-tab-btn" data-tab="details" role="tab" aria-selected="false" type="button">
+            {{ _('详细信息') }}
+        </button>
     </div>
-</section>
-{% endif %}
 
-<!-- 详细信息 -->
-<section class="m-detail-section">
-    <h2 class="m-detail-section-title">{{ _('详细信息') }}</h2>
-    <dl class="m-meta-list">
-        {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
-        <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
-        {% endif %}
-        {% if book.isbn13 or book.isbn10 %}
-        <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
-        {% endif %}
-        {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
-        <div class="m-meta-row"><dt>{{ _('出版日期') }}</dt><dd>{{ book.publication_dt }}</dd></div>
-        {% endif %}
-        {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
-        <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ book.page_count }}</dd></div>
-        {% endif %}
-        {% if book.category_name %}
-        <div class="m-meta-row"><dt>{{ _('图书分类') }}</dt><dd>{{ book.category_name }}</dd></div>
-        {% endif %}
-        {% if book.weeks_on_list %}
-        <div class="m-meta-row"><dt>{{ _('累计上榜') }}</dt><dd>{{ book.weeks_on_list }}{{ _('周') }}</dd></div>
-        {% endif %}
-        {% if book.language and book.language not in ('Unknown', '', 'un') %}
-        <div class="m-meta-row"><dt>{{ _('语言') }}</dt><dd>{{ book.language }}</dd></div>
-        {% endif %}
-        {% if book.price and book.price != '未知' %}
-        <div class="m-meta-row"><dt>{{ _('价格') }}</dt><dd>{{ book.price }}</dd></div>
-        {% endif %}
-    </dl>
-</section>
+    <div class="m-tab-content">
+        <!-- 图书简介 -->
+        <div class="m-tab-panel active" data-panel="description" role="tabpanel">
+            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            <div class="m-detail-text">
+                {% for para in desc.split('\n') if para.strip() %}
+                <p>{{ para.strip() }}</p>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="m-detail-empty">{{ _('暂无简介') }}</p>
+            {% endif %}
+        </div>
 
-<!-- 返回按钮 -->
-<div class="m-detail-actions">
-    <a href="/?category={{ current_category }}" class="m-btn m-btn-outline">{{ _('返回榜单') }}</a>
+        <!-- 详细信息 -->
+        <div class="m-tab-panel" data-panel="details" role="tabpanel">
+            <dl class="m-meta-list">
+                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
+                <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
+                {% endif %}
+                {% if book.isbn13 or book.isbn10 %}
+                <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
+                {% endif %}
+                {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
+                <div class="m-meta-row"><dt>{{ _('出版日期') }}</dt><dd>{{ book.publication_dt }}</dd></div>
+                {% endif %}
+                {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
+                <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ book.page_count }}</dd></div>
+                {% endif %}
+                {% if book.category_name %}
+                <div class="m-meta-row"><dt>{{ _('图书分类') }}</dt><dd>{{ book.category_name }}</dd></div>
+                {% endif %}
+                {% if book.weeks_on_list %}
+                <div class="m-meta-row"><dt>{{ _('累计上榜') }}</dt><dd>{{ book.weeks_on_list }}{{ _('周') }}</dd></div>
+                {% endif %}
+                {% if book.language and book.language not in ('Unknown', '', 'un') %}
+                <div class="m-meta-row"><dt>{{ _('语言') }}</dt><dd>{{ book.language }}</dd></div>
+                {% endif %}
+                {% if book.price and book.price != '未知' %}
+                <div class="m-meta-row"><dt>{{ _('价格') }}</dt><dd>{{ book.price }}</dd></div>
+                {% endif %}
+            </dl>
+            {# JS 懒加载的 Google Books 详细介绍会追加到这里 #}
+            <div class="m-tab-panel-extra" data-source="google-books"></div>
+        </div>
+    </div>
 </div>
 
 {% endblock %}

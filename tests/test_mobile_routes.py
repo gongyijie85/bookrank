@@ -88,7 +88,7 @@ class TestMobileBookDetailRoute:
         resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
-        assert b'm-detail-section' in resp.data  # 详情区块
+        assert b'm-tab-panel' in resp.data  # v0.9.78：详情用 Tab 面板
         assert b'ISBN' in resp.data  # ISBN 信息保留
 
 
@@ -282,21 +282,31 @@ class TestMobileIndexSimplified:
 
 
 class TestMobileBookDetailV2:
-    """v0.9.77：书籍详情页 v2 视觉验证"""
+    """v0.9.77：书籍详情页 v2 视觉验证（v0.9.78 删除了底部"返回榜单"按钮）"""
 
     @patch('app.routes.main.merge_or_translate_book')
     @patch('app.routes.main.fetch_google_books_details')
     @patch('app.routes.main.get_book_service')
-    def test_book_detail_has_meta_list_and_back_button(
+    def test_book_detail_has_meta_list(
         self, mock_get_svc, mock_fetch, mock_merge, client
     ) -> None:
-        """移动端书籍详情应使用单列元信息列表并显示返回按钮"""
+        """移动端书籍详情应使用单列元信息列表"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
         resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-meta-list' in resp.data
-        assert b'm-detail-actions' in resp.data
-        assert b'm-btn-outline' in resp.data
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.get_book_service')
+    def test_book_detail_no_back_button(
+        self, mock_get_svc, mock_fetch, mock_merge, client
+    ) -> None:
+        """v0.9.78：移动端书籍详情页应不显示底部"返回榜单"按钮"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-detail-actions' not in resp.data
 
 
 class TestMobileAwardBookDetailFullDescription:
@@ -315,8 +325,8 @@ class TestMobileAwardBookDetailFullDescription:
         assert resp.status_code == 200
         assert b'A' * 250 in resp.data
 
-    def test_award_book_detail_has_back_button(self, client, db, sample_award_book) -> None:
-        """获奖图书详情应显示返回按钮"""
+    def test_award_book_detail_no_back_button(self, client, db, sample_award_book) -> None:
+        """v0.9.78：获奖图书详情页应不显示底部"返回榜单"按钮"""
         from app.models.schemas import AwardBook
 
         book = db.session.get(AwardBook, sample_award_book)
@@ -325,8 +335,7 @@ class TestMobileAwardBookDetailFullDescription:
 
         resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
-        assert b'm-detail-actions' in resp.data
-        assert b'm-btn-outline' in resp.data
+        assert b'm-detail-actions' not in resp.data
 
 
 class TestMobileWeeklyReportListV2:
@@ -360,3 +369,118 @@ class TestMobileWeeklyReportListV2:
         assert resp.status_code == 200
         assert b'm-report-week' in resp.data
         assert b'W02' in resp.data
+
+
+class TestMobileV978:
+    """v0.9.78：详情页 Tab 化 + 删除放大镜 + Tab 改名 + 语言切换器"""
+
+    # ----- base.html 通用：语言切换器 -----
+
+    @patch('app.routes.main.get_book_service')
+    def test_base_has_lang_switcher_button(self, mock_get_svc, client) -> None:
+        """移动端 base.html 应包含语言切换按钮"""
+        mock_get_svc.return_value = _mock_book_service([])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-lang-globe-btn' in resp.data
+        assert b'id="m-lang-globe"' in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_base_has_lang_dropdown_options(self, mock_get_svc, client) -> None:
+        """语言下拉应包含"简体中文"和"English"两个选项"""
+        mock_get_svc.return_value = _mock_book_service([])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-lang-dropdown' in resp.data
+        assert '简体中文'.encode() in resp.data
+        assert b'data-lang="en"' in resp.data
+        assert b'data-lang="zh"' in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_base_includes_book_i18n_script(self, mock_get_svc, client) -> None:
+        """base.html 应引入 book-i18n.js"""
+        mock_get_svc.return_value = _mock_book_service([])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'book-i18n' in resp.data
+
+    # ----- 底部 Tab Bar 文字/链接 -----
+
+    @patch('app.routes.main.get_book_service')
+    def test_tabbar_no_search_label(self, mock_get_svc, client) -> None:
+        """底部 Tab Bar 不应再含"搜索"Tab（data-tab 标识）"""
+        mock_get_svc.return_value = _mock_book_service([])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        # 旧版"搜索"Tab 用 data-tab="search" 标识，应不再存在
+        assert b'data-tab="search"' not in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_tabbar_has_awards_and_publisher(self, mock_get_svc, client) -> None:
+        """底部 Tab Bar 应含"获奖书单"和"出版社"两个 Tab（data-tab 标识）"""
+        mock_get_svc.return_value = _mock_book_service([])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        # 两个 Tab 用 data-tab 标识，locale 无关
+        assert b'data-tab="awards"' in resp.data
+        assert b'data-tab="publisher"' in resp.data
+
+    # ----- 详情页 Tab 化 -----
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.get_book_service')
+    def test_book_detail_has_tabs(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
+        """书籍详情页应包含"图书简介 / 详细信息"两个 Tab"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-detail-tabs' in resp.data
+        assert b'm-tab-btn' in resp.data
+        assert b'data-tab="description"' in resp.data
+        assert b'data-tab="details"' in resp.data
+        assert b'data-panel="description"' in resp.data
+        assert b'data-panel="details"' in resp.data
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.get_book_service')
+    def test_book_detail_has_data_isbn_attr(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
+        """书籍详情页 Tab 容器应带 data-isbn 属性供 JS 懒加载"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'data-isbn="9780143127550"' in resp.data
+        assert b'data-book-index="0"' in resp.data
+
+    def test_award_book_detail_has_tabs(self, client, db, sample_award_book) -> None:
+        """获奖图书详情页应包含"图书简介 / 详细信息"两个 Tab"""
+        from app.models.schemas import AwardBook
+
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        db.session.commit()
+
+        resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-detail-tabs' in resp.data
+        assert b'm-tab-btn' in resp.data
+        assert b'data-tab="description"' in resp.data
+        assert b'data-tab="details"' in resp.data
+
+    # ----- 首页无搜索图标 -----
+
+    @patch('app.routes.main.get_book_service')
+    def test_index_no_search_icon(self, mock_get_svc, client) -> None:
+        """首页顶部 nav 不应包含搜索放大镜图标"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        # 顶部 nav 区域不含 search/magnifier 关键字
+        top_nav_start = resp.data.find(b'm-top-nav')
+        top_nav_end = resp.data.find(b'</nav>', top_nav_start)
+        top_nav_block = resp.data[top_nav_start:top_nav_end]
+        assert b'magnifier' not in top_nav_block
+        assert b'm-search' not in top_nav_block
+        # 旧版搜索图标 SVG（M11 19 Q14 14 19 14 或类似圆+柄）应不存在
+        assert b'M21 21l-4.35-4.35' not in top_nav_block
