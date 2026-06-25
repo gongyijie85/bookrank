@@ -24,6 +24,7 @@ from ..utils.book_filters import filter_books_by_publisher, filter_books_by_sear
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.security import is_safe_redirect_url
+from ..utils.template_resolver import render_adaptive
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 from ..utils.service_helpers import (
@@ -113,7 +114,7 @@ def index():
         )
     )
 
-    return render_template(
+    return render_adaptive(
         'index.html',
         categories=categories,
         books=books_data,
@@ -125,6 +126,7 @@ def index():
         publisher_filter=publisher_filter,
         weeks_filter=weeks_filter,
         sort_by=sort_by,
+        active_tab='home',
     )
 
 
@@ -171,7 +173,8 @@ def awards():
     award_service = AwardBookService()
     params = _parse_awards_params(request.args)
     context = _load_awards_data(award_service, params)
-    return render_template('awards.html', **context)
+    context['active_tab'] = 'awards'
+    return render_adaptive('awards.html', **context)
 
 
 def _parse_awards_params(args) -> dict:
@@ -569,13 +572,55 @@ def book_detail(book_index):
         fetch_google_books_details(book, isbn)
         merge_or_translate_book(book, isbn)
 
-    return render_template(
+    return render_adaptive(
         'book_detail.html',
         book=book,
         book_index=book_index,
         category=category,
         back_url=request.referrer or '/?category=' + category,
+        active_tab='home',
     )
+
+
+@main_bp.route('/profile')
+def profile():
+    """个人中心 - 收藏与搜索历史（移动端优先，匿名会话）"""
+    from ..services.user_service import UserService
+
+    session_id = request.cookies.get('session_id', 'anonymous')
+    service = UserService()
+    favorites = service.get_favorites(session_id)
+    search_history = service.get_search_history(session_id, limit=10)
+
+    # 用 BookMetadata 富化收藏列表（补全书名/作者）
+    for fav in favorites:
+        isbn = fav.get('isbn', '')
+        if isbn:
+            meta = service.get_book_metadata(isbn)
+            if meta:
+                fav['title'] = meta.title_zh or meta.title
+                fav['author'] = meta.author
+            else:
+                fav['title'] = isbn
+                fav['author'] = ''
+
+    return render_adaptive(
+        'profile.html',
+        favorites=favorites,
+        search_history=search_history,
+        session_id=session_id,
+        active_tab='profile',
+    )
+
+
+@main_bp.route('/search')
+def search_page():
+    """移动端搜索入口页（桌面端重定向到首页）"""
+    from ..utils.device_detect import is_mobile
+
+    if not is_mobile():
+        return redirect('/')
+    return render_template('mobile/search.html', active_tab='search')
 
 
 @main_bp.route('/api/book-details')
@@ -652,11 +697,12 @@ def weekly_reports():
     for report in reports:
         report.content_data = parse_report_content(report) or {}
 
-    return render_template(
+    return render_adaptive(
         'weekly_reports.html',
         reports=reports,
         latest_report=latest_report,
         is_generating=is_generating,
+        active_tab='weekly',
     )
 
 
@@ -727,7 +773,12 @@ def weekly_report_detail(date):
         )
 
         content_data = parse_report_content(report)
-        return render_template('weekly_report_detail.html', report=report, content=content_data)
+        return render_adaptive(
+            'weekly_report_detail.html',
+            report=report,
+            content=content_data,
+            active_tab='weekly',
+        )
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'周报详情渲染错误: {e!s}', exc_info=True)

@@ -1,0 +1,46 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('周报') }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="/" class="m-header-btn" aria-label="{{ _('返回') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('阅读周报') }}</span>
+    <div class="m-header-placeholder"></div>
+</header>
+{% endblock %}
+
+{% block content %}
+
+{% if is_generating %}
+<div style="margin:var(--space-4);padding:var(--space-3);background:var(--color-accent-tint);color:var(--color-accent);border-radius:var(--radius-md);font-size:var(--text-sm)">
+    {{ _('本期周报正在生成中，请稍后刷新查看') }}
+</div>
+{% endif %}
+
+{% if reports %}
+<div class="m-book-list" style="margin-top:var(--space-4)">
+    {% for report in reports %}
+    <a href="/reports/weekly/{{ report.week_end.isoformat() }}"
+       class="m-card m-book-card" data-href="/reports/weekly/{{ report.week_end.isoformat() }}">
+        <div class="m-book-info">
+            <h3 class="m-book-title">{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}</h3>
+            <p class="m-book-author">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            {% if report.content_data and report.content_data.total_books %}
+            <span class="m-book-weeks">{{ _('共') }}{{ report.content_data.total_books }}{{ _('本') }}</span>
+            {% endif %}
+        </div>
+        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="m-empty">
+    <p>{{ _('暂无周报数据') }}</p>
+    <p class="m-text-sm m-text-hint" style="margin-top:8px">{{ _('系统会自动生成本周周报') }}</p>
+</div>
+{% endif %}
+
+{% endblock %}

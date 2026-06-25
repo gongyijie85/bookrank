@@ -1,5 +1,72 @@
 # Changelog
 
+## v0.9.71 - 2026-06-25
+
+### feat(mobile): 补齐移动端搜索与周报入口
+
+**新增**
+- `app/routes/main.py` 新增 `/search` 路由，移动端访问渲染 `templates/mobile/search.html`，桌面端重定向到首页
+- `/reports/weekly` 与 `/reports/weekly/<date>` 改用 `render_adaptive()`，移动端渲染移动版周报模板
+- 首页、书籍详情、奖项榜单、个人中心路由统一传入 `active_tab`，底部 Tab 高亮状态正确
+
+**测试**
+- `tests/test_mobile_routes.py` 新增搜索页、周报列表移动端渲染测试
+- 移动端相关测试共 15 个全部通过
+
+**质量门禁**
+- Ruff 检查通过
+- mypy 类型检查通过
+
+---
+
+## v0.9.70 - 2026-06-25
+
+### feat(mobile): 新增手机端独立版本（UA 自动切换模板）
+
+**背景**：原项目仅桌面版，移动端访问体验差。本次新增手机端独立模板，同一 URL 下根据 User-Agent 自动切换移动版/桌面版，无需子域名、无需下载 APP。
+
+**新增文件**
+- `app/utils/device_detect.py`：移动设备 UA 检测工具（`is_mobile()`）
+- `app/utils/template_resolver.py`：自适应渲染工具（`render_adaptive()`，移动模板缺失时自动回退桌面版）
+- `templates/mobile/base.html`：移动端母版（顶部栏 + 底部 3 Tab + 内容区，独立于桌面 base.html）
+- `templates/mobile/index.html`：移动首页（分类 Tab 横滑 + 书籍卡片列表）
+- `templates/mobile/book_detail.html`：移动书籍详情（封面 + 信息 + 简介折叠 + 收藏按钮）
+- `templates/mobile/awards.html`：移动奖项榜单（奖项筛选 + 年份筛选 + 卡片列表 + 分页）
+- `templates/mobile/profile.html`：移动个人中心（收藏列表 + 搜索历史，匿名会话）
+- `static/mobile/css/mobile.css`：移动端样式表（墨绿主色 + 米白背景 + 8pt 网格）
+- `static/mobile/js/mobile.js`：移动端交互脚本（卡片点击 + CSRF 懒加载）
+- `tests/test_device_detect.py`：UA 检测单元测试（6 用例，覆盖率 100%）
+- `tests/test_mobile_routes.py`：移动端路由渲染测试（7 用例，覆盖 4 页面 + 回退机制）
+
+**修改文件**
+- `app/routes/main.py`：
+  - 新增 `render_adaptive` 导入
+  - 首页（`/`）、书籍详情（`/book/<id>`）、奖项榜单（`/awards`）3 个路由改用 `render_adaptive`
+  - 新增 `/profile` 路由（个人中心，复用 `UserService` 收藏与搜索历史，用 `BookMetadata` 富化书名）
+
+**技术要点**
+- 路由方案：UA 自动切换模板（非子域名、非 URL 前缀），本地开发零配置
+- 模板组织：`templates/mobile/` 子目录，桌面模板保持原位不动，零侵入
+- 回退机制：移动模板缺失时自动回退桌面版，渐进迁移不报错
+- 不引入前端框架：保持原生 HTML/CSS/JS，单页体积轻量
+- 不做认证系统：个人中心基于现有 session_id 匿名会话
+- 复用现有 API：收藏交互调用 `/api/favorites` 系列接口
+
+**MVP 4 页面**
+1. 首页（`/`）：分类 Tab + 书籍卡片列表
+2. 书籍详情（`/book/<id>`）：封面 + 信息 + 简介折叠 + 收藏
+3. 奖项榜单（`/awards`）：奖项/年份筛选 + 卡片列表 + 分页
+4. 个人中心（`/profile`）：收藏列表 + 搜索历史
+
+**验证**
+- Ruff 检查通过
+- mypy 类型检查通过
+- 13 个测试全部通过（device_detect + mobile_routes 覆盖率 100%）
+- 移动端 UA 访问 4 页面均渲染移动版模板
+- 桌面端 UA 访问仍渲染桌面版模板，不受影响
+
+**设计师提示词文档**：见 `.trae/documents/mobile-version-plan.md` 第四章
+
 ## v0.9.69 - 2026-06-17
 
 ### fix(new-books): 统计栏占位符修复 + 分类数据中英文统一

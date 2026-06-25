@@ -1,0 +1,67 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('纽约时报畅销书排行榜') }} - 书榜{% endblock %}
+
+{% block content %}
+{% set _locale = get_locale() %}
+
+<!-- 状态栏占位 -->
+<div class="m-status-bar"></div>
+
+<!-- 搜索入口 -->
+<a href="/search" class="m-search-bar" data-dom-id="tab-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span>{{ _('搜索书籍、作者...') }}</span>
+</a>
+
+<!-- 分类 Tab 横向滑动 -->
+<section class="m-cat-tabs" aria-label="图书分类">
+    <div class="m-cat-tabs-scroll no-scrollbar">
+        {% for key, label in categories.items() %}
+        <a href="/?category={{ key }}"
+           class="m-cat-tab {% if key == current_category %}active{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- 榜单信息 -->
+<div class="m-list-info">
+    {% if update_time %}{{ _('更新于') }} {{ update_time }} · {% endif %}{{ books|length }}{{ _('本') }}
+</div>
+
+<!-- 书籍排行榜列表 -->
+{% if books %}
+<div class="m-book-list">
+    {% for book in books %}
+    <a href="/book/{{ loop.index0 }}?category={{ current_category }}"
+       class="m-card m-book-card" data-href="/book/{{ loop.index0 }}?category={{ current_category }}">
+        <span class="m-rank-badge {% if loop.index > 3 %}small{% endif %}">{{ loop.index }}</span>
+        <div class="m-book-cover">
+            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+                 alt="{{ book.title }}"
+                 loading="lazy"
+                 width="60" height="80"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+        <div class="m-book-info">
+            <h3 class="m-book-title" title="{{ book.title }}">
+                {% if _locale == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %}
+            </h3>
+            <p class="m-book-author">{{ book.author }}</p>
+            {% if book.weeks_on_list %}
+            <span class="m-book-weeks">{{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="m-empty">
+    <p>{{ _('暂无图书数据') }}</p>
+    <p class="m-text-sm m-text-hint" style="margin-top:8px">{{ _('请稍后再试或切换其他分类') }}</p>
+</div>
+{% endif %}
+
+{% endblock %}

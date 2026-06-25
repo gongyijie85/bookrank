@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2C5F2D">
+    <meta name="description" content="书榜 BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <title>{% block title %}书榜 BookRank{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% block header %}{% endblock %}
+
+    <main class="m-page">
+        {% block content %}{% endblock %}
+    </main>
+
+    <nav class="m-tabbar">
+        <a href="/" class="m-tab {% if active_tab == 'home' %}active{% endif %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 14 15 14 15 21"/></svg>
+            <span>首页</span>
+        </a>
+        <a href="/search" class="m-tab {% if active_tab == 'search' %}active{% endif %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>搜索</span>
+        </a>
+        <a href="/reports/weekly" class="m-tab {% if active_tab == 'weekly' %}active{% endif %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>周报</span>
+        </a>
+        <a href="/profile" class="m-tab {% if active_tab == 'profile' %}active{% endif %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>我的</span>
+        </a>
+    </nav>
+
+    <script src="{{ url_for('static', filename='mobile/js/mobile.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
