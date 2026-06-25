@@ -42,7 +42,7 @@ def init_services(app):
         max_size=cfg.get('MEMORY_CACHE_MAX_SIZE', 1000),
     )
     file_cache = FileCache(cache_dir=cfg['CACHE_DIR'], default_ttl=cfg['CACHE_DEFAULT_TIMEOUT'])
-    cache_service = CacheService(memory_cache, file_cache, flask_cache=None)
+    cache_service = CacheService(memory_cache, file_cache)
     register_service(app, 'cache_service', cache_service)
     app.logger.info('缓存服务初始化成功')
 

@@ -120,7 +120,6 @@ BookRank3/
 │   │   ├── export_service.py     # PDF/Excel 导出服务
 │   │   ├── smart_search_service.py# 智能搜索服务
 │   │   ├── book_language_pack.py # 语言包管理
-│   │   ├── book_verification_service.py# 书籍验证服务
 │   │   ├── award_cover_sync_service.py# 封面同步服务
 │   │   ├── api_client.py         # API 客户端兼容入口
 │   │   ├── api_utils.py          # API 工具函数
@@ -483,7 +482,6 @@ MemoryCache + FileCache → CacheService → NYTApiClient → GoogleBooksClient
 | `ExportService` | `export_service.py` | PDF/Excel 导出（fpdf2 + openpyxl） |
 | `SmartSearchService` | `smart_search_service.py` | 跨数据源智能搜索 |
 | `BookLanguagePack` | `book_language_pack.py` | JSON 语言包读写 |
-| `BookVerificationService` | `book_verification_service.py` | 书籍数据验证 |
 | `AwardCoverSyncService` | `award_cover_sync_service.py` | 获奖图书封面同步 |
 | `ImageCacheService` | `api_utils.py` | 封面图片缓存（本地磁盘） |
 
