@@ -1,0 +1,179 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ report.title or _('周报') }} - 书榜{% endblock %}
+{% block og_title %}{{ report.title or _('周报') }} - 书榜{% endblock %}
+{% block tw_title %}{{ report.title or _('周报') }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="/reports/weekly" class="m-header-btn" aria-label="{{ _('返回') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('周报详情') }}</span>
+    <button class="m-header-btn m-share-btn" type="button"
+            data-url="/reports/weekly/{{ report.week_end.isoformat() }}"
+            data-title="{{ report.title or _('周报') }}"
+            aria-label="{{ _('分享') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </button>
+</header>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero 区：日期 + 周期 + 4 个数字卡片 -->
+<section class="m-report-hero">
+    <div class="m-report-hero-date">{{ report.week_start.strftime('%Y-%m-%d') }} ~ {{ report.week_end.strftime('%Y-%m-%d') }}</div>
+    <div class="m-report-hero-period">{{ report.title or _('周报') }}</div>
+
+    <div class="m-report-hero-stats">
+        <div class="m-report-hero-stat">
+            <div class="m-report-hero-stat-value">{{ content.total_books if content and content.total_books else 0 }}</div>
+            <div class="m-report-hero-stat-label">{{ _('总书数') }}</div>
+        </div>
+        <div class="m-report-hero-stat">
+            <div class="m-report-hero-stat-value">{{ content.total_new if content and content.total_new else 0 }}</div>
+            <div class="m-report-hero-stat-label">{{ _('新书') }}</div>
+        </div>
+        <div class="m-report-hero-stat">
+            <div class="m-report-hero-stat-value">{{ content.total_rising if content and content.total_rising else 0 }}</div>
+            <div class="m-report-hero-stat-label">{{ _('上升') }}</div>
+        </div>
+        <div class="m-report-hero-stat">
+            <div class="m-report-hero-stat-value">{{ content.total_falling if content and content.total_falling else 0 }}</div>
+            <div class="m-report-hero-stat-label">{{ _('下降') }}</div>
+        </div>
+    </div>
+</section>
+
+<!-- 本周概览 -->
+{% if report.summary %}
+<section class="m-report-section">
+    <h2 class="m-report-section-title">{{ _('本周概览') }}</h2>
+    <p class="m-report-overview-text">{{ report.summary }}</p>
+</section>
+{% endif %}
+
+<!-- Top 5 排名变化 -->
+{% if content and content.top_changes %}
+<section class="m-report-section">
+    <h2 class="m-report-section-title">{{ _('Top 5 排名变化') }}</h2>
+    {% for item in content.top_changes[:5] %}
+    <div class="m-report-change-item">
+        {% set rc = item.rank_change or 0 %}
+        {% if rc > 0 %}
+        <span class="m-report-change-icon up">↑</span>
+        {% elif rc < 0 %}
+        <span class="m-report-change-icon down">↓</span>
+        {% else %}
+        <span class="m-report-change-icon">·</span>
+        {% endif %}
+        <span class="m-report-change-title">{{ item.title }}</span>
+        {% if rc %}
+        <span class="m-report-change-delta">{{ '+' if rc > 0 }}{{ rc }}</span>
+        {% endif %}
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- 排名上升最快 -->
+{% if content and content.top_risers %}
+<section class="m-report-section">
+    <h2 class="m-report-section-title">{{ _('排名上升最快') }}</h2>
+    {% for item in content.top_risers[:5] %}
+    <div class="m-report-change-item">
+        <span class="m-report-change-icon up">↑</span>
+        <span class="m-report-change-title">{{ item.title }}</span>
+        {% if item.rank_change %}<span class="m-report-change-delta">+{{ item.rank_change }}</span>{% endif %}
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- 持续上榜最久 -->
+{% if content and content.longest_running %}
+<section class="m-report-section">
+    <h2 class="m-report-section-title">{{ _('持续上榜最久') }}</h2>
+    {% for item in content.longest_running[:5] %}
+    <div class="m-report-change-item">
+        <span class="m-report-change-icon">·</span>
+        <span class="m-report-change-title">{{ item.title }}</span>
+        {% if item.weeks_on_list %}<span class="m-report-change-delta">{{ item.weeks_on_list }}{{ _('周') }}</span>{% endif %}
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- 本周新书 -->
+{% if content and content.new_books %}
+<section class="m-report-section">
+    <h2 class="m-report-section-title">{{ _('本周新书') }}</h2>
+    <div class="m-book-list">
+        {% for book in content.new_books[:5] %}
+        <div class="m-card m-book-card" data-href="/?search={{ (book.title or '') | urlencode }}">
+            {% if book.cover %}
+            <div class="m-book-cover">
+                <img src="{{ book.cover }}" alt="{{ book.title }}" loading="lazy" width="60" height="80"
+                     onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            </div>
+            {% endif %}
+            <div class="m-book-info">
+                <h3 class="m-book-title">{{ book.title }}</h3>
+                {% if book.author %}<p class="m-book-author">{{ book.author }}</p>{% endif %}
+                {% if book.category %}<p class="m-book-card-meta">{{ book.category }}</p>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<!-- 推荐书籍 -->
+{% if content and content.featured_books %}
+<section class="m-report-section">
+    <h2 class="m-report-section-title">{{ _('编辑推荐') }}</h2>
+    {% for book in content.featured_books[:5] %}
+    <div class="m-report-rec-card">
+        {% if book.cover %}
+        <div class="m-report-rec-cover">
+            <img src="{{ book.cover }}" alt="{{ book.title }}" loading="lazy" width="50" height="70"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+        {% endif %}
+        <div class="m-report-rec-info">
+            <div class="m-report-rec-title">{{ book.title }}</div>
+            {% if book.author %}<div class="m-report-rec-author">{{ book.author }}</div>{% endif %}
+            {% if book.reason or book.description %}
+            <div class="m-report-rec-reason">{{ book.reason or book.description }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- 底部 -->
+<div class="m-report-footer">
+    <span class="m-text-sm m-text-hint">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}{{ _('生成') }}</span>
+    <div class="m-report-footer-actions">
+        <a href="/reports/weekly/{{ report.week_end.isoformat() }}/export?format=pdf" class="m-btn m-btn-outline m-btn-sm" target="_blank" rel="noopener noreferrer">PDF</a>
+        <a href="/reports/weekly/{{ report.week_end.isoformat() }}/export?format=excel" class="m-btn m-btn-outline m-btn-sm" target="_blank" rel="noopener noreferrer">Excel</a>
+        <a href="/reports/weekly" class="m-btn m-btn-outline m-btn-sm">{{ _('返回列表') }}</a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ report.title or _('周报') }}",
+    "datePublished": "{{ report.created_at.isoformat() if report.created_at else '' }}",
+    "dateModified": "{{ report.updated_at.isoformat() if report.updated_at else report.created_at.isoformat() if report.created_at else '' }}",
+    "description": "{{ report.summary[:200] if report.summary else '' }}"
+}
+</script>
+{% endblock %}

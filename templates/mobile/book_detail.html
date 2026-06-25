@@ -1,6 +1,8 @@
 {% extends "mobile/base.html" %}
 
 {% block title %}{{ book.title_zh or book.title }} - 书榜{% endblock %}
+{% block og_title %}{{ book.title_zh or book.title }} - 书榜{% endblock %}
+{% block tw_title %}{{ book.title_zh or book.title }} - 书榜{% endblock %}
 
 {% block header %}
 <header class="m-header">
@@ -16,10 +18,14 @@
 {% set _locale = get_locale() %}
 {% set display_title = book.title_zh or book.title if _locale == 'zh' else book.title %}
 {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
+{% set show_original_title = _locale == 'zh' and book.title_zh and book.title and book.title_zh != book.title %}
 
-<!-- 书籍封面 -->
+<!-- 书籍封面 + 排名徽章 -->
 <section class="m-detail-cover-wrap">
     <div class="m-detail-cover">
+        {% if book_index is not none %}
+        <span class="m-detail-rank-badge" aria-label="{{ _('排名') }}">{{ book_index + 1 }}</span>
+        {% endif %}
         <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
              alt="{{ display_title }}"
              width="120" height="160"
@@ -30,26 +36,14 @@
 <!-- 书籍主要信息 -->
 <section class="m-detail-head">
     <h1 class="m-detail-title">{{ display_title }}</h1>
+    {% if show_original_title %}
+    <p class="m-detail-original-title">{{ book.title }}</p>
+    {% endif %}
     <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %} · {{ book.publisher }}{% endif %}</p>
-
-    <!-- 评分区域 -->
-    <div class="m-detail-rating">
-        <span class="m-detail-score">{{ book.rating or '4.5' }}</span>
-        <div class="flex flex-col">
-            <div class="m-detail-stars">
-                <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            </div>
-            <span class="m-detail-rating-text">{{ _('基于 Google Books 评分') }}</span>
-        </div>
-    </div>
 
     <!-- 标签 -->
     <div class="m-detail-tags">
-        {% if book.category %}<span class="m-detail-tag">{{ book.category }}</span>{% endif %}
+        {% if book.category_name %}<span class="m-detail-tag">{{ book.category_name }}</span>{% endif %}
         {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %}<span class="m-detail-tag">{{ book.publisher }}</span>{% endif %}
         <span class="m-detail-tag">{{ _('畅销榜') }}</span>
     </div>
@@ -58,41 +52,80 @@
 <!-- 分隔线 -->
 <div class="m-detail-divider"></div>
 
-<!-- 内容简介 -->
-{% if desc %}
-<section class="m-detail-section">
-    <h2 class="m-detail-section-title">{{ _('内容简介') }}</h2>
-    <p class="m-detail-text" id="m-desc">{{ desc[:200] }}{% if desc|length > 200 %}...{% endif %}</p>
-    {% if desc|length > 200 %}
-    <button class="m-detail-toggle" id="m-desc-toggle" type="button" data-full="{{ desc }}">{{ _('展开全部') }}</button>
-    {% endif %}
+<!-- Tab 切换：内容简介 / 详细信息 -->
+<div class="m-tab-group">
+    <div class="m-tab-triggers">
+        <button class="m-tab-trigger active" type="button" data-tab="desc">{{ _('内容简介') }}</button>
+        <button class="m-tab-trigger" type="button" data-tab="meta">{{ _('详细信息') }}</button>
+    </div>
+
+    <!-- 内容简介 Panel -->
+    <div class="m-tab-panel active" data-tab="desc">
+        {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+        <section class="m-detail-section">
+            <p class="m-detail-text" id="m-desc">{{ desc[:200] }}{% if desc|length > 200 %}...{% endif %}</p>
+            {% if desc|length > 200 %}
+            <button class="m-detail-toggle" id="m-desc-toggle" type="button" data-full="{{ desc }}">{{ _('展开全部') }}</button>
+            {% endif %}
+        </section>
+        {% else %}
+        <section class="m-detail-section">
+            <p class="m-detail-text m-text-hint">{{ _('暂无简介') }}</p>
+        </section>
+        {% endif %}
+    </div>
+
+    <!-- 详细信息 Panel -->
+    <div class="m-tab-panel" data-tab="meta">
+        <section class="m-detail-section">
+            <dl class="m-meta-grid">
+                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('出版社') }}</dt><dd class="m-meta-grid-value">{{ book.publisher }}</dd></div>
+                {% endif %}
+                {% if book.publication_dt and book.publication_dt not in ('Unknown', '', 'N/A') %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('出版日期') }}</dt><dd class="m-meta-grid-value">{{ book.publication_dt }}</dd></div>
+                {% endif %}
+                {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('页数') }}</dt><dd class="m-meta-grid-value">{{ book.page_count }}</dd></div>
+                {% endif %}
+                {% if book.isbn13 %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">ISBN-13</dt><dd class="m-meta-grid-value">{{ book.isbn13 }}</dd></div>
+                {% elif book.isbn10 %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">ISBN-10</dt><dd class="m-meta-grid-value">{{ book.isbn10 }}</dd></div>
+                {% endif %}
+                {% if book.category_name %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('分类') }}</dt><dd class="m-meta-grid-value">{{ book.category_name }}</dd></div>
+                {% endif %}
+                {% if book.weeks_on_list %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('累计上榜') }}</dt><dd class="m-meta-grid-value">{{ book.weeks_on_list }} {{ _('周') }}</dd></div>
+                {% endif %}
+                {% if book.language and book.language not in ('Unknown', '', 'un') %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('语言') }}</dt><dd class="m-meta-grid-value">{{ book.language }}</dd></div>
+                {% endif %}
+                {% if book.price and book.price != '未知' %}
+                <div class="m-meta-grid-row"><dt class="m-meta-grid-label">{{ _('价格') }}</dt><dd class="m-meta-grid-value">{{ book.price }}</dd></div>
+                {% endif %}
+            </dl>
+        </section>
+    </div>
+</div>
+
+<!-- 购买链接区 -->
+{% if book.buy_links %}
+<section class="m-detail-section m-detail-section-gap">
+    <h2 class="m-detail-section-title">{{ _('购买链接') }}</h2>
+    <div class="m-buy-links">
+        {% for link in book.buy_links %}
+        {% if link.name and link.url %}
+        <a class="m-buy-link" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.name }}</a>
+        {% endif %}
+        {% endfor %}
+    </div>
 </section>
 {% endif %}
 
-<!-- 详细信息 -->
-<section class="m-detail-section" style="margin-top:var(--space-6)">
-    <h2 class="m-detail-section-title">{{ _('详细信息') }}</h2>
-    <dl class="m-meta-list">
-        {% if book.isbn13 %}
-        <div class="m-meta-row"><dt>ISBN-13</dt><dd>{{ book.isbn13 }}</dd></div>
-        {% elif book.isbn10 %}
-        <div class="m-meta-row"><dt>ISBN-10</dt><dd>{{ book.isbn10 }}</dd></div>
-        {% endif %}
-        {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '') %}
-        <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ book.page_count }}</dd></div>
-        {% endif %}
-        {% if book.language and book.language != 'Unknown' %}
-        <div class="m-meta-row"><dt>{{ _('语言') }}</dt><dd>{{ book.language }}</dd></div>
-        {% endif %}
-        {% if book.price and book.price != '未知' %}
-        <div class="m-meta-row"><dt>{{ _('价格') }}</dt><dd>{{ book.price }}</dd></div>
-        {% endif %}
-    </dl>
-</section>
-
 <!-- 底部操作栏 -->
 <div class="m-action-bar">
-    <button class="m-btn m-btn-primary" type="button">{{ _('想读') }}</button>
     <button class="m-fav-btn" id="m-fav-btn"
             data-isbn="{{ book.isbn13 or book.isbn10 }}"
             type="button">
@@ -103,6 +136,22 @@
 
 {% endblock %}
 
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Book",
+    "name": "{{ display_title }}",
+    "author": "{{ book.author }}",
+    {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% elif book.isbn10 %}"isbn": "{{ book.isbn10 }}",{% endif %}
+    {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %}"publisher": "{{ book.publisher }}",{% endif %}
+    {% if book.language and book.language not in ('Unknown', '', 'un') %}"inLanguage": "{{ book.language }}",{% endif %}
+    {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}"numberOfPages": "{{ book.page_count }}",{% endif %}
+    "image": "{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=true) }}"
+}
+</script>
+{% endblock %}
+
 {% block extra_js %}
 <script>
 // 收藏与简介展开
@@ -111,6 +160,7 @@
     if (btn) {
         var isbn = btn.getAttribute('data-isbn');
         if (isbn) {
+            // 预检：检查是否已收藏
             fetch('/api/favorites/check/' + encodeURIComponent(isbn))
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
@@ -133,6 +183,7 @@
                           if (data && data.success) {
                               btn.classList.remove('active');
                               btn.querySelector('span').textContent = '收藏';
+                              MobileApp.toast('已取消收藏', 'success');
                           }
                       });
                 } else {
@@ -145,6 +196,7 @@
                           if (data && data.success) {
                               btn.classList.add('active');
                               btn.querySelector('span').textContent = '已收藏';
+                              MobileApp.toast('已加入收藏', 'success');
                           }
                       });
                 }

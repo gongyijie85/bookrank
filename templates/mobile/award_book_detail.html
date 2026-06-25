@@ -1,0 +1,175 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
+{% block og_title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
+{% block tw_title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="{{ back_url }}" class="m-header-btn" aria-label="{{ _('返回') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('获奖图书') }}</span>
+    <button class="m-header-btn m-share-btn" type="button"
+            data-url="{{ request.path }}"
+            data-title="{{ safe_title_zh or safe_title_en }}"
+            aria-label="{{ _('分享') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </button>
+</header>
+{% endblock %}
+
+{% block content %}
+{% set display_title = safe_title_zh or safe_title_en %}
+{% set show_original_title = safe_title_en and safe_title_zh and safe_title_en != safe_title_zh %}
+{% set desc = book.description_zh or book.description %}
+
+<!-- 封面 -->
+<section class="m-detail-cover-wrap">
+    <div class="m-detail-cover">
+        {% if book.year %}<span class="m-detail-rank-badge" aria-label="{{ _('年份') }}">{{ book.year }}</span>{% endif %}
+        <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+             alt="{{ display_title }}"
+             width="120" height="160"
+             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+    </div>
+</section>
+
+<!-- 标题区 -->
+<section class="m-detail-head">
+    <h1 class="m-detail-title">{{ display_title }}</h1>
+    {% if show_original_title %}
+    <p class="m-detail-original-title">{{ safe_title_en }}</p>
+    {% endif %}
+    <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
+
+    <div class="m-detail-tags">
+        {% if book.award %}<span class="m-detail-tag">{{ book.award.name }}</span>{% endif %}
+        {% if book.category %}<span class="m-detail-tag">{{ book.category }}</span>{% endif %}
+        {% if book.rank %}<span class="m-detail-tag">{{ _('第') }}{{ book.rank }}{{ _('名') }}</span>{% endif %}
+    </div>
+</section>
+
+<div class="m-detail-divider"></div>
+
+<!-- Tab 切换 -->
+<div class="m-tab-group">
+    <div class="m-tab-triggers">
+        <button class="m-tab-trigger active" type="button" data-tab="desc">{{ _('内容简介') }}</button>
+        <button class="m-tab-trigger" type="button" data-tab="meta">{{ _('详细信息') }}</button>
+    </div>
+
+    <!-- 内容简介 -->
+    <div class="m-tab-panel active" data-tab="desc">
+        <section class="m-detail-section">
+            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            <p class="m-detail-text">{{ desc[:200] }}{% if desc|length > 200 %}...{% endif %}</p>
+            {% elif book.details %}
+            <p class="m-detail-text">{{ book.details[:200] }}{% if book.details|length > 200 %}...{% endif %}</p>
+            {% else %}
+            <p class="m-detail-text m-text-hint">{{ _('暂无简介') }}</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <!-- 详细信息 -->
+    <div class="m-tab-panel" data-tab="meta">
+        <section class="m-detail-section">
+            <dl class="m-meta-grid">
+                {% if book.award %}<div class="m-meta-item"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name }}</dd></div>{% endif %}
+                {% if book.year %}<div class="m-meta-item"><dt>{{ _('获奖年份') }}</dt><dd>{{ book.year }}</dd></div>{% endif %}
+                {% if book.category %}<div class="m-meta-item"><dt>{{ _('类别') }}</dt><dd>{{ book.category }}</dd></div>{% endif %}
+                {% if book.rank %}<div class="m-meta-item"><dt>{{ _('名次') }}</dt><dd>{{ book.rank }}</dd></div>{% endif %}
+                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}<div class="m-meta-item"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>{% endif %}
+                {% if book.publication_year %}<div class="m-meta-item"><dt>{{ _('出版年份') }}</dt><dd>{{ book.publication_year }}</dd></div>{% endif %}
+                {% if book.isbn13 %}<div class="m-meta-item"><dt>ISBN-13</dt><dd>{{ book.isbn13 }}</dd></div>{% endif %}
+                {% if book.isbn10 %}<div class="m-meta-item"><dt>ISBN-10</dt><dd>{{ book.isbn10 }}</dd></div>{% endif %}
+            </dl>
+        </section>
+    </div>
+</div>
+
+<!-- 购买链接 -->
+{% if book.buy_links %}
+<section class="m-detail-section">
+    <h2 class="m-detail-section-title">{{ _('购买链接') }}</h2>
+    <div class="m-buy-links">
+        {% for link in book.buy_links %}
+        <a href="{{ link.url }}" class="m-buy-link" target="_blank" rel="noopener noreferrer">{{ link.name }}</a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<!-- 底部操作栏 -->
+<div class="m-detail-actions">
+    {% if book.isbn13 or book.isbn10 %}
+    <button class="m-fav-btn m-btn m-btn-outline" data-isbn="{{ book.isbn13 or book.isbn10 }}" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span>{{ _('收藏') }}</span>
+    </button>
+    {% endif %}
+    <a href="{{ back_url }}" class="m-btn m-btn-outline">{{ _('返回榜单') }}</a>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 收藏按钮预检 + 提交
+(function () {
+    var btn = document.querySelector('.m-detail-actions .m-fav-btn');
+    if (!btn) return;
+    var isbn = btn.getAttribute('data-isbn');
+    if (!isbn) return;
+    // 预检收藏状态
+    MobileApp.getCsrfToken().then(function () {
+        return fetch('/api/favorites/check/' + encodeURIComponent(isbn));
+    }).then(function (r) { return r.json(); })
+      .then(function (data) {
+          if (data && data.is_favorited) {
+              btn.classList.add('active');
+              var span = btn.querySelector('span');
+              if (span) span.textContent = '{{ _("已收藏") }}';
+          }
+      }).catch(function () {});
+    // 点击切换
+    btn.addEventListener('click', function () {
+        MobileApp.getCsrfToken().then(function (token) {
+            return fetch('/api/favorites', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+                body: JSON.stringify({ isbn: isbn })
+            });
+        }).then(function (r) { return r.json(); })
+          .then(function (data) {
+              if (data && data.success !== false) {
+                  var isFav = btn.classList.toggle('active');
+                  var span = btn.querySelector('span');
+                  if (span) span.textContent = isFav ? '{{ _("已收藏") }}' : '{{ _("收藏") }}';
+                  MobileApp.toast(isFav ? '{{ _("已收藏") }}' : '{{ _("已取消收藏") }}', isFav ? 'success' : 'info');
+              } else if (data && data.message) {
+                  MobileApp.toast(data.message, 'error');
+              }
+          }).catch(function () {
+              MobileApp.toast('{{ _("操作失败，请重试") }}', 'error');
+          });
+    });
+})();
+</script>
+{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Book",
+    "name": "{{ display_title }}",
+    "author": "{{ book.author or '' }}",
+    {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% endif %}
+    {% if book.publisher %}"publisher": "{{ book.publisher }}",{% endif %}
+    {% if book.publication_year %}"datePublished": "{{ book.publication_year }}",{% endif %}
+    "description": "{{ (desc or book.details or '')[:200] | replace('"', '\\"') }}"
+}
+</script>
+{% endblock %}

@@ -170,3 +170,136 @@ class TestTemplateFallback:
                 mock_render.side_effect = side_effect
                 result = render_adaptive('nonexistent.html')
                 assert result == 'desktop:nonexistent.html'
+
+
+class TestMobileAwardBookDetailRoute:
+    """获奖图书详情页移动端渲染"""
+
+    def test_award_book_detail_mobile_renders_mobile_template(self, client, db, sample_award_book) -> None:
+        """移动端 UA 访问 /award-book/<id> 应渲染移动版详情页"""
+        from app.models.schemas import AwardBook
+
+        # sample_award_book fixture 默认 is_displayable=False，需改为 True
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        db.session.commit()
+
+        resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' in resp.data
+
+
+class TestMobileAboutAndErrorRoute:
+    """关于页与错误页移动端渲染"""
+
+    def test_about_mobile_renders_mobile_template(self, client) -> None:
+        """移动端 UA 访问 /about 应渲染移动版关于页"""
+        resp = client.get('/about', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_error_page_mobile_renders_mobile_template(self, mock_get_svc, client) -> None:
+        """移动端 UA 访问不存在的书籍应渲染移动版错误页"""
+        mock_get_svc.return_value = _mock_book_service([])  # 空书籍列表
+        resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' in resp.data
+        assert b'm-error-page' in resp.data
+
+
+class TestMobileWeeklyReportDetailEnhanced:
+    """周报详情增强内容测试"""
+
+    @patch('app.routes.main.parse_report_content')
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_book_service')
+    def test_weekly_report_detail_has_top_risers(
+        self, mock_get_svc, mock_report_svc, mock_parse, client
+    ) -> None:
+        """周报详情应包含'排名上升最快'区块"""
+        from datetime import date, datetime
+
+        mock_get_svc.return_value = _mock_book_service([])
+
+        # 构造 mock report
+        report_mock = MagicMock()
+        report_mock.id = 1
+        report_mock.week_end = date(2024, 1, 14)
+        report_mock.created_at = datetime(2024, 1, 14, 10, 0)
+
+        svc_mock = MagicMock()
+        svc_mock.get_report_by_week_end.return_value = report_mock
+        svc_mock.record_report_view.return_value = None
+        mock_report_svc.return_value = svc_mock
+
+        # mock parse_report_content 返回含 top_risers 和 longest_running
+        mock_parse.return_value = {
+            'top_risers': [{'title': '上升最快图书', 'rank_change': 5}],
+            'longest_running': [{'title': '长青图书', 'weeks_on_list': 10}],
+        }
+
+        resp = client.get('/reports/weekly/2024-01-14', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert '排名上升最快'.encode() in resp.data
+        assert '上升最快图书'.encode() in resp.data
+        assert '持续上榜最久'.encode() in resp.data
+
+    @patch('app.routes.main.parse_report_content')
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_book_service')
+    def test_weekly_report_detail_has_export_buttons(
+        self, mock_get_svc, mock_report_svc, mock_parse, client
+    ) -> None:
+        """周报详情应包含 PDF/Excel 导出按钮"""
+        from datetime import date, datetime
+
+        mock_get_svc.return_value = _mock_book_service([])
+
+        report_mock = MagicMock()
+        report_mock.id = 1
+        report_mock.week_end = date(2024, 1, 14)
+        report_mock.created_at = datetime(2024, 1, 14, 10, 0)
+
+        svc_mock = MagicMock()
+        svc_mock.get_report_by_week_end.return_value = report_mock
+        svc_mock.record_report_view.return_value = None
+        mock_report_svc.return_value = svc_mock
+
+        mock_parse.return_value = {}
+
+        resp = client.get('/reports/weekly/2024-01-14', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'export?format=pdf' in resp.data
+        assert b'export?format=excel' in resp.data
+
+
+class TestMobileWeeklyReportsSearch:
+    """周报列表搜索框测试"""
+
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_book_service')
+    def test_weekly_reports_has_search_box(self, mock_get_svc, mock_report_svc, client) -> None:
+        """周报列表应包含搜索框"""
+        from datetime import date, datetime
+
+        mock_get_svc.return_value = _mock_book_service([])
+
+        # 构造 1 条周报记录，使搜索框（在 {% if reports %} 块内）能渲染
+        report_item = MagicMock()
+        report_item.title = '测试周报'
+        report_item.summary = '测试摘要'
+        report_item.week_start = date(2024, 1, 8)
+        report_item.week_end = date(2024, 1, 14)
+        report_item.created_at = datetime(2024, 1, 14, 10, 0)
+        report_item.content_data = None
+
+        report_mock = MagicMock()
+        report_mock.get_or_trigger_current_week_report.return_value = (None, False)
+        report_mock.get_reports.return_value = [report_item]
+        mock_report_svc.return_value = report_mock
+
+        resp = client.get('/reports/weekly', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'type="search"' in resp.data
+        assert b'filterBySearch' in resp.data

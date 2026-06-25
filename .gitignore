@@ -85,6 +85,19 @@ run_port8080.py
 run_prod.py
 init_db.py
 
+# Misgenerated files (e.g. ruff format --css typo)
+--css
+
+# Designer mockups (root level)
+/book-detail.html
+/profile.html
+/bookrank/
+
+# Obsidian vault & personal wiki tools
+.obsidian/
+Code Wiki/
+/scripts/split_wiki.py
+
 # AWS Elastic Beanstalk
 .elasticbeanstalk/
 .ebextensions/

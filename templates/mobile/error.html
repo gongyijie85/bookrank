@@ -1,0 +1,31 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('出错') }} - 书榜{% endblock %}
+{% block og_title %}{{ _('出错') }} - 书榜{% endblock %}
+{% block tw_title %}{{ _('出错') }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="/" class="m-header-btn" aria-label="{{ _('首页') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 14 15 14 15 21"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('出错了') }}</span>
+    <div class="m-header-placeholder"></div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="m-empty m-error-page">
+    <div class="m-error-icon" aria-hidden="true">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <h1 class="m-error-title">{{ _('出错了') }}</h1>
+    <p class="m-error-message m-text-hint">{{ message }}</p>
+    <div class="m-error-actions">
+        {% if back_url %}
+        <a href="{{ back_url }}" class="m-btn m-btn-outline">{{ _('返回') }}</a>
+        {% endif %}
+        <a href="/" class="m-btn m-btn-primary">{{ _('首页') }}</a>
+    </div>
+</div>
+{% endblock %}

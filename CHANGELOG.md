@@ -1,5 +1,84 @@
 # Changelog
 
+## v0.9.73 - 2026-06-25
+
+### feat(mobile): 移动端内容完善 v2 - 修复跳转断裂 + 补全周报/SEO/ISBN
+
+**背景**：v0.9.72 完成核心 4 页内容对齐后，代码审查发现 7 个严重缺口：跳转断裂、链接断裂、错误页未适配、周报详情信息不全、周报列表无搜索、SEO 缺失、awards 卡片缺 ISBN。本次全部修复。
+
+**新增文件**
+- `templates/mobile/error.html`：移动版错误页（错误图标 + 消息 + 返回/首页按钮）
+- `templates/mobile/about.html`：移动版关于页（项目介绍 + 4 数据来源卡 + 技术栈 + 联系方式 + AboutPage JSON-LD）
+- `templates/mobile/award_book_detail.html`：移动版获奖图书详情（封面 + 中英标题 + Tab 切换 + 购买链接 + 收藏按钮 + Book JSON-LD）
+
+**修改文件**
+- `app/routes/main.py`：14 处 `render_template('error.html'/'about.html'/'award_book_detail.html')` 改为 `render_adaptive`，修复移动端跳转断裂
+- `templates/mobile/weekly_report_detail.html`：补"排名上升最快"+"持续上榜最久"两个区块 + PDF/Excel 导出按钮
+- `templates/mobile/weekly_reports.html`：新增搜索框（`filterBySearch` 实时过滤）
+- `templates/mobile/base.html`：新增 canonical URL + SearchAction JSON-LD（SEO 增强）
+- `templates/mobile/awards.html`：卡片新增 ISBN ghost chip 标签
+- `static/mobile/js/mobile.js`：拆分 `filterReports` 为 `filterByDate` + `filterBySearch` + `_applyReportFilters`，保留 `window.filterReports` 兼容
+- `static/mobile/css/mobile.css`：新增 `.m-error-page`/`.m-about-hero`/`.m-source-card`/`.m-report-footer-actions`/`.m-chip-ghost` 等样式（约 160 行）
+
+**测试**
+- `tests/test_mobile_routes.py`：新增 6 个测试用例（获奖详情、关于页、错误页、周报详情 top_risers、导出按钮、搜索框），共 15 个移动端测试
+
+**验证**：ruff check + mypy + pytest 全部通过（2121 passed, 4 xfailed）
+
+## v0.9.72 - 2026-06-25
+
+### feat(mobile): 移动端核心 4 页内容对齐桌面端
+
+**背景**：v0.9.70/v0.9.71 已落地移动端框架与基础页面，但内容信息密度低于桌面端。本次完善 4 个核心页面 + 新增简化版周报详情，移动端信息完整度对齐桌面端。
+
+**新增文件**
+- `templates/mobile/weekly_report_detail.html`：简化版周报详情页（无 Chart.js，含 Hero 数字卡 + Top 5 变化 + 本周新书 + 编辑推荐 + Article JSON-LD）
+
+**修改文件**
+- `templates/mobile/book_detail.html`：
+  - 封面旁新增圆形排名徽章 `.m-detail-rank-badge`
+  - 标题下方新增英文原标题 `.m-detail-original-title`（双语显示）
+  - 「内容简介」与「详细信息」改为 Tab 切换结构 `.m-tab-group`（默认显示简介，避免长滚动）
+  - 详细信息升级为 2 列元信息网格 `.m-meta-grid`（出版社/出版日期/页数/ISBN/分类/累计上榜周数/语言/价格）
+  - 新增购买链接横滑区 `.m-buy-links`（遍历 `book.buy_links`，外链全部 `rel="noopener noreferrer"`）
+  - 注入 Book JSON-LD 结构化数据（`@type: Book`，含 isbn/publisher/inLanguage/numberOfPages）
+  - 收藏成功/取消时调用 `MobileApp.toast()` 反馈
+- `templates/mobile/awards.html`：
+  - 内联 `<style>` block 迁移到 mobile.css（`.m-year-select`、`.m-award-search`）
+  - 年份下拉旁新增搜索框（GET 参数 `search`，对齐路由）
+  - 卡片新增 100 字描述预览 `.m-book-card-desc`
+  - 卡片新增分类标签 `.m-chip`
+  - 卡片右上角新增收藏按钮（`.m-fav-btn`，由 mobile.js 统一委托）
+  - 空状态新增副文案
+- `templates/mobile/weekly_reports.html`：
+  - 顶部新增「关于周报」介绍卡 `.m-report-intro`
+  - 新增日期筛选下拉（全部/本月/上月/今年，纯前端 JS 过滤 DOM）
+  - 卡片新增摘要文本 `.m-report-summary`（120 字截断）
+  - 卡片新增亮点徽章组 `.m-report-highlights`（N 本 / N 新书 / N 推荐）
+  - 卡片右侧新增分享按钮 `.m-share-btn`（由 mobile.js 统一处理，调 `navigator.share` 或剪贴板 fallback）
+  - 空状态新增刷新按钮
+  - `is_generating=True` 时注入 `MobileApp.startPolling(30000)` 启动 30 秒轮询
+- `templates/mobile/index.html`：
+  - 修复元信息行 Jinja2 语法 bug（`{% set _ = list.append() %}` 改为 `namespace` 方式，避免 `TypeError: 'NoneType' object is not callable`）
+- `static/mobile/css/mobile.css`：
+  - 新增 `.m-year-select`、`.m-award-search` 样式（从 awards.html 内联迁移）
+  - `.m-list-info-row` 新增 `gap` 属性
+
+**测试**
+- `tests/test_device_detect.py` + `tests/test_mobile_routes.py` 共 15 个测试全部通过
+- 全量测试 2115 passed, 4 xfailed（无回归）
+- Ruff 检查通过
+- mypy 类型检查通过
+
+**质量要点**
+- 无内联 `style` 属性，无内联 `<style>` block（全部迁移到 mobile.css）
+- 无假按钮、无硬编码评分
+- 所有外链含 `rel="noopener noreferrer"`
+- Tab 切换、收藏、分享、筛选均由 mobile.js 事件委托统一处理，避免重复实现
+- 周报详情页无 Chart.js 依赖，首屏轻量
+
+---
+
 ## v0.9.71 - 2026-06-25
 
 ### feat(mobile): 补齐移动端搜索与周报入口

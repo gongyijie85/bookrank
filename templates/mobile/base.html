@@ -7,10 +7,38 @@
     <meta name="description" content="书榜 BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单">
     <title>{% block title %}书榜 BookRank{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
+    <link rel="canonical" href="{{ request.host_url }}{{ request.path[1:] if request.path != '/' else '' }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
+
+    {# Open Graph / Twitter Card / JSON-LD SEO #}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="书榜 BookRank">
+    <meta property="og:title" content="{% block og_title %}书榜 BookRank{% endblock %}">
+    <meta property="og:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{% block tw_title %}书榜 BookRank{% endblock %}">
+    <meta name="twitter:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "书榜 BookRank",
+        "description": "汇集纽约时报畅销书排行榜与国际图书奖项榜单",
+        "url": "{{ request.host_url }}",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "{{ request.host_url }}search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
     {% block extra_css %}{% endblock %}
+    {% block structured_data %}{% endblock %}
 </head>
 <body>
+    {# Toast 通知容器 #}
+    <div class="m-toast-container" id="m-toast-container" aria-live="polite"></div>
+
     {% block header %}{% endblock %}
 
     <main class="m-page">

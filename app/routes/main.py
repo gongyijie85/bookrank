@@ -463,7 +463,7 @@ def favicon():
 @main_bp.route('/about')
 def about():
     """关于我们页面"""
-    return render_template('about.html')
+    return render_adaptive('about.html')
 
 
 @main_bp.route('/publishers')
@@ -495,7 +495,7 @@ def new_book_detail(book_id):
     book = service.get_book(book_id)
 
     if not book:
-        return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
+        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
 
     if not book.title_zh or not book.description_zh:
         translation_service = get_translation_service()
@@ -520,7 +520,7 @@ def award_book_detail(book_id):
 
     if book:
         if not book.is_displayable:
-            return render_template(
+            return render_adaptive(
                 'error.html',
                 message='该获奖图书已下架',
                 back_url=request.referrer or '/awards',
@@ -539,7 +539,7 @@ def award_book_detail(book_id):
             safe_title_en = display_title
             safe_title_zh = display_title
 
-        return render_template(
+        return render_adaptive(
             'award_book_detail.html',
             book=book,
             safe_title_en=safe_title_en or display_title,
@@ -547,7 +547,7 @@ def award_book_detail(book_id):
             back_url=request.referrer or '/awards',
         )
     else:
-        return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/awards')
+        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/awards')
 
 
 @main_bp.route('/book/<int:book_index>')
@@ -563,7 +563,7 @@ def book_detail(book_index):
     books_data, _ = _get_books_for_category(category)
 
     if book_index < 0 or book_index >= len(books_data):
-        return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/')
+        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/')
 
     book = books_data[book_index]
 
@@ -688,7 +688,7 @@ def weekly_reports():
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message='服务不可用', back_url='/')
+        return render_adaptive('error.html', message='服务不可用', back_url='/')
 
     report_service = WeeklyReportService(book_service)
     latest_report, is_generating = report_service.get_or_trigger_current_week_report()
@@ -746,11 +746,11 @@ def weekly_report_detail(date):
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message='服务不可用', back_url='/reports/weekly')
+        return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
     is_valid, error_msg, report_date = validate_date(date)
     if not is_valid:
-        return render_template('error.html', message=error_msg, back_url='/reports/weekly')
+        return render_adaptive('error.html', message=error_msg, back_url='/reports/weekly')
 
     report_service = WeeklyReportService(book_service)
 
@@ -759,7 +759,7 @@ def weekly_report_detail(date):
         if not report:
             report = report_service.get_report_by_date(report_date)
             if not report:
-                return render_template('error.html', message='周报不存在', back_url='/reports/weekly')
+                return render_adaptive('error.html', message='周报不存在', back_url='/reports/weekly')
 
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
@@ -782,7 +782,7 @@ def weekly_report_detail(date):
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'周报详情渲染错误: {e!s}', exc_info=True)
-        return render_template('error.html', message='周报加载失败，请稍后再试', back_url='/reports/weekly'), 500
+        return render_adaptive('error.html', message='周报加载失败，请稍后再试', back_url='/reports/weekly'), 500
 
 
 @main_bp.route('/reports/weekly/<date>/export')
@@ -796,11 +796,11 @@ def export_weekly_report(date):
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message='服务不可用', back_url='/reports/weekly')
+        return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
     is_valid, error_msg, report_date = validate_date(date)
     if not is_valid:
-        return render_template('error.html', message=error_msg, back_url='/reports/weekly')
+        return render_adaptive('error.html', message=error_msg, back_url='/reports/weekly')
 
     report_service = WeeklyReportService(book_service)
     export_service = ExportService()
@@ -810,11 +810,11 @@ def export_weekly_report(date):
         if not report:
             report = report_service.get_report_by_date(report_date)
             if not report:
-                return render_template('error.html', message='周报不存在', back_url='/reports/weekly')
+                return render_adaptive('error.html', message='周报不存在', back_url='/reports/weekly')
 
         format_type = request.args.get('format', 'pdf').lower()
         if format_type not in ['pdf', 'excel']:
-            return render_template('error.html', message='不支持的导出格式', back_url=f'/reports/weekly/{date}')
+            return render_adaptive('error.html', message='不支持的导出格式', back_url=f'/reports/weekly/{date}')
 
         export_config = {
             'pdf': {
@@ -834,7 +834,7 @@ def export_weekly_report(date):
         config = export_config[format_type]
         buffer = config['export_method'](report)
         if not buffer:
-            return render_template('error.html', message=config['error_message'], back_url=f'/reports/weekly/{date}')
+            return render_adaptive('error.html', message=config['error_message'], back_url=f'/reports/weekly/{date}')
 
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
@@ -852,7 +852,7 @@ def export_weekly_report(date):
 
     except Exception as e:
         log_error(ErrorCategory.UNKNOWN, f'导出周报时出错: {e!s}')
-        return render_template('error.html', message='导出失败', back_url=f'/reports/weekly/{date}')
+        return render_adaptive('error.html', message='导出失败', back_url=f'/reports/weekly/{date}')
 
 
 @main_bp.route('/robots.txt')
