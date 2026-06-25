@@ -471,7 +471,12 @@ def publishers():
     """出版社导航页面"""
     total_publishers = sum(len(cat['publishers']) for cat in PUBLISHERS_DATA)
 
-    return render_template('publishers.html', publishers_data=PUBLISHERS_DATA, total_publishers=total_publishers)
+    return render_adaptive(
+        'publishers.html',
+        publishers_data=PUBLISHERS_DATA,
+        total_publishers=total_publishers,
+        active_tab='publisher',
+    )
 
 
 @main_bp.route('/cache-management')

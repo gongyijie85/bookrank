@@ -93,8 +93,7 @@ def create_app(config_name: str | None = None) -> Flask:
         db.session.remove()
 
     # 初始化 Babel（国际化）- Flask-Babel 4.0+ API
-    babel.init_app(app)
-    babel.locale_selector = _get_locale
+    babel.init_app(app, locale_selector=_get_locale)
 
     # 将 get_locale 注入 Jinja2 全局命名空间（确保所有模板包括导入的宏都能访问）
     app.jinja_env.globals['get_locale'] = _get_locale

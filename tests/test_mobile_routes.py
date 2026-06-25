@@ -4,6 +4,7 @@
 在桌面 UA 下回退桌面版模板。
 """
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -54,6 +55,8 @@ def _mock_book_service(books=None):
 
 MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'
 DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0'
+ZH_MOBILE_HEADERS = {'User-Agent': MOBILE_UA, 'Accept-Language': 'zh'}
+EN_MOBILE_HEADERS = {'User-Agent': MOBILE_UA, 'Accept-Language': 'en'}
 
 
 class TestMobileIndexRoute:
@@ -97,16 +100,23 @@ class TestMobileProfileRoute:
 
     def test_mobile_ua_renders_profile(self, client, db) -> None:
         """移动端 UA 访问 /profile 应渲染移动版个人中心"""
-        resp = client.get('/profile', headers={'User-Agent': MOBILE_UA})
+        resp = client.get('/profile?lang=zh', headers=ZH_MOBILE_HEADERS)
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
         assert '我的'.encode() in resp.data
 
     def test_profile_shows_empty_state_without_data(self, client, db) -> None:
         """无数据时个人中心显示空状态"""
-        resp = client.get('/profile', headers={'User-Agent': MOBILE_UA})
+        resp = client.get('/profile?lang=zh', headers=ZH_MOBILE_HEADERS)
         assert resp.status_code == 200
         assert '暂无收藏'.encode() in resp.data
+
+    def test_profile_mobile_en_renders_english_labels(self, client, db) -> None:
+        """英文移动端个人中心不应残留核心中文标签"""
+        resp = client.get('/profile', headers=EN_MOBILE_HEADERS)
+        assert resp.status_code == 200
+        assert b'<span>My</span>' in resp.data
+        assert b'My Favorites' in resp.data
 
 
 class TestMobileAwardsRoute:
@@ -124,7 +134,7 @@ class TestMobileSearchRoute:
 
     def test_mobile_ua_renders_search(self, client) -> None:
         """移动端 UA 访问 /search 应渲染移动版搜索页"""
-        resp = client.get('/search', headers={'User-Agent': MOBILE_UA})
+        resp = client.get('/search?lang=zh', headers=ZH_MOBILE_HEADERS)
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
         assert '搜索书籍'.encode() in resp.data
@@ -144,7 +154,7 @@ class TestMobileWeeklyRoute:
         report_mock.get_reports.return_value = []
         mock_report_svc.return_value = report_mock
 
-        resp = client.get('/reports/weekly', headers={'User-Agent': MOBILE_UA})
+        resp = client.get('/reports/weekly?lang=zh', headers=ZH_MOBILE_HEADERS)
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
         assert '周报'.encode() in resp.data
@@ -397,6 +407,20 @@ class TestMobileV978:
         assert b'data-lang="zh"' in resp.data
 
     @patch('app.routes.main.get_book_service')
+    def test_base_html_lang_follows_current_locale(self, mock_get_svc, client) -> None:
+        """移动端 html lang 应跟随当前 locale，供 JS 与辅助技术读取"""
+        mock_get_svc.return_value = _mock_book_service([])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA, 'Accept-Language': 'en'})
+        assert resp.status_code == 200
+        assert b'<html lang="en" data-lang="en">' in resp.data
+
+    def test_mobile_language_switch_uses_server_locale_endpoint(self) -> None:
+        """移动端切换语言应写服务端 lang cookie，而不是只改 localStorage"""
+        js = Path('static/mobile/js/mobile.js').read_text(encoding='utf-8')
+        assert '/set-language?lang=' in js
+        assert 'encodeURIComponent(next)' in js
+
+    @patch('app.routes.main.get_book_service')
     def test_base_includes_book_i18n_script(self, mock_get_svc, client) -> None:
         """base.html 应引入 book-i18n.js"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -424,6 +448,24 @@ class TestMobileV978:
         # 两个 Tab 用 data-tab 标识，locale 无关
         assert b'data-tab="awards"' in resp.data
         assert b'data-tab="publisher"' in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_tabbar_publisher_links_to_publishers(self, mock_get_svc, client) -> None:
+        """底部出版社 Tab 应进入出版社导航页，而不是奖项页"""
+        mock_get_svc.return_value = _mock_book_service([])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        publisher_tab = resp.data.split(b'data-tab="publisher"')[0].rsplit(b'<a ', 1)[-1]
+        assert b'href="/publishers"' in publisher_tab
+        assert b'href="/awards"' not in publisher_tab
+
+    def test_publishers_mobile_renders_mobile_tab(self, client) -> None:
+        """移动端访问 /publishers 应渲染移动版并高亮出版社 Tab"""
+        resp = client.get('/publishers', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' in resp.data
+        assert b'data-tab="publisher"' in resp.data
+        assert b'class="m-tab active" data-tab="publisher"' in resp.data
 
     # ----- 详情页 Tab 化 -----
 

@@ -7,6 +7,8 @@
 'use strict';
 
 (function () {
+    const SERVER_LANGUAGE = document.documentElement.getAttribute('data-lang') || 'zh';
+
     // ===== 1. 卡片点击导航 =====
     document.addEventListener('click', function (e) {
         if (e.target.closest('select, input, button')) {
@@ -67,11 +69,7 @@
     const LANG_STORAGE_KEY = 'bookrank_language';
 
     function getSavedLanguage() {
-        try {
-            return localStorage.getItem(LANG_STORAGE_KEY) || localStorage.getItem('app_language') || 'zh';
-        } catch (e) {
-            return 'zh';
-        }
+        return SERVER_LANGUAGE === 'en' ? 'en' : 'zh';
     }
 
     function setSavedLanguage(lang) {
@@ -92,6 +90,13 @@
         } catch (e) { /* 旧浏览器忽略 */ }
     }
 
+    function switchLanguage(lang) {
+        lang = lang === 'en' ? 'en' : 'zh';
+        setSavedLanguage(lang);
+        const next = window.location.pathname + window.location.search + window.location.hash;
+        window.location.href = '/set-language?lang=' + lang + '&next=' + encodeURIComponent(next);
+    }
+
     function initLangSwitcher() {
         const globe = document.getElementById('m-lang-globe');
         const dropdown = document.getElementById('m-lang-dropdown');
@@ -108,10 +113,9 @@
         dropdown.querySelectorAll('button[data-lang]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const lang = btn.getAttribute('data-lang') || 'zh';
-                applyLanguage(lang);
+                switchLanguage(lang);
                 dropdown.classList.remove('open');
                 globe.setAttribute('aria-expanded', 'false');
-                toast(lang === 'en' ? 'Language switched to English' : '已切换为简体中文');
             });
         });
 
@@ -125,9 +129,7 @@
 
         // 初始化：读取已保存语言
         const saved = getSavedLanguage();
-        if (saved === 'en') {
-            applyLanguage('en');
-        }
+        applyLanguage(saved);
     }
 
     // ===== 6. v0.9.78 详情页 Tab 切换 =====
@@ -214,7 +216,8 @@
             return m ? m[1] : 'anonymous';
         },
         // v0.9.78 新增
-        switchLanguage: applyLanguage,
+        applyLanguage: applyLanguage,
+        switchLanguage: switchLanguage,
         switchDetailTab: switchDetailTab,
         fetchBookDetails: fetchBookDetails,
     };

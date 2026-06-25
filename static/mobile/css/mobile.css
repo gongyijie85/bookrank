@@ -460,9 +460,13 @@ img { max-width: 100%; display: block; }
     font-size: var(--text-base);
     font-weight: 600;
     color: var(--color-text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.35;
 }
 
 .m-book-author {
@@ -948,6 +952,115 @@ img { max-width: 100%; display: block; }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.m-book-card-desc {
+    margin-top: var(--space-2);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* 出版社导航 */
+.m-publisher-hero {
+    margin: var(--space-4);
+    padding: var(--space-5) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    color: var(--color-text-inverse);
+}
+
+.m-publisher-hero h1 {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    margin: var(--space-1) 0;
+}
+
+.m-publisher-hero p {
+    font-size: var(--text-sm);
+    opacity: 0.86;
+}
+
+.m-publisher-kicker {
+    font-size: var(--text-xs);
+    opacity: 0.78;
+}
+
+.m-publisher-category .m-section-title {
+    margin-bottom: var(--space-2);
+}
+
+.m-publisher-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 0 var(--space-4);
+}
+
+.m-publisher-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+
+.m-publisher-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-tint);
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.m-publisher-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.m-publisher-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.m-publisher-name,
+.m-publisher-name-en,
+.m-publisher-desc {
+    display: block;
+}
+
+.m-publisher-name {
+    color: var(--color-text-primary);
+    font-size: var(--text-base);
+}
+
+.m-publisher-name-en {
+    color: var(--color-primary);
+    font-size: var(--text-sm);
+    margin-top: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-publisher-desc {
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    margin-top: var(--space-1);
+}
+
+.m-publisher-open {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-lg);
+    line-height: 1;
 }
 
 /* ===== 元信息网格（详情页） ===== */
@@ -1547,5 +1660,4 @@ img { max-width: 100%; display: block; }
     from { opacity: 0; transform: translateY(4px); }
     to   { opacity: 1; transform: translateY(0); }
 }
-
 

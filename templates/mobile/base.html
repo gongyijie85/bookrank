@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{ 'en' if get_locale() == 'en' else 'zh-CN' }}" data-lang="{{ get_locale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -72,7 +72,7 @@
             {% endif %}
             <span>{{ _('获奖书单') }}</span>
         </a>
-        <a href="/awards" class="m-tab {% if active_tab == 'publisher' %}active{% endif %}" data-tab="publisher">
+        <a href="{{ url_for('main.publishers') }}" class="m-tab {% if active_tab == 'publisher' %}active{% endif %}" data-tab="publisher">
             {% if active_tab == 'publisher' %}
             <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21 2H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1zM7 20H4V4h3zm5 0H9V4h3zm5 0h-3V4h3z"/></svg>
             {% else %}
