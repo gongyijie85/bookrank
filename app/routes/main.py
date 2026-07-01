@@ -39,11 +39,8 @@ from ..utils.service_helpers import (
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
 
-_MONTHLY_NYT_CATEGORIES = {'paperback-nonfiction-monthly', 'graphic-books-and-manga'}
-
-
 def _get_category_update_frequency(category: str) -> str:
-    return 'monthly' if category in _MONTHLY_NYT_CATEGORIES else 'weekly'
+    return current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category, 'weekly')
 
 
 def _get_list_published_date(books_data: list[dict]) -> str | None:
@@ -145,7 +142,11 @@ def index():
         sort_by=sort_by,
         update_frequency=update_frequency,
         list_published_date=list_published_date,
-        monthly_categories=sorted(_MONTHLY_NYT_CATEGORIES),
+        monthly_categories=sorted(
+            category_id
+            for category_id, frequency in current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].items()
+            if frequency == 'monthly'
+        ),
         active_tab='home',
     )
 

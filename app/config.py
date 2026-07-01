@@ -89,7 +89,19 @@ class Config:
         'young-adult-hardcover': '青少年精装本',
     }
 
+    NYT_CATEGORY_UPDATE_FREQUENCIES: dict[str, str] = {
+        'hardcover-fiction': 'weekly',
+        'trade-fiction-paperback': 'weekly',
+        'hardcover-nonfiction': 'weekly',
+        'paperback-nonfiction-monthly': 'monthly',
+        'advice-how-to-and-miscellaneous': 'weekly',
+        'graphic-books-and-manga': 'monthly',
+        'childrens-middle-grade-hardcover': 'weekly',
+        'young-adult-hardcover': 'weekly',
+    }
+
     NYT_API_BASE_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/current'
+    NYT_LIST_NAMES_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/names.json'
     GOOGLE_BOOKS_API_URL: str = 'https://www.googleapis.com/books/v1/volumes'
 
     # 外部 API 缓存 TTL（秒）
