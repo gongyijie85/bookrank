@@ -610,6 +610,41 @@ class TestApiCategoryBooks:
             with app.app_context():
                 app.extensions.pop('book_service', None)
 
+    def test_monthly_category_returns_frequency_metadata(self, client, app):
+        book = _make_book(
+            category_id='graphic-books-and-manga',
+            category_name='漫画与绘本',
+            list_name='Graphic Books and Manga',
+            published_date='2026-06-01',
+        )
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            resp = client.get('/api/category-books?category=graphic-books-and-manga')
+            data = json.loads(resp.data)
+            assert data['success'] is True
+            assert data['data']['update_frequency'] == 'monthly'
+            assert data['data']['list_published_date'] == '2026-06-01'
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_weekly_category_returns_frequency_metadata(self, client, app):
+        book = _make_book(published_date='2026-07-05')
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            resp = client.get('/api/category-books?category=hardcover-fiction')
+            data = json.loads(resp.data)
+            assert data['success'] is True
+            assert data['data']['update_frequency'] == 'weekly'
+            assert data['data']['list_published_date'] == '2026-07-05'
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
     def test_service_returns_none(self, client, app):
         with app.app_context():
             app.extensions.pop('book_service', None)
@@ -1054,6 +1089,36 @@ class TestIndexRoute:
         try:
             response = client.get('/')
             assert response.status_code == 200
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_monthly_category_shows_hint(self, client, app):
+        book = _make_book(
+            category_id='graphic-books-and-manga',
+            category_name='漫画与绘本',
+            list_name='Graphic Books and Manga',
+            published_date='2026-06-01',
+        )
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/?category=graphic-books-and-manga&lang=zh')
+            assert response.status_code == 200
+            assert '月榜 · 每月更新 · 榜单日期 2026-06-01'.encode() in response.data
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_weekly_category_hides_monthly_hint(self, client, app):
+        mock_svc = _mock_book_service([_make_book(published_date='2026-07-05')])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/?category=hardcover-fiction&lang=zh')
+            assert response.status_code == 200
+            assert '月榜 · 每月更新'.encode() not in response.data
         finally:
             with app.app_context():
                 app.extensions.pop('book_service', None)

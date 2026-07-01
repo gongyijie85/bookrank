@@ -6,6 +6,7 @@
 {% block title %}{{ _('纽约时报畅销书排行榜 - BookRank') }}{% endblock %}
 
 {% block content %}
+{% set _locale = get_locale() %}
 <!-- Page Header -->
 <header class="page-header">
     <h1 class="page-title">
@@ -15,6 +16,17 @@
     <p class="page-subtitle">
         <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
         <time datetime="{{ update_time if update_time else '' }}">{{ _('更新于:') }} {{ update_time if update_time else _('刚刚') }}</time>
+        <span id="monthly-list-hint"
+              class="cache-badge monthly-badge"
+              {% if update_frequency != 'monthly' %}hidden{% endif %}>
+            {% if update_frequency == 'monthly' %}
+                {% if _locale == 'zh' %}
+                    月榜 · 每月更新{% if list_published_date %} · 榜单日期 {{ list_published_date }}{% endif %}
+                {% else %}
+                    Monthly list · Updates monthly{% if list_published_date %} · List date {{ list_published_date }}{% endif %}
+                {% endif %}
+            {% endif %}
+        </span>
         {% if is_cached %}
         <span class="cache-badge" data-i18n="cache_badge">{{ _('缓存数据') }}</span>
         {% endif %}
@@ -100,8 +112,6 @@
     </div>
 </section>
 {% endif %}
-
-{% set _locale = get_locale() %}
 
 <section class="books-grid {% if view_mode == 'grid' or not view_mode %}active{% endif %}" id="books-grid" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
     {% for book in books %}
@@ -306,7 +316,8 @@
 <script nonce="{{ csp_nonce() }}">
     window.APP_CONFIG = {
         defaultCover: '{{ url_for("static", filename="default-cover.png") }}',
-        currentCategory: '{{ current_category }}'
+        currentCategory: '{{ current_category }}',
+        monthlyCategories: {{ monthly_categories|tojson }}
     };
 </script>
 <!--

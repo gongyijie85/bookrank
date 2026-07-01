@@ -78,6 +78,31 @@ class TestMobileIndexRoute:
         assert resp.status_code == 200
         assert b'm-tabbar' not in resp.data
 
+    @patch('app.routes.main.get_book_service')
+    def test_mobile_monthly_category_shows_hint(self, mock_get_svc, client) -> None:
+        """移动端月榜分类显示月榜提示"""
+        mock_get_svc.return_value = _mock_book_service(
+            [
+                _make_book(
+                    category_id='paperback-nonfiction-monthly',
+                    category_name='平装非虚构',
+                    list_name='Paperback Nonfiction',
+                    published_date='2026-06-01',
+                )
+            ]
+        )
+        resp = client.get('/?category=paperback-nonfiction-monthly&lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert '月榜 · 每月更新 · 榜单日期 2026-06-01'.encode() in resp.data
+
+    @patch('app.routes.main.get_book_service')
+    def test_mobile_weekly_category_hides_monthly_hint(self, mock_get_svc, client) -> None:
+        """移动端周榜分类不显示月榜提示"""
+        mock_get_svc.return_value = _mock_book_service([_make_book(published_date='2026-07-05')])
+        resp = client.get('/?category=hardcover-fiction&lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert '月榜 · 每月更新'.encode() not in resp.data
+
 
 class TestMobileBookDetailRoute:
     """书籍详情页移动端渲染"""

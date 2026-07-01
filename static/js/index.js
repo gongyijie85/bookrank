@@ -773,7 +773,7 @@ async function changeCategory(category) {
             BookI18n.registerAll(books);
         }
 
-        updateBooksOnPage(books, category, apiData.update_time);
+        updateBooksOnPage(books, category, apiData.update_time, apiData.update_frequency, apiData.list_published_date);
 
         const newUrl = `/?category=${encodeURIComponent(category)}`;
         window.history.pushState({ category }, '', newUrl);
@@ -878,7 +878,40 @@ function formatLocalTime(isoTime, lang) {
     return month + ' ' + day + ', ' + year + ' ' + hour12 + ':' + min + ' ' + ampm;
 }
 
-function updateBooksOnPage(books, category, updateTime) {
+function getCategoryUpdateFrequency(category, explicitFrequency) {
+    if (explicitFrequency) return String(explicitFrequency).toLowerCase();
+    const monthly = window.APP_CONFIG && Array.isArray(window.APP_CONFIG.monthlyCategories)
+        ? window.APP_CONFIG.monthlyCategories
+        : [];
+    return monthly.includes(category) ? 'monthly' : 'weekly';
+}
+
+function getListPublishedDate(books, explicitDate) {
+    if (explicitDate) return explicitDate;
+    if (!Array.isArray(books)) return '';
+    const book = books.find(item => item && item.published_date && item.published_date !== 'Unknown');
+    return book ? book.published_date : '';
+}
+
+function updateMonthlyListHint(category, books, updateFrequency, listPublishedDate, lang) {
+    const hintEl = document.getElementById('monthly-list-hint');
+    if (!hintEl) return;
+
+    const frequency = getCategoryUpdateFrequency(category, updateFrequency);
+    if (frequency !== 'monthly') {
+        hintEl.hidden = true;
+        hintEl.textContent = '';
+        return;
+    }
+
+    const publishedDate = getListPublishedDate(books, listPublishedDate);
+    hintEl.textContent = publishedDate
+        ? t('monthly_list_with_date', lang, { date: publishedDate })
+        : t('monthly_list', lang);
+    hintEl.hidden = false;
+}
+
+function updateBooksOnPage(books, category, updateTime, updateFrequency, listPublishedDate) {
     const isZh = currentLanguage === 'zh';
     const defaultCover = window.APP_CONFIG.defaultCover;
     const lang = currentLanguage;  // 显式捕获当前语言，供所有内嵌字符串使用
@@ -895,6 +928,8 @@ function updateBooksOnPage(books, category, updateTime) {
             ? t('time_updated_at', lang, { time: formattedTime })
             : t('time_just_now', lang);
     }
+
+    updateMonthlyListHint(category, books, updateFrequency, listPublishedDate, lang);
 
     const gridEl = document.getElementById('books-grid');
     if (gridEl) {

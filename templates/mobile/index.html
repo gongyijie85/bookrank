@@ -29,6 +29,15 @@
 <div class="m-list-info">
     {% if update_time %}{{ _('更新于') }} {{ update_time }} · {% endif %}{{ books|length }}{{ _('本') }}
     {% if is_cached %}<span class="m-cache-badge">{{ _('缓存') }}</span>{% endif %}
+    {% if update_frequency == 'monthly' %}
+        · <span class="m-monthly-badge">
+            {% if _locale == 'zh' %}
+                月榜 · 每月更新{% if list_published_date %} · 榜单日期 {{ list_published_date }}{% endif %}
+            {% else %}
+                Monthly list · Updates monthly{% if list_published_date %} · List date {{ list_published_date }}{% endif %}
+            {% endif %}
+        </span>
+    {% endif %}
 </div>
 
 <!-- 书籍排行榜列表 -->

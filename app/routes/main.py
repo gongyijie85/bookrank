@@ -39,6 +39,20 @@ from ..utils.service_helpers import (
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
 
+_MONTHLY_NYT_CATEGORIES = {'paperback-nonfiction-monthly', 'graphic-books-and-manga'}
+
+
+def _get_category_update_frequency(category: str) -> str:
+    return 'monthly' if category in _MONTHLY_NYT_CATEGORIES else 'weekly'
+
+
+def _get_list_published_date(books_data: list[dict]) -> str | None:
+    for book in books_data:
+        published_date = book.get('published_date')
+        if published_date and published_date != 'Unknown':
+            return str(published_date)
+    return None
+
 
 def _get_books_for_category(category: str) -> tuple[list, str | None]:
     """获取指定分类的书籍数据（统一入口）"""
@@ -96,6 +110,9 @@ def index():
         e.log()
         # 降级：用空列表渲染页面，不崩溃
 
+    update_frequency = _get_category_update_frequency(category)
+    list_published_date = _get_list_published_date(books_data)
+
     if search_query:
         books_data = filter_books_by_search(books_data, search_query)
     if publisher_filter:
@@ -126,6 +143,9 @@ def index():
         publisher_filter=publisher_filter,
         weeks_filter=weeks_filter,
         sort_by=sort_by,
+        update_frequency=update_frequency,
+        list_published_date=list_published_date,
+        monthly_categories=sorted(_MONTHLY_NYT_CATEGORIES),
         active_tab='home',
     )
 
@@ -678,7 +698,15 @@ def api_category_books():
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'图书服务不可用: {e}', exc_info=True)
 
-    return APIResponse.success(data={'books': books_data, 'category': category, 'update_time': update_time})
+    return APIResponse.success(
+        data={
+            'books': books_data,
+            'category': category,
+            'update_time': update_time,
+            'update_frequency': _get_category_update_frequency(category),
+            'list_published_date': _get_list_published_date(books_data),
+        }
+    )
 
 
 @main_bp.route('/reports/weekly')
