@@ -1,138 +1,167 @@
-"""v0.9.55 按需加载 + 内存缓存验证
+"""首页 AJAX 分类缓存与月榜提示验证。
 
 测试场景：
-1. 首次切换到一个未访问过的分类 → 应触发 1 次 API 请求 + 显示 skeleton
-2. 再次切换到同一分类 → 应直接命中内存缓存，0 API 请求
-3. 跨分类来回切换 → 仅首次每个分类消耗 1 次 API
-4. 切换语言时仍然 0 API 请求（保持 v0.9.54 行为）
+1. 初始访问不预拉取分类 API。
+2. 缺少元数据的旧分类缓存会失效并重新请求。
+3. 月榜 AJAX 响应同步更新缓存时间、榜单日期和中英文提示。
+4. 周榜隐藏月榜提示，回切月榜命中缓存且恢复月榜自己的元数据。
 """
-import asyncio
-import os
-from playwright.async_api import async_playwright
 
-OUT_DIR = r"d:\BookRank3\docs\preview"
-os.makedirs(OUT_DIR, exist_ok=True)
+import asyncio
+import json
+import os
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+from playwright.async_api import Route, async_playwright
+
+BASE_URL = os.environ.get('BOOKRANK_BASE_URL', 'http://127.0.0.1:8000')
+OUT_DIR = Path(__file__).resolve().parents[1] / 'docs' / 'preview'
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+MONTHLY_CATEGORY = 'graphic-books-and-manga'
+WEEKLY_CATEGORY = 'hardcover-fiction'
+MONTHLY_UPDATE_TIME = '2026-06-30 09:00:00'
+WEEKLY_UPDATE_TIME = '2026-07-01 10:30:00'
+MONTHLY_LIST_DATE = '2026-06-01'
+WEEKLY_LIST_DATE = '2026-07-05'
+
+
+def _book(category: str, published_date: str) -> dict:
+    monthly = category == MONTHLY_CATEGORY
+    return {
+        'title': 'Monthly Test Book' if monthly else 'Weekly Test Book',
+        'title_zh': '月榜测试图书' if monthly else '周榜测试图书',
+        'author': 'Test Author',
+        'publisher': 'Test Publisher',
+        'description': 'Browser test data',
+        'description_zh': '浏览器测试数据',
+        'category_name': '漫画与绘本' if monthly else '精装小说',
+        'list_name': 'Graphic Books and Manga' if monthly else 'Hardcover Fiction',
+        'published_date': published_date,
+        'isbn13': '9780000000001' if monthly else '9780000000002',
+        'rank': 1,
+        'rank_last_week': '0',
+        'weeks_on_list': 1,
+        'cover': '',
+    }
+
+
+def _api_data(category: str) -> dict:
+    monthly = category == MONTHLY_CATEGORY
+    published_date = MONTHLY_LIST_DATE if monthly else WEEKLY_LIST_DATE
+    return {
+        'books': [_book(category, published_date)],
+        'category': category,
+        'update_time': MONTHLY_UPDATE_TIME if monthly else WEEKLY_UPDATE_TIME,
+        'update_frequency': 'monthly' if monthly else 'weekly',
+        'list_published_date': published_date,
+    }
+
+
+async def _mock_category_api(route: Route) -> None:
+    category = parse_qs(urlparse(route.request.url).query).get('category', [WEEKLY_CATEGORY])[0]
+    body = json.dumps({'success': True, 'data': _api_data(category)}, ensure_ascii=False)
+    await route.fulfill(status=200, content_type='application/json', body=body)
+
+
+async def _switch_language(page, lang: str) -> None:
+    await page.evaluate('lang => window.setGlobalLanguage(lang)', lang)
+    expected_label = '中' if lang == 'zh' else 'EN'
+    for _ in range(100):
+        if await page.locator('#lang-current').inner_text() == expected_label:
+            return
+        await asyncio.sleep(0.05)
+    raise AssertionError(f'语言未切换到 {lang}')
 
 
 async def main() -> None:
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        ctx = await browser.new_context(
-            viewport={"width": 1280, "height": 800},
-            locale="zh-CN",
-        )
+        ctx = await browser.new_context(viewport={'width': 1280, 'height': 800}, locale='zh-CN')
         page = await ctx.new_page()
-        page.on("console", lambda msg: print(f"[{msg.type}] {msg.text}") if msg.type in ("error", "warning") else None)
+        page.on('console', lambda msg: print(f'[{msg.type}] {msg.text}') if msg.type in ('error', 'warning') else None)
 
-        # 监听 API 请求
         api_requests: list[str] = []
-        page.on("request", lambda req: api_requests.append(req.url) if "/api/" in req.url else None)
+        page.on('request', lambda req: api_requests.append(req.url) if '/api/category-books' in req.url else None)
+        await page.route('**/api/category-books?*', _mock_category_api)
 
-        # 清空 localStorage + 访问首页
-        await page.goto("http://127.0.0.1:8000/", wait_until="domcontentloaded", timeout=60000)
-        await page.evaluate("localStorage.clear();")
-        await page.reload(wait_until="networkidle", timeout=60000)
-        await page.wait_for_function(
-            "() => document.querySelectorAll('.books-grid .card').length >= 5",
-            timeout=30000,
+        await page.goto(BASE_URL, wait_until='domcontentloaded', timeout=60000)
+        await page.evaluate('localStorage.clear()')
+        await page.reload(wait_until='domcontentloaded', timeout=60000)
+        await page.wait_for_selector('#category-select')
+
+        assert not api_requests, f'初始访问不应请求分类 API: {api_requests}'
+        print('[PASS] 初始访问 0 个分类 API 请求')
+
+        legacy_cache = {
+            'timestamp': 4102444800000,
+            'books': [_book(MONTHLY_CATEGORY, MONTHLY_LIST_DATE)],
+        }
+        await page.evaluate(
+            """([key, value]) => localStorage.setItem(key, JSON.stringify(value))""",
+            [f'bookrank_category_{MONTHLY_CATEGORY}', legacy_cache],
         )
-        await page.wait_for_timeout(1500)
 
-        # === 1. 验证 8 分类预拉取已移除：页面初始访问后不应有 8 个分类的 API 请求 ===
-        initial_api_count = len(api_requests)
-        print(f"\n=== 初始访问后 API 请求总数: {initial_api_count} (期望: 0) ===")
-        if initial_api_count > 0:
-            for u in api_requests:
-                print(f"  - {u}")
-            print("[FAIL] 仍在请求 API，应改为按需加载")
-            await browser.close()
-            raise SystemExit(1)
-        else:
-            print("[PASS] 初始访问 0 API 请求（已移除预拉取）")
-
-        # === 2. 首次切换到一个新分类 ===
         api_requests.clear()
-        # 切到 "trade-fiction-paperback" (平装小说)
-        await page.select_option("#category-select", "trade-fiction-paperback")
-        # 等待 skeleton 出现（短暂 200ms）
-        skeleton_appeared = await page.evaluate("""
-            () => {
-                const skel = document.querySelectorAll('.card-skeleton');
-                if (skel.length > 0) return true;
-                return false;
-            }
-        """)
-        if skeleton_appeared:
-            print("[PASS] 切换分类时 skeleton 占位已显示")
-        else:
-            # 可能 API 太快完成，skeleton 已被替换。检查 process 时间
-            print("[INFO] 切换瞬间未抓到 skeleton（API 响应太快），不影响功能")
-
-        # 等待卡片刷新
-        await page.wait_for_function(
-            "() => document.querySelector('.books-grid .card[data-isbn]') !== null",
-            timeout=15000,
+        await page.select_option('#category-select', MONTHLY_CATEGORY)
+        await page.wait_for_timeout(600)
+        monthly_calls = [url for url in api_requests if MONTHLY_CATEGORY in url]
+        assert len(monthly_calls) == 1, f'旧缓存应失效并请求一次月榜 API: {monthly_calls}'
+        assert await page.locator('#monthly-list-hint').inner_text() == (
+            f'月榜 · 每月更新 · 榜单日期 {MONTHLY_LIST_DATE}'
         )
-        await page.wait_for_timeout(800)
-        first_switch_api = list(api_requests)
-        print(f"\n=== 首次切到 trade-fiction-paperback 的 API 请求数: {len(first_switch_api)} (期望: 1) ===")
-        for u in first_switch_api:
-            print(f"  - {u}")
-        if len(first_switch_api) == 1:
-            print("[PASS] 首次切换到新分类只消耗 1 次 API")
-        else:
-            print(f"[FAIL] 首次切换消耗了 {len(first_switch_api)} 次 API（应只有 1）")
-            await browser.close()
-            raise SystemExit(1)
+        assert await page.locator('.page-subtitle time').get_attribute('datetime') == MONTHLY_UPDATE_TIME
+        print('[PASS] 旧缓存失效，中文月榜提示和更新时间来自 AJAX 响应')
 
-        # === 3. 再次切换到同一分类（应命中内存缓存） ===
         api_requests.clear()
-        # 先切到别的分类再切回来
-        await page.select_option("#category-select", "hardcover-fiction")
-        await page.wait_for_timeout(800)
-        await page.select_option("#category-select", "trade-fiction-paperback")
-        await page.wait_for_timeout(800)
-        revisit_api = list(api_requests)
-        print(f"\n=== 再次访问 trade-fiction-paperback 的 API 请求数: {len(revisit_api)} (期望: 1，因为 hardcover-fiction 第一次) ===")
-        # 期望: 切到 hardcover-fiction 是 1 次（首次），切到 trade-fiction-paperback 是 0 次（缓存命中）
-        hardcover_calls = sum(1 for u in revisit_api if "hardcover-fiction" in u)
-        paperback_calls = sum(1 for u in revisit_api if "trade-fiction-paperback" in u)
-        print(f"  hardcover-fiction: {hardcover_calls} 次, trade-fiction-paperback: {paperback_calls} 次")
-        if paperback_calls == 0:
-            print("[PASS] 再次访问 trade-fiction-paperback 命中缓存（0 API）")
-        else:
-            print(f"[FAIL] 再次访问 trade-fiction-paperback 没有命中缓存（{paperback_calls} API）")
+        await _switch_language(page, 'en')
+        english_hint = await page.locator('#monthly-list-hint').inner_text()
+        assert english_hint == f'Monthly list · Updates monthly · List date {MONTHLY_LIST_DATE}', english_hint
+        assert not api_requests, f'切换英文不应请求分类 API: {api_requests}'
+        print('[PASS] 英文月榜提示正确，切语言 0 个分类 API 请求')
 
-        # === 4. 切换语言时 0 API 请求 ===
         api_requests.clear()
-        await page.click("#lang-globe")
-        await page.wait_for_timeout(300)
-        await page.click("#lang-opt-en", force=True)
-        await page.wait_for_timeout(800)
-        lang_api = list(api_requests)
-        print(f"\n=== 切到英文时的 API 请求数: {len(lang_api)} (期望: 0) ===")
-        if len(lang_api) == 0:
-            print("[PASS] 切换语言 0 API（按需加载保持原有行为）")
+        await page.select_option('#category-select', WEEKLY_CATEGORY)
+        for _ in range(100):
+            if await page.locator('.page-subtitle time').get_attribute('datetime') == WEEKLY_UPDATE_TIME:
+                break
+            await asyncio.sleep(0.05)
         else:
-            for u in lang_api:
-                print(f"  - {u}")
-            print(f"[FAIL] 切换语言消耗了 {len(lang_api)} 次 API")
+            raise AssertionError('周榜更新时间未写入 DOM')
+        weekly_calls = [url for url in api_requests if WEEKLY_CATEGORY in url]
+        assert len(weekly_calls) == 1, f'首次周榜切换应请求一次 API: {weekly_calls}'
+        weekly_hint = await page.evaluate(
+            """() => ({
+                hidden: document.querySelector('#monthly-list-hint')?.hidden,
+                text: document.querySelector('#monthly-list-hint')?.textContent,
+                category: window.currentCategory
+            })"""
+        )
+        assert weekly_hint['hidden'], weekly_hint
+        assert await page.locator('.page-subtitle time').get_attribute('datetime') == WEEKLY_UPDATE_TIME
+        print('[PASS] 周榜隐藏月榜提示并显示自己的更新时间')
 
-        # 切回中文
-        await page.click("#lang-globe")
+        api_requests.clear()
+        await page.select_option('#category-select', MONTHLY_CATEGORY)
         await page.wait_for_timeout(300)
-        await page.click("#lang-opt-zh", force=True)
-        await page.wait_for_timeout(800)
+        assert not api_requests, f'回切月榜应命中缓存: {api_requests}'
+        assert await page.locator('.page-subtitle time').get_attribute('datetime') == MONTHLY_UPDATE_TIME
+        assert await page.locator('#monthly-list-hint').inner_text() == (
+            f'Monthly list · Updates monthly · List date {MONTHLY_LIST_DATE}'
+        )
 
-        # 截图：当前分类 + 英文
-        await page.select_option("#category-select", "hardcover-fiction")
-        await page.wait_for_timeout(800)
-        await page.screenshot(path=os.path.join(OUT_DIR, "v0_9_55_cache_test.png"), full_page=True)
-        print(f"\nsaved: {os.path.join(OUT_DIR, 'v0_9_55_cache_test.png')}")
+        await _switch_language(page, 'zh')
+        assert await page.locator('#monthly-list-hint').inner_text() == (
+            f'月榜 · 每月更新 · 榜单日期 {MONTHLY_LIST_DATE}'
+        )
+        print('[PASS] 回切月榜命中缓存并恢复自己的时间、榜单日期和中文提示')
 
+        screenshot = OUT_DIR / 'category_cache_metadata_test.png'
+        await page.screenshot(path=str(screenshot), full_page=True)
         await browser.close()
-        print("\n=== v0.9.55 按需加载 + 内存缓存验证通过 ===")
+        print(f'saved: {screenshot}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())

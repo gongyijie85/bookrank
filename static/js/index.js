@@ -681,22 +681,31 @@ const categoryCache = {
             const data = localStorage.getItem(key);
             if (data) {
                 const parsed = JSON.parse(data);
-                if (Date.now() - parsed.timestamp < 86400000) {
+                const hasMetadata = ['updateTime', 'updateFrequency', 'listPublishedDate']
+                    .every(field => Object.prototype.hasOwnProperty.call(parsed, field));
+                if (Date.now() - parsed.timestamp < 86400000 && Array.isArray(parsed.books) && hasMetadata) {
                     // 命中后回填内存热层，下次切换瞬时
-                    _memoryCategoryCache.set(category, parsed.books);
-                    return parsed.books;
+                    _memoryCategoryCache.set(category, parsed);
+                    return parsed;
                 }
+                localStorage.removeItem(key);
             }
         } catch (e) { /* 忽略 */ }
         return null;
     },
-    set: function(category, books) {
+    set: function(category, books, updateTime, updateFrequency, listPublishedDate) {
+        const data = {
+            timestamp: Date.now(),
+            books: books,
+            updateTime: updateTime,
+            updateFrequency: updateFrequency,
+            listPublishedDate: listPublishedDate
+        };
         // 内存热层立即写入
-        _memoryCategoryCache.set(category, books);
+        _memoryCategoryCache.set(category, data);
         // localStorage 持久化（24h TTL）
         try {
             const key = `bookrank_category_${category}`;
-            const data = { timestamp: Date.now(), books: books };
             localStorage.setItem(key, JSON.stringify(data));
         } catch (e) { /* 忽略 */ }
     },
@@ -715,8 +724,9 @@ async function changeCategory(category) {
     if (category === window.currentCategory) return;
 
     // 命中缓存：本地已有数据 → 直接渲染，不显示 skeleton
-    const cachedBooks = categoryCache.get(category);
-    if (Array.isArray(cachedBooks) && cachedBooks.length > 0) {
+    const cached = categoryCache.get(category);
+    if (cached && Array.isArray(cached.books) && cached.books.length > 0) {
+        const cachedBooks = cached.books;
         window.currentCategory = category;
         window.booksData = cachedBooks;
         currentCategory = category;
@@ -726,10 +736,13 @@ async function changeCategory(category) {
             BookI18n.clear();
             BookI18n.registerAll(cachedBooks);
         }
-        // 缓存命中时使用页面上已存在的更新时间（避免显示"刚刚"）
-        const timeEl = document.querySelector('.page-subtitle time');
-        const cachedTime = timeEl ? timeEl.getAttribute('datetime') : null;
-        updateBooksOnPage(cachedBooks, category, cachedTime);
+        updateBooksOnPage(
+            cachedBooks,
+            category,
+            cached.updateTime,
+            cached.updateFrequency,
+            cached.listPublishedDate
+        );
         const newUrl = `/?category=${encodeURIComponent(category)}`;
         window.history.pushState({ category }, '', newUrl);
         if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
@@ -761,7 +774,13 @@ async function changeCategory(category) {
         const books = apiData.books || [];
 
         // 写入缓存（内存 + localStorage）
-        categoryCache.set(category, books);
+        categoryCache.set(
+            category,
+            books,
+            apiData.update_time,
+            apiData.update_frequency,
+            apiData.list_published_date
+        );
 
         window.currentCategory = category;
         window.booksData = books;
@@ -923,6 +942,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
 
     const timeEl = document.querySelector('.page-subtitle time');
     if (timeEl) {
+        timeEl.setAttribute('datetime', updateTime || '');
         var formattedTime = formatLocalTime(updateTime, lang);
         timeEl.textContent = formattedTime
             ? t('time_updated_at', lang, { time: formattedTime })
