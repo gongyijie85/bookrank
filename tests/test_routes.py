@@ -5,7 +5,7 @@ API 路由测试
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from flask import render_template
@@ -284,18 +284,26 @@ class TestAwardBooks:
 class TestTranslationAPI:
     """测试翻译功能端点"""
 
-    def test_translate_with_fallback(self, client):
-        """测试翻译功能（使用备用翻译服务）"""
-        with patch('app.utils.api_helpers.validate_csrf_token', return_value=True):
+    def test_translate_with_fake_service(self, client):
+        """翻译端点使用注入服务，不访问外部翻译 API"""
+        translation_service = MagicMock()
+        translation_service.translate.return_value = '你好'
+        with (
+            patch('app.utils.api_helpers.validate_csrf_token', return_value=True),
+            patch(
+                'app.services.zhipu_translation_service.get_translation_service',
+                return_value=translation_service,
+            ),
+        ):
             response = client.post(
                 '/api/translate', data=json.dumps({'text': 'Hello'}), content_type='application/json'
             )
 
-        assert response.status_code in [200, 503]
+        assert response.status_code == 200
         data = json.loads(response.data)
-        if response.status_code == 200:
-            assert data['success'] is True
-            assert 'translated' in data['data']
+        assert data['success'] is True
+        assert data['data']['translated'] == '你好'
+        translation_service.translate.assert_called_once_with('Hello', 'en', 'zh', field_type='text')
 
     def test_translation_cache_stats(self, client, admin_headers):
         """测试翻译缓存统计"""

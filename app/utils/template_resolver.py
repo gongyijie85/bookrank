@@ -3,6 +3,7 @@
 移动端优先尝试 mobile/ 子目录下的模板，缺失时自动回退到桌面版，
 实现渐进式迁移：未做移动版的页面仍可正常访问桌面版。
 """
+
 from flask import render_template
 from jinja2 import TemplateNotFound
 

@@ -32,7 +32,7 @@ class TestUserPreference:
         db.session.commit()
 
         # 验证创建成功
-        result = UserPreference.query.get('test_session_123')
+        result = db.session.get(UserPreference, 'test_session_123')
         assert result is not None
         assert result.session_id == 'test_session_123'
         assert result.view_mode == 'grid'
@@ -43,7 +43,7 @@ class TestUserPreference:
         db.session.add(preference)
         db.session.commit()
 
-        result = UserPreference.query.get('test_session_456')
+        result = db.session.get(UserPreference, 'test_session_456')
         assert result.view_mode == 'grid'  # 默认值
         assert result.created_at is not None
         assert result.updated_at is not None
@@ -54,7 +54,7 @@ class TestUserPreference:
         db.session.add(preference)
         db.session.commit()
 
-        result = UserPreference.query.get('test_session_789')
+        result = db.session.get(UserPreference, 'test_session_789')
         data = result.to_dict()
 
         assert data['session_id'] == 'test_session_789'
@@ -99,7 +99,7 @@ class TestUserCategory:
             db.session.add(cat)
         db.session.commit()
 
-        result = UserPreference.query.get('test_session_rel')
+        result = db.session.get(UserPreference, 'test_session_rel')
         assert result.categories.count() == 2
 
 
@@ -146,7 +146,7 @@ class TestBookMetadata:
         db.session.add(metadata)
         db.session.commit()
 
-        result = BookMetadata.query.get('9780143127550')
+        result = db.session.get(BookMetadata, '9780143127550')
         assert result is not None
         assert result.title == 'Test Book Title'
         assert result.author == 'Test Author'
@@ -158,7 +158,7 @@ class TestBookMetadata:
         db.session.add(metadata)
         db.session.commit()
 
-        result = BookMetadata.query.get('9780143127551')
+        result = db.session.get(BookMetadata, '9780143127551')
         data = result.to_dict()
 
         assert data['isbn'] == '9780143127551'
@@ -341,7 +341,7 @@ class TestSystemConfig:
         db.session.add(config)
         db.session.commit()
 
-        result = SystemConfig.query.get('site_name')
+        result = db.session.get(SystemConfig, 'site_name')
         assert result is not None
         assert result.value == 'BookRank'
 

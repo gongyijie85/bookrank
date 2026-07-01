@@ -21,7 +21,7 @@ class TestBookService:
     """图书服务测试类"""
 
     @pytest.fixture
-    def book_service(self):
+    def book_service(self, db):
         """创建图书服务实例"""
         # 模拟依赖服务
         nyt_client = Mock()
@@ -85,7 +85,7 @@ class TestBookService:
     def test_get_books_by_category(self, book_service, db):
         """测试获取指定分类的图书列表"""
         # 执行测试
-        books = book_service.get_books_by_category('hardcover-fiction')
+        books = book_service.get_books_by_category('hardcover-fiction', auto_translate=False)
 
         # 验证结果
         assert len(books) == 1
@@ -406,7 +406,7 @@ class TestBookService:
         assert result is True
 
         # 验证数据库中是否保存了翻译
-        metadata = BookMetadata.query.get('9780143127550')
+        metadata = db.session.get(BookMetadata, '9780143127550')
         assert metadata is not None
         assert metadata.title_zh == '测试书名'
         assert metadata.description_zh == '测试描述'

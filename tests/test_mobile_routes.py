@@ -199,10 +199,12 @@ class TestTemplateFallback:
             # render_adaptive 内部会捕获 TemplateNotFound 并回退
             # 这里验证回退逻辑：当 mobile/xxx.html 不存在时，应回退到 xxx.html
             with patch('app.utils.template_resolver.render_template') as mock_render:
+
                 def side_effect(name, **ctx):
                     if name.startswith('mobile/'):
                         raise TemplateNotFound(name)
                     return f'desktop:{name}'
+
                 mock_render.side_effect = side_effect
                 result = render_adaptive('nonexistent.html')
                 assert result == 'desktop:nonexistent.html'
@@ -250,9 +252,7 @@ class TestMobileWeeklyReportDetailEnhanced:
     @patch('app.routes.main.parse_report_content')
     @patch('app.services.weekly_report_service.WeeklyReportService')
     @patch('app.routes.main.get_book_service')
-    def test_weekly_report_detail_renders_hero_stats(
-        self, mock_get_svc, mock_report_svc, mock_parse, client
-    ) -> None:
+    def test_weekly_report_detail_renders_hero_stats(self, mock_get_svc, mock_report_svc, mock_parse, client) -> None:
         """周报详情应渲染 Hero 区数字卡片"""
         from datetime import date, datetime
 
@@ -322,9 +322,7 @@ class TestMobileBookDetailV2:
     @patch('app.routes.main.merge_or_translate_book')
     @patch('app.routes.main.fetch_google_books_details')
     @patch('app.routes.main.get_book_service')
-    def test_book_detail_has_meta_list(
-        self, mock_get_svc, mock_fetch, mock_merge, client
-    ) -> None:
+    def test_book_detail_has_meta_list(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """移动端书籍详情应使用单列元信息列表"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
         resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
@@ -334,9 +332,7 @@ class TestMobileBookDetailV2:
     @patch('app.routes.main.merge_or_translate_book')
     @patch('app.routes.main.fetch_google_books_details')
     @patch('app.routes.main.get_book_service')
-    def test_book_detail_no_back_button(
-        self, mock_get_svc, mock_fetch, mock_merge, client
-    ) -> None:
+    def test_book_detail_no_back_button(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """v0.9.78：移动端书籍详情页应不显示底部"返回榜单"按钮"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
         resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
@@ -378,9 +374,7 @@ class TestMobileWeeklyReportListV2:
 
     @patch('app.services.weekly_report_service.WeeklyReportService')
     @patch('app.routes.main.get_book_service')
-    def test_weekly_list_shows_week_indicator(
-        self, mock_get_svc, mock_report_svc, client
-    ) -> None:
+    def test_weekly_list_shows_week_indicator(self, mock_get_svc, mock_report_svc, client) -> None:
         """移动端周报列表应显示周数指示器"""
         from datetime import date, datetime
 

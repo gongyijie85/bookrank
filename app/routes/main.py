@@ -39,6 +39,7 @@ from ..utils.service_helpers import (
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
 
+
 def _get_category_update_frequency(category: str) -> str:
     return current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category, 'weekly')
 
@@ -166,10 +167,11 @@ def cached_image(filename: str):
 @main_bp.route('/award-book/<int:book_id>/cover')
 def award_book_cover(book_id: int):
     """解析获奖图书封面，缺失时按 ISBN/书名补全并回写。"""
+    from ..models.database import db
     from ..models.schemas import AwardBook
     from ..services.award_cover_sync_service import AwardCoverSyncService
 
-    book = AwardBook.query.get_or_404(book_id)
+    book = db.get_or_404(AwardBook, book_id)
     sync_service = AwardCoverSyncService(
         get_google_books_client(),
         image_cache=get_image_cache_service(),

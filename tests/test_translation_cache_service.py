@@ -612,7 +612,7 @@ class TestDelete:
 
         deleted = service.delete(cache_id=record.id)
         assert deleted == 1
-        assert TranslationCache.query.get(record.id) is None
+        assert db.session.get(TranslationCache, record.id) is None
 
     def test_delete_nonexistent_id(self, db):
         """删除不存在的 ID 应返回 0"""

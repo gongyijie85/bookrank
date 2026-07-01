@@ -3,6 +3,7 @@
 根据 HTTP 请求的 User-Agent 头判断是否为移动设备，
 用于在视图层选择移动版或桌面版模板。
 """
+
 import re
 
 from flask import has_request_context, request

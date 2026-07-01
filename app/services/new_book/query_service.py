@@ -43,7 +43,7 @@ class NewBookQueryService:
     def get_book(self, book_id: int) -> NewBook | None:
         from sqlalchemy.orm import joinedload
 
-        book = NewBook.query.options(joinedload(NewBook.publisher)).get(book_id)
+        book = db.session.get(NewBook, book_id, options=[joinedload(NewBook.publisher)])
         if book:
             self._translation_pipeline._hydrate_language_pack([book])
         return book

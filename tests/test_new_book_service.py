@@ -123,14 +123,14 @@ class TestNewBookService:
 
         # 验证结果
         assert result is True
-        assert Publisher.query.get(publisher.id).is_active is False
+        assert db.session.get(Publisher, publisher.id).is_active is False
 
         # 执行测试 - 启用出版社
         result = new_book_service.update_publisher_status(publisher.id, True)
 
         # 验证结果
         assert result is True
-        assert Publisher.query.get(publisher.id).is_active is True
+        assert db.session.get(Publisher, publisher.id).is_active is True
 
     def test_get_crawler(self, new_book_service):
         """测试获取爬虫实例"""
