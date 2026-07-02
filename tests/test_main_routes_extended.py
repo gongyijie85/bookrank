@@ -516,7 +516,9 @@ class TestAwardBookDetail:
 
 
 class TestBookDetail:
-    def test_valid_book_index(self, client, app):
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    def test_valid_book_index(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
         with app.app_context():
@@ -528,7 +530,9 @@ class TestBookDetail:
             with app.app_context():
                 app.extensions.pop('book_service', None)
 
-    def test_invalid_category_fallback(self, client, app):
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    def test_invalid_category_fallback(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
         with app.app_context():
