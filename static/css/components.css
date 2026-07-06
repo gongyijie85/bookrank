@@ -907,8 +907,8 @@
     transform: scale(1.1);
 }
 
-/* Hide desktop close button on mobile */
-@media (max-width: 768px) {
+/* Hide desktop close button on mobile (≤767px) */
+@media (max-width: 767px) {
     .modal-close-desktop {
         display: none;
     }
@@ -1566,15 +1566,15 @@
     }
 }
 
-/* Desktop (1025px-1399px) - Standard desktop layout */
-@media (min-width: 1025px) and (max-width: 1399px) {
+/* Desktop (1200px-1399px) - Standard desktop layout */
+@media (min-width: 1200px) and (max-width: 1399px) {
     .books-grid {
         grid-template-columns: repeat(6, 1fr);
     }
 }
 
-/* Tablet Landscape (768px-1024px) - Optimize for tablets */
-@media (min-width: 769px) and (max-width: 1024px) {
+/* 平板端 (768px-1199px) — 可切换侧边栏，双列卡片 */
+@media (min-width: 768px) and (max-width: 1199px) {
     .books-grid {
         grid-template-columns: repeat(4, 1fr);
         gap: var(--spacing-sm);
@@ -1587,19 +1587,6 @@
 
     .card-title {
         font-size: 0.95rem;
-    }
-
-    .nav-link span {
-        font-size: 0.85rem;
-    }
-
-    .top-nav {
-        padding: 0 var(--spacing-md);
-    }
-
-    .main-content {
-        padding: var(--spacing-md);
-        padding-top: calc(var(--top-nav-height) + var(--spacing-md));
     }
 
     .modal-body {
@@ -1617,8 +1604,8 @@
     }
 }
 
-/* Tablet Portrait/Small Laptop (≤1024px) */
-@media (max-width: 1024px) {
+/* 平板端竖屏 & 小屏平板 (≤1199px) — 模态框单列 */
+@media (max-width: 1199px) {
     .modal-body {
         grid-template-columns: 1fr;
     }
@@ -1634,7 +1621,8 @@
     }
 }
 
-@media (max-width: 768px) {
+/* 手机端 (≤767px) */
+@media (max-width: 767px) {
     .filter-bar {
         flex-direction: column;
         align-items: stretch;
@@ -2007,8 +1995,8 @@
     }
 }
 
-/* Mobile Landscape/Phablet (481px-768px) */
-@media (min-width: 481px) and (max-width: 768px) {
+/* 手机端横屏 & 大屏手机 (481px-767px) — 三列卡片 */
+@media (min-width: 481px) and (max-width: 767px) {
     .books-grid {
         grid-template-columns: repeat(3, 1fr);
         gap: var(--spacing-sm);
@@ -2043,7 +2031,7 @@
     }
 }
 
-/* Mobile Portrait (≤480px) - Small phones */
+/* 小屏手机 (≤480px) — 双列卡片 */
 @media (max-width: 480px) {
     .books-grid {
         grid-template-columns: repeat(2, 1fr);

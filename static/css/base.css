@@ -268,7 +268,8 @@ h4 { font-size: 1.125rem; }
     background-color: var(--bg-light);
 }
 
-@media (max-width: 1024px) {
+/* 平板端 & 手机端：侧边栏不固定，主内容区占满 */
+@media (max-width: 1199px) {
     .main-content {
         margin-left: 0;
         padding: var(--spacing-md);
@@ -538,14 +539,15 @@ h4 { font-size: 1.125rem; }
 
 .sidebar.open { transform: translateX(0); }
 
-@media (max-width: 1024px) {
+/* 平板端 & 手机端：侧边栏默认隐藏，可通过按钮切换 */
+@media (max-width: 1199px) {
     .sidebar {
         transform: translateX(-100%);
         width: 80vw;
         max-width: 300px;
     }
 
-    /* 移动端侧边栏展开时添加遮罩层 */
+    /* 侧边栏展开时添加遮罩层 */
     .sidebar.open::before {
         content: '';
         position: fixed;
@@ -638,13 +640,35 @@ h4 { font-size: 1.125rem; }
     outline-offset: 2px;
 }
 
-@media (min-width: 1025px) { .sidebar-toggle { display: none; } }
+/* 桌面端（≥1200px）隐藏侧边栏切换按钮，侧边栏始终可见 */
+@media (min-width: 1200px) { .sidebar-toggle { display: none; } }
 
 /* ============================================
- * Mobile Navigation Optimization (2026)
- * 手机端导航栏优化
+ * 平板端导航优化 (768px-1199px)
  * ============================================ */
-@media (max-width: 768px) {
+@media (min-width: 768px) and (max-width: 1199px) {
+    .top-nav {
+        padding: 0 var(--spacing-md);
+    }
+
+    .nav-links {
+        gap: 16px;
+    }
+
+    .nav-link {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: 13px;
+    }
+
+    .nav-link span {
+        display: inline;
+    }
+}
+
+/* ============================================
+ * 手机端导航栏优化 (≤767px)
+ * ============================================ */
+@media (max-width: 767px) {
     :root {
         --top-nav-height: auto;
     }
