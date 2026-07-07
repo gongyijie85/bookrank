@@ -12,7 +12,7 @@ services:
     branch: main
     
     # 构建和启动命令
-    buildCommand: pip install -r requirements-prod.txt && python build.py
+    buildCommand: pip install -r requirements-prod.txt
     startCommand: gunicorn -c gunicorn.conf.py run:application
     
     # 健康检查：使用 /health/ready 以验证数据库等真实依赖

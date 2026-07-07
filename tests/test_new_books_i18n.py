@@ -103,8 +103,6 @@ class TestNewBookI18nKeys:
         assert not missing, f'translations.js 缺失 nb_* 键: {missing}'
 
 
-
-
 class TestNewBookPoFiles:
     """msgid 完整性。"""
 

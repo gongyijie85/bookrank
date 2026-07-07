@@ -71,9 +71,6 @@ jobs:
           pip install -r requirements.txt
           pip install pytest-timeout
 
-      - name: Build CSS
-        run: python build.py
-
       - name: Run unit tests with coverage
         env:
           FLASK_ENV: testing
