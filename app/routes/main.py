@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import re
 from pathlib import Path
@@ -167,11 +168,12 @@ def cached_image(filename: str):
 @main_bp.route('/award-book/<int:book_id>/cover')
 def award_book_cover(book_id: int):
     """解析获奖图书封面，缺失时按 ISBN/书名补全并回写。"""
-    from ..models.database import db
-    from ..models.schemas import AwardBook
+    from ..services.award_book_service import AwardBookService
     from ..services.award_cover_sync_service import AwardCoverSyncService
 
-    book = db.get_or_404(AwardBook, book_id)
+    book = AwardBookService().get_award_book_by_id(book_id)
+    if not book:
+        abort(404)
     sync_service = AwardCoverSyncService(
         get_google_books_client(),
         image_cache=get_image_cache_service(),
@@ -588,7 +590,11 @@ def book_detail(book_index):
     if category not in categories:
         category = default_category
 
-    books_data, _ = _get_books_for_category(category)
+    try:
+        books_data, _ = _get_books_for_category(category)
+    except ExternalAPIError as e:
+        e.log()
+        books_data = []
 
     if book_index < 0 or book_index >= len(books_data):
         return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/')
@@ -605,6 +611,7 @@ def book_detail(book_index):
         book=book,
         book_index=book_index,
         category=category,
+        categories=categories,
         back_url=request.referrer or '/?category=' + category,
         active_tab='home',
     )
@@ -668,7 +675,7 @@ def book_details_api():
         return APIResponse.error('书籍不存在', 404)
 
     book = books_data[book_index]
-    details = book.get('description', '暂无详细介绍')
+    details = book.get('details') or book.get('description') or '暂无详细介绍'
 
     return APIResponse.success(data={'details': details})
 
@@ -913,9 +920,12 @@ def set_language():
     if not is_safe_redirect_url(next_url, allowed_hosts={request.host}):
         next_url = '/'
     response = make_response(redirect(next_url))
-    # 获取当前请求的域名用于设置 cookie domain
-    host = request.host.split(':')[0]  # 去掉端口号
-    # 对于 Render 等部署平台，需要设置正确的 domain
-    cookie_domain = host if '.' in host else None
+    # IP/localhost 不能带 Domain，否则移动端局域网访问时浏览器会拒收 cookie。
+    host = request.host.rsplit(':', 1)[0].strip('[]')
+    try:
+        ipaddress.ip_address(host)
+        cookie_domain = None
+    except ValueError:
+        cookie_domain = host if host and host != 'localhost' and '.' in host else None
     response.set_cookie('lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax', domain=cookie_domain, path='/')
     return response

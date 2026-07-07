@@ -17,6 +17,7 @@
 {% block content %}
 {% set display_title = safe_title_zh or safe_title_en %}
 {% set desc = book.description_zh or book.description %}
+{% set detail_text = book.details %}
 
 <!-- 封面 -->
 <section class="m-detail-cover-wrap">
@@ -35,9 +36,23 @@
     {% if book.award %}
     <div class="m-detail-tags">
         <span class="m-detail-tag">{{ book.award.name }}</span>
-        {% if book.year %}<span class="m-detail-tag" style="background: var(--color-accent-tint); color: var(--color-accent);">{{ book.year }}{{ _('年') }}</span>{% endif %}
+        {% if book.year %}<span class="m-detail-tag accent">{{ book.year }}{{ _('年') }}</span>{% endif %}
     </div>
     {% endif %}
+    <div class="m-detail-facts">
+        {% if book.isbn13 or book.isbn10 %}
+        <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
+        {% endif %}
+        {% if book.publication_year %}
+        <span><strong>{{ _('出版年份') }}</strong>{{ book.publication_year }}</span>
+        {% endif %}
+        {% if book.category %}
+        <span><strong>{{ _('类别') }}</strong>{{ book.category }}</span>
+        {% endif %}
+        {% if book.rank %}
+        <span><strong>{{ _('排名') }}</strong>{{ book.rank }}</span>
+        {% endif %}
+    </div>
 </section>
 
 <!-- Tab 切换：图书简介 / 详细信息 -->
@@ -90,9 +105,16 @@
                 <div class="m-meta-row"><dt>{{ _('类别') }}</dt><dd>{{ book.category }}</dd></div>
                 {% endif %}
                 {% if book.rank %}
-                <div class="m-meta-row"><dt>{{ _('名次') }}</dt><dd>{{ book.rank }}</dd></div>
+                <div class="m-meta-row"><dt>{{ _('排名') }}</dt><dd>{{ book.rank }}</dd></div>
                 {% endif %}
             </dl>
+            {% if detail_text and detail_text not in ('No detailed description available.', '暂无详细介绍', '暂无详细描述', '') %}
+            <div class="m-detail-text m-detail-longtext">
+                {% for para in detail_text.split('\n') if para.strip() %}
+                <p>{{ para.strip() }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

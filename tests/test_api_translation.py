@@ -6,28 +6,7 @@
 
 import pytest
 
-from app import create_app
-from app.models.database import db as _db
-
 ADMIN_HEADERS = {'X-Admin-Secret': 'test-admin-secret'}
-
-
-@pytest.fixture(scope='module')
-def app():
-    """创建测试应用实例并初始化数据库"""
-    app = create_app('testing')
-    app.config['ADMIN_SECRET'] = 'test-admin-secret'
-    with app.app_context():
-        _db.create_all()
-        yield app
-        _db.session.remove()
-        _db.drop_all()
-
-
-@pytest.fixture(scope='module')
-def client(app):
-    """创建测试客户端"""
-    return app.test_client()
 
 
 @pytest.fixture
@@ -38,6 +17,36 @@ def csrf_token(client):
     return data['data']['csrf_token']
 
 
+@pytest.fixture(autouse=True)
+def _stub_translation_service(monkeypatch):
+    """所有翻译 API 测试统一使用假翻译服务，禁止真实网络请求"""
+
+    class ZhipuFake:
+        def is_available(self):
+            return True
+
+    class FakeTranslator:
+        zhipu = ZhipuFake()
+
+        def translate(self, text, source_lang='en', target_lang='zh', field_type='text'):
+            return f'译_{text}'
+
+        def translate_book_fields(self, **kwargs):
+            return {k: f'译_{v}' for k, v in kwargs.items() if isinstance(v, str)}
+
+        def translate_book_info(self, book_data, target_lang='zh'):
+            return book_data
+
+        def get_cache_stats(self):
+            return {'total': 0, 'hits': 0, 'misses': 0}
+
+    monkeypatch.setattr(
+        'app.services.zhipu_translation_service.get_translation_service',
+        lambda: FakeTranslator(),
+    )
+
+
+@pytest.mark.usefixtures('db')
 class TestTranslationAPI:
     """翻译API测试类"""
 
@@ -86,6 +95,7 @@ class TestTranslationAPI:
             assert data['success'] is True
 
 
+@pytest.mark.usefixtures('db')
 class TestTranslateAwardBookDisplayTitle:
     """v0.9.60 回归测试：/api/translate/book/<isbn> 翻译获奖书时必须用 display_title
 
@@ -206,6 +216,7 @@ class TestTranslateAwardBookDisplayTitle:
         assert captured_title.get('v') == 'Real Book Title'
 
 
+@pytest.mark.usefixtures('db')
 class TestCSRFProtection:
     """CSRF保护测试类"""
 
@@ -232,6 +243,7 @@ class TestCSRFProtection:
         assert response.status_code in (200, 400, 403)
 
 
+@pytest.mark.usefixtures('db')
 class TestCacheAPI:
     """缓存API测试类"""
 

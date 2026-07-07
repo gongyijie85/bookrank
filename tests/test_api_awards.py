@@ -164,6 +164,11 @@ class TestAdminAwardFixEndpoints:
     鉴权：X-Admin-Secret 头匹配 ADMIN_SECRET（v0.9.61+ 统一协议）
     """
 
+    @pytest.fixture(autouse=True)
+    def _clear_auth_failures(self, clear_auth_failures):
+        """每个用例前后清理 admin_auth 失败计数，避免跨测试状态污染"""
+        pass
+
     def test_missing_header_returns_403(self, client, db):
         """不传 X-Admin-Secret 应返回 403"""
         response = client.post(

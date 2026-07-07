@@ -5,7 +5,7 @@
 1. NewBook.to_dict() 包含 publisher_name_en 字段
 2. /new-books SSR 页面包含必要的 data-i18n 属性
 3. /new-books 页面 publisher 侧边栏有 data-pub-name-zh / data-pub-name-en
-4. translations.js + translations.min.js 都有新书页相关 key
+4. translations.js 包含新书页相关 key（min.js 已删除）
 5. zh.po + en.po 包含新书页相关 msgid
 6. .mo 文件已编译
 7. v0.9.62 详情页 i18n 修复 + 切语言实时刷新修复
@@ -23,7 +23,6 @@ TPL = ROOT / 'templates' / 'new_books.html'
 DETAIL_TPL = ROOT / 'templates' / 'new_book_detail.html'
 MACROS = ROOT / 'templates' / '_macros.html'
 TR_SRC = ROOT / 'static' / 'js' / 'translations.js'
-TR_MIN = ROOT / 'static' / 'js' / 'translations.min.js'
 ZH_PO = ROOT / 'translations' / 'zh' / 'LC_MESSAGES' / 'messages.po'
 EN_PO = ROOT / 'translations' / 'en' / 'LC_MESSAGES' / 'messages.po'
 ZH_MO = ROOT / 'translations' / 'zh' / 'LC_MESSAGES' / 'messages.mo'
@@ -103,44 +102,7 @@ class TestNewBookI18nKeys:
         missing = [k for k in NB_KEYS if k not in keys]
         assert not missing, f'translations.js 缺失 nb_* 键: {missing}'
 
-    def test_translations_min_js_has_nb_keys(self):
-        keys = self._keys(_read(TR_MIN))
-        missing = [k for k in NB_KEYS if k not in keys]
-        assert not missing, f'translations.min.js 缺失 nb_* 键: {missing}'
 
-    def test_min_matches_src(self):
-        """min.js 与 src.js 包含的 key 集合必须完全一致（v0.9.56 教训）。"""
-        src_keys = self._keys(_read(TR_SRC))
-        min_keys = self._keys(_read(TR_MIN))
-        assert src_keys == min_keys, (
-            f'min.js 与 src.js 同步异常: src-only={sorted(src_keys - min_keys)}, min-only={sorted(min_keys - src_keys)}'
-        )
-
-    def test_min_matches_build_output(self):
-        """min.js 必须与 build.py 重新生成的内容字节级一致（v0.9.58 教训）。
-
-        背景：v0.9.58 在 translations.js 改了 applyPageTranslation（加 data-i18n-params-*
-        占位符支持），但 min.js 漏同步。test_min_matches_src 只比对 key 集合过不了，
-        因为 key 集合没变。CI 跑 build.py 时 mtime 检查触发重生成 → 污染 working tree。
-
-        本测试直接调 build.minify_js 处理 src.js 一次，与磁盘上的 min.js 字节级对比：
-        - src 改了但 min 没同步 → 立即 fail
-        - 提示用户跑 `python build.py` 后再 commit
-        """
-        import sys
-
-        sys.path.insert(0, str(ROOT))
-        from build import minify_js  # type: ignore[import-not-found]
-
-        src_content = _read(TR_SRC)
-        expected_min = minify_js(src_content)
-        actual_min = _read(TR_MIN)
-        assert expected_min == actual_min, (
-            'translations.min.js 与 build.py 重新生成内容不一致！\n'
-            '说明：src.js 改了但 min.js 没同步（v0.9.58 漏同步教训）。\n'
-            '执行 `python build.py` 同步 min.js 后再 commit。\n'
-            f'expected len={len(expected_min)}, actual len={len(actual_min)}'
-        )
 
 
 class TestNewBookPoFiles:
@@ -313,12 +275,10 @@ class TestNewBookDetailI18n:
     """v0.9.62 修复：新书详情页 i18n 补全（v0.9.58 漏修的盲点）。"""
 
     def test_translations_has_detail_keys(self):
-        """translations.js / .min.js 都包含详情页 3 个 i18n 键。"""
+        """translations.js 包含详情页 3 个 i18n 键（min.js 已随 P0-4 删除）。"""
         src = _read(TR_SRC)
-        min_ = _read(TR_MIN)
         for k in NB_DETAIL_KEYS:
             assert f"'{k}'" in src, f'translations.js 缺 {k}'
-            assert f"'{k}'" in min_, f'translations.min.js 缺 {k}'
 
     def test_detail_template_has_i18n_attrs(self):
         """详情页模板包含所有 i18n 数据属性。"""

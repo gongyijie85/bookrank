@@ -4,6 +4,15 @@
 {% block og_title %}{{ report.title }} - BookRank{% endblock %}
 {% block twitter_title %}{{ report.title }} - BookRank{% endblock %}
 
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('畅销书周报'), 'url': url_for('main.weekly_reports')},
+    {'label': report.title, 'url': request.url}
+], csp_nonce()) }}
+{% endblock %}
+
 {% block content %}
 
 <!-- Weekly Report Structured Data -->

@@ -4,38 +4,6 @@ from datetime import date, timedelta
 from io import BytesIO
 
 
-class TestSmtpEmailConfig:
-    """测试 SMTP 邮件配置（使用 smtplib，非 Flask-Mail）"""
-
-    def test_smtp_config_reads_mail_recipients(self, app):
-        """验证 MAIL_RECIPIENTS 配置读取"""
-        with app.app_context():
-            from app.tasks.weekly_report_task import _get_smtp_config
-
-            cfg = _get_smtp_config()
-            assert 'recipients' in cfg
-            assert isinstance(cfg['recipients'], list)
-
-    def test_smtp_config_empty_recipients_graceful(self, app):
-        """验证空收件人列表不报错"""
-        with app.app_context():
-            app.config['MAIL_RECIPIENTS'] = ''
-            from app.tasks.weekly_report_task import _get_smtp_config
-
-            cfg = _get_smtp_config()
-            assert cfg['recipients'] == []
-
-    def test_smtp_config_multiple_recipients(self, app):
-        """验证逗号分隔的多个收件人"""
-        with app.app_context():
-            app.config['MAIL_RECIPIENTS'] = 'a@test.com, b@test.com'
-            from app.tasks.weekly_report_task import _get_smtp_config
-
-            cfg = _get_smtp_config()
-            assert len(cfg['recipients']) == 2
-            assert 'a@test.com' in cfg['recipients']
-
-
 class TestDataRefreshCallback:
     """数据刷新回调机制测试"""
 

@@ -947,3 +947,47 @@ h4 { font-size: 1.125rem; }
 
 /* Text Balance - 文本平衡 */
 .page-title, .modal-header h2 { text-wrap: balance; }
+
+/* ============================================
+ * 卡片链接样式（P1-2：书籍卡片跳转到详情页）
+ * ============================================ */
+.card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+a.list-item-image {
+    display: block;
+    text-decoration: none;
+}
+
+.list-item-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.list-item-title a:hover,
+.list-item-title a:focus {
+    text-decoration: underline;
+}
+
+.card-link:hover .card-title,
+.card-link:focus .card-title {
+    text-decoration: underline;
+}
+
+.cover-frame a {
+    display: block;
+    text-decoration: none;
+}
+
+.card-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.card-title a:hover,
+.card-title a:focus {
+    text-decoration: underline;
+}

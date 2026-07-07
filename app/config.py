@@ -71,7 +71,7 @@ class Config:
     IMAGE_CACHE_DIR: Path = CACHE_DIR / 'images'
 
     API_RATE_LIMIT: int = int(os.environ.get('API_RATE_LIMIT', 100))
-    API_RATE_LIMIT_WINDOW: int = 60
+    API_RATE_LIMIT_WINDOW: int = int(os.environ.get('API_RATE_LIMIT_WINDOW', 60))
 
     MAX_WORKERS: int = int(os.environ.get('MAX_WORKERS', 4))
 
@@ -182,12 +182,16 @@ class ProductionConfig(Config):
     DEBUG: bool = False
     TESTING: bool = False
     SESSION_COOKIE_SECURE: bool = True
+    # 生产环境显式关闭 SQL 回显，避免日志泄露与性能损耗
+    SQLALCHEMY_ECHO: bool = False
 
     # SECRET_KEY 从环境变量读取（若为空则在 init_app 时校验）
     SECRET_KEY: str = os.environ.get('SECRET_KEY', '')
 
     # CORS_ORIGINS 必须明确设置，空列表会导致 CORS 完全阻止跨域请求
-    CORS_ORIGINS: list[str] = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
+    CORS_ORIGINS: list[str] = [
+        origin.strip() for origin in os.environ.get('CORS_ORIGINS', '').split(',') if origin.strip()
+    ]
 
     @classmethod
     def init_app(cls, app: Any) -> None:
@@ -199,7 +203,8 @@ class ProductionConfig(Config):
                 '生成强随机密钥: python -c "import secrets; print(secrets.token_hex(32))"'
             )
 
-    # 内存缓存（当前部署无 Redis）
+    # 以下配置在 Render 免费层做了硬编码优化：
+    # 当前部署无 Redis，使用 simple 缓存；如需外部缓存可改为环境变量读取。
     CACHE_TYPE: str = 'simple'
     CACHE_DEFAULT_TIMEOUT: int = 3600  # 缩短缓存时间减少内存占用
     MEMORY_CACHE_TTL: int = 300
@@ -219,8 +224,8 @@ class ProductionConfig(Config):
         },
     }
 
-    # 减少并发工作线程
-    MAX_WORKERS: int = 2  # 原为 4
+    # 减少并发工作线程；Render 免费层建议配合 WEB_CONCURRENCY=1 使用
+    MAX_WORKERS: int = 2  # 原为 4，实际并发由 Gunicorn 的 WEB_CONCURRENCY 控制
 
     JSONIFY_PRETTYPRINT_REGULAR: bool = False
 

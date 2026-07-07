@@ -21,8 +21,14 @@
     <p>{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</p>
 </section>
 
+<nav class="m-publisher-anchors no-scrollbar" aria-label="{{ _('出版社导航') }}">
+    {% for cat in publishers_data %}
+    <a href="#publisher-cat-{{ loop.index }}" class="m-publisher-anchor">{{ cat.category }}</a>
+    {% endfor %}
+</nav>
+
 {% for cat in publishers_data %}
-<section class="m-section m-publisher-category">
+<section class="m-section m-publisher-category" id="publisher-cat-{{ loop.index }}">
     <h2 class="m-section-title">{{ cat.category }}</h2>
     <div class="m-publisher-list">
         {% for pub in cat.publishers %}

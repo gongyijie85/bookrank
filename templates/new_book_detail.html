@@ -1,8 +1,43 @@
 {% extends "base.html" %}
 
 {% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block og_image %}{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('新书速递'), 'url': url_for('main.new_books')},
+    {'label': book.title_zh or book.title, 'url': request.url}
+], csp_nonce()) }}
+{% endblock %}
 
 {% block content %}
+<!-- Book Structured Data for SEO -->
+<script type="application/ld+json" nonce="{{ csp_nonce() }}">
+{
+    "@context": "https://schema.org",
+    "@type": "Book",
+    "name": {{ (book.title_zh or book.title) | tojson }},
+    "alternateName": {{ book.title | tojson }}{% if book.author %},
+    "author": {
+        "@type": "Person",
+        "name": {{ book.author | tojson }}
+    }{% endif %}{% if book.isbn13 or book.isbn10 %},
+    "isbn": {{ (book.isbn13 or book.isbn10) | tojson }}{% endif %}{% if book.publisher and book.publisher.name %},
+    "publisher": {
+        "@type": "Organization",
+        "name": {{ book.publisher.name | tojson }}
+    }{% endif %}{% if book.description_zh or book.description %},
+    "description": {{ (book.description_zh or book.description)[:500] | tojson }}{% endif %}{% if book.cover_url %},
+    "image": {{ book.cover_url | tojson }}{% endif %},
+    "url": "{{ request.url }}"
+}
+</script>
+
 <!-- 返回按钮 -->
 <div class="detail-nav">
     <a href="{{ back_url }}" class="back-btn">
@@ -17,7 +52,7 @@
     <div class="detail-cover-section">
         <div class="detail-cover">
             {% if book.cover_url %}
-            <img src="{{ book.cover_url }}" alt="{{ book.title_zh or book.title }} {{ _('封面') }}" data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            <img src="{{ book.cover_url }}" alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}" width="280" height="420" loading="lazy" data-fallback="{{ url_for('static', filename='default-cover.png') }}">
             {% else %}
             <div class="cover-placeholder">
                 <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>
@@ -71,7 +106,7 @@
                 </div>
             </div>
             {% endif %}
-            {% if book.page_count %}
+            {% if book.page_count and book.page_count not in (0, '0', 'Unknown', '未知', 'N/A', 'None', '') %}
             <div class="meta-card">
                 <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-file-text"/></svg></span>
                 <div>

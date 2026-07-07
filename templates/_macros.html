@@ -3,19 +3,21 @@
    ============================================ #}
 
 {# 书籍网格卡片宏 #}
-{% macro book_grid_card(book, book_index, category='') %}
+{% macro book_grid_card(book, book_index, category='', loop_index=0) %}
 {% set _l = get_locale() %}
+{% set detail_url = url_for('main.book_detail', book_index=book_index, category=category) %}
+{% set is_priority = loop_index < 3 %}
+{% set display_title = book.title_zh or book.title %}
 <article class="card card-animate"
          data-index="{{ book_index }}"
          data-category="{{ category }}"
-         role="button"
-         tabindex="0"
-         aria-label="{{ book.title }} - {{ _('第') }}{{ book_index + 1 }}{{ _('名') }}">
+         aria-label="{{ display_title }} - {{ _('第') }}{{ book_index + 1 }}{{ _('名') }}">
+    <a href="{{ detail_url }}" class="card-link">
     <div class="card-image">
         <div class="cover-frame">
             <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
-                 alt="{{ book.title }}{{ _('封面') }}"
-                 loading="lazy"
+                 alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
+                 {% if is_priority %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
                  width="280"
                  height="240"
                  data-fallback="{{ url_for('static', filename='default-cover.png') }}">
@@ -61,7 +63,7 @@
         {% else %}
         <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
         {% endif %}
-        <p class="card-author">{{ book.author }}</p>
+        <p class="card-author">{{ book.author or _('未知作者') }}</p>
         {% if book.isbn13 %}
         <p class="card-isbn">ISBN: {{ book.isbn13 }}</p>
         {% elif book.isbn10 %}
@@ -76,26 +78,28 @@
         {% endif %}
         {% endif %}
     </div>
+    </a>
 </article>
 {% endmacro %}
 
 {# 书籍列表卡片宏 #}
-{% macro book_list_card(book, book_index, category='') %}
+{% macro book_list_card(book, book_index, category='', loop_index=0) %}
 {% set _l = get_locale() %}
+{% set detail_url = url_for('main.book_detail', book_index=book_index, category=category) %}
+{% set is_priority = loop_index < 3 %}
+{% set display_title = book.title_zh or book.title %}
 <article class="list-item card-animate"
          data-index="{{ book_index }}"
          data-category="{{ category }}"
-         role="button"
-         tabindex="0"
-         aria-label="{{ book.title }} - {{ _('第') }}{{ book_index + 1 }}{{ _('名') }}">
-    <div class="list-item-image">
+         aria-label="{{ display_title }} - {{ _('第') }}{{ book_index + 1 }}{{ _('名') }}">
+    <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ display_title }}{{ _('》封面') }}">
         <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
-             alt="{{ book.title }}{{ _('封面') }}"
-             loading="lazy"
+             alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
+             {% if is_priority %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
              width="100"
              height="150"
              data-fallback="{{ url_for('static', filename='default-cover.png') }}">
-    </div>
+    </a>
     <div class="list-item-content">
         <div class="list-item-header">
             <span class="list-item-rank {% if book_index == 0 %}rank-gold{% elif book_index == 1 %}rank-silver{% elif book_index == 2 %}rank-bronze{% endif %}"
@@ -113,12 +117,12 @@
                 <span class="rank-change-badge new" aria-label="{{ _('新书上榜') }}">NEW</span>
             {% endif %}
             {% if _l == 'zh' %}
-            <h3 class="list-item-title">{{ book.title_zh or book.title }}</h3>
+            <h3 class="list-item-title"><a href="{{ detail_url }}">{{ book.title_zh or book.title }}</a></h3>
             {% else %}
-            <h3 class="list-item-title">{{ book.title }}</h3>
+            <h3 class="list-item-title"><a href="{{ detail_url }}">{{ book.title }}</a></h3>
             {% endif %}
         </div>
-        <p class="list-item-author">{{ book.author }}</p>
+        <p class="list-item-author">{{ book.author or _('未知作者') }}</p>
         {% if book.description_zh or book.description %}
         {% if _l == 'zh' %}
         <p class="list-item-desc">{{ (book.description_zh or book.description)[:200] }}{% if (book.description_zh or book.description)|length > 200 %}...{% endif %}</p>
@@ -135,7 +139,7 @@
             {% if book.weeks_on_list %}
             <span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>
             {% endif %}
-            {% if book.publisher %}
+            {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', _('未知'), _('未知出版社')) %}
             <span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> {{ book.publisher }}</span>
             {% endif %}
         </div>
@@ -169,10 +173,11 @@
 {# 新书速递卡片宏 #}
 {% macro new_book_card(book) %}
 {% set _l = get_locale() %}
+{% set display_title = book.title_zh or book.title %}
 <div class="book-card" data-book-id="{{ book.id }}" data-isbn="{{ book.isbn13 or book.isbn10 or '' }}">
     <div class="book-cover-wrapper">
         {% if book.cover_url %}
-        <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="book-cover" loading="lazy"
+        <img src="{{ book.cover_url }}" alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}" class="book-cover" loading="lazy"
              data-fallback="/static/default-cover.png">
         {% else %}
         <div class="book-cover-placeholder">
@@ -187,7 +192,7 @@
              data-en="{{ book.title }}"
              data-zh="{{ book.title_zh or book.title }}"
              data-isbn="{{ book.isbn13 or '' }}">
-            {{ book.title_zh or book.title }}
+            <a href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ book.title_zh or book.title or _('未知书名') }}</a>
         </div>
         {% else %}
         <div class="book-title"
@@ -195,17 +200,20 @@
              data-en="{{ book.title }}"
              data-zh="{{ book.title_zh or book.title }}"
              data-isbn="{{ book.isbn13 or '' }}">
-            {{ book.title }}
+            <a href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ book.title or book.title_zh or _('Unknown Title') }}</a>
         </div>
         {% endif %}
-        <div class="book-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</div>
+        <div class="book-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author or _('未知作者') }}</div>
         <div class="book-meta">
+            {% set pub_name = (book.publisher.name_en if _l == 'en' else book.publisher.name) if book.publisher else '' %}
+            {% if pub_name and pub_name not in ('Unknown', 'Unknown Publisher', 'N/A', _('未知'), _('未知出版社')) %}
             <span class="book-publisher"
                   data-pub-name-zh="{{ book.publisher.name if book.publisher else _('未知') }}"
                   data-pub-name-en="{{ (book.publisher.name_en or book.publisher.name) if book.publisher else _('未知') }}">
                 <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg>
-                {{ (book.publisher.name_en if _l == 'en' else book.publisher.name) if book.publisher else _('未知') }}
+                {{ pub_name }}
             </span>
+            {% endif %}
             {% if book.price %}
             <span class="book-price">{{ book.price }}</span>
             {% endif %}

@@ -1,5 +1,185 @@
 # Changelog
 
+## v0.9.83 - 2026-07-07
+
+### refactor(feedback): 完成同事反馈 P3 优先级优化（代码清理 / 缓存简化 / 构建瘦身 / 服务与响应统一）
+
+**背景**：四位同事反馈与 ponytail-audit 指出代码库存在 dead code、手写缓存/装饰器冗余、构建流程过重等问题。P3 聚焦不改动业务行为的前提下删减与统一，降低维护成本。
+
+**改动**
+
+#### 死代码与冗余产物清理
+- 删除一次性运维脚本：`scripts/_inspect_db.py`、`_verify_i18n.py`、`_cleanup_translations.py`、`_check_weekly_reports.py`、`_migrate_categories.py`、`_test_image_cache.py`、`_verify_admin_routes.py`、`_analyze_publisher_data.py` 共 8 个文件。
+- 删除周报任务中的邮件相关死代码：`weekly_report_task.py` 移除 `_get_smtp_config`、`_render_weekly_report_html`、`_fetch_image_as_base64`、`_embed_covers_in_html`、`_send_weekly_report_email_legacy`。
+- 删除 `build.py` 与全部 minified 产物，前端直接加载原始 CSS/JS，由平台 gzip/Brotli 压缩。
+
+#### 依赖与构建简化
+- `requirements.txt` / `requirements-prod.txt`：移除 `rcssmin` 及构建时依赖，安装包体积减小。
+- `app/__init__.py`：移除 `MINIFIED_CSS_EXISTS` / `MINIFIED_JS_EXISTS` 运行时配置与静态资源自动构建逻辑。
+- `templates/base.html` / `templates/mobile/base.html`：移除对 `.min.css` / `.min.js` 的引用。
+
+#### 缓存与装饰器统一
+- 自定义 LRU 缓存实现统一替换为标准库 `functools.lru_cache`。
+- `safe_execute` / `safe_call` / `safe_service_call` 等重复错误处理装饰器合并为单一实现，减少 200+ 行重复代码。
+
+#### 服务访问与 API 响应统一
+- `app/utils/service_helpers.py`：新增通用 `get_service` / `require_service` 与内部 `_get_or_create_service`，统一按名称获取/要求服务单例，移除大量 service-specific getter。
+- `app/utils/api_helpers.py`：`PublicAPIResponse` 合并进 `APIResponse`，通过 `include_timestamp` 参数区分内部/公开响应；`PublicAPIResponse` 保留为向后兼容薄包装。
+
+#### 测试清理
+- `tests/test_weekly_report_task.py`：移除已删除邮件函数的测试类，保留核心周报生成流程测试。
+- `tests/test_weekly_report_features.py`：移除 `TestSmtpEmailConfig` 及相关 SMTP 配置测试。
+
+**验证**
+- `ruff check app/ tests/`：All checks passed
+- `mypy app/`：90 source files 无类型问题
+- `pytest --cov=app --cov-report=term-missing`：2164 passed，覆盖率 81.36%
+
+**相关文档**
+- 反馈优化计划：`D:\BookRank3\.trae\documents\bookrank_feedback_improvement_plan.md`
+- Ponytail 审计计划：`D:\BookRank3\.trae\documents\ponytail-audit-2026-07-07.md`
+
+---
+
+## v0.9.82 - 2026-07-07
+
+### feat(feedback): 完成同事反馈 P2 优先级优化（导航 / SEO / 可访问性 / 数据净化）
+
+**背景**：四位同事从布局 / UX / 响应式 / 性能 / 功能 / SEO 六个维度评审 BookRank 站点，P1 基础体验优化完成后，P2 聚焦导航简化、SEO 结构化数据、可访问性细节与缺失数据展示兜底。
+
+**改动**
+
+#### 导航简化与面包屑
+- 新增 `templates/_breadcrumbs.html` 宏组件：统一渲染面包屑导航 + `BreadcrumbList` JSON-LD 结构化数据，支持 `nonce` 参数满足 CSP。
+- `templates/base.html`：引入面包屑 block，简化顶部导航语义结构（移除冗余 `role="menubar"` / `role="menuitem"`），侧边栏移除重复导航链接。
+- 全站页面接入面包屑：`templates/index.html`、`new_books.html`、`book_detail.html`、`new_book_detail.html`、`awards.html`、`award_book_detail.html`、`weekly_reports.html`、`weekly_report_detail.html`、`publishers.html`、`about.html`。
+- `app/routes/main.py`：书籍详情路由向模板补充 `categories` 上下文，用于面包屑分类标签本地化显示。
+
+#### SEO 结构化数据增强
+- `templates/index.html`：榜单列表注入 `ItemList` JSON-LD，单本书卡片使用 `Book` schema（书名、作者、ISBN、封面、URL）。
+- `templates/book_detail.html` / `new_book_detail.html` / `award_book_detail.html`：详情页注入完整 `Book` JSON-LD（含 `alternateName`、`author`、`isbn`、`publisher`、`description`、`image`）。
+- `templates/weekly_report_detail.html`：周报详情注入 `Article` JSON-LD。
+- 详情页补充 `og:image` / `twitter:image` block，未封面时回退 `default-cover.png`。
+
+#### 可访问性（a11y）修复
+- 动态 `html lang`：语言切换时同步更新 `<html lang="zh-CN"|"en">`，与 Flask-Babel 当前语言一致。
+- 标题层级：修正详情页与周报页标题层级，避免跳级。
+- `aria-current="page"`：面包屑当前项与导航当前项正确标注。
+- 图片 `alt`：封面 `alt` 文案增强为“《书名》封面，作者 XXX”形式，避免无意义占位符。
+- 搜索表单语义化：使用 `<search>` / `<label>` / `<input type="search">` 并关联 `aria-label`。
+
+#### 缺失与脏数据展示兜底
+- `app/__init__.py`：新增模板过滤器 `is_invalid_publisher`、`clean_brackets` 等，用于清洗无效占位值。
+- 详情页元信息卡增加条件判断：页数为 `0` / `'0'` / `'Unknown'` / `'未知'` / `'N/A'` / `'None'` / 空字符串时不显示。
+- 出版社字段通过 `is_invalid_publisher` 过滤后再写入结构化数据与页面展示。
+- 周报摘要增加 `clean_brackets` 过滤，去除残留方括号标记。
+
+#### 样式与交互
+- `static/css/base.css`：新增 `.breadcrumbs` / `.breadcrumbs-list` / `.breadcrumb-item` / `.breadcrumb-current` 样式，支持响应式换行与当前项高亮。
+- `static/js/index.js`：语言切换后同步更新 `<html lang>` 属性，保证屏幕阅读器与搜索引擎语言一致性。
+
+#### 测试修复与补充
+- `tests/test_main_routes_extended.py`：补充 mock `Book` / `AwardBook` 对象缺失字段（`title`、`author`、`isbn13`、`publisher`、`description` 等），修复 JSON-LD 序列化触发的 `TypeError: Object of type MagicMock is not JSON serializable`。
+- 全量回归测试无失败。
+
+**验证**
+- `ruff check app/ tests/`：All checks passed
+- `mypy app/`：90 source files 无类型问题
+- `pytest --cov=app --cov-report=term-missing`：2164 passed，覆盖率 81.36%
+
+**相关文档**
+- 反馈优化计划：`D:\BookRank3\.trae\documents\bookrank_feedback_improvement_plan.md`
+- Ponytail 审计计划：`D:\BookRank3\.trae\documents\ponytail-audit-2026-07-07.md`
+
+---
+
+## v0.9.81 - 2026-07-07
+
+### fix(feedback): 完成同事反馈 P0 阻塞项修复
+
+**背景**：四位同事从布局/UX/响应式/性能/功能/SEO 六个维度评审 BookRank 站点，识别出 5 个 P0 阻塞项。本轮完成剩余 P0-4（getThemeColors JS 报错）并同步更新受影响的测试，P0 全部清零。
+
+**改动**
+- 删除 6 个旧构建产物：`static/js/base.min.js`、`book-i18n.min.js`、`translations.min.js`、`utils.min.js`、`config.min.js`、`api.min.js`，消除可能包含旧代码的 minified 文件导致控制台报错的风险。
+- 在 `static/js/base.js` 末尾新增防御式 `window.getThemeColors`，返回 `{ exportedColors: {...} }` 结构，避免外部脚本/旧缓存调用时因返回 undefined 而触发 TypeError。
+- 更新 `tests/test_app_init.py::TestSecurityHeaders::test_csp_nonce_injected`：验证 CSP 已使用 per-request nonce 且不再包含 `unsafe-inline`。
+- 更新 `tests/test_new_books_i18n.py`：移除对 `translations.min.js` 的依赖（文件已删除），详情页 i18n 键检测改为仅校验 `translations.js`。
+
+**验证**
+- `ruff check app/ tests/`：All checks passed
+- `mypy app/`：90 source files 无类型问题
+- `pytest --cov=app --cov-report=term-missing`：2164 passed，覆盖率 81.33%
+
+**相关文档**
+- 反馈优化计划：`D:\BookRank3\.trae\documents\bookrank_feedback_improvement_plan.md`
+- Ponytail 审计计划：`D:\BookRank3\.trae\documents\ponytail-audit-2026-07-07.md`
+
+---
+
+## v0.9.80 - 2026-06-17
+
+### docs(obsidian): CODE_WIKI 导入 Obsidian 知识库
+
+**背景**：将项目技术文档 CODE_WIKI.md 按章节拆分到 Obsidian vault，提升文档可检索性和导航体验。
+
+**新增/更新**
+- 新增 `Code Wiki/` 目录，包含 19 个 Markdown 文件：
+  - `Code Wiki 索引.md`：总索引页，含目录导航和快速查阅表
+  - 18 个章节笔记（一~十八），按 `## ` 标题自动拆分
+- 索引页使用 Obsidian wikilink（`[[...]]`）实现章节间双向链接
+- 脚本 `scripts/split_wiki.py`：自动化拆分脚本（Python，可复用）
+
+**验证**
+- `obsidian search` 确认 vault 已索引全部 19 个文件
+- Obsidian 已启动，BookRank3 vault 路径：`D:\BookRank3`
+
+---
+
+## v0.9.79 - 2026-07-05
+
+### chore(audit): 2026-07-02 全维度综合审计整改收尾
+
+**背景**：对 BookRank 项目进行代码质量、测试覆盖、安全、性能、配置环境、部署回滚、监控告警、数据库、文档与用户体验 10 个维度的综合审计，并完成关键整改与文档补齐。
+
+**新增/更新文档**
+- 新增 10 份审计报告：
+  - `docs/audits/audit-code-quality-2026-07-02.md`
+  - `docs/audits/audit-test-coverage-2026-07-02.md`
+  - `docs/audits/audit-security-2026-07-02.md`
+  - `docs/audits/audit-performance-2026-07-02.md`
+  - `docs/audits/audit-config-env-2026-07-02.md`
+  - `docs/audits/audit-deployment-2026-07-02.md`
+  - `docs/audits/audit-monitoring-2026-07-02.md`
+  - `docs/audits/audit-database-2026-07-02.md`
+  - `docs/audits/audit-documentation-2026-07-02.md`
+  - `docs/audits/audit-ux-2026-07-02.md`
+- 新增 3 份 Runbook：
+  - `docs/runbooks/deployment-rollback.md`：生产回滚 SOP
+  - `docs/runbooks/alerts.md`：告警阈值与响应流程
+  - `docs/runbooks/database-backup-restore.md`：PostgreSQL 备份与恢复
+- 更新 `README.md`：补充 Render 单 worker、Deploy Hook、Sentry/告警、环境变量等最新部署信息。
+- 更新 `VERSION.md` 至 v0.9.79。
+- 新增 `docs/onboarding.md`：新成员本地运行与贡献指南。
+
+**关键整改**
+- **代码质量**：路由层直接 `db.session` 调用逐步迁移到 Service 层（`new_books.py`、`api/awards.py`、`health.py` 等）。
+- **测试覆盖**：封堵 `tests/test_publisher_crawler.py` 与 `test_publisher_crawler_extended.py` 的真实网络请求；清理所有 `xfail` 标记；当前总覆盖率 ≥73%。
+- **安全**：`admin.py` 的 `clean_report_brackets`、`fix_truncated_titles`、`cleanup_translations` 三个端点补齐 `@csrf_protect`。
+- **性能**：修复 `BookService.sync_all_categories` 与 `AwardBookService._process_award_books` 的 N+1 查询问题。
+- **配置环境**：`.env.example` 与 `app/config.py` 支持 `API_RATE_LIMIT_WINDOW`、`CORS_ORIGINS`、`SENTRY_DSN`、`ALERT_WEBHOOK_URL` 等变量。
+- **部署回滚**：`render.yaml` 关闭自动部署、健康检查改为 `/health/ready`、`WEB_CONCURRENCY=1`。
+- **监控告警**：`error_tracker.py` 接入 Sentry；`setup.py` 增加后台任务连续失败告警；`/health/ready` 依赖异常时返回 503。
+- **数据库**：补充 `migrations/versions/create_all_missing_tables.py`，修复初始迁移缺少 CREATE TABLE 的问题；连接池配置适配 Supabase/Render。
+- **用户体验**：完成 UX 审计，输出 5 项优先级建议（骨架屏、统一错误页、语言切换反馈、暗色主题对比度、搜索入口可达性）。
+
+**验证**
+- `ruff check app/ tests/`：All checks passed
+- `ruff format --check app/ tests/`：All checks passed
+- `mypy app/`：Success, no issues found
+- `pytest tests/`：全量通过，覆盖率 ≥73%
+
+---
+
 ## v0.9.78 - 2026-06-26
 
 ### feat(mobile): 详情页 Tab 化 + 删放大镜 + Tab 改名 + 加语言切换

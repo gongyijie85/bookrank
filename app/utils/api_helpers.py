@@ -40,45 +40,47 @@ class APIResponse:
     """统一API响应格式"""
 
     @staticmethod
-    def success(data: Any = None, message: str = 'Success', status_code: int = 200) -> tuple[Response, int]:
+    def success(
+        data: Any = None,
+        message: str = 'Success',
+        status_code: int = 200,
+        include_timestamp: bool = False,
+    ) -> tuple[Response, int]:
         response = {'success': True, 'data': data, 'message': message}
+        if include_timestamp:
+            response['timestamp'] = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
         return jsonify(response), status_code
 
     @staticmethod
     def error(
-        message: str = 'Error', status_code: int = 400, errors: list | dict | None = None
+        message: str = 'Error',
+        status_code: int = 400,
+        errors: list | dict | None = None,
+        include_timestamp: bool = False,
     ) -> tuple[Response, int]:
         response = {'success': False, 'message': message}
         if errors:
             response['errors'] = errors
+        if include_timestamp:
+            response['timestamp'] = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
         return jsonify(response), status_code
 
 
 class PublicAPIResponse:
-    """公开API响应格式（带时间戳）"""
+    """公开API响应格式（带时间戳）
+
+    已合并至 APIResponse；本类保留为向后兼容的薄包装。
+    """
 
     @staticmethod
     def success(data: Any = None, message: str = 'Success', status_code: int = 200) -> tuple[Response, int]:
-        response = {
-            'success': True,
-            'data': data,
-            'message': message,
-            'timestamp': datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
-        }
-        return jsonify(response), status_code
+        return APIResponse.success(data=data, message=message, status_code=status_code, include_timestamp=True)
 
     @staticmethod
     def error(
         message: str = 'Error', status_code: int = 400, errors: list | dict | None = None
     ) -> tuple[Response, int]:
-        response = {
-            'success': False,
-            'message': message,
-            'timestamp': datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
-        }
-        if errors:
-            response['errors'] = errors
-        return jsonify(response), status_code
+        return APIResponse.error(message=message, status_code=status_code, errors=errors, include_timestamp=True)
 
 
 def handle_api_errors(f: Callable[..., Any]) -> Callable[..., Any]:

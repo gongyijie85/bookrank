@@ -437,8 +437,14 @@ class TestNewBookDetail:
     def test_book_found_needs_translation(self, MockNBS, mock_trans, mock_bg, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = None
         mock_book.description_zh = None
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -453,8 +459,14 @@ class TestNewBookDetail:
     def test_book_found_already_translated(self, MockNBS, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = '已翻译'
         mock_book.description_zh = '已翻译描述'
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -467,8 +479,14 @@ class TestNewBookDetail:
     def test_book_found_no_translation_service(self, MockNBS, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = None
         mock_book.description_zh = None
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -482,8 +500,14 @@ class TestNewBookDetail:
     def test_book_found_partial_translation(self, MockNBS, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = '已翻译'
         mock_book.description_zh = None
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -497,9 +521,16 @@ class TestAwardBookDetail:
     @patch('app.services.award_book_service.AwardBookService')
     def test_award_book_found(self, MockAwardService, client):
         mock_book = MagicMock()
+        mock_book.id = 1
         mock_book.title = 'Test Book Title'
         mock_book.title_zh = '测试书名'
         mock_book.is_displayable = True
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.publisher = 'Test Publisher'
+        mock_book.description = 'Test description'
+        mock_book.award = None
+        mock_book.display_title = 'Test Book Title'
         mock_svc = MagicMock()
         mock_svc.get_award_book_by_id.return_value = mock_book
         MockAwardService.return_value = mock_svc

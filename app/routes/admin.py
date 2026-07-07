@@ -259,6 +259,7 @@ def _clean_report_text(text: str) -> str:
 
 
 @admin_bp.route('/reports/clean-brackets', methods=['GET', 'POST'])
+@csrf_protect
 @admin_required
 def clean_report_brackets():
     """清理周报中的书名污染（双书名号、markdown、作者名混入、长描述等）"""
@@ -345,6 +346,7 @@ def clean_report_brackets():
 
 
 @admin_bp.route('/reports/fix-truncated-titles', methods=['GET', 'POST'])
+@csrf_protect
 @admin_required
 def fix_truncated_titles():
     """修复被截断的书名（从其他数据源恢复）"""
@@ -425,6 +427,7 @@ def fix_truncated_titles():
 
 
 @admin_bp.route('/translations/cleanup', methods=['GET', 'POST'])
+@csrf_protect
 @admin_required
 def cleanup_translations():
     """清理翻译缓存和BookMetadata中污染的书名"""

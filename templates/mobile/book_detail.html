@@ -16,8 +16,9 @@
 
 {% block content %}
 {% set _locale = get_locale() %}
-{% set display_title = book.title_zh or book.title if _locale == 'zh' else book.title %}
+{% set display_title = (book.title_zh or book.title) if _locale == 'zh' else book.title %}
 {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
+{% set detail_text = book.details_zh if _locale == 'zh' and book.details_zh else book.details %}
 
 <!-- 书籍封面 -->
 <section class="m-detail-cover-wrap">
@@ -33,6 +34,20 @@
 <section class="m-detail-head">
     <h1 class="m-detail-title">{{ display_title }}</h1>
     <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %} · {{ book.publisher }}{% endif %}</p>
+    <div class="m-detail-facts">
+        {% if book.isbn13 or book.isbn10 %}
+        <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
+        {% endif %}
+        {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
+        <span><strong>{{ _('出版日期') }}</strong>{{ book.publication_dt }}</span>
+        {% endif %}
+        {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
+        <span><strong>{{ _('页数') }}</strong>{{ book.page_count }}</span>
+        {% endif %}
+        {% if book.language and book.language not in ('Unknown', '', 'un') %}
+        <span><strong>{{ _('语言') }}</strong>{{ book.language }}</span>
+        {% endif %}
+    </div>
 </section>
 
 <!-- Tab 切换：图书简介 / 详细信息 -->
@@ -91,6 +106,13 @@
                 <div class="m-meta-row"><dt>{{ _('价格') }}</dt><dd>{{ book.price }}</dd></div>
                 {% endif %}
             </dl>
+            {% if detail_text and detail_text not in ('No detailed description available.', '暂无详细介绍', '暂无详细描述', '') %}
+            <div class="m-detail-text m-detail-longtext">
+                {% for para in detail_text.split('\n') if para.strip() %}
+                <p>{{ para.strip() }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
             {# JS 懒加载的 Google Books 详细介绍会追加到这里 #}
             <div class="m-tab-panel-extra" data-source="google-books"></div>
         </div>

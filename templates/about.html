@@ -5,6 +5,14 @@
 
 {% block title %}{{ _('关于我们') }} - BookRank{% endblock %}
 
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('关于我们'), 'url': url_for('main.about')}
+], csp_nonce()) }}
+{% endblock %}
+
 {% block content %}
 
 <!-- About Page Structured Data -->

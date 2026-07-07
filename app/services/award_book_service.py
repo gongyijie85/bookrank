@@ -11,6 +11,8 @@ import time
 from datetime import datetime, timedelta
 from typing import Any
 
+from sqlalchemy.orm import selectinload
+
 from ..models import db
 from ..models.schemas import Award, AwardBook, SystemConfig
 from ..utils.error_handler import ErrorCategory, log_error
@@ -203,16 +205,22 @@ class AwardBookService:
                 name=award_name,
                 description=f'{award_name}获奖图书',
                 country='国际' if '国际' in award_name else '美国',
-                category=category,
             )
             db.session.add(award)
             db.session.flush()
             logger.info(f'✅ 创建奖项: {award_name}')
 
+        # 批量预加载该奖项全部 AwardBook，避免循环内单条查询（N+1）
+        existing_books = {
+            book.isbn13: book
+            for book in AwardBook.query.filter_by(award_id=award.id).options(selectinload(AwardBook.award)).all()
+            if book.isbn13
+        }
+
         # 处理每本图书（基于时间戳的限速，避免阻塞线程）
         for book_data in books_data:
             try:
-                process_result = self._process_single_book(award, book_data, category)
+                process_result = self._process_single_book(award, book_data, category, existing_books)
                 result[process_result] += 1
             except Exception as e:
                 log_error(ErrorCategory.API_CALL, f'处理图书失败 {book_data.get("title")}: {e}')
@@ -224,7 +232,13 @@ class AwardBookService:
         db.session.commit()
         return result
 
-    def _process_single_book(self, award: Award, book_data: dict, category: str) -> str:
+    def _process_single_book(
+        self,
+        award: Award,
+        book_data: dict,
+        category: str,
+        existing_books: dict[str, AwardBook] | None = None,
+    ) -> str:
         """
         处理单本图书
 
@@ -232,6 +246,7 @@ class AwardBookService:
             award: 奖项对象
             book_data: 图书数据
             category: 类别
+            existing_books: 该奖项已存在的 AwardBook 字典（key=isbn13），用于避免循环内单条查询
 
         Returns:
             处理结果: 'new', 'updated', 'skipped'
@@ -241,8 +256,11 @@ class AwardBookService:
             logger.warning(f'⚠️ 图书无 ISBN: {book_data.get("title")}')
             return 'failed'
 
-        # 检查是否已存在
-        existing = AwardBook.query.filter_by(award_id=award.id, isbn13=isbn if len(isbn) == 13 else None).first()
+        # 检查是否已存在：优先使用批量加载的字典，未提供或 ISBN10 时回退到原查询
+        if existing_books is not None and len(isbn) == 13:
+            existing = existing_books.get(isbn)
+        else:
+            existing = AwardBook.query.filter_by(award_id=award.id, isbn13=isbn if len(isbn) == 13 else None).first()
 
         if existing:
             # 检查是否需要更新
@@ -485,7 +503,8 @@ class AwardBookService:
 
             total = query.count()
             books = (
-                query.order_by(AwardBook.year.desc(), AwardBook.rank.asc())
+                query.options(selectinload(AwardBook.award))
+                .order_by(AwardBook.year.desc(), AwardBook.rank.asc())
                 .offset((page - 1) * limit)
                 .limit(limit)
                 .all()
@@ -553,7 +572,13 @@ class AwardBookService:
                 )
             )
             total = query.count()
-            books = query.order_by(AwardBook.year.desc()).offset((page - 1) * limit).limit(limit).all()
+            books = (
+                query.options(selectinload(AwardBook.award))
+                .order_by(AwardBook.year.desc())
+                .offset((page - 1) * limit)
+                .limit(limit)
+                .all()
+            )
             return books, total
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'搜索获奖图书失败: {e}')
@@ -591,3 +616,130 @@ class AwardBookService:
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据 ISBN 查找获奖图书失败: {e}')
             return None
+
+    def fix_award_book_titles(self) -> dict[str, Any]:
+        """修复历史脏数据：把 title 字段为 ISBN 的 AwardBook 记录用种子数据修正"""
+        from ..initialization.sample_award_books import (
+            SAMPLE_AWARD_BOOKS,
+            _looks_like_isbn,
+        )
+
+        try:
+            fixed_entries: list[dict] = []
+            debug_entries: list[dict] = []
+            award_id_by_name = {a.name: a.id for a in Award.query.all()}
+
+            for book_data in SAMPLE_AWARD_BOOKS:
+                award_id = award_id_by_name.get(book_data['award_name'])
+                if not award_id:
+                    debug_entries.append(
+                        {
+                            'isbn': book_data.get('isbn13'),
+                            'skip': 'award_name_not_found',
+                            'seed_award_name': book_data.get('award_name'),
+                        }
+                    )
+                    continue
+                target_isbn = book_data.get('isbn13') or ''
+                if not target_isbn:
+                    continue
+                existing = AwardBook.query.filter(
+                    AwardBook.award_id == award_id,
+                    AwardBook.year == book_data['year'],
+                    AwardBook.isbn13 == target_isbn,
+                ).first()
+                if not existing:
+                    debug_entries.append(
+                        {
+                            'isbn': target_isbn,
+                            'award_id': award_id,
+                            'year': book_data['year'],
+                            'skip': 'not_matched_by_isbn_year_award',
+                        }
+                    )
+                    continue
+                seed_title = book_data.get('title') or ''
+                seed_title_zh = book_data.get('title_zh') or ''
+
+                if seed_title and (
+                    not existing.title or existing.title == target_isbn or _looks_like_isbn(existing.title)
+                ):
+                    old_title = existing.title
+                    existing.title = seed_title
+                    if existing.verification_status == 'deprecated':
+                        existing.verification_status = 'verified'
+                    existing.is_displayable = True
+                    fixed_entries.append(
+                        {
+                            'id': existing.id,
+                            'field': 'title',
+                            'from': old_title,
+                            'to': seed_title,
+                        }
+                    )
+
+                if seed_title_zh and (
+                    not existing.title_zh
+                    or existing.title_zh == target_isbn
+                    or existing.title_zh == existing.title
+                    or _looks_like_isbn(existing.title_zh)
+                ):
+                    old_title_zh = existing.title_zh
+                    existing.title_zh = seed_title_zh
+                    fixed_entries.append(
+                        {
+                            'id': existing.id,
+                            'field': 'title_zh',
+                            'from': old_title_zh,
+                            'to': seed_title_zh,
+                        }
+                    )
+
+            db.session.commit()
+            return {'fixed_entries': fixed_entries, 'debug_entries': debug_entries}
+        except Exception:
+            # 事务失败时回滚并重新抛出，由路由层统一返回 500
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            raise
+
+    def fix_award_book_titles_by_ids(self, items: list[dict]) -> dict[str, Any]:
+        """按 ID 批量修复 AwardBook.title_zh（处理非种子的脏数据）"""
+        try:
+            fixed_entries: list[dict] = []
+            skipped: list[dict] = []
+
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                book_id = item.get('id')
+                new_title_zh = (item.get('title_zh') or '').strip()
+                if not book_id or not new_title_zh:
+                    skipped.append({'id': book_id, 'reason': 'missing id or title_zh'})
+                    continue
+                book = db.session.get(AwardBook, int(book_id))
+                if not book:
+                    skipped.append({'id': book_id, 'reason': 'not_found'})
+                    continue
+                old_title_zh = book.title_zh
+                book.title_zh = new_title_zh
+                fixed_entries.append(
+                    {
+                        'id': book.id,
+                        'field': 'title_zh',
+                        'from': old_title_zh,
+                        'to': new_title_zh,
+                    }
+                )
+
+            db.session.commit()
+            return {'fixed_entries': fixed_entries, 'skipped': skipped}
+        except Exception:
+            # 事务失败时回滚并重新抛出，由路由层统一返回 500
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            raise

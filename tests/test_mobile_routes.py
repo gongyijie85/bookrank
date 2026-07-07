@@ -315,6 +315,16 @@ class TestMobileIndexSimplified:
         assert resp.status_code == 200
         assert b'm-top-nav' in resp.data
 
+    @patch('app.routes.main.get_book_service')
+    def test_mobile_index_has_compact_hero_header(self, mock_get_svc, client) -> None:
+        """移动端首页头部应有品牌信息和紧凑 hero 结构"""
+        mock_get_svc.return_value = _mock_book_service([_make_book()])
+        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-top-nav-copy' in resp.data
+        assert b'm-top-nav-subtitle' in resp.data
+        assert b'm-top-nav-mark' in resp.data
+
 
 class TestMobileBookDetailV2:
     """v0.9.77：书籍详情页 v2 视觉验证（v0.9.78 删除了底部"返回榜单"按钮）"""
@@ -338,6 +348,17 @@ class TestMobileBookDetailV2:
         resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-detail-actions' not in resp.data
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.get_book_service')
+    def test_book_detail_shows_facts_and_detail_text(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
+        """移动端书籍详情应直接展示关键元数据和 details 正文"""
+        mock_get_svc.return_value = _mock_book_service([_make_book(details='Full mobile detail text')])
+        resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-detail-facts' in resp.data
+        assert b'Full mobile detail text' in resp.data
 
 
 class TestMobileAwardBookDetailFullDescription:
@@ -438,6 +459,8 @@ class TestMobileV978:
         js = Path('static/mobile/js/mobile.js').read_text(encoding='utf-8')
         assert '/set-language?lang=' in js
         assert 'encodeURIComponent(next)' in js
+        assert 'localStorage.setItem(APP_LANG_STORAGE_KEY, lang)' in js
+        assert "classList.toggle('active', isActive)" in js
 
     @patch('app.routes.main.get_book_service')
     def test_base_includes_book_i18n_script(self, mock_get_svc, client) -> None:
@@ -485,6 +508,14 @@ class TestMobileV978:
         assert b'm-tabbar' in resp.data
         assert b'data-tab="publisher"' in resp.data
         assert b'class="m-tab active" data-tab="publisher"' in resp.data
+
+    def test_publishers_mobile_has_category_anchors(self, client) -> None:
+        """出版社移动页应提供横向分类锚点导航"""
+        resp = client.get('/publishers', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-publisher-anchors' in resp.data
+        assert b'href="#publisher-cat-1"' in resp.data
+        assert b'id="publisher-cat-1"' in resp.data
 
     # ----- 详情页 Tab 化 -----
 

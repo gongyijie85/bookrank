@@ -87,12 +87,13 @@ jobs:
             -v \
             --cov=app \
             --cov-report=term-missing \
-            --cov-fail-under=60
+            --cov-fail-under=70
 
   test-root:
     name: Root-level tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
@@ -113,5 +114,20 @@ jobs:
             --timeout=30 \
             --tb=short \
             -x \
-            -v \
-            || true
+            -v
+
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Trigger Render Deploy Hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL not set, skipping deploy"
+            exit 0
+          fi
+          curl -s -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null -w "%{http_code}"

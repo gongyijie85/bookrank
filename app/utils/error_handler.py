@@ -48,8 +48,21 @@ def log_error(
         exc_info: 是否包含异常堆栈
         level: 日志级别 ('error' / 'warning')
     """
+    request_id = ''
+    path = ''
+    method = ''
+    try:
+        from flask import request
+
+        if request:
+            request_id = getattr(request, 'request_id', '')
+            path = request.path
+            method = request.method
+    except Exception:
+        pass
+
     log_func = getattr(logger, level, logger.error)
-    log_func('[%s] %s', category.value, message, exc_info=exc_info)
+    log_func('[%s] [request_id=%s] %s', category.value, request_id, message, exc_info=exc_info)
 
     try:
         from .error_tracker import error_tracker
@@ -57,8 +70,9 @@ def log_error(
         error_tracker.record(
             error_type=category.value,
             message=message,
-            path='',
-            method='',
+            path=path,
+            method=method,
+            request_id=request_id,
         )
     except Exception:
         logger.warning('ErrorTracker 记录失败（可能尚未初始化）')

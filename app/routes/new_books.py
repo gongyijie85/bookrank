@@ -9,7 +9,6 @@ from urllib.parse import quote
 from flask import Blueprint, current_app, make_response, request
 from pydantic import ValidationError
 
-from ..models.database import db
 from ..schemas.validators import (
     NewBookExportQuery,
     NewBookListQuery,
@@ -170,7 +169,6 @@ def update_publisher_status(publisher_id: int):
         return APIResponse.success(message=f'出版社已{"启用" if is_active else "禁用"}')
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'更新出版社状态失败: {e}', exc_info=True)
-        db.session.rollback()
         return APIResponse.error('更新出版社状态失败', 500)
 
 
@@ -466,7 +464,6 @@ def init_publishers():
         return APIResponse.success(data={'created_count': count}, message=f'成功初始化 {count} 个出版社')
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'初始化出版社失败: {e}', exc_info=True)
-        db.session.rollback()
         return APIResponse.error('初始化失败', 500)
 
 
@@ -475,31 +472,16 @@ def init_publishers():
 @admin_required
 def migrate_categories():
     """迁移已有书籍分类数据（英文分类统一为中文）"""
-    from ..models.new_book import NewBook
-    from ..services.publisher_data import sanitize_category
-
     try:
-        # 查询所有有分类的书籍
-        books = NewBook.query.filter(NewBook.category.isnot(None)).all()
-        migrated_count = 0
-
-        for book in books:
-            old_category = book.category
-            new_category = sanitize_category(old_category)
-            if new_category != old_category:
-                book.category = new_category
-                migrated_count += 1
-
-        if migrated_count > 0:
-            db.session.commit()
+        service = get_new_book_service()
+        result = service.migrate_categories()
 
         return APIResponse.success(
-            data={'migrated_count': migrated_count, 'total_checked': len(books)},
-            message=f'成功迁移 {migrated_count} 本书籍分类',
+            data=result,
+            message=f'成功迁移 {result["migrated_count"]} 本书籍分类',
         )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'迁移分类数据失败: {e}', exc_info=True)
-        db.session.rollback()
         return APIResponse.error('迁移分类失败', 500)
 
 
@@ -510,5 +492,9 @@ def not_found(error):
 
 @new_books_bp.errorhandler(500)
 def internal_error(error):
+    # 框架级异常回滚：释放可能处于未提交状态的数据库会话，避免连接泄漏
+    # 注：errorhandler 属于框架级钩子，非业务路由，允许直接操作 db.session
+    from ..models.database import db
+
     db.session.rollback()
     return APIResponse.error('Internal server error', 500)

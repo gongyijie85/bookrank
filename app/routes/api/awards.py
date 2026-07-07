@@ -144,103 +144,20 @@ def fix_award_book_titles():
     鉴权：需要请求头 X-Admin-Secret 匹配 ADMIN_SECRET（由 @admin_required 装饰器统一处理，含失败计数 / IP 封禁 / SystemConfig 持久化）
     """
     try:
-        from flask import current_app
-
-        # TODO: 清理冗余 app_context（独立 issue）
-        with current_app.app_context():
-            from ...initialization.sample_award_books import (
-                SAMPLE_AWARD_BOOKS,
-                _looks_like_isbn,
-            )
-            from ...models.database import db
-            from ...models.schemas import Award, AwardBook
-
-            fixed_entries: list[dict] = []
-            debug_entries: list[dict] = []
-            award_id_by_name = {a.name: a.id for a in Award.query.all()}
-
-            for book_data in SAMPLE_AWARD_BOOKS:
-                award_id = award_id_by_name.get(book_data['award_name'])
-                if not award_id:
-                    debug_entries.append(
-                        {
-                            'isbn': book_data.get('isbn13'),
-                            'skip': 'award_name_not_found',
-                            'seed_award_name': book_data.get('award_name'),
-                        }
-                    )
-                    continue
-                target_isbn = book_data.get('isbn13') or ''
-                if not target_isbn:
-                    continue
-                existing = AwardBook.query.filter(
-                    AwardBook.award_id == award_id,
-                    AwardBook.year == book_data['year'],
-                    AwardBook.isbn13 == target_isbn,
-                ).first()
-                if not existing:
-                    debug_entries.append(
-                        {
-                            'isbn': target_isbn,
-                            'award_id': award_id,
-                            'year': book_data['year'],
-                            'skip': 'not_matched_by_isbn_year_award',
-                        }
-                    )
-                    continue
-                seed_title = book_data.get('title') or ''
-                seed_title_zh = book_data.get('title_zh') or ''
-
-                if seed_title and (
-                    not existing.title or existing.title == target_isbn or _looks_like_isbn(existing.title)
-                ):
-                    old_title = existing.title
-                    existing.title = seed_title
-                    if existing.verification_status == 'deprecated':
-                        existing.verification_status = 'verified'
-                    existing.is_displayable = True
-                    fixed_entries.append(
-                        {
-                            'id': existing.id,
-                            'field': 'title',
-                            'from': old_title,
-                            'to': seed_title,
-                        }
-                    )
-
-                if seed_title_zh and (
-                    not existing.title_zh
-                    or existing.title_zh == target_isbn
-                    or existing.title_zh == existing.title
-                    or _looks_like_isbn(existing.title_zh)
-                ):
-                    old_title_zh = existing.title_zh
-                    existing.title_zh = seed_title_zh
-                    fixed_entries.append(
-                        {
-                            'id': existing.id,
-                            'field': 'title_zh',
-                            'from': old_title_zh,
-                            'to': seed_title_zh,
-                        }
-                    )
-
-            db.session.commit()
-            current_app.logger.info(f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 项')
-            return APIResponse.success(
-                data={
-                    'fixed_count': len(fixed_entries),
-                    'fixed': fixed_entries[:50],
-                    'debug_count': len(debug_entries),
-                    'debug_sample': debug_entries[:10],
-                }
-            )
+        result = _award_service.fix_award_book_titles()
+        fixed_entries = result['fixed_entries']
+        debug_entries = result['debug_entries']
+        logger.info(f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 项')
+        return APIResponse.success(
+            data={
+                'fixed_count': len(fixed_entries),
+                'fixed': fixed_entries[:50],
+                'debug_count': len(debug_entries),
+                'debug_sample': debug_entries[:10],
+            }
+        )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'修复 AwardBook 标题失败: {e}', exc_info=True)
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
         return APIResponse.error(f'修复失败: {e}', 500)
 
 
@@ -264,52 +181,17 @@ def fix_award_book_titles_by_ids():
         return APIResponse.error('items 必须是非空数组', 400)
 
     try:
-        from flask import current_app
-
-        # TODO: 清理冗余 app_context（独立 issue）
-        with current_app.app_context():
-            from ...models.database import db
-            from ...models.schemas import AwardBook
-
-            fixed_entries: list[dict] = []
-            skipped: list[dict] = []
-
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                book_id = item.get('id')
-                new_title_zh = (item.get('title_zh') or '').strip()
-                if not book_id or not new_title_zh:
-                    skipped.append({'id': book_id, 'reason': 'missing id or title_zh'})
-                    continue
-                book = db.session.get(AwardBook, int(book_id))
-                if not book:
-                    skipped.append({'id': book_id, 'reason': 'not_found'})
-                    continue
-                old_title_zh = book.title_zh
-                book.title_zh = new_title_zh
-                fixed_entries.append(
-                    {
-                        'id': book.id,
-                        'field': 'title_zh',
-                        'from': old_title_zh,
-                        'to': new_title_zh,
-                    }
-                )
-
-            db.session.commit()
-            current_app.logger.info(f'🔧 admin fix-award-book-titles-by-ids: 修复 {len(fixed_entries)} 项')
-            return APIResponse.success(
-                data={
-                    'fixed_count': len(fixed_entries),
-                    'fixed': fixed_entries,
-                    'skipped': skipped,
-                }
-            )
+        result = _award_service.fix_award_book_titles_by_ids(items)
+        fixed_entries = result['fixed_entries']
+        skipped = result['skipped']
+        logger.info(f'🔧 admin fix-award-book-titles-by-ids: 修复 {len(fixed_entries)} 项')
+        return APIResponse.success(
+            data={
+                'fixed_count': len(fixed_entries),
+                'fixed': fixed_entries,
+                'skipped': skipped,
+            }
+        )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'按 ID 修复 AwardBook 中文标题失败: {e}', exc_info=True)
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
         return APIResponse.error(f'修复失败: {e}', 500)

@@ -14,39 +14,48 @@ class PublisherManager:
     VALID_CATEGORIES = pd.VALID_CATEGORIES
 
     def init_publishers(self) -> int:
-        count = 0
+        """初始化出版社数据，事务控制在 Service 层完成"""
+        try:
+            count = 0
 
-        for pub_data in self.DEFAULT_PUBLISHERS:
-            existing = Publisher.query.filter_by(name_en=pub_data['name_en']).first()
-            if existing:
-                if existing.crawler_class in self._CRAWLER_MIGRATION:
-                    old_class = existing.crawler_class
-                    new_class = self._CRAWLER_MIGRATION[old_class]
-                    existing.crawler_class = new_class
-                    logger.info(f'出版社爬虫迁移: {pub_data["name_en"]} {old_class} -> {new_class}')
-                else:
-                    logger.info(f'出版社已存在: {pub_data["name_en"]}')
-                continue
+            for pub_data in self.DEFAULT_PUBLISHERS:
+                existing = Publisher.query.filter_by(name_en=pub_data['name_en']).first()
+                if existing:
+                    if existing.crawler_class in self._CRAWLER_MIGRATION:
+                        old_class = existing.crawler_class
+                        new_class = self._CRAWLER_MIGRATION[old_class]
+                        existing.crawler_class = new_class
+                        logger.info(f'出版社爬虫迁移: {pub_data["name_en"]} {old_class} -> {new_class}')
+                    else:
+                        logger.info(f'出版社已存在: {pub_data["name_en"]}')
+                    continue
 
-            publisher = Publisher(
-                name=pub_data['name'],
-                name_en=pub_data['name_en'],
-                website=pub_data['website'],
-                crawler_class=pub_data['crawler_class'],
-                is_active=True,
-            )
+                publisher = Publisher(
+                    name=pub_data['name'],
+                    name_en=pub_data['name_en'],
+                    website=pub_data['website'],
+                    crawler_class=pub_data['crawler_class'],
+                    is_active=True,
+                )
 
-            db.session.add(publisher)
-            count += 1
-            logger.info(f'创建出版社: {pub_data["name_en"]}')
+                db.session.add(publisher)
+                count += 1
+                logger.info(f'创建出版社: {pub_data["name_en"]}')
 
-        if count > 0:
-            db.session.commit()
-            logger.info(f'成功创建 {count} 个出版社')
-        else:
-            logger.info('所有出版社已存在，无需创建')
+            if count > 0:
+                db.session.commit()
+                logger.info(f'成功创建 {count} 个出版社')
+            else:
+                logger.info('所有出版社已存在，无需创建')
 
-        return count
+            return count
+        except Exception:
+            # 事务失败时回滚并重新抛出，由路由层统一返回 500
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            raise
 
     def get_publishers(self, active_only: bool = True) -> list[Publisher]:
         query = Publisher.query
@@ -60,14 +69,23 @@ class PublisherManager:
         return db.session.get(Publisher, publisher_id)
 
     def update_publisher_status(self, publisher_id: int, is_active: bool) -> bool:
+        """更新出版社状态，事务控制在 Service 层完成"""
         publisher = self.get_publisher(publisher_id)
         if not publisher:
             return False
 
-        publisher.is_active = is_active
-        db.session.commit()
-        logger.info(f'更新出版社状态: {publisher.name_en} -> {"启用" if is_active else "禁用"}')
-        return True
+        try:
+            publisher.is_active = is_active
+            db.session.commit()
+            logger.info(f'更新出版社状态: {publisher.name_en} -> {"启用" if is_active else "禁用"}')
+            return True
+        except Exception:
+            # 事务失败时回滚并重新抛出，由路由层统一返回 500
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            raise
 
     def get_publisher_book_counts(self) -> dict[int, int]:
         from sqlalchemy import func

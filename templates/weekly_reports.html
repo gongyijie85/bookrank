@@ -4,6 +4,14 @@
 {% block og_title %}{{ _('畅销书周报') }} - BookRank{% endblock %}
 {% block twitter_title %}{{ _('畅销书周报') }} - BookRank{% endblock %}
 
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('畅销书周报'), 'url': url_for('main.weekly_reports')}
+], csp_nonce()) }}
+{% endblock %}
+
 {% block content %}
 <main class="main-content">
     <div class="page-header">

@@ -67,6 +67,7 @@
 
     // ===== 5. v0.9.78 语言切换 =====
     const LANG_STORAGE_KEY = 'bookrank_language';
+    const APP_LANG_STORAGE_KEY = 'app_language';
 
     function getSavedLanguage() {
         return SERVER_LANGUAGE === 'en' ? 'en' : 'zh';
@@ -75,7 +76,16 @@
     function setSavedLanguage(lang) {
         try {
             localStorage.setItem(LANG_STORAGE_KEY, lang);
+            localStorage.setItem(APP_LANG_STORAGE_KEY, lang);
         } catch (e) { /* 忽略 localStorage 不可用 */ }
+    }
+
+    function updateLangMenu(lang) {
+        document.querySelectorAll('#m-lang-dropdown button[data-lang]').forEach(function (btn) {
+            const isActive = btn.getAttribute('data-lang') === lang;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-current', isActive ? 'true' : 'false');
+        });
     }
 
     function applyLanguage(lang) {
@@ -83,6 +93,7 @@
             window.BookI18n.applyLanguage(lang);
         }
         setSavedLanguage(lang);
+        updateLangMenu(lang);
         document.documentElement.setAttribute('lang', lang === 'en' ? 'en' : 'zh-CN');
         // 派发事件，供其他组件监听
         try {

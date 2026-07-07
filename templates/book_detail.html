@@ -3,6 +3,18 @@
 {% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
 {% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
 {% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block og_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{% set cat_label = categories.get(category, category) if categories else category %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': cat_label, 'url': url_for('main.index', category=category)},
+    {'label': book.title_zh or book.title, 'url': request.url}
+], csp_nonce()) }}
+{% endblock %}
 
 {% block content %}
 

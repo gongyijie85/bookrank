@@ -32,6 +32,9 @@ logger = logging.getLogger(__name__)
 # 全局调度器实例（应用生命周期内共享）
 _scheduler: BackgroundScheduler | None = None
 
+# 后台任务连续失败计数（Render 免费层已限制单 worker，内存计数可行）
+_task_failure_counts: dict[str, int] = {}
+
 
 def init_services(app):
     """初始化业务服务（带容错：单个服务失败不影响其他服务）"""
@@ -326,17 +329,78 @@ def _scheduler_wrapper(app, task_func):
     为 APScheduler job 创建包装函数
     - 自动创建 app context
     - 捕获所有异常（防止调度器崩溃）
+    - 连续失败时发送告警通知
     """
 
     def wrapper():
+        task_name = task_func.__name__
         try:
             with app.app_context():
                 task_func(app)
+            # 成功后重置失败计数
+            _task_failure_counts.pop(task_name, None)
         except Exception as e:
-            log_error(ErrorCategory.UNKNOWN, f'后台任务 [{task_func.__name__}] 失败: {e}', exc_info=True)
+            log_error(ErrorCategory.UNKNOWN, f'后台任务 [{task_name}] 失败: {e}', exc_info=True)
+            _track_task_failure(app, task_name, str(e))
 
     wrapper.__name__ = task_func.__name__
     return wrapper
+
+
+def _track_task_failure(app, task_name: str, error_message: str) -> None:
+    """记录后台任务失败，连续失败达到阈值时触发告警"""
+    _task_failure_counts[task_name] = _task_failure_counts.get(task_name, 0) + 1
+    count = _task_failure_counts[task_name]
+    try:
+        SystemConfig.set_value(f'last_failure_count_{task_name}', str(count))
+    except Exception as err:
+        logger.warning('记录失败计数失败: %s', err)
+
+    if count >= 2:
+        _notify_task_failure(app, task_name, count, error_message)
+
+
+def _notify_task_failure(app, task_name: str, failure_count: int, error_message: str) -> None:
+    """发送后台任务失败告警（webhook 优先，邮件兜底）"""
+    webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
+    if webhook_url:
+        try:
+            import requests
+
+            payload = {
+                'task': task_name,
+                'failure_count': failure_count,
+                'error': error_message[:500],
+                'timestamp': datetime.now(UTC).isoformat(),
+            }
+            requests.post(webhook_url, json=payload, timeout=10)
+            logger.warning('已发送后台任务失败告警: %s', task_name)
+        except Exception as exc:
+            logger.warning('告警 webhook 发送失败: %s', exc)
+        return
+
+    # 邮件兜底
+    if app.config.get('MAIL_ENABLED'):
+        try:
+            from flask_mail import Message
+
+            mail = app.extensions.get('mail')
+            if not mail:
+                return
+            subject = f'[BookRank 告警] 后台任务 {task_name} 连续失败 {failure_count} 次'
+            body = f"""任务: {task_name}
+连续失败次数: {failure_count}
+错误摘要: {error_message[:500]}
+时间: {datetime.now(UTC).isoformat()}
+请尽快查看 Render 日志。
+"""
+            recipients = app.config.get('MAIL_RECIPIENTS', '').split(',')
+            if recipients and recipients[0]:
+                msg = Message(subject, recipients=recipients, body=body)
+                mail.send(msg)
+                logger.warning('已发送后台任务失败邮件告警: %s', task_name)
+        except Exception as exc:
+            logger.warning('告警邮件发送失败: %s', exc)
 
 
 def _translation_cache_cleanup_task(app):

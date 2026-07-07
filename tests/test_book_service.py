@@ -471,6 +471,102 @@ class TestBookService:
         # 验证结果
         assert cache_time == '暂无数据'
 
+    def test_save_book_metadata_batch_uses_single_select(self, book_service, db, app):
+        """测试批量保存元数据只发起一次 SELECT 查询（避免 N+1）"""
+        from sqlalchemy import event
+
+        books = [
+            Book(
+                id='9780000001001',
+                title=f'Batch Book {i}',
+                author=f'Author {i}',
+                publisher='Publisher',
+                cover='',
+                list_name='Test',
+                category_id='hardcover-fiction',
+                category_name='精装小说',
+                rank=i,
+                weeks_on_list=1,
+                rank_last_week='0',
+                published_date='2024-01-01',
+                description='desc',
+                details='details',
+                publication_dt='2024-01-01',
+                page_count='200',
+                language='English',
+                buy_links=[],
+                isbn13=f'978000000100{i}',
+                isbn10=f'000000100{i}',
+                price='19.99',
+            )
+            for i in range(1, 6)
+        ]
+
+        select_count = 0
+
+        def _count_selects(conn, cursor, statement, parameters, context, executemany):
+            nonlocal select_count
+            if statement.lstrip().upper().startswith('SELECT'):
+                select_count += 1
+
+        with app.app_context():
+            event.listen(db.engine, 'before_cursor_execute', _count_selects)
+            try:
+                saved = book_service.save_book_metadata_batch(books)
+            finally:
+                event.remove(db.engine, 'before_cursor_execute', _count_selects)
+
+        assert saved == 5
+        assert select_count == 1  # 一次 IN 查询
+
+    def test_save_book_metadata_loop_uses_multiple_selects(self, book_service, db, app):
+        """测试逐条保存元数据会产生多次 SELECT 查询（对照组，说明 N+1）"""
+        from sqlalchemy import event
+
+        books = [
+            Book(
+                id='9780000002001',
+                title=f'Loop Book {i}',
+                author=f'Author {i}',
+                publisher='Publisher',
+                cover='',
+                list_name='Test',
+                category_id='hardcover-fiction',
+                category_name='精装小说',
+                rank=i,
+                weeks_on_list=1,
+                rank_last_week='0',
+                published_date='2024-01-01',
+                description='desc',
+                details='details',
+                publication_dt='2024-01-01',
+                page_count='200',
+                language='English',
+                buy_links=[],
+                isbn13=f'978000000200{i}',
+                isbn10=f'000000200{i}',
+                price='19.99',
+            )
+            for i in range(1, 6)
+        ]
+
+        select_count = 0
+
+        def _count_selects(conn, cursor, statement, parameters, context, executemany):
+            nonlocal select_count
+            if statement.lstrip().upper().startswith('SELECT'):
+                select_count += 1
+
+        with app.app_context():
+            event.listen(db.engine, 'before_cursor_execute', _count_selects)
+            try:
+                for book in books:
+                    book_service.save_book_metadata(book)
+            finally:
+                event.remove(db.engine, 'before_cursor_execute', _count_selects)
+
+        assert select_count == 5  # 每本书一次 SELECT
+
 
 def test_nyt_ranking_sync_task_refreshes_all_categories(app, db):
     """测试后台NYT任务会触发全分类刷新和语言包写入"""

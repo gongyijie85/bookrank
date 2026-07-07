@@ -1,11 +1,94 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.78
-**发布日期**：2026-06-26
+**当前版本**：v0.9.83
+**发布日期**：2026-07-07
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.83 (2026-07-07) — 同事反馈 P3 优化（代码清理 / 缓存简化 / 构建瘦身 / 服务与响应统一）
+
+**背景**：基于四位同事反馈与 ponytail-audit，P3 聚焦不改动业务行为的前提下删除 dead code、简化手写缓存与装饰器、移除构建压缩依赖、统一服务访问与 API 响应。
+
+**关键优化**
+- **死代码清理**：删除 8 个一次性 `scripts/_*.py` 脚本、周报任务中 5 个邮件相关函数、`build.py` 及全部 minified 产物，减少约 1500 行无效代码。
+- **构建瘦身**：从依赖中移除 `rcssmin`，前端直接提供原始 CSS/JS，由平台 gzip/Brotli 压缩；`app/__init__.py` 与模板不再维护 minified 资源存在性配置。
+- **缓存简化**：自定义 LRU cache 统一替换为 `functools.lru_cache`。
+- **装饰器合并**：`safe_execute` / `safe_call` / `safe_service_call` 合并为单一实现，避免 200+ 行重复包装。
+- **服务访问统一**：`app/utils/service_helpers.py` 新增 `get_service` / `require_service` / `_get_or_create_service`，按服务名统一获取/要求单例。
+- **响应格式统一**：`APIResponse` 增加 `include_timestamp` 参数；`PublicAPIResponse` 改为向后兼容薄包装。
+- **测试清理**：移除周报任务与周报功能测试中已失效的 SMTP/邮件相关用例。
+
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过（90 source files 无类型问题）
+- `pytest --cov=app`：2164 passed，覆盖率 81.36%
+
+---
+
+### v0.9.82 (2026-07-07) — 同事反馈 P2 优化（导航 / SEO / 可访问性 / 数据净化）
+
+**背景**：P1 基础体验优化完成后，P2 聚焦导航简化、SEO 结构化数据、可访问性细节与缺失数据展示兜底。
+
+**关键优化**
+- **面包屑导航**：新增 `templates/_breadcrumbs.html` 宏组件，全站 10+ 页面接入面包屑，内嵌 `BreadcrumbList` JSON-LD；`base.html` 简化顶部导航语义结构，移除冗余 ARIA role。
+- **SEO 结构化数据**：首页榜单注入 `ItemList` + `Book` schema；书籍详情、新书详情、获奖详情注入完整 `Book` JSON-LD；周报详情注入 `Article` JSON-LD；详情页补齐 `og:image` / `twitter:image`。
+- **可访问性**：语言切换同步更新 `<html lang>`；修正标题层级；面包屑与导航当前项添加 `aria-current="page"`；封面 `alt` 增强为“《书名》封面，作者 XXX”；搜索表单语义化为 `<search>` + `<label>` + `<input type="search">`。
+- **数据净化**：`app/__init__.py` 新增 `is_invalid_publisher`、`clean_brackets` 等模板过滤器；页数为 `0` / `Unknown` / `N/A` 等占位值时不显示；出版社字段过滤后再写入结构化数据。
+- **测试修复**：`tests/test_main_routes_extended.py` 补充 mock 书籍字段，修复 JSON-LD 序列化 `MagicMock` 不可序列化错误。
+
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过（90 source files 无类型问题）
+- `pytest --cov=app`：2164 passed，覆盖率 81.36%
+
+---
+
+### v0.9.81 (2026-07-07) — 同事反馈 P0 阻塞项修复收尾
+
+**背景**：基于四位同事反馈与 ponytail-audit，完成全部 P0 阻塞项修复。
+
+**关键修复**
+- P0-1：新书速递页面 ISBN 脏数据清洗（`query_service.py` + `_macros.html`）。
+- P0-2：SVG 图标改为内联雪碧图（`base.html` + `templates/icons.svg`）。
+- P0-3：CSP 使用 per-request nonce 并移除 `unsafe-inline`（`app/__init__.py` + `base.html`）。
+- P0-4：删除旧 minified JS 产物并添加防御式 `getThemeColors`（`static/js/base.js`）。
+- P0-5：确认 Vite 开发客户端残留非代码问题。
+
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过
+- `pytest --cov=app`：2164 passed，覆盖率 81.33%
+
+---
+
+### v0.9.80 (2026-06-17) — CODE_WIKI 导入 Obsidian 知识库
+- **Obsidian 知识库**：将 `CODE_WIKI.md` 按 18 个章节拆分到 `Code Wiki/` 目录，含索引页 + wikilink 导航
+- **拆分脚本**：`scripts/split_wiki.py` 自动化按 `## ` 标题拆分 Markdown，可复用
+- **改动文件**：新增 19 个 Markdown 文件 + 1 个拆分脚本
+
+### v0.9.79 (2026-07-05) — 综合审计整改收尾
+
+**背景**：基于 2026-07-02 全维度综合审计，完成代码质量、测试覆盖、安全、性能、配置环境、部署回滚、监控告警、数据库、文档与用户体验 10 个维度的审计与关键整改。
+
+**关键整改**
+- **代码质量**：完成全量代码质量审计；路由层直接 `db.session` 调用逐步下沉 Service 层；Ruff / mypy 持续保持通过。
+- **测试覆盖**：识别 18 个低覆盖率模块；封堵爬虫测试真实网络请求；当前总覆盖率 ≥73%，CI 阈值 ≥70%。
+- **安全**：完成 OWASP Top 10 安全审计；`admin.py` 三个管理端点补齐 `@csrf_protect`；安全头、admin_auth、依赖漏洞已处理。
+- **性能**：完成性能审计；修复 `BookService.sync_all_categories` 与 `AwardBookService._process_award_books` 两处 N+1 查询，使用 `selectinload` / 批量操作降低查询次数。
+- **配置环境**：`.env.example` 补全 `ADMIN_SECRET`、`IMAGE_TIMEOUT`、`NYT_RANKING_SYNC_DAYS`、`SQLALCHEMY_ECHO`、`SENTRY_DSN`、`ALERT_WEBHOOK_URL`、`CORS_ORIGINS` 等变量；`app/config.py` 支持 `API_RATE_LIMIT_WINDOW` 与 `CORS_ORIGINS` 过滤。
+- **部署回滚**：`render.yaml` 关闭自动部署（`autoDeploy: false`）、健康检查改为 `/health/ready`、强制 `WEB_CONCURRENCY=1`；新增 `docs/runbooks/deployment-rollback.md` 回滚 SOP。
+- **监控告警**：`app/utils/error_tracker.py` 接入 Sentry DSN；`app/setup.py` 增加后台任务连续失败告警；`health.py` 就绪检查返回 503；新增 `docs/runbooks/alerts.md`。
+- **数据库**：完成数据库模型、索引、迁移历史、连接池审计；补充 `migrations/versions/create_all_missing_tables.py` 修复初始迁移缺少 CREATE TABLE 的问题；新增 `docs/runbooks/database-backup-restore.md` 备份恢复手册。
+- **文档**：新增/更新 10 份审计报告与 3 份 Runbook；更新 README、CHANGELOG、VERSION、onboarding、API 文档。
+- **用户体验**：完成 UX 审计，输出 3-5 项优先级改进建议（骨架屏、统一错误页、语言切换反馈、暗色主题对比度、搜索入口可达性）。
+
+**验证**
+- `make check` 通过（Ruff lint + format check + mypy）。
+- `pytest tests/` 全量通过，覆盖率 ≥73%。
+
+---
 
 ### v0.9.78 (2026-06-26) — 移动端详情页 Tab 化 + Tab 改名 + 语言切换
 - **详情页 Tab 化**：书籍详情和获奖图书详情都加"图书简介 / 详细信息"两个 Tab，与电脑端一致；切换"详细信息"时懒加载 Google Books 详细介绍

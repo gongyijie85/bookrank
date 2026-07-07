@@ -48,10 +48,13 @@ openpyxl==3.1.2
 Pillow==11.1.0
 
 # Markdown 渲染
-mistune==3.2.0
+mistune==3.2.1
 
-# CSS 压缩（构建阶段）
-rcssmin==1.2.2
+# HTML 净化（生产环境必须，避免 XSS 净化降级）
+bleach==6.1.0
 
 # 数据验证（API路由层使用）
 pydantic>=2.10.0
+
+# 监控
+sentry-sdk==2.20.0

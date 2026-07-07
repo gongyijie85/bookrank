@@ -4,6 +4,14 @@
 {% block og_title %}{{ _('出版社导航') }} - BookRank{% endblock %}
 {% block twitter_title %}{{ _('出版社导航') }} - BookRank{% endblock %}
 
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('出版社导航'), 'url': url_for('main.publishers')}
+], csp_nonce()) }}
+{% endblock %}
+
 {% block extra_css %}
 <style nonce="{{ csp_nonce() }}">
     .publishers-header {

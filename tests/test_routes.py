@@ -12,6 +12,15 @@ from flask import render_template
 
 from app.models.schemas import Award
 
+
+@pytest.fixture(autouse=True)
+def _stub_google_books_for_routes(monkeypatch):
+    """禁止 /api/book-details 测试发起真实 Google Books 网络请求"""
+    from app.services.google_books_client import GoogleBooksClient
+
+    monkeypatch.setattr(GoogleBooksClient, 'fetch_book_details', lambda self, isbn: {})
+
+
 # ==================== 健康检查测试 ====================
 
 
@@ -41,18 +50,9 @@ class TestLanguageRedirect:
 
 @pytest.mark.routes
 class TestStylesheets:
-    def test_production_falls_back_to_source_css_when_minified_missing(self, app):
-        original_env = app.config.get('ENV')
-        original_minified = app.config.get('MINIFIED_CSS_EXISTS')
-        app.config['ENV'] = 'production'
-        app.config['MINIFIED_CSS_EXISTS'] = False
-
-        try:
-            with app.test_request_context('/'):
-                html = render_template('base.html')
-        finally:
-            app.config['ENV'] = original_env
-            app.config['MINIFIED_CSS_EXISTS'] = original_minified
+    def test_base_template_uses_source_css(self, app):
+        with app.test_request_context('/'):
+            html = render_template('base.html')
 
         assert '/static/css/base.css' in html
         assert '/static/css/components.css' in html

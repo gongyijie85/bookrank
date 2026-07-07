@@ -229,18 +229,27 @@ function toggleView(view) {
     const gridBtn = document.getElementById('view-grid');
     const listBtn = document.getElementById('view-list');
 
-    if (view === 'grid') {
-        gridEl?.classList.add('active');
-        listEl?.classList.remove('active');
-        gridBtn?.classList.add('active');
-        listBtn?.classList.remove('active');
-    } else {
-        listEl?.classList.add('active');
-        gridEl?.classList.remove('active');
-        listBtn?.classList.add('active');
-        gridBtn?.classList.remove('active');
-    }
     localStorage.setItem('bookrank_view', view);
+
+    if (gridEl && listEl) {
+        // Dual-view DOM: switch visible view via CSS classes
+        if (view === 'grid') {
+            gridEl.classList.add('active');
+            listEl.classList.remove('active');
+            gridBtn?.classList.add('active');
+            listBtn?.classList.remove('active');
+        } else {
+            listEl.classList.add('active');
+            gridEl.classList.remove('active');
+            listBtn?.classList.add('active');
+            gridBtn?.classList.remove('active');
+        }
+    } else {
+        // Single-view DOM: navigate so the server renders the requested view
+        const params = new URLSearchParams(window.location.search);
+        params.set('view', view);
+        window.location.href = window.location.pathname + '?' + params.toString();
+    }
 }
 
 // ========== 收藏功能 ==========
@@ -743,7 +752,13 @@ async function changeCategory(category) {
             cached.updateFrequency,
             cached.listPublishedDate
         );
-        const newUrl = `/?category=${encodeURIComponent(category)}`;
+        const params = new URLSearchParams();
+        params.set('category', category);
+        const view = new URLSearchParams(window.location.search).get('view') || localStorage.getItem('bookrank_view');
+        if (view && ['grid', 'list'].includes(view)) {
+            params.set('view', view);
+        }
+        const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({ category }, '', newUrl);
         if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
             BookI18n.applyLanguage('zh');
@@ -794,7 +809,13 @@ async function changeCategory(category) {
 
         updateBooksOnPage(books, category, apiData.update_time, apiData.update_frequency, apiData.list_published_date);
 
-        const newUrl = `/?category=${encodeURIComponent(category)}`;
+        const params = new URLSearchParams();
+        params.set('category', category);
+        const view = new URLSearchParams(window.location.search).get('view') || localStorage.getItem('bookrank_view');
+        if (view && ['grid', 'list'].includes(view)) {
+            params.set('view', view);
+        }
+        const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({ category }, '', newUrl);
 
         hideLoading();
@@ -1119,21 +1140,18 @@ if (!window.applyFilters) {
 
         showLoading('搜索中...');
 
-        let url = `/?category=${encodeURIComponent(category)}`;
-        if (search) {
-            url += `&search=${encodeURIComponent(search)}`;
-        }
-        if (publisher) {
-            url += `&publisher=${encodeURIComponent(publisher)}`;
-        }
-        if (weeks) {
-            url += `&weeks=${encodeURIComponent(weeks)}`;
-        }
-        if (sort) {
-            url += `&sort=${encodeURIComponent(sort)}`;
-        }
+        const params = new URLSearchParams(window.location.search);
+        params.set('category', category);
+        if (search) params.set('search', search.trim());
+        else params.delete('search');
+        if (publisher) params.set('publisher', publisher);
+        else params.delete('publisher');
+        if (weeks) params.set('weeks', weeks);
+        else params.delete('weeks');
+        if (sort) params.set('sort', sort);
+        else params.delete('sort');
 
-        window.location.href = url;
+        window.location.href = window.location.pathname + '?' + params.toString();
     };
 }
 

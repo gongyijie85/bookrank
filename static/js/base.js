@@ -272,6 +272,17 @@
     // ===== View Mode Functions =====
 
     /**
+     * Build URL with updated view param while preserving other query params
+     * @param {string} view - View mode (grid, list)
+     * @returns {string} URL with view param set
+     */
+    function buildViewUrl(view) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('view', view);
+        return window.location.pathname + '?' + params.toString();
+    }
+
+    /**
      * Toggle between grid and list view
      * @param {string} view - View mode (grid, list)
      */
@@ -281,20 +292,24 @@
         const gridBtn = document.getElementById('view-grid');
         const listBtn = document.getElementById('view-list');
 
-        if (!grid || !list) return;
+        localStorage.setItem('bookrank_view', view);
 
-        if (view === 'grid') {
-            grid.style.display = 'grid';
-            list.style.display = 'none';
-            gridBtn?.classList.add('active');
-            listBtn?.classList.remove('active');
-            localStorage.setItem('viewMode', 'grid');
+        if (grid && list) {
+            // Dual-view DOM: switch visible view via CSS classes
+            if (view === 'grid') {
+                grid.classList.add('active');
+                list.classList.remove('active');
+                gridBtn?.classList.add('active');
+                listBtn?.classList.remove('active');
+            } else {
+                list.classList.add('active');
+                grid.classList.remove('active');
+                gridBtn?.classList.remove('active');
+                listBtn?.classList.add('active');
+            }
         } else {
-            grid.style.display = 'none';
-            list.style.display = 'flex';
-            gridBtn?.classList.remove('active');
-            listBtn?.classList.add('active');
-            localStorage.setItem('viewMode', 'list');
+            // Single-view DOM: let the server render the requested view
+            window.location.href = buildViewUrl(view);
         }
     }
 
@@ -304,9 +319,21 @@
     function initViewMode() {
         const grid = document.getElementById('books-grid');
         const list = document.getElementById('books-list');
-        if (!grid || !list) return;
+        const savedView = localStorage.getItem('bookrank_view') || localStorage.getItem('viewMode');
+        const urlParams = new URLSearchParams(window.location.search);
 
-        const savedView = localStorage.getItem('viewMode');
+        if (!grid || !list) {
+            // Single-view DOM: redirect to saved preference when URL has no view param
+            if (!urlParams.has('view') && savedView) {
+                const currentView = grid ? 'grid' : (list ? 'list' : null);
+                if (currentView && currentView !== savedView) {
+                    window.location.href = buildViewUrl(savedView);
+                }
+            }
+            return;
+        }
+
+        // Dual-view DOM: apply saved preference or server-rendered active view
         const serverView = grid.classList.contains('active') ? 'grid' : (list.classList.contains('active') ? 'list' : null);
         const view = savedView || serverView || 'grid';
         toggleView(view);
@@ -363,7 +390,7 @@
     }
 
     /**
-     * Apply filters and reload page
+     * Apply filters and reload page, preserving existing query params like view
      */
     function applyFilters() {
         const category = document.getElementById('category-select')?.value;
@@ -371,13 +398,16 @@
 
         showLoading('筛选中...');
 
-        let url = window.location.pathname + '?';
-        const params = new URLSearchParams();
+        const params = new URLSearchParams(window.location.search);
 
-        if (category) params.append('category', category);
-        if (search) params.append('search', encodeURIComponent(search));
+        if (category) params.set('category', category);
+        else params.delete('category');
 
-        window.location.href = url + params.toString();
+        if (search) params.set('search', search.trim());
+        else params.delete('search');
+
+        const query = params.toString();
+        window.location.href = window.location.pathname + (query ? '?' + query : '');
     }
 
     /**
@@ -422,12 +452,22 @@
         // Keyboard events
         document.addEventListener('keydown', handleKeydown);
 
-        // Search input
-        if (searchInput) {
+        // Search input (仅首页；新书页表单有自己的提交处理)
+        if (searchInput && document.getElementById('category-select')) {
             searchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     applyFilters();
                 }
+            });
+        }
+
+        // Filter form submit (prevents default GET reload and uses JS filters)
+        // 仅绑定首页表单（包含 category-select）；新书页有自己的 submit 处理
+        const filterForm = document.getElementById('filter-form');
+        if (filterForm && document.getElementById('category-select')) {
+            filterForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                applyFilters();
             });
         }
 
@@ -543,6 +583,9 @@
         localStorage.setItem('app_language', lang);
         localStorage.setItem('bookrank_language', lang);
 
+        // 同步 html lang，便于屏幕阅读器正确发音
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
         if (typeof setGlobalLanguage === 'function') {
             setGlobalLanguage(lang);
         }
@@ -619,5 +662,22 @@
     window.switchLanguage = switchLanguage;
     window.toggleLangMenu = toggleLangMenu;
     window.closeLangMenu = closeLangMenu;
+
+    /**
+     * 防御式主题颜色获取函数
+     * 避免旧构建产物或外部脚本调用时因返回 undefined 而抛出 TypeError
+     */
+    window.getThemeColors = function() {
+        const root = getComputedStyle(document.documentElement);
+        return {
+            exportedColors: {
+                primary: root.getPropertyValue('--primary').trim() || '#171717',
+                secondary: root.getPropertyValue('--secondary').trim() || '#525252',
+                background: root.getPropertyValue('--background').trim() || '#ffffff',
+                foreground: root.getPropertyValue('--foreground').trim() || '#171717',
+                accent: root.getPropertyValue('--accent').trim() || '#dc2626'
+            }
+        };
+    };
 
 })();

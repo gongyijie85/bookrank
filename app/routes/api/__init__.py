@@ -66,6 +66,7 @@ def method_not_allowed(error):
 
 @api_bp.errorhandler(500)
 def internal_error(error):
+    # 框架级异常回滚：释放可能处于未提交状态的数据库会话，避免连接泄漏
     from ...models.database import db
     from ...utils.api_helpers import APIResponse
 

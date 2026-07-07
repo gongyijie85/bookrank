@@ -4,6 +4,7 @@ from typing import Any
 
 from flask import current_app, has_app_context
 
+from ...models.database import db
 from ...models.new_book import NewBook, Publisher
 from ..book_language_pack import BookLanguagePack
 from ..cache_service import CacheService
@@ -160,3 +161,30 @@ class NewBookService:
 
     def get_statistics(self) -> dict[str, Any]:
         return self._query_service.get_statistics()
+
+    def migrate_categories(self) -> dict[str, int]:
+        """迁移已有书籍分类数据（英文分类统一为中文），事务控制在 Service 层完成"""
+        from ..publisher_data import sanitize_category
+
+        try:
+            books = NewBook.query.filter(NewBook.category.isnot(None)).all()
+            migrated_count = 0
+
+            for book in books:
+                old_category = book.category
+                new_category = sanitize_category(old_category)
+                if new_category != old_category:
+                    book.category = new_category
+                    migrated_count += 1
+
+            if migrated_count > 0:
+                db.session.commit()
+
+            return {'migrated_count': migrated_count, 'total_checked': len(books)}
+        except Exception:
+            # 事务失败时回滚并重新抛出，由路由层统一返回 500
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            raise
