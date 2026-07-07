@@ -116,3 +116,7 @@ push.ps1
 doc/
 knowledge/
 open-source-tools/
+
+# Feedback & review artifacts (working inputs, not source code)
+feedback/
+site-review-report.html
