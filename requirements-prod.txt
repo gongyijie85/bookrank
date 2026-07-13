@@ -48,7 +48,7 @@ openpyxl==3.1.2
 Pillow==11.1.0
 
 # Markdown 渲染
-mistune==3.2.1
+mistune==3.3.0
 
 # HTML 净化（生产环境必须，避免 XSS 净化降级）
 bleach==6.1.0
