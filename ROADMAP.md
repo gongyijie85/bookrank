@@ -15,8 +15,8 @@
 - [x] 修复 Issue #8：NYT 频率检查在已安装项目依赖后执行
 - [x] 修正 README badge、License 与在线链接
 - [x] 更新 CHANGELOG/VERSION 到 v0.9.84
-- [ ] 合并 PR 后创建 `v0.9.84` tag 与 Release
-- [ ] GitHub Community Profile 达到 100%
+- [x] 合并 PR 后创建 `v0.9.84` tag 与 Release
+- [x] GitHub Community Profile 达到 100%
 
 ## v1.0 — API 规范、爬虫可靠性与技术债务
 
