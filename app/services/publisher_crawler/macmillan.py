@@ -80,6 +80,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
 
     def __init__(self, config: CrawlerConfig | None = None):
         super().__init__(config)
+        self._google_rate_limited = False
         if config is None:
             self.config.request_delay = 0.8
 
@@ -156,6 +157,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
                         timeout=self.config.timeout,
                     )
 
+                if resp.status_code == 429:
+                    self._google_rate_limited = True
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as exc:
@@ -254,6 +257,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
 
         try:
             resp = self._session.get(url, params=params, timeout=self.config.timeout)
+            if resp.status_code == 429:
+                self._google_rate_limited = True
             resp.raise_for_status()
             data = resp.json()
             items = data.get('items', [])
@@ -368,6 +373,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
                     seen_isbns.add(isbn_key)
                     count += 1
                     yield book
+            if self._google_rate_limited:
+                break
 
         logger.info(
             'Google Books 多印记查询返回 %d 本，开始 Sitemap 补充...',
@@ -389,6 +396,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
 
                 checked += 1
                 book = self._lookup_isbn(isbn)
+                if self._google_rate_limited:
+                    break
                 if not book:
                     continue
 

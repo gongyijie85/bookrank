@@ -105,7 +105,7 @@ class Config:
     GOOGLE_BOOKS_API_URL: str = 'https://www.googleapis.com/books/v1/volumes'
 
     # 外部 API 缓存 TTL（秒）
-    NYT_CACHE_TTL: int = _SECONDS_PER_DAY * 7  # NYT 数据每周更新
+    NYT_CACHE_TTL: int = 60 * 60 * 6  # 避免跨过 NYT 发榜时间仍返回上周数据
     GOOGLE_BOOKS_CACHE_TTL: int = _SECONDS_PER_DAY  # Google Books 缓存 24 小时
     OPEN_LIBRARY_CACHE_TTL: int = _SECONDS_PER_DAY * 3  # Open Library 缓存 3 天
 

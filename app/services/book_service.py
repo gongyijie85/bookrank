@@ -203,7 +203,7 @@ class BookService:
 
         # 从API获取
         try:
-            api_data = self._nyt_client.fetch_books(category_id)
+            api_data = self._nyt_client.fetch_books(category_id, force_refresh=force_refresh)
             if isinstance(api_data, dict) and api_data.get('error'):
                 raise APIException(f'NYT API returned error for {category_id}: {api_data["error"]}')
 

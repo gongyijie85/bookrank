@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class NYTApiClient:
     """纽约时报API客户端"""
 
-    DEFAULT_CACHE_TTL = 86400 * 7  # 默认值，可通过配置覆盖
+    DEFAULT_CACHE_TTL = 60 * 60 * 6
 
     def __init__(
         self, api_key: str, base_url: str, rate_limiter: RateLimiter, timeout: int = 15, cache_ttl: int | None = None
@@ -69,7 +69,7 @@ class NYTApiClient:
         return self._key_is_valid
 
     @api_retry(max_attempts=3, backoff_factor=2.0)
-    def fetch_books(self, category_id: str) -> dict[str, Any]:
+    def fetch_books(self, category_id: str, force_refresh: bool = False) -> dict[str, Any]:
         """获取指定分类的图书数据"""
         if not self._api_key:
             raise APIException('NYT API key not configured', status_code=500)
@@ -82,7 +82,7 @@ class NYTApiClient:
 
         cache_service = self._get_cache_service()
 
-        if cache_service:
+        if cache_service and not force_refresh:
             cached = cache_service.get('nyt', category_id)
             if cached:
                 if isinstance(cached, dict) and cached.get('error'):

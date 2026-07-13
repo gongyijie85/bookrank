@@ -212,7 +212,7 @@ class WeeklyReportService:
             # 从每个分类获取书籍数据
             for category_id, category_name in nyt_categories.items():
                 try:
-                    books = self._book_service.get_books_by_category(category_id)
+                    books = self._book_service.get_books_by_category(category_id, force_refresh=True)
                     for _i, book in enumerate(books):
                         # 从NYT API真实数据中获取排名信息
                         # rank_last_week: 上周排名（数字或"无"/"0"表示新上榜）

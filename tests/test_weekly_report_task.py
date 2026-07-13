@@ -323,3 +323,18 @@ class TestComputeExpectedWeekRange:
         week_start, week_end = compute_expected_week_range(date(2026, 6, 7))
         assert week_start == date(2026, 6, 1)
         assert week_end == date(2026, 6, 7)
+
+
+def test_cron_force_regenerates_existing_week(client, app):
+    app.config['CRON_SECRET'] = 'test-secret'
+    report = _MockWeeklyReport()
+    report.id = 1
+
+    with patch('app.tasks.weekly_report_task.generate_weekly_report', return_value=report) as generate:
+        response = client.get(
+            '/api/cron/trigger-weekly-report',
+            headers={'Authorization': 'Bearer test-secret'},
+        )
+
+    assert response.status_code == 200
+    generate.assert_called_once_with(force_regenerate=True)

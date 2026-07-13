@@ -95,6 +95,11 @@ class TestBookService:
         assert books[0].isbn13 == '9780143127550'
         assert books[0].category_id == 'hardcover-fiction'
 
+    def test_force_refresh_reaches_nyt_client(self, book_service):
+        book_service.get_books_by_category('hardcover-fiction', force_refresh=True, auto_translate=False)
+
+        book_service._nyt_client.fetch_books.assert_called_once_with('hardcover-fiction', force_refresh=True)
+
     def test_get_books_by_category_with_cache(self, book_service):
         """测试从缓存获取图书列表"""
         # 模拟缓存数据

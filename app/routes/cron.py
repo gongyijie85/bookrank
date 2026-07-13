@@ -37,7 +37,7 @@ def trigger_weekly_report() -> tuple[Any, int]:
     try:
         from app.tasks.weekly_report_task import generate_weekly_report
 
-        report = generate_weekly_report()
+        report = generate_weekly_report(force_regenerate=True)
 
         if report:
             return jsonify(

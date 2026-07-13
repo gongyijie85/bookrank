@@ -260,6 +260,16 @@ class TestGenerateReportNoExistingOnException:
 
 
 class TestCollectWeeklyDataEdgeCases:
+    def test_weekly_report_refreshes_nyt_categories(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = []
+
+            WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+
+            assert mock_bs.get_books_by_category.call_count == 8
+            assert all(call.kwargs == {'force_refresh': True} for call in mock_bs.get_books_by_category.call_args_list)
+
     def test_category_exception_continues(self, app, db):
         with app.app_context():
             mock_bs = MagicMock()
