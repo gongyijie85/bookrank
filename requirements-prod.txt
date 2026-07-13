@@ -45,7 +45,7 @@ APScheduler==3.11.0
 # 导出功能（PDF/Excel）
 fpdf2==2.7.9
 openpyxl==3.1.2
-Pillow==11.1.0
+Pillow==12.2.0
 
 # Markdown 渲染
 mistune==3.2.1
