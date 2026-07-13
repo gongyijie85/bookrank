@@ -1,6 +1,6 @@
 # BookRank
 
-[![Test & Coverage](https://github.com/gongyijie85/bookrank/actions/workflows/test.yml/badge.svg)](https://github.com/gongyijie85/bookrank/actions/workflows/test.yml)
+[![CI - Tests & Quality](https://github.com/gongyijie85/bookrank/actions/workflows/ci.yml/badge.svg)](https://github.com/gongyijie85/bookrank/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/gongyijie85/bookrank/branch/main/graph/badge.svg)](https://codecov.io/gh/gongyijie85/bookrank)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![Flask 3.1](https://img.shields.io/badge/flask-3.1-black.svg)](https://flask.palletsprojects.com/)
@@ -287,6 +287,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.84 - OSS 社区成熟度升级（2026-07-13）：新增 MIT `LICENSE`、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`、`ROADMAP.md`；新增 GitHub Issue Forms、PR 模板、Dependabot 与 CodeQL 配置；修复 `Dockerfile` 引用已删除 `build.py` 的问题并新增 `compose.yaml` 支持一键启动；修复 Issue #8，将 NYT 频率检查放到已安装项目依赖后执行并保留不同退出语义；修正 README badge、License 与在线链接。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.83 - 同事反馈 P3 优化（2026-07-07）：基于 ponytail-audit 清理 dead code（删除 8 个 `scripts/_*.py`、周报邮件函数、`build.py`、全部 minified 产物）；移除 `rcssmin` 构建依赖；手写 LRU cache 统一为 `functools.lru_cache`；合并 `safe_execute` / `safe_call` / `safe_service_call` 装饰器；新增通用 `get_service` / `require_service` 统一服务访问；`APIResponse` 与 `PublicAPIResponse` 合并为带 `include_timestamp` 参数的统一响应；移除已失效的 SMTP/邮件测试；2164 passed，覆盖率 81.36%
 - v0.9.82 - 同事反馈 P2 优化（2026-07-07）：新增全站面包屑导航 + `BreadcrumbList` JSON-LD；首页/详情页/周报页补齐 SEO 结构化数据（`ItemList` / `Book` / `Article` schema）与 `og:image`；语言切换同步更新 `<html lang>`，修复标题层级、`aria-current`、`alt` 文案等可访问性细节；新增 `is_invalid_publisher` / `clean_brackets` 模板过滤器，页数 `0` / `Unknown` / `N/A` 等占位值不再显示；修复 `test_main_routes_extended.py` mock 字段缺失导致的 JSON-LD 序列化错误；2164 passed，覆盖率 81.36%
 - v0.9.81 - 同事反馈 P0 阻塞项修复收尾（2026-07-07）：删除 6 个旧 minified JS 产物、`static/js/base.js` 新增防御式 `window.getThemeColors`、CSP 使用 per-request nonce、更新 CSP 与 i18n 相关测试；2164 passed，覆盖率 81.33%
