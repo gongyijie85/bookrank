@@ -1,5 +1,55 @@
 # Changelog
 
+## v0.9.84 - 2026-07-13
+
+### feat(oss): 社区成熟度升级（社区文件 / GitHub 配置 / Docker / Issue #8 修复）
+
+**背景**：补齐 BookRank 作为开源项目的社区标准文件、仓库展示、Docker 一键运行和 GitHub 社区能力；修复 `Dockerfile` 引用已删除 `build.py` 的问题与 Issue #8 的根因。
+
+**改动**
+
+#### 社区标准文件
+- 新增 MIT `LICENSE`，版权人 `gongyijie85`，年份 2026。
+- 新增 `CONTRIBUTING.md`，包含开发环境、提交规范、代码质量门禁、Issue/PR 流程与行为准则链接。
+- 新增 `SECURITY.md`，说明支持的版本、GitHub Private Vulnerability Reporting 报告方式与安全联系人邮箱 `gongyijie@gmail.com`。
+- 新增 `CODE_OF_CONDUCT.md`，采用 Contributor Covenant 2.1 中文版，举报邮箱 `gongyijie@gmail.com`。
+- 新增 `ROADMAP.md`，明确 `v0.9.84` 聚焦社区基础与一致性，`v1.0` 聚焦 API 规范、爬虫可靠性与类型/测试债务。
+
+#### GitHub 社区配置
+- 新增 `.github/ISSUE_TEMPLATE/bug_report.yml` 与 `feature_request.yml` 表单模板。
+- 新增 `.github/ISSUE_TEMPLATE/config.yml`，将 Question 引导至 Discussions，禁用空白 issue。
+- 新增 `.github/pull_request_template.md` PR 模板。
+- 新增 `.github/dependabot.yml`，每周一检查 pip 与 GitHub Actions 依赖更新。
+- 通过仓库 Settings 启用 GitHub CodeQL 默认配置与 Dependabot Security Updates。
+
+#### Docker 一键运行
+- 修复 `Dockerfile`：删除已不存在的 `RUN python build.py`，保持多阶段构建与 gunicorn 启动命令不变。
+- 新增 `compose.yaml`：单服务 `web`，SQLite 持久卷、`FLASK_ENV=development`、端口 `8000`，支持 `docker compose up` 一键启动。
+
+#### Issue #8 修复
+- 修复 `.github/workflows/update-books.yml` 中 `check-nyt-frequencies` job：改为安装完整 `requirements.txt` 后再执行 `scripts/check_nyt_category_frequencies.py`（脚本依赖 `app.config`）。
+- 保留三种退出语义：
+  - `0`：频率一致，关闭已打开的漂移 issue。
+  - `1`：频率漂移，创建/更新 issue 并添加标签 `needs-triage`、`data-drift`。
+  - `2`：API/配置/运行错误，创建/更新 issue 并添加标签 `needs-triage`、`operational-error`。
+- PR 描述包含 `Fixes #8`，合并后自动关闭该 issue。
+
+#### README 修正
+- 修正 CI badge 路径：`test.yml` → `ci.yml`。
+- 更新最近更新条目，链接到 CHANGELOG。
+
+**验证**
+- `ruff check app/ tests/`：All checks passed
+- `mypy app/`：90 source files 无类型问题
+- `pytest --cov=app --cov-report=term-missing`：通过
+- `pytest tests/test_nyt_frequency_check.py -q --no-cov`：8 passed
+
+**相关文档**
+- `LICENSE`、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`、`ROADMAP.md`
+- `.github/ISSUE_TEMPLATE/`、`.github/pull_request_template.md`、`.github/dependabot.yml`
+
+---
+
 ## v0.9.83 - 2026-07-07
 
 ### refactor(feedback): 完成同事反馈 P3 优先级优化（代码清理 / 缓存简化 / 构建瘦身 / 服务与响应统一）

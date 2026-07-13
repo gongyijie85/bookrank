@@ -1,11 +1,30 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.83
-**发布日期**：2026-07-07
+**当前版本**：v0.9.84
+**发布日期**：2026-07-13
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.84 (2026-07-13) — OSS 社区成熟度升级（社区文件 / GitHub 配置 / Docker / Issue #8 修复）
+
+**背景**：补齐 BookRank 作为开源项目的社区标准文件、仓库展示、Docker 一键运行和 GitHub 社区能力，使 Community Profile 达到 100%；同时修复 `Dockerfile` 引用已删除 `build.py` 的问题与 Issue #8 的根因。
+
+**关键优化**
+- **社区标准文件**：新增 MIT `LICENSE`、CONTRIBUTING.md、SECURITY.md、CODE_OF_CONDUCT.md、ROADMAP.md。
+- **GitHub 社区配置**：新增 Bug/Feature Issue Forms、PR 模板、Dependabot 配置；启用 CodeQL 默认配置与 Dependabot Security Updates。
+- **Docker 一键运行**：删除 `Dockerfile` 中已失效的 `build.py` 调用；新增 `compose.yaml`，使用 SQLite 持久卷与端口 `8000`。
+- **Issue #8 修复**：将 NYT 频率检查放到已安装项目依赖后执行，保留一致/漂移/运行错误三种退出语义，并为不同场景打上对应标签。
+- **README 修正**：CI badge 路径由 `test.yml` 改为 `ci.yml`，新增 v0.9.84 最近更新条目。
+
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过（90 source files 无类型问题）
+- `pytest tests/test_nyt_frequency_check.py -q --no-cov`：8 passed
+- `docker compose config` 与 `docker compose up --build` 可正常启动
+
+---
 
 ### v0.9.83 (2026-07-07) — 同事反馈 P3 优化（代码清理 / 缓存简化 / 构建瘦身 / 服务与响应统一）
 
