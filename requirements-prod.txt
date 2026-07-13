@@ -51,7 +51,7 @@ Pillow==11.1.0
 mistune==3.2.1
 
 # HTML 净化（生产环境必须，避免 XSS 净化降级）
-bleach==6.1.0
+bleach==6.4.0
 
 # 数据验证（API路由层使用）
 pydantic>=2.10.0

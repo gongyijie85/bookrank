@@ -33,7 +33,7 @@ gunicorn==23.0.0
 beautifulsoup4==4.13.0
 
 # HTML 白名单净化（用于安全展示用户/外部 HTML 内容）
-bleach==6.1.0
+bleach==6.4.0
 
 # AI 翻译（智谱AI主用，deep-translator备用回退）
 zhipuai==2.1.5.20250825
