@@ -26,15 +26,19 @@ jobs:
 
     steps:
       - name: Wake up Render app (free tier cold start)
+        env:
+          BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
           echo "唤醒 Render 应用（免费层冷启动）..."
           # 先 ping 健康端点触发冷启动，不检查返回码
           curl -s --max-time 30 \
-            "https://bookrank-ckml.onrender.com/api/health" > /dev/null || true
+            "${BASE_URL}/api/health" > /dev/null || true
           echo "等待冷启动完成..."
           sleep 15
 
       - name: Trigger weekly report generation
+        env:
+          BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
           set -e
           MAX_RETRIES=3
@@ -46,7 +50,7 @@ jobs:
             HTTP_CODE=$(curl -s -o /tmp/weekly-report-response.json -w '%{http_code}' \
               --max-time 240 \
               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-              "https://bookrank-ckml.onrender.com/api/cron/trigger-weekly-report")
+              "${BASE_URL}/api/cron/trigger-weekly-report")
 
             echo "HTTP 状态码: $HTTP_CODE"
             cat /tmp/weekly-report-response.json | python3 -m json.tool || cat /tmp/weekly-report-response.json

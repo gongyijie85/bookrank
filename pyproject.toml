@@ -70,6 +70,7 @@ module = [
     "flask_babel.*",
     "crawl4ai.*",
     "psutil.*",
+    "bleach.*",
 ]
 ignore_missing_imports = true
 

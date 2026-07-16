@@ -254,6 +254,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.42 - cron 端点规范化：迁移到 `app/routes/api/`，统一 `@handle_api_errors` 错误处理，Render 免费层周报触发工作流新增唤醒重试机制
 - v0.9.32 - 质量收官：测试覆盖率 61%→84.12%，新增 14 个测试文件（2034 passed），TODO 清理
 - v0.9.31 - 管理增强：爬虫管理 API、系统监控、数据备份 API
 - v0.9.30 - 功能补全：收藏持久化、新书/推荐公共API、搜索扩展（AwardBook+NewBook）
