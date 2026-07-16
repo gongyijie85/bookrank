@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.9.87 - 2026-07-16
+
+### fix(deps): 修复 Dependabot 36 个依赖安全漏洞
+
+**背景**：GitHub Dependabot 在默认分支检测到 36 个依赖漏洞，涉及 7 个直接依赖（Werkzeug、Flask-CORS、requests、python-dotenv、Pillow、bleach、mistune）。本次升级将这些依赖更新到已修复版本，消除已知安全风险。
+
+**改动**
+
+#### 依赖升级
+- `Werkzeug==3.1.0` → `Werkzeug==3.1.6`
+  - GHSA-29vq-49wr-vm6x：safe_join() allows Windows special device names
+  - GHSA-87hc-h4r5-73f7：safe_join() allows Windows special device names with compound extensions
+  - GHSA-hgf8-39gv-g3f2：safe_join() allows Windows special device names
+- `Flask-CORS==4.0.1` → `Flask-CORS==6.0.0`
+  - GHSA-7rxf-gvfg-47g4：improper regex path matching
+  - GHSA-43qf-4rqw-9q2g：improper handling of case sensitivity
+  - GHSA-8vgw-p6qm-5gr7：inconsistent CORS matching
+  - GHSA-hxwh-jpp2-84pm：Access-Control-Allow-Private-Network header default
+- `requests==2.32.3` → `requests==2.33.0`
+  - GHSA-gc5v-m9x4-r6x2：insecure temp file reuse in extract_zipped_paths()
+  - GHSA-9hjg-9r4m-mvj7：.netrc credentials leak via malicious URLs
+- `python-dotenv==1.0.1` → `python-dotenv==1.2.2`
+  - GHSA-mf9w-mj56-hr94：symlink following in set_key allows arbitrary file overwrite
+- `Pillow==11.1.0` → `Pillow==12.2.0`
+  - GHSA-pwv6-vv43-88gr：OOB Write with Invalid PSD Tile Extents
+  - GHSA-r73j-pqj5-w3x7：PDF Parsing Trailer Infinite Loop
+  - GHSA-wjx4-4jcj-g98j：integer overflow when processing fonts
+  - GHSA-whj4-6x5x-4v2j：FITS GZIP decompression bomb
+  - GHSA-cfh3-3jmp-rvhc：out-of-bounds write when loading PSD images
+- `bleach==6.1.0` → `bleach==6.4.0`
+  - GHSA-gj48-438w-jh9v：dangerous URI schemes in allowed formaction attributes
+  - GHSA-8rfp-98v4-mmr6：disallowed URI schemes with Unicode > U+00A0
+- `mistune==3.2.1` → `mistune==3.3.0`
+  - GHSA-qcq2-496w-v96p：Potential DoS via quadratic-time parsing in parse_link_text
+
+#### 文件更新
+- 同步更新 `requirements.txt` 与 `requirements-prod.txt` 中上述依赖的 pinned 版本。
+
+**验证**
+- `pytest`：2130 passed，覆盖率 81.55%
+- `ruff check app/ tests/`：通过
+- `mypy app/`：通过
+
+**相关文档**
+- `requirements.txt`
+- `requirements-prod.txt`
+
+---
+
 ## v0.9.86 - 2026-07-16
 
 ### fix(cron): 规范化 cron 端点位置与错误处理

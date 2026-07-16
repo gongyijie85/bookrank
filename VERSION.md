@@ -1,11 +1,49 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.85
+**当前版本**：v0.9.87
 **发布日期**：2026-07-16
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.87 (2026-07-16) — 依赖安全漏洞修复（Dependabot 36 个 alert）
+
+**背景**：GitHub Dependabot 在默认分支检测到 36 个依赖漏洞（涉及 7 个直接依赖）。本次升级将这些依赖更新到已修复版本，消除已知安全风险。
+
+**关键优化**
+- **Werkzeug**：3.1.0 → 3.1.6（修复 Windows 特殊设备名 safe_join 绕过漏洞）
+- **Flask-CORS**：4.0.1 → 6.0.0（修复路径匹配正则、大小写敏感、URI 解码相关 CVE）
+- **requests**：2.32.3 → 2.33.0（修复临时文件复用与 .netrc 凭证泄露漏洞）
+- **python-dotenv**：1.0.1 → 1.2.2（修复 set_key 符号链接跟随导致的任意文件覆盖）
+- **Pillow**：11.1.0 → 12.2.0（修复 PSD OOB 写入、PDF 解析死循环、字体整数溢出、FITS GZIP 解压炸弹等）
+- **bleach**：6.1.0 → 6.4.0（修复 formaction 属性与 Unicode URI 方案消毒绕过）
+- **mistune**：3.2.1 → 3.3.0（修复 parse_link_text 二次时间解析 DoS）
+- **同步更新**：`requirements.txt` 与 `requirements-prod.txt` 保持一致。
+
+**质量验证**
+- `pytest`：2130 passed，覆盖率 81.55%
+- `ruff check app/ tests/`：通过
+- `mypy app/`：通过
+
+---
+
+### v0.9.86 (2026-07-16) — cron 端点规范化与周报触发兜底
+
+**背景**：将 cron 端点纳入 API 路由子模块规范，并增强 Render 免费层冷启动时的周报触发可靠性。
+
+**关键优化**
+- **cron 端点迁移**：从 `app/routes/cron.py` 迁移到 `app/routes/api/cron.py`，统一使用 `@handle_api_errors` 异常处理。
+- **Blueprint 整理**：`app/__init__.py`、`app/routes/__init__.py`、`app/routes/api/__init__.py` 同步更新注册逻辑，移除独立 `cron_bp`。
+- **触发工作流增强**：`.github/workflows/trigger-weekly-report.yml` 改用 `RENDER_BASE_URL` 变量，新增唤醒 + 重试机制，保留周五/六/日三次触发兜底。
+- **测试补齐**：新增 `tests/test_cron_routes.py`，覆盖认证失败、无认证、成功触发、跳过/冷却等场景。
+- **类型配置**：`pyproject.toml` 将 `bleach.*` 加入 `ignore_missing_imports`。
+
+**质量验证**
+- `ruff check app/ tests/`：通过
+- `mypy app/`：通过
+
+---
 
 ### v0.9.85 (2026-07-16) — v0.9.84 收尾与仓库整理
 

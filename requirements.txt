@@ -6,10 +6,10 @@
 
 # 核心框架
 Flask==3.1.3
-Werkzeug==3.1.0
+Werkzeug==3.1.6
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.7
-Flask-CORS==4.0.1
+Flask-CORS==6.0.0
 Flask-Babel==4.0.0
 
 # ORM 和数据库
@@ -18,10 +18,10 @@ alembic==1.14.0
 psycopg2-binary==2.9.10
 
 # 配置和环境
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # HTTP 客户端（只保留 requests，httpx 未使用）
-requests==2.32.3
+requests==2.33.0
 
 # 系统监控
 psutil>=5.9.0
@@ -33,7 +33,7 @@ gunicorn==23.0.0
 beautifulsoup4==4.13.0
 
 # HTML 白名单净化（用于安全展示用户/外部 HTML 内容）
-bleach==6.1.0
+bleach==6.4.0
 
 # AI 翻译（智谱AI主用，deep-translator备用回退）
 zhipuai==2.1.5.20250825
@@ -48,10 +48,10 @@ APScheduler==3.11.0
 # 导出功能（PDF/Excel）
 fpdf2==2.7.9
 openpyxl==3.1.2
-Pillow==11.1.0
+Pillow==12.2.0
 
 # Markdown 渲染
-mistune==3.2.1
+mistune==3.3.0
 
 # 监控
 sentry-sdk==2.20.0
