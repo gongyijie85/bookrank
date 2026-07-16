@@ -54,7 +54,7 @@ mistune==3.3.0
 bleach==6.4.0
 
 # 数据验证（API路由层使用）
-pydantic>=2.10.0
+pydantic>=2.13.4
 
 # 监控
 sentry-sdk==2.20.0
