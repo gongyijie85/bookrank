@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.9.85 - 2026-07-16
+
+### chore(repo): v0.9.84 收尾与仓库整理（Agent 文档 / 审计交付物 / GitHub CLI 缓存忽略 / Private Vulnerability Reporting 确认）
+
+**背景**：v0.9.84 OSS 社区成熟度升级后，仓库遗留未跟踪的 Agent 文档、审计交付物和 GitHub CLI 缓存；`SECURITY.md` 中声明的 Private Vulnerability Reporting 需要通过仓库设置手动启用。本次整理补齐这些遗留项，使仓库状态干净并与文档声明一致。
+
+**改动**
+
+#### Private Vulnerability Reporting 确认
+- 通过 `gh api repos/gongyijie85/bookrank/private-vulnerability-reporting` 验证已启用，返回 `{"enabled":true}`。
+- 与 `SECURITY.md` 中的报告方式声明保持一致。
+
+#### GitHub CLI 缓存忽略
+- `.gitignore` 新增 `.gh-cache/`，避免本地 `gh` 命令产生的缓存目录被误提交。
+
+#### Agent 文档入库
+- 提交 `AGENTS.md`：说明 Issue tracker、Triage labels、Domain docs 的入口。
+- 提交 `docs/agents/domain.md`：Agent 探索代码库前应阅读的文档规范。
+- 提交 `docs/agents/issue-tracker.md`：GitHub Issues 操作约定（创建、查看、列表、评论、标签、关闭）。
+- 提交 `docs/agents/triage-labels.md`：五类标准 triage 标签与仓库实际标签的映射表。
+
+#### 审计交付物归档
+- 提交 `deliverables/bookrank-audit-20260708/`：
+  - `audit-data.json`：v0.9.83 同事反馈 P0-P3 优化的全量审计数据。
+  - 三端截图（桌面端/平板端/移动端）覆盖首页、奖项、新书、出版社、周报 5 个页面。
+
+**验证**
+- `ruff check app/ tests/`：未改动源码，保持通过
+- `mypy app/`：未改动源码，保持通过
+- `git status`：除已忽略的 `.gh-cache/` 外无未跟踪文件
+
+**相关文档**
+- `AGENTS.md`、`docs/agents/domain.md`、`docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md`
+- `deliverables/bookrank-audit-20260708/audit-data.json`
+- `SECURITY.md`
+
+---
+
 ## v0.9.84 - 2026-07-13
 
 ### feat(oss): 社区成熟度升级（社区文件 / GitHub 配置 / Docker / Issue #8 修复）

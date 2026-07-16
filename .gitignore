@@ -120,3 +120,6 @@ open-source-tools/
 # Feedback & review artifacts (working inputs, not source code)
 feedback/
 site-review-report.html
+
+# GitHub CLI cache
+.gh-cache/

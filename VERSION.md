@@ -1,11 +1,28 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.84
-**发布日期**：2026-07-13
+**当前版本**：v0.9.85
+**发布日期**：2026-07-16
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.85 (2026-07-16) — v0.9.84 收尾与仓库整理
+
+**背景**：v0.9.84 OSS 社区成熟度升级后，仓库中存在未跟踪的 Agent 文档、审计交付物和 GitHub CLI 缓存；同时需要手动确认 Private Vulnerability Reporting 已启用。本次整理补齐这些遗留项，使仓库状态干净。
+
+**关键优化**
+- **Private Vulnerability Reporting 确认**：通过 `gh api repos/gongyijie85/bookrank/private-vulnerability-reporting` 验证已启用（返回 `{"enabled":true}`）。
+- **GitHub CLI 缓存忽略**：在 `.gitignore` 新增 `.gh-cache/`，防止本地 `gh` 命令缓存被误提交。
+- **Agent 文档入库**：提交 `AGENTS.md` 与 `docs/agents/` 下 `domain.md`、`issue-tracker.md`、`triage-labels.md`，为 Agent 工作流提供规范。
+- **审计交付物归档**：提交 `deliverables/bookrank-audit-20260708/`（含桌面端/平板端/移动端三端截图与 `audit-data.json`），归档 v0.9.83 同事反馈 P0-P3 优化的审计产物。
+
+**质量验证**
+- `ruff check app/ tests/`：未改动源码，保持通过
+- `mypy app/`：未改动源码，保持通过
+- `git status`：除已忽略缓存外无未跟踪文件
+
+---
 
 ### v0.9.84 (2026-07-13) — OSS 社区成熟度升级（社区文件 / GitHub 配置 / Docker / Issue #8 修复）
 
