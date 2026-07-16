@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.9.86 - 2026-07-16
+
+### fix(cron): 规范化 cron 端点位置与错误处理
+
+**修复内容**：
+- `app/routes/api/cron.py`：
+  - 将 cron 端点从 `app/routes/cron.py` 迁移到 `app/routes/api/cron.py`，符合 API 路由拆分规范
+  - `trigger_weekly_report` 新增 `@handle_api_errors` 装饰器，统一异常处理与错误响应格式
+  - 移除路由层裸 `try/except Exception`，统一委托给异常装饰器
+- `app/__init__.py`、`app/routes/__init__.py`、`app/routes/api/__init__.py`：
+  - 更新 blueprint 导入与注册，移除独立的 `cron_bp`
+- `.github/workflows/trigger-weekly-report.yml`：
+  - URL 改为从 GitHub vars 的 `RENDER_BASE_URL` 读取，默认回退 Render 生产地址
+  - 保留每周五/六/日 08:00 UTC 三次触发兜底
+  - 新增唤醒 + 重试机制，解决 Render 免费层冷启动导致的周报触发失败
+- `tests/test_cron_routes.py`：
+  - 新增 cron 端点测试，覆盖认证失败、无认证、成功触发、跳过/冷却等场景
+- `pyproject.toml`：
+  - 将 `bleach.*` 加入 `ignore_missing_imports`，与项目其他外部库保持一致
+
+---
+
 ## v0.9.85 - 2026-07-16
 
 ### chore(repo): v0.9.84 收尾与仓库整理（Agent 文档 / 审计交付物 / GitHub CLI 缓存忽略 / Private Vulnerability Reporting 确认）
