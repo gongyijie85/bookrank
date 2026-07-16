@@ -287,6 +287,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.86 - 依赖安全漏洞修复（2026-07-16）：修复 GitHub Dependabot 报告的 36 个漏洞，升级 Werkzeug、Flask-CORS、requests、python-dotenv、Pillow、bleach、mistune 至安全版本；同步更新 `requirements.txt` 与 `requirements-prod.txt`；2130 passed，覆盖率 81.55%；Ruff / mypy 通过。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.85 - v0.9.84 收尾与仓库整理（2026-07-16）：确认 GitHub Private Vulnerability Reporting 已启用；将 `.gh-cache/` 加入 `.gitignore`；提交 v0.9.84 遗留的 Agent 文档（`AGENTS.md`、`docs/agents/`）；归档 v0.9.83 审计交付物（`deliverables/bookrank-audit-20260708/` 含三端截图与 `audit-data.json`）。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.84 - OSS 社区成熟度升级（2026-07-13）：新增 MIT `LICENSE`、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`、`ROADMAP.md`；新增 GitHub Issue Forms、PR 模板、Dependabot 与 CodeQL 配置；修复 `Dockerfile` 引用已删除 `build.py` 的问题并新增 `compose.yaml` 支持一键启动；修复 Issue #8，将 NYT 频率检查放到已安装项目依赖后执行并保留不同退出语义；修正 README badge、License 与在线链接。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.83 - 同事反馈 P3 优化（2026-07-07）：基于 ponytail-audit 清理 dead code（删除 8 个 `scripts/_*.py`、周报邮件函数、`build.py`、全部 minified 产物）；移除 `rcssmin` 构建依赖；手写 LRU cache 统一为 `functools.lru_cache`；合并 `safe_execute` / `safe_call` / `safe_service_call` 装饰器；新增通用 `get_service` / `require_service` 统一服务访问；`APIResponse` 与 `PublicAPIResponse` 合并为带 `include_timestamp` 参数的统一响应；移除已失效的 SMTP/邮件测试；2164 passed，覆盖率 81.36%
