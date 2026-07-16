@@ -146,9 +146,13 @@ class TestSecurityHeaders:
         assert 'Content-Security-Policy' in response.headers
 
     def test_csp_nonce_injected(self, client):
+        """v0.6.0+ 决策：CSP 使用 per-request nonce，移除 unsafe-inline（详见反馈优化计划 P0-3）。
+        此处验证 nonce 已注入且 script-src / style-src 不再包含 unsafe-inline。"""
         response = client.get('/health')
         csp = response.headers.get('Content-Security-Policy', '')
-        assert 'nonce-' in csp
+        assert 'unsafe-inline' not in csp
+        assert "script-src 'self' 'nonce-" in csp
+        assert "style-src 'self' 'nonce-" in csp
 
 
 class TestGetLocale:

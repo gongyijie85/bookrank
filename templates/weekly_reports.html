@@ -4,6 +4,14 @@
 {% block og_title %}{{ _('畅销书周报') }} - BookRank{% endblock %}
 {% block twitter_title %}{{ _('畅销书周报') }} - BookRank{% endblock %}
 
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('畅销书周报'), 'url': url_for('main.weekly_reports')}
+], csp_nonce()) }}
+{% endblock %}
+
 {% block content %}
 <main class="main-content">
     <div class="page-header">
@@ -13,6 +21,37 @@
         </h1>
         <p class="page-description">{{ _('每周更新') }}，{{ _('总结纽约时报畅销书榜单的变化趋势') }}</p>
     </div>
+
+    {% if is_generating %}
+    <div id="generating-banner" role="status" aria-live="polite"
+         style="background:#fef3c7;border-left:4px solid #f59e0b;
+                padding:12px 16px;margin-bottom:16px;border-radius:6px;
+                color:#78350f;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:18px;line-height:1;" aria-hidden="true">⚙️</span>
+        <span>{{ _('本周周报正在生成中（调用纽约时报 API），约 1-2 分钟后请刷新页面。') }}</span>
+    </div>
+    <script>
+    (function() {
+        var banner = document.getElementById('generating-banner');
+        if (!banner) return;
+        var interval = setInterval(function() {
+            fetch('/api/weekly-report/status', {cache: 'no-store'})
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d && d.has_current_week) {
+                        clearInterval(interval);
+                        location.reload();
+                    }
+                })
+                .catch(function(e) {
+                    if (window.console && console.debug) {
+                        console.debug('weekly-report status poll failed', e);
+                    }
+                });
+        }, 30000);
+    })();
+    </script>
+    {% endif %}
 
     <div class="content-section">
         <!-- 筛选和搜索功能 -->

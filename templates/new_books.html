@@ -5,6 +5,14 @@
 {% block og_title %}{{ _('新书速递') }} - BookRank{% endblock %}
 {% block twitter_title %}{{ _('新书速递') }} - BookRank{% endblock %}
 
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('新书速递'), 'url': url_for('main.new_books')}
+], csp_nonce()) }}
+{% endblock %}
+
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/new-books.css') }}">
 {% endblock %}
@@ -12,33 +20,33 @@
 {% block sidebar %}
 <div class="sidebar-section">
     <h3 class="sidebar-title">{{ _('导航') }}</h3>
-    <ul class="sidebar-menu" role="menu">
-        <li class="sidebar-item" role="none">
-            <a href="{{ url_for('main.index') }}" class="sidebar-link" role="menuitem">
+    <ul class="sidebar-menu">
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.index') }}" class="sidebar-link">
                 <svg class="icon" width="18" height="18"><use href="#icon-fire"/></svg>
                 <span>{{ _('畅销书榜') }}</span>
             </a>
         </li>
-        <li class="sidebar-item" role="none">
-            <a href="{{ url_for('main.awards') }}" class="sidebar-link" role="menuitem">
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.awards') }}" class="sidebar-link">
                 <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
                 <span>{{ _('获奖书单') }}</span>
             </a>
         </li>
-        <li class="sidebar-item" role="none">
-            <a href="{{ url_for('main.publishers') }}" class="sidebar-link" role="menuitem">
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.publishers') }}" class="sidebar-link">
                 <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
                 <span>{{ _('出版社导航') }}</span>
             </a>
         </li>
-        <li class="sidebar-item" role="none">
-            <a href="{{ url_for('main.new_books') }}" class="sidebar-link active" role="menuitem" aria-current="page">
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.new_books') }}" class="sidebar-link active" aria-current="page">
                 <svg class="icon" width="18" height="18"><use href="#icon-sparkles"/></svg>
                 <span>{{ _('新书速递') }}</span>
             </a>
         </li>
-        <li class="sidebar-item" role="none">
-            <a href="{{ url_for('main.weekly_reports') }}" class="sidebar-link" role="menuitem">
+        <li class="sidebar-item">
+            <a href="{{ url_for('main.weekly_reports') }}" class="sidebar-link">
                 <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
                 <span>{{ _('畅销书周报') }}</span>
             </a>
@@ -47,16 +55,17 @@
 </div>
 
 <div class="sidebar-section">
-    <h3 class="sidebar-title">{{ _('出版社') }}</h3>
-    <ul class="sidebar-menu" role="menu">
+    <h3 class="sidebar-title" data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</h3>
+    <ul class="sidebar-menu">
         {% for pub in publishers %}
-        <li class="sidebar-item" role="none">
+        <li class="sidebar-item">
             <a href="#"
                class="sidebar-link {% if selected_publisher == pub.id %}active{% endif %}"
-               role="menuitem"
-               data-filter-publisher="{{ pub.id }}">
+               data-filter-publisher="{{ pub.id }}"
+               data-pub-name-zh="{{ pub.name }}"
+               data-pub-name-en="{{ pub.name_en }}">
                 <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                <span>{{ pub.name }}</span>
+                <span class="pub-name">{{ pub.name }}</span>
                 <span class="badge">{{ publisher_book_counts.get(pub.id, 0) }}</span>
             </a>
         </li>
@@ -68,39 +77,42 @@
 {% block content %}
 <div class="new-books-header">
     <h1><svg class="icon text-gold" width="24" height="24"><use href="#icon-star"/></svg> {{ _('新书速递') }}</h1>
-    <p style="color: var(--text-secondary);">{{ _('追踪国际大型出版社最新出版物') }}</p>
+    <p data-i18n="nb_header_subtitle" style="color: var(--text-secondary);">{{ _('追踪国际大型出版社最新出版物') }}</p>
 
     <div class="stats-bar">
         <div class="stat-item">
             <svg class="icon" width="20" height="20"><use href="#icon-book"/></svg>
-            <span>{{ _('共') }} <strong>{{ stats.total_books }}</strong> {{ _('本新书') }}</span>
+            <span><span data-i18n="nb_total_pre">{{ _('共') }}</span> <strong>{{ stats.total_books }}</strong> <span data-i18n="nb_total_new_books_suffix">{{ _('本新书') }}</span></span>
         </div>
         <div class="stat-item">
             <svg class="icon" width="20" height="20"><use href="#icon-building"/></svg>
-            <span><strong>{{ stats.active_publishers }}</strong> {{ _('家出版社') }}</span>
+            <span><strong>{{ stats.active_publishers }}</strong> <span data-i18n="nb_publishers_suffix">{{ _('家出版社') }}</span></span>
         </div>
         <div class="stat-item">
             <svg class="icon" width="20" height="20"><use href="#icon-calendar"/></svg>
-            <span>{{ _('近7天出版') }} <strong>{{ stats.recent_books_7d }}</strong> {{ _('本') }}</span>
+            <span><span data-i18n="nb_recent_30d_label">{{ _('近30天出版') }}</span> <strong>{{ stats.recent_books_30d }}</strong> <span>{{ _('本') }}</span></span>
         </div>
     </div>
 </div>
 
-<div class="filter-bar">
+<form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
     <div class="filter-group">
-        <label for="publisher-filter">{{ _('出版社') }}：</label>
-        <select id="publisher-filter" aria-label="{{ _('选择出版社') }}">
-            <option value="">{{ _('全部出版社') }}</option>
+        <label for="publisher-filter"><span data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</span>：</label>
+        <select id="publisher-filter" name="publisher" aria-label="{{ _('选择出版社') }}">
+            <option value="" data-i18n="nb_filter_publisher_all" data-pub-name-zh="{{ _('全部出版社') }}" data-pub-name-en="All publishers">{{ _('全部出版社') }}</option>
             {% for pub in publishers %}
-            <option value="{{ pub.id }}" {% if selected_publisher == pub.id %}selected{% endif %}>{{ pub.name }}</option>
+            <option value="{{ pub.id }}"
+                    {% if selected_publisher == pub.id %}selected{% endif %}
+                    data-pub-name-zh="{{ pub.name }}"
+                    data-pub-name-en="{{ pub.name_en }}">{{ pub.name }}</option>
             {% endfor %}
         </select>
     </div>
 
     <div class="filter-group">
-        <label for="category-filter">{{ _('分类') }}：</label>
-        <select id="category-filter" aria-label="{{ _('选择分类') }}">
-            <option value="">{{ _('全部分类') }}</option>
+        <label for="category-filter"><span data-i18n="nb_filter_category_label">{{ _('分类') }}</span>：</label>
+        <select id="category-filter" name="category" aria-label="{{ _('选择分类') }}">
+            <option value="" data-i18n="nb_filter_category_all">{{ _('全部分类') }}</option>
             {% for cat in categories %}
             <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name }} ({{ cat.count }})</option>
             {% endfor %}
@@ -108,38 +120,49 @@
     </div>
 
     <div class="filter-group">
-        <label for="days-filter">{{ _('时间') }}：</label>
-        <select id="days-filter" aria-label="{{ _('选择时间范围') }}">
-            <option value="7" {% if selected_days == 7 %}selected{% endif %}>{{ _('最近7天出版') }}</option>
-            <option value="30" {% if selected_days == 30 %}selected{% endif %}>{{ _('最近30天出版') }}</option>
-            <option value="90" {% if selected_days == 90 %}selected{% endif %}>{{ _('最近90天出版') }}</option>
-            <option value="180" {% if selected_days == 180 %}selected{% endif %}>{{ _('最近半年出版') }}</option>
-            <option value="365" {% if selected_days == 365 %}selected{% endif %}>{{ _('最近一年出版') }}</option>
+        <label for="days-filter"><span data-i18n="nb_filter_time_label">{{ _('时间') }}</span>：</label>
+        <select id="days-filter" name="days" aria-label="{{ _('选择时间范围') }}">
+            <option value="7" {% if selected_days == 7 %}selected{% endif %} data-i18n="nb_time_7">{{ _('最近7天出版') }}</option>
+            <option value="30" {% if selected_days == 30 %}selected{% endif %} data-i18n="nb_time_30">{{ _('最近30天出版') }}</option>
+            <option value="90" {% if selected_days == 90 %}selected{% endif %} data-i18n="nb_time_90">{{ _('最近90天出版') }}</option>
+            <option value="180" {% if selected_days == 180 %}selected{% endif %} data-i18n="nb_time_180">{{ _('最近半年出版') }}</option>
+            <option value="365" {% if selected_days == 365 %}selected{% endif %} data-i18n="nb_time_365">{{ _('最近一年出版') }}</option>
         </select>
     </div>
 
     <div class="search-box">
         <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
-        <input type="text" id="search-input" aria-label="{{ _('搜索新书') }}" placeholder="{{ _('搜索书名、作者、') }}ISBN..." value="{{ search_query }}">
+        <input type="search" id="search-input" name="search" aria-label="{{ _('搜索新书') }}" data-i18n-aria-label="nb_search_label" data-i18n-placeholder="nb_search_placeholder" placeholder="{{ _('搜索书名、作者、') }}ISBN..." value="{{ search_query }}">
+    </div>
+
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-primary" id="btn-search" aria-label="{{ _('搜索') }}" data-i18n="nb_search_btn">
+            <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
+            {{ _('搜索') }}
+        </button>
+        <button type="button" class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置') }}" data-i18n="nb_reset_btn">
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
+            {{ _('重置') }}
+        </button>
     </div>
 
     <div class="toolbar">
-        <button class="btn btn-outline" id="btn-export" title="{{ _('导出') }}CSV">
+        <button type="button" class="btn btn-outline" id="btn-export" title="{{ _('导出') }}CSV">
             <svg class="icon" width="18" height="18"><use href="#icon-file-excel"/></svg>
-            <span class="hide-mobile">{{ _('导出') }}</span>
+            <span class="hide-mobile" data-i18n="nb_export_btn">{{ _('导出') }}</span>
         </button>
         {% if config.get('ENABLE_PUBLIC_NEW_BOOK_SYNC') %}
-        <button class="btn btn-primary" id="sync-btn">
+        <button type="button" class="btn btn-primary" id="sync-btn">
             <svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg>
-            <span class="hide-mobile">{{ _('同步新书') }}</span>
+            <span class="hide-mobile" data-i18n="nb_sync_btn">{{ _('同步新书') }}</span>
         </button>
         {% endif %}
     </div>
-</div>
+</form>
 
 <div class="result-summary" id="result-summary" aria-live="polite">
-    <span>{{ _('当前结果') }} <strong id="result-summary-count">{{ total }}</strong> {{ _('本') }}</span>
-    <span class="summary-muted">{{ _('按出版日期筛选最近') }} <strong id="result-summary-days">{{ selected_days }}</strong> {{ _('天已出版图书') }}</span>
+    <span><span data-i18n="nb_result_summary">{{ _('当前结果') }}</span> <strong id="result-summary-count">{{ total }}</strong> <span data-i18n="nb_result_unit">{{ _('本') }}</span></span>
+    <span class="summary-muted" data-i18n="nb_filtered_by_date" data-i18n-params-days="{{ selected_days }}">{{ _('按出版日期筛选最近') }} <strong id="result-summary-days">{{ selected_days }}</strong> {{ _('天已出版图书') }}</span>
 </div>
 
 <div id="sync-status" class="sync-status" style="display: none;"></div>
@@ -183,12 +206,12 @@
 {% endif %}
 
 {% else %}
-<div class="empty-state">
+<div class="empty-state" id="empty-state">
     <svg class="icon" width="48" height="48"><use href="#icon-book-open"/></svg>
-    <h3>{{ _('暂无新书数据') }}</h3>
-    <p>{{ _('当前出版时间范围暂无新书，可放宽时间范围或稍后刷新') }}</p>
+    <h3 data-i18n="nb_empty_title">{{ _('暂无新书数据') }}</h3>
+    <p data-i18n="nb_empty_desc">{{ _('当前出版时间范围暂无新书，可放宽时间范围或稍后刷新') }}</p>
     <button class="btn btn-primary" id="btn-refresh-empty" style="margin-top: 1rem;">
-        <svg class="icon" width="18" height="18"><use href="#icon-refresh"/></svg> {{ _('刷新') }}
+        <svg class="icon" width="18" height="18"><use href="#icon-refresh"/></svg> <span data-i18n="nb_empty_refresh">{{ _('刷新') }}</span>
     </button>
 </div>
 {% endif %}
@@ -232,12 +255,85 @@ window.addEventListener('languagechange', function(e) {
     if (typeof applyPageTranslation === 'function') {
         applyPageTranslation(currentLanguage);
     }
-    if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
-        BookI18n.applyLanguage(currentLanguage);
-    } else {
+    applyNewBooksLanguage(currentLanguage);
+    // 已加载过的卡片直接重渲；否则拉取首批（避免多余 API 请求）
+    const booksContainer = document.getElementById('books-container');
+    if (booksContainer && booksContainer.querySelector('.book-card')) {
+        if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+            BookI18n.applyLanguage(currentLanguage);
+        } else {
+            loadBooks();
+        }
+    } else if (typeof loadBooks === 'function') {
         loadBooks();
     }
 });
+
+/**
+ * 新书页 i18n 切换：刷新 publisher 名称、select option 文本等
+ * applyPageTranslation 已处理 data-i18n 元素、placeholder、title、aria-label，
+ * 这里主要处理自定义的 data-pub-name-* 属性。
+ */
+function applyNewBooksLanguage(lang) {
+    // 1. 通用化处理：所有 [data-pub-name-zh] 元素（侧边栏链接 / 详情页 meta-value）
+    if (typeof BookI18n !== 'undefined' && BookI18n.applyPublisherLanguage) {
+        BookI18n.applyPublisherLanguage(lang);
+    } else {
+        // 退化：本地实现
+        document.querySelectorAll('[data-pub-name-zh]').forEach(function(el) {
+            const nameZh = el.getAttribute('data-pub-name-zh') || '';
+            const nameEn = el.getAttribute('data-pub-name-en') || nameZh;
+            // 侧边栏链接有 .pub-name 子元素时优先用子元素
+            const nameEl = el.querySelector('.pub-name');
+            if (nameEl) {
+                nameEl.textContent = lang === 'en' ? nameEn : nameZh;
+            } else {
+                el.textContent = lang === 'en' ? nameEn : nameZh;
+            }
+        });
+    }
+
+    // 2. 书籍卡片内的 publisher 名称（保留 SVG 图标）
+    document.querySelectorAll('.book-publisher[data-pub-name-zh]').forEach(function(el) {
+        const nameZh = el.getAttribute('data-pub-name-zh') || '';
+        const nameEn = el.getAttribute('data-pub-name-en') || nameZh;
+        // 只更新 SVG 之后的文本节点
+        const textNode = Array.from(el.childNodes).find(
+            n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+        );
+        const text = lang === 'en' ? nameEn : nameZh;
+        if (textNode) {
+            textNode.textContent = ' ' + text;
+        }
+    });
+
+    // 3. 重新加载已渲染的卡片标题/作者/简介（BookI18n 未持有卡片时回退重渲）
+    const booksContainer = document.getElementById('books-container');
+    if (booksContainer && booksContainer.querySelector('.book-card')) {
+        if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
+            // 触发 BookI18n 遍历所有 .book-card，更新 .book-title / .book-author / .book-description
+            BookI18n.applyLanguage(lang);
+        } else {
+            // 退化：清空 BookI18n 后从容器内重抓数据再注册
+            const cards = booksContainer.querySelectorAll('.book-card');
+            const books = [];
+            cards.forEach(function(card) {
+                const titleEl = card.querySelector('.book-title');
+                const isbn = card.getAttribute('data-isbn') || (titleEl && titleEl.getAttribute('data-isbn')) || '';
+                const en = titleEl ? titleEl.getAttribute('data-en') : '';
+                const zh = titleEl ? titleEl.getAttribute('data-zh') : '';
+                const authorEl = card.querySelector('.book-author');
+                const author = authorEl ? authorEl.getAttribute('data-en') || authorEl.textContent : '';
+                books.push({
+                    isbn13: isbn, title: en, title_zh: zh, author: author
+                });
+            });
+            BookI18n.clear();
+            BookI18n.registerAll(books);
+            BookI18n.applyLanguage(lang);
+        }
+    }
+}
 
 function debouncedSearch() {
     clearTimeout(searchTimer);
@@ -355,9 +451,8 @@ function renderBooks(data) {
     if (typeof BookI18n !== 'undefined') {
         BookI18n.clear();
         BookI18n.registerAll(books);
-        if (currentLanguage === 'zh') {
-            BookI18n.applyLanguage('zh');
-        }
+        // 无条件按当前语言 apply（不再依赖 SSR 已渲染的英文）
+        BookI18n.applyLanguage(currentLanguage);
     } else {
         if (typeof applyPageTranslation === 'function') {
             applyPageTranslation(currentLanguage);
@@ -371,21 +466,28 @@ function renderBookCard(book) {
         : '<div class="book-cover-placeholder"><svg class="icon" style="width:3rem;height:3rem"><use href="#icon-book"/></svg></div>';
 
     const titleZh = book.title_zh || book.title;
-    const titleDisplay = currentLanguage === 'zh' ? titleZh : book.title;
+    const titleDisplay = currentLanguage === 'zh' ? (titleZh || book.title || '{{ _('未知书名') }}') : (book.title || titleZh || '{{ _('Unknown Title') }}');
+    const authorDisplay = book.author || '{{ _('未知作者') }}';
 
-    let tagsHtml = '';
-    if (book.category || book.publication_date) {
-        tagsHtml = '<div class="book-tags">';
-        if (book.category) {
-            tagsHtml += '<span class="book-tag tag-category">' + escapeHtml(book.category) + '</span>';
-        }
-        if (book.publication_date) {
-            const pubDate = formatPublicationDate(book.publication_date);
-            tagsHtml += '<span class="book-tag tag-date" title="{{ _('出版日期') }} ' + escapeHtml(pubDate) + '">' +
-                '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + escapeHtml(pubDate) + '</span>';
-        }
-        tagsHtml += '</div>';
+    const pubNameZh = book.publisher_name || '{{ _('未知') }}';
+    const pubNameEn = book.publisher_name_en || pubNameZh;
+    const pubNameDisplay = currentLanguage === 'zh' ? pubNameZh : pubNameEn;
+
+    let tagsHtml = '<div class="book-tags">';
+    if (book.category) {
+        tagsHtml += '<span class="book-tag tag-category">' + escapeHtml(book.category) + '</span>';
+    } else {
+        tagsHtml += '<span class="book-tag tag-category tag-muted">{{ _("分类未公开") }}</span>';
     }
+    if (book.publication_date) {
+        const pubDate = formatPublicationDate(book.publication_date);
+        tagsHtml += '<span class="book-tag tag-date" title="{{ _("出版日期") }} ' + escapeHtml(pubDate) + '">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + escapeHtml(pubDate) + '</span>';
+    } else {
+        tagsHtml += '<span class="book-tag tag-date tag-muted">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>{{ _("日期未公开") }}</span>';
+    }
+    tagsHtml += '</div>';
 
     const isbnHtml = book.isbn13
         ? '<p class="book-isbn">' + escapeHtml(book.isbn13) + '</p>'
@@ -398,9 +500,9 @@ function renderBookCard(book) {
     return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + escapeHtml(book.isbn13 || book.isbn10 || '') + '">' +
         '<div class="book-cover-wrapper">' + coverHtml + '</div>' +
         '<div class="book-info">' +
-        '<div class="book-title" title="' + escapeHtml(titleDisplay) + '" data-en="' + escapeHtml(book.title) + '" data-zh="' + escapeHtml(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '">' + escapeHtml(titleDisplay) + '</div>' +
-        '<div class="book-author" data-en="' + escapeHtml(book.author) + '">' + escapeHtml(book.author) + '</div>' +
-        '<div class="book-meta"><span class="book-publisher"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + escapeHtml(book.publisher_name || '{{ _('未知') }}') + '</span>' + priceHtml + '</div>' +
+        '<div class="book-title" title="' + escapeHtml(titleDisplay) + '" data-en="' + escapeHtml(book.title) + '" data-zh="' + escapeHtml(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="/new-book/' + book.id + '">' + escapeHtml(titleDisplay) + '</a></div>' +
+        '<div class="book-author" data-en="' + escapeHtml(book.author) + '">' + escapeHtml(authorDisplay) + '</div>' +
+        '<div class="book-meta"><span class="book-publisher" data-pub-name-zh="' + escapeHtml(pubNameZh) + '" data-pub-name-en="' + escapeHtml(pubNameEn) + '"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + escapeHtml(pubNameDisplay) + '</span>' + priceHtml + '</div>' +
         tagsHtml + isbnHtml +
         '</div></div>';
 }
@@ -526,9 +628,9 @@ async function translateSingleBook(card, isbn) {
 
 async function translateSingleBookByIsbn(isbn) {
     if (!isbn) return;
-    var card = document.querySelector('.book-card .book-title[data-isbn="' + isbn + '"]');
+    const card = document.querySelector('.book-card .book-title[data-isbn="' + isbn + '"]');
     if (!card) return;
-    var bookCard = card.closest('.book-card');
+    const bookCard = card.closest('.book-card');
     if (!bookCard) return;
     await translateSingleBook(bookCard, isbn);
 }
@@ -596,6 +698,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sync-btn')?.addEventListener('click', syncNewBooks);
     document.getElementById('btn-refresh-empty')?.addEventListener('click', function() { location.reload(); });
 
+    // {{ _('表单回车提交与重置') }}
+    document.getElementById('filter-form')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        applyFilter();
+    });
+    document.getElementById('btn-clear')?.addEventListener('click', function() {
+        window.location.href = '{{ url_for("main.new_books") }}';
+    });
+
     // {{ _('侧边栏出版社筛选事件委托') }}
     document.addEventListener('click', function(e) {
         const link = e.target.closest('[data-filter-publisher]');
@@ -634,6 +745,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!retryBtn) return;
         location.reload();
     });
+
+    // {{ _('首次加载时根据 currentLanguage 立即应用 publisher 名称切换') }}
+    // SSR 模板是按服务器端 lang 渲染的，客户端需用 localStorage 的 lang 校正
+    if (currentLanguage && currentLanguage !== 'zh') {
+        applyNewBooksLanguage(currentLanguage);
+    }
 });
 </script>
 {% endblock %}

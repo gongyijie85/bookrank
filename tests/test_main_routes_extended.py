@@ -437,8 +437,14 @@ class TestNewBookDetail:
     def test_book_found_needs_translation(self, MockNBS, mock_trans, mock_bg, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = None
         mock_book.description_zh = None
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -453,8 +459,14 @@ class TestNewBookDetail:
     def test_book_found_already_translated(self, MockNBS, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = '已翻译'
         mock_book.description_zh = '已翻译描述'
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -467,8 +479,14 @@ class TestNewBookDetail:
     def test_book_found_no_translation_service(self, MockNBS, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = None
         mock_book.description_zh = None
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -482,8 +500,14 @@ class TestNewBookDetail:
     def test_book_found_partial_translation(self, MockNBS, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
+        mock_book.title = 'Test Title'
         mock_book.title_zh = '已翻译'
         mock_book.description_zh = None
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.description = 'Test description'
+        mock_book.cover_url = 'http://example.com/cover.jpg'
+        mock_book.publisher = None
         mock_svc = MagicMock()
         mock_svc.get_book.return_value = mock_book
         MockNBS.return_value = mock_svc
@@ -497,6 +521,16 @@ class TestAwardBookDetail:
     @patch('app.services.award_book_service.AwardBookService')
     def test_award_book_found(self, MockAwardService, client):
         mock_book = MagicMock()
+        mock_book.id = 1
+        mock_book.title = 'Test Book Title'
+        mock_book.title_zh = '测试书名'
+        mock_book.is_displayable = True
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.publisher = 'Test Publisher'
+        mock_book.description = 'Test description'
+        mock_book.award = None
+        mock_book.display_title = 'Test Book Title'
         mock_svc = MagicMock()
         mock_svc.get_award_book_by_id.return_value = mock_book
         MockAwardService.return_value = mock_svc
@@ -513,7 +547,9 @@ class TestAwardBookDetail:
 
 
 class TestBookDetail:
-    def test_valid_book_index(self, client, app):
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    def test_valid_book_index(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
         with app.app_context():
@@ -525,7 +561,9 @@ class TestBookDetail:
             with app.app_context():
                 app.extensions.pop('book_service', None)
 
-    def test_invalid_category_fallback(self, client, app):
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    def test_invalid_category_fallback(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
         with app.app_context():
@@ -607,6 +645,41 @@ class TestApiCategoryBooks:
             with app.app_context():
                 app.extensions.pop('book_service', None)
 
+    def test_monthly_category_returns_frequency_metadata(self, client, app):
+        book = _make_book(
+            category_id='graphic-books-and-manga',
+            category_name='漫画与绘本',
+            list_name='Graphic Books and Manga',
+            published_date='2026-06-01',
+        )
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            resp = client.get('/api/category-books?category=graphic-books-and-manga')
+            data = json.loads(resp.data)
+            assert data['success'] is True
+            assert data['data']['update_frequency'] == 'monthly'
+            assert data['data']['list_published_date'] == '2026-06-01'
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_weekly_category_returns_frequency_metadata(self, client, app):
+        book = _make_book(published_date='2026-07-05')
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            resp = client.get('/api/category-books?category=hardcover-fiction')
+            data = json.loads(resp.data)
+            assert data['success'] is True
+            assert data['data']['update_frequency'] == 'weekly'
+            assert data['data']['list_published_date'] == '2026-07-05'
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
     def test_service_returns_none(self, client, app):
         with app.app_context():
             app.extensions.pop('book_service', None)
@@ -657,6 +730,8 @@ class TestWeeklyReports:
         mock_report.content = '{"key": "value"}'
 
         mock_svc = MagicMock()
+        # v0.9.47 自愈机制：route 额外调用 get_or_trigger_current_week_report() 返回 2-tuple
+        mock_svc.get_or_trigger_current_week_report.return_value = (mock_report, False)
         mock_svc.get_reports.return_value = [mock_report]
         MockWRS.return_value = mock_svc
 
@@ -673,6 +748,8 @@ class TestWeeklyReports:
     @patch('app.services.weekly_report_service.WeeklyReportService')
     def test_empty_reports_triggers_generation(self, MockWRS, client, app):
         mock_svc = MagicMock()
+        # v0.9.47 自愈机制：缺失周报时返回 (None, True) 标记后台补生成中
+        mock_svc.get_or_trigger_current_week_report.return_value = (None, True)
         mock_svc.get_reports.return_value = []
         MockWRS.return_value = mock_svc
 
@@ -692,6 +769,8 @@ class TestWeeklyReports:
     @patch('app.services.weekly_report_service.WeeklyReportService')
     def test_generation_exception(self, MockWRS, client, app):
         mock_svc = MagicMock()
+        # v0.9.47 自愈机制：自愈检查自身出错时返回 (latest, False)
+        mock_svc.get_or_trigger_current_week_report.return_value = (None, False)
         mock_svc.get_reports.return_value = []
         MockWRS.return_value = mock_svc
 
@@ -1045,6 +1124,36 @@ class TestIndexRoute:
         try:
             response = client.get('/')
             assert response.status_code == 200
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_monthly_category_shows_hint(self, client, app):
+        book = _make_book(
+            category_id='graphic-books-and-manga',
+            category_name='漫画与绘本',
+            list_name='Graphic Books and Manga',
+            published_date='2026-06-01',
+        )
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/?category=graphic-books-and-manga&lang=zh')
+            assert response.status_code == 200
+            assert '月榜 · 每月更新 · 榜单日期 2026-06-01'.encode() in response.data
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_weekly_category_hides_monthly_hint(self, client, app):
+        mock_svc = _mock_book_service([_make_book(published_date='2026-07-05')])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/?category=hardcover-fiction&lang=zh')
+            assert response.status_code == 200
+            assert '月榜 · 每月更新'.encode() not in response.data
         finally:
             with app.app_context():
                 app.extensions.pop('book_service', None)

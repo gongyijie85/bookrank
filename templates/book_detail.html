@@ -3,6 +3,18 @@
 {% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
 {% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
 {% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block og_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{% set cat_label = categories.get(category, category) if categories else category %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': cat_label, 'url': url_for('main.index', category=category)},
+    {'label': book.title_zh or book.title, 'url': request.url}
+], csp_nonce()) }}
+{% endblock %}
 
 {% block content %}
 
@@ -137,7 +149,7 @@
                 <div class="meta-card">
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg></span>
                     <div>
-                        <div class="meta-label" data-i18n="weeks_on_list">{{ _('上榜周数') }}</div>
+                        <div class="meta-label" data-i18n="weeks_on_list">{{ _('累计上榜周数') }}</div>
                         <div class="meta-value">{{ book.weeks_on_list }} <span data-i18n="week_suffix">{{ _('周') }}</span></div>
                     </div>
                 </div>

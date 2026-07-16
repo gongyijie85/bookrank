@@ -14,8 +14,34 @@
 import inspect
 from datetime import date
 
+import pytest
+
 from app.services.publisher_crawler import get_all_crawlers, get_crawler_class
 from app.services.publisher_crawler.base_crawler import BaseCrawler, BookInfo, SimpleResponse
+
+
+@pytest.fixture(autouse=True)
+def _no_network(monkeypatch):
+    """阻止所有爬虫在测试时实际请求网络"""
+    import app.services.publisher_crawler.base_crawler as bc_mod
+
+    monkeypatch.setattr(bc_mod.BaseCrawler, '_init_robots_parser', lambda self: None)
+    monkeypatch.setattr(bc_mod.time, 'sleep', lambda x: None)
+
+    _orig_create = bc_mod.BaseCrawler._create_session
+
+    def _safe_session(self):
+        s = _orig_create(self)
+        _orig_req = s.request
+
+        def _blocked_request(*a, **kw):
+            raise bc_mod.requests.ConnectionError('测试环境禁止实际网络请求')
+
+        s.request = _blocked_request
+        s.get = lambda *a, **kw: _blocked_request(*a, **kw)
+        return s
+
+    monkeypatch.setattr(bc_mod.BaseCrawler, '_create_session', _safe_session)
 
 
 class _TestCrawler(BaseCrawler):

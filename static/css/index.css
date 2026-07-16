@@ -413,35 +413,12 @@
 }
 
 .card-image {
-    position: relative;
-    aspect-ratio: 3 / 2;
-    background: var(--bg-tertiary);
-    overflow: hidden;
+    /* 样式由 components.css 统一管理（方案 A：3:2 容器内嵌 2:3 画框） */
+    /* 保留此处以便未来 index.html 专属微调；当前无覆盖 */
 }
 
-.card-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s ease;
-}
-
-.card:hover .card-image img {
-    transform: scale(1.05);
-}
-
-.card-category-tag {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    background: rgba(0, 0, 0, 0.6);
-    color: var(--white);
-    padding: 0.25rem 0.625rem;
-    border-radius: 9999px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.125px;
-}
+/* .card-category-tag 样式由 components.css 统一管理（使用 --badge-bg/--badge-text 主题色变量），
+   避免此处覆盖导致夜晚模式对比度问题（--white 在夜晚模式被改写为深色） */
 
 /* Override components.css badge styles */
 .books-grid .card .card-image .card-badge {
@@ -745,12 +722,6 @@
     gap: 0.25rem;
 }
 
-.list-item-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 /* 加载指示器 */
 .loading-overlay {
     position: fixed;
@@ -1021,6 +992,7 @@
         gap: 1rem;
     }
 
+    /* 移动端 .card-image 容器改用 3/2.5（更高一点，让内嵌 2:3 画框更显眼） */
     .card-image {
         aspect-ratio: 3 / 2.5;
     }
@@ -1088,4 +1060,51 @@
     .list-item-desc {
         display: none;
     }
+}
+
+/* ===================================================================
+   v0.9.55: 骨架屏（skeleton）样式 - 用于按需加载的分类切换
+   复用 animations.css 的 .skeleton shimmer 动画，这里只补布局
+   =================================================================== */
+.card-skeleton {
+    cursor: default;
+    pointer-events: none;
+    user-select: none;
+    /* 保持与真实 .card 一致的圆角和阴影 */
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.card-skeleton .skeleton-image {
+    /* 真实 .card-image 是 2:3 长宽比 */
+    width: 100%;
+    aspect-ratio: 2 / 3;
+}
+
+.card-skeleton .skeleton-content {
+    padding: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.card-skeleton .skeleton-title {
+    height: 1rem;
+    width: 90%;
+    margin-bottom: 0;
+}
+
+.card-skeleton .skeleton-author {
+    height: 0.75rem;
+    width: 60%;
+    margin-bottom: 0;
+}
+
+.card-skeleton .skeleton-tag {
+    height: 1.25rem;
+    width: 4rem;
+    border-radius: var(--radius-full);
+    margin-bottom: 0;
 }

@@ -119,6 +119,19 @@ def admin_headers():
     return {'X-Admin-Secret': 'test-admin-secret'}
 
 
+@pytest.fixture(autouse=True)
+def _restore_testing_flag(app):
+    """守护 app.config['TESTING'] 不被测试间污染。
+
+    test_api_helpers_extended.py 等用例为了覆盖非 TESTING 路径会把
+    app.config['TESTING'] 设为 False；由于 app fixture 是 session-scoped，
+    这种修改跨测试持久化，会让后续 csrf_protect / rate_limit 装饰器走真实
+    校验路径，污染依赖 TESTING 短路的测试（例如 test_favorites）。
+    """
+    yield
+    app.config['TESTING'] = True
+
+
 @pytest.fixture
 def mock_books_data():
     """
@@ -278,3 +291,43 @@ def sample_award_book(app, db, sample_award):
     db.session.add(book)
     db.session.commit()
     return book.id
+
+
+@pytest.fixture
+def _seed_award(app, db):
+    """为 TestAdminAwardFixEndpoints 提供最小可修复数据：1 个 Award + 1 本带 ISBN 的 AwardBook"""
+    from app.models.schemas import Award, AwardBook
+
+    award = Award(name='Test Award', description='A test award', country='US')
+    db.session.add(award)
+    db.session.commit()
+
+    book = AwardBook(
+        award_id=award.id,
+        title='Original English Title',
+        title_zh=None,
+        author='Test Author',
+        year=2024,
+        rank=1,
+        category='Fiction',
+        isbn13='9780143127550',
+    )
+    db.session.add(book)
+    db.session.commit()
+    return {'award_id': award.id, 'book_id': book.id}
+
+
+@pytest.fixture
+def clear_auth_failures():
+    """清理 admin_auth 的失败计数，避免测试间污染。
+
+    注意：_auth_failures 是 admin_auth 模块级全局 dict，需要清理以避免
+    跨测试用例状态污染。_persist_loaded 故意**不**重置，因为它是
+    "持久化封禁状态是否已加载"的全局缓存标志，重置会导致后续 admin 请求
+    触发 SystemConfig 重新查询（在没有 db fixture 的测试中会失败）。
+    """
+    from app.utils import admin_auth
+
+    admin_auth._auth_failures.clear()
+    yield
+    admin_auth._auth_failures.clear()

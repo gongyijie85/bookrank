@@ -1,0 +1,65 @@
+name: Bug 报告
+description: 报告一个可复现的缺陷
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你报告问题！请尽量提供完整信息，便于我们快速定位。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简明扼要地描述你遇到的 bug。
+      placeholder: 例如：访问 /books/xxx 时页面返回 500。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 提供能稳定复现问题的步骤。
+      placeholder: |
+        1. 打开 ...
+        2. 点击 ...
+        3. 看到错误 ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 你期望发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么？
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      description: 操作系统、Python 版本、浏览器（如相关）。
+      placeholder: |
+        - OS: Windows 11
+        - Python: 3.13
+        - Browser: Edge 128
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 如有相关日志、Traceback 或截图，请粘贴在此。
+      render: shell
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: 验收标准
+      description: 维护者将根据以下标准判断该 issue 是否已解决。
+      options:
+        - label: 提供了最小复现步骤
+        - label: 描述了期望与实际行为
+        - label: 附带了相关日志或截图

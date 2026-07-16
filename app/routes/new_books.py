@@ -1,16 +1,24 @@
 import csv
 import logging
+import threading
 import time
 from datetime import UTC, datetime
 from io import StringIO
 from urllib.parse import quote
 
-from flask import Blueprint, make_response, request
+from flask import Blueprint, current_app, make_response, request
+from pydantic import ValidationError
 
-from ..models.database import db
+from ..schemas.validators import (
+    NewBookExportQuery,
+    NewBookListQuery,
+    NewBookSearchQuery,
+    NewBookSyncQuery,
+    parse_query_args,
+)
 from ..services.new_book_service import NewBookService
 from ..utils.admin_auth import admin_required
-from ..utils.api_helpers import APIResponse, csrf_protect, validate_pagination
+from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import get_translation_service
 
@@ -18,8 +26,59 @@ logger = logging.getLogger(__name__)
 
 new_books_bp = Blueprint('new_books', __name__, url_prefix='/api/new-books')
 
-_last_sync_time: float = 0.0
 _SYNC_COOLDOWN_SECONDS: int = 60
+_EXPORT_COOLDOWN_SECONDS: int = 10  # v0.9.68: CSV 导出每 IP 限速
+_CSV_INJECTION_PREFIXES: tuple[str, ...] = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _sanitize_csv_field(value: object) -> str:
+    """v0.9.68: 防止 CSV 公式注入 — 对以 = + - @ \t \r 起始的字段加单引号前缀。"""
+    if value is None:
+        return ''
+    text = str(value)
+    if text and text[0] in _CSV_INJECTION_PREFIXES:
+        return "'" + text
+    return text
+
+
+def _check_export_cooldown() -> str | None:
+    """v0.9.68: 每 IP 导出冷却(10 秒)防刷。"""
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'anon').split(',')[0].strip()
+    key = f'export_last_{ip}'
+    last = current_app.extensions.get(key, 0.0)
+    elapsed = time.time() - last
+    if elapsed < _EXPORT_COOLDOWN_SECONDS:
+        remaining = int(_EXPORT_COOLDOWN_SECONDS - elapsed)
+        return f'导出过于频繁,请 {remaining} 秒后再试'
+    current_app.extensions[key] = time.time()
+    return None
+
+
+def _get_sync_lock() -> threading.Lock:
+    """获取应用级同步锁（多 worker 安全）"""
+    if 'sync_lock' not in current_app.extensions:
+        current_app.extensions['sync_lock'] = threading.Lock()
+    return current_app.extensions['sync_lock']
+
+
+def _get_last_sync_time() -> float:
+    """获取上次同步时间（存储在 app.extensions）"""
+    return current_app.extensions.get('last_sync_time', 0.0)
+
+
+def _set_last_sync_time(timestamp: float) -> None:
+    """设置上次同步时间（存储在 app.extensions）"""
+    current_app.extensions['last_sync_time'] = timestamp
+
+
+def _parse_or_422(model_cls):
+    """v0.9.63 新增：把当前 request.args 解析为 model_cls；失败返回 (None, response_422)。"""
+    try:
+        parsed = parse_query_args(model_cls, request.args)
+        return parsed, None
+    except ValidationError as e:
+        msg = '; '.join(f'{".".join(str(p) for p in err["loc"])}: {err["msg"]}' for err in e.errors())
+        return None, APIResponse.error(f'参数无效: {msg}', 422)
 
 
 def get_new_book_service() -> NewBookService:
@@ -35,12 +94,14 @@ def _ensure_static_seeded(service: NewBookService) -> None:
 
 
 def _check_sync_cooldown() -> str | None:
-    """检查同步冷却时间，返回错误消息或None"""
-    global _last_sync_time
-    elapsed = time.time() - _last_sync_time
-    if elapsed < _SYNC_COOLDOWN_SECONDS:
-        remaining = int(_SYNC_COOLDOWN_SECONDS - elapsed)
-        return f'同步操作过于频繁，请 {remaining} 秒后再试'
+    """检查同步冷却时间，返回错误消息或None（多 worker 安全）"""
+    lock = _get_sync_lock()
+    with lock:
+        last_time = _get_last_sync_time()
+        elapsed = time.time() - last_time
+        if elapsed < _SYNC_COOLDOWN_SECONDS:
+            remaining = int(_SYNC_COOLDOWN_SECONDS - elapsed)
+            return f'同步操作过于频繁，请 {remaining} 秒后再试'
     return None
 
 
@@ -108,22 +169,23 @@ def update_publisher_status(publisher_id: int):
         return APIResponse.success(message=f'出版社已{"启用" if is_active else "禁用"}')
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'更新出版社状态失败: {e}', exc_info=True)
-        db.session.rollback()
         return APIResponse.error('更新出版社状态失败', 500)
 
 
 @new_books_bp.route('')
 def get_new_books():
     """获取新书列表"""
-    try:
-        publisher_id = request.args.get('publisher', type=int)
-        category = request.args.get('category')
-        days = min(max(1, request.args.get('days', 30, type=int)), 365)
-        search_query = request.args.get('search', '').strip()[:100]
-        page, per_page = validate_pagination(
-            request.args.get('page', 1, type=int), request.args.get('per_page', 20, type=int), max_limit=50
-        )
+    query, err = _parse_or_422(NewBookListQuery)
+    if err is not None:
+        return err
+    assert query is not None
+    publisher_id = query.publisher_id
+    category = query.category
+    days = query.days
+    search_query = query.search
+    page, per_page = query.page, query.per_page
 
+    try:
         service = get_new_book_service()
         _ensure_static_seeded(service)
         if search_query:
@@ -174,20 +236,24 @@ def get_book_detail(book_id: int):
 @new_books_bp.route('/search')
 def search_new_books():
     """搜索新书"""
+    query, err = _parse_or_422(NewBookSearchQuery)
+    if err is not None:
+        return err
+    assert query is not None
+    keyword = query.keyword
+    page, per_page = query.page, query.per_page
+
     try:
-        keyword = request.args.get('keyword', '').strip()
-        if not keyword:
-            return APIResponse.error('搜索关键词不能为空', 400)
-        if len(keyword) > 100:
-            return APIResponse.error('关键词长度不能超过100个字符', 400)
-
-        page, per_page = validate_pagination(
-            request.args.get('page', 1, type=int), request.args.get('per_page', 20, type=int), max_limit=50
-        )
-
         service = get_new_book_service()
         _ensure_static_seeded(service)
-        books, total = service.search_books(keyword, page, per_page)
+        books, total = service.search_books(
+            keyword,
+            page,
+            per_page,
+            publisher_id=query.publisher_id,
+            category=query.category,
+            days=query.days,
+        )
 
         return APIResponse.success(
             data={
@@ -224,8 +290,6 @@ def get_categories():
 @admin_required
 def sync_all_publishers():
     """同步所有出版社新书（含冷却时间限制）"""
-    global _last_sync_time
-
     cooldown_error = _check_sync_cooldown()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
@@ -237,7 +301,10 @@ def sync_all_publishers():
         max_books = min(max(1, request.args.get('max_books', 30, type=int)), 100)
         results = service.sync_all_publishers(max_books_per_publisher=max_books)
 
-        _last_sync_time = time.time()
+        # 更新同步时间（多 worker 安全）
+        lock = _get_sync_lock()
+        with lock:
+            _set_last_sync_time(time.time())
 
         total_added = sum(r.get('added', 0) for r in results)
         total_updated = sum(r.get('updated', 0) for r in results)
@@ -264,21 +331,25 @@ def sync_all_publishers():
 @admin_required
 def sync_publisher(publisher_id: int):
     """同步指定出版社新书（含冷却时间限制）"""
-    global _last_sync_time
-
     cooldown_error = _check_sync_cooldown()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
 
     try:
         service = get_new_book_service()
-        max_books = min(max(1, request.args.get('max_books', 50, type=int)), 100)
-        result = service.sync_publisher_books(publisher_id, max_books=max_books)
+        sync_q, err = _parse_or_422(NewBookSyncQuery)
+        if err is not None:
+            return err
+        assert sync_q is not None
+        result = service.sync_publisher_books(publisher_id, max_books=sync_q.max_books)
 
         if not result.get('success'):
             return APIResponse.error(result.get('error', '同步失败'), 400)
 
-        _last_sync_time = time.time()
+        # 更新同步时间（多 worker 安全）
+        lock = _get_sync_lock()
+        with lock:
+            _set_last_sync_time(time.time())
 
         return APIResponse.success(data=result)
     except Exception as e:
@@ -301,15 +372,26 @@ def get_statistics():
 
 @new_books_bp.route('/export/csv')
 def export_csv():
-    """导出CSV格式（限制最大导出数量）"""
+    """导出CSV格式(限制最大导出数量 + 速率限制 + 公式注入防护)"""
+    cooldown_error = _check_export_cooldown()
+    if cooldown_error:
+        return APIResponse.error(cooldown_error, 429)
+
+    query, err = _parse_or_422(NewBookExportQuery)
+    if err is not None:
+        return err
+    assert query is not None
     try:
         service = get_new_book_service()
         _ensure_static_seeded(service)
-        publisher_id = request.args.get('publisher_id', type=int)
-        category = request.args.get('category')
-        days = min(max(1, request.args.get('days', 30, type=int)), 365)
 
-        books, _ = service.get_new_books(publisher_id=publisher_id, category=category, days=days, page=1, per_page=500)
+        books, _ = service.get_new_books(
+            publisher_id=query.publisher_id,
+            category=query.category,
+            days=query.days,
+            page=1,
+            per_page=500,
+        )
 
         output = StringIO()
         writer = csv.writer(output)
@@ -335,20 +417,20 @@ def export_csv():
         for book in books:
             writer.writerow(
                 [
-                    book.title,
-                    book.title_zh or '',
-                    book.author,
-                    book.publisher.name if book.publisher else '',
-                    book.category or '',
+                    _sanitize_csv_field(book.title),
+                    _sanitize_csv_field(book.title_zh or ''),
+                    _sanitize_csv_field(book.author),
+                    _sanitize_csv_field(book.publisher.name if book.publisher else ''),
+                    _sanitize_csv_field(book.category or ''),
                     book.publication_date.isoformat() if book.publication_date else '',
-                    book.isbn13 or '',
-                    book.isbn10 or '',
-                    book.price or '',
+                    _sanitize_csv_field(book.isbn13 or ''),
+                    _sanitize_csv_field(book.isbn10 or ''),
+                    _sanitize_csv_field(book.price or ''),
                     book.page_count or '',
-                    book.language or '',
-                    book.description or '',
-                    book.description_zh or '',
-                    book.source_url or '',
+                    _sanitize_csv_field(book.language or ''),
+                    _sanitize_csv_field(book.description or ''),
+                    _sanitize_csv_field(book.description_zh or ''),
+                    _sanitize_csv_field(book.source_url or ''),
                 ]
             )
 
@@ -357,8 +439,13 @@ def export_csv():
         response_data = '\ufeff'.encode('utf-8') + csv_content.encode('utf-8')
 
         response = make_response(response_data)
-        filename = f'新书速递_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-        response.headers['Content-Disposition'] = f'attachment; filename={quote(filename)}'
+        # v0.9.64 L2: RFC 5987 国际化文件名（支持 UTF-8 编码）
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename_ascii = f'NewBooks_{timestamp}.csv'  # ASCII 备用名（旧浏览器）
+        filename_utf8 = f'新书速递_{timestamp}.csv'  # UTF-8 编码（现代浏览器）
+        response.headers['Content-Disposition'] = (
+            f'attachment; filename="{filename_ascii}"; filename*=UTF-8\'\'{quote(filename_utf8)}'
+        )
         response.headers['Content-type'] = 'text/csv; charset=utf-8'
         return response
     except Exception as e:
@@ -377,8 +464,25 @@ def init_publishers():
         return APIResponse.success(data={'created_count': count}, message=f'成功初始化 {count} 个出版社')
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'初始化出版社失败: {e}', exc_info=True)
-        db.session.rollback()
         return APIResponse.error('初始化失败', 500)
+
+
+@new_books_bp.route('/migrate-categories', methods=['POST'])
+@csrf_protect
+@admin_required
+def migrate_categories():
+    """迁移已有书籍分类数据（英文分类统一为中文）"""
+    try:
+        service = get_new_book_service()
+        result = service.migrate_categories()
+
+        return APIResponse.success(
+            data=result,
+            message=f'成功迁移 {result["migrated_count"]} 本书籍分类',
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'迁移分类数据失败: {e}', exc_info=True)
+        return APIResponse.error('迁移分类失败', 500)
 
 
 @new_books_bp.errorhandler(404)
@@ -388,5 +492,9 @@ def not_found(error):
 
 @new_books_bp.errorhandler(500)
 def internal_error(error):
+    # 框架级异常回滚：释放可能处于未提交状态的数据库会话，避免连接泄漏
+    # 注：errorhandler 属于框架级钩子，非业务路由，允许直接操作 db.session
+    from ..models.database import db
+
     db.session.rollback()
     return APIResponse.error('Internal server error', 500)

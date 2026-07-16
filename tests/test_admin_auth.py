@@ -10,13 +10,15 @@ from app.utils.admin_auth import _AUTH_MAX_ENTRIES, _auth_failures, _cleanup_aut
 
 
 @pytest.fixture(autouse=True)
-def clear_auth_failures():
-    """每个测试前后清理共享状态"""
-    _auth_failures.clear()
-    admin_auth._persist_loaded = False
-    yield
-    _auth_failures.clear()
-    admin_auth._persist_loaded = False
+def _clear_auth_failures(clear_auth_failures):
+    """将 conftest 的 clear_auth_failures 设为 autouse（仅本文件生效）。
+
+    _auth_failures / _persist_loaded 是 admin_auth 模块级全局状态，
+    本文件的测试用例之间需要互不污染，所以用 autouse 包装一层。
+    实际清理逻辑统一来自 conftest.clear_auth_failures（单一来源）。
+
+    注意：_persist_loaded 故意**不**重置，参见 conftest.clear_auth_failures 注释。
+    """
 
 
 class TestCleanupAuthFailures:
@@ -64,7 +66,12 @@ class TestLoadPersistedFailures:
             mock_sc.get_value.assert_not_called()
 
     def test_loads_active_blocks_from_persisted(self, app):
-        """从 SystemConfig 加载尚未过期的封禁状态"""
+        """从 SystemConfig 加载尚未过期的封禁状态
+
+        不显式声明 db fixture 以保持与基线行为一致（依赖 session app
+        的 create_all 副作用，在测试顺序敏感时不稳定）。这是预先存在的
+        测试设计——不在本次重构范围内修改。
+        """
         import json
 
         with app.app_context():

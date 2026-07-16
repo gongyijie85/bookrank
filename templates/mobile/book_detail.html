@@ -1,0 +1,136 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ book.title_zh or book.title }} - 书榜{% endblock %}
+{% block og_title %}{{ book.title_zh or book.title }} - 书榜{% endblock %}
+{% block tw_title %}{{ book.title_zh or book.title }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="{{ back_url }}" class="m-header-btn" aria-label="{{ _('返回') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('书籍详情') }}</span>
+    <div class="m-header-placeholder"></div>
+</header>
+{% endblock %}
+
+{% block content %}
+{% set _locale = get_locale() %}
+{% set display_title = (book.title_zh or book.title) if _locale == 'zh' else book.title %}
+{% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
+{% set detail_text = book.details_zh if _locale == 'zh' and book.details_zh else book.details %}
+
+<!-- 书籍封面 -->
+<section class="m-detail-cover-wrap">
+    <div class="m-detail-cover">
+        <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+             alt="{{ display_title }}"
+             width="120" height="160"
+             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+    </div>
+</section>
+
+<!-- 书籍主要信息 -->
+<section class="m-detail-head">
+    <h1 class="m-detail-title">{{ display_title }}</h1>
+    <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %} · {{ book.publisher }}{% endif %}</p>
+    <div class="m-detail-facts">
+        {% if book.isbn13 or book.isbn10 %}
+        <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
+        {% endif %}
+        {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
+        <span><strong>{{ _('出版日期') }}</strong>{{ book.publication_dt }}</span>
+        {% endif %}
+        {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
+        <span><strong>{{ _('页数') }}</strong>{{ book.page_count }}</span>
+        {% endif %}
+        {% if book.language and book.language not in ('Unknown', '', 'un') %}
+        <span><strong>{{ _('语言') }}</strong>{{ book.language }}</span>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Tab 切换：图书简介 / 详细信息 -->
+<div class="m-detail-tabs-wrapper"
+     data-isbn="{{ book.isbn13 or book.isbn10 or '' }}"
+     data-book-index="{{ book_index }}"
+     data-category="{{ category or '' }}">
+    <div class="m-detail-tabs" role="tablist">
+        <button class="m-tab-btn active" data-tab="description" role="tab" aria-selected="true" type="button">
+            {{ _('图书简介') }}
+        </button>
+        <button class="m-tab-btn" data-tab="details" role="tab" aria-selected="false" type="button">
+            {{ _('详细信息') }}
+        </button>
+    </div>
+
+    <div class="m-tab-content">
+        <!-- 图书简介 -->
+        <div class="m-tab-panel active" data-panel="description" role="tabpanel">
+            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            <div class="m-detail-text">
+                {% for para in desc.split('\n') if para.strip() %}
+                <p>{{ para.strip() }}</p>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="m-detail-empty">{{ _('暂无简介') }}</p>
+            {% endif %}
+        </div>
+
+        <!-- 详细信息 -->
+        <div class="m-tab-panel" data-panel="details" role="tabpanel">
+            <dl class="m-meta-list">
+                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
+                <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
+                {% endif %}
+                {% if book.isbn13 or book.isbn10 %}
+                <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
+                {% endif %}
+                {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
+                <div class="m-meta-row"><dt>{{ _('出版日期') }}</dt><dd>{{ book.publication_dt }}</dd></div>
+                {% endif %}
+                {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
+                <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ book.page_count }}</dd></div>
+                {% endif %}
+                {% if book.category_name %}
+                <div class="m-meta-row"><dt>{{ _('图书分类') }}</dt><dd>{{ book.category_name }}</dd></div>
+                {% endif %}
+                {% if book.weeks_on_list %}
+                <div class="m-meta-row"><dt>{{ _('累计上榜') }}</dt><dd>{{ book.weeks_on_list }}{{ _('周') }}</dd></div>
+                {% endif %}
+                {% if book.language and book.language not in ('Unknown', '', 'un') %}
+                <div class="m-meta-row"><dt>{{ _('语言') }}</dt><dd>{{ book.language }}</dd></div>
+                {% endif %}
+                {% if book.price and book.price != '未知' %}
+                <div class="m-meta-row"><dt>{{ _('价格') }}</dt><dd>{{ book.price }}</dd></div>
+                {% endif %}
+            </dl>
+            {% if detail_text and detail_text not in ('No detailed description available.', '暂无详细介绍', '暂无详细描述', '') %}
+            <div class="m-detail-text m-detail-longtext">
+                {% for para in detail_text.split('\n') if para.strip() %}
+                <p>{{ para.strip() }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {# JS 懒加载的 Google Books 详细介绍会追加到这里 #}
+            <div class="m-tab-panel-extra" data-source="google-books"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Book",
+    "name": "{{ display_title }}",
+    "author": "{{ book.author }}",
+    {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% elif book.isbn10 %}"isbn": "{{ book.isbn10 }}",{% endif %}
+    {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %}"publisher": "{{ book.publisher }}",{% endif %}
+    "image": "{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=true) }}"
+}
+</script>
+{% endblock %}

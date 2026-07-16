@@ -1,0 +1,96 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('纽约时报畅销书排行榜') }} - 书榜{% endblock %}
+
+{% block content %}
+{% set _locale = get_locale() %}
+
+<!-- 状态栏占位 -->
+<div class="m-status-bar"></div>
+
+<!-- 顶部导航栏 -->
+<nav class="m-top-nav">
+    <div class="m-top-nav-copy">
+        <span class="m-top-nav-kicker">{{ _('纽约时报畅销书排行榜') }}</span>
+        <span class="m-top-nav-title">BookRank</span>
+        <span class="m-top-nav-subtitle">{{ _('汇集全球畅销书榜与图书奖项') }}</span>
+    </div>
+    <span class="m-top-nav-mark" aria-hidden="true">BR</span>
+</nav>
+
+<!-- 分类 Tab 横向滑动 -->
+<section class="m-cat-tabs" aria-label="图书分类">
+    <div class="m-cat-tabs-scroll no-scrollbar">
+        {% for key, label in categories.items() %}
+        <a href="/?category={{ key }}"
+           class="m-cat-tab {% if key == current_category %}active{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- 榜单信息 -->
+<div class="m-list-info">
+    {% if update_time %}{{ _('更新于') }} {{ update_time }} · {% endif %}{{ books|length }}{{ _('本') }}
+    {% if is_cached %}<span class="m-cache-badge">{{ _('缓存') }}</span>{% endif %}
+    {% if update_frequency == 'monthly' %}
+        · <span class="m-monthly-badge">
+            {% if _locale == 'zh' %}
+                月榜 · 每月更新{% if list_published_date %} · 榜单日期 {{ list_published_date }}{% endif %}
+            {% else %}
+                Monthly list · Updates monthly{% if list_published_date %} · List date {{ list_published_date }}{% endif %}
+            {% endif %}
+        </span>
+    {% endif %}
+</div>
+
+<!-- 书籍排行榜列表 -->
+{% if books %}
+<div class="m-book-list">
+    {% for book in books %}
+    <a href="/book/{{ loop.index0 }}?category={{ current_category }}"
+       class="m-card m-book-card" data-href="/book/{{ loop.index0 }}?category={{ current_category }}">
+        <span class="m-rank-badge {% if loop.index > 3 %}small{% endif %}">{{ loop.index }}</span>
+        <div class="m-book-cover">
+            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+                 alt="{{ book.title }}"
+                 loading="lazy"
+                 width="60" height="80"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+        <div class="m-book-info">
+            <h3 class="m-book-title" title="{{ book.title }}">
+                {% if _locale == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %}
+            </h3>
+            <p class="m-book-author">{{ book.author }}</p>
+
+            {# 元信息行：出版社 · 页数 · 语言 #}
+            {% set ns = namespace(parts=[]) %}
+            {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}{% set ns.parts = ns.parts + [book.publisher] %}{% endif %}
+            {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}{% set ns.parts = ns.parts + [book.page_count ~ _('页')] %}{% endif %}
+            {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language] %}{% endif %}
+            {% if ns.parts %}<p class="m-book-card-meta">{{ ns.parts|join(' · ') }}</p>{% endif %}
+
+            {# 描述预览（80 字截断） #}
+            {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
+            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            <p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length > 80 %}…{% endif %}</p>
+            {% endif %}
+
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="m-empty">
+    <div class="m-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </div>
+    <p class="m-empty-title">{{ _('暂无图书数据') }}</p>
+    <p class="m-empty-sub">{{ _('请稍后再试或切换其他分类') }}</p>
+    <a href="/" class="m-btn m-btn-outline m-btn-sm m-empty-action">{{ _('刷新') }}</a>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -43,7 +43,7 @@ def test_api_performance():
         # 初始化依赖服务
         memory_cache = MemoryCache(default_ttl=3600, max_size=1000)
         file_cache = FileCache(cache_dir=Path('cache'), default_ttl=86400)
-        cache_service = CacheService(memory_cache, file_cache, flask_cache=None)
+        cache_service = CacheService(memory_cache, file_cache)
 
         nyt_client = NYTApiClient(
             api_key='', base_url='https://api.nytimes.com/svc/books/v3', rate_limiter=None, timeout=15
@@ -152,7 +152,7 @@ def test_report_generation_performance():
         # 初始化依赖服务
         memory_cache = MemoryCache(default_ttl=3600, max_size=1000)
         file_cache = FileCache(cache_dir=Path('cache'), default_ttl=86400)
-        cache_service = CacheService(memory_cache, file_cache, flask_cache=None)
+        cache_service = CacheService(memory_cache, file_cache)
 
         nyt_client = NYTApiClient(
             api_key='', base_url='https://api.nytimes.com/svc/books/v3', rate_limiter=None, timeout=15

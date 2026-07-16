@@ -1,0 +1,136 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
+{% block og_title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
+{% block tw_title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="{{ back_url }}" class="m-header-btn" aria-label="{{ _('返回') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('获奖图书') }}</span>
+    <div class="m-header-placeholder"></div>
+</header>
+{% endblock %}
+
+{% block content %}
+{% set display_title = safe_title_zh or safe_title_en %}
+{% set desc = book.description_zh or book.description %}
+{% set detail_text = book.details %}
+
+<!-- 封面 -->
+<section class="m-detail-cover-wrap">
+    <div class="m-detail-cover">
+        <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+             alt="{{ display_title }}"
+             width="130" height="175"
+             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+    </div>
+</section>
+
+<!-- 标题区 -->
+<section class="m-detail-head">
+    <h1 class="m-detail-title">{{ display_title }}</h1>
+    <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
+    {% if book.award %}
+    <div class="m-detail-tags">
+        <span class="m-detail-tag">{{ book.award.name }}</span>
+        {% if book.year %}<span class="m-detail-tag accent">{{ book.year }}{{ _('年') }}</span>{% endif %}
+    </div>
+    {% endif %}
+    <div class="m-detail-facts">
+        {% if book.isbn13 or book.isbn10 %}
+        <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
+        {% endif %}
+        {% if book.publication_year %}
+        <span><strong>{{ _('出版年份') }}</strong>{{ book.publication_year }}</span>
+        {% endif %}
+        {% if book.category %}
+        <span><strong>{{ _('类别') }}</strong>{{ book.category }}</span>
+        {% endif %}
+        {% if book.rank %}
+        <span><strong>{{ _('排名') }}</strong>{{ book.rank }}</span>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Tab 切换：图书简介 / 详细信息 -->
+<div class="m-detail-tabs-wrapper"
+     data-isbn="{{ book.isbn13 or book.isbn10 or '' }}"
+     data-book-id="{{ book.id or '' }}">
+    <div class="m-detail-tabs" role="tablist">
+        <button class="m-tab-btn active" data-tab="description" role="tab" aria-selected="true" type="button">
+            {{ _('图书简介') }}
+        </button>
+        <button class="m-tab-btn" data-tab="details" role="tab" aria-selected="false" type="button">
+            {{ _('详细信息') }}
+        </button>
+    </div>
+
+    <div class="m-tab-content">
+        <!-- 图书简介 -->
+        <div class="m-tab-panel active" data-panel="description" role="tabpanel">
+            {% set intro = desc or book.details %}
+            {% if intro and intro not in ('No summary available.', 'No summary available', '') %}
+            <div class="m-detail-text">
+                {% for para in intro.split('\n') if para.strip() %}
+                <p>{{ para.strip() }}</p>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="m-detail-empty">{{ _('暂无简介') }}</p>
+            {% endif %}
+        </div>
+
+        <!-- 详细信息 -->
+        <div class="m-tab-panel" data-panel="details" role="tabpanel">
+            <dl class="m-meta-list">
+                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
+                <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
+                {% endif %}
+                {% if book.publication_year %}
+                <div class="m-meta-row"><dt>{{ _('出版年份') }}</dt><dd>{{ book.publication_year }}</dd></div>
+                {% endif %}
+                {% if book.isbn13 or book.isbn10 %}
+                <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
+                {% endif %}
+                {% if book.award %}
+                <div class="m-meta-row"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name }}</dd></div>
+                {% endif %}
+                {% if book.year %}
+                <div class="m-meta-row"><dt>{{ _('获奖年份') }}</dt><dd>{{ book.year }}</dd></div>
+                {% endif %}
+                {% if book.category %}
+                <div class="m-meta-row"><dt>{{ _('类别') }}</dt><dd>{{ book.category }}</dd></div>
+                {% endif %}
+                {% if book.rank %}
+                <div class="m-meta-row"><dt>{{ _('排名') }}</dt><dd>{{ book.rank }}</dd></div>
+                {% endif %}
+            </dl>
+            {% if detail_text and detail_text not in ('No detailed description available.', '暂无详细介绍', '暂无详细描述', '') %}
+            <div class="m-detail-text m-detail-longtext">
+                {% for para in detail_text.split('\n') if para.strip() %}
+                <p>{{ para.strip() }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Book",
+    "name": "{{ display_title }}",
+    "author": "{{ book.author or '' }}",
+    {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% elif book.isbn10 %}"isbn": "{{ book.isbn10 }}",{% endif %}
+    {% if book.publisher %}"publisher": "{{ book.publisher }}",{% endif %}
+    "description": "{{ (desc or book.details or '') | replace('"', '\\"') }}"
+}
+</script>
+{% endblock %}

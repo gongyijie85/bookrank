@@ -23,8 +23,6 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY . .
 
-RUN python build.py
-
 EXPOSE 8000
 
 CMD ["gunicorn", "-c", "gunicorn.conf.py", "run:application"]

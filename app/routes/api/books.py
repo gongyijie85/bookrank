@@ -12,6 +12,7 @@ from ...utils.api_helpers import (
     APIResponse,
     api_rate_limit,
     clean_translation_text,
+    csrf_protect,
     validate_isbn,
 )
 from ...utils.error_handler import ErrorCategory, log_error
@@ -130,6 +131,7 @@ def get_search_history():
 
 
 @api_bp.route('/user/preferences', methods=['GET', 'POST'])
+@csrf_protect
 def user_preferences():
     """获取或更新用户偏好（通过 UserService 层操作数据库）"""
     try:
@@ -189,7 +191,7 @@ def export_csv(category: str):
             '出版社',
             '当前排名',
             '上周排名',
-            '上榜周数',
+            '累计上榜周数',
             '出版日期',
             '页数',
             '语言',

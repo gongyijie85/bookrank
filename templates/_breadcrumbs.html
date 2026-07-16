@@ -1,0 +1,34 @@
+{# 面包屑导航宏 + BreadcrumbList JSON-LD #}
+{% macro breadcrumbs(items, nonce='') %}
+{% if items and items|length > 1 %}
+<nav class="breadcrumbs" aria-label="{{ _('面包屑导航') }}" data-i18n-aria-label="breadcrumbs_label">
+    <ol class="breadcrumbs-list">
+        {% for item in items %}
+        <li class="breadcrumb-item">
+            {% if loop.last %}
+            <span class="breadcrumb-current" aria-current="page">{{ item.label }}</span>
+            {% else %}
+            <a href="{{ item.url }}">{{ item.label }}</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+</nav>
+<script type="application/ld+json" nonce="{{ nonce or csp_nonce() }}">
+{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        {% for item in items %}
+        {
+            "@type": "ListItem",
+            "position": {{ loop.index }},
+            "name": {{ item.label | tojson }},
+            "item": {{ (item.url | string) | tojson }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+}
+</script>
+{% endif %}
+{% endmacro %}

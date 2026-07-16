@@ -1,0 +1,38 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('搜索') }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="/" class="m-header-btn" aria-label="{{ _('返回') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('搜索书籍') }}</span>
+    <div class="m-header-placeholder"></div>
+</header>
+{% endblock %}
+
+{% block content %}
+
+<!-- 搜索表单 -->
+<form action="/" method="get" class="m-search-form">
+    <div class="m-search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" name="search" placeholder="{{ _('输入书名、作者...') }}"
+               required autofocus
+               aria-label="{{ _('搜索关键词') }}">
+    </div>
+    <button type="submit" class="m-btn m-btn-primary">{{ _('搜索') }}</button>
+</form>
+
+<!-- 热门搜索 -->
+<section class="m-section">
+    <h2 class="m-section-title">{{ _('热门搜索') }}</h2>
+    <div class="m-hot-tags">
+        {% for kw in ['百年孤独', '三体', '小王子', '人类简史', '原子习惯', '置身事内'] %}
+        <a href="/?search={{ kw | urlencode }}" class="m-hot-tag" data-href="/?search={{ kw | urlencode }}">{{ kw }}</a>
+        {% endfor %}
+    </div>
+</section>
+
+{% endblock %}

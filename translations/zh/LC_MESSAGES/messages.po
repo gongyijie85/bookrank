@@ -558,7 +558,7 @@ msgstr "分类"
 
 #: templates/book_detail.html:112 templates/weekly_report_detail.html:1259
 msgid "上榜周数"
-msgstr "上榜周数"
+msgstr "累计上榜周数"
 
 #: templates/book_detail.html:122
 msgid "语言"
@@ -771,6 +771,10 @@ msgid "家出版社"
 msgstr "家出版社"
 
 #: templates/new_books.html:84
+msgid "近7天出版"
+msgstr "近7天出版"
+
+#: templates/new_books.html:84
 msgid "近7天新增"
 msgstr "近7天新增"
 
@@ -778,6 +782,54 @@ msgstr "近7天新增"
 #: templates/weekly_report_detail.html:1316 templates/weekly_reports.html:94
 msgid "本"
 msgstr "本"
+
+#: templates/new_books.html:113
+msgid "最近7天出版"
+msgstr "最近7天出版"
+
+#: templates/new_books.html:114
+msgid "最近30天出版"
+msgstr "最近30天出版"
+
+#: templates/new_books.html:115
+msgid "最近90天出版"
+msgstr "最近90天出版"
+
+#: templates/new_books.html:116
+msgid "最近半年出版"
+msgstr "最近半年出版"
+
+#: templates/new_books.html:117
+msgid "最近一年出版"
+msgstr "最近一年出版"
+
+#: templates/new_books.html:123
+msgid "搜索书名、作者、"
+msgstr "搜索书名、作者、"
+
+#: templates/new_books.html:141
+msgid "当前结果"
+msgstr "当前结果"
+
+#: templates/new_books.html:142
+msgid "按出版日期筛选最近"
+msgstr "按出版日期筛选最近"
+
+#: templates/new_books.html:142
+msgid "天已出版图书"
+msgstr "天已出版图书"
+
+#: templates/new_books.html:189
+msgid "当前出版时间范围暂无新书，可放宽时间范围或稍后刷新"
+msgstr "当前出版时间范围暂无新书，可放宽时间范围或稍后刷新"
+
+#: templates/new_books.html:191
+msgid "刷新"
+msgstr "刷新"
+
+#: templates/new_books.html:339
+msgid "尝试放宽出版时间范围或搜索其他关键词"
+msgstr "尝试放宽出版时间范围或搜索其他关键词"
 
 #: templates/new_books.html:92
 msgid "选择出版社"

@@ -123,14 +123,14 @@ class TestNewBookService:
 
         # 验证结果
         assert result is True
-        assert Publisher.query.get(publisher.id).is_active is False
+        assert db.session.get(Publisher, publisher.id).is_active is False
 
         # 执行测试 - 启用出版社
         result = new_book_service.update_publisher_status(publisher.id, True)
 
         # 验证结果
         assert result is True
-        assert Publisher.query.get(publisher.id).is_active is True
+        assert db.session.get(Publisher, publisher.id).is_active is True
 
     def test_get_crawler(self, new_book_service):
         """测试获取爬虫实例"""
@@ -297,7 +297,7 @@ class TestNewBookService:
         updated = new_book_service._sync_engine._update_book_fields(book, book_info, auto_commit=False)
 
         assert updated is True
-        assert book.category == 'Fiction'
+        assert book.category == '小说'  # sanitize_category 将 'Fiction' 映射为 '小说'
         assert book.publication_date == date(2026, 5, 1)
         assert book.page_count == 256
         assert book.language == 'en-US'

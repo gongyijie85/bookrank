@@ -11,22 +11,56 @@ var BookI18n = (function() {
     var DESC_SELECTORS = '.card-desc, .list-item-desc, .book-description, .detail-description';
     var CAT_SELECTORS = '.card-category-tag, .book-category, .list-item-meta .card-tag:first-child';
 
+    /**
+     * 简易 ISBN 检测（10 或 13 位纯数字，可含连字符/空格）
+     */
+    function _looksLikeIsbn(text) {
+        if (!text) return false;
+        var cleaned = text.replace(/[-\s]/g, '');
+        return /^\d+$/.test(cleaned) && (cleaned.length === 10 || cleaned.length === 13);
+    }
+
     function _extractBookData(book) {
         var isbn = book.isbn13 || book.isbn10 || '';
         if (!isbn) return null;
 
+        // 分类标签：优先用 window.CATEGORIES 共享映射表（与首页一致）
+        // 当 book.category_id 存在时查表；缺失则回退到后端 list_name / category_name
+        var categoryId = book.category_id || '';
+        var enCat, zhCat;
+        if (categoryId && typeof window !== 'undefined' && window.CATEGORIES && window.CATEGORIES.getLabel) {
+            enCat = window.CATEGORIES.getLabel(categoryId, 'en');
+            zhCat = window.CATEGORIES.getLabel(categoryId, 'zh');
+        } else {
+            enCat = book.list_name || book.category_name || 'Fiction';
+            zhCat = book.category_name || enCat;
+        }
+
+        var enTitle = book.title || '';
+        var zhTitle = book.title_zh || '';
+
+        // 安全网：如果英文标题看起来是 ISBN，尝试用中文标题替代
+        if (_looksLikeIsbn(enTitle)) {
+            enTitle = zhTitle || enTitle;
+        }
+        // 同理处理中文标题
+        if (_looksLikeIsbn(zhTitle)) {
+            zhTitle = enTitle || zhTitle;
+        }
+
         return {
             isbn: isbn,
+            category_id: categoryId,
             en: {
-                title: book.title || '',
+                title: enTitle,
                 description: book.description || '',
-                category: book.list_name || book.category_name || 'Fiction',
+                category: enCat,
                 details: book.details || ''
             },
             zh: {
-                title: book.title_zh || '',
+                title: zhTitle,
                 description: book.description_zh || '',
-                category: book.category_name || '',
+                category: zhCat,
                 details: book.details_zh || ''
             },
             _raw: book
@@ -62,8 +96,13 @@ var BookI18n = (function() {
         if (!entry) return null;
         var localized = entry[lang] || {};
         var base = entry.en;
+        // 最终防线：如果取到的标题仍是 ISBN，回退到另一语言
+        var title = localized.title || base.title;
+        if (_looksLikeIsbn(title)) {
+            title = (lang === 'zh' ? base.title : localized.title) || title;
+        }
         return {
-            title: localized.title || base.title,
+            title: title,
             description: localized.description || base.description,
             category: localized.category || base.category,
             details: localized.details || base.details
@@ -79,10 +118,24 @@ var BookI18n = (function() {
         var entry = _store.get(isbn);
         if (!entry) return;
         if (!entry[lang]) entry[lang] = {};
-        if (data.title) entry[lang].title = data.title;
+        // 防止 ISBN 脏数据被写入标题
+        if (data.title && !_looksLikeIsbn(data.title)) entry[lang].title = data.title;
         if (data.description) entry[lang].description = data.description;
         if (data.category) entry[lang].category = data.category;
         if (data.details) entry[lang].details = data.details;
+    }
+
+    /**
+     * 批量更新翻译（兼容 items: [{isbn, language, data}]）
+     * 解决 index.js 调用 BookI18n.updateBatch 不存在的报错
+     */
+    function updateBatch(items) {
+        if (!Array.isArray(items)) return;
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            if (!item || !item.isbn) continue;
+            updateTranslation(item.isbn, item.language || 'zh', item.data || {});
+        }
     }
 
     function hasTranslation(isbn, lang) {
@@ -111,6 +164,22 @@ var BookI18n = (function() {
         }
     }
 
+    /**
+     * 更新卡片标题：兼容两种结构
+     * - 卡片本身就是标题元素（如获奖页面 h3.card-title 自身带 data-isbn）
+     * - 卡片内部嵌套标题元素（如详情页/首页的 .book-card > .card-title）
+     *
+     * 修复前对获奖页面失效，因为 h3.querySelector(TITLE_SELECTORS) 返回 null
+     */
+    function _updateTitleInCard(card, text) {
+        if (!card) return;
+        if (card.matches && card.matches(TITLE_SELECTORS)) {
+            _updateElement(card, text);
+        } else {
+            _updateElement(card.querySelector(TITLE_SELECTORS), text);
+        }
+    }
+
     function _findMetaValueByLabelKey(labelKey) {
         var labels = document.querySelectorAll('.detail-meta-grid .meta-label[data-i18n="' + labelKey + '"]');
         for (var i = 0; i < labels.length; i++) {
@@ -135,7 +204,7 @@ var BookI18n = (function() {
                 var cards = document.querySelectorAll('[data-isbn="' + isbn + '"]');
                 for (var c = 0; c < cards.length; c++) {
                     var card = cards[c];
-                    _updateElement(card.querySelector(TITLE_SELECTORS), data.title);
+                    _updateTitleInCard(card, data.title);
                     _updateElement(card.querySelector(DESC_SELECTORS), data.description, 80);
                     _updateElement(card.querySelector(CAT_SELECTORS), data.category);
                 }
@@ -205,15 +274,39 @@ var BookI18n = (function() {
         return _store.size;
     }
 
+    /**
+     * v0.9.63 新增：通用化"出版社名称"语言切换。
+     *
+     * 处理任意带 `data-pub-name-zh` / `data-pub-name-en` 属性的元素：
+     * - 侧边栏链接（`.sidebar-link` / `.publisher-link`）
+     * - 筛选下拉框 option（`<option>`）
+     * - 图书卡片出版社（`.book-publisher` / `.meta-value`）
+     * - 详情页 meta-value 出版社
+     *
+     * 调用方不需关心是哪种元素，零依赖 HTML 结构。
+     */
+    function applyPublisherLanguage(lang) {
+        if (lang !== 'zh' && lang !== 'en') return;
+        var els = document.querySelectorAll('[data-pub-name-zh]');
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            var nameZh = el.getAttribute('data-pub-name-zh') || '';
+            var nameEn = el.getAttribute('data-pub-name-en') || nameZh;
+            el.textContent = (lang === 'en') ? nameEn : nameZh;
+        }
+    }
+
     return {
         register: register,
         registerAll: registerAll,
         get: get,
         getRaw: getRaw,
         updateTranslation: updateTranslation,
+        updateBatch: updateBatch,
         hasTranslation: hasTranslation,
         getMissingTranslations: getMissingTranslations,
         applyLanguage: applyLanguage,
+        applyPublisherLanguage: applyPublisherLanguage,
         clear: clear,
         size: size
     };

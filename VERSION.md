@@ -1,197 +1,192 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.32
-**发布日期**：2026-05-28
+**当前版本**：v0.9.85
+**发布日期**：2026-07-16
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
 
-### v0.9.32 (2026-05-28) — 质量收官
-- **测试覆盖率提升**：61% → 84.12%（目标 ≥80%）
-- **测试用例总数**：987 → 2034 passed（+1047 个新测试）
-- **新增测试文件**：14 个（覆盖爬虫、路由、服务、工具等模块）
-- **测试隔离修复**：`test_service_helpers.py` 中 `app.extensions` 修改导致后续测试污染
-- **TODO 清理**：移除 `award_book_service.py` 中的 TODO 注释
-- **Ruff lint 优化**：新增 `RUF059`/`SIM117`/`B011` 测试文件忽略规则
-- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 2034 passed, 4 xfailed
-- **爬虫管理 API**：`POST /api/admin/crawler/run/<publisher>` 手动触发 + `GET /api/admin/crawler/status` 状态查看
-- **系统监控**：`GET /api/admin/system/status` 返回进程内存/线程数/数据库类型/缓存命中率/错误统计
-- **数据备份 API**：`GET /api/admin/backup/export` 导出全库 JSON + `POST /api/admin/backup/import` 导入恢复
-- **psutil 集成**：系统监控指标采集（进程内存、CPU、线程数）
-- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 987 passed
+### v0.9.85 (2026-07-16) — v0.9.84 收尾与仓库整理
 
-### v0.9.29 (2026-05-27) — 前端瘦身
-- **CSS 提取**：index.html 1093 行内联 CSS → `static/css/index.css` 独立文件
-- **JS 提取**：index.html 1250 行内联 JS → `static/js/index.js` ES Module
-- **Jinja2 变量处理**：配置变量（defaultCover、currentCategory）提取到 `window.APP_CONFIG` 对象
-- **模板瘦身**：index.html 从 2703 行减至约 580 行（减少 78%）
-- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.46%
+**背景**：v0.9.84 OSS 社区成熟度升级后，仓库中存在未跟踪的 Agent 文档、审计交付物和 GitHub CLI 缓存；同时需要手动确认 Private Vulnerability Reporting 已启用。本次整理补齐这些遗留项，使仓库状态干净。
 
-### v0.9.28 (2026-05-27) — 地基修复
-- **render.yaml**：Python 3.11→3.13，构建改用 requirements-prod.txt
-- **CI 统一**：test.yml Python 3.11→3.13 + 移除 --exit-zero；update-books.yml Python 3.10→3.13
-- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed
+**关键优化**
+- **Private Vulnerability Reporting 确认**：通过 `gh api repos/gongyijie85/bookrank/private-vulnerability-reporting` 验证已启用（返回 `{"enabled":true}`）。
+- **GitHub CLI 缓存忽略**：在 `.gitignore` 新增 `.gh-cache/`，防止本地 `gh` 命令缓存被误提交。
+- **Agent 文档入库**：提交 `AGENTS.md` 与 `docs/agents/` 下 `domain.md`、`issue-tracker.md`、`triage-labels.md`，为 Agent 工作流提供规范。
+- **审计交付物归档**：提交 `deliverables/bookrank-audit-20260708/`（含桌面端/平板端/移动端三端截图与 `audit-data.json`），归档 v0.9.83 同事反馈 P0-P3 优化的审计产物。
 
-### v0.9.27 (2026-05-27) — 服务注入标准化
-- **service_helpers 增强**：`get_translation_service()` 添加类型注解，新增 `register_service()`、`require_*` 系列
-- **app.extensions 消除**：setup.py 10 处、batch_translate.py 3 处直接访问 → 类型安全 getter
-- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.46%
+**质量验证**
+- `ruff check app/ tests/`：未改动源码，保持通过
+- `mypy app/`：未改动源码，保持通过
+- `git status`：除已忽略缓存外无未跟踪文件
 
-### v0.9.26 (2026-05-27) — NewBookService 拆分为子模块
-- **4 子模块 + 1 门面类**：PublisherManager(81行)、SyncEngine(416行)、TranslationPipeline(105行)、NewBookQueryService(159行)、NewBookService 门面(154行)
-- **向后兼容**：原 `new_book_service.py` 改为重导出，所有公开 API 签名不变
-- **Bug 修复**：移除重复 `@staticmethod` 装饰器，统一 `_GOOGLE_BOOKS_CRAWLERS` 定义
-- **Ruff**: 0 错误 | **Format**: 6 files already formatted
+---
 
-### v0.9.25 (2026-05-27) — 错误处理统一化阶段1完成
-- **P0 修复**：3 处静默吞没（`except Exception: pass` / 无日志降级）→ 添加 `log_error` 日志
-- **P1 修复**：4 处回滚无日志（`db.session.rollback()` 无日志）→ 添加 `log_error(ErrorCategory.DB_QUERY, ...)`
-- **P2 路由层**：5 文件 66 处 `logger.error/warning` → `log_error(ErrorCategory, ...)`
-- **P3 全量覆盖**：27 文件 92 处日志分类记录（服务层+爬虫层+工具层+初始化层）
-- **Bug 修复**：`csrf_protect` 装饰器缺少 `return wrapped` 导致蓝图注册失败
-- **配置更新**：mypy overrides 新增 `app.utils.api_helpers` 和 `return` 错误码
-- **总计**：38 个文件，约 180 处 `log_error(ErrorCategory, ...)` 替换
-- **Ruff**: 0 错误 | **mypy**: 0 错误 | **pytest**: 953 passed | **覆盖率**: 60.36%
+### v0.9.84 (2026-07-13) — OSS 社区成熟度升级（社区文件 / GitHub 配置 / Docker / Issue #8 修复）
 
-### v0.9.24 (2026-05-27) — 错误日志分类记录迁移（22 文件全量覆盖）
-- **22 个文件**：`except Exception as e: logger.error/warning/debug(...)` → `log_error(ErrorCategory.xxx, ...)`
-- **路由层**（5 文件）：books(8处)、translation(1处)、cache(4处)、awards(5处)、health(1处)
-- **应用初始化**（1 文件）：\_\_init\_\_.py(7处)，UNKNOWN/DB_QUERY 分类
-- **爬虫层**（10 文件）：25 处 CRAWLER 分类，`%s` 格式统一转 f-string
-- **任务和工具**（3 文件）：weekly_report_task(4处)、service_helpers(1处)、exceptions(2处)
-- **初始化数据**（3 文件）：sample_books(1处)、sample_award_books(1处)、awards(3处)
-- **导入排序修正**：ruff isort 自动修复 10 个文件
-- **Ruff check**: All checks passed
+**背景**：补齐 BookRank 作为开源项目的社区标准文件、仓库展示、Docker 一键运行和 GitHub 社区能力，使 Community Profile 达到 100%；同时修复 `Dockerfile` 引用已删除 `build.py` 的问题与 Issue #8 的根因。
 
-### v0.9.22 (2026-05-27) — 全面代码质量优化
-- **Ruff 代码检查清零**：32 个错误全部修复（导入排序、未使用导入、未定义名称、歧义变量名等）
-- **mypy 类型检查清零**：288 个错误降至 0（参数类型、返回类型、类型注解、SQLAlchemy 精准抑制）
-- **测试覆盖率达标**：47% → 60.05%（新增 22 个测试文件，500+ 测试用例）
-- **测试限流修复**：测试环境禁用限流，17 处断言容忍 429
-- **真实 Bug 修复**：`zhipu_translation_service.py` 中 `requests.RequestException` 未定义、`TranslationCacheService` 未导入
-- **429 限流容忍**：17 处测试断言添加 429 作为可接受状态码
-- **数据验证条件化**：对需验证业务数据的测试，429 时跳过数据检查
-- **管理员认证封禁容忍**：mock 测试添加 403 容忍（IP 封禁场景）
-- **全量测试通过**：953 passed, 0 failed
-- **mypy 错误清零**：从 269 个错误降至 0 个
-- **代码类型修复**：8 个文件修复实际类型错误（参数默认值、返回类型、类型注解等）
-- **mypy 配置优化**：SQLAlchemy 列属性类型推断限制通过 `disable_error_code` 精准抑制
-- **ruff 检查通过**：所有代码风格检查通过
+**关键优化**
+- **社区标准文件**：新增 MIT `LICENSE`、CONTRIBUTING.md、SECURITY.md、CODE_OF_CONDUCT.md、ROADMAP.md。
+- **GitHub 社区配置**：新增 Bug/Feature Issue Forms、PR 模板、Dependabot 配置；启用 CodeQL 默认配置与 Dependabot Security Updates。
+- **Docker 一键运行**：删除 `Dockerfile` 中已失效的 `build.py` 调用；新增 `compose.yaml`，使用 SQLite 持久卷与端口 `8000`。
+- **Issue #8 修复**：将 NYT 频率检查放到已安装项目依赖后执行，保留一致/漂移/运行错误三种退出语义，并为不同场景打上对应标签。
+- **README 修正**：CI badge 路径由 `test.yml` 改为 `ci.yml`，新增 v0.9.84 最近更新条目。
 
-### v0.9.17 (2026-05-19) — 修复 CSRF Token SAWarning + Render 数据库恢复
-- **SAWarning 修复**：CSRFToken 模型添加 `__mapper_args__ = {'confirm_deleted_rows': False}`
-- **PostgreSQL 时区修复**：移除不支持的 timezone 参数，改用 SQL 语句设置
-- **Render 生产环境恢复**：重建数据库并重新部署成功
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过（90 source files 无类型问题）
+- `pytest tests/test_nyt_frequency_check.py -q --no-cov`：8 passed
+- `docker compose config` 与 `docker compose up --build` 可正常启动
 
-### v0.9.16 (2026-05-18) — ISBN 格式严格校验 + 详情页硬编码中文修复
-- **ISBN 严格格式校验**: ISBN-13 必须以 978/979 开头且 13 位纯数字；ISBN-10 必须 10 位（末位可为 X）
-- **出版社黑名单扩展**: 覆盖 NYT API 所有已知无效分类名（精装/平装/虚构/非虚构/青少年/儿童/建议读物等）
-- **详情页硬编码中文消除**: toggleOriginal() / switchDetailLang() 改用 t() 翻译函数，新增 hide_original 键值
+---
 
-### v0.9.15 (2026-05-18) — 修复语言按钮不更新 + ISBN 显示问题
-- **语言切换按钮即时更新**: 三重保障确保 #lang-current 始终显示正确语言
-- **ISBN/出版社数据验证**: 过滤无效值，避免显示分类名等错误数据
-- **try-catch 防护**: updateLangDropdown 和 BookI18n 异常不再中断切换流程
+### v0.9.83 (2026-07-07) — 同事反馈 P3 优化（代码清理 / 缓存简化 / 构建瘦身 / 服务与响应统一）
 
-### v0.9.14 (2026-05-18) — 修复语言切换中英混杂 Bug
-- **修复详情页英文模式下标签显示中文**: 所有 meta-label 添加 data-i18n 属性
-- **修复详情页中文模式下书名/描述仍显示英文**: BookI18n.applyLanguage() 支持详情页模式
-- **所有页面 languagechange 处理器统一添加 applyPageTranslation() 调用**
-- **新增 14 个详情页翻译键值**
+**背景**：基于四位同事反馈与 ponytail-audit，P3 聚焦不改动业务行为的前提下删除 dead code、简化手写缓存与装饰器、移除构建压缩依赖、统一服务访问与 API 响应。
 
-### v0.9.13 (2026-05-18) — 前端语言包即时切换 — BookI18n 图书内容语言包全页面集成
-- **4个模板页面集成 BookI18n**: awards/new_books/book_detail/weekly_report_detail 全部支持 BookI18n 即时切换
-- **languagechange 事件监听**: 所有页面监听语言切换事件，使用 `BookI18n.applyLanguage()` 即时替换
-- **缺失翻译自动补全**: `BookI18n.getMissingTranslations('zh')` 检测缺失翻译并后台调用翻译 API
-- **保留原有翻译函数作为后备**: BookI18n 不可用时回退到 `translateAllBooks()` / `loadBooks()`
-- **翻译结果同步回写**: 翻译 API 成功后通过 `BookI18n.updateTranslation()` 更新内存数据
+**关键优化**
+- **死代码清理**：删除 8 个一次性 `scripts/_*.py` 脚本、周报任务中 5 个邮件相关函数、`build.py` 及全部 minified 产物，减少约 1500 行无效代码。
+- **构建瘦身**：从依赖中移除 `rcssmin`，前端直接提供原始 CSS/JS，由平台 gzip/Brotli 压缩；`app/__init__.py` 与模板不再维护 minified 资源存在性配置。
+- **缓存简化**：自定义 LRU cache 统一替换为 `functools.lru_cache`。
+- **装饰器合并**：`safe_execute` / `safe_call` / `safe_service_call` 合并为单一实现，避免 200+ 行重复包装。
+- **服务访问统一**：`app/utils/service_helpers.py` 新增 `get_service` / `require_service` / `_get_or_create_service`，按服务名统一获取/要求单例。
+- **响应格式统一**：`APIResponse` 增加 `include_timestamp` 参数；`PublicAPIResponse` 改为向后兼容薄包装。
+- **测试清理**：移除周报任务与周报功能测试中已失效的 SMTP/邮件相关用例。
 
-### v0.9.10 (2026-05-18) — 语言切换完整修复
-- **修复语言同步循环问题**: base.html内联脚本优化，确保localStorage与服务端语言一致
-- **重新编译翻译文件**: 所有语言包重新编译，确保翻译最新
-- **导航菜单翻译同步**: 语言切换后导航菜单完整显示中文/英文
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过（90 source files 无类型问题）
+- `pytest --cov=app`：2164 passed，覆盖率 81.36%
 
-### v0.9.9 (2026-05-15) — 分类切换报错修复与语言同步优化
-- **分类切换报错修复**：`/api/category-books` 接口增加异常降级处理，服务异常时返回空列表而非500错误
-- **语言同步优化**：`base.html` 内联脚本优先尊重用户 localStorage 语言设置，不再强制覆盖为服务端语言
+---
 
-### v0.9.8 (2026-05-15) — 语言切换按钮修复
-- **修复语言切换按钮状态不同步**：切换到中文版后，导航栏语言按钮始终显示正确状态（中/EN）
-- **消除竞态条件**：统一语言初始化逻辑，确保 DOM 加载完成后再更新 UI
+### v0.9.82 (2026-07-07) — 同事反馈 P2 优化（导航 / SEO / 可访问性 / 数据净化）
 
-### v0.9.7 (2026-05-14) — 路由层 db.session 治理 & 前端 XSS 加固
-- **路由层 db.session 治理**：`new_book_detail` 路由改用 `NewBookService.get_book`，异步翻译逻辑提取至 `NewBookService.translate_book_background`
-- **翻译闭包治理**：`_merge_or_translate_book` 的异步翻译闭包改用 `UserService.save_book_translation`，消除闭包内直接 db.session 操作
-- **前端 XSS 加固**：`index.html` 搜索历史 `aria-label`、`analytics_dashboard.html` 表格行模板变量全部使用 `escapeHtml()` 转义
-- **User-Agent 配置化**：`open_library_client.py` User-Agent 从配置读取，不再硬编码
-- **类型注解修复**：`user_service.py` 返回类型移除字符串前引
+**背景**：P1 基础体验优化完成后，P2 聚焦导航简化、SEO 结构化数据、可访问性细节与缺失数据展示兜底。
 
-### v0.9.6 (2026-05-14) - 配置项集中管理 & 图表颜色规范化
-- **配置项迁移**：6 个配置项（TTL、模型名称、缓存容量）迁移到 `config.py`
-- **图表颜色规范化**：`analytics_dashboard.html` 所有图表颜色统一由 `chartColors` 对象管理
+**关键优化**
+- **面包屑导航**：新增 `templates/_breadcrumbs.html` 宏组件，全站 10+ 页面接入面包屑，内嵌 `BreadcrumbList` JSON-LD；`base.html` 简化顶部导航语义结构，移除冗余 ARIA role。
+- **SEO 结构化数据**：首页榜单注入 `ItemList` + `Book` schema；书籍详情、新书详情、获奖详情注入完整 `Book` JSON-LD；周报详情注入 `Article` JSON-LD；详情页补齐 `og:image` / `twitter:image`。
+- **可访问性**：语言切换同步更新 `<html lang>`；修正标题层级；面包屑与导航当前项添加 `aria-current="page"`；封面 `alt` 增强为“《书名》封面，作者 XXX”；搜索表单语义化为 `<search>` + `<label>` + `<input type="search">`。
+- **数据净化**：`app/__init__.py` 新增 `is_invalid_publisher`、`clean_brackets` 等模板过滤器；页数为 `0` / `Unknown` / `N/A` 等占位值时不显示；出版社字段过滤后再写入结构化数据。
+- **测试修复**：`tests/test_main_routes_extended.py` 补充 mock 书籍字段，修复 JSON-LD 序列化 `MagicMock` 不可序列化错误。
 
-### v0.9.5 (2026-05-14) - API 路由统一错误处理装饰器
-- **装饰器统一接管**：31 个 API 函数引入 `@handle_api_errors`，错误返回格式统一
-- **代码简化**：移除 31 处手动 try/except，减少约 150 行代码
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过（90 source files 无类型问题）
+- `pytest --cov=app`：2164 passed，覆盖率 81.36%
 
-### v0.9.4 (2026-05-14) - 前端 XSS 漏洞修复
-- **购买链接 XSS 修复**：`index.html` 中 `link.name` 未转义直接注入 DOM，现使用 `escapeHtml()` 转义
-- **SVG 注入防护**：`base.html` SVG Sprite 加载增加类型、格式、结构三重验证
-- **数据表格转义**：`analytics_dashboard.html` 所有用户可见数据使用 `escapeHtml()` 转义
+---
 
-### v0.9.3 (2026-05-14) - SECRET_KEY 管理与 CORS 配置修复
-- **SECRET_KEY 固定化**：开发环境使用固定密钥，生产环境强制环境变量校验
-- **CORS 配置修复**：开发/测试/生产环境分离，credentials 组合合规
+### v0.9.81 (2026-07-07) — 同事反馈 P0 阻塞项修复收尾
 
-### v0.9.2 (2026-05-14) - 缓存高频写入优化
-- **缓存命中即 commit 修复**：`api_cache_service.py` 和 `translation_cache_service.py` 读路径移除数据库写入
-- **日志补全**：`analytics_service.py` 添加 logging 和异常处理
+**背景**：基于四位同事反馈与 ponytail-audit，完成全部 P0 阻塞项修复。
 
-### v0.9.1 (2026-05-14) - 数据库迁移系统修复
-- **8 个缺失表迁移**：新增 `create_all_missing_tables.py`，包含完整 CREATE TABLE 语句
-- **迁移链修复**：迁移链顺序正确，支持 `flask db upgrade` 完整重建
+**关键修复**
+- P0-1：新书速递页面 ISBN 脏数据清洗（`query_service.py` + `_macros.html`）。
+- P0-2：SVG 图标改为内联雪碧图（`base.html` + `templates/icons.svg`）。
+- P0-3：CSP 使用 per-request nonce 并移除 `unsafe-inline`（`app/__init__.py` + `base.html`）。
+- P0-4：删除旧 minified JS 产物并添加防御式 `getThemeColors`（`static/js/base.js`）。
+- P0-5：确认 Vite 开发客户端残留非代码问题。
 
-### v0.9.0 (2026-05-14) - 全面代码审计
-- **全项目代码审计**：覆盖路由层、服务层、模型层、前端模板、配置安全和测试体系
-- **发现 120+ 问题**：8 项严重、15 项高危、40+ 项中等、57 项低危
-- **审计报告输出**：详见 `CHANGELOG.md` 和 `docs/code-audit-report-2026-05-14.md`
-- **修复优先级矩阵**：P0-P3 四级优先级，指导后续修复工作
+**质量验证**
+- `ruff check app/ tests/` 通过
+- `mypy app/` 通过
+- `pytest --cov=app`：2164 passed，覆盖率 81.33%
 
-### v0.8.2 (2026-05-14) - Flask-Babel 4.0 兼容性修复
-- **修复生产环境 500 错误**：`get_locale()` 在模板中未定义问题
-- **Flask-Babel 4.0 API 适配**：`locale_selector` 改为属性赋值 + Jinja2 globals 注入
+---
 
-### v0.8.1 (2026-05-11) - 语言切换 Bug 修复
-- **分类标签语言翻转修复**：中英文界面分类标签显示正确
-- **服务端渲染语言适配**：`index.html`、`_macros.html`、`awards.html` 服务端渲染根据 locale 切换内容
+### v0.9.80 (2026-06-17) — CODE_WIKI 导入 Obsidian 知识库
+- **Obsidian 知识库**：将 `CODE_WIKI.md` 按 18 个章节拆分到 `Code Wiki/` 目录，含索引页 + wikilink 导航
+- **拆分脚本**：`scripts/split_wiki.py` 自动化按 `## ` 标题拆分 Markdown，可复用
+- **改动文件**：新增 19 个 Markdown 文件 + 1 个拆分脚本
 
-### v0.8.0 (2026-05-11) - 全线优化升级
-- **生产依赖精简**：新增 `requirements-prod.txt`，移除开发工具减少内存占用
-- **错误监控**：内置内存错误追踪器（`/admin/errors` 路由）
-- **CSRF 保护全量覆盖**：所有 POST 路由已有 CSRF 保护
-- **代码整洁**：删除 28 个临时调试文件，17 个脚本移入 `scripts/`
-- **性能优化**：CSS 构建缓存检测 + Gzip 响应压缩 + SW 缓存策略 v2
-- **文档同步**：README/VERSION/CHANGELOG 更新至当前状态
+### v0.9.79 (2026-07-05) — 综合审计整改收尾
 
-### v0.7.0 (2026-04) - Render 部署优化
-- PostgreSQL 连接池极致优化（pool_size=2, overflow=1）
-- Gunicorn 单 worker 模式 + `--preload` 共享内存
-- APScheduler 内存队列调度
-- 智能处理 Render 数据库冷启动
-- SQLAlchemy 2.0 兼容就绪
+**背景**：基于 2026-07-02 全维度综合审计，完成代码质量、测试覆盖、安全、性能、配置环境、部署回滚、监控告警、数据库、文档与用户体验 10 个维度的审计与关键整改。
 
-### v0.6.0 (2026-03) - 代码架构升级
-- API 路由拆分为子模块
-- 周报模块标准化
-- 代码质量工具链集成（Ruff + mypy + pre-commit）
+**关键整改**
+- **代码质量**：完成全量代码质量审计；路由层直接 `db.session` 调用逐步下沉 Service 层；Ruff / mypy 持续保持通过。
+- **测试覆盖**：识别 18 个低覆盖率模块；封堵爬虫测试真实网络请求；当前总覆盖率 ≥73%，CI 阈值 ≥70%。
+- **安全**：完成 OWASP Top 10 安全审计；`admin.py` 三个管理端点补齐 `@csrf_protect`；安全头、admin_auth、依赖漏洞已处理。
+- **性能**：完成性能审计；修复 `BookService.sync_all_categories` 与 `AwardBookService._process_award_books` 两处 N+1 查询，使用 `selectinload` / 批量操作降低查询次数。
+- **配置环境**：`.env.example` 补全 `ADMIN_SECRET`、`IMAGE_TIMEOUT`、`NYT_RANKING_SYNC_DAYS`、`SQLALCHEMY_ECHO`、`SENTRY_DSN`、`ALERT_WEBHOOK_URL`、`CORS_ORIGINS` 等变量；`app/config.py` 支持 `API_RATE_LIMIT_WINDOW` 与 `CORS_ORIGINS` 过滤。
+- **部署回滚**：`render.yaml` 关闭自动部署（`autoDeploy: false`）、健康检查改为 `/health/ready`、强制 `WEB_CONCURRENCY=1`；新增 `docs/runbooks/deployment-rollback.md` 回滚 SOP。
+- **监控告警**：`app/utils/error_tracker.py` 接入 Sentry DSN；`app/setup.py` 增加后台任务连续失败告警；`health.py` 就绪检查返回 503；新增 `docs/runbooks/alerts.md`。
+- **数据库**：完成数据库模型、索引、迁移历史、连接池审计；补充 `migrations/versions/create_all_missing_tables.py` 修复初始迁移缺少 CREATE TABLE 的问题；新增 `docs/runbooks/database-backup-restore.md` 备份恢复手册。
+- **文档**：新增/更新 10 份审计报告与 3 份 Runbook；更新 README、CHANGELOG、VERSION、onboarding、API 文档。
+- **用户体验**：完成 UX 审计，输出 3-5 项优先级改进建议（骨架屏、统一错误页、语言切换反馈、暗色主题对比度、搜索入口可达性）。
 
-### v0.5.0 (2026-02) - 功能扩展
-- 新书速递爬虫系统
-- 智谱AI翻译服务
-- 每周报告生成
+**验证**
+- `make check` 通过（Ruff lint + format check + mypy）。
+- `pytest tests/` 全量通过，覆盖率 ≥73%。
 
-### v0.4.0 (2026-01) - 基础完善
-- 缓存系统
-- 奖项书单
-- 数据导出功能
+---
+
+### v0.9.78 (2026-06-26) — 移动端详情页 Tab 化 + Tab 改名 + 语言切换
+- **详情页 Tab 化**：书籍详情和获奖图书详情都加"图书简介 / 详细信息"两个 Tab，与电脑端一致；切换"详细信息"时懒加载 Google Books 详细介绍
+- **删除放大镜**：首页顶部 nav 去掉搜索图标，只保留"书榜"标题
+- **Tab 改名**：底部 4 个 Tab 改为 首页 / 获奖书单 / 出版社 / 我的
+- **删除返回按钮**：详情页底部"返回榜单"按钮去掉（保留顶部 m-header 返回箭头）
+- **加语言切换器**：顶部右上角加地球图标，点击下拉切换"简体中文 / English"，复用 `book-i18n.js`，持久化到 `localStorage.bookrank_language`
+- **质量验证**：ruff check / mypy 全部通过；2136 passed, 4 xfailed；移动端测试从 20 个增至 30 个
+- **改动文件**：6 个（2 个模板 + CSS + JS + 2 个测试相关）
+
+### v0.9.77 (2026-06-26) — 移动端 UI v2.0 视觉优化
+- **设计风格升级**：按 v2.0.0 设计稿全面优化移动端现有页面，墨绿主色 + 暖橙强调 + 米白背景，更清爽
+- **底部 Tab Bar**：手写 SVG 实心/描边两套图标，激活态墨绿色，首页图标 28px 视觉重心
+- **首页**：顶部导航栏 + 搜索图标；分类 Tab 改为底部指示条；卡片阴影更柔和
+- **书籍详情**：封面区渐变过渡；内容简介段落化、行高 1.8；详情信息改为单列列表；底部新增"返回榜单"按钮
+- **获奖图书详情**：与书籍详情布局统一，奖项名和年份用徽章展示
+- **周报列表**：左右布局卡片，左侧 Wxx 周数指示器，右侧日期/统计 + 箭头
+- **周报详情**：Hero 统计 4 列水平布局，推荐书籍理由改为气泡样式
+- **搜索页**：搜索表单结构优化，热门搜索标签样式统一
+- **个人中心**：收藏/搜索历史空状态加图标装饰
+- **触控规范**：按钮/分页最小高度 44px
+- **质量验证**：ruff check / mypy / 20 个移动端测试全部通过
+- **改动文件**：11 个（CSS + 9 个模板 + 测试）
+
+### v0.9.76 (2026-06-26) — 周报列表页 + 详情页（bookrank-draft 设计稿）
+- **weekly-report-list.html**：全新周报列表页，5 张示例卡片（W25-W21），含空状态占位
+- **weekly-report.html**：完全重写周报详情页，Hero 渐变区 + 4 列统计 + 榜单变化 + 推荐书籍语气泡 + 分享按钮
+- **设计系统统一**：CSS 变量内联、Tailwind CDN v4、Lucide 图标、底部 Tab Bar 规范、data-dom-id 命名
+- **改动文件**：2 个（1 新增 + 1 重写）
+
+### v0.9.69 (2026-06-17) — 新书速递模块修复
+- **统计栏占位符修复**：移除 `data-i18n` 属性，直接使用 Jinja2 翻译，解决 `{count}` 占位符未替换问题
+- **分类数据中英文统一**：添加 `CATEGORY_EN_TO_ZH` 映射表（20 个常见分类），`sanitize_category` 函数应用映射
+- **数据迁移接口**：新增 `/migrate-categories` 管理接口，批量更新已有书籍分类数据
+- **CSV 公式注入防护**：`_sanitize_csv_field` 处理 `=+-@\t\r` 前缀字段
+- **CSV 导出速率限制**：每 IP 10 秒冷却,多 worker 安全
+- **卡片标签兜底**：`publication_date/category` 缺失时显示"分类未公开 / 日期未公开"占位
+- **统计区间扩展**：`get_statistics` 同时返回 `recent_books_7d` + `recent_books_30d`
+- **搜索端点过滤对齐**：`/api/new-books/search` 支持 `publisher_id/category/days` 过滤
+- **翻译诊断日志**：`_translate_book` 失败时打印 id+长度上下文
+- **测试覆盖**：新增 16 个测试用例(CSV 注入、速率限制、搜索过滤、统计字段)
+- **质量验证**：ruff check / mypy / pytest (118 passed) 全部通过
+- **改动文件**：11 个
+
+### v0.9.68 (2026-06-14) — 修复 CI 依赖冲突
+- **根因**：v0.9.67 添加的 `PyJWT>=2.13.0` 与 `zhipuai==2.1.5.20250825`（约束 `pyjwt<2.9.0,>=2.8.0`）冲突，CI 三个 Job 在 `pip install` 阶段失败
+- **修复**：从 `requirements.txt` 移除 `PyJWT>=2.13.0`（代码零引用、prod 也未包含）
+- **改动文件**：3 个（`requirements.txt`、`CHANGELOG.md`、`VERSION.md`）
+
+### v0.9.67 (2026-06-14) — 安全审计：CSRF 全覆盖 + 依赖漏洞修复
+- **S1 admin_auth 中间件**：确认已完善（rate limit + 失败计数 + 持久化 + 审计日志）
+- **S2 CSRF 保护全覆盖**：为 `favorites` / `awards` / `books` 模块的 8 个 POST/DELETE 端点添加 `@csrf_protect`
+- **S3 安全头检查**：确认已手动实现 CSP/HSTS/X-Frame-Options
+- **S4 密钥轮换 SOP**：确认环境变量管理规范已就绪
+- **S5 依赖漏洞修复（pip-audit）**：mistune 3.2.0 → 3.2.1（修复 2 个 XSS 漏洞），添加 PyJWT>=2.13.0（修复 6 个漏洞）
+- **S6 静态扫描修复（bandit）**：MD5 哈希添加 `usedforsecurity=False` 参数
+- **质量验证**：ruff check / mypy / pytest 全部通过（48/48 测试）
+- **改动文件**：5 个（`app/routes/api/favorites.py`、`app/routes/api/awards.py`、`app/routes/api/books.py`、`app/services/api_utils.py`、`requirements.txt`）
+
+### v0.9.64 (2026-06-14) — 多 worker 安全锁 + CSV 文件名国际化
+- **L1 多 worker 安全锁**：`app/routes/new_books.py` 使用 `current_app.extensions` 存储同步锁和时间戳，替代全局变量，确保跨 worker 同步操作安全
+- **L2 CSV 文件名 RFC 5987 国际化**：CSV 导出使用 `filename*=UTF-8''` 格式，同时提供 ASCII 备用名，修复中文文件名乱码问题
+- **L3 var → const/let 统一**：`templates/new_books.html` 将 `var card` / `var bookCard` 替换为 `const`，符合 ES6 规范
+- **L5 全局图片错误处理验证**：`static/js/base.js` 的 `initImageErrorHandler` 已实现基于 `data-fallback` 属性的统一监听
+- **M7/M8 详情页 i18n 通用化**：确认 v0.9.62 已完成，无需改动

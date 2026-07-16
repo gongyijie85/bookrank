@@ -71,21 +71,23 @@ class TestReadinessCheck:
         mock_db.session.execute.side_effect = OperationalError('stmt', 'params', 'orig')
         mock_db.text = MagicMock()
 
-        with app.app_context(), patch('app.models.database.db', mock_db):
+        with app.app_context(), patch('app.services.health_service.db', mock_db):
             response = client.get('/health/ready')
 
-        assert response.status_code == 200
+        assert response.status_code == 503
         data = json.loads(response.data)
-        assert 'warning' in data
+        assert data['success'] is False
+        assert data['status'] == 'not_ready'
 
     def test_ready_generic_exception(self, app, client):
         mock_db = MagicMock()
         mock_db.session.execute.side_effect = RuntimeError('unexpected')
         mock_db.text = MagicMock()
 
-        with app.app_context(), patch('app.models.database.db', mock_db):
+        with app.app_context(), patch('app.services.health_service.db', mock_db):
             response = client.get('/health/ready')
 
-        assert response.status_code == 200
+        assert response.status_code == 503
         data = json.loads(response.data)
-        assert 'warning' in data
+        assert data['success'] is False
+        assert data['status'] == 'not_ready'

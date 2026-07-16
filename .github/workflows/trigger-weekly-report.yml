@@ -10,9 +10,9 @@ name: Trigger Weekly Report
 
 on:
   schedule:
-    # 每周五 08:00 UTC（此时 NYT 周三/周四排行榜数据已就绪，
-    # generate_weekly_report 的 Thu-Sun 分支会生成本周周报）
-    - cron: '0 8 * * 5'
+    # v0.9.46+：每周五/六/日 08:00 UTC 三次触发兜底
+    # （GitHub Actions 免费层定时任务可能漏跑，周六/日两次重试）
+    - cron: '0 8 * * 5,6,0'
   workflow_dispatch:
 
 concurrency:

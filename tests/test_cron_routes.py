@@ -47,7 +47,7 @@ class TestTriggerWeeklyReport:
         data = response.get_json()
         assert data['success'] is True
         assert '跳过' in data['message']
-        mock_generate.assert_called_once()
+        mock_generate.assert_called_once_with(force_regenerate=True)
 
     def test_valid_token_returns_report_data(self, client, cron_secret):
         from datetime import date

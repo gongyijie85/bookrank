@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题 / 问答
+    url: https://github.com/gongyijie85/bookrank/discussions
+    about: 如果你有问题或需要帮助，请前往 Discussions 发帖，避免重复提交 issue。
+  - name: 安全漏洞报告
+    url: https://github.com/gongyijie85/bookrank/security/advisories/new
+    about: 请不要在公开 issue 中披露漏洞细节，请使用 Private Vulnerability Reporting。

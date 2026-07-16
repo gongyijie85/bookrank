@@ -219,10 +219,14 @@
 
 .card-image {
     position: relative;
-    aspect-ratio: 2/3;
+    aspect-ratio: 3/2;
     overflow: hidden;
     background: var(--bg-tertiary);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    /* 网格视图封面：容器 3:2 横向，内部 .cover-frame 画框是 2:3 纵向，封面 contain 完整显示 */
+    display: flex;
+    align-items: flex-start;     /* 画框上对齐容器顶部 */
+    justify-content: center;     /* 画框水平居中 */
 }
 
 /* Image loading placeholder */
@@ -249,18 +253,30 @@
     }
 }
 
-.card-image img {
-    width: 100%;
+/* 2:3 封面画框：高度贴齐 .card-image 容器高度，宽度由 aspect-ratio 推出 */
+.cover-frame {
+    aspect-ratio: 2/3;
     height: 100%;
-    object-fit: cover;
-    transition: transform var(--transition-slow), opacity var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    /* 让 z-index 层级合理：画框在 shimmer 之上 */
     position: relative;
     z-index: 2;
+}
+
+.cover-frame img {
+    width: 100%;
+    height: 100%;
+    /* 网格视图封面：contain 让整本封面完整显示，不足处露出画框底色 --bg-tertiary */
+    object-fit: contain;
+    transition: opacity var(--transition-normal);
     opacity: 0;
 }
 
-.card-image img[src]:not([src=""]),
-.card-image.loaded img {
+.cover-frame img[src]:not([src=""]),
+.card-image.loaded .cover-frame img {
     opacity: 1;
 }
 
@@ -269,12 +285,13 @@
     to { opacity: 1; }
 }
 
-.card-image img[src]:not([src=""]) {
+.cover-frame img[src]:not([src=""]) {
     animation: fadeIn 0.3s ease;
 }
 
-.card:hover .card-image img {
-    transform: scale(1.05);
+/* 网格视图封面：去掉 hover 放大，避免封面贴近下方文字 */
+.card:hover .cover-frame img {
+    transform: none;
 }
 
 /* Card Badge - Vercel Style */
@@ -890,8 +907,8 @@
     transform: scale(1.1);
 }
 
-/* Hide desktop close button on mobile */
-@media (max-width: 768px) {
+/* Hide desktop close button on mobile (≤767px) */
+@media (max-width: 767px) {
     .modal-close-desktop {
         display: none;
     }
@@ -1519,12 +1536,14 @@
         box-shadow: 0 20px 40px rgba(255, 107, 53, 0.2);
     }
 
-    .card-image img {
-        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    /* 桌面端封面 fadeIn 过渡：与 .cover-frame img 保持一致 */
+    .cover-frame img {
+        transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .card:hover .card-image img {
-        transform: scale(1.08);
+    /* 网格视图封面：桌面端也不再放大 hover */
+    .card:hover .cover-frame img {
+        transform: none;
     }
 
     /* Smooth scrollbar for desktop */
@@ -1547,15 +1566,15 @@
     }
 }
 
-/* Desktop (1025px-1399px) - Standard desktop layout */
-@media (min-width: 1025px) and (max-width: 1399px) {
+/* Desktop (1200px-1399px) - Standard desktop layout */
+@media (min-width: 1200px) and (max-width: 1399px) {
     .books-grid {
         grid-template-columns: repeat(6, 1fr);
     }
 }
 
-/* Tablet Landscape (768px-1024px) - Optimize for tablets */
-@media (min-width: 769px) and (max-width: 1024px) {
+/* 平板端 (768px-1199px) — 可切换侧边栏，双列卡片 */
+@media (min-width: 768px) and (max-width: 1199px) {
     .books-grid {
         grid-template-columns: repeat(4, 1fr);
         gap: var(--spacing-sm);
@@ -1568,19 +1587,6 @@
 
     .card-title {
         font-size: 0.95rem;
-    }
-
-    .nav-link span {
-        font-size: 0.85rem;
-    }
-
-    .top-nav {
-        padding: 0 var(--spacing-md);
-    }
-
-    .main-content {
-        padding: var(--spacing-md);
-        padding-top: calc(var(--top-nav-height) + var(--spacing-md));
     }
 
     .modal-body {
@@ -1598,8 +1604,8 @@
     }
 }
 
-/* Tablet Portrait/Small Laptop (≤1024px) */
-@media (max-width: 1024px) {
+/* 平板端竖屏 & 小屏平板 (≤1199px) — 模态框单列 */
+@media (max-width: 1199px) {
     .modal-body {
         grid-template-columns: 1fr;
     }
@@ -1615,7 +1621,8 @@
     }
 }
 
-@media (max-width: 768px) {
+/* 手机端 (≤767px) */
+@media (max-width: 767px) {
     .filter-bar {
         flex-direction: column;
         align-items: stretch;
@@ -1988,8 +1995,8 @@
     }
 }
 
-/* Mobile Landscape/Phablet (481px-768px) */
-@media (min-width: 481px) and (max-width: 768px) {
+/* 手机端横屏 & 大屏手机 (481px-767px) — 三列卡片 */
+@media (min-width: 481px) and (max-width: 767px) {
     .books-grid {
         grid-template-columns: repeat(3, 1fr);
         gap: var(--spacing-sm);
@@ -2024,7 +2031,7 @@
     }
 }
 
-/* Mobile Portrait (≤480px) - Small phones */
+/* 小屏手机 (≤480px) — 双列卡片 */
 @media (max-width: 480px) {
     .books-grid {
         grid-template-columns: repeat(2, 1fr);

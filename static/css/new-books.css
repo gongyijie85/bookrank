@@ -1,6 +1,29 @@
 /* ============================================
    新书速递页样式 (Notion 设计系统 + 暗色模式支持)
+   v0.9.63: 硬编码颜色统一改为 CSS 变量
    ============================================ */
+
+/* v0.9.63: 新书页主色调变量（可被 :root / [data-theme] 覆盖） */
+:root {
+    --new-books-accent-blue: #0075de;
+    --new-books-accent-blue-hover: #005bab;
+    --new-books-accent-blue-dark: #097fe8;
+    --new-books-accent-blue-deep: #3b82f6;
+    --new-books-accent-blue-deeper: #2563eb;
+    --new-books-accent-blue-light: #60a5fa;
+    --new-books-accent-blue-pale: #f2f9ff;
+    --new-books-accent-gold: #dd5b00;
+    --new-books-accent-gold-pale: #fef3c7;
+    --new-books-accent-gold-text: #92400e;
+    --new-books-accent-teal: #2a9d99;
+    --new-books-accent-teal-pale: #d1fae5;
+    --new-books-accent-teal-text: #065f46;
+    --new-books-accent-red-pale: #fee2e2;
+    --new-books-accent-red-text: #991b1b;
+    --new-books-accent-green-text: #34d399;
+    --new-books-accent-yellow-text: #fbbf24;
+    --new-books-accent-red-text-bright: #f87171;
+}
 
 /* 页面头部 */
 .new-books-header {
@@ -20,7 +43,7 @@
     left: 0;
     width: 100%;
     height: 4px;
-    background: linear-gradient(to right, #0075de, #2a9d99);
+    background: linear-gradient(to right, var(--new-books-accent-blue, #0075de), var(--new-books-accent-teal, #2a9d99));
 }
 
 .new-books-header h1 {
@@ -35,7 +58,7 @@
 }
 
 .new-books-header h1 .text-gold {
-    color: #dd5b00;
+    color: var(--new-books-accent-gold, #dd5b00);
 }
 
 .new-books-header > p {
@@ -61,7 +84,7 @@
 }
 
 .stat-item .icon {
-    color: #0075de;
+    color: var(--new-books-accent-blue, #0075de);
 }
 
 .stat-item strong {
@@ -112,12 +135,12 @@
 }
 
 .filter-group select:hover {
-    border-color: #0075de;
+    border-color: var(--new-books-accent-blue, #0075de);
 }
 
 .filter-group select:focus {
     outline: none;
-    border-color: #097fe8;
+    border-color: var(--new-books-accent-blue-dark, #097fe8);
     box-shadow: 0 0 0 3px rgba(9, 127, 232, 0.15);
 }
 
@@ -155,7 +178,7 @@
 
 .search-box input:focus {
     outline: none;
-    border-color: #097fe8;
+    border-color: var(--new-books-accent-blue-dark, #097fe8);
     box-shadow: 0 0 0 3px rgba(9, 127, 232, 0.15);
     background: var(--card-bg, #ffffff);
 }
@@ -210,14 +233,14 @@
 }
 
 .btn-primary {
-    background: #0075de;
+    background: var(--new-books-accent-blue, #0075de);
     color: #ffffff;
-    border-color: #0075de;
+    border-color: var(--new-books-accent-blue, #0075de);
 }
 
 .btn-primary:hover {
-    background: #005bab;
-    border-color: #005bab;
+    background: var(--new-books-accent-blue-hover, #005bab);
+    border-color: var(--new-books-accent-blue-hover, #005bab);
     color: #ffffff;
 }
 
@@ -249,18 +272,18 @@
 }
 
 .sync-status.syncing {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--new-books-accent-gold-pale, #fef3c7);
+    color: var(--new-books-accent-gold-text, #92400e);
 }
 
 .sync-status.success {
-    background: #d1fae5;
-    color: #065f46;
+    background: var(--new-books-accent-teal-pale, #d1fae5);
+    color: var(--new-books-accent-teal-text, #065f46);
 }
 
 .sync-status.error {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--new-books-accent-red-pale, #fee2e2);
+    color: var(--new-books-accent-red-text, #991b1b);
 }
 
 /* 骨架屏加载动画 */
@@ -337,7 +360,7 @@
 .book-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
-    border-color: #0075de;
+    border-color: var(--new-books-accent-blue, #0075de);
 }
 
 .book-card:hover .book-cover {
@@ -417,7 +440,7 @@
 .book-price {
     flex: 0 0 auto;
     font-weight: 600;
-    color: #0075de;
+    color: var(--new-books-accent-blue, #0075de);
 }
 
 .book-tags {
@@ -447,8 +470,8 @@
 
 .book-tag.tag-date,
 .book-tag.tag-new {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--new-books-accent-gold-pale, #fef3c7);
+    color: var(--new-books-accent-gold-text, #92400e);
 }
 
 .book-tag .icon {
@@ -456,8 +479,8 @@
 }
 
 .book-tag.tag-translation {
-    background: #f2f9ff;
-    color: #097fe8;
+    background: var(--new-books-accent-blue-pale, #f2f9ff);
+    color: var(--new-books-accent-blue-dark, #097fe8);
 }
 
 .book-isbn {
@@ -494,7 +517,7 @@
 }
 
 .pagination .active {
-    background: #0075de;
+    background: var(--new-books-accent-blue, #0075de);
     color: white;
 }
 
@@ -538,11 +561,11 @@
 
 /* ==================== 暗色模式 ==================== */
 [data-theme="dark"] .new-books-header::before {
-    background: linear-gradient(to right, #3b82f6, #2a9d99);
+    background: linear-gradient(to right, var(--new-books-accent-blue-deep, #3b82f6), var(--new-books-accent-teal, #2a9d99));
 }
 
 [data-theme="dark"] .stat-item .icon {
-    color: #60a5fa;
+    color: var(--new-books-accent-blue-light, #60a5fa);
 }
 
 [data-theme="dark"] .filter-group select {
@@ -551,11 +574,11 @@
 }
 
 [data-theme="dark"] .filter-group select:hover {
-    border-color: #3b82f6;
+    border-color: var(--new-books-accent-blue-deep, #3b82f6);
 }
 
 [data-theme="dark"] .filter-group select:focus {
-    border-color: #60a5fa;
+    border-color: var(--new-books-accent-blue-light, #60a5fa);
     box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
 }
 
@@ -565,7 +588,7 @@
 }
 
 [data-theme="dark"] .search-box input:focus {
-    border-color: #60a5fa;
+    border-color: var(--new-books-accent-blue-light, #60a5fa);
     box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
     background: var(--card-bg, #1e1e1e);
 }
@@ -575,13 +598,13 @@
 }
 
 [data-theme="dark"] .btn-primary {
-    background: #3b82f6;
-    border-color: #3b82f6;
+    background: var(--new-books-accent-blue-deep, #3b82f6);
+    border-color: var(--new-books-accent-blue-deep, #3b82f6);
 }
 
 [data-theme="dark"] .btn-primary:hover {
-    background: #2563eb;
-    border-color: #2563eb;
+    background: var(--new-books-accent-blue-deeper, #2563eb);
+    border-color: var(--new-books-accent-blue-deeper, #2563eb);
 }
 
 [data-theme="dark"] .btn-outline:hover {
@@ -590,26 +613,26 @@
 
 [data-theme="dark"] .sync-status.syncing {
     background: rgba(254, 243, 199, 0.15);
-    color: #fbbf24;
+    color: var(--new-books-accent-yellow-text, #fbbf24);
 }
 
 [data-theme="dark"] .sync-status.success {
     background: rgba(209, 250, 229, 0.15);
-    color: #34d399;
+    color: var(--new-books-accent-green-text, #34d399);
 }
 
 [data-theme="dark"] .sync-status.error {
     background: rgba(254, 226, 226, 0.15);
-    color: #f87171;
+    color: var(--new-books-accent-red-text-bright, #f87171);
 }
 
 [data-theme="dark"] .book-card:hover {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
-    border-color: #3b82f6;
+    border-color: var(--new-books-accent-blue-deep, #3b82f6);
 }
 
 [data-theme="dark"] .book-price {
-    color: #60a5fa;
+    color: var(--new-books-accent-blue-light, #60a5fa);
 }
 
 [data-theme="dark"] .book-tag.tag-category {
@@ -620,16 +643,16 @@
 [data-theme="dark"] .book-tag.tag-date,
 [data-theme="dark"] .book-tag.tag-new {
     background: rgba(254, 243, 199, 0.2);
-    color: #fbbf24;
+    color: var(--new-books-accent-yellow-text, #fbbf24);
 }
 
 [data-theme="dark"] .book-tag.tag-translation {
     background: rgba(96, 165, 250, 0.15);
-    color: #60a5fa;
+    color: var(--new-books-accent-blue-light, #60a5fa);
 }
 
 [data-theme="dark"] .pagination .active {
-    background: #3b82f6;
+    background: var(--new-books-accent-blue-deep, #3b82f6);
 }
 
 [data-theme="dark"] .pagination a:hover {

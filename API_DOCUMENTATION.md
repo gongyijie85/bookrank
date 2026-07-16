@@ -304,6 +304,144 @@ GET /api/public/book/{isbn}
 
 ---
 
+### 9. 获取新书列表
+
+```
+GET /api/public/new-books
+```
+
+**查询参数**:
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| page | int | 1 | 页码（从1开始）|
+| per_page | int | 20 | 每页数量（最大50）|
+| publisher | string | 无 | 按出版社名称筛选 |
+| category | string | 无 | 按分类筛选 |
+| days | int | 无 | 按最近 N 天筛选 |
+| search | string | 无 | 按关键词搜索（至少2个字符）|
+
+**响应示例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "books": [...],
+    "total": 120,
+    "page": 1,
+    "per_page": 20,
+    "total_pages": 6
+  }
+}
+```
+
+---
+
+### 10. 获取指定出版社新书
+
+```
+GET /api/public/new-books/{publisher_name}
+```
+
+**路径参数**:
+
+| 参数 | 说明 |
+|------|------|
+| publisher_name | 出版社名称（URL 编码）|
+
+**查询参数**：同 `/api/public/new-books`。
+
+---
+
+### 11. 获取智能推荐
+
+```
+GET /api/public/recommendations
+```
+
+**查询参数**:
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| limit | int | 10 | 返回数量（最大50）|
+| category | string | 无 | 按分类筛选 |
+
+**响应示例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [...],
+    "total": 10
+  }
+}
+```
+
+---
+
+### 12. 获取周报列表
+
+```
+GET /api/public/reports/weekly
+```
+
+**查询参数**:
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| limit | int | 10 | 返回数量（最大50）|
+
+**响应示例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "reports": [...],
+    "total": 12
+  }
+}
+```
+
+---
+
+### 13. 获取最新周报
+
+```
+GET /api/public/reports/weekly/latest
+```
+
+**响应示例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "report": { ... }
+  }
+}
+```
+
+---
+
+### 14. 获取指定日期周报
+
+```
+GET /api/public/reports/weekly/{date}
+```
+
+**路径参数**:
+
+| 参数 | 说明 |
+|------|------|
+| date | 日期，格式 `YYYY-MM-DD` |
+
+**响应示例**：同最新周报。
+
+---
+
 ## 可用奖项列表
 
 | 奖项名称 | 英文名称 |

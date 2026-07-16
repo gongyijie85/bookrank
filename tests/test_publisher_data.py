@@ -48,7 +48,7 @@ class TestSanitizeCategory:
 
     def test_returns_valid_category(self):
         assert sanitize_category('小说') == '小说'
-        assert sanitize_category('Fiction') == 'Fiction'
+        assert sanitize_category('Fiction') == '小说'  # 英文分类映射为中文
 
     def test_rejects_marketing_keyword(self):
         assert sanitize_category('Learn more about books') is None

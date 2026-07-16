@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookRank 书榜 — 启动页</title>
+    <style id="theme-vars">
+/* BookRank 书榜 — Brand CSS */
+/* 目标用户：25-40 岁上海上班族，爱读书 */
+/* 风格：现代简约，阅读感强，参考微信读书/豆瓣 */
+
+:root {
+  /* ===== Color System ===== */
+  --color-primary: #2C5F2D;
+  --color-primary-light: #3A7D3B;
+  --color-primary-dark: #1E4320;
+  --color-primary-tint: #E8F0E8;
+
+  --color-accent: #E67E22;
+  --color-accent-light: #F0923A;
+  --color-accent-dark: #C96A15;
+  --color-accent-tint: #FEF3E6;
+
+  --color-bg: #FAF6F0;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-sunken: #F0EBE3;
+
+  --color-text-primary: #333333;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #FFFFFF;
+
+  --color-border: #E8E2D8;
+  --color-border-light: #F0EBE3;
+
+  --color-state-success: #2C5F2D;
+  --color-state-warning: #E67E22;
+  --color-state-error: #C0392B;
+  --color-state-info: #2980B9;
+
+  /* ===== Typography System ===== */
+  --font-display: "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif;
+  --font-body: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-4xl: 28px;
+
+  --leading-tight: 1.4;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+
+  /* ===== Spacing System (8pt grid) ===== */
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ===== Radius System ===== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ===== Shadow System ===== */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* ===== Surface & Depth ===== */
+  --surface-default: var(--color-bg);
+  --surface-elevated: var(--color-bg-elevated);
+  --surface-sunken: var(--color-bg-sunken);
+
+  /* ===== Touch Targets ===== */
+  --touch-min: 44px;
+  --btn-height: 44px;
+  --input-height: 44px;
+
+  /* ===== Safe Area ===== */
+  --safe-top: 44px;
+  --safe-bottom: 34px;
+  --tab-height: 50px;
+}
+
+/* ===== Dark Mode ===== */
+.dark {
+  --color-primary: #4CAF50;
+  --color-primary-light: #66BB6A;
+  --color-primary-dark: #388E3C;
+  --color-primary-tint: #1B2E1C;
+
+  --color-accent: #F0923A;
+  --color-accent-light: #FFB74D;
+  --color-accent-dark: #E67E22;
+  --color-accent-tint: #2E1F0E;
+
+  --color-bg: #1A1A1A;
+  --color-bg-elevated: #242424;
+  --color-bg-sunken: #141414;
+
+  --color-text-primary: #E8E2D8;
+  --color-text-secondary: #AAAAAA;
+  --color-text-tertiary: #777777;
+  --color-text-inverse: #1A1A1A;
+
+  --color-border: #333333;
+  --color-border-light: #2A2A2A;
+
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== Typography Classes ===== */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.text-xs { font-size: var(--text-xs); line-height: var(--leading-normal); }
+.text-sm { font-size: var(--text-sm); line-height: var(--leading-normal); }
+.text-base { font-size: var(--text-base); line-height: var(--leading-normal); }
+.text-lg { font-size: var(--text-lg); line-height: var(--leading-normal); }
+.text-xl { font-size: var(--text-xl); line-height: var(--leading-tight); }
+.text-2xl { font-size: var(--text-2xl); line-height: var(--leading-tight); }
+.text-3xl { font-size: var(--text-3xl); line-height: var(--leading-tight); }
+.text-4xl { font-size: var(--text-4xl); line-height: var(--leading-tight); }
+
+/* ===== Utility Classes ===== */
+.bg-primary { background-color: var(--color-primary); }
+.bg-accent { background-color: var(--color-accent); }
+.bg-surface { background-color: var(--color-bg); }
+.bg-elevated { background-color: var(--color-bg-elevated); }
+
+.text-primary-color { color: var(--color-primary); }
+.text-accent-color { color: var(--color-accent); }
+.text-main { color: var(--color-text-primary); }
+.text-sub { color: var(--color-text-secondary); }
+.text-hint { color: var(--color-text-tertiary); }
+
+.rounded-card { border-radius: var(--radius-lg); }
+.rounded-btn { border-radius: var(--radius-md); }
+.rounded-full { border-radius: var(--radius-full); }
+
+.shadow-card { box-shadow: var(--shadow-card); }
+.shadow-float { box-shadow: var(--shadow-float); }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-primary: var(--color-primary);
+    --color-accent: var(--color-accent);
+    --color-border: var(--color-border);
+  }
+  @layer base {
+    body { background: var(--color-background); color: var(--color-text-primary); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main class="flex min-h-screen flex-col items-center justify-center" style="background-color: var(--color-primary);">
+      <!-- 状态栏占位 -->
+      <div class="fixed top-0 left-0 right-0 h-[44px]" style="background-color: var(--color-primary);"></div>
+
+      <!-- 品牌Logo：简约打开书本造型 SVG -->
+      <div class="flex items-center justify-center mb-6">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="BookRank Logo">
+          <!-- 左侧书页 -->
+          <path d="M32 12C28 12 22 14 16 16V48C22 46 28 44 32 44" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <!-- 右侧书页 -->
+          <path d="M32 12C36 12 42 14 48 16V48C42 46 36 44 32 44" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <!-- 书脊 -->
+          <line x1="32" y1="12" x2="32" y2="44" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <!-- 左页文字线条 -->
+          <line x1="20" y1="22" x2="28" y2="21" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <line x1="20" y1="28" x2="28" y2="27" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <line x1="20" y1="34" x2="26" y2="33" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <!-- 右页文字线条 -->
+          <line x1="36" y1="21" x2="44" y2="22" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <line x1="36" y1="27" x2="44" y2="28" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <line x1="36" y1="33" x2="42" y2="34" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+        </svg>
+      </div>
+
+      <!-- 品牌名 -->
+      <h1 class="font-display text-[28px] tracking-[0.05em] mb-2" style="color: var(--color-text-inverse);">BookRank</h1>
+
+      <!-- 副标题 -->
+      <p class="font-body text-[14px] mb-16" style="color: rgba(255, 255, 255, 0.7);">书榜</p>
+
+      <!-- 进入按钮 -->
+      <a href="#" data-dom-id="cta-enter" class="flex items-center justify-center font-body text-[16px] font-semibold transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" style="background-color: var(--color-accent); color: var(--color-text-inverse); border-radius: var(--radius-md); height: var(--btn-height); width: calc(100% - 32px); max-width: 358px;">
+        进入书榜
+      </a>
+
+      <!-- 底部安全区域占位 -->
+      <div class="fixed bottom-0 left-0 right-0 h-[34px]" style="background-color: var(--color-primary);"></div>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

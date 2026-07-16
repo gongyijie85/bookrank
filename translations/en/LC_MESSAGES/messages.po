@@ -5,6 +5,9 @@
 #
 msgid ""
 msgstr ""
+"Project-Id-Version: BookRank\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 
 #: templates/_macros.html:12 templates/_macros.html:26
 #: templates/_macros.html:45 templates/_macros.html:74
@@ -547,9 +550,9 @@ msgstr ""
 msgid "页"
 msgstr "pgs"
 
-#: templates/book_detail.html:92
+#: templates/book_detail.html:92 templates/new_book_detail.html:87
 msgid "ISBN"
-msgstr ""
+msgstr "ISBN"
 
 #: templates/book_detail.html:102 templates/new_book_detail.html:96
 #: templates/new_books.html:101
@@ -558,7 +561,7 @@ msgstr "Category"
 
 #: templates/book_detail.html:112 templates/weekly_report_detail.html:1259
 msgid "上榜周数"
-msgstr ""
+msgstr "Cumulative Weeks on List"
 
 #: templates/book_detail.html:122
 msgid "语言"
@@ -771,13 +774,65 @@ msgid "家出版社"
 msgstr "publishers"
 
 #: templates/new_books.html:84
+msgid "近7天出版"
+msgstr "Past 7 days:"
+
+#: templates/new_books.html:84
 msgid "近7天新增"
 msgstr ""
 
 #: templates/new_books.html:84 templates/new_books.html:518
 #: templates/weekly_report_detail.html:1316 templates/weekly_reports.html:94
 msgid "本"
-msgstr ""
+msgstr "books"
+
+#: templates/new_books.html:113
+msgid "最近7天出版"
+msgstr "Last 7 days"
+
+#: templates/new_books.html:114
+msgid "最近30天出版"
+msgstr "Last 30 days"
+
+#: templates/new_books.html:115
+msgid "最近90天出版"
+msgstr "Last 90 days"
+
+#: templates/new_books.html:116
+msgid "最近半年出版"
+msgstr "Last 6 months"
+
+#: templates/new_books.html:117
+msgid "最近一年出版"
+msgstr "Last year"
+
+#: templates/new_books.html:123
+msgid "搜索书名、作者、"
+msgstr "Search title, author, "
+
+#: templates/new_books.html:141
+msgid "当前结果"
+msgstr "Results:"
+
+#: templates/new_books.html:142
+msgid "按出版日期筛选最近"
+msgstr "Published in the last"
+
+#: templates/new_books.html:142
+msgid "天已出版图书"
+msgstr "days"
+
+#: templates/new_books.html:189
+msgid "当前出版时间范围暂无新书，可放宽时间范围或稍后刷新"
+msgstr "No new books in this time range. Try widening the range or refresh later."
+
+#: templates/new_books.html:191
+msgid "刷新"
+msgstr "Refresh"
+
+#: templates/new_books.html:339
+msgid "尝试放宽出版时间范围或搜索其他关键词"
+msgstr "Try widening the time range or search with other keywords"
 
 #: templates/new_books.html:92
 msgid "选择出版社"
@@ -1397,4 +1452,40 @@ msgstr ""
 #: templates/weekly_reports.html:628
 msgid "自定义滚动条"
 msgstr ""
+
+#: templates/mobile/base.html:88 templates/mobile/profile.html:3
+msgid "我的"
+msgstr "My"
+
+#: templates/mobile/profile.html:10
+msgid "读书小达人"
+msgstr "Book Explorer"
+
+#: templates/mobile/profile.html:11
+msgid "已收藏"
+msgstr "Saved"
+
+#: templates/mobile/profile.html:24 templates/mobile/profile.html:58
+msgid "我的收藏"
+msgstr "My Favorites"
+
+#: templates/mobile/profile.html:36
+msgid "阅读记录"
+msgstr "Reading History"
+
+#: templates/mobile/profile.html:79
+msgid "取消收藏"
+msgstr "Remove from favorites"
+
+#: templates/mobile/profile.html:95
+msgid "暂无收藏"
+msgstr "No favorites yet"
+
+#: templates/mobile/profile.html:96
+msgid "浏览书籍时点击收藏按钮即可添加"
+msgstr "Tap the favorite button while browsing books to add them here"
+
+#: templates/mobile/profile.html:124
+msgid "暂无搜索历史"
+msgstr "No search history yet"
 

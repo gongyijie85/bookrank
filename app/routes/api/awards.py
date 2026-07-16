@@ -3,7 +3,8 @@ import logging
 from flask import request
 
 from ...services.award_book_service import AwardBookService
-from ...utils.api_helpers import APIResponse, validate_pagination
+from ...utils.admin_auth import admin_required
+from ...utils.api_helpers import APIResponse, csrf_protect, validate_pagination
 from ...utils.error_handler import ErrorCategory, log_error
 from . import api_bp
 
@@ -131,3 +132,66 @@ def search_award_books():
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'搜索图书错误: {e}', exc_info=True)
         return APIResponse.error('搜索失败', 500)
+
+
+@api_bp.route('/admin/fix-award-book-titles', methods=['POST'])
+@admin_required
+@csrf_protect
+def fix_award_book_titles():
+    """修复历史脏数据：把 title 字段为 ISBN 的 AwardBook 记录用种子数据修正
+
+    触发方式：POST /api/admin/fix-award-book-titles
+    鉴权：需要请求头 X-Admin-Secret 匹配 ADMIN_SECRET（由 @admin_required 装饰器统一处理，含失败计数 / IP 封禁 / SystemConfig 持久化）
+    """
+    try:
+        result = _award_service.fix_award_book_titles()
+        fixed_entries = result['fixed_entries']
+        debug_entries = result['debug_entries']
+        logger.info(f'🔧 admin fix-award-book-titles: 修复 {len(fixed_entries)} 项')
+        return APIResponse.success(
+            data={
+                'fixed_count': len(fixed_entries),
+                'fixed': fixed_entries[:50],
+                'debug_count': len(debug_entries),
+                'debug_sample': debug_entries[:10],
+            }
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'修复 AwardBook 标题失败: {e}', exc_info=True)
+        return APIResponse.error(f'修复失败: {e}', 500)
+
+
+@api_bp.route('/admin/fix-award-book-titles-by-ids', methods=['POST'])
+@admin_required
+@csrf_protect
+def fix_award_book_titles_by_ids():
+    """按 ID 批量修复 AwardBook.title_zh（处理非种子的脏数据）
+
+    触发方式：POST /api/admin/fix-award-book-titles-by-ids
+    鉴权：需要请求头 X-Admin-Secret 匹配 ADMIN_SECRET（由 @admin_required 装饰器统一处理）
+    请求体：{"items": [{"id": 1, "title_zh": "詹姆斯"}, ...]}
+    """
+
+    if not request.is_json:
+        return APIResponse.error('Content-Type must be application/json', 400)
+
+    data = request.get_json() or {}
+    items = data.get('items', [])
+    if not isinstance(items, list) or not items:
+        return APIResponse.error('items 必须是非空数组', 400)
+
+    try:
+        result = _award_service.fix_award_book_titles_by_ids(items)
+        fixed_entries = result['fixed_entries']
+        skipped = result['skipped']
+        logger.info(f'🔧 admin fix-award-book-titles-by-ids: 修复 {len(fixed_entries)} 项')
+        return APIResponse.success(
+            data={
+                'fixed_count': len(fixed_entries),
+                'fixed': fixed_entries,
+                'skipped': skipped,
+            }
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'按 ID 修复 AwardBook 中文标题失败: {e}', exc_info=True)
+        return APIResponse.error(f'修复失败: {e}', 500)

@@ -13,6 +13,26 @@ class NewBookQueryService:
     def __init__(self, translation_pipeline: TranslationPipeline) -> None:
         self._translation_pipeline = translation_pipeline
 
+    @staticmethod
+    def _looks_like_isbn(text: str | None) -> bool:
+        """检测字符串是否像 ISBN（10/13 位纯数字，可能带连字符）"""
+        if not text:
+            return False
+        cleaned = text.replace('-', '').replace(' ', '')
+        if not cleaned.isdigit():
+            return False
+        return len(cleaned) in (10, 13)
+
+    def _sanitize_book_titles(self, books: list[NewBook]) -> None:
+        """清洗书名：若 title/title_zh 像 ISBN 则回退到可用标题或置空"""
+        for book in books:
+            title = (book.title or '').strip()
+            title_zh = (book.title_zh or '').strip()
+            if self._looks_like_isbn(title):
+                book.title = title_zh if title_zh and not self._looks_like_isbn(title_zh) else ''
+            if self._looks_like_isbn(title_zh):
+                book.title_zh = title if title and not self._looks_like_isbn(title) else ''
+
     def get_new_books(
         self,
         publisher_id: int | None = None,
@@ -37,13 +57,14 @@ class NewBookQueryService:
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         self._translation_pipeline._hydrate_language_pack(pagination.items)
+        self._sanitize_book_titles(pagination.items)
 
         return pagination.items, pagination.total
 
     def get_book(self, book_id: int) -> NewBook | None:
         from sqlalchemy.orm import joinedload
 
-        book = NewBook.query.options(joinedload(NewBook.publisher)).get(book_id)
+        book = db.session.get(NewBook, book_id, options=[joinedload(NewBook.publisher)])
         if book:
             self._translation_pipeline._hydrate_language_pack([book])
         return book
@@ -88,6 +109,7 @@ class NewBookQueryService:
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         self._translation_pipeline._hydrate_language_pack(pagination.items)
+        self._sanitize_book_titles(pagination.items)
 
         return pagination.items, pagination.total
 
@@ -113,9 +135,17 @@ class NewBookQueryService:
 
         today = datetime.now(UTC).date()
         week_ago = today - timedelta(days=7)
-        recent_books = NewBook.query.filter(
+        month_ago = today - timedelta(days=30)
+
+        recent_books_7d = NewBook.query.filter(
             NewBook.is_displayable.is_(True),
             NewBook.publication_date >= week_ago,
+            NewBook.publication_date <= today,
+        ).count()
+
+        recent_books_30d = NewBook.query.filter(
+            NewBook.is_displayable.is_(True),
+            NewBook.publication_date >= month_ago,
             NewBook.publication_date <= today,
         ).count()
 
@@ -132,7 +162,8 @@ class NewBookQueryService:
             'total_books': total_books,
             'total_publishers': total_publishers,
             'active_publishers': active_publishers,
-            'recent_books_7d': recent_books,
+            'recent_books_7d': recent_books_7d,
+            'recent_books_30d': recent_books_30d,
             'top_categories': [{'category': c.category, 'count': c.count} for c in category_stats],
         }
 

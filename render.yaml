@@ -12,14 +12,14 @@ services:
     branch: main
     
     # 构建和启动命令
-    buildCommand: pip install -r requirements-prod.txt && python build.py
+    buildCommand: pip install -r requirements-prod.txt
     startCommand: gunicorn -c gunicorn.conf.py run:application
     
-    # 健康检查
-    healthCheckPath: /api/health
-    
-    # 自动部署
-    autoDeploy: true
+    # 健康检查：使用 /health/ready 以验证数据库等真实依赖
+    healthCheckPath: /health/ready
+
+    # 自动部署：关闭，改为 CI 成功后通过 Render Deploy Hook 触发
+    autoDeploy: false
     
     # 环境变量
     envVars:
@@ -35,26 +35,18 @@ services:
         sync: false
       - key: GOOGLE_API_KEY
         sync: false
-      # 数据库连接（从数据库服务获取）
+      # 数据库连接（Supabase / 外部 PostgreSQL）
+      # 在 Render Dashboard 中手动设置为 Supabase 的 Session Pooler 或 Direct URL。
       - key: DATABASE_URL
-        fromDatabase:
-          name: bookrank-db
-          property: connectionString
+        sync: false
       # 缓存配置
       - key: CACHE_TYPE
         value: simple
       - key: CACHE_TTL
         value: "3600"
-      # 并发配置
+      # 并发配置：Render 免费层 512MB 内存，单 worker 避免 OOM
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "1"
       - key: MAX_WORKERS
-        value: "2"
+        value: "1"
 
-# PostgreSQL 数据库（免费版）
-databases:
-  - name: bookrank-db
-    region: oregon
-    plan: free
-    # 免费版限制：1GB存储，97行限制
-    # 注意：免费数据库会在90天不活跃后删除

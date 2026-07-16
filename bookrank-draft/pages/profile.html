@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookRank 书榜 — 个人中心</title>
+    <style id="theme-vars">
+/* BookRank 书榜 — Brand CSS */
+:root {
+  --color-primary: #2C5F2D;
+  --color-primary-light: #3A7D3B;
+  --color-primary-dark: #1E4320;
+  --color-primary-tint: #E8F0E8;
+  --color-accent: #E67E22;
+  --color-accent-light: #F0923A;
+  --color-accent-dark: #C96A15;
+  --color-accent-tint: #FEF3E6;
+  --color-bg: #FAF6F0;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-sunken: #F0EBE3;
+  --color-text-primary: #333333;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #FFFFFF;
+  --color-border: #E8E2D8;
+  --color-border-light: #F0EBE3;
+  --color-state-success: #2C5F2D;
+  --color-state-warning: #E67E22;
+  --color-state-error: #C0392B;
+  --color-state-info: #2980B9;
+  --font-display: "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif;
+  --font-body: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --text-xs: 10px; --text-sm: 12px; --text-base: 14px; --text-lg: 16px;
+  --text-xl: 18px; --text-2xl: 20px; --text-3xl: 24px; --text-4xl: 28px;
+  --leading-tight: 1.4; --leading-normal: 1.5; --leading-relaxed: 1.6;
+  --space-0: 0px; --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-full: 9999px;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --touch-min: 44px; --btn-height: 44px; --input-height: 44px;
+  --safe-top: 44px; --safe-bottom: 34px; --tab-height: 50px;
+}
+.dark {
+  --color-primary: #4CAF50; --color-primary-light: #66BB6A;
+  --color-primary-dark: #388E3C; --color-primary-tint: #1B2E1C;
+  --color-accent: #F0923A; --color-accent-light: #FFB74D;
+  --color-accent-dark: #E67E22; --color-accent-tint: #2E1F0E;
+  --color-bg: #1A1A1A; --color-bg-elevated: #242424; --color-bg-sunken: #141414;
+  --color-text-primary: #E8E2D8; --color-text-secondary: #AAAAAA;
+  --color-text-tertiary: #777777; --color-text-inverse: #1A1A1A;
+  --color-border: #333333; --color-border-light: #2A2A2A;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-primary: var(--color-primary);
+    --color-accent: var(--color-accent);
+    --color-border: var(--color-border);
+  }
+    </style>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--font-body);
+        background-color: var(--color-bg);
+        color: var(--color-text-primary);
+        -webkit-font-smoothing: antialiased;
+        padding-bottom: calc(var(--tab-height) + var(--safe-bottom) + 16px);
+      }
+
+      /* 用户头部渐变区域 */
+      .profile-header {
+        background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+        padding: 44px 16px 32px;
+        border-radius: 0 0 24px 24px;
+        text-align: center;
+      }
+
+      .avatar {
+        width: 64px; height: 64px;
+        border-radius: 50%;
+        border: 3px solid #fff;
+        background-color: rgba(255, 255, 255, 0.2);
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto;
+      }
+
+      .nickname {
+        color: #fff;
+        font-family: var(--font-display);
+        font-size: 18px;
+        margin-top: 12px;
+        line-height: var(--leading-tight);
+      }
+
+      .reading-stat {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      /* 功能列表卡片 */
+      .func-card {
+        background-color: var(--color-bg-elevated);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        margin: -16px 16px 16px;
+        overflow: hidden;
+      }
+
+      .func-item {
+        display: flex;
+        align-items: center;
+        padding: 16px;
+        min-height: 44px;
+        border-bottom: 1px solid var(--color-border-light);
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .func-item:last-child { border-bottom: none; }
+
+      .func-icon-circle {
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .func-label {
+        flex: 1; margin-left: 12px;
+        font-size: var(--text-base);
+        color: var(--color-text-primary);
+      }
+
+      .func-chevron {
+        flex-shrink: 0;
+        color: var(--color-text-tertiary);
+      }
+
+      .func-item.danger .func-label { color: var(--color-state-error); }
+
+      /* 底部导航栏 — 按规范实现 */
+      .tab-bar {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        background-color: var(--color-bg-elevated);
+        border-top: 1px solid var(--color-border-light);
+        display: flex;
+        justify-content: space-around;
+        height: var(--tab-height);
+        padding-bottom: var(--safe-bottom);
+        z-index: 100;
+      }
+
+      .tab-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        color: var(--color-text-tertiary);
+        font-size: 10px;
+        gap: 2px;
+        flex: 1;
+        min-height: 44px;
+      }
+
+      .tab-item.active {
+        color: var(--color-primary);
+        font-weight: 600;
+      }
+
+      .tab-item svg {
+        width: 24px; height: 24px;
+      }
+
+      .tab-item.active svg {
+        color: var(--color-primary);
+      }
+
+      /* 首页图标稍大 */
+      .tab-item[data-dom-id="tab-home"] svg {
+        width: 28px; height: 28px;
+      }
+    </style>
+</head>
+<body>
+
+  <!-- 用户头部区域 -->
+  <div class="profile-header">
+    <div class="avatar">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 4-7 8-7s8 3 8 7"/>
+      </svg>
+    </div>
+    <div class="nickname">读书小达人</div>
+    <div class="reading-stat">已读 23 本</div>
+  </div>
+
+  <!-- 功能列表卡片 -->
+  <div class="func-card">
+    <!-- 我的收藏 -->
+    <a class="func-item" href="#">
+      <div class="func-icon-circle" style="background-color: #E8F0E8;">
+        <i data-lucide="bookmark" style="width:18px;height:18px;color:#2C5F2D;"></i>
+      </div>
+      <span class="func-label">我的收藏</span>
+      <span class="func-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></span>
+    </a>
+    <!-- 阅读记录 -->
+    <a class="func-item" href="#">
+      <div class="func-icon-circle" style="background-color: #E3F0FA;">
+        <i data-lucide="clock" style="width:18px;height:18px;color:#2980B9;"></i>
+      </div>
+      <span class="func-label">阅读记录</span>
+      <span class="func-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></span>
+    </a>
+    <!-- 推荐设置 -->
+    <a class="func-item" href="#">
+      <div class="func-icon-circle" style="background-color: #FEF3E6;">
+        <i data-lucide="settings" style="width:18px;height:18px;color:#E67E22;"></i>
+      </div>
+      <span class="func-label">推荐设置</span>
+      <span class="func-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></span>
+    </a>
+    <!-- 消息通知 -->
+    <a class="func-item" href="#">
+      <div class="func-icon-circle" style="background-color: #FAE3E3;">
+        <i data-lucide="bell" style="width:18px;height:18px;color:#C0392B;"></i>
+      </div>
+      <span class="func-label">消息通知</span>
+      <span class="func-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></span>
+    </a>
+    <!-- 关于我们 -->
+    <a class="func-item" href="#">
+      <div class="func-icon-circle" style="background-color: #F0E3FA;">
+        <i data-lucide="info" style="width:18px;height:18px;color:#8E44AD;"></i>
+      </div>
+      <span class="func-label">关于我们</span>
+      <span class="func-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></span>
+    </a>
+    <!-- 退出登录 -->
+    <a class="func-item danger" href="#">
+      <div class="func-icon-circle" style="background-color: #F0EBE3;">
+        <i data-lucide="log-out" style="width:18px;height:18px;color:#999;"></i>
+      </div>
+      <span class="func-label">退出登录</span>
+      <span class="func-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></span>
+    </a>
+  </div>
+
+  <!-- 底部导航栏 -->
+  <nav class="tab-bar">
+    <a class="tab-item" data-dom-id="tab-home" href="#">
+      <i data-lucide="house"></i>
+      <span>首页</span>
+    </a>
+    <a class="tab-item" data-dom-id="tab-search" href="#">
+      <i data-lucide="search"></i>
+      <span>搜索</span>
+    </a>
+    <a class="tab-item" data-dom-id="tab-weekly-report" href="#">
+      <i data-lucide="file-text"></i>
+      <span>周报</span>
+    </a>
+    <a class="tab-item active" data-dom-id="tab-profile" href="#">
+      <i data-lucide="user"></i>
+      <span>我的</span>
+    </a>
+  </nav>
+
+  <script>lucide.createIcons();</script>
+</body>
+</html>

@@ -377,6 +377,16 @@ class TestMainRoutes:
         response = client.get('/set-language?lang=en&next=https://evil.com')
         assert response.status_code == 302
 
+    def test_set_language_ip_host_omits_cookie_domain(self, client):
+        response = client.get('/set-language?lang=en&next=/', headers={'Host': '192.168.1.23:5000'})
+        cookie = response.headers.get('Set-Cookie', '')
+        assert 'Domain=' not in cookie
+
+    def test_set_language_domain_host_sets_cookie_domain(self, client):
+        response = client.get('/set-language?lang=en&next=/', headers={'Host': 'example.com'})
+        cookie = response.headers.get('Set-Cookie', '')
+        assert 'Domain=example.com' in cookie
+
     def test_cached_image_invalid_filename(self, client):
         response = client.get('/cache/images/../../../etc/passwd')
         assert response.status_code == 404

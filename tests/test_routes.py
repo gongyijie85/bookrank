@@ -5,12 +5,21 @@ API 路由测试
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from flask import render_template
 
 from app.models.schemas import Award
+
+
+@pytest.fixture(autouse=True)
+def _stub_google_books_for_routes(monkeypatch):
+    """禁止 /api/book-details 测试发起真实 Google Books 网络请求"""
+    from app.services.google_books_client import GoogleBooksClient
+
+    monkeypatch.setattr(GoogleBooksClient, 'fetch_book_details', lambda self, isbn: {})
+
 
 # ==================== 健康检查测试 ====================
 
@@ -41,18 +50,9 @@ class TestLanguageRedirect:
 
 @pytest.mark.routes
 class TestStylesheets:
-    def test_production_falls_back_to_source_css_when_minified_missing(self, app):
-        original_env = app.config.get('ENV')
-        original_minified = app.config.get('MINIFIED_CSS_EXISTS')
-        app.config['ENV'] = 'production'
-        app.config['MINIFIED_CSS_EXISTS'] = False
-
-        try:
-            with app.test_request_context('/'):
-                html = render_template('base.html')
-        finally:
-            app.config['ENV'] = original_env
-            app.config['MINIFIED_CSS_EXISTS'] = original_minified
+    def test_base_template_uses_source_css(self, app):
+        with app.test_request_context('/'):
+            html = render_template('base.html')
 
         assert '/static/css/base.css' in html
         assert '/static/css/components.css' in html
@@ -123,6 +123,18 @@ class TestSearchHistory:
 # ==================== 用户偏好测试 ====================
 
 
+@pytest.fixture
+def csrf_token(client):
+    """获取CSRF令牌（返回可调用对象，每次调用获取新token）"""
+
+    def _get_token():
+        response = client.get('/api/csrf-token')
+        data = response.get_json()
+        return data['data']['csrf_token']
+
+    return _get_token
+
+
 @pytest.mark.routes
 class TestUserPreferences:
     """测试用户偏好端点"""
@@ -135,18 +147,26 @@ class TestUserPreferences:
         data = json.loads(response.data)
         assert data['success'] is True
 
-    def test_update_preferences_invalid_content_type(self, client):
+    def test_update_preferences_invalid_content_type(self, client, db, csrf_token):
         """测试无效的内容类型"""
-        response = client.post('/api/user/preferences', data='not json', content_type='text/plain')
+        response = client.post(
+            '/api/user/preferences',
+            data='not json',
+            content_type='text/plain',
+            headers={'X-CSRF-Token': csrf_token()},
+        )
 
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['success'] is False
 
-    def test_update_preferences_view_mode(self, client, db):
+    def test_update_preferences_view_mode(self, client, db, csrf_token):
         """测试更新视图模式"""
         response = client.post(
-            '/api/user/preferences', data=json.dumps({'view_mode': 'list'}), content_type='application/json'
+            '/api/user/preferences',
+            data=json.dumps({'view_mode': 'list'}),
+            content_type='application/json',
+            headers={'X-CSRF-Token': csrf_token()},
         )
 
         assert response.status_code == 200
@@ -264,18 +284,26 @@ class TestAwardBooks:
 class TestTranslationAPI:
     """测试翻译功能端点"""
 
-    def test_translate_with_fallback(self, client):
-        """测试翻译功能（使用备用翻译服务）"""
-        with patch('app.utils.api_helpers.validate_csrf_token', return_value=True):
+    def test_translate_with_fake_service(self, client):
+        """翻译端点使用注入服务，不访问外部翻译 API"""
+        translation_service = MagicMock()
+        translation_service.translate.return_value = '你好'
+        with (
+            patch('app.utils.api_helpers.validate_csrf_token', return_value=True),
+            patch(
+                'app.services.zhipu_translation_service.get_translation_service',
+                return_value=translation_service,
+            ),
+        ):
             response = client.post(
                 '/api/translate', data=json.dumps({'text': 'Hello'}), content_type='application/json'
             )
 
-        assert response.status_code in [200, 503]
+        assert response.status_code == 200
         data = json.loads(response.data)
-        if response.status_code == 200:
-            assert data['success'] is True
-            assert 'translated' in data['data']
+        assert data['success'] is True
+        assert data['data']['translated'] == '你好'
+        translation_service.translate.assert_called_once_with('Hello', 'en', 'zh', field_type='text')
 
     def test_translation_cache_stats(self, client, admin_headers):
         """测试翻译缓存统计"""

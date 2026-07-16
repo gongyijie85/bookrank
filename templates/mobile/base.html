@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="{{ 'en' if get_locale() == 'en' else 'zh-CN' }}" data-lang="{{ get_locale() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2C5F2D">
+    <meta name="description" content="书榜 BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <title>{% block title %}书榜 BookRank{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
+    <link rel="canonical" href="{{ request.host_url }}{{ request.path[1:] if request.path != '/' else '' }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
+
+    {# Open Graph / Twitter Card / JSON-LD SEO #}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="书榜 BookRank">
+    <meta property="og:title" content="{% block og_title %}书榜 BookRank{% endblock %}">
+    <meta property="og:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{% block tw_title %}书榜 BookRank{% endblock %}">
+    <meta name="twitter:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "书榜 BookRank",
+        "description": "汇集纽约时报畅销书排行榜与国际图书奖项榜单",
+        "url": "{{ request.host_url }}",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "{{ request.host_url }}search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
+    {% block extra_css %}{% endblock %}
+    {# 复用电脑端 i18n 库，支持中英切换 #}
+    <script src="{{ url_for('static', filename='js/book-i18n.js') }}"></script>
+    {% block structured_data %}{% endblock %}
+</head>
+<body>
+    {# Toast 通知容器 #}
+    <div class="m-toast-container" id="m-toast-container" aria-live="polite"></div>
+
+    {% block header %}{% endblock %}
+
+    <main class="m-page">
+        {# 顶部右上角语言切换 #}
+        <button class="m-lang-globe-btn" id="m-lang-globe" aria-label="{{ _('切换语言') }}" aria-expanded="false" aria-haspopup="true" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </button>
+        <div class="m-lang-dropdown" id="m-lang-dropdown" role="menu" aria-label="{{ _('语言选择') }}">
+            <button type="button" data-lang="zh" role="menuitem">{{ _('简体中文') }}</button>
+            <button type="button" data-lang="en" role="menuitem">English</button>
+        </div>
+        {% block content %}{% endblock %}
+    </main>
+
+    <nav class="m-tabbar">
+        <a href="/" class="m-tab {% if active_tab == 'home' %}active{% endif %}" data-tab="home">
+            {% if active_tab == 'home' %}
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3l-9 6.5V20a1 1 0 0 0 1 1h6v-6h4v6h6a1 1 0 0 0 1-1V9.5L12 3z"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 14 15 14 15 21"/></svg>
+            {% endif %}
+            <span>{{ _('首页') }}</span>
+        </a>
+        <a href="/awards" class="m-tab {% if active_tab == 'awards' %}active{% endif %}" data-tab="awards">
+            {% if active_tab == 'awards' %}
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 4h-2V2h-2v2H9V2H7v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14zM7 12h5v5H7z"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+            {% endif %}
+            <span>{{ _('获奖书单') }}</span>
+        </a>
+        <a href="{{ url_for('main.publishers') }}" class="m-tab {% if active_tab == 'publisher' %}active{% endif %}" data-tab="publisher">
+            {% if active_tab == 'publisher' %}
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21 2H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1zM7 20H4V4h3zm5 0H9V4h3zm5 0h-3V4h3z"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4 8 4v14M9 9h2M13 9h2M9 13h2M13 13h2M9 17h2M13 17h2"/></svg>
+            {% endif %}
+            <span>{{ _('出版社') }}</span>
+        </a>
+        <a href="/profile" class="m-tab {% if active_tab == 'profile' %}active{% endif %}" data-tab="profile">
+            {% if active_tab == 'profile' %}
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5.5 0-10 3.5-10 8v2h20v-2c0-4.5-4.5-8-10-8z"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {% endif %}
+            <span>{{ _('我的') }}</span>
+        </a>
+    </nav>
+
+    <script src="{{ url_for('static', filename='mobile/js/mobile.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

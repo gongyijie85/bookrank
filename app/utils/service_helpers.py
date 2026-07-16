@@ -23,80 +23,82 @@ def register_service(app: Any, name: str, service: Any) -> None:
     app.extensions[name] = service
 
 
+def get_service(name: str) -> Any | None:
+    """按名称获取已注册服务单例，缺失时返回 None"""
+    return current_app.extensions.get(name)
+
+
+def require_service(name: str, display_name: str = '') -> Any:
+    """按名称获取已注册服务单例，缺失时抛出 RuntimeError"""
+    service = get_service(name)
+    if service is None:
+        label = display_name or name.replace('_', ' ')
+        raise RuntimeError(f'{label}未初始化，请检查应用配置')
+    return service
+
+
 def get_book_service() -> BookService | None:
-    return current_app.extensions.get('book_service')
+    return get_service('book_service')
 
 
 def get_cache_service() -> CacheService | None:
-    return current_app.extensions.get('cache_service')
+    return get_service('cache_service')
 
 
 def get_image_cache_service() -> ImageCacheService | None:
-    return current_app.extensions.get('image_cache_service')
+    return get_service('image_cache_service')
 
 
 def get_translation_service() -> HybridTranslationService | None:
-    return current_app.extensions.get('translation_service')
+    return get_service('translation_service')
 
 
 def get_recommendation_service() -> Any | None:
     """获取已注册的 RecommendationService 单例，缺失时返回 None"""
-    return current_app.extensions.get('recommendation_service')
+    return get_service('recommendation_service')
 
 
 def get_smart_search_service() -> Any | None:
     """获取已注册的 SmartSearchService 单例，缺失时返回 None"""
-    return current_app.extensions.get('smart_search_service')
+    return get_service('smart_search_service')
+
+
+def _get_or_create_service(name: str, factory_path: str):
+    """获取已注册服务；若未注册则按当前 CATEGORIES 兜底创建"""
+    svc = get_service(name)
+    if svc is not None:
+        return svc
+    module_path, class_name = factory_path.rsplit('.', 1)
+    module = __import__(module_path, fromlist=[class_name])
+    factory = getattr(module, class_name)
+    categories = current_app.config.get('CATEGORIES', {})
+    return factory(categories)
 
 
 def get_or_create_recommendation_service() -> Any:
     """获取已注册的 RecommendationService；若未注册则按当前 CATEGORIES 兜底创建"""
-    svc = get_recommendation_service()
-    if svc is not None:
-        return svc
-    from ..services.recommendation_service import RecommendationService
-
-    categories = current_app.config.get('CATEGORIES', {})
-    return RecommendationService(categories)
+    return _get_or_create_service('recommendation_service', 'app.services.recommendation_service.RecommendationService')
 
 
 def get_or_create_smart_search_service() -> Any:
     """获取已注册的 SmartSearchService；若未注册则按当前 CATEGORIES 兜底创建"""
-    svc = get_smart_search_service()
-    if svc is not None:
-        return svc
-    from ..services.smart_search_service import SmartSearchService
-
-    categories = current_app.config.get('CATEGORIES', {})
-    return SmartSearchService(categories)
+    return _get_or_create_service('smart_search_service', 'app.services.smart_search_service.SmartSearchService')
 
 
 def require_book_service() -> BookService:
-    service = get_book_service()
-    if service is None:
-        raise RuntimeError('图书服务未初始化，请检查应用配置')
-    return service
+    return require_service('book_service', '图书服务')
 
 
 def require_cache_service() -> CacheService:
-    service = get_cache_service()
-    if service is None:
-        raise RuntimeError('缓存服务未初始化，请检查应用配置')
-    return service
+    return require_service('cache_service', '缓存服务')
 
 
 def require_translation_service() -> HybridTranslationService:
-    service = get_translation_service()
-    if service is None:
-        raise RuntimeError('翻译服务未初始化，请检查应用配置')
-    return service
+    return require_service('translation_service', '翻译服务')
 
 
 def require_image_cache_service() -> ImageCacheService:
-    service = get_image_cache_service()
-    if service is None:
-        raise RuntimeError('图片缓存服务未初始化，请检查应用配置')
-    return service
+    return require_service('image_cache_service', '图片缓存服务')
 
 
 @contextmanager

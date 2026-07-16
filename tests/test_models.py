@@ -32,7 +32,7 @@ class TestUserPreference:
         db.session.commit()
 
         # 验证创建成功
-        result = UserPreference.query.get('test_session_123')
+        result = db.session.get(UserPreference, 'test_session_123')
         assert result is not None
         assert result.session_id == 'test_session_123'
         assert result.view_mode == 'grid'
@@ -43,7 +43,7 @@ class TestUserPreference:
         db.session.add(preference)
         db.session.commit()
 
-        result = UserPreference.query.get('test_session_456')
+        result = db.session.get(UserPreference, 'test_session_456')
         assert result.view_mode == 'grid'  # 默认值
         assert result.created_at is not None
         assert result.updated_at is not None
@@ -54,7 +54,7 @@ class TestUserPreference:
         db.session.add(preference)
         db.session.commit()
 
-        result = UserPreference.query.get('test_session_789')
+        result = db.session.get(UserPreference, 'test_session_789')
         data = result.to_dict()
 
         assert data['session_id'] == 'test_session_789'
@@ -99,7 +99,7 @@ class TestUserCategory:
             db.session.add(cat)
         db.session.commit()
 
-        result = UserPreference.query.get('test_session_rel')
+        result = db.session.get(UserPreference, 'test_session_rel')
         assert result.categories.count() == 2
 
 
@@ -146,7 +146,7 @@ class TestBookMetadata:
         db.session.add(metadata)
         db.session.commit()
 
-        result = BookMetadata.query.get('9780143127550')
+        result = db.session.get(BookMetadata, '9780143127550')
         assert result is not None
         assert result.title == 'Test Book Title'
         assert result.author == 'Test Author'
@@ -158,7 +158,7 @@ class TestBookMetadata:
         db.session.add(metadata)
         db.session.commit()
 
-        result = BookMetadata.query.get('9780143127551')
+        result = db.session.get(BookMetadata, '9780143127551')
         data = result.to_dict()
 
         assert data['isbn'] == '9780143127551'
@@ -255,6 +255,78 @@ class TestAwardBook:
         assert result is not None
         assert result.year == 2024
 
+    def test_display_title_normal(self, db):
+        """display_title 正常场景：title 是真标题时直接返回"""
+        award = Award(name='t1', name_en='t1', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='A Real Title',
+            author='A',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == 'A Real Title'
+
+    def test_display_title_fallback_when_title_is_isbn(self, db):
+        """display_title 兜底：title 是 ISBN 时回退到 title_zh"""
+        award = Award(name='t2', name_en='t2', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='9781668017159',
+            title_zh='血中流淌的花',
+            author='Haley Cohen Gilliland',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == '血中流淌的花'
+
+    def test_display_title_isbn_in_both_fields(self, db):
+        """display_title 兜底：title 和 title_zh 都是 ISBN 时返回原 title"""
+        award = Award(name='t3', name_en='t3', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='9781668017159',
+            title_zh='9781668017159',
+            author='A',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == '9781668017159'
+
+    def test_display_title_isbn_with_dashes(self, db):
+        """display_title 兜底：带连字符的 ISBN 也算 ISBN"""
+        award = Award(name='t4', name_en='t4', country='US')
+        db.session.add(award)
+        db.session.commit()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            title='978-0-7432-7356-5',
+            title_zh='真正的书名',
+            author='A',
+        )
+        db.session.add(book)
+        db.session.commit()
+        assert book.display_title == '真正的书名'
+
+    def test_looks_like_isbn_helper(self, db):
+        """_looks_like_isbn 静态方法边界条件"""
+        assert AwardBook._looks_like_isbn('9781668017159') is True
+        assert AwardBook._looks_like_isbn('978-0-7432-7356-5') is True
+        assert AwardBook._looks_like_isbn('080442957X') is False  # 含 X 视为非纯数字
+        assert AwardBook._looks_like_isbn('A Flower Traveled in My Blood') is False
+        assert AwardBook._looks_like_isbn(None) is False
+        assert AwardBook._looks_like_isbn('') is False
+
 
 # ==================== SystemConfig 模型测试 ====================
 
@@ -269,7 +341,7 @@ class TestSystemConfig:
         db.session.add(config)
         db.session.commit()
 
-        result = SystemConfig.query.get('site_name')
+        result = db.session.get(SystemConfig, 'site_name')
         assert result is not None
         assert result.value == 'BookRank'
 

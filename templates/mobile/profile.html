@@ -1,0 +1,138 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('我的') }} - 书榜{% endblock %}
+
+{% block content %}
+
+<!-- 用户头部 -->
+<section class="m-profile-header">
+    <div class="m-profile-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
+    </div>
+    <div class="m-profile-name">{{ _('读书小达人') }}</div>
+    <div class="m-profile-stat">{{ _('已收藏') }} {{ favorites|length }} {{ _('本') }}</div>
+</section>
+
+<!-- 功能列表卡片 -->
+<section class="m-func-card">
+    <a class="m-func-item" href="#m-favorites">
+        <div class="m-func-icon m-func-icon-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2C5F2D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <span class="m-func-label">{{ _('我的收藏') }}</span>
+        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
+    <a class="m-func-item" href="#m-history">
+        <div class="m-func-icon m-func-icon-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2980B9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <span class="m-func-label">{{ _('阅读记录') }}</span>
+        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
+    <a class="m-func-item" href="/reports/weekly">
+        <div class="m-func-icon m-func-icon-orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#E67E22" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <span class="m-func-label">{{ _('周报') }}</span>
+        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
+    <a class="m-func-item" href="/about">
+        <div class="m-func-icon m-func-icon-purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#8E44AD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </div>
+        <span class="m-func-label">{{ _('关于我们') }}</span>
+        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
+</section>
+
+<!-- 我的收藏 -->
+<section class="m-section" id="m-favorites">
+    <h2 class="m-section-title">{{ _('我的收藏') }} <span class="m-section-count">({{ favorites|length }})</span></h2>
+    {% if favorites %}
+    <div class="m-book-list">
+        {% for fav in favorites %}
+        <a href="/?search={{ fav.title | urlencode }}"
+           class="m-card m-book-card" data-href="/?search={{ fav.title | urlencode }}">
+            <div class="m-book-cover">
+                <img src="{{ url_for('static', filename='default-cover.png') }}"
+                     alt="{{ fav.title }}"
+                     loading="lazy"
+                     width="60" height="80">
+            </div>
+            <div class="m-book-info">
+                <h3 class="m-book-title">{{ fav.title }}</h3>
+                {% if fav.author %}<p class="m-book-author">{{ fav.author }}</p>{% endif %}
+            </div>
+            <button class="m-fav-remove"
+                    data-isbn="{{ fav.isbn }}"
+                    type="button"
+                    aria-label="{{ _('取消收藏') }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="m-empty" style="padding: var(--space-6) 0;">
+        <div class="m-empty-icon" style="width:48px;height:48px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <p class="m-empty-title" style="font-size:var(--text-base);">{{ _('暂无收藏') }}</p>
+        <p class="m-empty-sub">{{ _('浏览书籍时点击收藏按钮即可添加') }}</p>
+    </div>
+    {% endif %}
+</section>
+
+<!-- 搜索历史 -->
+<section class="m-section" id="m-history">
+    <h2 class="m-section-title">{{ _('搜索历史') }} <span class="m-section-count">({{ search_history|length }})</span></h2>
+    {% if search_history %}
+    <div class="m-history-tags">
+        {% for item in search_history %}
+        <a href="/?search={{ item.keyword | urlencode }}"
+           class="m-history-tag"
+           data-href="/?search={{ item.keyword | urlencode }}">
+            {{ item.keyword }}
+            {% if item.result_count %}<span class="m-text-hint m-history-count">{{ item.result_count }}</span>{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="m-empty" style="padding: var(--space-6) 0;">
+        <div class="m-empty-icon" style="width:48px;height:48px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <p class="m-empty-title" style="font-size:var(--text-base);">{{ _('暂无搜索历史') }}</p>
+    </div>
+    {% endif %}
+</section>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 取消收藏：DELETE /api/favorites/<isbn>
+(function () {
+    document.querySelectorAll('.m-fav-remove').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var isbn = btn.getAttribute('data-isbn');
+            if (!isbn) return;
+            MobileApp.getCsrfToken().then(function (token) {
+                fetch('/api/favorites/' + encodeURIComponent(isbn), {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-Token': token }
+                }).then(function (r) { return r.json(); })
+                  .then(function (data) {
+                      if (data && data.success) {
+                          var card = btn.closest('.m-book-card');
+                          if (card) card.remove();
+                      }
+                  });
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

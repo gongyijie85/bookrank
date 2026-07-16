@@ -369,6 +369,22 @@ class TestMacmillanCrawler:
         book = c.get_book_details('9781234567890')
         assert book is not None
 
+    def test_sitemap_stops_after_google_rate_limit(self):
+        c = self._make()
+
+        def rate_limited_lookup(_isbn):
+            c._google_rate_limited = True
+            return None
+
+        with (
+            patch.object(c, '_query_imprint', return_value=iter(())),
+            patch.object(c, '_fetch_sitemap_isbns', return_value=['1', '2', '3']),
+            patch.object(c, '_lookup_isbn', side_effect=rate_limited_lookup) as lookup,
+        ):
+            assert list(c.get_new_books(max_books=1)) == []
+
+        lookup.assert_called_once_with('1')
+
 
 # ---------- HarperCollins ----------
 

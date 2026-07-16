@@ -36,7 +36,7 @@ def nyt_client_no_key(rate_limiter):
 
 class TestInit:
     def test_default_cache_ttl(self, nyt_client):
-        assert nyt_client._cache_ttl == 86400 * 7
+        assert nyt_client._cache_ttl == 60 * 60 * 6
 
     def test_custom_cache_ttl(self, rate_limiter):
         c = NYTApiClient(api_key='k', base_url='url', rate_limiter=rate_limiter, cache_ttl=600)
@@ -95,6 +95,22 @@ class TestFetchBooks:
 
         result = nyt_client.fetch_books('hardcover-fiction')
         assert result == {'results': []}
+
+    def test_force_refresh_bypasses_cache(self, nyt_client):
+        nyt_client._key_validated = True
+        nyt_client._key_is_valid = True
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = {'results': ['stale']}
+        nyt_client._api_cache = mock_cache
+
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {'results': ['fresh']}
+        nyt_client._session.get.return_value = mock_resp
+
+        result = nyt_client.fetch_books('hardcover-fiction', force_refresh=True)
+
+        assert result == {'results': ['fresh']}
+        mock_cache.get.assert_not_called()
 
     def test_cache_hit_error_skipped(self, nyt_client):
         nyt_client._key_validated = True

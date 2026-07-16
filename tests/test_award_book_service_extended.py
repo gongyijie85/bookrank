@@ -3,8 +3,6 @@
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from app.models.schemas import Award, AwardBook, SystemConfig
 from app.services.award_book_service import AwardBookService
 
@@ -330,7 +328,59 @@ class TestProcessAwardBooks:
     """测试 _process_award_books"""
 
     @patch('app.services.award_book_service.time.sleep')
-    @pytest.mark.xfail(reason='源码 _process_award_books 使用 Award(award_key=, category=) 但模型无此列')
+    def test_process_award_books_uses_bulk_lookup(self, mock_sleep, app, db, award_service, sample_award):
+        """测试 _process_award_books 对 N 本新获奖图书只发起一次 AwardBook 存在性查询"""
+        from sqlalchemy import event
+
+        with app.app_context():
+            award = db.session.get(Award, sample_award)
+            # 预先插入 3 本已存在的图书，让批量加载有数据可查询
+            for idx, isbn in enumerate(['9780000003001', '9780000003002', '9780000003003'], start=1):
+                db.session.add(
+                    AwardBook(
+                        award_id=award.id,
+                        year=2024,
+                        category='最佳长篇小说',
+                        rank=idx,
+                        title=f'Existing {idx}',
+                        author='Author',
+                        isbn13=isbn,
+                        is_displayable=True,
+                    )
+                )
+            db.session.commit()
+
+            award_service.openlib_client = MagicMock()
+            award_service.openlib_client.fetch_book_by_isbn.return_value = {}
+            award_service.openlib_client.get_cover_url.return_value = None
+            award_service.google_books_client = MagicMock()
+            award_service.google_books_client.fetch_book_details.return_value = {}
+            award_service.image_cache = None
+
+            books_data = [
+                {'title': f'New Book {i}', 'author': 'Author', 'year': 2024, 'isbn13': f'978000000400{i}'}
+                for i in range(1, 6)
+            ]
+
+            select_count = 0
+
+            def _count_selects(conn, cursor, statement, parameters, context, executemany):
+                nonlocal select_count
+                if statement.lstrip().upper().startswith('SELECT'):
+                    select_count += 1
+
+            event.listen(db.engine, 'before_cursor_execute', _count_selects)
+            try:
+                result = award_service._process_award_books('nebula', books_data)
+            finally:
+                event.remove(db.engine, 'before_cursor_execute', _count_selects)
+
+            assert result['new'] == 5
+            # 关键断言：5 本新书中未出现每本一次 AwardBook 单条查询（旧逻辑约 1+5=6 次 SELECT）
+            # 实际 SELECT 数通常为 2~3 次（Award + AwardBook 批量加载 + 可能的会话刷新）
+            assert select_count <= 3
+
+    @patch('app.services.award_book_service.time.sleep')
     def test_creates_new_award(self, mock_sleep, app, db, award_service):
         with app.app_context():
             Award.query.delete()
@@ -360,6 +410,9 @@ class TestProcessAwardBooks:
     @patch('app.services.award_book_service.time.sleep')
     def test_existing_award(self, mock_sleep, app, db, award_service, sample_award):
         with app.app_context():
+            award_service.openlib_client = MagicMock()
+            award_service.openlib_client.fetch_book_by_isbn.return_value = {}
+            award_service.openlib_client.get_cover_url.return_value = None
             award_service.google_books_client = MagicMock()
             award_service.google_books_client.fetch_book_details.return_value = {}
             award_service.image_cache = MagicMock()
@@ -379,9 +432,15 @@ class TestProcessAwardBooks:
             assert result['new'] == 1
 
     @patch('app.services.award_book_service.time.sleep')
-    @pytest.mark.xfail(reason='源码 _process_award_books 使用 Award(award_key=, category=) 但模型无此列')
     def test_unknown_award_key(self, mock_sleep, app, db, award_service):
         with app.app_context():
+            award_service.openlib_client = MagicMock()
+            award_service.openlib_client.fetch_book_by_isbn.return_value = {}
+            award_service.openlib_client.get_cover_url.return_value = None
+            award_service.google_books_client = MagicMock()
+            award_service.google_books_client.fetch_book_details.return_value = {}
+            award_service.image_cache = None
+
             result = award_service._process_award_books(
                 'unknown_award',
                 [
@@ -396,7 +455,6 @@ class TestProcessAwardBooks:
             assert result['new'] == 1
 
     @patch('app.services.award_book_service.time.sleep')
-    @pytest.mark.xfail(reason='源码 _process_award_books 使用 Award(award_key=, category=) 但模型无此列')
     def test_failed_book_counted(self, mock_sleep, app, db, award_service):
         with app.app_context():
             result = award_service._process_award_books(
@@ -415,7 +473,6 @@ class TestRefreshAwardBooksExtended:
     @patch('app.services.award_book_service.time.sleep')
     @patch.object(AwardBookService, 'should_refresh', return_value=True)
     @patch.object(AwardBookService, 'update_refresh_time')
-    @pytest.mark.xfail(reason='源码 _process_award_books 使用 Award(award_key=, category=) 但模型无此列')
     def test_refresh_with_book_data(self, mock_update, mock_should, mock_sleep, app, db, award_service):
         with app.app_context():
             award_service.wikidata_client = MagicMock()

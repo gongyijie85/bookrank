@@ -1,0 +1,121 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('关于我们') }} - 书榜{% endblock %}
+{% block og_title %}{{ _('关于我们') }} - 书榜{% endblock %}
+{% block tw_title %}{{ _('关于我们') }} - 书榜{% endblock %}
+
+{% block header %}
+<header class="m-header">
+    <a href="/profile" class="m-header-btn" aria-label="{{ _('返回') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <span class="m-header-title">{{ _('关于我们') }}</span>
+    <div class="m-header-placeholder"></div>
+</header>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero 区 -->
+<section class="m-about-hero">
+    <h1 class="m-about-title">{{ _('关于') }} BookRank</h1>
+    <p class="m-about-subtitle">{{ _('汇集全球畅销书榜与图书奖项') }}，{{ _('为读者提供权威的图书参考') }}</p>
+</section>
+
+<!-- 项目介绍 -->
+<section class="m-section">
+    <h2 class="m-section-title">{{ _('项目介绍') }}</h2>
+    <p class="m-about-text">
+        BookRank {{ _('是一个专注于图书排行榜数据聚合与展示的网站。我们实时追踪') }}
+        <strong>{{ _('纽约时报畅销书排行榜') }}</strong>，{{ _('收录') }}<strong>{{ _('国际重要图书奖项') }}</strong>{{ _('获奖作品') }}，
+        {{ _('并提供') }}<strong>{{ _('出版社新书速递') }}</strong>{{ _('与') }}<strong>{{ _('每周榜单分析') }}</strong>，{{ _('帮助读者快速发现优质图书。') }}
+    </p>
+</section>
+
+<!-- 数据来源 -->
+<section class="m-section">
+    <h2 class="m-section-title">{{ _('数据来源') }}</h2>
+    <div class="m-source-list">
+        <div class="m-source-card">
+            <div class="m-source-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+            </div>
+            <h3>{{ _('纽约时报畅销书榜') }}</h3>
+            <p>{{ _('实时同步') }} NYT Books API，{{ _('覆盖精装小说、非虚构、漫画等') }} 8 {{ _('大分类') }}</p>
+        </div>
+        <div class="m-source-card">
+            <div class="m-source-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            </div>
+            <h3>{{ _('国际图书奖项') }}</h3>
+            <p>{{ _('收录诺贝尔文学奖、布克奖、普利策奖等权威奖项历年获奖书单') }}</p>
+        </div>
+        <div class="m-source-card">
+            <div class="m-source-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+            </div>
+            <h3>{{ _('出版社数据') }}</h3>
+            <p>{{ _('聚合') }} Penguin Random House{{ _('、') }}HarperCollins {{ _('等六大出版社新书信息') }}</p>
+        </div>
+        <div class="m-source-card">
+            <div class="m-source-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <h3>{{ _('周报分析') }}</h3>
+            <p>{{ _('每周自动汇总榜单变化，包含新书、上升书籍和编辑推荐') }}</p>
+        </div>
+    </div>
+</section>
+
+<!-- 技术栈 -->
+<section class="m-section">
+    <h2 class="m-section-title">{{ _('技术栈') }}</h2>
+    <div class="m-tech-tags">
+        <span class="m-tech-tag">Python 3.13</span>
+        <span class="m-tech-tag">Flask 3.1</span>
+        <span class="m-tech-tag">SQLAlchemy</span>
+        <span class="m-tech-tag">PostgreSQL</span>
+        <span class="m-tech-tag">Jinja2</span>
+        <span class="m-tech-tag">{{ _('原生') }} JavaScript</span>
+    </div>
+</section>
+
+<!-- 联系我们 -->
+<section class="m-section">
+    <h2 class="m-section-title">{{ _('联系我们') }}</h2>
+    <p class="m-about-text">{{ _('如有问题或建议') }}，{{ _('欢迎通过以下方式联系') }}：</p>
+    <div class="m-contact-links">
+        <a href="mailto:bookrank@example.com" class="m-contact-link">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span>bookrank@example.com</span>
+        </a>
+        <a href="https://github.com/gongyijie85/bookrank" target="_blank" rel="noopener noreferrer" class="m-contact-link">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            <span>GitHub {{ _('仓库') }}</span>
+        </a>
+    </div>
+</section>
+
+<!-- 免责声明 -->
+<section class="m-section">
+    <h2 class="m-section-title">{{ _('免责声明') }}</h2>
+    <p class="m-about-text m-text-hint">
+        {{ _('本网站展示的书籍封面、简介等信息版权归原出版商与作者所有。') }}
+        {{ _('榜单数据来源于纽约时报官方') }} API，{{ _('仅供参考。') }}
+        {{ _('如有版权问题') }}，{{ _('请联系我们及时处理。') }}
+    </p>
+</section>
+
+{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "name": "About BookRank",
+    "description": "BookRank 汇集纽约时报畅销书排行榜与国际图书奖项榜单",
+    "url": "{{ request.url }}"
+}
+</script>
+{% endblock %}

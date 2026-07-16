@@ -9,6 +9,7 @@
 """
 
 import logging
+from typing import cast
 
 from ..utils.error_handler import ErrorCategory, log_error
 
@@ -437,109 +438,161 @@ SAMPLE_AWARD_BOOKS = [
 ]
 
 
+def _looks_like_isbn(text: str | None) -> bool:
+    """检测字符串是否像 ISBN（10/13 位纯数字，可能带连字符）"""
+    if not text:
+        return False
+    cleaned = text.replace('-', '').replace(' ', '')
+    if not cleaned.isdigit():
+        return False
+    return len(cleaned) in (10, 13)
+
+
 def init_sample_award_books(app):
     """
     初始化预置获奖图书数据
 
-    逐条检查 award_id + year + title 是否已存在，
+    逐条检查 award_id + year + isbn13 是否已存在，
     缺失的条目自动补种，避免重复插入。
+    同时修复历史脏数据（title 字段为 ISBN 的旧记录）。
     数据已通过 Wikipedia 交叉验证 (2026-05)。
     """
+    from ..models.schemas import Award, AwardBook
+
     try:
-        from ..models.database import db
-        from ..models.schemas import Award, AwardBook
+        with app.app_context():
+            from ..models.database import db
 
-        app.logger.info('📚 检查预置获奖图书完整性...')
+            award_count = Award.query.count()
+            if award_count == 0:
+                app.logger.warning('⚠️ Award 表为空，跳过 sample books 初始化')
+                return
 
-        added_count = 0
-        skipped_count = 0
+            added_count = 0
+            skipped_count = 0
+            fixed_count = 0
+            cleaned_count = 0
 
-        for book_data in SAMPLE_AWARD_BOOKS:
-            # 查找对应的奖项
-            award = Award.query.filter_by(name=book_data['award_name']).first()
-            if not award:
-                app.logger.warning(f'⚠️ 找不到奖项: {book_data["award_name"]}，跳过')
-                continue
+            for book_data in SAMPLE_AWARD_BOOKS:
+                award = Award.query.filter_by(name=book_data['award_name']).first()
+                if not award:
+                    continue
 
-            # 检查图书是否已存在（按 award_id + year + title 去重）
-            existing = AwardBook.query.filter_by(
-                award_id=award.id, year=book_data['year'], title=book_data['title']
-            ).first()
+                target_isbn = book_data.get('isbn13') or ''
+                if not target_isbn:
+                    continue
 
-            if existing:
-                # Update verification status and data for existing entries
-                if existing.verification_status not in ('verified', 'wikidata'):
-                    existing.verification_status = 'verified'
-                existing.is_displayable = True
-                # Update fields that may have been corrected
-                if book_data.get('author') and existing.author != book_data['author']:
-                    existing.author = book_data['author']
-                if book_data.get('isbn13') and existing.isbn13 != book_data['isbn13']:
-                    existing.isbn13 = book_data['isbn13']
-                if book_data.get('description') and existing.description != book_data['description']:
-                    existing.description = book_data['description']
-                if book_data.get('description_zh') and existing.description_zh != book_data.get('description_zh'):
-                    existing.description_zh = book_data.get('description_zh')
-                if book_data.get('title_zh') and existing.title_zh != book_data.get('title_zh'):
-                    existing.title_zh = book_data.get('title_zh')
-                # Fill missing cover URL if entry has none
-                if book_data.get('cover_original_url') and not existing.cover_original_url:
-                    existing.cover_original_url = book_data['cover_original_url']
-                skipped_count += 1
-                continue
+                existing = AwardBook.query.filter(
+                    AwardBook.award_id == award.id,
+                    AwardBook.year == book_data['year'],
+                    AwardBook.isbn13 == target_isbn,
+                ).first()
 
-            # 创建新图书
-            book = AwardBook(
-                award_id=award.id,
-                year=book_data['year'],
-                category=book_data['category'],
-                rank=1,
-                title=book_data['title'],
-                title_zh=book_data.get('title_zh'),
-                author=book_data['author'],
-                description=book_data['description'],
-                description_zh=book_data.get('description_zh'),
-                isbn13=book_data['isbn13'],
-                cover_original_url=book_data.get('cover_original_url'),
-                is_displayable=True,
-                verification_status='verified',
-            )
+                if not existing:
+                    existing = AwardBook.query.filter(
+                        AwardBook.award_id == award.id,
+                        AwardBook.year == book_data['year'],
+                        db.or_(
+                            AwardBook.isbn13 == target_isbn,
+                            AwardBook.title == target_isbn,
+                        ),
+                    ).first()
 
-            db.session.add(book)
-            added_count += 1
+                if existing:
+                    target_title_zh = book_data.get('title_zh') or ''
+                    need_fix_title = (
+                        not existing.title or existing.title == target_isbn or _looks_like_isbn(existing.title)
+                    ) and book_data.get('title')
+                    if need_fix_title:
+                        old_title = existing.title
+                        existing.title = book_data['title']
+                        existing.is_displayable = True
+                        if existing.verification_status == 'deprecated':
+                            existing.verification_status = 'verified'
+                        fixed_count += 1
+                        app.logger.info(
+                            f'🔧 修复 AwardBook 标题: id={existing.id} {old_title!r} -> {book_data["title"]!r}'
+                        )
 
-        # 清理旧错误条目：在同一年份+奖项下，标题不在种子数据中的条目标记为 deprecated
-        cleaned_count = 0
-        seed_titles_by_key: dict[tuple[int, int], set[str]] = {}
-        for book_data in SAMPLE_AWARD_BOOKS:
-            award = Award.query.filter_by(name=book_data['award_name']).first()
-            if award:
-                key = (int(award.id), int(book_data['year']))  # type: ignore[call-overload]
-                if key not in seed_titles_by_key:
-                    seed_titles_by_key[key] = set()
-                seed_titles_by_key[key].add(str(book_data['title']))
+                    need_fix_title_zh = target_title_zh and (
+                        not existing.title_zh
+                        or existing.title_zh == target_isbn
+                        or existing.title_zh == existing.title
+                        or _looks_like_isbn(existing.title_zh)
+                    )
+                    if need_fix_title_zh:
+                        old_title_zh = existing.title_zh
+                        existing.title_zh = target_title_zh
+                        app.logger.info(
+                            f'🔧 修复 AwardBook 中文标题: id={existing.id} {old_title_zh!r} -> {target_title_zh!r}'
+                        )
 
-        for (award_id, year), valid_titles in seed_titles_by_key.items():
-            stale = AwardBook.query.filter(
-                AwardBook.award_id == award_id,
-                AwardBook.year == year,
-                AwardBook.title.notin_(valid_titles),
-                AwardBook.verification_status != 'wikidata',  # 保留 Wikidata 来源数据
-            ).all()
-            for entry in stale:
-                entry.is_displayable = False
-                entry.verification_status = 'deprecated'
-                cleaned_count += 1
+                    if existing.verification_status not in ('verified', 'wikidata'):
+                        existing.verification_status = 'verified'
+                    existing.is_displayable = True
+                    if book_data.get('author') and existing.author != book_data['author']:
+                        existing.author = book_data['author']
+                    if book_data.get('isbn13') and existing.isbn13 != book_data['isbn13']:
+                        existing.isbn13 = book_data['isbn13']
+                    if book_data.get('description') and existing.description != book_data['description']:
+                        existing.description = book_data['description']
+                    if book_data.get('description_zh') and existing.description_zh != book_data.get('description_zh'):
+                        existing.description_zh = book_data.get('description_zh')
+                    if book_data.get('title_zh') and existing.title_zh != book_data.get('title_zh'):
+                        existing.title_zh = book_data.get('title_zh')
+                    if book_data.get('cover_original_url') and not existing.cover_original_url:
+                        existing.cover_original_url = book_data['cover_original_url']
+                    skipped_count += 1
+                    continue
 
-        if added_count > 0 or skipped_count > 0 or cleaned_count > 0:
-            db.session.commit()
-            app.logger.info(
-                f'✅ 已补种 {added_count} 本预置获奖图书，'
-                f'跳过/更新 {skipped_count} 本已存在，'
-                f'清理 {cleaned_count} 本旧错误条目'
-            )
-        else:
-            app.logger.info('✅ 所有预置获奖图书已存在，无需补种')
+                book = AwardBook(
+                    award_id=award.id,
+                    year=book_data['year'],
+                    category=book_data['category'],
+                    rank=1,
+                    title=book_data['title'],
+                    title_zh=book_data.get('title_zh'),
+                    author=book_data['author'],
+                    description=book_data['description'],
+                    description_zh=book_data.get('description_zh'),
+                    isbn13=book_data['isbn13'],
+                    cover_original_url=book_data.get('cover_original_url'),
+                    is_displayable=True,
+                    verification_status='verified',
+                )
+
+                db.session.add(book)
+                added_count += 1
+
+            seed_titles_by_key: dict[tuple[int, int], set[str]] = {}
+            for book_data in SAMPLE_AWARD_BOOKS:
+                award = Award.query.filter_by(name=book_data['award_name']).first()
+                if award:
+                    key = cast('tuple[int, int]', (award.id, book_data['year']))
+                    if key not in seed_titles_by_key:
+                        seed_titles_by_key[key] = set()
+                    seed_titles_by_key[key].add(str(book_data['title']))
+
+            for (award_id, year), valid_titles in seed_titles_by_key.items():
+                stale = AwardBook.query.filter(
+                    AwardBook.award_id == award_id,
+                    AwardBook.year == year,
+                    AwardBook.title.notin_(valid_titles),
+                    AwardBook.verification_status != 'wikidata',
+                ).all()
+                for entry in stale:
+                    if _looks_like_isbn(entry.title):
+                        entry.is_displayable = False
+                        entry.verification_status = 'deprecated'
+                        cleaned_count += 1
+
+            if added_count > 0 or skipped_count > 0 or fixed_count > 0 or cleaned_count > 0:
+                db.session.commit()
+                app.logger.info(
+                    f'✅ 补种 {added_count} 本 | 更新/跳过 {skipped_count} 本 | 修复 {fixed_count} 本标题 | 清理 {cleaned_count} 本旧条目'
+                )
+            else:
+                app.logger.info('✅ 所有预置获奖图书已存在，无需补种')
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'初始化预置获奖图书失败: {e}', exc_info=True)

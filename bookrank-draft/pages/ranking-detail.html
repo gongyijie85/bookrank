@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BookRank 年度好书榜</title>
+    <!-- Design System Tokens -->
+    <style id="theme-vars">
+:root {
+  --color-primary: #2C5F2D;
+  --color-primary-light: #3A7D3B;
+  --color-primary-dark: #1E4320;
+  --color-primary-tint: #E8F0E8;
+  --color-accent: #E67E22;
+  --color-accent-light: #F0923A;
+  --color-accent-dark: #C96A15;
+  --color-accent-tint: #FEF3E6;
+  --color-bg: #FAF6F0;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-sunken: #F0EBE3;
+  --color-text-primary: #333333;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #FFFFFF;
+  --color-border: #E8E2D8;
+  --color-border-light: #F0EBE3;
+  --color-state-success: #2C5F2D;
+  --color-state-warning: #E67E22;
+  --color-state-error: #C0392B;
+  --color-state-info: #2980B9;
+  --font-display: "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif;
+  --font-body: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-4xl: 28px;
+  --leading-tight: 1.4;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --touch-min: 44px;
+  --btn-height: 44px;
+  --input-height: 44px;
+  --safe-top: 44px;
+  --safe-bottom: 34px;
+  --tab-height: 50px;
+}
+    </style>
+    <!-- Tailwind CSS v4 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style>
+      /* 页面基础 */
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html { -webkit-tap-highlight-color: transparent; }
+      body {
+        font-family: var(--font-body);
+        background-color: var(--color-bg);
+        color: var(--color-text-primary);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* 隐藏滚动条 */
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+      /* 顶部导航栏 */
+      .nav-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        background-color: var(--color-bg-elevated);
+        border-bottom: 1px solid var(--color-border);
+      }
+      .nav-back {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        color: var(--color-text-primary);
+        text-decoration: none;
+        cursor: pointer;
+        border: none;
+        background: none;
+        padding: 0;
+      }
+      .nav-title {
+        font-family: var(--font-display);
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--color-text-primary);
+        text-align: center;
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .nav-spacer { width: 44px; }
+
+      /* 奖项分类标签栏 */
+      .category-tabs {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        z-index: 40;
+        background-color: var(--color-bg-elevated);
+        border-bottom: 1px solid var(--color-border-light);
+      }
+      .category-tabs-inner {
+        display: flex;
+        overflow-x: auto;
+        white-space: nowrap;
+        padding: 0 16px;
+        gap: 0;
+        scrollbar-width: none;
+      }
+      .category-tabs-inner::-webkit-scrollbar { display: none; }
+      .category-tab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 16px;
+        font-size: 14px;
+        color: var(--color-text-tertiary);
+        text-decoration: none;
+        cursor: pointer;
+        border: none;
+        background: none;
+        position: relative;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: color 0.2s;
+      }
+      .category-tab.active {
+        color: var(--color-primary);
+        font-weight: 600;
+      }
+      .category-tab.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 24px;
+        height: 2px;
+        background-color: var(--color-primary);
+        border-radius: 1px;
+      }
+
+      /* 书籍卡片列表 */
+      .book-list {
+        padding: 0 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .book-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        background-color: var(--color-bg-elevated);
+        border-radius: var(--radius-lg);
+        padding: 12px;
+        box-shadow: var(--shadow-card);
+        text-decoration: none;
+        color: inherit;
+        transition: box-shadow 0.15s, transform 0.15s;
+        cursor: pointer;
+      }
+      .book-card:active {
+        transform: scale(0.98);
+        box-shadow: var(--shadow-subtle);
+      }
+
+      /* 排名数字 */
+      .rank-num {
+        flex-shrink: 0;
+        width: 28px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 2px;
+        font-family: var(--font-display);
+      }
+      .rank-top {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--color-primary);
+        line-height: 1;
+      }
+      .rank-normal {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--color-text-tertiary);
+        line-height: 1;
+      }
+
+      /* 书籍封面 */
+      .book-cover {
+        flex-shrink: 0;
+        width: 60px;
+        height: 80px;
+        border-radius: 6px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--color-primary-tint), var(--color-bg-sunken));
+      }
+      .book-cover-icon {
+        color: var(--color-primary);
+        opacity: 0.5;
+      }
+
+      /* 书籍信息 */
+      .book-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .book-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        line-height: var(--leading-tight);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .book-author {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        line-height: var(--leading-normal);
+        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .badge-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 8px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 1px 6px;
+        border-radius: var(--radius-full);
+        font-size: 10px;
+        line-height: 1.5;
+        white-space: nowrap;
+        font-weight: 500;
+      }
+      .badge-award {
+        background-color: var(--color-primary);
+        color: var(--color-text-inverse);
+      }
+      .badge-year {
+        background-color: var(--color-accent);
+        color: var(--color-text-inverse);
+      }
+
+      /* 分页器 */
+      .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 24px 16px 32px;
+      }
+      .page-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 8px 16px;
+        font-size: 14px;
+        color: var(--color-primary);
+        background: none;
+        border: none;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: background-color 0.15s;
+        font-family: var(--font-body);
+      }
+      .page-btn:active {
+        background-color: var(--color-primary-tint);
+      }
+      .page-btn.disabled {
+        color: var(--color-text-tertiary);
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      .page-btn.current {
+        background-color: var(--color-primary-tint);
+        border-radius: var(--radius-md);
+        font-weight: 500;
+      }
+      .page-indicator {
+        font-size: 14px;
+        color: var(--color-text-secondary);
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+      }
+    </style>
+    <style type="text/tailwindcss">
+      @theme inline {
+        --color-primary: var(--color-primary);
+        --color-accent: var(--color-accent);
+        --color-border: var(--color-border);
+      }
+    </style>
+</head>
+<body class="min-h-screen antialiased" style="background-color: var(--color-bg);">
+    <!-- 顶部导航栏 -->
+    <header class="nav-bar">
+      <a href="#" data-dom-id="back-home" class="nav-back" aria-label="返回首页">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </a>
+      <h1 class="nav-title">年度好书榜</h1>
+      <div class="nav-spacer"></div>
+    </header>
+
+    <!-- 奖项分类标签 -->
+    <nav class="category-tabs">
+      <div class="category-tabs-inner no-scrollbar">
+        <button class="category-tab active" data-tab="maodun">茅盾文学奖</button>
+        <button class="category-tab" data-tab="luxun">鲁迅文学奖</button>
+        <button class="category-tab" data-tab="nobel">诺贝尔文学奖</button>
+        <button class="category-tab" data-tab="booker">布克奖</button>
+        <button class="category-tab" data-tab="pulitzer">普利策奖</button>
+      </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <main style="padding-top: calc(56px + 44px + 32px); padding-bottom: 34px;">
+      <!-- 第一页书籍列表 -->
+      <div id="page-1" class="book-list" data-page="1">
+
+        <!-- 第1名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-top">1</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">消失的另一半</span>
+            <span class="book-author">布里特·贝内特</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2025</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第2名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-top">2</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">午夜图书馆</span>
+            <span class="book-author">马特·海格</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2024</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第3名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-top">3</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">项目蓝冰</span>
+            <span class="book-author">安迪·威尔</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2025</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第4名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-normal">4</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">你当像鸟飞往你的山</span>
+            <span class="book-author">塔拉·韦斯特弗</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2023</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第5名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-normal">5</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">原子习惯</span>
+            <span class="book-author">詹姆斯·克利尔</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2024</span>
+            </div>
+          </div>
+        </a>
+
+      </div>
+
+      <!-- 第二页书籍列表 -->
+      <div id="page-2" class="book-list" data-page="2" style="display: none;">
+
+        <!-- 第6名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-normal">6</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">克拉拉与太阳</span>
+            <span class="book-author">石黑一雄</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2024</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第7名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-normal">7</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">活出意义来</span>
+            <span class="book-author">维克多·弗兰克尔</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2023</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第8名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-normal">8</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">沉默的巡游</span>
+            <span class="book-author">东野圭吾</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2025</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第9名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-normal">9</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">苏东坡传</span>
+            <span class="book-author">林语堂</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2023</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 第10名 -->
+        <a href="#" data-dom-id="link-book-detail" class="book-card">
+          <div class="rank-num"><span class="rank-normal">10</span></div>
+          <div class="book-cover">
+            <svg class="book-cover-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+          </div>
+          <div class="book-info">
+            <span class="book-title">小王子</span>
+            <span class="book-author">安托万·德·圣-埃克苏佩里</span>
+            <div class="badge-row">
+              <span class="badge badge-award">茅盾文学奖</span>
+              <span class="badge badge-year">2024</span>
+            </div>
+          </div>
+        </a>
+
+      </div>
+
+      <!-- 分页导航 -->
+      <nav class="pagination" data-dom-id="pagination">
+        <button id="btn-prev" class="page-btn disabled" onclick="changePage(-1)">
+          < 前一页
+        </button>
+        <span id="page-text" class="page-indicator">1 / 2</span>
+        <button id="btn-next" class="page-btn" onclick="changePage(1)">
+          下一页 >
+        </button>
+      </nav>
+    </main>
+
+    <script>
+      // 初始化 Lucide 图标
+      lucide.createIcons();
+
+      // 当前页码状态
+      let currentPage = 1;
+      const totalPages = 2;
+
+      // 切换页面
+      function changePage(delta) {
+        var newPage = currentPage + delta;
+        if (newPage < 1 || newPage > totalPages) return;
+        currentPage = newPage;
+        renderPage();
+      }
+
+      // 渲染页面状态
+      function renderPage() {
+        // 切换书籍列表可见性
+        document.getElementById('page-1').style.display = currentPage === 1 ? '' : 'none';
+        document.getElementById('page-2').style.display = currentPage === 2 ? '' : 'none';
+
+        // 更新页码文字
+        document.getElementById('page-text').textContent = currentPage + ' / ' + totalPages;
+
+        // 更新按钮状态
+        var btnPrev = document.getElementById('btn-prev');
+        var btnNext = document.getElementById('btn-next');
+        if (currentPage <= 1) {
+          btnPrev.classList.add('disabled');
+        } else {
+          btnPrev.classList.remove('disabled');
+        }
+        if (currentPage >= totalPages) {
+          btnNext.classList.add('disabled');
+        } else {
+          btnNext.classList.remove('disabled');
+        }
+
+        // 滚动到顶部
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      // 奖项标签切换
+      document.querySelectorAll('.category-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.category-tab').forEach(function(t) {
+            t.classList.remove('active');
+          });
+          this.classList.add('active');
+          // 切换回第一页
+          currentPage = 1;
+          renderPage();
+        });
+      });
+    </script>
+</body>
+</html>

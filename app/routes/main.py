@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import re
 from pathlib import Path
@@ -6,6 +7,7 @@ from flask import (
     Blueprint,
     abort,
     current_app,
+    jsonify,
     make_response,
     redirect,
     render_template,
@@ -18,11 +20,12 @@ from werkzeug.utils import secure_filename
 from ..data.publishers import PUBLISHERS_DATA
 from ..services.book_detail_service import fetch_google_books_details, is_valid_isbn, merge_or_translate_book
 from ..utils import ExternalAPIError
-from ..utils.api_helpers import APIResponse, handle_api_errors
+from ..utils.api_helpers import APIResponse, handle_api_errors, quick_clean_translation
 from ..utils.book_filters import filter_books_by_publisher, filter_books_by_search, filter_books_by_weeks, sort_books
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.security import is_safe_redirect_url
+from ..utils.template_resolver import render_adaptive
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 from ..utils.service_helpers import (
@@ -36,6 +39,18 @@ from ..utils.service_helpers import (
 
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
+
+
+def _get_category_update_frequency(category: str) -> str:
+    return current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category, 'weekly')
+
+
+def _get_list_published_date(books_data: list[dict]) -> str | None:
+    for book in books_data:
+        published_date = book.get('published_date')
+        if published_date and published_date != 'Unknown':
+            return str(published_date)
+    return None
 
 
 def _get_books_for_category(category: str) -> tuple[list, str | None]:
@@ -94,6 +109,9 @@ def index():
         e.log()
         # 降级：用空列表渲染页面，不崩溃
 
+    update_frequency = _get_category_update_frequency(category)
+    list_published_date = _get_list_published_date(books_data)
+
     if search_query:
         books_data = filter_books_by_search(books_data, search_query)
     if publisher_filter:
@@ -112,7 +130,7 @@ def index():
         )
     )
 
-    return render_template(
+    return render_adaptive(
         'index.html',
         categories=categories,
         books=books_data,
@@ -124,6 +142,14 @@ def index():
         publisher_filter=publisher_filter,
         weeks_filter=weeks_filter,
         sort_by=sort_by,
+        update_frequency=update_frequency,
+        list_published_date=list_published_date,
+        monthly_categories=sorted(
+            category_id
+            for category_id, frequency in current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].items()
+            if frequency == 'monthly'
+        ),
+        active_tab='home',
     )
 
 
@@ -142,10 +168,12 @@ def cached_image(filename: str):
 @main_bp.route('/award-book/<int:book_id>/cover')
 def award_book_cover(book_id: int):
     """解析获奖图书封面，缺失时按 ISBN/书名补全并回写。"""
-    from ..models.schemas import AwardBook
+    from ..services.award_book_service import AwardBookService
     from ..services.award_cover_sync_service import AwardCoverSyncService
 
-    book = AwardBook.query.get_or_404(book_id)
+    book = AwardBookService().get_award_book_by_id(book_id)
+    if not book:
+        abort(404)
     sync_service = AwardCoverSyncService(
         get_google_books_client(),
         image_cache=get_image_cache_service(),
@@ -170,7 +198,8 @@ def awards():
     award_service = AwardBookService()
     params = _parse_awards_params(request.args)
     context = _load_awards_data(award_service, params)
-    return render_template('awards.html', **context)
+    context['active_tab'] = 'awards'
+    return render_adaptive('awards.html', **context)
 
 
 def _parse_awards_params(args) -> dict:
@@ -245,13 +274,31 @@ def _load_awards_data(award_service, params: dict) -> dict:
             limit=params['per_page'],
         )
 
+        def _is_isbn(text: str) -> bool:
+            """简易 ISBN 检测：10/13 位纯数字（可含连字符/空格）"""
+            if not text:
+                return False
+            c = text.replace('-', '').replace(' ', '')
+            return c.isdigit() and len(c) in (10, 13)
+
         for book in books:
+            # title_en: 原始 DB title 供前端 data-en 使用；
+            # 若原始 title 是 ISBN 脏数据则退回 display_title
+            raw_title = (book.title or '').strip()
+            title_en = book.display_title or '' if _is_isbn(raw_title) else (raw_title or book.display_title or '')
+
+            # title_zh: 清理后的中文标题；ISBN 脏数据直接清空
+            raw_zh = quick_clean_translation(book.title_zh, 'title')
+            title_zh = '' if _is_isbn(raw_zh or '') else (raw_zh or '')
+
             books_data.append(
                 {
                     'id': book.id,
-                    'title': book.title,
-                    'author': book.author,
+                    'title': book.display_title,
+                    'title_en': title_en,
+                    'title_zh': title_zh,
                     'description': book.description,
+                    'description_zh': quick_clean_translation(book.description_zh, 'description'),
                     'details': book.details,
                     'cover_local_path': book.cover_local_path,
                     'cover_original_url': book.cover_original_url,
@@ -441,7 +488,7 @@ def favicon():
 @main_bp.route('/about')
 def about():
     """关于我们页面"""
-    return render_template('about.html')
+    return render_adaptive('about.html')
 
 
 @main_bp.route('/publishers')
@@ -449,7 +496,12 @@ def publishers():
     """出版社导航页面"""
     total_publishers = sum(len(cat['publishers']) for cat in PUBLISHERS_DATA)
 
-    return render_template('publishers.html', publishers_data=PUBLISHERS_DATA, total_publishers=total_publishers)
+    return render_adaptive(
+        'publishers.html',
+        publishers_data=PUBLISHERS_DATA,
+        total_publishers=total_publishers,
+        active_tab='publisher',
+    )
 
 
 @main_bp.route('/cache-management')
@@ -473,7 +525,7 @@ def new_book_detail(book_id):
     book = service.get_book(book_id)
 
     if not book:
-        return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
+        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
 
     if not book.title_zh or not book.description_zh:
         translation_service = get_translation_service()
@@ -490,15 +542,42 @@ def new_book_detail(book_id):
 @main_bp.route('/award-book/<int:book_id>')
 def award_book_detail(book_id):
     """获奖图书详情（通过 Service 层）"""
+    from ..models.schemas import AwardBook
     from ..services.award_book_service import AwardBookService
 
     award_service = AwardBookService()
     book = award_service.get_award_book_by_id(book_id)
 
     if book:
-        return render_template('award_book_detail.html', book=book, back_url=request.referrer or '/awards')
+        if not book.is_displayable:
+            return render_adaptive(
+                'error.html',
+                message='该获奖图书已下架',
+                back_url=request.referrer or '/awards',
+            )
+
+        # 清理 title 字段中的 ISBN 脏数据
+        raw_title = (book.title or '').strip()
+        safe_title_en = '' if AwardBook._looks_like_isbn(raw_title) else raw_title
+
+        raw_zh = quick_clean_translation(book.title_zh, 'title')
+        safe_title_zh = '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or '')
+
+        # 兜底：如果两个字段都是 ISBN，使用 display_title
+        display_title = book.display_title
+        if not safe_title_en and not safe_title_zh:
+            safe_title_en = display_title
+            safe_title_zh = display_title
+
+        return render_adaptive(
+            'award_book_detail.html',
+            book=book,
+            safe_title_en=safe_title_en or display_title,
+            safe_title_zh=safe_title_zh or safe_title_en,
+            back_url=request.referrer or '/awards',
+        )
     else:
-        return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/awards')
+        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/awards')
 
 
 @main_bp.route('/book/<int:book_index>')
@@ -511,10 +590,14 @@ def book_detail(book_index):
     if category not in categories:
         category = default_category
 
-    books_data, _ = _get_books_for_category(category)
+    try:
+        books_data, _ = _get_books_for_category(category)
+    except ExternalAPIError as e:
+        e.log()
+        books_data = []
 
     if book_index < 0 or book_index >= len(books_data):
-        return render_template('error.html', message='书籍不存在', back_url=request.referrer or '/')
+        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/')
 
     book = books_data[book_index]
 
@@ -523,13 +606,56 @@ def book_detail(book_index):
         fetch_google_books_details(book, isbn)
         merge_or_translate_book(book, isbn)
 
-    return render_template(
+    return render_adaptive(
         'book_detail.html',
         book=book,
         book_index=book_index,
         category=category,
+        categories=categories,
         back_url=request.referrer or '/?category=' + category,
+        active_tab='home',
     )
+
+
+@main_bp.route('/profile')
+def profile():
+    """个人中心 - 收藏与搜索历史（移动端优先，匿名会话）"""
+    from ..services.user_service import UserService
+
+    session_id = request.cookies.get('session_id', 'anonymous')
+    service = UserService()
+    favorites = service.get_favorites(session_id)
+    search_history = service.get_search_history(session_id, limit=10)
+
+    # 用 BookMetadata 富化收藏列表（补全书名/作者）
+    for fav in favorites:
+        isbn = fav.get('isbn', '')
+        if isbn:
+            meta = service.get_book_metadata(isbn)
+            if meta:
+                fav['title'] = meta.title_zh or meta.title
+                fav['author'] = meta.author
+            else:
+                fav['title'] = isbn
+                fav['author'] = ''
+
+    return render_adaptive(
+        'profile.html',
+        favorites=favorites,
+        search_history=search_history,
+        session_id=session_id,
+        active_tab='profile',
+    )
+
+
+@main_bp.route('/search')
+def search_page():
+    """移动端搜索入口页（桌面端重定向到首页）"""
+    from ..utils.device_detect import is_mobile
+
+    if not is_mobile():
+        return redirect('/')
+    return render_template('mobile/search.html', active_tab='search')
 
 
 @main_bp.route('/api/book-details')
@@ -549,7 +675,7 @@ def book_details_api():
         return APIResponse.error('书籍不存在', 404)
 
     book = books_data[book_index]
-    details = book.get('description', '暂无详细介绍')
+    details = book.get('details') or book.get('description') or '暂无详细介绍'
 
     return APIResponse.success(data={'details': details})
 
@@ -582,35 +708,77 @@ def api_category_books():
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'图书服务不可用: {e}', exc_info=True)
 
-    return APIResponse.success(data={'books': books_data, 'category': category, 'update_time': update_time})
+    return APIResponse.success(
+        data={
+            'books': books_data,
+            'category': category,
+            'update_time': update_time,
+            'update_frequency': _get_category_update_frequency(category),
+            'list_published_date': _get_list_published_date(books_data),
+        }
+    )
 
 
 @main_bp.route('/reports/weekly')
 def weekly_reports():
-    """周报列表"""
+    """周报列表
+
+    v0.9.46 自愈机制：调用 service.get_or_trigger_current_week_report()
+    检查 expected week 是否存在，缺失时后台线程异步补生成。
+    页面继续展示最新已有周报 + 顶部黄色横幅 + 30s 轮询状态。
+    """
     from ..services.weekly_report_service import WeeklyReportService
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message='服务不可用', back_url='/')
+        return render_adaptive('error.html', message='服务不可用', back_url='/')
 
     report_service = WeeklyReportService(book_service)
+    latest_report, is_generating = report_service.get_or_trigger_current_week_report()
     reports = report_service.get_reports()
-
-    if not reports:
-        try:
-            from ..tasks.weekly_report_task import generate_weekly_report
-
-            generated_report = generate_weekly_report()
-            if generated_report:
-                reports = report_service.get_reports()
-        except Exception as e:
-            log_error(ErrorCategory.API_CALL, f'周报空列表兜底生成失败: {e}', level='warning')
 
     for report in reports:
         report.content_data = parse_report_content(report) or {}
 
-    return render_template('weekly_reports.html', reports=reports)
+    return render_adaptive(
+        'weekly_reports.html',
+        reports=reports,
+        latest_report=latest_report,
+        is_generating=is_generating,
+        active_tab='weekly',
+    )
+
+
+@main_bp.route('/api/weekly-report/status')
+def weekly_report_status():
+    """周报状态轮询端点（v0.9.46 新增）
+
+    供前端 30s 轮询检查 expected week 周报是否已生成。
+    仅查 DB，不调 NYT API，对 Render 免费版几乎无压力。
+    """
+    from datetime import date
+
+    from ..services.weekly_report_service import WeeklyReportService
+    from ..tasks.weekly_report_task_helpers import compute_expected_week_range
+
+    book_service = get_book_service()
+    if not book_service:
+        return jsonify({'error': '服务不可用'}), 503
+
+    report_service = WeeklyReportService(book_service)
+    today = date.today()
+    week_start, week_end = compute_expected_week_range(today)
+    has_current = report_service.is_current_week_report_ready()
+    latest = report_service.get_latest_report()
+
+    return jsonify(
+        {
+            'has_current_week': has_current,
+            'expected_week_start': week_start.isoformat(),
+            'expected_week_end': week_end.isoformat(),
+            'latest_week_end': latest.week_end.isoformat() if latest else None,
+        }
+    )
 
 
 @main_bp.route('/reports/weekly/<date>')
@@ -621,11 +789,11 @@ def weekly_report_detail(date):
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message='服务不可用', back_url='/reports/weekly')
+        return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
     is_valid, error_msg, report_date = validate_date(date)
     if not is_valid:
-        return render_template('error.html', message=error_msg, back_url='/reports/weekly')
+        return render_adaptive('error.html', message=error_msg, back_url='/reports/weekly')
 
     report_service = WeeklyReportService(book_service)
 
@@ -634,7 +802,7 @@ def weekly_report_detail(date):
         if not report:
             report = report_service.get_report_by_date(report_date)
             if not report:
-                return render_template('error.html', message='周报不存在', back_url='/reports/weekly')
+                return render_adaptive('error.html', message='周报不存在', back_url='/reports/weekly')
 
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
@@ -648,11 +816,16 @@ def weekly_report_detail(date):
         )
 
         content_data = parse_report_content(report)
-        return render_template('weekly_report_detail.html', report=report, content=content_data)
+        return render_adaptive(
+            'weekly_report_detail.html',
+            report=report,
+            content=content_data,
+            active_tab='weekly',
+        )
 
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'周报详情渲染错误: {e!s}', exc_info=True)
-        return render_template('error.html', message='周报加载失败，请稍后再试', back_url='/reports/weekly'), 500
+        return render_adaptive('error.html', message='周报加载失败，请稍后再试', back_url='/reports/weekly'), 500
 
 
 @main_bp.route('/reports/weekly/<date>/export')
@@ -666,11 +839,11 @@ def export_weekly_report(date):
 
     book_service = get_book_service()
     if not book_service:
-        return render_template('error.html', message='服务不可用', back_url='/reports/weekly')
+        return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
     is_valid, error_msg, report_date = validate_date(date)
     if not is_valid:
-        return render_template('error.html', message=error_msg, back_url='/reports/weekly')
+        return render_adaptive('error.html', message=error_msg, back_url='/reports/weekly')
 
     report_service = WeeklyReportService(book_service)
     export_service = ExportService()
@@ -680,11 +853,11 @@ def export_weekly_report(date):
         if not report:
             report = report_service.get_report_by_date(report_date)
             if not report:
-                return render_template('error.html', message='周报不存在', back_url='/reports/weekly')
+                return render_adaptive('error.html', message='周报不存在', back_url='/reports/weekly')
 
         format_type = request.args.get('format', 'pdf').lower()
         if format_type not in ['pdf', 'excel']:
-            return render_template('error.html', message='不支持的导出格式', back_url=f'/reports/weekly/{date}')
+            return render_adaptive('error.html', message='不支持的导出格式', back_url=f'/reports/weekly/{date}')
 
         export_config = {
             'pdf': {
@@ -704,7 +877,7 @@ def export_weekly_report(date):
         config = export_config[format_type]
         buffer = config['export_method'](report)
         if not buffer:
-            return render_template('error.html', message=config['error_message'], back_url=f'/reports/weekly/{date}')
+            return render_adaptive('error.html', message=config['error_message'], back_url=f'/reports/weekly/{date}')
 
         session_id = request.cookies.get('session_id', 'anonymous')
         user_agent = request.user_agent.string[:500]
@@ -722,7 +895,7 @@ def export_weekly_report(date):
 
     except Exception as e:
         log_error(ErrorCategory.UNKNOWN, f'导出周报时出错: {e!s}')
-        return render_template('error.html', message='导出失败', back_url=f'/reports/weekly/{date}')
+        return render_adaptive('error.html', message='导出失败', back_url=f'/reports/weekly/{date}')
 
 
 @main_bp.route('/robots.txt')
@@ -747,9 +920,12 @@ def set_language():
     if not is_safe_redirect_url(next_url, allowed_hosts={request.host}):
         next_url = '/'
     response = make_response(redirect(next_url))
-    # 获取当前请求的域名用于设置 cookie domain
-    host = request.host.split(':')[0]  # 去掉端口号
-    # 对于 Render 等部署平台，需要设置正确的 domain
-    cookie_domain = host if '.' in host else None
+    # IP/localhost 不能带 Domain，否则移动端局域网访问时浏览器会拒收 cookie。
+    host = request.host.rsplit(':', 1)[0].strip('[]')
+    try:
+        ipaddress.ip_address(host)
+        cookie_domain = None
+    except ValueError:
+        cookie_domain = host if host and host != 'localhost' and '.' in host else None
     response.set_cookie('lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax', domain=cookie_domain, path='/')
     return response

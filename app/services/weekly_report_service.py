@@ -212,11 +212,11 @@ class WeeklyReportService:
             # 从每个分类获取书籍数据
             for category_id, category_name in nyt_categories.items():
                 try:
-                    books = self._book_service.get_books_by_category(category_id)
+                    books = self._book_service.get_books_by_category(category_id, force_refresh=True)
                     for _i, book in enumerate(books):
                         # 从NYT API真实数据中获取排名信息
                         # rank_last_week: 上周排名（数字或"无"/"0"表示新上榜）
-                        # weeks_on_list: 上榜周数（NYT API直接提供）
+                        # weeks_on_list: 累计上榜周数（NYT API直接提供）
 
                         # 解析上周排名
                         last_week_rank_str = str(book.rank_last_week).strip()
@@ -625,6 +625,81 @@ class WeeklyReportService:
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取最新周报时出错: {e!s}')
             return None
+
+    def get_or_trigger_current_week_report(self) -> tuple[WeeklyReport | None, bool]:
+        """获取"应当存在"的周报，缺失时后台异步补生成（应用层自愈机制）。
+
+        三重保险中的第三重：用户访问 /reports/weekly 时检查 expected week 是否存在，
+        不存在则启动后台线程补生成，页面继续展示最新已有周报 + 顶部黄色横幅。
+
+        复用 weekly_report_task.py 的 _weekly_report_lock + 300s 冷却时间，避免重复触发。
+
+        Returns:
+            (latest_report, is_generating)
+            - latest_report: 页面要展示的周报（最新已有的一期，可能为 None）
+            - is_generating: True 表示 expected week 周报正在补生成中
+        """
+        import threading
+        import time
+
+        from ..tasks.weekly_report_task import (
+            _REPORT_TRIGGER_COOLDOWN,
+            _last_report_trigger_time,
+            generate_weekly_report,
+        )
+        from ..tasks.weekly_report_task_helpers import compute_expected_week_range
+
+        try:
+            today = date.today()
+            week_start, week_end = compute_expected_week_range(today)
+
+            # 1. 检查 expected week 周报是否已存在
+            expected_report = self.get_report_by_week_end(week_end)
+            if expected_report:
+                return self.get_latest_report(), False
+
+            # 2. 缺失：检查冷却时间（避免刚生成过就再触发）
+            now = time.time()
+            if (now - _last_report_trigger_time) < _REPORT_TRIGGER_COOLDOWN:
+                logger.info(
+                    f'expected week 周报缺失但冷却中（{now - _last_report_trigger_time:.0f}s），'
+                    f'返回最新周报 + 标记 generating=True'
+                )
+                return self.get_latest_report(), True
+
+            # 3. 启动后台线程补生成（不阻塞页面渲染）
+            logger.info(f'expected week 周报缺失（{week_start} 至 {week_end}），后台异步补生成')
+
+            def _run_in_thread() -> None:
+                try:
+                    generate_weekly_report(force_regenerate=False)
+                except Exception as e:
+                    log_error(ErrorCategory.API_CALL, f'自愈触发周报生成失败: {e!s}')
+
+            thread = threading.Thread(target=_run_in_thread, daemon=True, name='weekly-report-self-heal')
+            thread.start()
+
+            return self.get_latest_report(), True
+
+        except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'自愈检查周报时出错: {e!s}')
+            return self.get_latest_report(), False
+
+    def is_current_week_report_ready(self) -> bool:
+        """检查"应当存在"的周报是否已生成（轻量端点专用）。
+
+        Returns:
+            bool: True 表示 expected week 周报已存在
+        """
+        try:
+            from ..tasks.weekly_report_task_helpers import compute_expected_week_range
+
+            today = date.today()
+            _, week_end = compute_expected_week_range(today)
+            return self.get_report_by_week_end(week_end) is not None
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'检查当前周周报时出错: {e!s}')
+            return False
 
     # ==================== 报告视图和用户行为服务方法 ====================
 

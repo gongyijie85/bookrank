@@ -2,6 +2,7 @@ name: Update Books Data
 
 permissions:
   contents: write
+  issues: write
 
 on:
   # 定时执行（每周一凌晨2点）
@@ -15,9 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  update-books:
+  check-nyt-frequencies:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
@@ -27,6 +28,114 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check NYT category frequencies
+        id: frequency-check
+        env:
+          NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
+        run: |
+          set +e
+          python scripts/check_nyt_category_frequencies.py > "$RUNNER_TEMP/nyt-frequency-report.md" 2>&1
+          status=$?
+          cat "$RUNNER_TEMP/nyt-frequency-report.md"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Create or update drift issue
+        if: steps.frequency-check.outputs.status == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title='NYT 分类更新频率发生漂移'
+          issue=$(gh issue list --state all --limit 100 --json number,title,state \
+            --jq '.[] | select(.title == "NYT 分类更新频率发生漂移") | [.number, .state] | @tsv' \
+            | head -n 1)
+
+          if [ -z "$issue" ]; then
+            gh issue create --title "$title" --label "needs-triage" --label "data-drift" \
+              --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+            exit 0
+          fi
+
+          IFS=$'\t' read -r number state <<< "$issue"
+          gh issue edit "$number" --add-label "needs-triage" --add-label "data-drift" \
+            --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+          if [ "$state" = 'CLOSED' ]; then
+            gh issue reopen "$number" --comment '自动检查再次发现 NYT 分类频率漂移。'
+          fi
+
+      - name: Create or update operational error issue
+        if: steps.frequency-check.outputs.status == '2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title='NYT 频率检查遇到运行错误'
+          issue=$(gh issue list --state all --limit 100 --json number,title,state \
+            --jq '.[] | select(.title == "NYT 频率检查遇到运行错误") | [.number, .state] | @tsv' \
+            | head -n 1)
+
+          if [ -z "$issue" ]; then
+            gh issue create --title "$title" --label "needs-triage" --label "operational-error" \
+              --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+            exit 0
+          fi
+
+          IFS=$'\t' read -r number state <<< "$issue"
+          gh issue edit "$number" --add-label "needs-triage" --add-label "operational-error" \
+            --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+          if [ "$state" = 'CLOSED' ]; then
+            gh issue reopen "$number" --comment '自动检查再次遇到 NYT 频率检查运行错误。'
+          fi
+
+      - name: Close resolved drift issue
+        if: steps.frequency-check.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number=$(gh issue list --state open --limit 100 --json number,title \
+            --jq '.[] | select(.title == "NYT 分类更新频率发生漂移") | .number' \
+            | head -n 1)
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment '自动检查确认 NYT 分类频率已与本地配置一致。'
+          fi
+
+      - name: Close resolved operational error issue
+        if: steps.frequency-check.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number=$(gh issue list --state open --limit 100 --json number,title \
+            --jq '.[] | select(.title == "NYT 频率检查遇到运行错误") | .number' \
+            | head -n 1)
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment '自动检查确认 NYT 频率检查已恢复正常。'
+          fi
+
+  update-books:
+    runs-on: ubuntu-latest
+    # v0.9.47：45 → 60 分钟（并行优化后通常 15-20 分钟，留足余量）
+    timeout-minutes: 60
+
+    # v0.9.47：升级到 Node.js 24（2026-09-16 强制要求）
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          # v0.9.47：启用 pip 缓存（省 5-8 分钟）
+          cache: 'pip'
 
       - name: Install dependencies
         run: |

@@ -4,12 +4,11 @@ import datetime
 import logging
 import threading
 
-from flask import current_app
-
 from ..models.schemas import WeeklyReport
 from ..services.weekly_report_service import WeeklyReportService
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import require_book_service
+from .weekly_report_task_helpers import compute_expected_week_range
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +36,7 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
         book_service = require_book_service()
 
         today = datetime.date.today()
-        current_monday = today - datetime.timedelta(days=today.weekday())
-
-        if today.weekday() <= 2:
-            last_monday = current_monday - datetime.timedelta(days=7)
-            last_sunday = current_monday - datetime.timedelta(days=1)
-            week_start = last_monday
-            week_end = last_sunday
-        else:
-            week_start = current_monday
-            week_end = current_monday + datetime.timedelta(days=6)
+        week_start, week_end = compute_expected_week_range(today)
 
         existing_report = WeeklyReport.query.filter(
             WeeklyReport.week_start == week_start, WeeklyReport.week_end == week_end
@@ -54,7 +44,6 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
 
         if existing_report and not force_regenerate:
             logger.info(f'周报已存在: {week_start} 至 {week_end}')
-            send_weekly_report_email(existing_report)
             return existing_report
 
         if existing_report and force_regenerate:
@@ -66,7 +55,6 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
 
         if report:
             logger.info(f'周报生成成功: {report.title}')
-            send_weekly_report_email(report)
             return report
         else:
             logger.error('周报生成失败')
@@ -85,344 +73,13 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
             pass
 
 
-def _get_smtp_config() -> dict:
-    """从 Flask 配置读取 SMTP 配置"""
-    return {
-        'server': current_app.config.get('MAIL_SERVER', 'smtp.gmail.com'),
-        'port': current_app.config.get('MAIL_PORT', 587),
-        'use_tls': current_app.config.get('MAIL_USE_TLS', True),
-        'username': current_app.config.get('MAIL_USERNAME'),
-        'password': current_app.config.get('MAIL_PASSWORD'),
-        'sender': current_app.config.get('MAIL_DEFAULT_SENDER', 'bookrank@example.com'),
-        'recipients': [r.strip() for r in current_app.config.get('MAIL_RECIPIENTS', '').split(',') if r.strip()],
-    }
-
-
-def _render_weekly_report_html(report: WeeklyReport) -> str:
-    """渲染周报邮件 HTML（不依赖 Jinja2 模板，内联样式确保邮件客户端兼容）"""
-    import json
-    from datetime import datetime
-
-    # 解析周报内容 JSON
-    try:
-        content = json.loads(report.content) if report.content else {}
-    except json.JSONDecodeError:
-        content = {}
-
-    top_changes = content.get('top_changes', [])[:5]
-    featured_books = content.get('featured_books', [])[:5]
-    new_books = content.get('new_books', [])[:5]
-    top_risers = content.get('top_risers', [])[:5]
-    longest_running = content.get('longest_running', [])[:5]
-
-    # 构建图书行 HTML（带封面图）
-    def book_row(book: dict) -> str:
-        cover = book.get('cover', '') or ''
-        original_cover = book.get('original_cover', '') or ''
-        title = book.get('title', '未知书名') or '未知书名'
-        author = book.get('author', '') or ''
-        category = book.get('category', '') or ''
-        rank = book.get('rank', 0) or 0
-        rank_change = book.get('rank_change', 0) or 0
-        weeks = book.get('weeks_on_list', 0) or 0
-
-        if rank_change > 0:
-            change_html = f'<span style="color:#38a169;font-weight:500;">↑ {rank_change} 位</span>'
-        elif rank_change < 0:
-            change_html = f'<span style="color:#e53e3e;font-weight:500;">↓ {abs(rank_change)} 位</span>'
-        else:
-            change_html = '<span style="color:#718096;font-weight:500;">→ 无变化</span>'
-
-        img_src = cover if cover else original_cover
-        if img_src:
-            cover_html = (
-                f'<img src="{img_src}" alt="{title}" '
-                f'style="max-width:60px;height:auto;width:auto;max-height:90px;'
-                f'border-radius:4px;vertical-align:top;box-shadow:0 1px 3px rgba(0,0,0,0.1);" '
-                f'loading="lazy">'
-            )
-        else:
-            cover_html = '<span style="display:inline-block;width:60px;height:90px;background:#f0f0f0;border-radius:4px;text-align:center;line-height:90px;color:#999;font-size:24px;">📖</span>'
-
-        return f"""<tr>
-            <td style="padding:12px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:top;">{cover_html}</td>
-            <td style="padding:12px;border-bottom:1px solid #f0f0f0;vertical-align:top;">
-                <div style="font-weight:600;color:#1d1d1f;font-size:15px;margin-bottom:4px;">{title}</div>
-                <div style="color:#666;font-size:13px;margin-bottom:4px;">📝 {author}</div>
-                <div style="color:#888;font-size:12px;">🏷️ {category} | 📊 排名: {rank} | {change_html} | 📅 {weeks} 周</div>
-            </td>
-        </tr>"""
-
-    # 构建各区块
-    def section_html(title: str, books: list) -> str:
-        if not books:
-            return ''
-        rows = ''.join(book_row(b) for b in books)
-        return f"""<div style="margin-bottom:25px;">
-            <h2 style="font-size:18px;font-weight:600;color:#4a5568;border-bottom:2px solid #f0f0f0;padding-bottom:8px;margin:0 0 15px;">{title}</h2>
-            <table style="width:100%;border-collapse:collapse;">{rows}</table>
-        </div>"""
-
-    date_str = (
-        report.report_date.strftime('%Y年%m月%d日') if report.report_date else datetime.now().strftime('%Y年%m月%d日')
-    )
-    week_start = report.week_start.strftime('%m月%d日') if report.week_start else ''
-    week_end = report.week_end.strftime('%m月%d日') if report.week_end else ''
-
-    # 摘要处理（去掉 Markdown # 符号）
-    summary = report.summary or ''
-    summary = summary.replace('# ', '').replace('## ', '').replace('### ', '')
-    summary_html = summary.replace('\n', '<br>')
-
-    html = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;line-height:1.6;color:#333;background:#f5f5f5;margin:0;padding:20px 0;">
-    <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-        <!-- 头部 -->
-        <div style="background:linear-gradient(135deg,#0071e3 0%,#2997ff 100%);color:#fff;padding:30px;text-align:center;">
-            <h1 style="margin:0;font-size:24px;font-weight:600;">📚 BookRank 畅销书周报</h1>
-            <p style="margin:10px 0 0;font-size:14px;opacity:0.9;">{week_start} - {week_end} | 发布日期：{date_str}</p>
-        </div>
-
-        <!-- 内容 -->
-        <div style="padding:30px;">
-            <!-- 摘要 -->
-            <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:25px;font-size:14px;line-height:1.7;">
-                {summary_html}
-            </div>
-
-            {section_html('🏆 重要变化', top_changes)}
-            {section_html('✨ 新上榜书籍', new_books)}
-            {section_html('🚀 排名上升最快', top_risers)}
-            {section_html('🏅 持续上榜最久', longest_running)}
-            {section_html('💡 推荐书籍', featured_books)}
-        </div>
-
-        <!-- 底部 -->
-        <div style="background:#f7fafc;padding:20px 30px;border-top:1px solid #e2e8f0;font-size:13px;color:#718096;text-align:center;">
-            <p style="margin:0 0 8px;">📧 本邮件由 BookRank 自动化系统发送</p>
-            <p style="margin:0;">© {datetime.now().year} BookRank - 纽约时报畅销书排行榜</p>
-        </div>
-    </div>
-</body>
-</html>"""
-    return html
-
-
-def _fetch_image_as_base64(url: str, timeout: int = 10) -> str | None:
-    """获取图片并转为 Base64 编码，用于邮件内联嵌入
-
-    返回格式: data:image/jpeg;base64,/9j/4AAQ...
-    如果获取失败返回 None。
-    """
-    import base64
-
-    import requests
-
-    if not url or not url.startswith('http'):
-        return None
-
-    try:
-        # Google Books 图片需要 referer 才能正常访问
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-            'Referer': 'https://books.google.com/',
-        }
-        resp = requests.get(url, timeout=timeout, headers=headers)
-        resp.raise_for_status()
-        # 确保返回的是图片内容
-        content_type = resp.headers.get('Content-Type', 'image/jpeg')
-        if not content_type.startswith('image/'):
-            logger.debug(f'URL返回的不是图片: {url}, Content-Type: {content_type}')
-            return None
-        b64 = base64.b64encode(resp.content).decode('utf-8')
-        return f'data:{content_type};base64,{b64}'
-    except Exception as e:
-        log_error(ErrorCategory.API_CALL, f'获取封面图失败 {url}: {e}', level='warning')
-        return None
-
-
-def _embed_covers_in_html(html: str) -> str:
-    """将 HTML 中的外部封面图 URL 替换为 Base64 内联数据
-
-    邮件客户端默认阻止加载外部图片，Base64 内联可以确保图片正常显示。
-    处理策略：1. http/https URL 直接下载转 Base64
-              2. 相对路径（/cache/images/xxx.jpg）先尝试本地文件读取，再尝试拼接 BASE_URL 下载
-    """
-    import base64 as b64mod
-    import re
-    from pathlib import Path
-
-    img_pattern = re.compile(r'<img[^>]+src="([^"]+)"[^>]*>', re.IGNORECASE)
-
-    total = 0
-    success = 0
-
-    def _read_local_image_as_base64(relative_path: str) -> str | None:
-        """从本地文件系统读取缓存图片并转为 Base64"""
-        # relative_path 如 /cache/images/abc.jpg -> cache/images/abc.jpg
-        clean = relative_path.lstrip('/')
-        local_path = Path(clean)
-
-        if local_path.exists():
-            try:
-                data = local_path.read_bytes()
-                suffix = local_path.suffix.lower()
-                mime_map = {
-                    '.jpg': 'image/jpeg',
-                    '.jpeg': 'image/jpeg',
-                    '.png': 'image/png',
-                    '.webp': 'image/webp',
-                    '.gif': 'image/gif',
-                }
-                mime = mime_map.get(suffix, 'image/jpeg')
-                b64 = b64mod.b64encode(data).decode('utf-8')
-                return f'data:{mime};base64,{b64}'
-            except Exception as e:
-                log_error(ErrorCategory.API_CALL, f'读取本地图片失败 {local_path}: {e}', level='warning')
-        return None
-
-    def replace_src(match):
-        nonlocal total, success
-        original_tag = match.group(0)
-        url = match.group(1)
-        # 已经是 base64 的不处理
-        if url.startswith('data:'):
-            return original_tag
-
-        # 处理相对路径（如 /cache/images/xxx.jpg）
-        if url.startswith('/'):
-            # 优先从本地文件系统读取（Render 上缓存文件可能在本地）
-            local_b64 = _read_local_image_as_base64(url)
-            if local_b64:
-                total += 1
-                success += 1
-                return original_tag.replace(f'src="{url}"', f'src="{local_b64}"')
-
-            # 本地文件不存在，尝试构建完整 URL 下载
-            from flask import current_app
-
-            base_url = current_app.config.get('BASE_URL', '')
-            if not base_url:
-                try:
-                    from flask import request
-
-                    base_url = request.url_root.rstrip('/')
-                except RuntimeError:
-                    base_url = ''
-            if base_url:
-                url = base_url + url
-            else:
-                logger.warning(f'无法构建完整URL且本地无缓存，跳过相对路径图片: {url}')
-                return original_tag
-
-        # 只处理 http/https URL
-        if not url.startswith('http'):
-            return original_tag
-
-        total += 1
-        base64_data = _fetch_image_as_base64(url)
-        if base64_data:
-            success += 1
-            return original_tag.replace(f'src="{url}"', f'src="{base64_data}"')
-        return original_tag
-
-    result = img_pattern.sub(replace_src, html)
-    logger.info(f'封面图嵌入完成: {success}/{total} 张成功转换为 Base64')
-    return result
-
-
 def send_weekly_report_email(report: WeeklyReport) -> bool:
     """发送周报邮件（已禁用 — Render 免费版不支持 SMTP 出站连接）"""
     logger.debug('邮件发送已禁用，周报仅在网页端查看')
     return False
 
 
-def _send_weekly_report_email_legacy(report: WeeklyReport) -> bool:
-    """发送周报邮件（遗留实现，使用标准库 smtplib，不依赖 Flask-Mail）
-
-    封面图通过 Base64 内联嵌入，确保邮件客户端正常显示。
-    注意：Render 免费版不支持 SMTP 出站连接，此函数已不再被调用。
-    """
-    import smtplib
-    import ssl
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-
-    # 检查邮件功能是否启用
-    if not current_app.config.get('MAIL_ENABLED', True):
-        logger.debug('邮件发送已禁用（MAIL_ENABLED=false），跳过')
-        return False
-
-    try:
-        cfg = _get_smtp_config()
-
-        # 检查配置
-        if not cfg['username'] or not cfg['password']:
-            logger.debug('邮件服务未配置（缺少 MAIL_USERNAME 或 MAIL_PASSWORD），跳过邮件发送')
-            return False
-
-        # 收件人
-        recipients = [r.strip() for r in cfg['recipients'] if r.strip()]
-        if not recipients:
-            recipients = [cfg['sender']]
-
-        # 构建邮件
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = f'【BookRank】{report.title}'
-        msg['From'] = cfg['sender']
-        msg['To'] = ', '.join(recipients)
-
-        # 渲染 HTML 并将封面图转为 Base64 内联
-        html_body = _render_weekly_report_html(report)
-        html_body = _embed_covers_in_html(html_body)
-        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
-
-        # 发送（支持 TLS 和 SSL）
-        context = ssl.create_default_context()
-        port = int(cfg['port'])
-
-        if port == 465:
-            # SSL 直连（如 Gmail）
-            with smtplib.SMTP_SSL(cfg['server'], port, context=context, timeout=30) as server:
-                server.login(cfg['username'], cfg['password'])
-                server.sendmail(cfg['sender'], recipients, msg.as_string())
-        else:
-            # STARTTLS（默认 587 端口）
-            with smtplib.SMTP(cfg['server'], port, timeout=30) as server:
-                server.starttls(context=context)
-                server.login(cfg['username'], cfg['password'])
-                server.sendmail(cfg['sender'], recipients, msg.as_string())
-
-        logger.info(f'周报邮件发送成功: {report.title}, 收件人: {len(recipients)}')
-        return True
-
-    except Exception as e:
-        error_msg = str(e)
-        if 'Username and Password not accepted' in error_msg or 'BadCredentials' in error_msg:
-            logger.error(
-                '发送周报邮件失败：Gmail 用户名或密码错误。'
-                '如果你使用 Gmail，请确保：'
-                '1. 开启两步验证；'
-                "2. 生成'应用专用密码'(App Password) 替代普通密码；"
-                '3. 将应用专用密码填入 MAIL_PASSWORD 环境变量。'
-                '详情：https://support.google.com/accounts/answer/185833'
-            )
-        elif 'Network is unreachable' in error_msg or 'Errno 101' in error_msg:
-            logger.info(
-                '邮件发送跳过：当前环境不支持 SMTP 出站连接。周报已保存到数据库，可在网页端查看。'
-                '如需禁用邮件发送，设置环境变量 MAIL_ENABLED=false 可消除此提示。'
-            )
-        else:
-            logger.error(f'发送周报邮件时出错: {error_msg}')
-        return False
-
-
 def schedule_weekly_report():
     """调度周报生成任务"""
-    # 这里可以使用任务调度器，如APScheduler
-    # 例如：每天检查是否需要生成周报
     report = generate_weekly_report()
     return report

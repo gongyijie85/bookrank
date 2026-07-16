@@ -10,12 +10,9 @@ Werkzeug==3.1.0
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.7
 Flask-CORS==4.0.1
-Flask-Caching==2.1.0
-Flask-WTF==1.2.2
 Flask-Babel==4.0.0
 
 # ORM 和数据库
-WTForms==3.2.1
 SQLAlchemy==2.0.38
 alembic==1.14.0
 psycopg2-binary==2.9.10
@@ -54,12 +51,10 @@ openpyxl==3.1.2
 Pillow==11.1.0
 
 # Markdown 渲染
-mistune==3.2.0
-
-# CSS 压缩（构建阶段）
-rcssmin==1.2.2
+mistune==3.2.1
 
 # 监控
+sentry-sdk==2.20.0
 
 # ============================================
 # 开发工具链（仅本地开发使用，不部署到生产）

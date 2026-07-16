@@ -10,11 +10,23 @@ load_dotenv(BASE_DIR / '.env')
 
 
 def _build_database_uri() -> str:
-    """构建数据库URI，自动处理 Render 的 postgres:// 前缀"""
+    """Build the database URI for local SQLite or hosted PostgreSQL."""
     db_url = os.environ.get('DATABASE_URL', f'sqlite:///{BASE_DIR / "bestsellers.db"}')
     if db_url.startswith('postgres://'):
-        return db_url.replace('postgres://', 'postgresql://', 1)
-    return db_url
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    return _ensure_supabase_sslmode(db_url)
+
+
+def _ensure_supabase_sslmode(db_url: str) -> str:
+    """Supabase PostgreSQL connections should use SSL."""
+    lowered = db_url.lower()
+    is_postgres = lowered.startswith(('postgresql://', 'postgresql+psycopg2://'))
+    is_supabase = 'supabase.co' in lowered or 'pooler.supabase.com' in lowered
+    if not (is_postgres and is_supabase) or 'sslmode=' in lowered:
+        return db_url
+
+    separator = '&' if '?' in db_url else '?'
+    return f'{db_url}{separator}sslmode=require'
 
 
 class Config:
@@ -59,7 +71,7 @@ class Config:
     IMAGE_CACHE_DIR: Path = CACHE_DIR / 'images'
 
     API_RATE_LIMIT: int = int(os.environ.get('API_RATE_LIMIT', 100))
-    API_RATE_LIMIT_WINDOW: int = 60
+    API_RATE_LIMIT_WINDOW: int = int(os.environ.get('API_RATE_LIMIT_WINDOW', 60))
 
     MAX_WORKERS: int = int(os.environ.get('MAX_WORKERS', 4))
 
@@ -77,11 +89,23 @@ class Config:
         'young-adult-hardcover': '青少年精装本',
     }
 
+    NYT_CATEGORY_UPDATE_FREQUENCIES: dict[str, str] = {
+        'hardcover-fiction': 'weekly',
+        'trade-fiction-paperback': 'weekly',
+        'hardcover-nonfiction': 'weekly',
+        'paperback-nonfiction-monthly': 'monthly',
+        'advice-how-to-and-miscellaneous': 'weekly',
+        'graphic-books-and-manga': 'monthly',
+        'childrens-middle-grade-hardcover': 'weekly',
+        'young-adult-hardcover': 'weekly',
+    }
+
     NYT_API_BASE_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/current'
+    NYT_LIST_NAMES_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/names.json'
     GOOGLE_BOOKS_API_URL: str = 'https://www.googleapis.com/books/v1/volumes'
 
     # 外部 API 缓存 TTL（秒）
-    NYT_CACHE_TTL: int = _SECONDS_PER_DAY * 7  # NYT 数据每周更新
+    NYT_CACHE_TTL: int = 60 * 60 * 6  # 避免跨过 NYT 发榜时间仍返回上周数据
     GOOGLE_BOOKS_CACHE_TTL: int = _SECONDS_PER_DAY  # Google Books 缓存 24 小时
     OPEN_LIBRARY_CACHE_TTL: int = _SECONDS_PER_DAY * 3  # Open Library 缓存 3 天
 
@@ -153,17 +177,21 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """生产环境配置（针对 Render 免费版优化：512MB 内存、97 连接 PostgreSQL）"""
+    """生产环境配置（适配 Render Web Service + 外部 PostgreSQL/Supabase）"""
 
     DEBUG: bool = False
     TESTING: bool = False
     SESSION_COOKIE_SECURE: bool = True
+    # 生产环境显式关闭 SQL 回显，避免日志泄露与性能损耗
+    SQLALCHEMY_ECHO: bool = False
 
     # SECRET_KEY 从环境变量读取（若为空则在 init_app 时校验）
     SECRET_KEY: str = os.environ.get('SECRET_KEY', '')
 
     # CORS_ORIGINS 必须明确设置，空列表会导致 CORS 完全阻止跨域请求
-    CORS_ORIGINS: list[str] = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
+    CORS_ORIGINS: list[str] = [
+        origin.strip() for origin in os.environ.get('CORS_ORIGINS', '').split(',') if origin.strip()
+    ]
 
     @classmethod
     def init_app(cls, app: Any) -> None:
@@ -175,13 +203,14 @@ class ProductionConfig(Config):
                 '生成强随机密钥: python -c "import secrets; print(secrets.token_hex(32))"'
             )
 
-    # 内存缓存（免费版 Render 无 Redis）
+    # 以下配置在 Render 免费层做了硬编码优化：
+    # 当前部署无 Redis，使用 simple 缓存；如需外部缓存可改为环境变量读取。
     CACHE_TYPE: str = 'simple'
     CACHE_DEFAULT_TIMEOUT: int = 3600  # 缩短缓存时间减少内存占用
     MEMORY_CACHE_TTL: int = 300
 
-    # 数据库连接池优化（免费 PostgreSQL 限制 97 连接）
-    # 注意：pool_size + max_overflow 不要超过 3，避免连接池耗尽
+    # 数据库连接池优化：保持较小连接数，适配 Supabase/Render 等托管 Postgres。
+    # 注意：pool_size + max_overflow 不要超过 3，避免连接池耗尽。
     SQLALCHEMY_ENGINE_OPTIONS: dict[str, object] = {
         'pool_size': 2,  # 基础连接池（原为1，避免并发查询时阻塞）
         'max_overflow': 1,  # 最多 1 个临时连接
@@ -195,8 +224,8 @@ class ProductionConfig(Config):
         },
     }
 
-    # 减少并发工作线程
-    MAX_WORKERS: int = 2  # 原为 4
+    # 减少并发工作线程；Render 免费层建议配合 WEB_CONCURRENCY=1 使用
+    MAX_WORKERS: int = 2  # 原为 4，实际并发由 Gunicorn 的 WEB_CONCURRENCY 控制
 
     JSONIFY_PRETTYPRINT_REGULAR: bool = False
 

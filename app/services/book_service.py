@@ -203,7 +203,7 @@ class BookService:
 
         # 从API获取
         try:
-            api_data = self._nyt_client.fetch_books(category_id)
+            api_data = self._nyt_client.fetch_books(category_id, force_refresh=force_refresh)
             if isinstance(api_data, dict) and api_data.get('error'):
                 raise APIException(f'NYT API returned error for {category_id}: {api_data["error"]}')
 
@@ -400,6 +400,31 @@ class BookService:
         except (TypeError, ValueError):
             return None
 
+    def _apply_book_metadata_fields(self, metadata: Any, book: Book | dict[str, Any]) -> None:
+        """把单本图书字段应用到 BookMetadata 实例（不提交）"""
+        isbn = metadata.isbn
+        title = str(self._book_value(book, 'title') or isbn)
+        author = str(self._book_value(book, 'author') or 'Unknown Author')
+
+        metadata.title = title
+        metadata.author = author
+
+        details = self._book_value(book, 'details')
+        if details and details != 'No detailed description available.':
+            metadata.details = str(details)
+
+        page_count = self._parse_page_count(self._book_value(book, 'page_count'))
+        if page_count is not None:
+            metadata.page_count = page_count
+
+        language = self._book_value(book, 'language')
+        if language and language != 'Unknown':
+            metadata.language = str(language)
+
+        publication_date = self._book_value(book, 'publication_dt') or self._book_value(book, 'published_date')
+        if publication_date and publication_date != 'Unknown':
+            metadata.publication_date = str(publication_date)
+
     def save_book_metadata(self, book: Book | dict[str, Any]) -> bool:
         """保存NYT图书英文资料到后台元数据表，供后续补齐和排查使用。"""
         isbn = self._book_isbn(book)
@@ -418,25 +443,7 @@ class BookService:
                 metadata = BookMetadata(isbn=isbn, title=title, author=author)
                 db.session.add(metadata)
 
-            metadata.title = title
-            metadata.author = author
-
-            details = self._book_value(book, 'details')
-            if details and details != 'No detailed description available.':
-                metadata.details = str(details)
-
-            page_count = self._parse_page_count(self._book_value(book, 'page_count'))
-            if page_count is not None:
-                metadata.page_count = page_count
-
-            language = self._book_value(book, 'language')
-            if language and language != 'Unknown':
-                metadata.language = str(language)
-
-            publication_date = self._book_value(book, 'publication_dt') or self._book_value(book, 'published_date')
-            if publication_date and publication_date != 'Unknown':
-                metadata.publication_date = str(publication_date)
-
+            self._apply_book_metadata_fields(metadata, book)
             db.session.commit()
             return True
 
@@ -449,6 +456,49 @@ class BookService:
             except (IntegrityError, OperationalError, SQLAlchemyError):
                 pass
             return False
+
+    def save_book_metadata_batch(self, books: list[Book | dict[str, Any]]) -> int:
+        """批量保存NYT图书英文资料，通过一次 IN 查询避免 N+1"""
+        if not books:
+            return 0
+
+        def _save():
+            from ..models.database import db
+            from ..models.schemas import BookMetadata
+
+            isbns = [self._book_isbn(b) for b in books]
+            isbns = [isbn for isbn in isbns if isbn]
+            if not isbns:
+                return 0
+
+            existing = {m.isbn: m for m in BookMetadata.query.filter(BookMetadata.isbn.in_(isbns)).all()}
+            saved = 0
+            for book in books:
+                isbn = self._book_isbn(book)
+                if not isbn:
+                    continue
+                metadata = existing.get(isbn)
+                if not metadata:
+                    title = str(self._book_value(book, 'title') or isbn)
+                    author = str(self._book_value(book, 'author') or 'Unknown Author')
+                    metadata = BookMetadata(isbn=isbn, title=title, author=author)
+                    db.session.add(metadata)
+                    existing[isbn] = metadata
+                self._apply_book_metadata_fields(metadata, book)
+                saved += 1
+
+            db.session.commit()
+            return saved
+
+        try:
+            return self._run_with_context(_save)
+        except (IntegrityError, OperationalError, SQLAlchemyError) as e:
+            logger.error(f'批量保存图书元数据失败: {e}')
+            try:
+                self._run_with_context(lambda: db.session.rollback())
+            except (IntegrityError, OperationalError, SQLAlchemyError):
+                pass
+            return 0
 
     def save_book_translation(
         self, isbn: str, title_zh: str | None = None, description_zh: str | None = None, details_zh: str | None = None
@@ -548,7 +598,7 @@ class BookService:
                     auto_translate=False,
                     notify_refresh=False,
                 )
-                metadata_saved = sum(1 for book in books if self.save_book_metadata(book))
+                metadata_saved = self.save_book_metadata_batch(books)
                 language_pack_stats = (
                     self._translate_books_now(books, translator=translator)
                     if translate

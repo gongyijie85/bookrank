@@ -148,7 +148,7 @@ class TestSyncPublisherBooks:
             isbn13='9780000000001',
             description='A test book description',
             cover_url='https://example.com/cover.jpg',
-            category='Fiction',
+            category='小说',  # 已映射的中文分类
             publication_date=date(2026, 1, 15),
             price='29.99',
             page_count=300,
@@ -165,7 +165,7 @@ class TestSyncPublisherBooks:
             isbn13='9780000000001',
             description='A test book description',
             cover_url='https://example.com/cover.jpg',
-            category='Fiction',
+            category='Fiction',  # 爬虫返回英文分类，会被映射为'小说'
             publication_date=date(2026, 1, 15),
             price='29.99',
             page_count=300,
@@ -385,10 +385,11 @@ class TestGetCrawler:
     def test_google_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
         mock_crawler_cls = MagicMock()
         mock_get_cls.return_value = mock_crawler_cls
+        app_context.config['GOOGLE_API_KEY'] = 'test-google-key'
         engine.get_crawler('GoogleBooksCrawler')
         mock_crawler_cls.assert_called_once()
         call_args = mock_crawler_cls.call_args
-        assert call_args[0][0].api_key == app_context.config['GOOGLE_API_KEY']
+        assert call_args[0][0].api_key == 'test-google-key'
 
     @patch('app.services.new_book.sync_engine.get_crawler_class')
     def test_google_crawler_without_api_key_uses_default(self, mock_get_cls, app):

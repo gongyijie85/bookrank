@@ -4,18 +4,19 @@ import logging
 import os
 import re
 import secrets
-import subprocess
-import sys
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, Response, render_template, request
+from flask import Flask, Response, g, render_template, request
 from flask_babel import Babel
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import config
 from .initialization import init_awards_data, init_sample_books
+from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
@@ -24,22 +25,6 @@ from .utils.error_handler import ErrorCategory, log_error
 babel = Babel()
 
 PROJECT_ROOT = Path(__file__).parent.parent
-
-
-def _ensure_static_assets() -> None:
-    """Auto-build compressed static assets at startup if missing."""
-    min_css = PROJECT_ROOT / 'static' / 'css' / 'all.min.css'
-    if min_css.is_file():
-        return
-    try:
-        subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / 'build.py')],
-            cwd=str(PROJECT_ROOT),
-            check=True,
-            timeout=30,
-        )
-    except Exception:
-        logging.getLogger(__name__).warning('Static asset auto-build failed')
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -55,15 +40,11 @@ def create_app(config_name: str | None = None) -> Flask:
     if config_name is None or config_name == 'default':
         config_name = 'development'
 
-    _ensure_static_assets()
-
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / 'templates'), static_folder=str(PROJECT_ROOT / 'static'))
 
     app.config.from_object(config[config_name])
     app.config['APP_ENV'] = config_name
     app.config['ENV'] = config_name
-    app.config['MINIFIED_CSS_EXISTS'] = (PROJECT_ROOT / 'static' / 'css' / 'all.min.css').is_file()
-    app.config['MINIFIED_JS_EXISTS'] = (PROJECT_ROOT / 'static' / 'js' / 'base.min.js').is_file()
     config[config_name].init_app(app)
 
     # 生产环境信任反向代理（Render、Nginx 等）的 X-Forwarded-For 头
@@ -87,17 +68,24 @@ def create_app(config_name: str | None = None) -> Flask:
     if config_name == 'production':
         _enable_rate_limiting(app)
 
+    # 为每个请求生成唯一追踪 ID，便于日志关联与排障
+    @app.before_request
+    def init_request_context() -> None:
+        request.request_id = uuid.uuid4().hex[:16]  # type: ignore[attr-defined]
+
     # 请求结束时清理数据库会话，防止连接泄漏
     @app.teardown_appcontext
     def shutdown_session(exception: BaseException | None = None) -> None:
         db.session.remove()
 
     # 初始化 Babel（国际化）- Flask-Babel 4.0+ API
-    babel.init_app(app)
-    babel.locale_selector = _get_locale
+    babel.init_app(app, locale_selector=_get_locale)
 
     # 将 get_locale 注入 Jinja2 全局命名空间（确保所有模板包括导入的宏都能访问）
     app.jinja_env.globals['get_locale'] = _get_locale
+
+    # 注入当前时间函数，供模板显示动态年份等场景
+    app.jinja_env.globals['now'] = datetime.now
 
     import atexit
 
@@ -310,33 +298,26 @@ def _apply_security_headers(app: Flask) -> None:
     """应用安全响应头和静态资源缓存"""
 
     @app.before_request
-    def set_csp_nonce() -> None:
-        """为每个请求生成唯一的 CSP nonce"""
-        from flask import g
-
+    def generate_csp_nonce() -> None:
+        """每个请求生成独立的 CSP nonce，供内联脚本/样式使用"""
         g.csp_nonce = secrets.token_urlsafe(16)
 
     @app.context_processor
     def inject_csp_nonce() -> dict[str, Any]:
-        """将 CSP nonce 注入模板上下文"""
-        from flask import g
-
+        """注入 csp_nonce() 模板函数，返回当前请求的 nonce"""
         return {'csp_nonce': lambda: getattr(g, 'csp_nonce', '')}
 
     @app.after_request
     def add_security_headers(response: Response) -> Response:
-        from flask import g
-
-        nonce = getattr(g, 'csp_nonce', secrets.token_urlsafe(16))
-
+        nonce = getattr(g, 'csp_nonce', '')
         security_headers = {
             'X-Frame-Options': 'SAMEORIGIN',
             'X-Content-Type-Options': 'nosniff',
             'Referrer-Policy': 'strict-origin-when-cross-origin',
             'Content-Security-Policy': (
-                f"default-src 'self'; "
-                f"script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'nonce-{nonce}'; "
-                f"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com 'nonce-{nonce}'; "
+                "default-src 'self'; "
+                f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
                 "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
                 'https://covers.openlibrary.org https://openlibrary.org https://archive.org https://*.archive.org '
                 'https://*.penguinrandomhouse.com https://*.harpercollins.com '
@@ -357,6 +338,9 @@ def _apply_security_headers(app: Flask) -> None:
 
         if app.config.get('APP_ENV') == 'production':
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+
+        if request and hasattr(request, 'request_id'):
+            response.headers['X-Request-ID'] = request.request_id
 
         request_path = request.path if request else ''
         if request_path.startswith('/static/'):

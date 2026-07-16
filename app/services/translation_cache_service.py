@@ -320,7 +320,7 @@ class TranslationCacheService:
                     TranslationCache.created_at >= keep_date,
                 )
             )
-            .subquery()
+            .scalar_subquery()
         )
 
         # 删除不在保留范围内的记录
