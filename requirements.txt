@@ -43,7 +43,7 @@ deep-translator==1.11.4
 tenacity==9.0.0
 
 # 任务调度（内存队列，免费版 Render 无 Redis 所以不用 Celery）
-APScheduler==3.11.0
+APScheduler==3.11.3
 
 # 导出功能（PDF/Excel）
 fpdf2==2.7.9
