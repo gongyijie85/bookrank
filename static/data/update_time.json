@@ -1,5 +1,13 @@
 {
-  "timestamp": "2026-05-27T08:48:09.063869",
-  "publishers": [],
-  "total_books": 0
+  "timestamp": "2026-07-20T05:48:04.160099",
+  "publishers": [
+    "macmillan",
+    "harpercollins",
+    "open_library",
+    "penguin_random_house",
+    "simon_schuster",
+    "google_books",
+    "hachette"
+  ],
+  "total_books": 200
 }
