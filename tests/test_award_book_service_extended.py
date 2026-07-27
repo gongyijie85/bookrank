@@ -508,6 +508,57 @@ class TestRefreshAwardBooksExtended:
 
     @patch.object(AwardBookService, 'should_refresh', return_value=True)
     @patch.object(AwardBookService, 'update_refresh_time')
+    def test_refresh_does_not_advance_time_on_partial_wikidata_failure(
+        self, mock_update, mock_should, app, db, award_service
+    ):
+        with app.app_context():
+            old_value = (datetime.now() - timedelta(days=2)).isoformat()
+            SystemConfig.set_value('award_books_last_refresh', old_value)
+            award_service.wikidata_client = MagicMock()
+            award_service.wikidata_client.get_all_award_books.return_value = {
+                'awards': {'nebula': []},
+                'successful_awards': ['nebula'],
+                'failed_awards': {'hugo': 'timeout'},
+                'status': 'partial_failure',
+            }
+
+            result = award_service.refresh_award_books(award_keys=['nebula', 'hugo'], force=True)
+
+            assert result['status'] == 'partial_failure'
+            assert result['failed_awards'] == {'hugo': 'timeout'}
+            mock_update.assert_not_called()
+            assert SystemConfig.get_value('award_books_last_refresh') == old_value
+
+    def test_existing_book_metadata_is_updated(self, app, db, award_service, sample_award_book):
+        with app.app_context():
+            award = db.session.get(Award, db.session.get(AwardBook, sample_award_book).award_id)
+            existing = db.session.get(AwardBook, sample_award_book)
+            existing.publisher = '旧出版社'
+            existing.year = 2023
+            db.session.commit()
+
+            result = award_service._process_single_book(
+                award,
+                {
+                    'title': '更新后的书名',
+                    'author': '更新后的作者',
+                    'year': 2024,
+                    'publisher': '新出版社',
+                    'isbn13': existing.isbn13,
+                },
+                '最佳长篇小说',
+                {existing.isbn13: existing},
+            )
+
+            db.session.refresh(existing)
+            assert result == 'updated'
+            assert existing.title == '更新后的书名'
+            assert existing.author == '更新后的作者'
+            assert existing.year == 2024
+            assert existing.publisher == '新出版社'
+
+    @patch.object(AwardBookService, 'should_refresh', return_value=True)
+    @patch.object(AwardBookService, 'update_refresh_time')
     def test_refresh_award_processing_error(self, mock_update, mock_should, app, db, award_service):
         with app.app_context():
             award_service.wikidata_client = MagicMock()

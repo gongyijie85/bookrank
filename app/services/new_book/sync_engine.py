@@ -53,6 +53,9 @@ class SyncEngine:
 
         result: dict[str, Any] = {
             'success': True,
+            'status': 'running',
+            'transport_status': 'not_started',
+            'parse_status': 'not_started',
             'publisher': publisher.name_en,
             'total': 0,
             'added': 0,
@@ -69,6 +72,7 @@ class SyncEngine:
 
             with crawler:
                 for book_info in crawler.get_new_books(category=category, max_books=max_books):
+                    result['transport_status'] = 'success'
                     result['total'] += 1
 
                     try:
@@ -94,12 +98,33 @@ class SyncEngine:
                     if result['total'] % batch_commit_interval == 0:
                         db.session.commit()
 
+            result['transport_status'] = 'success'
+            if result['total'] == 0:
+                # 空结果可能表示“确实没有新书”，也可能表示数据源已经失效；
+                # 在没有额外探针确认前，不能把它记录为一次成功同步。
+                result['status'] = 'empty'
+                result['parse_status'] = 'empty'
+                result['success'] = False
+                result['error'] = '爬虫返回空结果，未确认数据源有效'
+                db.session.rollback()
+                return result
+
+            result['parse_status'] = 'partial' if result['errors'] else 'success'
+            if result['errors']:
+                # 已保存的有效记录可以保留，但本轮不能更新出版社的“最后成功同步”时间。
+                result['status'] = 'partial_failure'
+                result['success'] = False
+                result['error'] = f'部分书籍保存失败，共 {result["errors"]} 条'
+            else:
+                result['status'] = 'success'
+
             result['language_pack'] = self._translation_pipeline._translate_and_store_language_pack(
                 touched_books, translate=translate
             )
 
-            publisher.last_sync_at = datetime.now(UTC)
-            publisher.sync_count += 1
+            if result['success']:
+                publisher.last_sync_at = datetime.now(UTC)
+                publisher.sync_count += 1
             db.session.commit()
 
             logger.info(
@@ -112,6 +137,9 @@ class SyncEngine:
             log_error(ErrorCategory.CRAWLER, f'同步失败: {e}')
             db.session.rollback()
             result['success'] = False
+            result['status'] = 'request_failed'
+            result['transport_status'] = 'failed'
+            result['parse_status'] = 'failed'
             result['error'] = str(e)
 
         return result

@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services.wikidata_client import WikidataClient
+from app.services.wikidata_client import WikidataClient, WikidataQueryError
 
 
 @pytest.fixture
@@ -173,6 +173,32 @@ class TestGetAllAwardBooks:
         mock_query.return_value = []
         result = wikidata_client.get_all_award_books()
         assert len(result) == len(WikidataClient.AWARD_IDS)
+
+    @patch.object(WikidataClient, 'query_award_winners')
+    def test_status_distinguishes_successful_empty_result(self, mock_query, wikidata_client):
+        mock_query.return_value = []
+        result = wikidata_client.get_all_award_books(awards=['nebula'], include_status=True)
+        assert result['status'] == 'success'
+        assert result['successful_awards'] == ['nebula']
+        assert result['failed_awards'] == {}
+        assert result['awards']['nebula'] == []
+
+    @patch.object(WikidataClient, 'query_award_winners')
+    def test_status_distinguishes_request_failure(self, mock_query, wikidata_client):
+        mock_query.side_effect = WikidataQueryError('timeout')
+        result = wikidata_client.get_all_award_books(awards=['nebula'], include_status=True)
+        assert result['status'] == 'failed'
+        assert result['successful_awards'] == []
+        assert 'nebula' in result['failed_awards']
+        assert 'nebula' not in result['awards']
+
+    @patch.object(WikidataClient, 'query_award_winners')
+    def test_status_reports_partial_failure(self, mock_query, wikidata_client):
+        mock_query.side_effect = [[{'title': 'Book'}], WikidataQueryError('rate limited')]
+        result = wikidata_client.get_all_award_books(awards=['nebula', 'hugo'], include_status=True)
+        assert result['status'] == 'partial_failure'
+        assert result['successful_awards'] == ['nebula']
+        assert result['failed_awards']['hugo'] == 'rate limited'
 
 
 class TestGetAllAwardInfo:

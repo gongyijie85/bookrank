@@ -8,6 +8,10 @@ from .api_utils import api_retry, create_session_with_retry
 logger = logging.getLogger(__name__)
 
 
+class WikidataQueryError(RuntimeError):
+    """Wikidata 请求失败；与成功但无结果明确区分。"""
+
+
 class WikidataClient:
     """
     Wikidata SPARQL API 客户端
@@ -59,7 +63,7 @@ class WikidataClient:
 
         except requests.RequestException as e:
             logger.warning(f'Failed to query Wikidata for {award_key}: {e}')
-            return []
+            raise WikidataQueryError(f'查询 {award_key} 失败: {e}') from e
 
     def _build_sparql_query(self, award_id: str, start_year: int, end_year: int, limit: int) -> str:
         """构建 SPARQL 查询语句"""
@@ -115,21 +119,48 @@ class WikidataClient:
 
         return books
 
-    def get_all_award_books(self, awards: list | None = None, start_year: int = 2020, end_year: int = 2026) -> dict:
-        """获取多个奖项的获奖图书"""
+    def get_all_award_books(
+        self,
+        awards: list | None = None,
+        start_year: int = 2020,
+        end_year: int = 2026,
+        include_status: bool = False,
+    ) -> dict:
+        """获取多个奖项的获奖图书。
+
+        默认保持历史返回格式；include_status=True 时返回每个奖项的成功/失败状态，
+        使调用方不会把网络失败误判为真实空结果。
+        """
         if awards is None:
             awards = list(self.AWARD_IDS.keys())
 
         results = {}
+        failures = {}
+        successful_awards = []
 
         for award_key in awards:
             logger.info(f'查询 {award_key} 获奖图书...')
-            books = self.query_award_winners(award_key, start_year, end_year)
-            results[award_key] = books
-            logger.info(f'{award_key}: 找到 {len(books)} 本图书')
+            try:
+                books = self.query_award_winners(award_key, start_year, end_year)
+            except WikidataQueryError as exc:
+                failures[award_key] = str(exc)
+                logger.warning(f'{award_key}: 查询失败，将在下次刷新重试')
+            else:
+                results[award_key] = books
+                successful_awards.append(award_key)
+                logger.info(f'{award_key}: 找到 {len(books)} 本图书')
 
             time.sleep(0.5)
 
+        if include_status:
+            return {
+                'awards': results,
+                'successful_awards': successful_awards,
+                'failed_awards': failures,
+                'status': 'failed' if not successful_awards and failures else ('partial_failure' if failures else 'success'),
+            }
+        if failures:
+            logger.warning(f'Wikidata 部分查询失败: {", ".join(failures)}')
         return results
 
     @api_retry(max_attempts=2, backoff_factor=1.5)

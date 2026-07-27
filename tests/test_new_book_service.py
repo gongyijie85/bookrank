@@ -218,6 +218,26 @@ class TestNewBookService:
                 created_at=now,
                 is_displayable=True,
             ),
+            NewBook(
+                publisher_id=publisher.id,
+                title='No Date Recently Discovered',
+                author='Author',
+                isbn13='9780000000105',
+                category='Fiction',
+                publication_date=None,
+                created_at=now - timedelta(days=5),
+                is_displayable=True,
+            ),
+            NewBook(
+                publisher_id=publisher.id,
+                title='No Date Outside Window',
+                author='Author',
+                isbn13='9780000000106',
+                category='Fiction',
+                publication_date=None,
+                created_at=now - timedelta(days=31),
+                is_displayable=True,
+            ),
         ]
         db.session.add_all(rows)
         db.session.commit()
@@ -225,8 +245,12 @@ class TestNewBookService:
         books, total = new_book_service.get_new_books(days=30)
 
         titles = {book.title for book in books}
-        assert total == 2
-        assert titles == {'Recent Publication', 'No Date Recent Sync'}
+        assert total == 3
+        assert titles == {'Recent Publication', 'No Date Recent Sync', 'No Date Recently Discovered'}
+
+        no_date_book = next(book for book in books if book.title == 'No Date Recently Discovered')
+        assert no_date_book.publication_date is None
+        assert no_date_book.created_at.date() == (today - timedelta(days=5))
 
     def test_search_books_honors_publication_window(self, new_book_service, db):
         """搜索也应遵守当前新书出版时间范围"""

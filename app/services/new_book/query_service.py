@@ -169,6 +169,11 @@ class NewBookQueryService:
 
     @staticmethod
     def _apply_publication_window(query, days: int):
+        """按出版日期筛选；缺少出版日期时只按发现时间筛选。
+
+        ``created_at`` 是系统发现/入库时间，不会写入 ``publication_date``，
+        因此调用方仍可据此把“发布日期待确认”和已知出版日期区分开。
+        """
         today = datetime.now(UTC).date()
         cutoff_date = today - timedelta(days=days)
         cutoff_datetime = datetime.combine(cutoff_date, datetime.min.time()).replace(tzinfo=UTC)

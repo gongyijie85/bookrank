@@ -145,6 +145,8 @@ class AwardBookService:
         stats = {
             'total_awards': len(award_keys),
             'processed_awards': 0,
+            'successful_awards': [],
+            'failed_awards': {},
             'new_books': 0,
             'updated_books': 0,
             'failed_books': 0,
@@ -154,8 +156,17 @@ class AwardBookService:
         try:
             # 从 Wikidata 获取数据
             award_books_data = self.wikidata_client.get_all_award_books(
-                awards=award_keys, start_year=start_year, end_year=end_year
+                awards=award_keys, start_year=start_year, end_year=end_year, include_status=True
             )
+            if 'awards' in award_books_data:
+                failed_awards = award_books_data.get('failed_awards', {})
+                award_books_data = award_books_data.get('awards', {})
+                stats['successful_awards'] = [key for key in award_keys if key in award_books_data]
+                stats['failed_awards'] = failed_awards
+                stats['errors'].extend(f'{key}: {message}' for key, message in failed_awards.items())
+            else:
+                # 兼容旧版客户端和现有注入式测试替身。
+                stats['successful_awards'] = list(award_books_data)
 
             # 处理每个奖项
             for award_key, books_data in award_books_data.items():
@@ -170,8 +181,13 @@ class AwardBookService:
                     log_error(ErrorCategory.API_CALL, error_msg)
                     stats['errors'].append(error_msg)
 
-            # 更新刷新时间
-            self.update_refresh_time()
+            # 只有没有远端查询失败时才推进刷新游标；失败奖项必须在下一轮重试。
+            if not stats['failed_awards']:
+                self.update_refresh_time()
+                stats['status'] = 'success'
+            else:
+                stats['status'] = 'partial_failure' if stats['processed_awards'] else 'failed'
+                logger.warning('Wikidata 刷新未完全成功，不更新 award_books_last_refresh')
 
             logger.info(f'✅ 刷新完成: 新增 {stats["new_books"]} 本, 更新 {stats["updated_books"]} 本')
 
@@ -275,6 +291,21 @@ class AwardBookService:
                         existing.cover_original_url = cover_url
                         existing.cover_local_path = cached_path
                         needs_update = True
+
+            for field in ('title', 'author', 'year', 'publisher'):
+                value = book_data.get(field)
+                if value not in (None, '') and value != getattr(existing, field, None):
+                    setattr(existing, field, value)
+                    needs_update = True
+
+            if book_data.get('publication_date') and hasattr(existing, 'publication_year'):
+                try:
+                    publication_year = int(str(book_data['publication_date'])[:4])
+                except (TypeError, ValueError):
+                    publication_year = None
+                if publication_year and existing.publication_year != publication_year:
+                    existing.publication_year = publication_year
+                    needs_update = True
 
             if needs_update:
                 db.session.commit()

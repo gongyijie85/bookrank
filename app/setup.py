@@ -491,10 +491,17 @@ def _auto_sync_task(app):
         app.logger.info('开始自动同步新书数据...')
         service.init_publishers()
         results = service.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
-        SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
 
         total_added = sum(r.get('added', 0) for r in results)
         total_updated = sum(r.get('updated', 0) for r in results)
+        failed_results = [result for result in results if result.get('success') is False]
+        if results and not failed_results:
+            SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
+        else:
+            app.logger.warning(
+                '自动同步未完全成功，不更新 last_auto_sync_time：失败出版社 %s',
+                len(failed_results) if results else '全部未执行',
+            )
         app.logger.info(f'自动同步完成：新增 {total_added} 本，更新 {total_updated} 本')
 
     except Exception as e:

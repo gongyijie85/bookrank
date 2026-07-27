@@ -501,6 +501,27 @@ class TestAutoSyncTask:
 
     @patch('app.setup.SystemConfig')
     @patch('app.setup.log_error')
+    def test_does_not_mark_auto_sync_when_a_publisher_fails(self, mock_log_error, mock_config, app):
+        from app.setup import _auto_sync_task
+
+        mock_config.get_value.return_value = None
+        mock_service = MagicMock()
+        mock_service.sync_all_publishers.return_value = [
+            {'success': True, 'added': 1, 'updated': 0},
+            {'success': False, 'status': 'request_failed', 'added': 0, 'updated': 0},
+        ]
+        with app.app_context():
+            with patch('app.services.new_book_service.NewBookService', return_value=mock_service):
+                with patch('app.utils.service_helpers.get_translation_service', return_value=MagicMock()):
+                    _auto_sync_task(app)
+
+        assert not any(
+            call.args[0] == 'last_auto_sync_time'
+            for call in mock_config.set_value.call_args_list
+        )
+
+    @patch('app.setup.SystemConfig')
+    @patch('app.setup.log_error')
     @patch('app.setup._log_failure')
     def test_handles_exception(self, mock_log_failure, mock_log_error, mock_config, app):
         from app.setup import _auto_sync_task

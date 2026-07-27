@@ -116,10 +116,14 @@ class TestSyncPublisherBooks:
         with patch.object(engine, 'get_crawler', return_value=mock_crawler):
             result = engine.sync_publisher_books(sample_publisher.id)
 
-        assert result['success'] is True
+        assert result['success'] is False
+        assert result['status'] == 'empty'
+        assert result['transport_status'] == 'success'
+        assert result['parse_status'] == 'empty'
         assert result['total'] == 0
         assert result['added'] == 0
-        assert sample_publisher.sync_count == 1
+        assert sample_publisher.sync_count == 0
+        assert sample_publisher.last_sync_at is None
 
     def test_sync_adds_new_books(self, engine, publisher_manager, sample_publisher, sample_book_info, db):
         publisher_manager.get_publisher.return_value = sample_publisher
@@ -245,6 +249,11 @@ class TestSyncPublisherBooks:
 
         assert result['added'] == 1
         assert result['errors'] == 1
+        assert result['success'] is False
+        assert result['status'] == 'partial_failure'
+        assert result['parse_status'] == 'partial'
+        assert sample_publisher.sync_count == 0
+        assert sample_publisher.last_sync_at is None
 
     def test_sync_handles_crawler_context_exception(self, engine, publisher_manager, sample_publisher, db):
         publisher_manager.get_publisher.return_value = sample_publisher
@@ -280,7 +289,7 @@ class TestSyncPublisherBooks:
         publisher_manager.get_publisher.return_value = sample_publisher
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([])
+        mock_crawler.get_new_books.return_value = iter([BookInfo(title='Successful book', author='Author')])
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -289,6 +298,27 @@ class TestSyncPublisherBooks:
 
         assert sample_publisher.sync_count == 1
         assert sample_publisher.last_sync_at is not None
+
+    def test_sync_marks_crawler_request_failure_without_success_metadata(
+        self, engine, publisher_manager, sample_publisher, db
+    ):
+        publisher_manager.get_publisher.return_value = sample_publisher
+
+        mock_crawler = MagicMock()
+        mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
+        mock_crawler.__exit__ = MagicMock(return_value=False)
+        mock_crawler.get_new_books.side_effect = RuntimeError('upstream timeout')
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            result = engine.sync_publisher_books(sample_publisher.id, translate=False)
+
+        assert result['success'] is False
+        assert result['status'] == 'request_failed'
+        assert result['transport_status'] == 'failed'
+        assert result['parse_status'] == 'failed'
+        assert 'upstream timeout' in result['error']
+        assert sample_publisher.sync_count == 0
+        assert sample_publisher.last_sync_at is None
 
     def test_sync_passes_translate_flag(self, engine, publisher_manager, sample_publisher, sample_book_info, db):
         publisher_manager.get_publisher.return_value = sample_publisher
