@@ -9,6 +9,7 @@ from fpdf import FPDF
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 
+from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
@@ -112,7 +113,7 @@ class ExportService:
             pdf.cell(
                 0,
                 8,
-                f'发布日期: {report.report_date.strftime("%Y年%m月%d日")}',
+                f'发布日期: {format_chinese_date(report.report_date)}',
                 new_x='LMARGIN',
                 new_y='NEXT',
                 align='C',
@@ -237,7 +238,7 @@ class ExportService:
 
             # 元数据
             meta_font = Font(size=10)
-            ws['A3'] = f'发布日期: {report.report_date.strftime("%Y年%m月%d日")}'
+            ws['A3'] = f'发布日期: {format_chinese_date(report.report_date)}'
             ws['A4'] = f'统计周期: {report.week_start.strftime("%Y-%m-%d")} 至 {report.week_end.strftime("%Y-%m-%d")}'
             ws['A3'].font = meta_font
             ws['A4'].font = meta_font

@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ..models.schemas import WeeklyReport, db
+from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
 from .book_service import BookService
 
@@ -123,7 +124,7 @@ class WeeklyReportService:
             analysis = self._analyze_changes(weekly_data)
 
             # 生成报告标题
-            title = f'{week_start.strftime("%Y年%m月%d日")}-{week_end.strftime("%Y年%m月%d日")} 畅销书周报'
+            title = f'{format_chinese_date(week_start)}-{format_chinese_date(week_end)} 畅销书周报'
 
             # 生成AI摘要
             if has_books:
@@ -426,7 +427,7 @@ class WeeklyReportService:
                 return self._generate_default_summary(analysis, week_start, week_end)
 
             # 构建简洁概览提示（与详细分析区分）
-            prompt = f'请为{week_start.strftime("%Y年%m月%d日")}至{week_end.strftime("%Y年%m月%d日")}的畅销书周报生成一份简洁概览摘要，要求：\n'
+            prompt = f'请为{format_chinese_date(week_start)}至{format_chinese_date(week_end)}的畅销书周报生成一份简洁概览摘要，要求：\n'
             prompt += '1. 控制在150-200字以内，精炼概括\n'
             prompt += '2. 突出关键数据：上榜总数、新上榜数、排名变动概况\n'
             prompt += '3. 提及1-2本最值得关注的书籍即可，不要逐一列举\n'
