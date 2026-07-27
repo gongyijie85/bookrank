@@ -169,6 +169,15 @@ class TestAwardsPage:
         response = client.get('/awards')
         assert response.status_code == 200
 
+    def test_awards_page_declares_utf8_and_preserves_chinese(self, client):
+        response = client.get('/awards?lang=zh')
+        html = response.get_data(as_text=True)
+
+        assert response.status_code == 200
+        assert response.headers['Content-Type'].startswith('text/html; charset=utf-8')
+        assert '<meta charset="UTF-8">' in html
+        assert '获奖书单' in html
+
     def test_awards_with_view_list(self, client):
         response = client.get('/awards?view=list')
         assert response.status_code == 200

@@ -132,7 +132,7 @@ class NewBookService:
         self,
         publisher_id: int | None = None,
         category: str | None = None,
-        days: int = 30,
+        days: int = 90,
         page: int = 1,
         per_page: int = 20,
     ) -> tuple[list[NewBook], int]:

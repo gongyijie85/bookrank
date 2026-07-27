@@ -241,17 +241,17 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info(f'📅 周报启动检查已安排（{initial_delay}秒后）')
 
-    # 2. 新书速递自动同步（每14天一次，翻译服务不可用时仍同步英文原始数据）
+    # 2. 新书速递自动同步（每天一次，翻译服务不可用时仍同步英文原始数据）
     from datetime import timedelta
 
     _scheduler.add_job(
         func=_scheduler_wrapper(app, _auto_sync_task),
-        trigger=IntervalTrigger(days=14, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC),
+        trigger=IntervalTrigger(hours=24, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC),
         id='auto_sync',
         name='新书速递自动同步',
     )
     translation_status = '含翻译' if translation_service else '不含翻译'
-    app.logger.info(f'📅 新书速递自动同步已安排（每14天，首次{initial_delay * 2}秒后，{translation_status}）')
+    app.logger.info(f'📅 新书速递自动同步已安排（每天，首次{initial_delay * 2}秒后，{translation_status}）')
 
     # 3. NYT排行榜自动同步（每周一次）：刷新榜单、补充资料、翻译并写入语言包
     if book_service:
@@ -270,17 +270,21 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info(f'📅 NYT排行榜语言包同步已安排（每{interval_days}天，首次{initial_delay * 3}秒后）')
 
-    # 4. 获奖书籍封面同步（一次性，延迟执行）
+    # 4. 获奖书籍封面同步（每天一次，延迟执行）
     if google_client:
         from datetime import timedelta
 
         _scheduler.add_job(
             func=_scheduler_wrapper(app, _cover_sync_task),
-            trigger=DateTrigger(run_date=now + timedelta(seconds=cover_sync_delay), timezone=UTC),
+            trigger=IntervalTrigger(
+                days=1,
+                start_date=now + timedelta(seconds=cover_sync_delay),
+                timezone=UTC,
+            ),
             id='cover_sync_init',
             name='获奖书籍封面同步',
         )
-        app.logger.info(f'📅 获奖书籍封面同步已安排（{cover_sync_delay}秒后）')
+        app.logger.info(f'📅 获奖书籍封面同步已安排（每天一次，首次{cover_sync_delay}秒后）')
 
     # 5. 翻译缓存自动清理（每 30 分钟一次，避免限流中间件混杂非幂等副作用）
     if translation_service:
@@ -305,20 +309,20 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     )
     app.logger.info(f'📅 延迟初始化已安排（{initial_delay + 60}秒后）')
 
-    # 7. 获奖图书自动刷新（每月一次，从 Wikidata 同步最新获奖数据）
+    # 7. 获奖图书自动刷新（每周一次，从 Wikidata 同步最新获奖数据）
     from datetime import timedelta
 
     _scheduler.add_job(
         func=_scheduler_wrapper(app, _award_refresh_task),
         trigger=IntervalTrigger(
-            days=30,
+            days=7,
             start_date=now + timedelta(seconds=initial_delay * 4),
             timezone=UTC,
         ),
         id='award_refresh',
         name='获奖图书自动刷新（Wikidata）',
     )
-    app.logger.info(f'📅 获奖图书自动刷新已安排（每30天，首次{initial_delay * 4}秒后）')
+    app.logger.info(f'📅 获奖图书自动刷新已安排（每7天，首次{initial_delay * 4}秒后）')
 
     _scheduler.start()
     app.logger.info('✅ APScheduler 后台任务调度器已启动')
@@ -479,9 +483,9 @@ def _auto_sync_task(app):
             last_sync_time = datetime.fromisoformat(last_sync)
             if last_sync_time.tzinfo is None:
                 last_sync_time = last_sync_time.replace(tzinfo=UTC)
-            days_since = (datetime.now(UTC) - last_sync_time).days
-            if days_since < 14:
-                app.logger.info(f'距离上次同步仅 {days_since} 天，跳过')
+            hours_since = (datetime.now(UTC) - last_sync_time).total_seconds() / 3600
+            if hours_since < 24:
+                app.logger.info(f'距离上次同步仅 {hours_since:.1f} 小时，跳过')
                 return
 
         app.logger.info('开始自动同步新书数据...')

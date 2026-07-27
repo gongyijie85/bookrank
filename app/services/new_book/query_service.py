@@ -37,7 +37,7 @@ class NewBookQueryService:
         self,
         publisher_id: int | None = None,
         category: str | None = None,
-        days: int = 30,
+        days: int = 90,
         page: int = 1,
         per_page: int = 20,
     ) -> tuple[list[NewBook], int]:
@@ -172,6 +172,9 @@ class NewBookQueryService:
         today = datetime.now(UTC).date()
         cutoff_date = today - timedelta(days=days)
         cutoff_datetime = datetime.combine(cutoff_date, datetime.min.time()).replace(tzinfo=UTC)
+        # 出版社目录通常会提前公布预售书。给“最近 N 天”保留一个小的
+        # 预告窗口，避免刚发布的书因为出版日期是未来日期而完全消失。
+        future_grace_date = today + timedelta(days=14)
         tomorrow_datetime = datetime.combine(today + timedelta(days=1), datetime.min.time()).replace(tzinfo=UTC)
 
         return query.filter(  # type: ignore[union-attr,operator]
@@ -179,7 +182,7 @@ class NewBookQueryService:
                 db.and_(
                     NewBook.publication_date.isnot(None),
                     NewBook.publication_date >= cutoff_date,  # type: ignore[operator]
-                    NewBook.publication_date <= today,  # type: ignore[operator]
+                    NewBook.publication_date <= future_grace_date,  # type: ignore[operator]
                 ),
                 db.and_(
                     NewBook.publication_date.is_(None),

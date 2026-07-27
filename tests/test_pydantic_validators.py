@@ -181,7 +181,7 @@ class TestNewBookListQuery:
         req = NewBookListQuery()
         assert req.publisher_id is None
         assert req.category is None
-        assert req.days == 30
+        assert req.days == 90
         assert req.search == ''
         assert req.page == 1
         assert req.per_page == 20
@@ -271,4 +271,4 @@ class TestParseQueryArgsHelper:
     def test_days_defaults_when_missing(self):
         args = MultiDict({})
         req = parse_query_args(NewBookListQuery, args)
-        assert req.days == 30
+        assert req.days == 90

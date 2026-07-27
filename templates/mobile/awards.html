@@ -42,7 +42,7 @@
     {% for book in books %}
     <a href="/award-book/{{ book.id }}" class="m-card m-book-card">
         <div class="m-book-cover">
-            <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+            <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
                  alt="{{ book.title }}"
                  loading="lazy"
                  width="60" height="80"

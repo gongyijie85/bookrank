@@ -246,7 +246,7 @@
         <div class="card-image">
             <div class="cover-frame">
                 <a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ display_title }}{{ _('》封面') }}">
-                    <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+                    <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
                          alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                          loading="lazy"
                          width="280"
@@ -319,7 +319,7 @@
              data-award-book-id="{{ book.id }}"
              aria-label="{{ display_title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}">
         <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ display_title }}{{ _('》封面') }}">
-            <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+            <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
                  alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="100"

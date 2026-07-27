@@ -111,7 +111,7 @@ class NewBookListQuery(BaseModel):
 
     publisher_id: int | None = Field(default=None, ge=1)
     category: str | None = Field(default=None, max_length=100)
-    days: int = Field(default=30, ge=1, le=365)
+    days: int = Field(default=90, ge=1, le=365)
     search: str = Field(default='', max_length=100)
     page: int = Field(default=1, ge=1, le=10000)
     per_page: int = Field(default=20, ge=1, le=50)

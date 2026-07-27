@@ -363,9 +363,9 @@ def _parse_new_books_params(args) -> dict:
     selected_category = args.get('category', '')
 
     try:
-        selected_days = min(max(1, int(args.get('days', '30'))), 365)
+        selected_days = min(max(1, int(args.get('days', '90'))), 365)
     except (ValueError, TypeError):
-        selected_days = 30
+        selected_days = 90
 
     search_query = args.get('search', '').strip()[:100]
 
