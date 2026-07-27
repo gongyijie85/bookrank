@@ -45,13 +45,25 @@
     {% endif %}
 </div>
 
+{% if books %}
+<div class="m-ranking-guide" aria-label="{{ _('榜单阅读提示') }}">
+    <span class="m-ranking-guide-dot" aria-hidden="true"></span>
+    <span>{% if _locale == 'zh' %}本周榜单{% else %}This week's ranking{% endif %}</span>
+    <span class="m-ranking-guide-hint">{% if _locale == 'zh' %}点击书卡查看详情{% else %}Tap a card for details{% endif %}</span>
+</div>
+{% endif %}
+
 <!-- 书籍排行榜列表 -->
 {% if books %}
 <div class="m-book-list">
     {% for book in books %}
+    {% set current_rank = book.rank or loop.index %}
+    {% set previous_rank = book.rank_last_week|int if book.rank_last_week and book.rank_last_week != '0' else 0 %}
+    {% set rank_change = previous_rank - current_rank if previous_rank else 0 %}
     <a href="/book/{{ loop.index0 }}?category={{ current_category }}"
-       class="m-card m-book-card" data-href="/book/{{ loop.index0 }}?category={{ current_category }}">
-        <span class="m-rank-badge {% if loop.index > 3 %}small{% endif %}">{{ loop.index }}</span>
+       class="m-card m-book-card" data-href="/book/{{ loop.index0 }}?category={{ current_category }}"
+       aria-label="{% if _locale == 'zh' %}{{ _('第') }}{{ current_rank }}{{ _('名') }}，{{ book.title_zh or book.title }}{% if book.weeks_on_list %}，{{ _('累计上榜') }}{{ book.weeks_on_list }}{{ _('周') }}{% endif %}{% else %}Rank {{ current_rank }}, {{ book.title }}{% if book.weeks_on_list %}, {{ book.weeks_on_list }} weeks on list{% endif %}{% endif %}">
+        <span class="m-rank-badge {% if current_rank > 3 %}small{% endif %}">{{ current_rank }}</span>
         <div class="m-book-cover">
             <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
                  alt="{{ book.title }}"
@@ -64,6 +76,26 @@
                 {% if _locale == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %}
             </h3>
             <p class="m-book-author">{{ book.author }}</p>
+
+            <div class="m-book-insights" aria-label="{{ _('排名数据') }}">
+                <span class="m-book-insight m-book-insight-rank">
+                    <span class="m-book-insight-label">{% if _locale == 'zh' %}本周排名{% else %}This week{% endif %}</span>
+                    <strong>#{{ current_rank }}</strong>
+                </span>
+                <span class="m-book-insight m-book-insight-weeks">
+                    <span class="m-book-insight-label">{% if _locale == 'zh' %}历史上榜{% else %}On list{% endif %}</span>
+                    <strong>{{ book.weeks_on_list or 0 }}{% if _locale == 'zh' %}周{% else %} wk{% endif %}</strong>
+                </span>
+                {% if rank_change > 0 %}
+                <span class="m-book-rank-change up" aria-label="{{ _('上升') }}{{ rank_change }}{{ _('名') }}">↑{{ rank_change }}</span>
+                {% elif rank_change < 0 %}
+                <span class="m-book-rank-change down" aria-label="{{ _('下降') }}{{ rank_change|abs }}{{ _('名') }}">↓{{ rank_change|abs }}</span>
+                {% elif not previous_rank %}
+                <span class="m-book-rank-change new">NEW</span>
+                {% else %}
+                <span class="m-book-rank-change stable">—</span>
+                {% endif %}
+            </div>
 
             {# 元信息行：出版社 · 页数 · 语言 #}
             {% set ns = namespace(parts=[]) %}

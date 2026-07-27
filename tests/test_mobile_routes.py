@@ -299,13 +299,16 @@ class TestMobileIndexSimplified:
         assert b'm-filter-toggle' not in resp.data
 
     @patch('app.routes.main.get_book_service')
-    def test_mobile_index_no_rank_change_badges(self, mock_get_svc, client) -> None:
-        """移动端首页卡片不应显示排名变化、累计周数、分类标签"""
+    def test_mobile_index_shows_rank_insights(self, mock_get_svc, client) -> None:
+        """移动端首页卡片应显示本周排名和历史上榜周数"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
-        resp = client.get('/', headers={'User-Agent': MOBILE_UA})
+        resp = client.get('/?lang=zh', headers=ZH_MOBILE_HEADERS)
         assert resp.status_code == 200
-        assert b'm-rank-change' not in resp.data
-        assert b'm-book-weeks' not in resp.data
+        assert b'm-book-insights' in resp.data
+        assert '本周排名'.encode() in resp.data
+        assert '历史上榜'.encode() in resp.data
+        assert b'#1' in resp.data
+        assert '3周'.encode() in resp.data
 
     @patch('app.routes.main.get_book_service')
     def test_mobile_index_has_top_nav(self, mock_get_svc, client) -> None:
