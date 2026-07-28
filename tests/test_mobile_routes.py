@@ -144,6 +144,17 @@ class TestMobileProfileRoute:
         assert b'My Favorites' in resp.data
 
 
+class TestDesktopProfileRoute:
+    """个人中心桌面端渲染"""
+
+    def test_desktop_ua_renders_profile(self, client, db) -> None:
+        """桌面端 UA 访问 /profile 应渲染桌面版个人中心，而非 500"""
+        resp = client.get('/profile?lang=zh', headers={'User-Agent': DESKTOP_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' not in resp.data  # 确认走的是桌面模板，不是移动模板
+        assert '我的收藏'.encode() in resp.data
+
+
 class TestMobileAwardsRoute:
     """奖项榜单移动端渲染"""
 

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block og_title %}{{ _('个人中心') }} - BookRank{% endblock %}
+{% block twitter_title %}{{ _('个人中心') }} - BookRank{% endblock %}
+
+{% block title %}{{ _('个人中心') }} - BookRank{% endblock %}
+
+{% block breadcrumbs %}
+{% from '_breadcrumbs.html' import breadcrumbs %}
+{{ breadcrumbs([
+    {'label': _('首页'), 'url': url_for('main.index')},
+    {'label': _('个人中心'), 'url': url_for('main.profile')}
+], csp_nonce()) }}
+{% endblock %}
+
+{% block content %}
+<div class="about-container">
+    <section class="about-hero">
+        <h1 class="page-title">
+            <svg class="icon text-gold" width="28" height="28"><use href="#icon-book"/></svg>
+            {{ _('个人中心') }}
+        </h1>
+        <p class="about-subtitle">{{ _('已收藏') }} {{ favorites|length }} {{ _('本') }}</p>
+    </section>
+
+    <section class="about-section">
+        <h2 class="section-title">{{ _('我的收藏') }} ({{ favorites|length }})</h2>
+        {% if favorites %}
+        <ul class="data-sources">
+            {% for fav in favorites %}
+            <li class="source-card">
+                <h3>{{ fav.title }}</h3>
+                {% if fav.author %}<p>{{ fav.author }}</p>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="about-text">{{ _('暂无收藏，浏览书籍时点击收藏按钮即可添加') }}</p>
+        {% endif %}
+    </section>
+
+    <section class="about-section">
+        <h2 class="section-title">{{ _('搜索历史') }} ({{ search_history|length }})</h2>
+        {% if search_history %}
+        <ul class="data-sources">
+            {% for item in search_history %}
+            <li class="source-card">
+                <a href="/?search={{ item.keyword | urlencode }}">{{ item.keyword }}</a>
+                {% if item.result_count %}<span>({{ item.result_count }})</span>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="about-text">{{ _('暂无搜索历史') }}</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
