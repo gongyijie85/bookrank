@@ -112,6 +112,11 @@ class IPRateLimiter:
             for client_id in expired_clients:
                 del self._requests[client_id]
 
+    def reset(self):
+        """清空所有客户端的调用历史（主要用于测试隔离）"""
+        with self._lock:
+            self._requests.clear()
+
 
 _global_rate_limiters: dict[str, IPRateLimiter] = {}
 

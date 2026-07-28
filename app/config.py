@@ -72,6 +72,8 @@ class Config:
 
     API_RATE_LIMIT: int = int(os.environ.get('API_RATE_LIMIT', 100))
     API_RATE_LIMIT_WINDOW: int = int(os.environ.get('API_RATE_LIMIT_WINDOW', 60))
+    CRON_RATE_LIMIT: int = int(os.environ.get('CRON_RATE_LIMIT', 20))
+    CRON_RATE_LIMIT_WINDOW: int = int(os.environ.get('CRON_RATE_LIMIT_WINDOW', 60))
 
     MAX_WORKERS: int = int(os.environ.get('MAX_WORKERS', 4))
 

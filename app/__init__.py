@@ -65,7 +65,7 @@ def create_app(config_name: str | None = None) -> Flask:
     _apply_security_headers(app)
     _register_jinja_filters(app)
 
-    if config_name == 'production':
+    if config_name in ('production', 'testing'):
         _enable_rate_limiting(app)
 
     # 为每个请求生成唯一追踪 ID，便于日志关联与排障
@@ -376,6 +376,10 @@ def _enable_rate_limiting(app: Flask) -> None:
     rate_limiter = get_rate_limiter(
         max_requests=app.config.get('API_RATE_LIMIT', 60), window_seconds=app.config.get('API_RATE_LIMIT_WINDOW', 60)
     )
+    cron_rate_limiter = get_rate_limiter(
+        max_requests=app.config.get('CRON_RATE_LIMIT', 20),
+        window_seconds=app.config.get('CRON_RATE_LIMIT_WINDOW', 60),
+    )
 
     @app.before_request
     def rate_limit_requests() -> Response | None:
@@ -384,12 +388,21 @@ def _enable_rate_limiting(app: Flask) -> None:
         if current_app.config.get('TESTING'):
             return None
 
-        if (
-            request.path.startswith('/static/')
-            or request.path.startswith('/health/')
-            or request.path.startswith('/api/cron/')
-            or not request.path.startswith('/api/')
-        ):
+        if request.path.startswith('/static/') or request.path.startswith('/health/'):
+            return None
+
+        if request.path.startswith('/api/cron/'):
+            client_ip = request.remote_addr or 'unknown'
+            if not cron_rate_limiter.is_allowed(client_ip):
+                retry_after = cron_rate_limiter.get_retry_after(client_ip)
+                response = make_response(
+                    {'success': False, 'message': 'Rate limit exceeded. Please try again later.'}, 429
+                )
+                response.headers['Retry-After'] = str(retry_after)
+                return response
+            return None
+
+        if not request.path.startswith('/api/'):
             return None
 
         excluded_paths = ['/api/csrf-token', '/api/health']

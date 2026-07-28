@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
+from app.utils.rate_limiter import get_rate_limiter
+
 
 @pytest.fixture
 def cron_secret(app):
@@ -72,3 +74,26 @@ class TestTriggerWeeklyReport:
         assert data['success'] is True
         assert data['data']['title'] == '测试周报'
         assert data['data']['report_id'] == 1
+
+
+class TestCronRateLimit:
+    """cron 端点限流测试（此前 /api/cron/ 完全豁免限流，属安全缺口）"""
+
+    def test_exceeding_cron_rate_limit_returns_429(self, client, app, cron_secret) -> None:
+        """连续请求超过 CRON_RATE_LIMIT 后应返回 429，而非无限放行"""
+        app.config['TESTING'] = False
+        limit = app.config.get('CRON_RATE_LIMIT', 20)
+        window = app.config.get('CRON_RATE_LIMIT_WINDOW', 60)
+        # 复用与 app/__init__.py 相同的缓存 key 拿到同一限流器实例并清空历史，
+        # 避免同一 pytest 会话内其它用例的残留调用计数影响本测试判断。
+        get_rate_limiter(max_requests=limit, window_seconds=window).reset()
+
+        headers = {'Authorization': f'Bearer {cron_secret}'}
+        with patch('app.tasks.weekly_report_task.generate_weekly_report') as mock_generate:
+            mock_generate.return_value = None
+            for _ in range(limit):
+                resp = client.get('/api/cron/trigger-weekly-report', headers=headers)
+                assert resp.status_code == 200
+
+            resp = client.get('/api/cron/trigger-weekly-report', headers=headers)
+        assert resp.status_code == 429
