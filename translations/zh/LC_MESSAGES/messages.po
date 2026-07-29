@@ -1144,13 +1144,12 @@ msgid "我的收藏"
 msgstr "收藏"
 
 #: templates/mobile/profile.html:80 templates/profile.html:38
-#, fuzzy
 msgid "暂无收藏"
-msgstr "收藏"
+msgstr "暂无收藏"
 
 #: templates/mobile/profile.html:81 templates/profile.html:39
 msgid "浏览书籍时点击收藏按钮即可添加"
-msgstr ""
+msgstr "浏览书籍时点击收藏按钮即可添加"
 
 #: templates/mobile/profile.html:105 templates/profile.html:55
 #, fuzzy
