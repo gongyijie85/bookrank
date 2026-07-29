@@ -157,7 +157,9 @@ class WikidataClient:
                 'awards': results,
                 'successful_awards': successful_awards,
                 'failed_awards': failures,
-                'status': 'failed' if not successful_awards and failures else ('partial_failure' if failures else 'success'),
+                'status': 'failed'
+                if not successful_awards and failures
+                else ('partial_failure' if failures else 'success'),
             }
         if failures:
             logger.warning(f'Wikidata 部分查询失败: {", ".join(failures)}')

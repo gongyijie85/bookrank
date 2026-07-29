@@ -515,10 +515,7 @@ class TestAutoSyncTask:
                 with patch('app.utils.service_helpers.get_translation_service', return_value=MagicMock()):
                     _auto_sync_task(app)
 
-        assert not any(
-            call.args[0] == 'last_auto_sync_time'
-            for call in mock_config.set_value.call_args_list
-        )
+        assert not any(call.args[0] == 'last_auto_sync_time' for call in mock_config.set_value.call_args_list)
 
     @patch('app.setup.SystemConfig')
     @patch('app.setup.log_error')
