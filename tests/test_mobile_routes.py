@@ -154,6 +154,15 @@ class TestDesktopProfileRoute:
         assert b'm-tabbar' not in resp.data  # 确认走的是桌面模板，不是移动模板
         assert '我的收藏'.encode() in resp.data
 
+    def test_desktop_ua_en_renders_english_labels(self, client, db) -> None:
+        """英文桌面端个人中心不应残留核心中文标签"""
+        resp = client.get('/profile', headers={'User-Agent': DESKTOP_UA, 'Accept-Language': 'en'})
+        assert resp.status_code == 200
+        assert b'Profile' in resp.data
+        assert b'No favorites yet' in resp.data
+        assert b'Tap the favorite button while browsing books to add them here' in resp.data
+        assert '个人中心'.encode() not in resp.data
+
 
 class TestMobileAwardsRoute:
     """奖项榜单移动端渲染"""
