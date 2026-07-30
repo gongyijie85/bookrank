@@ -345,10 +345,14 @@ class TestWeeklyReportRoutes:
             response = client.get(f'/reports/weekly/{date_str}')
             assert response.status_code in (200, 500)
 
-    def test_weekly_report_detail_shows_monthly_badge_for_monthly_category(self, client, app, db):
+    def test_weekly_report_detail_shows_monthly_badge_for_monthly_category(self, client, app, db, monkeypatch):
         """月度分类书籍应显示月度徽章，每周分类书籍不应显示"""
         with app.app_context():
+            from unittest.mock import MagicMock
+
             from app.models.schemas import WeeklyReport
+
+            monkeypatch.setitem(app.extensions, 'book_service', MagicMock())
 
             content = {
                 'top_changes': [
@@ -389,10 +393,14 @@ class TestWeeklyReportRoutes:
             body = response.data.decode('utf-8')
             assert body.count('<span class="monthly-tag">') == 1
 
-    def test_weekly_report_detail_shows_no_monthly_badge_when_all_weekly(self, client, app, db):
+    def test_weekly_report_detail_shows_no_monthly_badge_when_all_weekly(self, client, app, db, monkeypatch):
         """全部为每周分类时，不应渲染任何月度徽章"""
         with app.app_context():
+            from unittest.mock import MagicMock
+
             from app.models.schemas import WeeklyReport
+
+            monkeypatch.setitem(app.extensions, 'book_service', MagicMock())
 
             content = {
                 'top_changes': [

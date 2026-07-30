@@ -282,8 +282,8 @@ class TestRegenerateWeeklyReport:
         assert data['success'] is False
         assert '未来' in data['message']
 
-    def test_regenerate_no_book_service(self, client, admin_headers, app):
-        app.extensions['book_service'] = None
+    def test_regenerate_no_book_service(self, client, admin_headers, app, monkeypatch):
+        monkeypatch.setitem(app.extensions, 'book_service', None)
 
         response = client.post(
             '/api/admin/weekly-report/regenerate',
@@ -439,7 +439,7 @@ class TestRegenerateAllWeeklyReports:
             assert data['success'] is True
             assert data['data']['regenerated'] == 0
 
-    def test_no_book_service(self, client, admin_headers, db, app):
+    def test_no_book_service(self, client, admin_headers, db, app, monkeypatch):
         from app.models.schemas import WeeklyReport
 
         report = WeeklyReport(
@@ -452,7 +452,7 @@ class TestRegenerateAllWeeklyReports:
         db.session.add(report)
         db.session.commit()
 
-        app.extensions['book_service'] = None
+        monkeypatch.setitem(app.extensions, 'book_service', None)
 
         response = client.post(
             '/api/admin/weekly-report/regenerate-all',
