@@ -242,6 +242,9 @@ class WeeklyReportService:
                                 'title': book.title_zh or book.title,
                                 'author': book.author,
                                 'category': category_name,
+                                'update_frequency': current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(
+                                    category_id, 'weekly'
+                                ),
                                 'rank': current_rank,
                                 'rank_change': rank_change,
                                 'weeks_on_list': weeks_on_list,

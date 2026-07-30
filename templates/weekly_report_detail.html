@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% set _locale = get_locale() %}
 
 {% block title %}{{ report.title }} - BookRank{% endblock %}
 {% block og_title %}{{ report.title }} - BookRank{% endblock %}
@@ -196,6 +197,9 @@
                                 <span class="change-title">{{ change.title | format_title }}</span>
                                 <span class="change-author">{{ change.author }}</span>
                                 <span class="change-category">{{ change.category }}</span>
+                                {% if change.update_frequency == 'monthly' %}
+                                <span class="monthly-tag">{% if _locale == 'zh' %}月度更新{% else %}Monthly{% endif %}</span>
+                                {% endif %}
                                 <span class="change-rank">
                                     {% if change.rank_change > 0 %}
                                     <span class="rank-up">↑ {{ change.rank_change }} {{ _('位') }}</span>
@@ -231,6 +235,9 @@
                                 <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-category">{{ book.category }}</span>
+                                {% if book.update_frequency == 'monthly' %}
+                                <span class="monthly-tag">{% if _locale == 'zh' %}月度更新{% else %}Monthly{% endif %}</span>
+                                {% endif %}
                                 <span class="book-rank">{{ _('排名') }}：{{ book.rank }}</span>
                                 <button class="book-detail-btn">
                                     <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
@@ -258,6 +265,9 @@
                                 <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 <span class="book-category">{{ book.category }}</span>
+                                {% if book.update_frequency == 'monthly' %}
+                                <span class="monthly-tag">{% if _locale == 'zh' %}月度更新{% else %}Monthly{% endif %}</span>
+                                {% endif %}
                                 <span class="book-change">↑ {{ book.rank_change }} {{ _('位') }}</span>
                                 <button class="book-detail-btn">
                                     <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
@@ -284,6 +294,9 @@
                                 {% endif %}
                                 <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
                                 <span class="book-author">{{ book.author }}</span>
+                                {% if book.update_frequency == 'monthly' %}
+                                <span class="monthly-tag">{% if _locale == 'zh' %}月度更新{% else %}Monthly{% endif %}</span>
+                                {% endif %}
                                 <span class="book-weeks">{{ _('累计上榜') }} {{ book.weeks_on_list }} {{ _('周') }}</span>
                                 <span class="book-rank">{{ _('当前排名') }}：{{ book.rank }}</span>
                                 <button class="book-detail-btn">
@@ -709,6 +722,17 @@
         font-size: 0.6875rem;
         font-weight: 600;
         background: var(--n-warm-white);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        letter-spacing: 0.125px;
+    }
+
+    .monthly-tag {
+        color: var(--n-orange);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        background: rgba(221, 91, 0, 0.08);
+        border: 1px solid rgba(221, 91, 0, 0.24);
         padding: 0.25rem 0.5rem;
         border-radius: 9999px;
         letter-spacing: 0.125px;

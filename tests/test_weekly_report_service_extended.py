@@ -381,6 +381,33 @@ class TestCollectWeeklyDataEdgeCases:
             data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
             assert data['books'][0]['weeks_on_list'] == 1
 
+    def test_book_carries_update_frequency_for_weekly_category(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = _make_mock_books(1)
+
+            data = WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+
+            first_category_id = next(iter(app.config['CATEGORIES']))
+            assert app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'][first_category_id] == 'weekly'
+            assert data['books'][0]['update_frequency'] == 'weekly'
+
+    def test_book_carries_update_frequency_for_monthly_category(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = _make_mock_books(1)
+
+            original_categories = app.config['CATEGORIES']
+            original_freqs = app.config['NYT_CATEGORY_UPDATE_FREQUENCIES']
+            app.config['CATEGORIES'] = {'paperback-nonfiction-monthly': '平装非虚构'}
+            app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = {'paperback-nonfiction-monthly': 'monthly'}
+            try:
+                data = WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+                assert data['books'][0]['update_frequency'] == 'monthly'
+            finally:
+                app.config['CATEGORIES'] = original_categories
+                app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = original_freqs
+
 
 class TestAnalyzeChangesExtended:
     def test_exception_returns_empty(self, app, db):
