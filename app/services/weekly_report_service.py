@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from flask import current_app
 
 from ..models.schemas import WeeklyReport, db
+from ..utils.book_filters import get_category_update_frequency
 from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
 from .book_service import BookService
@@ -242,9 +243,7 @@ class WeeklyReportService:
                                 'title': book.title_zh or book.title,
                                 'author': book.author,
                                 'category': category_name,
-                                'update_frequency': current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(
-                                    category_id, 'weekly'
-                                ),
+                                'update_frequency': get_category_update_frequency(category_id),
                                 'rank': current_rank,
                                 'rank_change': rank_change,
                                 'weeks_on_list': weeks_on_list,

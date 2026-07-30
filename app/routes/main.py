@@ -21,7 +21,13 @@ from ..data.publishers import PUBLISHERS_DATA
 from ..services.book_detail_service import fetch_google_books_details, is_valid_isbn, merge_or_translate_book
 from ..utils import ExternalAPIError
 from ..utils.api_helpers import APIResponse, handle_api_errors, quick_clean_translation
-from ..utils.book_filters import filter_books_by_publisher, filter_books_by_search, filter_books_by_weeks, sort_books
+from ..utils.book_filters import (
+    filter_books_by_publisher,
+    filter_books_by_search,
+    filter_books_by_weeks,
+    get_category_update_frequency,
+    sort_books,
+)
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.security import is_safe_redirect_url
@@ -39,10 +45,6 @@ from ..utils.service_helpers import (
 
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
-
-
-def _get_category_update_frequency(category: str) -> str:
-    return current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category, 'weekly')
 
 
 def _get_list_published_date(books_data: list[dict]) -> str | None:
@@ -109,7 +111,7 @@ def index():
         e.log()
         # 降级：用空列表渲染页面，不崩溃
 
-    update_frequency = _get_category_update_frequency(category)
+    update_frequency = get_category_update_frequency(category)
     list_published_date = _get_list_published_date(books_data)
 
     if search_query:
@@ -713,7 +715,7 @@ def api_category_books():
             'books': books_data,
             'category': category,
             'update_time': update_time,
-            'update_frequency': _get_category_update_frequency(category),
+            'update_frequency': get_category_update_frequency(category),
             'list_published_date': _get_list_published_date(books_data),
         }
     )
