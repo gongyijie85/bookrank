@@ -8,6 +8,8 @@ from html import escape
 from typing import Any
 from urllib.parse import urlparse
 
+from flask import current_app
+
 from ..models.schemas import WeeklyReport, db
 from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
@@ -195,17 +197,8 @@ class WeeklyReportService:
         try:
             # 从纽约时报API获取数据
 
-            # 定义纽约时报书籍分类
-            nyt_categories = {
-                'hardcover-fiction': '精装小说',
-                'paperback-fiction': '平装小说',
-                'hardcover-nonfiction': '精装非虚构',
-                'paperback-nonfiction': '平装非虚构',
-                'advice-how-to-and-miscellaneous': '建议、方法与杂项',
-                'graphic-books-and-manga': '漫画与绘本',
-                'childrens-middle-grade-hardcover': '儿童中级精装本',
-                'young-adult-hardcover': '青少年精装本',
-            }
+            # 纽约时报书籍分类：与首页共用同一份配置，避免分类集脱节
+            nyt_categories = current_app.config['CATEGORIES']
 
             # 构建周报数据
             weekly_data = {'books': [], 'categories': list(nyt_categories.values())}
@@ -271,19 +264,7 @@ class WeeklyReportService:
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'收集周报数据时出错: {e!s}')
             # 出错时返回空数据
-            return {
-                'books': [],
-                'categories': [
-                    '精装小说',
-                    '平装小说',
-                    '精装非虚构',
-                    '平装非虚构',
-                    '建议、方法与杂项',
-                    '漫画与绘本',
-                    '儿童中级精装本',
-                    '青少年精装本',
-                ],
-            }
+            return {'books': [], 'categories': list(current_app.config['CATEGORIES'].values())}
 
     def _analyze_changes(self, weekly_data: dict[str, Any]) -> dict[str, Any]:
         """分析榜单变化

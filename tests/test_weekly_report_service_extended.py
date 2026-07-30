@@ -267,8 +267,25 @@ class TestCollectWeeklyDataEdgeCases:
 
             WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
 
-            assert mock_bs.get_books_by_category.call_count == 8
+            expected_category_ids = set(app.config['CATEGORIES'].keys())
+            assert mock_bs.get_books_by_category.call_count == len(expected_category_ids)
+            called_category_ids = {call.args[0] for call in mock_bs.get_books_by_category.call_args_list}
+            assert called_category_ids == expected_category_ids
             assert all(call.kwargs == {'force_refresh': True} for call in mock_bs.get_books_by_category.call_args_list)
+
+    def test_weekly_report_categories_match_config_when_config_changes(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = []
+
+            original_categories = app.config['CATEGORIES']
+            app.config['CATEGORIES'] = {'hardcover-fiction': '精装小说', 'picture-books': '绘本'}
+            try:
+                WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+                called_category_ids = {call.args[0] for call in mock_bs.get_books_by_category.call_args_list}
+                assert called_category_ids == {'hardcover-fiction', 'picture-books'}
+            finally:
+                app.config['CATEGORIES'] = original_categories
 
     def test_category_exception_continues(self, app, db):
         with app.app_context():
