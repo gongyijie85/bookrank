@@ -1073,9 +1073,26 @@ img { max-width: 100%; display: block; }
 
 .m-publisher-card {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+}
+
+.m-publisher-main-link {
+    display: flex;
     align-items: flex-start;
     gap: var(--space-3);
-    padding: var(--space-3);
+    text-decoration: none;
+    color: inherit;
+}
+
+.m-publisher-newbooks-link {
+    align-self: flex-start;
+    margin-left: calc(36px + var(--space-3));
+    color: var(--color-primary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    font-weight: 500;
 }
 
 .m-publisher-icon {
@@ -1131,6 +1148,54 @@ img { max-width: 100%; display: block; }
     color: var(--color-text-tertiary);
     font-size: var(--text-lg);
     line-height: 1;
+}
+
+/* ===== 相关获奖图书（详情页） ===== */
+.m-related-books {
+    margin-top: var(--space-5);
+    padding: 0 var(--space-4);
+}
+
+.m-related-books-scroll {
+    display: flex;
+    gap: var(--space-3);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: var(--space-1);
+}
+
+.m-related-book-card {
+    flex: 0 0 auto;
+    width: 96px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.m-related-book-cover {
+    width: 96px;
+    aspect-ratio: 2/3;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.m-related-book-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.m-related-book-title {
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--color-text-primary);
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 /* ===== 元信息网格（详情页） ===== */
@@ -1905,8 +1970,11 @@ html { scroll-behavior: smooth; }
 .m-publisher-category { scroll-margin-top: calc(var(--header-height) + var(--space-4)); }
 
 .m-publisher-card {
-    align-items: center;
     border: 1px solid var(--color-border-light);
+}
+
+.m-publisher-main-link {
+    align-items: center;
 }
 
 .m-publisher-desc {

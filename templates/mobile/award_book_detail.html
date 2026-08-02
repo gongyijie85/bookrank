@@ -119,6 +119,25 @@
     </div>
 </div>
 
+{% if related_books %}
+<section class="m-related-books" aria-label="{{ _('相关获奖图书') }}">
+    <h2 class="m-section-title">{{ _('相关获奖图书') }}</h2>
+    <div class="m-related-books-scroll no-scrollbar">
+        {% for related in related_books %}
+        {% set related_title = related.title_zh or related.title %}
+        <a href="{{ url_for('main.award_book_detail', book_id=related.id) }}" class="m-related-book-card">
+            <div class="m-related-book-cover">
+                <img src="{{ related.cover_url or url_for('static', filename='default-cover.png') }}"
+                     alt="{{ related_title }}" loading="lazy"
+                     onerror="this.onerror=null;this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            </div>
+            <div class="m-related-book-title">{{ related_title }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 {% endblock %}
 
 {% block structured_data %}

@@ -168,6 +168,18 @@
         </select>
     </div>
 
+    <div class="filter-group">
+        <label class="filter-label" for="category-select">类别</label>
+        <select class="filter-select" id="category-select">
+            <option value="">全部类别</option>
+            {% for category in categories %}
+            <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>
+                {{ category }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
     <div class="filter-group search-box">
         <label class="filter-label" for="search-input">搜索</label>
         <div class="search-input-wrapper">
@@ -557,6 +569,9 @@
         document.getElementById('year-select')?.addEventListener('change', function() {
             changeYear(this.value);
         });
+        document.getElementById('category-select')?.addEventListener('change', function() {
+            changeCategory(this.value);
+        });
         document.getElementById('btn-apply')?.addEventListener('click', applyFilters);
         document.getElementById('btn-clear')?.addEventListener('click', clearFilters);
 
@@ -598,36 +613,46 @@
     function changeAward(award) {
         showLoading('加载中...');
         const year = document.getElementById('year-select').value;
-        let url = '/awards';
-        if (award) url += `?award=${encodeURIComponent(award)}`;
-        if (year) url += `${award ? '&' : '?'}year=${year}`;
-        window.location.href = url;
+        const category = document.getElementById('category-select').value;
+        navigateWithFilters({ award, year, category });
     }
 
     // Change year filter
     function changeYear(year) {
         showLoading('加载中...');
         const award = document.getElementById('award-select').value;
-        let url = '/awards';
-        if (award) url += `?award=${encodeURIComponent(award)}`;
-        if (year) url += `${award ? '&' : '?'}year=${year}`;
-        window.location.href = url;
+        const category = document.getElementById('category-select').value;
+        navigateWithFilters({ award, year, category });
+    }
+
+    // Change category filter
+    function changeCategory(category) {
+        showLoading('加载中...');
+        const award = document.getElementById('award-select').value;
+        const year = document.getElementById('year-select').value;
+        navigateWithFilters({ award, year, category });
     }
 
     // Apply filters
     function applyFilters() {
         const award = document.getElementById('award-select').value;
         const year = document.getElementById('year-select').value;
+        const category = document.getElementById('category-select').value;
         const search = document.getElementById('search-input').value;
 
         showLoading('搜索中...');
+        navigateWithFilters({ award, year, category, search });
+    }
 
-        let url = '/awards';
+    // 统一按筛选条件拼接 URL 并跳转（奖项/年份/类别/搜索为交集关系）
+    function navigateWithFilters({ award, year, category, search }) {
         const params = [];
         if (award) params.push(`award=${encodeURIComponent(award)}`);
         if (year) params.push(`year=${year}`);
+        if (category) params.push(`category=${encodeURIComponent(category)}`);
         if (search) params.push(`search=${encodeURIComponent(search)}`);
 
+        let url = '/awards';
         if (params.length > 0) {
             url += '?' + params.join('&');
         }

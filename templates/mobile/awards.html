@@ -18,9 +18,9 @@
 <!-- 奖项筛选（横向滑动） -->
 <section class="m-cat-tabs" aria-label="奖项筛选">
     <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="/awards" class="m-cat-tab {% if not selected_award %}active{% endif %}">全部</a>
+        <a href="/awards{% if selected_category %}?category={{ selected_category | urlencode }}{% endif %}" class="m-cat-tab {% if not selected_award %}active{% endif %}">全部</a>
         {% for award in awards %}
-        <a href="/awards?award={{ award.name | urlencode }}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+        <a href="/awards?award={{ award.name | urlencode }}{% if selected_year %}&year={{ selected_year }}{% endif %}{% if selected_category %}&category={{ selected_category | urlencode }}{% endif %}"
            class="m-cat-tab {% if selected_award == award.name %}active{% endif %}">
             {{ award.name }}
             <span class="m-cat-tab-count">{{ award.book_count }}</span>
@@ -28,6 +28,21 @@
         {% endfor %}
     </div>
 </section>
+
+<!-- 类别筛选（横向滑动） -->
+{% if categories %}
+<section class="m-cat-tabs" aria-label="类别筛选">
+    <div class="m-cat-tabs-scroll no-scrollbar">
+        <a href="/awards?{% if selected_award %}award={{ selected_award | urlencode }}{% endif %}{% if selected_award and selected_year %}&{% endif %}{% if selected_year %}year={{ selected_year }}{% endif %}" class="m-cat-tab {% if not selected_category %}active{% endif %}">全部类别</a>
+        {% for category in categories %}
+        <a href="/awards?category={{ category | urlencode }}{% if selected_award %}&award={{ selected_award | urlencode }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+           class="m-cat-tab {% if selected_category == category %}active{% endif %}">
+            {{ category }}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
 
 <!-- 统计 -->
 {% if years %}
@@ -66,11 +81,11 @@
 {% if total_pages > 1 %}
 <div class="m-pagination">
     {% if has_prev %}
-    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&page={{ page - 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>
+    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&category={{ selected_category or '' }}&page={{ page - 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>
     {% endif %}
     <span class="m-text-sm m-text-hint">{{ page }} / {{ total_pages }}</span>
     {% if has_next %}
-    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&page={{ page + 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>
+    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&category={{ selected_category or '' }}&page={{ page + 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>
     {% endif %}
 </div>
 {% endif %}

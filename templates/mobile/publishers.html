@@ -32,17 +32,25 @@
     <h2 class="m-section-title">{{ cat.category }}</h2>
     <div class="m-publisher-list">
         {% for pub in cat.publishers %}
-        <a class="m-card m-publisher-card" href="{{ pub.url }}" target="_blank" rel="noopener noreferrer">
-            <span class="m-publisher-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M13 9h2M9 13h2M13 13h2M9 17h2M13 17h2"/></svg>
-            </span>
-            <span class="m-publisher-main">
-                <strong class="m-publisher-name">{{ pub.name }}</strong>
-                <span class="m-publisher-name-en">{{ pub.name_en }}</span>
-                <span class="m-publisher-desc">{{ pub.description }}</span>
-            </span>
-            <span class="m-publisher-open" aria-hidden="true">↗</span>
-        </a>
+        {% set nb_publisher_id = new_books_publisher_ids.get(pub.name_en) %}
+        <div class="m-card m-publisher-card">
+            <a class="m-publisher-main-link" href="{{ pub.url }}" target="_blank" rel="noopener noreferrer">
+                <span class="m-publisher-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2M13 9h2M9 13h2M13 13h2M9 17h2M13 17h2"/></svg>
+                </span>
+                <span class="m-publisher-main">
+                    <strong class="m-publisher-name">{{ pub.name }}</strong>
+                    <span class="m-publisher-name-en">{{ pub.name_en }}</span>
+                    <span class="m-publisher-desc">{{ pub.description }}</span>
+                </span>
+                <span class="m-publisher-open" aria-hidden="true">↗</span>
+            </a>
+            {% if nb_publisher_id %}
+            <a class="m-publisher-newbooks-link" href="{{ url_for('main.new_books', publisher=nb_publisher_id) }}">
+                {{ _('查看新书') }} →
+            </a>
+            {% endif %}
+        </div>
         {% endfor %}
     </div>
 </section>

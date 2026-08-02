@@ -353,6 +353,58 @@ class TestMainRoutes:
         response = client.get('/publishers')
         assert response.status_code == 200
 
+    @patch('app.services.new_book_service.NewBookService')
+    def test_publishers_page_links_matched_directory_entry_to_new_books(self, MockService, client):
+        """静态目录里 name_en 能直接匹配数据库出版社的条目（如 Penguin Random House），应出现指向新书速递的链接"""
+        mock_pub = MagicMock()
+        mock_pub.id = 42
+        mock_pub.name_en = 'Penguin Random House'
+        mock_svc = MagicMock()
+        mock_svc.get_publishers.return_value = [mock_pub]
+        MockService.return_value = mock_svc
+
+        response = client.get('/publishers')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert f'/new-books?publisher={mock_pub.id}' in html
+
+    @patch('app.services.new_book_service.NewBookService')
+    def test_publishers_page_links_aliased_directory_entry_to_new_books(self, MockService, client):
+        """静态目录里的「Hachette Book Group」应通过别名映射链接到数据库里的「Hachette」"""
+        mock_pub = MagicMock()
+        mock_pub.id = 7
+        mock_pub.name_en = 'Hachette'
+        mock_svc = MagicMock()
+        mock_svc.get_publishers.return_value = [mock_pub]
+        MockService.return_value = mock_svc
+
+        response = client.get('/publishers')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert f'/new-books?publisher={mock_pub.id}' in html
+
+    @patch('app.services.new_book_service.NewBookService')
+    def test_publishers_page_no_link_for_unmatched_directory_entry(self, MockService, client):
+        """数据库里没有对应记录的目录条目（如大多数小型出版社）不应出现「查看新书」链接"""
+        mock_svc = MagicMock()
+        mock_svc.get_publishers.return_value = []
+        MockService.return_value = mock_svc
+
+        response = client.get('/publishers')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert '/new-books?publisher=' not in html
+
+    @patch('app.services.new_book_service.NewBookService')
+    def test_publishers_page_degrades_when_new_book_service_fails(self, MockService, client):
+        """新书服务查询失败时,出版社目录页仍应正常渲染（只是不显示跳转链接）"""
+        mock_svc = MagicMock()
+        mock_svc.get_publishers.side_effect = Exception('DB error')
+        MockService.return_value = mock_svc
+
+        response = client.get('/publishers')
+        assert response.status_code == 200
+
     def test_cache_management_page(self, client):
         response = client.get('/cache-management')
         assert response.status_code == 200

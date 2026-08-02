@@ -275,6 +275,73 @@ class TestAwardsPage:
         response = client.get('/awards?award=TestAward')
         assert response.status_code == 200
 
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_awards_with_category_filter(self, MockAwardService, client):
+        mock_award = MagicMock()
+        mock_award.id = 1
+        mock_award.name = 'TestAward'
+        mock_award.book_count = 0
+
+        mock_book = MagicMock()
+        mock_book.id = 10
+        mock_book.title = 'Test Title'
+        mock_book.author = 'Author'
+        mock_book.description = 'desc'
+        mock_book.details = 'details'
+        mock_book.cover_local_path = None
+        mock_book.cover_original_url = None
+        mock_book.isbn13 = '9780000000001'
+        mock_book.isbn10 = None
+        mock_book.publisher = 'Pub'
+        mock_book.publication_year = 2024
+        mock_book.year = 2024
+        mock_book.category = 'Fiction'
+        mock_book.title_zh = None
+        mock_book.award = mock_award
+        mock_book.buy_links = []
+
+        mock_svc = MagicMock()
+        mock_svc.get_all_awards.return_value = [mock_award]
+        mock_svc.get_distinct_years.return_value = [2024]
+        mock_svc.get_distinct_categories.return_value = ['Fiction', 'Non-fiction']
+        mock_svc.get_award_by_name.return_value = mock_award
+        mock_svc.get_award_books.return_value = ([mock_book], 1)
+        mock_svc.get_book_counts_by_award.return_value = {1: 1}
+        MockAwardService.return_value = mock_svc
+
+        response = client.get('/awards?category=Fiction')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert 'Fiction' in html
+
+        # category 参数应传给服务层查询方法
+        _, kwargs = mock_svc.get_award_books.call_args
+        assert kwargs.get('category') == 'Fiction'
+
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_awards_with_award_and_category_intersection(self, MockAwardService, client):
+        """奖项 + 类别同时筛选时,两个条件都应传给服务层（交集，而非互相覆盖）"""
+        mock_award = MagicMock()
+        mock_award.id = 1
+        mock_award.name = 'TestAward'
+        mock_award.book_count = 0
+
+        mock_svc = MagicMock()
+        mock_svc.get_all_awards.return_value = [mock_award]
+        mock_svc.get_distinct_years.return_value = []
+        mock_svc.get_distinct_categories.return_value = ['Fiction']
+        mock_svc.get_award_by_name.return_value = mock_award
+        mock_svc.get_award_books.return_value = ([], 0)
+        mock_svc.get_book_counts_by_award.return_value = {}
+        MockAwardService.return_value = mock_svc
+
+        response = client.get('/awards?award=TestAward&category=Fiction')
+        assert response.status_code == 200
+
+        _, kwargs = mock_svc.get_award_books.call_args
+        assert kwargs.get('award_id') == 1
+        assert kwargs.get('category') == 'Fiction'
+
 
 class TestNewBooksPage:
     def test_new_books_default(self, client):
@@ -553,6 +620,77 @@ class TestAwardBookDetail:
         MockAwardService.return_value = mock_svc
         response = client.get('/award-book/99999')
         assert response.status_code == 200
+
+    @patch('app.routes.main.get_or_create_recommendation_service')
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_award_book_detail_shows_related_books_when_available(self, MockAwardService, mock_get_rec_svc, client):
+        mock_book = MagicMock()
+        mock_book.id = 1
+        mock_book.title = 'Test Book Title'
+        mock_book.title_zh = '测试书名'
+        mock_book.is_displayable = True
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.publisher = 'Test Publisher'
+        mock_book.description = 'Test description'
+        mock_book.award = None
+        mock_book.display_title = 'Test Book Title'
+        mock_svc = MagicMock()
+        mock_svc.get_award_book_by_id.return_value = mock_book
+        MockAwardService.return_value = mock_svc
+
+        mock_rec_svc = MagicMock()
+        mock_rec_svc.get_similarity_recommendations.return_value = {
+            'recommendations': [
+                {
+                    'id': 2,
+                    'title': 'Related Book Title',
+                    'title_zh': '相关图书标题',
+                    'author': 'Related Author',
+                    'year': 2023,
+                    'category': 'Fiction',
+                    'cover_url': None,
+                    'isbn13': '9789999999999',
+                }
+            ],
+            'reason': '同奖项其他年份获奖图书',
+        }
+        mock_get_rec_svc.return_value = mock_rec_svc
+
+        response = client.get('/award-book/1')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert '<section class="related-award-books"' in html
+        assert 'Related Book Title' in html
+
+        mock_rec_svc.get_similarity_recommendations.assert_called_once_with(book_id=1)
+
+    @patch('app.routes.main.get_or_create_recommendation_service')
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_award_book_detail_hides_related_section_when_empty(self, MockAwardService, mock_get_rec_svc, client):
+        mock_book = MagicMock()
+        mock_book.id = 1
+        mock_book.title = 'Test Book Title'
+        mock_book.title_zh = '测试书名'
+        mock_book.is_displayable = True
+        mock_book.author = 'Test Author'
+        mock_book.isbn13 = '9781234567890'
+        mock_book.publisher = 'Test Publisher'
+        mock_book.description = 'Test description'
+        mock_book.award = None
+        mock_book.display_title = 'Test Book Title'
+        mock_svc = MagicMock()
+        mock_svc.get_award_book_by_id.return_value = mock_book
+        MockAwardService.return_value = mock_svc
+
+        mock_rec_svc = MagicMock()
+        mock_rec_svc.get_similarity_recommendations.return_value = {'recommendations': [], 'reason': ''}
+        mock_get_rec_svc.return_value = mock_rec_svc
+
+        response = client.get('/award-book/1')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert '<section class="related-award-books"' not in html
 
 
 class TestBookDetail:

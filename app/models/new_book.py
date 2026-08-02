@@ -134,6 +134,17 @@ class NewBook(db.Model):
         db.Index('idx_new_books_search', 'title', 'author'),
     )
 
+    # 「刚上市」徽章的判定阈值（天），与新书速递现有「最近7天出版」筛选选项口径一致
+    RECENTLY_PUBLISHED_WITHIN_DAYS = 7
+
+    @property
+    def is_recently_published(self) -> bool:
+        """出版日期是否在最近 N 天内（用于新书速递卡片的"刚上市"徽章）"""
+        if not self.publication_date:
+            return False
+        days_since = (date.today() - self.publication_date).days
+        return 0 <= days_since <= self.RECENTLY_PUBLISHED_WITHIN_DAYS
+
     def to_dict(self, include_zh: bool = True) -> dict[str, Any]:
         """转换为字典"""
         from ..utils import quick_clean_translation
@@ -152,6 +163,7 @@ class NewBook(db.Model):
             'cover_local': self.cover_local,
             'category': self.category,
             'publication_date': self.publication_date.isoformat() if self.publication_date else None,
+            'is_recently_published': self.is_recently_published,
             'price': self.price,
             'page_count': self.page_count,
             'language': self.language,

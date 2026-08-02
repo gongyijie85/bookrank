@@ -540,6 +540,20 @@ class TestMobileV978:
         assert b'href="#publisher-cat-1"' in resp.data
         assert b'id="publisher-cat-1"' in resp.data
 
+    @patch('app.services.new_book_service.NewBookService')
+    def test_publishers_mobile_links_matched_entry_to_new_books(self, MockService, client) -> None:
+        """移动端出版社页,数据库里有对应记录的条目应出现「查看新书」跳转链接"""
+        mock_pub = MagicMock()
+        mock_pub.id = 42
+        mock_pub.name_en = 'Penguin Random House'
+        mock_svc = MagicMock()
+        mock_svc.get_publishers.return_value = [mock_pub]
+        MockService.return_value = mock_svc
+
+        resp = client.get('/publishers', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert f'/new-books?publisher={mock_pub.id}'.encode() in resp.data
+
     # ----- 详情页 Tab 化 -----
 
     @patch('app.routes.main.merge_or_translate_book')
@@ -582,6 +596,40 @@ class TestMobileV978:
         assert b'm-tab-btn' in resp.data
         assert b'data-tab="description"' in resp.data
         assert b'data-tab="details"' in resp.data
+
+    @patch('app.routes.main.get_or_create_recommendation_service')
+    def test_award_book_detail_mobile_shows_related_books(
+        self, mock_get_rec_svc, client, db, sample_award_book
+    ) -> None:
+        """移动端获奖图书详情页,存在相关图书时应展示相关图书区块"""
+        from app.models.schemas import AwardBook
+
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        db.session.commit()
+
+        mock_rec_svc = MagicMock()
+        mock_rec_svc.get_similarity_recommendations.return_value = {
+            'recommendations': [
+                {
+                    'id': 999,
+                    'title': 'Related Book',
+                    'title_zh': '相关图书',
+                    'author': 'Related Author',
+                    'year': 2022,
+                    'category': 'Fiction',
+                    'cover_url': None,
+                    'isbn13': '9780000000999',
+                }
+            ],
+            'reason': '',
+        }
+        mock_get_rec_svc.return_value = mock_rec_svc
+
+        resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-related-books' in resp.data
+        assert '相关图书'.encode() in resp.data
 
     # ----- 首页无搜索图标 -----
 

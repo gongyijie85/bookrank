@@ -209,6 +209,32 @@ class TestGetDistinctYears:
             assert years == []
 
 
+class TestGetDistinctCategories:
+    """测试 get_distinct_categories"""
+
+    def test_with_data(self, app, db, award_service, sample_award_book):
+        with app.app_context():
+            categories = award_service.get_distinct_categories()
+            assert '最佳长篇小说' in categories
+
+    def test_empty_db(self, app, db, award_service):
+        with app.app_context():
+            AwardBook.query.delete()
+            db.session.commit()
+            categories = award_service.get_distinct_categories()
+            assert categories == []
+
+    def test_excludes_null_category(self, app, db, award_service, sample_award):
+        with app.app_context():
+            book = AwardBook(
+                award_id=sample_award, title='无类别图书', author='作者', year=2023, isbn13='9780000000099'
+            )
+            db.session.add(book)
+            db.session.commit()
+            categories = award_service.get_distinct_categories()
+            assert None not in categories
+
+
 class TestGetBookCountsByAward:
     """测试 get_book_counts_by_award"""
 

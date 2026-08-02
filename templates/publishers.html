@@ -181,6 +181,23 @@
         text-decoration: underline;
     }
 
+    .publisher-newbooks-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: color var(--transition-fast);
+    }
+
+    .publisher-newbooks-link:hover {
+        color: var(--accent-color);
+        text-decoration: underline;
+    }
+
     .publisher-description {
         color: var(--text-secondary);
         line-height: 1.5;
@@ -222,9 +239,14 @@
             display: none;
         }
 
-        .publishers-table th:last-child,
-        .publishers-table td:last-child {
+        .publishers-table th:nth-child(3),
+        .publishers-table td:nth-child(3) {
             width: 70%;
+        }
+
+        .publishers-table th:nth-child(4),
+        .publishers-table td:nth-child(4) {
+            display: none;
         }
 
         .stats-bar {
@@ -319,10 +341,12 @@
                     <th>{{ _('中文名称') }}</th>
                     <th>{{ _('英文名称') }}</th>
                     <th>{{ _('核心定位') }}</th>
+                    <th>{{ _('新书速递') }}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for pub in cat.publishers %}
+                {% set nb_publisher_id = new_books_publisher_ids.get(pub.name_en) %}
                 <tr data-name="{{ pub.name }}" data-name-en="{{ pub.name_en }}" data-description="{{ pub.description }}">
                     <td>
                         <div class="publisher-name">{{ pub.name }}</div>
@@ -335,6 +359,14 @@
                     </td>
                     <td>
                         <span class="publisher-description">{{ pub.description }}</span>
+                    </td>
+                    <td>
+                        {% if nb_publisher_id %}
+                        <a href="{{ url_for('main.new_books', publisher=nb_publisher_id) }}" class="publisher-newbooks-link">
+                            {{ _('查看新书') }}
+                            <svg class="icon" width="14" height="14"><use href="#icon-chevron-right"/></svg>
+                        </a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

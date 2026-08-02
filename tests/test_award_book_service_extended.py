@@ -748,6 +748,20 @@ class TestGetDistinctYearsExtended:
             assert years == []
 
 
+class TestGetDistinctCategoriesExtended:
+    """get_distinct_categories 带 award_id 过滤"""
+
+    def test_with_award_id(self, app, db, award_service, sample_award, sample_award_book):
+        with app.app_context():
+            categories = award_service.get_distinct_categories(award_id=sample_award)
+            assert '最佳长篇小说' in categories
+
+    def test_with_nonexistent_award_id(self, app, db, award_service):
+        with app.app_context():
+            categories = award_service.get_distinct_categories(award_id=99999)
+            assert categories == []
+
+
 # ==================== update_refresh_time ====================
 
 

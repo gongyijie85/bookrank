@@ -468,10 +468,14 @@
     color: var(--text-secondary, #615d59);
 }
 
-.book-tag.tag-date,
-.book-tag.tag-new {
+.book-tag.tag-date {
     background: var(--new-books-accent-gold-pale, #fef3c7);
     color: var(--new-books-accent-gold-text, #92400e);
+}
+
+.book-tag.tag-new {
+    background: var(--new-books-accent-teal-pale, #d1fae5);
+    color: var(--new-books-accent-teal-text, #065f46);
 }
 
 .book-tag .icon {
@@ -640,10 +644,14 @@
     color: var(--text-secondary, #a0a0a0);
 }
 
-[data-theme="dark"] .book-tag.tag-date,
-[data-theme="dark"] .book-tag.tag-new {
+[data-theme="dark"] .book-tag.tag-date {
     background: rgba(254, 243, 199, 0.2);
     color: var(--new-books-accent-yellow-text, #fbbf24);
+}
+
+[data-theme="dark"] .book-tag.tag-new {
+    background: rgba(52, 211, 153, 0.15);
+    color: var(--new-books-accent-green-text, #34d399);
 }
 
 [data-theme="dark"] .book-tag.tag-translation {

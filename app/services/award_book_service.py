@@ -627,6 +627,18 @@ class AwardBookService:
             log_error(ErrorCategory.DB_QUERY, f'获取年份列表失败: {e}')
             return []
 
+    def get_distinct_categories(self, award_id: int | None = None) -> list[str]:
+        """获取不重复的类别列表（可按奖项过滤）"""
+        try:
+            query = db.session.query(AwardBook.category).distinct()
+            if award_id:
+                query = query.filter_by(award_id=award_id)
+            query = query.order_by(AwardBook.category.asc())
+            return [c[0] for c in query.all() if c[0]]
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'获取类别列表失败: {e}')
+            return []
+
     def get_book_counts_by_award(self, displayable_only: bool = False) -> dict[int, int]:
         """获取每个奖项的图书计数"""
         try:

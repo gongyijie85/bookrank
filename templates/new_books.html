@@ -474,6 +474,10 @@ function renderBookCard(book) {
     const pubNameDisplay = currentLanguage === 'zh' ? pubNameZh : pubNameEn;
 
     let tagsHtml = '<div class="book-tags">';
+    if (book.is_recently_published) {
+        tagsHtml += '<span class="book-tag tag-new">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>{{ _("刚上市") }}</span>';
+    }
     if (book.category) {
         tagsHtml += '<span class="book-tag tag-category">' + escapeHtml(book.category) + '</span>';
     } else {

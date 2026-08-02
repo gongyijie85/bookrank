@@ -38,6 +38,7 @@ from ..utils.service_helpers import (
     get_book_service,
     get_google_books_client,
     get_image_cache_service,
+    get_or_create_recommendation_service,
     get_translation_service,
     hash_client_ip,
     submit_background_task,
@@ -208,6 +209,7 @@ def _parse_awards_params(args) -> dict:
     """从请求参数中提取并校验 awards() 所需的查询条件"""
     selected_award = args.get('award', '')
     selected_year = args.get('year', '')
+    selected_category = args.get('category', '')
     search_query = args.get('search', '').strip()[:100]
     view_mode = args.get('view', 'grid')
     if view_mode not in ['grid', 'list']:
@@ -233,6 +235,7 @@ def _parse_awards_params(args) -> dict:
     return {
         'selected_award': selected_award,
         'selected_year': selected_year,
+        'selected_category': selected_category,
         'search_query': search_query,
         'view_mode': view_mode,
         'page': page,
@@ -244,6 +247,7 @@ def _load_awards_data(award_service, params: dict) -> dict:
     """加载 awards() 渲染所需的所有数据，返回模板上下文 dict（含分页元信息）"""
     awards_list: list = []
     years: list = []
+    categories: list = []
     books_data: list = []
     total_books = 0
 
@@ -260,6 +264,12 @@ def _load_awards_data(award_service, params: dict) -> dict:
         years = []
 
     try:
+        categories = award_service.get_distinct_categories()
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'类别列表查询失败: {e}', level='warning')
+        categories = []
+
+    try:
         award_id = None
         if params['selected_award']:
             award = award_service.get_award_by_name(params['selected_award'])
@@ -270,6 +280,7 @@ def _load_awards_data(award_service, params: dict) -> dict:
         books, total_books = award_service.get_award_books(
             award_id=award_id,
             year=year,
+            category=params['selected_category'] or None,
             keyword=params['search_query'] or None,
             include_displayable_only=True,
             page=params['page'],
@@ -332,8 +343,10 @@ def _load_awards_data(award_service, params: dict) -> dict:
         'awards': awards_list,
         'books': books_data,
         'years': years,
+        'categories': categories,
         'selected_award': params['selected_award'],
         'selected_year': params['selected_year'] if params['selected_year'] else None,
+        'selected_category': params['selected_category'] if params['selected_category'] else None,
         'search_query': params['search_query'],
         'view_mode': params['view_mode'],
         'total_books': total_books,
@@ -493,15 +506,48 @@ def about():
     return render_adaptive('about.html')
 
 
+# 静态出版社目录里,部分条目的英文名写法与新书速递数据库中的出版社记录不完全一致
+_PUBLISHER_DIRECTORY_ALIASES: dict[str, str] = {
+    'Hachette Book Group': 'Hachette',
+    'Pan Macmillan': 'Macmillan',
+}
+
+
+def _resolve_new_books_publisher_ids(publishers_data: list[dict], db_publishers: list) -> dict[str, int]:
+    """把静态出版社目录条目的 name_en 映射到新书速递数据库对应出版社的 id（仅对已抓取入库的出版社生效）"""
+    id_by_db_name_en = {pub.name_en: pub.id for pub in db_publishers}
+    result: dict[str, int] = {}
+    for cat in publishers_data:
+        for pub in cat['publishers']:
+            name_en = pub.get('name_en', '')
+            db_name_en = _PUBLISHER_DIRECTORY_ALIASES.get(name_en, name_en)
+            pub_id = id_by_db_name_en.get(db_name_en)
+            if pub_id is not None:
+                result[name_en] = pub_id
+    return result
+
+
 @main_bp.route('/publishers')
 def publishers():
     """出版社导航页面"""
+    from ..services.new_book_service import NewBookService
+
     total_publishers = sum(len(cat['publishers']) for cat in PUBLISHERS_DATA)
+
+    try:
+        service = NewBookService(translation_service=get_translation_service())
+        new_books_publisher_ids = _resolve_new_books_publisher_ids(
+            PUBLISHERS_DATA, service.get_publishers(active_only=True)
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'出版社跳转链接匹配失败: {e}', level='warning')
+        new_books_publisher_ids = {}
 
     return render_adaptive(
         'publishers.html',
         publishers_data=PUBLISHERS_DATA,
         total_publishers=total_publishers,
+        new_books_publisher_ids=new_books_publisher_ids,
         active_tab='publisher',
     )
 
@@ -571,11 +617,21 @@ def award_book_detail(book_id):
             safe_title_en = display_title
             safe_title_zh = display_title
 
+        try:
+            recommendation_service = get_or_create_recommendation_service()
+            related_books = recommendation_service.get_similarity_recommendations(book_id=book.id).get(
+                'recommendations', []
+            )
+        except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'相关获奖图书推荐加载失败 book_id={book_id}: {e}', level='warning')
+            related_books = []
+
         return render_adaptive(
             'award_book_detail.html',
             book=book,
             safe_title_en=safe_title_en or display_title,
             safe_title_zh=safe_title_zh or safe_title_en,
+            related_books=related_books,
             back_url=request.referrer or '/awards',
         )
     else:

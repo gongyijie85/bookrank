@@ -523,3 +523,60 @@ class TestNewBookService:
         assert result['language_pack']['pack_writes'] == 1
         assert saved['books']['9780000000002']['title_zh'] == '测试新书名'
         assert saved['books']['9780000000002']['description_zh'] == '测试新书简介'
+
+
+class TestNewBookFreshnessBadge:
+    """NewBook.to_dict() 新增基于出版日期的「刚上市」判定字段（7 天口径,与新书速递的"最近7天出版"筛选一致）"""
+
+    @pytest.fixture
+    def publisher(self, app, db):
+        with app.app_context():
+            pub = Publisher(name='测试出版社', name_en='Test Publisher', crawler_class='TestCrawler')
+            db.session.add(pub)
+            db.session.commit()
+            return pub.id
+
+    def _make_book(self, publisher_id, isbn13, publication_date):
+        return NewBook(
+            publisher_id=publisher_id,
+            title='Test Book',
+            author='Test Author',
+            isbn13=isbn13,
+            category='Fiction',
+            publication_date=publication_date,
+        )
+
+    def test_recent_publication_is_marked_fresh(self, app, db, publisher):
+        with app.app_context():
+            book = self._make_book(publisher, '9780000000301', date.today() - timedelta(days=3))
+            db.session.add(book)
+            db.session.commit()
+            assert book.to_dict()['is_recently_published'] is True
+
+    def test_old_publication_is_not_marked_fresh(self, app, db, publisher):
+        with app.app_context():
+            book = self._make_book(publisher, '9780000000302', date.today() - timedelta(days=30))
+            db.session.add(book)
+            db.session.commit()
+            assert book.to_dict()['is_recently_published'] is False
+
+    def test_boundary_at_exactly_seven_days_is_fresh(self, app, db, publisher):
+        with app.app_context():
+            book = self._make_book(publisher, '9780000000303', date.today() - timedelta(days=7))
+            db.session.add(book)
+            db.session.commit()
+            assert book.to_dict()['is_recently_published'] is True
+
+    def test_boundary_at_eight_days_is_not_fresh(self, app, db, publisher):
+        with app.app_context():
+            book = self._make_book(publisher, '9780000000304', date.today() - timedelta(days=8))
+            db.session.add(book)
+            db.session.commit()
+            assert book.to_dict()['is_recently_published'] is False
+
+    def test_missing_publication_date_is_not_fresh(self, app, db, publisher):
+        with app.app_context():
+            book = self._make_book(publisher, '9780000000305', None)
+            db.session.add(book)
+            db.session.commit()
+            assert book.to_dict()['is_recently_published'] is False

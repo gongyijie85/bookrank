@@ -157,6 +157,31 @@
     </div>
 </div>
 
+{% if related_books %}
+<section class="related-award-books" aria-label="{{ _('相关获奖图书') }}">
+    <h2 class="related-books-title">{{ _('相关获奖图书') }}</h2>
+    <div class="related-books-grid">
+        {% for related in related_books %}
+        {% set related_title_en = related.title %}
+        {% set related_title_zh = related.title_zh or related.title %}
+        <a href="{{ url_for('main.award_book_detail', book_id=related.id) }}" class="related-book-card">
+            <div class="related-book-cover">
+                {% if related.cover_url %}
+                <img src="{{ related.cover_url }}" alt="{{ related_title_zh }}" loading="lazy"
+                     onerror="this.onerror=null;this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                {% else %}
+                <img src="{{ url_for('static', filename='default-cover.png') }}" alt="{{ related_title_zh }}" loading="lazy">
+                {% endif %}
+            </div>
+            <div class="related-book-title" data-en="{{ related_title_en }}" data-zh="{{ related_title_zh }}">{{ related_title_zh }}</div>
+            <div class="related-book-author" data-en="{{ related.author }}" data-zh="{{ related.author }}">{{ related.author }}</div>
+            {% if related.year %}<div class="related-book-year">{{ related.year }}{{ _('年') }}</div>{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 <script nonce="{{ csp_nonce() }}">
     // {{ _('标签页切换') }}
     function switchTab(tabName) {
@@ -278,6 +303,63 @@
     display: flex;
     gap: 2rem;
     align-items: flex-start;
+}
+
+/* {{ _('相关获奖图书') }} */
+.related-award-books {
+    margin-top: 2.5rem;
+}
+
+.related-books-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 1.25rem;
+}
+
+.related-books-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1.25rem;
+}
+
+.related-book-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.related-book-cover {
+    aspect-ratio: 2/3;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+
+.related-book-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.related-book-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.related-book-author,
+.related-book-year {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
 }
 
 /* {{ _('左侧') }}：{{ _('封面') }} + {{ _('购买链接') }} */
