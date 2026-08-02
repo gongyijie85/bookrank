@@ -258,7 +258,8 @@ def search_new_books():
         return APIResponse.success(
             data={
                 'keyword': keyword,
-                'books': [b.to_dict() for b in books],
+                # 独立搜索端点不驱动新书速递卡片徽章,不携带"刚上市"判定字段
+                'books': [b.to_dict(include_freshness=False) for b in books],
                 'pagination': {
                     'page': page,
                     'per_page': per_page,

@@ -12,15 +12,26 @@
 </header>
 {% endblock %}
 
+{% macro awards_filter_url(award=none, year=none, category=none) %}
+{%- set _award = award if award is not none else selected_award -%}
+{%- set _year = year if year is not none else selected_year -%}
+{%- set _category = category if category is not none else selected_category -%}
+{%- set parts = [] -%}
+{%- if _award %}{% set _ = parts.append('award=' ~ (_award | urlencode)) %}{% endif -%}
+{%- if _year %}{% set _ = parts.append('year=' ~ _year) %}{% endif -%}
+{%- if _category %}{% set _ = parts.append('category=' ~ (_category | urlencode)) %}{% endif -%}
+/awards{% if parts %}?{{ parts | join('&') }}{% endif %}
+{%- endmacro %}
+
 {% block content %}
 {% set _locale = get_locale() %}
 
 <!-- 奖项筛选（横向滑动） -->
 <section class="m-cat-tabs" aria-label="奖项筛选">
     <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="/awards{% if selected_category %}?category={{ selected_category | urlencode }}{% endif %}" class="m-cat-tab {% if not selected_award %}active{% endif %}">全部</a>
+        <a href="{{ awards_filter_url(award='') }}" class="m-cat-tab {% if not selected_award %}active{% endif %}">全部</a>
         {% for award in awards %}
-        <a href="/awards?award={{ award.name | urlencode }}{% if selected_year %}&year={{ selected_year }}{% endif %}{% if selected_category %}&category={{ selected_category | urlencode }}{% endif %}"
+        <a href="{{ awards_filter_url(award=award.name) }}"
            class="m-cat-tab {% if selected_award == award.name %}active{% endif %}">
             {{ award.name }}
             <span class="m-cat-tab-count">{{ award.book_count }}</span>
@@ -33,9 +44,9 @@
 {% if categories %}
 <section class="m-cat-tabs" aria-label="类别筛选">
     <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="/awards?{% if selected_award %}award={{ selected_award | urlencode }}{% endif %}{% if selected_award and selected_year %}&{% endif %}{% if selected_year %}year={{ selected_year }}{% endif %}" class="m-cat-tab {% if not selected_category %}active{% endif %}">全部类别</a>
+        <a href="{{ awards_filter_url(category='') }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">全部类别</a>
         {% for category in categories %}
-        <a href="/awards?category={{ category | urlencode }}{% if selected_award %}&award={{ selected_award | urlencode }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+        <a href="{{ awards_filter_url(category=category) }}"
            class="m-cat-tab {% if selected_category == category %}active{% endif %}">
             {{ category }}
         </a>

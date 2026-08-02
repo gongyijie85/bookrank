@@ -145,7 +145,7 @@ class NewBook(db.Model):
         days_since = (date.today() - self.publication_date).days
         return 0 <= days_since <= self.RECENTLY_PUBLISHED_WITHIN_DAYS
 
-    def to_dict(self, include_zh: bool = True) -> dict[str, Any]:
+    def to_dict(self, include_zh: bool = True, include_freshness: bool = True) -> dict[str, Any]:
         """转换为字典"""
         from ..utils import quick_clean_translation
 
@@ -163,7 +163,6 @@ class NewBook(db.Model):
             'cover_local': self.cover_local,
             'category': self.category,
             'publication_date': self.publication_date.isoformat() if self.publication_date else None,
-            'is_recently_published': self.is_recently_published,
             'price': self.price,
             'page_count': self.page_count,
             'language': self.language,
@@ -173,6 +172,9 @@ class NewBook(db.Model):
             'is_displayable': self.is_displayable,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+        if include_freshness:
+            data['is_recently_published'] = self.is_recently_published
 
         if include_zh:
             data.update(

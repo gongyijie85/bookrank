@@ -173,6 +173,31 @@ class TestMobileAwardsRoute:
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
 
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_mobile_awards_filter_links_preserve_other_dimensions(self, MockAwardService, client) -> None:
+        """移动端奖项页,清除某一维度筛选的链接应完整保留其余两个维度"""
+        mock_award = MagicMock()
+        mock_award.id = 1
+        mock_award.name = 'TestAward'
+        mock_award.book_count = 0
+        mock_svc = MagicMock()
+        mock_svc.get_all_awards.return_value = [mock_award]
+        mock_svc.get_distinct_years.return_value = [2024]
+        mock_svc.get_distinct_categories.return_value = ['Fiction']
+        mock_svc.get_award_by_name.return_value = mock_award
+        mock_svc.get_award_books.return_value = ([], 0)
+        mock_svc.get_book_counts_by_award.return_value = {1: 0}
+        MockAwardService.return_value = mock_svc
+
+        resp = client.get('/awards?award=TestAward&year=2024&category=Fiction', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+
+        # "全部"（清除奖项）应保留 year 与 category
+        assert 'href="/awards?year=2024&amp;category=Fiction"' in html
+        # "全部类别"（清除类别）应保留 award 与 year
+        assert 'href="/awards?award=TestAward&amp;year=2024"' in html
+
 
 class TestMobileSearchRoute:
     """搜索页移动端渲染"""

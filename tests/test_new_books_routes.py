@@ -218,6 +218,35 @@ class TestSearchEndpointFilters:
         response = client.get('/api/new-books/search?keyword=test')
         assert response.status_code in (200, 500)
 
+    def test_search_response_excludes_freshness_field(self, app, db, client):
+        """独立的 /api/new-books/search 端点不携带 is_recently_published 字段（该字段只服务于列表卡片徽章）"""
+        from datetime import date
+
+        from app.models.new_book import NewBook, Publisher
+
+        with app.app_context():
+            publisher = Publisher(name='测试出版社', name_en='Test Publisher', crawler_class='TestCrawler')
+            db.session.add(publisher)
+            db.session.commit()
+
+            book = NewBook(
+                publisher_id=publisher.id,
+                title='Freshness Search Target',
+                author='Test Author',
+                isbn13='9780000000401',
+                category='Fiction',
+                publication_date=date.today(),
+            )
+            db.session.add(book)
+            db.session.commit()
+
+        response = client.get('/api/new-books/search?keyword=Freshness')
+        assert response.status_code == 200
+        body = response.get_json()
+        books = body['data']['books']
+        assert len(books) >= 1
+        assert all('is_recently_published' not in b for b in books)
+
 
 class TestStatistics30d:
     """v0.9.68: get_statistics 返回 recent_books_30d"""
