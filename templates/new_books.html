@@ -401,7 +401,15 @@ function loadBooks(queryString) {
         Array(8).fill('<div class="skeleton-card"><div class="skeleton-cover"></div><div class="skeleton-text"></div><div class="skeleton-text short"></div></div>').join('') +
         '</div></div>';
 
-    const url = '/api/new-books?' + queryString;
+    // 页面 URL 沿用 publisher（与 /new-books 页面路由、出版社跳转链接一致），
+    // 但 /api/new-books 的 Pydantic 查询模型只认 publisher_id，此处单点转换。
+    const apiParams = new URLSearchParams(queryString);
+    const publisherValue = apiParams.get('publisher');
+    if (publisherValue) {
+        apiParams.delete('publisher');
+        apiParams.set('publisher_id', publisherValue);
+    }
+    const url = '/api/new-books?' + apiParams.toString();
 
     fetch(url)
         .then(response => response.json())
