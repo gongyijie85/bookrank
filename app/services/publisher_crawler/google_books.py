@@ -15,12 +15,13 @@ API文档: https://developers.google.com/books/docs/v1/getting_started
 
 import logging
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
+from ..publisher_data import parse_static_date
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,11 @@ class GoogleBooksCrawler(BaseCrawler):
     CRAWLER_CLASS_NAME = 'GoogleBooksCrawler'
 
     BASE_URL = 'https://www.googleapis.com/books/v1/volumes'
+
+    # "新书"窗口：默认只保留最近半年内出版的书。Google Books 没有可靠的
+    # "首次出版日期"字段，粗粒度的"近2-3年"窗口会把经典作品的重印/新版
+    # 当成新书返回，缩到按天计算的窗口能显著减少这种误判。
+    RECENCY_WINDOW_DAYS = 180
 
     SUBJECT_MAP = {
         'fiction': '小说',
@@ -157,17 +163,15 @@ class GoogleBooksCrawler(BaseCrawler):
         Args:
             category: 分类主题
             max_books: 最大数量
-            year_from: 出版年份起（用于筛选新书，默认近2年）
+            year_from: 出版年份起（可选，覆盖默认的滚动天数窗口）
         """
         subject = category or 'fiction'
-        current_year = datetime.now().year
-        min_year = year_from or (current_year - 2)
+        cutoff_date = self._compute_cutoff_date(year_from)
 
         logger.info(
-            '正在从 Google Books 获取 %s 类新书 (%s-%s)...',
+            '正在从 Google Books 获取 %s 类新书 (>= %s)...',
             subject,
-            min_year,
-            current_year,
+            cutoff_date.isoformat(),
         )
 
         self._validate_api_key()
@@ -237,7 +241,7 @@ class GoogleBooksCrawler(BaseCrawler):
                 volume_info = item.get('volumeInfo', {})
                 published_date = volume_info.get('publishedDate', '')
 
-                if not self._is_recent_book(published_date, min_year):
+                if not self._is_recent_book(published_date, cutoff_date):
                     continue
 
                 book_info = self._parse_volume_info(volume_info, subject)
@@ -253,28 +257,40 @@ class GoogleBooksCrawler(BaseCrawler):
 
         if collected == 0:
             logger.warning(
-                'Google Books 未找到 %s 年后的 %s 类书籍',
-                min_year,
+                'Google Books 未找到 %s 之后的 %s 类书籍',
+                cutoff_date.isoformat(),
                 subject,
             )
         else:
             logger.info('Google Books 共获取 %s 本 %s 类新书', collected, subject)
 
-    @staticmethod
-    def _is_recent_book(published_date: str, min_year: int) -> bool:
-        """判断书籍是否为近期出版（排除未来占位日期和过旧书籍）"""
-        if not published_date:
-            return True
+    @classmethod
+    def _compute_cutoff_date(cls, year_from: int | None) -> date:
+        """计算"新书"截止日期：显式传 year_from 时按该年1月1日算，否则用
+        RECENCY_WINDOW_DAYS 滚动窗口（比粗粒度的"近几年"精确得多）。"""
+        if year_from:
+            return date(year_from, 1, 1)
+        return datetime.now().date() - timedelta(days=cls.RECENCY_WINDOW_DAYS)
 
-        try:
-            year = int(published_date[:4])
-            current_year = datetime.now().year
-            # 过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）
-            if year > current_year + 1:
-                return False
-            return year >= min_year
-        except (ValueError, IndexError):
-            return True
+    @staticmethod
+    def _is_recent_book(published_date: str, cutoff_date: date) -> bool:
+        """判断书籍是否为近期出版（排除未来占位日期、过旧书籍和日期缺失的书籍）
+
+        日期缺失或无法解析时保守拒绝：无法确认"新"就不能当新书展示，
+        宁可漏掉少数元数据不全的书，也不能把无法验证时间的书混进新书速递。
+        """
+        if not published_date:
+            return False
+
+        parsed = parse_static_date(published_date)
+        if parsed is None:
+            return False
+
+        today = datetime.now().date()
+        # 过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）
+        if parsed > today + timedelta(days=365):
+            return False
+        return parsed >= cutoff_date
 
     def _parse_volume_info(self, volume_info: dict, default_category: str) -> BookInfo | None:
         """解析 Google Books 卷信息"""

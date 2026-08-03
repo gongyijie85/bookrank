@@ -353,7 +353,7 @@ function applyFilter(overrideKey, overrideValue) {
 
     if (publisher) params.set('publisher', publisher);
     if (category) params.set('category', category);
-    if (days && days !== '30') params.set('days', days);
+    if (days) params.set('days', days);
     if (search) params.set('search', search);
     params.set('page', '1');
 
@@ -371,7 +371,7 @@ function goToPage(page) {
 
     if (publisher) params.set('publisher', publisher);
     if (category) params.set('category', category);
-    if (days && days !== '30') params.set('days', days);
+    if (days) params.set('days', days);
     if (search) params.set('search', search);
     params.set('page', String(page));
 
@@ -390,7 +390,7 @@ function loadBooks(queryString) {
         const search = document.getElementById('search-input').value.trim();
         if (publisher) params.set('publisher', publisher);
         if (category) params.set('category', category);
-        if (days && days !== '30') params.set('days', days);
+        if (days) params.set('days', days);
         if (search) params.set('search', search);
         params.set('page', String(currentPage || 1));
         queryString = params.toString();

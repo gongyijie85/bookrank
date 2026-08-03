@@ -110,7 +110,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
     def _query_imprint(
         self,
         imprint: str,
-        min_year: int,
+        cutoff_date: date,
         max_results: int,
     ) -> Generator[BookInfo]:
         """
@@ -118,7 +118,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
 
         Args:
             imprint: 印记名称（如 "St. Martin's Press"）
-            min_year: 最早出版年份
+            cutoff_date: 新书截止日期
             max_results: 最大返回数
         """
         self._validate_api_key()
@@ -175,7 +175,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 volume_info = item.get('volumeInfo', {})
                 published_date = volume_info.get('publishedDate', '')
 
-                if not self._is_recent_book(published_date, min_year):
+                if not self._is_recent_book(published_date, cutoff_date):
                     continue
 
                 book = self._parse_volume_info(volume_info, 'general')
@@ -318,11 +318,15 @@ class MacmillanCrawler(GoogleBooksCrawler):
         return None
 
     @staticmethod
-    def _is_book_recent(book: BookInfo, min_year: int) -> bool:
-        """检查 BookInfo 的出版年份是否 >= min_year"""
+    def _is_book_recent(book: BookInfo, cutoff_date: date) -> bool:
+        """检查 BookInfo 的出版日期是否 >= cutoff_date
+
+        无日期信息时保守拒绝：无法确认"新"就不能当新书展示（与
+        GoogleBooksCrawler._is_recent_book 的策略保持一致）。
+        """
         if not book.publication_date:
-            return True  # 无日期信息，默认放行
-        return book.publication_date.year >= min_year
+            return False
+        return book.publication_date >= cutoff_date
 
     # ------------------------------------------------------------------ #
     #  主入口：两路合并
@@ -344,15 +348,14 @@ class MacmillanCrawler(GoogleBooksCrawler):
         Args:
             category: 分类（未使用，保持接口兼容）
             max_books: 最大返回数量
-            year_from: 最早出版年份（默认近2年）
+            year_from: 出版年份起（可选，覆盖默认的滚动天数窗口）
         """
-        current_year = datetime.now().year
-        min_year = year_from or (current_year - 2)
+        cutoff_date = self._compute_cutoff_date(year_from)
 
         logger.info(
-            '正在获取 %s 的新书（多印记查询 + Sitemap 补充，年份 >= %d）...',
+            '正在获取 %s 的新书（多印记查询 + Sitemap 补充，>= %s）...',
             self.PUBLISHER_NAME_EN,
-            min_year,
+            cutoff_date.isoformat(),
         )
 
         seen_isbns: set[str] = set()
@@ -365,7 +368,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
             if count >= max_books:
                 break
 
-            for book in self._query_imprint(imprint, min_year, per_imprint_limit):
+            for book in self._query_imprint(imprint, cutoff_date, per_imprint_limit):
                 if count >= max_books:
                     break
                 isbn_key = book.isbn13 or book.isbn10 or book.title
@@ -401,8 +404,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 if not book:
                     continue
 
-                # 年份过滤（修复：使用 min_year 而非 year_from）
-                if not self._is_book_recent(book, min_year):
+                if not self._is_book_recent(book, cutoff_date):
                     continue
 
                 isbn_key = book.isbn13 or isbn

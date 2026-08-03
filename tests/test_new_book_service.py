@@ -43,6 +43,37 @@ class TestNewBookService:
         assert count > 0
         assert Publisher.query.count() >= count
 
+    def test_init_publishers_seeds_unreliable_sources_as_inactive(self, new_book_service, db):
+        """Google Books(通用关键词搜索) 和 Open Library 实测数据质量不可靠，
+        全新部署时应该以停用状态创建，不需要管理员事后手动关掉。"""
+        new_book_service.init_publishers()
+
+        google_books = Publisher.query.filter_by(name_en='Google Books').first()
+        open_library = Publisher.query.filter_by(name_en='Open Library').first()
+
+        assert google_books is not None
+        assert google_books.is_active is False
+        assert open_library is not None
+        assert open_library.is_active is False
+
+    def test_init_publishers_does_not_override_existing_row_active_state(self, new_book_service, db):
+        """已存在的出版社行不应该被 init_publishers() 静默改动 is_active——
+        管理员通过 update_publisher_status 手动切换过的状态要保留。"""
+        existing = Publisher(
+            name='Google Books',
+            name_en='Google Books',
+            website='https://books.google.com',
+            crawler_class='GoogleBooksCrawler',
+            is_active=True,
+        )
+        db.session.add(existing)
+        db.session.commit()
+
+        new_book_service.init_publishers()
+
+        refreshed = Publisher.query.filter_by(name_en='Google Books').first()
+        assert refreshed.is_active is True
+
     def test_seed_from_static_data(self, new_book_service, db, tmp_path):
         """测试从静态新书 JSON 兜底导入"""
         static_file = tmp_path / 'google_books_books.json'
@@ -490,7 +521,9 @@ class TestNewBookService:
         service = NewBookService(translation_service=mock_translator, language_pack_path=pack_path)
         service.init_publishers()
 
-        publisher = Publisher.query.first()
+        # 用启用中的出版社：Google Books/Open Library 默认停用，
+        # 用它们会在同步前就因"出版社已禁用"短路返回
+        publisher = Publisher.query.filter_by(is_active=True).first()
         assert publisher is not None
 
         mock_crawler = Mock()

@@ -35,7 +35,7 @@ class PublisherManager:
                     name_en=pub_data['name_en'],
                     website=pub_data['website'],
                     crawler_class=pub_data['crawler_class'],
-                    is_active=True,
+                    is_active=pub_data.get('is_active', True),
                 )
 
                 db.session.add(publisher)

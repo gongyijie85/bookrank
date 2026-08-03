@@ -8,7 +8,7 @@ rss_crawler, mixed_crawl4ai_crawler 的核心逻辑。
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -554,6 +554,7 @@ class TestGoogleBooksCrawler:
 
     def test_get_new_books_success(self):
         c = self._make()
+        recent_date = (date.today() - timedelta(days=10)).isoformat()
         data = {
             'items': [
                 {
@@ -566,7 +567,7 @@ class TestGoogleBooksCrawler:
                         ],
                         'imageLinks': {'thumbnail': 'http://img.jpg'},
                         'categories': ['Fiction'],
-                        'publishedDate': '2025-01-01',
+                        'publishedDate': recent_date,
                         'pageCount': 300,
                         'language': 'en',
                     },

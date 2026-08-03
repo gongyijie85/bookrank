@@ -260,25 +260,85 @@ class TestGoogleBooksParsing:
 
         self.crawler = GoogleBooksCrawler()
 
-    def test_is_recent_book_current_year(self):
+    def test_is_recent_book_within_cutoff(self):
+        from datetime import date, timedelta
+
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        assert GoogleBooksCrawler._is_recent_book('2025-01-01', 2024) is True
+        cutoff = date.today() - timedelta(days=180)
+        recent = (date.today() - timedelta(days=10)).isoformat()
+        assert GoogleBooksCrawler._is_recent_book(recent, cutoff) is True
 
-    def test_is_recent_book_old(self):
+    def test_is_recent_book_before_cutoff(self):
+        from datetime import date, timedelta
+
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        assert GoogleBooksCrawler._is_recent_book('2020-01-01', 2024) is False
+        cutoff = date.today() - timedelta(days=180)
+        old = (date.today() - timedelta(days=200)).isoformat()
+        assert GoogleBooksCrawler._is_recent_book(old, cutoff) is False
 
-    def test_is_recent_book_empty(self):
+    def test_is_recent_book_empty_is_rejected(self):
+        """v0.9.7x: 日期缺失时保守拒绝——无法确认"新"就不能当新书展示，
+        避免大量无出版日期的书混进新书速递（此前的宽松放行是脏数据的主因之一）。"""
+        from datetime import date, timedelta
+
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        assert GoogleBooksCrawler._is_recent_book('', 2024) is True
+        cutoff = date.today() - timedelta(days=180)
+        assert GoogleBooksCrawler._is_recent_book('', cutoff) is False
 
-    def test_is_recent_book_invalid(self):
+    def test_is_recent_book_invalid_is_rejected(self):
+        from datetime import date, timedelta
+
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        assert GoogleBooksCrawler._is_recent_book('invalid', 2024) is True
+        cutoff = date.today() - timedelta(days=180)
+        assert GoogleBooksCrawler._is_recent_book('invalid', cutoff) is False
+
+    def test_is_recent_book_far_future_placeholder_rejected(self):
+        """过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）"""
+        from datetime import date, timedelta
+
+        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
+
+        cutoff = date.today() - timedelta(days=180)
+        far_future = (date.today() + timedelta(days=400)).isoformat()
+        assert GoogleBooksCrawler._is_recent_book(far_future, cutoff) is False
+
+    def test_is_recent_book_year_only_recent(self):
+        """年份精度的日期（如 "2026"）按当年1月1日处理"""
+        from datetime import date
+
+        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
+
+        cutoff = date(date.today().year, 1, 1)
+        assert GoogleBooksCrawler._is_recent_book(str(date.today().year), cutoff) is True
+
+    def test_is_recent_book_year_only_old(self):
+        from datetime import date
+
+        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
+
+        cutoff = date(date.today().year, 1, 1)
+        assert GoogleBooksCrawler._is_recent_book(str(date.today().year - 3), cutoff) is False
+
+    def test_compute_cutoff_date_with_year_from(self):
+        from datetime import date
+
+        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
+
+        assert GoogleBooksCrawler._compute_cutoff_date(2020) == date(2020, 1, 1)
+
+    def test_compute_cutoff_date_default_window(self):
+        """未显式指定 year_from 时，用滚动天数窗口而不是粗粒度的"近几年"，
+        默认窗口足够窄，才能配得上"新书速递"这个名字。"""
+        from datetime import date, timedelta
+
+        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
+
+        expected = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
+        assert GoogleBooksCrawler._compute_cutoff_date(None) == expected
 
     def test_parse_volume_info_complete(self):
         volume = {
@@ -312,6 +372,41 @@ class TestGoogleBooksParsing:
     def test_parse_volume_info_no_title(self):
         result = self.crawler._parse_volume_info({}, 'fiction')
         assert result is None
+
+
+class TestMacmillanRecencyCheck:
+    """MacmillanCrawler._is_book_recent — Sitemap 补充路径的日期过滤"""
+
+    def test_within_cutoff_is_recent(self):
+        from datetime import date, timedelta
+
+        from app.services.publisher_crawler.base_crawler import BookInfo
+        from app.services.publisher_crawler.macmillan import MacmillanCrawler
+
+        cutoff = date.today() - timedelta(days=180)
+        book = BookInfo(title='T', author='A', publication_date=date.today() - timedelta(days=10))
+        assert MacmillanCrawler._is_book_recent(book, cutoff) is True
+
+    def test_before_cutoff_is_not_recent(self):
+        from datetime import date, timedelta
+
+        from app.services.publisher_crawler.base_crawler import BookInfo
+        from app.services.publisher_crawler.macmillan import MacmillanCrawler
+
+        cutoff = date.today() - timedelta(days=180)
+        book = BookInfo(title='T', author='A', publication_date=date.today() - timedelta(days=200))
+        assert MacmillanCrawler._is_book_recent(book, cutoff) is False
+
+    def test_missing_date_is_rejected(self):
+        """v0.9.7x: 无出版日期时保守拒绝，不再默认放行"""
+        from datetime import date, timedelta
+
+        from app.services.publisher_crawler.base_crawler import BookInfo
+        from app.services.publisher_crawler.macmillan import MacmillanCrawler
+
+        cutoff = date.today() - timedelta(days=180)
+        book = BookInfo(title='T', author='A', publication_date=None)
+        assert MacmillanCrawler._is_book_recent(book, cutoff) is False
 
 
 class TestOpenLibraryParsing:

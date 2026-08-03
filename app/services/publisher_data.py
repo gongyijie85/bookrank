@@ -14,18 +14,23 @@ logger = logging.getLogger(__name__)
 
 # ==================== 出版社定义 ====================
 
-DEFAULT_PUBLISHERS: list[dict[str, str]] = [
+DEFAULT_PUBLISHERS: list[dict[str, str | bool]] = [
     {
         'name': 'Google Books',
         'name_en': 'Google Books',
         'website': 'https://books.google.com',
         'crawler_class': 'GoogleBooksCrawler',
+        # 通用关键词搜索，不限定出版社，实测会把公版经典的重印版当新书返回
+        # （如1926年的《罗杰疑案》、1871年的《米德尔马契》），默认不启用。
+        'is_active': False,
     },
     {
         'name': 'Open Library',
         'name_en': 'Open Library',
         'website': 'https://openlibrary.org',
         'crawler_class': 'OpenLibraryCrawler',
+        # 实测直接不返回任何结果，默认不启用。
+        'is_active': False,
     },
     {
         'name': '企鹅兰登',
@@ -125,21 +130,9 @@ VALID_CATEGORIES: set[str] = {
 # 旧爬虫 -> 新爬虫的迁移映射
 CRAWLER_MIGRATION: dict[str, str] = {
     'SimonSchusterCrawler': 'SimonSchusterGoogleCrawler',
-    'HachetteCrawler': 'HachetteCrawler',
-    'HarperCollinsCrawler': 'HarperCollinsCrawler',
-    'MacmillanCrawler': 'MacmillanCrawler',
     'HachetteGoogleCrawler': 'HachetteCrawler',
     'HarperCollinsGoogleCrawler': 'HarperCollinsCrawler',
     'MacmillanGoogleCrawler': 'MacmillanCrawler',
-}
-
-# Google Books 搜索爬虫列表
-GOOGLE_BOOKS_CRAWLERS: set[str] = {
-    'GoogleBooksCrawler',
-    'PenguinRandomHouseCrawler',
-    'SimonSchusterGoogleCrawler',
-    'HarperCollinsCrawler',
-    'MacmillanCrawler',
 }
 
 # 营销关键词过滤（_sanitize_category 使用）

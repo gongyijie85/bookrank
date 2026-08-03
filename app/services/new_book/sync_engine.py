@@ -27,6 +27,7 @@ class SyncEngine:
         'HarperCollinsGoogleCrawler',
         'MacmillanGoogleCrawler',
         'MacmillanCrawler',
+        'PenguinRandomHouseCrawler',
     }
 
     def __init__(self, publisher_manager: PublisherManager, translation_pipeline: TranslationPipeline) -> None:

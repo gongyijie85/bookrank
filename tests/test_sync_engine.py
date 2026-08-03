@@ -79,7 +79,11 @@ class TestSyncEngineInit:
     def test_google_books_crawlers_set(self, engine):
         assert 'GoogleBooksCrawler' in engine._GOOGLE_BOOKS_CRAWLERS
         assert 'MacmillanCrawler' in engine._GOOGLE_BOOKS_CRAWLERS
-        assert len(engine._GOOGLE_BOOKS_CRAWLERS) == 6
+        # PenguinRandomHouseCrawler 继承自 GoogleBooksCrawler（见
+        # app/services/publisher_crawler/penguin_random_house.py），同步时
+        # 也需要拿到 GOOGLE_API_KEY，否则只能用匿名限流额度。
+        assert 'PenguinRandomHouseCrawler' in engine._GOOGLE_BOOKS_CRAWLERS
+        assert len(engine._GOOGLE_BOOKS_CRAWLERS) == 7
 
 
 class TestSyncPublisherBooks:
@@ -417,6 +421,16 @@ class TestGetCrawler:
         mock_get_cls.return_value = mock_crawler_cls
         app_context.config['GOOGLE_API_KEY'] = 'test-google-key'
         engine.get_crawler('GoogleBooksCrawler')
+        mock_crawler_cls.assert_called_once()
+        call_args = mock_crawler_cls.call_args
+        assert call_args[0][0].api_key == 'test-google-key'
+
+    @patch('app.services.new_book.sync_engine.get_crawler_class')
+    def test_penguin_random_house_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
+        mock_crawler_cls = MagicMock()
+        mock_get_cls.return_value = mock_crawler_cls
+        app_context.config['GOOGLE_API_KEY'] = 'test-google-key'
+        engine.get_crawler('PenguinRandomHouseCrawler')
         mock_crawler_cls.assert_called_once()
         call_args = mock_crawler_cls.call_args
         assert call_args[0][0].api_key == 'test-google-key'

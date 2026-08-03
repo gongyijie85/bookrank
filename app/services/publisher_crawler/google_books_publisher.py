@@ -14,7 +14,6 @@ API 文档: https://developers.google.com/books/docs/v1/reference/volumes/list
 
 import logging
 from collections.abc import Generator
-from datetime import datetime
 
 from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BookInfo, CrawlerConfig
@@ -58,19 +57,17 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
         Args:
             category: 未使用（保持接口兼容）
             max_books: 最大获取数量
-            year_from: 出版年份起（默认近3年）
+            year_from: 出版年份起（可选，覆盖默认的滚动天数窗口）
 
         Yields:
             BookInfo 对象
         """
-        current_year = datetime.now().year
-        min_year = year_from or (current_year - 3)
+        cutoff_date = self._compute_cutoff_date(year_from)
 
         logger.info(
-            '正在从 Google Books 搜索 %s 的新书 (%s-%s)...',
+            '正在从 Google Books 搜索 %s 的新书 (>= %s)...',
             self.PUBLISHER_NAME_EN,
-            min_year,
-            current_year,
+            cutoff_date.isoformat(),
         )
 
         self._validate_api_key()
@@ -143,7 +140,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     volume_info = item.get('volumeInfo', {})
                     published_date = volume_info.get('publishedDate', '')
 
-                    if not self._is_recent_book(published_date, min_year):
+                    if not self._is_recent_book(published_date, cutoff_date):
                         continue
 
                     # 去重：用 ISBN 或标题
@@ -168,9 +165,9 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
 
         if collected == 0:
             logger.warning(
-                'Google Books 未找到 %s 的 %s 年后新书',
+                'Google Books 未找到 %s 的 %s 之后新书',
                 self.PUBLISHER_NAME_EN,
-                min_year,
+                cutoff_date.isoformat(),
             )
         else:
             logger.info(

@@ -497,6 +497,66 @@ class TestNewBooksPage:
         assert response.status_code == 200
         mock_svc.search_books.assert_called_once()
 
+    def test_new_books_ssr_card_shows_freshness_badge(self, client, app, db):
+        """首屏 SSR 渲染的卡片也应该有"刚上市"徽章，和 AJAX 局部刷新保持一致"""
+        from datetime import date
+
+        from app.models.new_book import NewBook, Publisher
+
+        with app.app_context():
+            publisher = Publisher(name='测试出版社', name_en='SSR Test Publisher', crawler_class='TestCrawler')
+            db.session.add(publisher)
+            db.session.commit()
+
+            book = NewBook(
+                publisher_id=publisher.id,
+                title='Freshly Published Book',
+                author='Test Author',
+                isbn13='9780000000501',
+                category='Fiction',
+                publication_date=date.today(),
+                is_displayable=True,
+            )
+            db.session.add(book)
+            db.session.commit()
+
+        response = client.get('/new-books?days=365')
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        # 只检查 #books-container 内服务端渲染出的卡片标记本身；书页内联的
+        # <script> 源码也含有同样的 class 名字符串，不能作为渲染证据（会造成假阳性）。
+        rendered_markup = html.split('id="books-container"', 1)[1].split('<script', 1)[0]
+        assert 'books-grid' in rendered_markup
+        assert 'tag-new' in rendered_markup
+
+    def test_new_books_ssr_card_shows_muted_placeholders_for_missing_info(self, client, app, db):
+        """分类/出版日期缺失时，首屏卡片应显示占位标签，而不是整段不渲染"""
+        from app.models.new_book import NewBook, Publisher
+
+        with app.app_context():
+            publisher = Publisher(name='测试出版社', name_en='SSR Test Publisher 2', crawler_class='TestCrawler')
+            db.session.add(publisher)
+            db.session.commit()
+
+            book = NewBook(
+                publisher_id=publisher.id,
+                title='No Metadata Book',
+                author='Test Author',
+                isbn13='9780000000502',
+                category=None,
+                publication_date=None,
+                is_displayable=True,
+            )
+            db.session.add(book)
+            db.session.commit()
+
+        response = client.get('/new-books?days=365')
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        rendered_markup = html.split('id="books-container"', 1)[1].split('<script', 1)[0]
+        assert 'books-grid' in rendered_markup
+        assert 'tag-muted' in rendered_markup
+
 
 class TestNewBookDetail:
     @patch('app.services.new_book_service.NewBookService')

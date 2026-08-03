@@ -218,10 +218,17 @@
             <span class="book-price">{{ book.price }}</span>
             {% endif %}
         </div>
-        {% if book.category or book.publication_date %}
         <div class="book-tags">
+            {% if book.is_recently_published %}
+            <span class="book-tag tag-new">
+                <svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>
+                {{ _('刚上市') }}
+            </span>
+            {% endif %}
             {% if book.category %}
             <span class="book-tag tag-category">{{ book.category }}</span>
+            {% else %}
+            <span class="book-tag tag-category tag-muted">{{ _('分类未公开') }}</span>
             {% endif %}
             {% if book.publication_date %}
             {% set pub_date = book.publication_date.strftime('%Y-%m-%d') if book.publication_date is not string else book.publication_date[:10] %}
@@ -229,9 +236,13 @@
                 <svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>
                 {{ pub_date }}
             </span>
+            {% else %}
+            <span class="book-tag tag-date tag-muted">
+                <svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>
+                {{ _('日期未公开') }}
+            </span>
             {% endif %}
         </div>
-        {% endif %}
         {% if book.isbn13 %}
         <p class="book-isbn">{{ book.isbn13 }}</p>
         {% elif book.isbn10 %}

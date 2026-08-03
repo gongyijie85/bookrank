@@ -111,6 +111,7 @@ class NewBookListQuery(BaseModel):
 
     publisher_id: int | None = Field(default=None, ge=1)
     category: str | None = Field(default=None, max_length=100)
+    # 默认90天：列表页首屏是宽泛的"最近新书"浏览场景，需要有足够内容可看。
     days: int = Field(default=90, ge=1, le=365)
     search: str = Field(default='', max_length=100)
     page: int = Field(default=1, ge=1, le=10000)
@@ -123,6 +124,7 @@ class NewBookSearchQuery(BaseModel):
     keyword: str = Field(min_length=1, max_length=100)
     publisher_id: int | None = Field(default=None, ge=1)
     category: str | None = Field(default=None, max_length=100)
+    # 默认不限时间：按关键词/ISBN找特定一本书时，不应该因为它不够"新"就被过滤掉。
     days: int | None = Field(default=None, ge=1, le=365)
     page: int = Field(default=1, ge=1, le=10000)
     per_page: int = Field(default=20, ge=1, le=50)
@@ -133,6 +135,8 @@ class NewBookExportQuery(BaseModel):
 
     publisher_id: int | None = Field(default=None, ge=1)
     category: str | None = Field(default=None, max_length=100)
+    # 默认30天：导出常用于"本月新书"报表场景，窗口比列表页默认更窄。
+    # 与列表/搜索接口的默认值不同是刻意的，不要为了"统一"而改这三个默认值。
     days: int = Field(default=30, ge=1, le=365)
 
 

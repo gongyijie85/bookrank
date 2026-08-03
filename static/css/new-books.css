@@ -478,6 +478,13 @@
     color: var(--new-books-accent-teal-text, #065f46);
 }
 
+.book-tag.tag-muted {
+    background: transparent;
+    border: 1px dashed var(--border-color, rgba(0, 0, 0, 0.15));
+    color: var(--text-secondary, #615d59);
+    opacity: 0.7;
+}
+
 .book-tag .icon {
     flex: 0 0 auto;
 }
@@ -652,6 +659,11 @@
 [data-theme="dark"] .book-tag.tag-new {
     background: rgba(52, 211, 153, 0.15);
     color: var(--new-books-accent-green-text, #34d399);
+}
+
+[data-theme="dark"] .book-tag.tag-muted {
+    border-color: var(--border-color, rgba(255, 255, 255, 0.15));
+    color: var(--text-secondary, #a0a0a0);
 }
 
 [data-theme="dark"] .book-tag.tag-translation {
