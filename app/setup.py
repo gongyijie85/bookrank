@@ -7,6 +7,7 @@
 
 import logging
 import os
+import threading
 from datetime import UTC, datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -34,6 +35,9 @@ _scheduler: BackgroundScheduler | None = None
 
 # 后台任务连续失败计数（Render 免费层已限制单 worker，内存计数可行）
 _task_failure_counts: dict[str, int] = {}
+
+# 外部触发的新书同步后台线程锁（防止重复启动；与 APScheduler 入口共用）
+_auto_sync_lock = threading.Lock()
 
 
 def init_services(app):
@@ -470,43 +474,95 @@ def _weekly_report_task(app):
         _log_failure(app, 'last_report_failure')
 
 
+def run_auto_sync() -> dict:
+    """执行新书速递自动同步的核心逻辑。
+
+    供 APScheduler 定时器（_auto_sync_task）与外部 cron 触发端点
+    （/api/cron/trigger-new-books-sync）共用。内置 24 小时自我节流，
+    两套触发机制并存也不会重复同步。
+
+    返回结构包含 status（skipped/synced/partial）与统计数据；
+    异常向上抛出，由调用方决定日志与失败记录策略。
+    """
+    from flask import current_app
+
+    from .services.new_book_service import NewBookService
+    from .utils.service_helpers import get_translation_service
+
+    service = NewBookService(translation_service=get_translation_service())
+
+    last_sync = SystemConfig.get_value('last_auto_sync_time')
+    if last_sync:
+        last_sync_time = datetime.fromisoformat(last_sync)
+        if last_sync_time.tzinfo is None:
+            last_sync_time = last_sync_time.replace(tzinfo=UTC)
+        hours_since = (datetime.now(UTC) - last_sync_time).total_seconds() / 3600
+        if hours_since < 24:
+            return {'status': 'skipped', 'reason': f'距离上次同步仅 {hours_since:.1f} 小时'}
+
+    current_app.logger.info('开始自动同步新书数据...')
+    service.init_publishers()
+    results = service.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
+
+    total_added = sum(r.get('added', 0) for r in results)
+    total_updated = sum(r.get('updated', 0) for r in results)
+    failed_results = [result for result in results if result.get('success') is False]
+    if results and not failed_results:
+        SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
+
+    return {
+        'status': 'synced' if not failed_results else 'partial',
+        'added': total_added,
+        'updated': total_updated,
+        'failed_publishers': len(failed_results),
+        'total_publishers': len(results),
+    }
+
+
 def _auto_sync_task(app):
-    """新书速递自动同步任务"""
+    """新书速递自动同步任务（APScheduler 兜底入口）"""
+    if not _auto_sync_lock.acquire(blocking=False):
+        app.logger.info('新书同步已有实例在运行，跳过本次调度')
+        return
     try:
-        from .services.new_book_service import NewBookService
-        from .utils.service_helpers import get_translation_service
-
-        service = NewBookService(translation_service=get_translation_service())
-
-        last_sync = SystemConfig.get_value('last_auto_sync_time')
-        if last_sync:
-            last_sync_time = datetime.fromisoformat(last_sync)
-            if last_sync_time.tzinfo is None:
-                last_sync_time = last_sync_time.replace(tzinfo=UTC)
-            hours_since = (datetime.now(UTC) - last_sync_time).total_seconds() / 3600
-            if hours_since < 24:
-                app.logger.info(f'距离上次同步仅 {hours_since:.1f} 小时，跳过')
-                return
-
-        app.logger.info('开始自动同步新书数据...')
-        service.init_publishers()
-        results = service.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
-
-        total_added = sum(r.get('added', 0) for r in results)
-        total_updated = sum(r.get('updated', 0) for r in results)
-        failed_results = [result for result in results if result.get('success') is False]
-        if results and not failed_results:
-            SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
+        result = run_auto_sync()
+        if result['status'] == 'skipped':
+            app.logger.info(f'{result["reason"]}，跳过')
         else:
-            app.logger.warning(
-                '自动同步未完全成功，不更新 last_auto_sync_time：失败出版社 %s',
-                len(failed_results) if results else '全部未执行',
+            if result['failed_publishers']:
+                app.logger.warning(
+                    '自动同步未完全成功，不更新 last_auto_sync_time：失败出版社 %s/%s',
+                    result['failed_publishers'],
+                    result['total_publishers'],
+                )
+            app.logger.info(
+                f'自动同步完成：新增 {result["added"]} 本，更新 {result["updated"]} 本'
             )
-        app.logger.info(f'自动同步完成：新增 {total_added} 本，更新 {total_updated} 本')
-
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'自动同步失败: {e}', exc_info=True)
         _log_failure(app, 'last_sync_failure')
+    finally:
+        _auto_sync_lock.release()
+
+
+def trigger_auto_sync_background(app) -> dict:
+    """在后台线程中启动新书同步，立即返回（供外部 cron 端点调用）。
+
+    全量同步约 4 分钟，超过 Gunicorn timeout（180秒），不能同步等待。
+    复用 _auto_sync_task（含锁、节流、异常处理与失败记录）。
+
+    返回 {'status': 'started'} 或 {'status': 'already_running'}。
+    """
+    if _auto_sync_lock.locked():
+        return {'status': 'already_running'}
+
+    def _run():
+        with app.app_context():
+            _auto_sync_task(app)
+
+    thread = threading.Thread(target=_run, daemon=True, name='auto-sync-cron')
+    thread.start()
+    return {'status': 'started'}
 
 
 def _nyt_ranking_sync_task(app):

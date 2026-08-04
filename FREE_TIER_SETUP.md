@@ -118,7 +118,7 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" \
 A: Render 免费层不支持 Cron Job 服务，只有付费计划（Starter 及以上）才能添加。
 
 ### Q: GitHub Actions 收费吗？
-A: Public 仓库完全免费（每月 2000 分钟额度，本工作流每次约 30 秒，一个月 4 次，完全够用）。
+A: 本仓库是 Public 仓库，GitHub Actions 对公开仓库完全免费、无分钟数限制（2000 分钟/月是 private 仓库的免费额度，不适用于本仓库）。本工作流每次约 30 秒，用量可忽略。
 
 ### Q: 可以换成其他外部 cron 服务吗？
 A: 可以。任何支持 HTTP GET + 自定义 Header 的服务都行，例如 [cron-job.org](https://cron-job.org/)（免费）：

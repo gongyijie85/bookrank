@@ -1,0 +1,72 @@
+name: Trigger New Books Sync
+
+# 免费层方案说明：
+# Render 免费层 15 分钟无请求即休眠，进程内 APScheduler 定时器会被
+# 休眠打断导致 auto_sync 静默跳过（见 issue #76 调查结论）。
+# 本工作流复用周报触发的"唤醒 + 重试"模式，每日外部触发一次新书同步；
+# APScheduler IntervalTrigger(hours=24) 保留作为兜底，同步逻辑内置
+# 24 小时自我节流，两套机制并存不会重复同步（决策见 issue #80）。
+
+on:
+  schedule:
+    # 每日 08:00 UTC 触发；GitHub Actions 免费层定时任务可能漏跑，
+    # 次日 08:00 会再次触发，自我节流保证不会重复同步
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: trigger-new-books-sync
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Wake up Render app (free tier cold start)
+        env:
+          BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+        run: |
+          echo "唤醒 Render 应用（免费层冷启动）..."
+          # 先 ping 健康端点触发冷启动，不检查返回码
+          curl -s --max-time 30 \
+            "${BASE_URL}/api/health" > /dev/null || true
+          echo "等待冷启动完成..."
+          sleep 15
+
+      - name: Trigger new books sync
+        env:
+          BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+        run: |
+          set -e
+          MAX_RETRIES=3
+          RETRY_DELAY=30
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "尝试 $i/$MAX_RETRIES: 触发新书自动同步..."
+
+            HTTP_CODE=$(curl -s -o /tmp/new-books-sync-response.json -w '%{http_code}' \
+              --max-time 60 \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "${BASE_URL}/api/cron/trigger-new-books-sync")
+
+            echo "HTTP 状态码: $HTTP_CODE"
+            cat /tmp/new-books-sync-response.json | python3 -m json.tool || cat /tmp/new-books-sync-response.json
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ 新书同步触发成功"
+              exit 0
+            elif [ "$HTTP_CODE" = "401" ]; then
+              echo "❌ 认证失败，请检查 CRON_SECRET"
+              exit 1
+            fi
+
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "请求失败，${RETRY_DELAY}秒后重试..."
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo "❌ $MAX_RETRIES 次尝试后仍失败"
+          exit 1

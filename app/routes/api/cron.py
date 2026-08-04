@@ -57,3 +57,32 @@ def trigger_weekly_report() -> tuple:
         data=None,
         message='周报已存在或生成被跳过（冷却中/进行中）',
     )
+
+
+@api_bp.route('/cron/trigger-new-books-sync')
+@handle_api_errors
+def trigger_new_books_sync() -> tuple:
+    """触发新书速递自动同步（供外部 cron 调用）
+
+    全量同步约 4 分钟，超过 Gunicorn timeout，因此在后台线程执行、
+    立即返回；同步逻辑内置 24 小时自我节流与实例锁，与 APScheduler
+    定时器并存也不会重复或并发同步。
+    """
+    if not _verify_cron_secret():
+        return APIResponse.error('Unauthorized', 401)
+
+    # 函数内导入，避免启动阶段循环导入
+    from app.setup import trigger_auto_sync_background
+
+    result = trigger_auto_sync_background(current_app._get_current_object())
+
+    if result['status'] == 'already_running':
+        return APIResponse.success(
+            data=result,
+            message='新书同步已有实例在运行，本次触发被跳过',
+        )
+
+    return APIResponse.success(
+        data=result,
+        message='新书同步已在后台启动（约 4 分钟完成，结果见服务器日志）',
+    )

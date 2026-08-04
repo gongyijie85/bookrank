@@ -76,6 +76,48 @@ class TestTriggerWeeklyReport:
         assert data['data']['report_id'] == 1
 
 
+class TestTriggerNewBooksSync:
+    """测试 /api/cron/trigger-new-books-sync 端点（issue #81）"""
+
+    def test_missing_cron_secret_returns_401(self, client):
+        response = client.get(
+            '/api/cron/trigger-new-books-sync',
+            headers={'Authorization': 'Bearer any-token'},
+        )
+        assert response.status_code == 401
+        assert response.get_json()['success'] is False
+
+    def test_missing_authorization_returns_401(self, client, cron_secret):
+        response = client.get('/api/cron/trigger-new-books-sync')
+        assert response.status_code == 401
+        assert response.get_json()['success'] is False
+
+    def test_valid_token_starts_background_sync(self, client, cron_secret):
+        with patch('app.setup.trigger_auto_sync_background') as mock_trigger:
+            mock_trigger.return_value = {'status': 'started'}
+            response = client.get(
+                '/api/cron/trigger-new-books-sync',
+                headers={'Authorization': f'Bearer {cron_secret}'},
+            )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['data']['status'] == 'started'
+        mock_trigger.assert_called_once()
+
+    def test_valid_token_reports_already_running(self, client, cron_secret):
+        with patch('app.setup.trigger_auto_sync_background') as mock_trigger:
+            mock_trigger.return_value = {'status': 'already_running'}
+            response = client.get(
+                '/api/cron/trigger-new-books-sync',
+                headers={'Authorization': f'Bearer {cron_secret}'},
+            )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert '跳过' in data['message']
+
+
 class TestCronRateLimit:
     """cron 端点限流测试（此前 /api/cron/ 完全豁免限流，属安全缺口）"""
 
