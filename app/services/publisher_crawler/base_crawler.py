@@ -176,13 +176,25 @@ class BaseCrawler(ABC):
         return session
 
     def _init_robots_parser(self) -> None:
-        """初始化 robots.txt 解析器"""
+        """初始化 robots.txt 解析器
+
+        注意：RobotFileParser.read() 内部用 urllib.urlopen 且无超时，
+        一旦目标站点接受连接却不返回数据会无限挂起（曾导致后台全量同步
+        卡死数十分钟）。这里改用带超时的 session 请求取回内容后 parse()，
+        获取失败则放弃 robots 约束，不阻塞后续抓取。
+        """
         try:
             robots_url = urljoin(self.PUBLISHER_WEBSITE, '/robots.txt')
-            self._robots_parser = RobotFileParser()
-            self._robots_parser.set_url(robots_url)
-            self._robots_parser.read()
-            logger.info(f'✅ 已加载 robots.txt: {robots_url}')
+            parser = RobotFileParser()
+            parser.set_url(robots_url)
+            response = self._session.get(robots_url, timeout=self.config.timeout)
+            if response.ok:
+                parser.parse(response.text.splitlines())
+                self._robots_parser = parser
+                logger.info(f'✅ 已加载 robots.txt: {robots_url}')
+            else:
+                logger.warning(f'ℹ️ robots.txt 状态码 {response.status_code}，跳过 robots 约束: {robots_url}')
+                self._robots_parser = None
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'无法加载 robots.txt: {e}', level='warning')
             self._robots_parser = None

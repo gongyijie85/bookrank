@@ -510,6 +510,29 @@ def run_auto_sync() -> dict:
     if results and not failed_results:
         SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
 
+    # 持久化本次同步摘要，便于生产诊断（哪家失败/超时、各自耗时）
+    try:
+        import json as _json
+
+        summary = {
+            'finished_at': datetime.now(UTC).isoformat(),
+            'added': total_added,
+            'updated': total_updated,
+            'publishers': [
+                {
+                    'publisher': r.get('publisher'),
+                    'status': r.get('status'),
+                    'elapsed_seconds': r.get('elapsed_seconds'),
+                    'added': r.get('added', 0),
+                    'error': (r.get('error') or '')[:200] or None,
+                }
+                for r in results
+            ],
+        }
+        SystemConfig.set_value('last_auto_sync_result', _json.dumps(summary, ensure_ascii=False))
+    except Exception as e:
+        current_app.logger.warning(f'保存同步摘要失败: {e}')
+
     return {
         'status': 'synced' if not failed_results else 'partial',
         'added': total_added,

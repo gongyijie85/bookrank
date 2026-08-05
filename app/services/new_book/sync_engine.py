@@ -1,6 +1,10 @@
 import gc
 import json
 import logging
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +21,10 @@ from .publisher_manager import PublisherManager
 from .translation_pipeline import TranslationPipeline
 
 logger = logging.getLogger(__name__)
+
+# 单家出版社同步硬超时（秒）：超过即熔断、标记失败并继续下一家，
+# 避免单家挂起拖死整批同步（宁可漏报不误报）。
+_PER_PUBLISHER_TIMEOUT = float(os.environ.get('SYNC_PUBLISHER_TIMEOUT', '600'))
 
 
 class SyncEngine:
@@ -158,13 +166,22 @@ class SyncEngine:
         logger.info(f'开始同步 {len(publishers)} 个出版社...')
         logger.info(f'批处理大小: {batch_size}')
 
+        run_start = time.monotonic()
+
         for i in range(0, len(publishers), batch_size):
             batch = publishers[i : i + batch_size]
             logger.info(f'处理批次 {i // batch_size + 1}/{(len(publishers) + batch_size - 1) // batch_size}')
 
             for publisher in batch:
-                result = self.sync_publisher_books(
-                    publisher.id, category=category, max_books=max_books_per_publisher, translate=translate
+                started = time.monotonic()
+                logger.info(f'⏱️ 开始同步出版社: {publisher.name_en}')
+                result = self._sync_publisher_with_timeout(
+                    publisher, category=category, max_books=max_books_per_publisher, translate=translate
+                )
+                result['elapsed_seconds'] = round(time.monotonic() - started, 1)
+                logger.info(
+                    f'⏱️ 出版社同步结束: {publisher.name_en} - '
+                    f'status={result.get("status")}, 耗时 {result["elapsed_seconds"]}s'
                 )
                 results.append(result)
 
@@ -174,9 +191,75 @@ class SyncEngine:
         total_updated = sum(r.get('updated', 0) for r in results)
         total_errors = sum(r.get('errors', 0) for r in results)
 
-        logger.info(f'全部同步完成: 新增 {total_added}, 更新 {total_updated}, 错误 {total_errors}')
+        logger.info(
+            f'全部同步完成: 新增 {total_added}, 更新 {total_updated}, 错误 {total_errors}, '
+            f'总耗时 {time.monotonic() - run_start:.0f}s'
+        )
 
         return results
+
+    def _sync_publisher_with_timeout(
+        self,
+        publisher: Publisher,
+        category: str | None,
+        max_books: int,
+        translate: bool,
+    ) -> dict[str, Any]:
+        """在独立线程中同步单家出版社，超时即熔断。
+
+        超时后工作线程无法强制终止，但它使用独立的 scoped session，
+        不会阻塞主流程继续同步下一家；其残留请求最终会因各自的
+        请求级超时而自行终结。
+        """
+        app_obj = current_app._get_current_object()
+
+        def _worker() -> dict[str, Any]:
+            with app_obj.app_context():
+                return self.sync_publisher_books(
+                    publisher.id, category=category, max_books=max_books, translate=translate
+                )
+
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f'sync-{publisher.id}')
+        future = executor.submit(_worker)
+        try:
+            return future.result(timeout=_PER_PUBLISHER_TIMEOUT)
+        except FutureTimeout:
+            logger.error(
+                f'⏱️ 出版社同步超时熔断: {publisher.name_en} '
+                f'(超过 {_PER_PUBLISHER_TIMEOUT:.0f}s，标记失败并继续下一家)'
+            )
+            return {
+                'success': False,
+                'status': 'timeout',
+                'transport_status': 'timeout',
+                'parse_status': 'not_started',
+                'publisher': publisher.name_en,
+                'total': 0,
+                'added': 0,
+                'updated': 0,
+                'skipped': 0,
+                'errors': 0,
+                'error': f'同步超时（>{_PER_PUBLISHER_TIMEOUT:.0f}s），已熔断跳过',
+            }
+        except Exception as e:
+            log_error(ErrorCategory.CRAWLER, f'出版社同步线程异常: {publisher.name_en} - {e}')
+            return {
+                'success': False,
+                'status': 'request_failed',
+                'transport_status': 'failed',
+                'parse_status': 'failed',
+                'publisher': publisher.name_en,
+                'total': 0,
+                'added': 0,
+                'updated': 0,
+                'skipped': 0,
+                'errors': 0,
+                'error': str(e),
+            }
+        finally:
+            # wait=False：超时后不阻塞等待残留工作线程（它无法被强制终止）；
+            # 不能用 with 语句，那会在退出时 shutdown(wait=True) 导致熔断失效。
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _save_book(
         self,

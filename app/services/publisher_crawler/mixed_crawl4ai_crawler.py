@@ -118,9 +118,16 @@ class MixedCrawl4AICrawler(BaseCrawler):
             return None
 
     def _crawl_with_crawl4ai(self, url: str) -> str | None:
-        """同步使用 Crawl4AI 爬取"""
+        """同步使用 Crawl4AI 爬取（带全局超时，防止无头浏览器挂起拖死同步批次）"""
         try:
-            return asyncio.run(self._crawl_with_crawl4ai_async(url))
+            return asyncio.run(asyncio.wait_for(self._crawl_with_crawl4ai_async(url), timeout=90))
+        except TimeoutError:
+            log_error(
+                ErrorCategory.CRAWLER,
+                f'{self.PUBLISHER_NAME_EN}: Crawl4AI 超时(>90s)，放弃降级',
+                level='warning',
+            )
+            return None
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'{self.PUBLISHER_NAME_EN}: Crawl4AI 同步调用失败: {e}', level='warning')
             return None

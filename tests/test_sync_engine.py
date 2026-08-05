@@ -649,3 +649,40 @@ class TestEnsureStaticDataSeeded:
             result = engine.ensure_static_data_seeded()
         assert result == {'added': 5}
         mock_seed.assert_called_once()
+
+
+class TestSyncPublisherWithTimeout:
+    """单家出版社同步熔断（_sync_publisher_with_timeout）测试"""
+
+    def test_returns_worker_result_on_success(self, engine, sample_publisher, db):
+        expected = {'success': True, 'status': 'success', 'added': 3}
+        with patch.object(engine, 'sync_publisher_books', return_value=expected):
+            result = engine._sync_publisher_with_timeout(sample_publisher, None, 50, False)
+        assert result == expected
+
+    def test_times_out_and_returns_timeout_result(self, engine, sample_publisher, db):
+        import time as _time
+
+        import app.services.new_book.sync_engine as sync_engine_module
+
+        def slow_sync(*args, **kwargs):
+            _time.sleep(2)
+            return {'success': True}
+
+        with (
+            patch.object(sync_engine_module, '_PER_PUBLISHER_TIMEOUT', 0.2),
+            patch.object(engine, 'sync_publisher_books', side_effect=slow_sync),
+        ):
+            result = engine._sync_publisher_with_timeout(sample_publisher, None, 50, False)
+
+        assert result['success'] is False
+        assert result['status'] == 'timeout'
+        assert result['publisher'] == sample_publisher.name_en
+        assert '超时' in result['error']
+
+    def test_worker_exception_returns_request_failed(self, engine, sample_publisher, db):
+        with patch.object(engine, 'sync_publisher_books', side_effect=RuntimeError('boom')):
+            result = engine._sync_publisher_with_timeout(sample_publisher, None, 50, False)
+        assert result['success'] is False
+        assert result['status'] == 'request_failed'
+        assert 'boom' in result['error']

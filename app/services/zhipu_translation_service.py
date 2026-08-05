@@ -175,7 +175,9 @@ class ZhipuTranslationService:
             try:
                 from zhipuai import ZhipuAI
 
-                self._client = ZhipuAI(api_key=self.api_key)
+                # 显式超时：SDK 默认超时过长（可达数百秒），后台批量同步时
+                # 单次翻译挂起会成倍放大（每本书 2 个字段×重试），必须封顶。
+                self._client = ZhipuAI(api_key=self.api_key, timeout=60.0)
                 logger.info('智谱AI客户端初始化成功')
             except ImportError as e:
                 logger.error(f'zhipuai库未安装: {e}，请运行: pip install zhipuai')
