@@ -558,9 +558,7 @@ def _auto_sync_task(app):
                     result['failed_publishers'],
                     result['total_publishers'],
                 )
-            app.logger.info(
-                f'自动同步完成：新增 {result["added"]} 本，更新 {result["updated"]} 本'
-            )
+            app.logger.info(f'自动同步完成：新增 {result["added"]} 本，更新 {result["updated"]} 本')
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'自动同步失败: {e}', exc_info=True)
         _log_failure(app, 'last_sync_failure')

@@ -225,8 +225,7 @@ class SyncEngine:
             return future.result(timeout=_PER_PUBLISHER_TIMEOUT)
         except FutureTimeout:
             logger.error(
-                f'⏱️ 出版社同步超时熔断: {publisher.name_en} '
-                f'(超过 {_PER_PUBLISHER_TIMEOUT:.0f}s，标记失败并继续下一家)'
+                f'⏱️ 出版社同步超时熔断: {publisher.name_en} (超过 {_PER_PUBLISHER_TIMEOUT:.0f}s，标记失败并继续下一家)'
             )
             return {
                 'success': False,
