@@ -15,34 +15,12 @@
     // ===== Utilities =====
 
     /**
-     * Debounce function for performance optimization
-     */
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    /**
      * Escape HTML to prevent XSS
      */
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
-    }
-
-    /**
-     * Generate unique ID
-     */
-    function generateId() {
-        return 'id_' + Math.random().toString(36).substr(2, 9);
     }
 
     // ===== Loading Functions =====
@@ -410,13 +388,6 @@
         window.location.href = window.location.pathname + (query ? '?' + query : '');
     }
 
-    /**
-     * Handle search input with debounce
-     */
-    const handleSearch = debounce(() => {
-        applyFilters();
-    }, 500);
-
     // ===== Keyboard Navigation =====
 
     /**
@@ -593,21 +564,6 @@
         const host = window.location.hostname;
         const cookieDomain = host.includes('.') ? host : '';
         document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
-    }
-
-    /**
-     * Apply generic translation for pages without custom translation logic
-     * (Kept for backward compatibility with dynamic content)
-     * @param {string} lang - Language code (en, zh)
-     */
-    function applyGenericTranslation(lang) {
-        // Most static UI text is now handled by Flask-Babel server-side
-        // This remains for any dynamic elements with data-zh/data-en attributes
-        const translatableElements = document.querySelectorAll('[data-zh][data-en]');
-
-        translatableElements.forEach(el => {
-            el.textContent = lang === 'zh' ? el.getAttribute('data-zh') : el.getAttribute('data-en');
-        });
     }
 
     /**

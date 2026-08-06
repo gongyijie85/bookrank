@@ -82,30 +82,6 @@ function _handleLanguageChange(lang) {
     }
 }
 
-/**
- * 翻译系统入口函数（带节流控制）
- */
-let translateTimer = null;
-function startTranslationSystem() {
-    if (translateTimer) {
-        clearTimeout(translateTimer);
-    }
-    translateTimer = setTimeout(() => {
-        if (currentLanguage === 'zh') {
-            _handleLanguageChange('zh');
-        }
-    }, 1000);
-}
-
-// 切换语言
-function switchLanguage(lang) {
-    currentLanguage = lang;
-    localStorage.setItem('bookrank_language', lang);
-    updateLanguageButtons(lang);
-    _handleLanguageChange(lang);
-    document.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } }));
-}
-
 // ========== 搜索功能 ==========
 
 function saveSearchHistory(query) {
@@ -133,7 +109,7 @@ function renderSearchSuggestions() {
     let history = [];
     try {
         history = JSON.parse(localStorage.getItem('bookrank_search_history') || '[]');
-    } catch (e) {}
+    } catch { /* ignore */ }
 
     if (query) {
         const books = window.booksData || [];
@@ -374,7 +350,7 @@ const translationCache = {
                     return parsed.data;
                 }
             }
-        } catch (e) {}
+        } catch { /* ignore */ }
         return null;
     },
     setBook: function(isbn, data) {
@@ -384,7 +360,7 @@ const translationCache = {
                 timestamp: Date.now(),
                 data: data
             }));
-        } catch (e) {}
+        } catch { /* ignore */ }
     }
 };
 
@@ -502,16 +478,16 @@ async function translateSingleBook(index, book, isbn) {
             try {
                 const tResult = await api.translateText(book.title, 'en', 'zh', 'title');
                 if (tResult.success) translatedTitle = tResult.data.translated;
-            } catch (e) { /* 标题翻译失败: */ }
+            } catch { /* 标题翻译失败 */ }
             try {
                 const dResult = await api.translateText(book.description, 'en', 'zh', 'description');
                 if (dResult.success) translatedDesc = dResult.data.translated;
-            } catch (e) { /* 描述翻译失败: */ }
+            } catch { /* 描述翻译失败 */ }
             if (detailsText) {
                 try {
                     const dtResult = await api.translateText(detailsText, 'en', 'zh', 'details');
                     if (dtResult.success) translatedDetails = dtResult.data.translated;
-                } catch (e) {
+                } catch {
 
                     translatedDetails = translatedDesc;
                 }
@@ -537,45 +513,6 @@ async function translateSingleBook(index, book, isbn) {
 
     } catch (error) {
         console.error('翻译失败:', error);
-    }
-}
-
-async function translateMissingBooks(missingIsbns) {
-    if (!missingIsbns || !missingIsbns.length) return;
-    var books = window.booksData;
-    if (!books) return;
-
-    for (var i = 0; i < books.length; i++) {
-        var book = books[i];
-        var isbn = book.isbn13 || book.isbn10;
-        if (!isbn || missingIsbns.indexOf(isbn) === -1) continue;
-
-        try {
-            var result = await api.translateBookFields({
-                title: book.title || '',
-                description: book.description || '',
-                details: ''
-            }, 'en', 'zh');
-
-            if (result.success && result.data) {
-                var transData = {
-                    title: result.data.title_zh || book.title,
-                    description: result.data.description_zh || book.description,
-                    category: book.category_name || ''
-                };
-                if (typeof BookI18n !== 'undefined') {
-                    BookI18n.updateTranslation(isbn, 'zh', transData);
-                }
-                book.title_zh = transData.title;
-                book.description_zh = transData.description;
-            }
-        } catch (e) {
-
-        }
-    }
-
-    if (typeof BookI18n !== 'undefined') {
-        BookI18n.applyLanguage('zh');
     }
 }
 
@@ -699,7 +636,7 @@ const categoryCache = {
                 }
                 localStorage.removeItem(key);
             }
-        } catch (e) { /* 忽略 */ }
+        } catch { /* 忽略 */ }
         return null;
     },
     set: function(category, books, updateTime, updateFrequency, listPublishedDate) {
@@ -716,7 +653,7 @@ const categoryCache = {
         try {
             const key = `bookrank_category_${category}`;
             localStorage.setItem(key, JSON.stringify(data));
-        } catch (e) { /* 忽略 */ }
+        } catch { /* 忽略 */ }
     },
     /**
      * v0.9.55: 移除批量预拉取（preload）
@@ -857,14 +794,14 @@ function resolveCategoryLabel(book, categoryId, lang) {
  * 用指定语言重渲染当前已加载的图书（grid + list 视图）
  * 切换语言时被 languagechange 监听器调用，不重新请求 API
  * 数据来源优先级：1) 分类切换后的内存变量 booksData  2) 服务端嵌入的 initial-books-data
- * @param {string} lang - 'zh' | 'en'
+ * @param {string} _lang - 'zh' | 'en'
  */
-function rerenderCurrentBooks(lang) {
+function rerenderCurrentBooks(_lang) {
     var books = booksData;
     if (!Array.isArray(books) || books.length === 0) {
         var node = document.getElementById('initial-books-data');
         if (node) {
-            try { books = JSON.parse(node.textContent || '[]'); } catch (e) { books = []; }
+            try { books = JSON.parse(node.textContent || '[]'); } catch { books = []; }
         }
     }
     if (!Array.isArray(books) || books.length === 0) {
@@ -1232,35 +1169,6 @@ function getBestDescription(book) {
     if (hasDescription) return book.description;
 
     return '暂无详细描述';
-}
-
-function buildDetailItem(label, value) {
-    return `
-        <div class="detail-item">
-            <span class="detail-label">${escapeHtml(label)}</span>
-            <span class="detail-value">${escapeHtml(value) || '暂无'}</span>
-        </div>
-    `;
-}
-
-function renderBuyLinks(container, buyLinks) {
-    container.innerHTML = '';
-    if (!buyLinks || buyLinks.length === 0) {
-        container.innerHTML = '<p class="no-links">暂无购买链接</p>';
-        return;
-    }
-
-    buyLinks.forEach(link => {
-        if (!link.url) return;
-        const a = document.createElement('a');
-        a.href = link.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.className = 'buy-link';
-        a.innerHTML = `<svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg> ${escapeHtml(link.name || '购买链接')}`;
-        a.setAttribute('aria-label', `在 ${escapeHtml(link.name || '购买链接')} 上购买`);
-        container.appendChild(a);
-    });
 }
 
 const booksGrid = document.getElementById('books-grid');
