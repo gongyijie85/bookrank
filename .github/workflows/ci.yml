@@ -107,7 +107,7 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, lint-frontend, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Trigger Render Deploy Hook

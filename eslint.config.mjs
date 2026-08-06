@@ -26,7 +26,9 @@ export default [
     },
     rules: {
       // Legacy no-op shims keep underscore-prefixed params for signature compatibility.
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // Only args are exempt; unused underscore-prefixed *variables* still error so
+      // dead code cannot hide behind a leading underscore.
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   {

@@ -3,7 +3,7 @@
   "private": true,
   "description": "Frontend lint tooling only (no build step)",
   "scripts": {
-    "lint": "eslint static/js static/service-worker.js"
+    "lint": "eslint static/js static/service-worker.js --max-warnings 0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
