@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from flask import current_app
 
@@ -23,7 +24,7 @@ def is_valid_isbn(value: str | None) -> bool:
 
 def fetch_google_books_details(book: dict, isbn: str) -> None:
     cache_key = f'google_books_detail:{isbn}'
-    cache_service = None
+    cache_service: Any = None
 
     try:
         book_service = get_book_service()
@@ -63,7 +64,7 @@ def fetch_google_books_details(book: dict, isbn: str) -> None:
 
 
 def translate_field_async(book: dict, source_field: str, target_field: str) -> None:
-    app = current_app._get_current_object()
+    app = current_app._get_current_object()  # type: ignore[attr-defined]
     translation_service = get_translation_service()
 
     def _do_translate():
@@ -157,7 +158,7 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
         translation_service = get_translation_service()
         if not translation_service:
             return
-        app = current_app._get_current_object()
+        app = current_app._get_current_object()  # type: ignore[attr-defined]
 
         def _translate_async():
             with app.app_context():

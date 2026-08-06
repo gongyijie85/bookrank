@@ -220,10 +220,10 @@ def validate_csrf_token() -> bool:
         record = db.session.get(CSRFToken, token)
         if record is None:
             return False
-        if record.created_at.tzinfo is None:
-            created_at_utc = record.created_at.replace(tzinfo=UTC)
-        else:
-            created_at_utc = record.created_at
+        created_at = record.created_at
+        if created_at is None:
+            return False
+        created_at_utc = created_at.replace(tzinfo=UTC) if created_at.tzinfo is None else created_at
         if datetime.now(UTC) - created_at_utc > timedelta(seconds=_CSRF_TOKEN_TTL):
             db.session.delete(record)
             db.session.commit()
@@ -450,7 +450,7 @@ def clean_translation_text(text: str, field_type: str = 'text') -> str:
     return text
 
 
-def quick_clean_translation(text: str, field_type: str = 'text') -> str:
+def quick_clean_translation(text: str | None, field_type: str = 'text') -> str | None:
     """快速清理翻译文本（带脏数据检测，干净文本直接返回）"""
     if not text:
         return text

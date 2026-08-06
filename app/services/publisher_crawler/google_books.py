@@ -85,9 +85,10 @@ class GoogleBooksCrawler(BaseCrawler):
             return False
 
         try:
+            probe_params: dict[str, Any] = {'q': 'test', 'maxResults': 1, 'key': self._api_key}
             resp = self._session.get(
                 self.BASE_URL,
-                params={'q': 'test', 'maxResults': 1, 'key': self._api_key},
+                params=probe_params,
                 timeout=10,
             )
             if resp.status_code == 200:

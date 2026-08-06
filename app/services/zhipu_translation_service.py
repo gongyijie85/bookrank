@@ -79,11 +79,11 @@ class ZhipuTranslationService:
         else:
             self.model = self._default_model
         self._client = None
-        self._last_request_time = 0
+        self._last_request_time: float = 0
         self._request_interval = 0.1
         self._author_name_cache: OrderedDict[str, str] = OrderedDict()
         self._author_name_cache_max_size = 1000
-        self._cache_service = None
+        self._cache_service: Any = None
 
         self._field_prompts: dict[str, str] = {
             'title': (
@@ -532,7 +532,8 @@ class ZhipuTranslationService:
         brace_end = text.rfind('}')
         if brace_start != -1 and brace_end > brace_start:
             try:
-                return _json.loads(text[brace_start : brace_end + 1])
+                parsed: dict[str, Any] = _json.loads(text[brace_start : brace_end + 1])
+                return parsed
             except _json.JSONDecodeError:
                 pass
         return None
@@ -589,7 +590,8 @@ class ZhipuTranslationService:
         """获取缓存统计信息"""
         cache_service = self._get_cache_service()
         if cache_service:
-            return cache_service.get_stats()
+            stats: dict[str, Any] = cache_service.get_stats()
+            return stats
         return {'total_count': 0, 'message': '缓存服务不可用'}
 
     def is_available(self) -> bool:
@@ -614,8 +616,8 @@ class HybridTranslationService:
             app: Flask应用实例，用于提供应用上下文
         """
         self.zhipu = ZhipuTranslationService(api_key=zhipu_api_key, app=app)
-        self._fallback = None
-        self._cache_service = None
+        self._fallback: Any = None
+        self._cache_service: Any = None
         self._app = app
 
     def _get_cache_service(self):
@@ -799,7 +801,8 @@ class HybridTranslationService:
         """获取缓存统计信息"""
         cache_service = self._get_cache_service()
         if cache_service:
-            return cache_service.get_stats()
+            stats: dict[str, Any] = cache_service.get_stats()
+            return stats
         return {'total_count': 0, 'message': '缓存服务不可用'}
 
 

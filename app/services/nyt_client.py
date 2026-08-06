@@ -83,7 +83,7 @@ class NYTApiClient:
         cache_service = self._get_cache_service()
 
         if cache_service and not force_refresh:
-            cached = cache_service.get('nyt', category_id)
+            cached: dict[str, Any] | None = cache_service.get('nyt', category_id)
             if cached:
                 if isinstance(cached, dict) and cached.get('error'):
                     logger.warning('忽略NYT错误缓存: %s', category_id)
@@ -122,7 +122,7 @@ class NYTApiClient:
                 raise APIRateLimitException('API rate limited', retry_after=retry_after)
 
             response.raise_for_status()
-            data = response.json()
+            data: dict[str, Any] = response.json()
 
             _safe_cache_set(cache_service, 'nyt', category_id, data, ttl_seconds=self._cache_ttl)
 

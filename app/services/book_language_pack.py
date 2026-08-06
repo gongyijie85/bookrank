@@ -3,7 +3,7 @@
 import json
 import logging
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -189,7 +189,7 @@ class BookLanguagePack:
                 log_error(ErrorCategory.TRANSLATION, f'BookMetadata rollback 失败: {e}', level='warning')
             return {}
 
-    def _apply_isbn_translations(self, books: list[Any], translations: dict[str, dict[str, str | None]]) -> None:
+    def _apply_isbn_translations(self, books: list[Any], translations: Mapping[str, Mapping[str, str | None]]) -> None:
         if not translations:
             return
 
@@ -342,7 +342,7 @@ class BookLanguagePack:
         self._pack_mtime = None
         self._pack_books = {}
 
-    def _fill_missing(self, book: Any, data: dict[str, str | None]) -> None:
+    def _fill_missing(self, book: Any, data: Mapping[str, str | None]) -> None:
         for _source_attr, target_attr, field_type in self._FIELDS:
             if self._get_value(book, target_attr):
                 continue
@@ -387,9 +387,11 @@ class BookLanguagePack:
         if not translator or not hasattr(translator, 'translate'):
             return None
         try:
-            return translator.translate(text, 'en', 'zh', field_type=field_type)
+            result: str | None = translator.translate(text, 'en', 'zh', field_type=field_type)
+            return result
         except TypeError:
-            return translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type)
+            result = translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type)
+            return result
         except Exception as e:
             log_error(
                 ErrorCategory.TRANSLATION, f'Language-pack translation failed for {field_type}: {e}', level='warning'

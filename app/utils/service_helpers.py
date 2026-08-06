@@ -2,10 +2,9 @@ import hashlib
 from collections.abc import Generator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, cast
 
 from flask import current_app, request
-from sqlalchemy.orm import Session
 
 from ..services import BookService, CacheService, ImageCacheService
 from ..services.api_client import GoogleBooksClient
@@ -86,23 +85,23 @@ def get_or_create_smart_search_service() -> Any:
 
 
 def require_book_service() -> BookService:
-    return require_service('book_service', '图书服务')
+    return cast('BookService', require_service('book_service', '图书服务'))
 
 
 def require_cache_service() -> CacheService:
-    return require_service('cache_service', '缓存服务')
+    return cast('CacheService', require_service('cache_service', '缓存服务'))
 
 
 def require_translation_service() -> HybridTranslationService:
-    return require_service('translation_service', '翻译服务')
+    return cast('HybridTranslationService', require_service('translation_service', '翻译服务'))
 
 
 def require_image_cache_service() -> ImageCacheService:
-    return require_service('image_cache_service', '图片缓存服务')
+    return cast('ImageCacheService', require_service('image_cache_service', '图片缓存服务'))
 
 
 @contextmanager
-def db_transaction() -> Generator[Session]:
+def db_transaction() -> Generator[Any]:
     from ..models.database import db
 
     try:

@@ -74,7 +74,7 @@ def trigger_new_books_sync() -> tuple:
     # 函数内导入，避免启动阶段循环导入
     from app.setup import trigger_auto_sync_background
 
-    result = trigger_auto_sync_background(current_app._get_current_object())
+    result = trigger_auto_sync_background(current_app._get_current_object())  # type: ignore[attr-defined]
 
     if result['status'] == 'already_running':
         return APIResponse.success(

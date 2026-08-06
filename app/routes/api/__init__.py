@@ -16,7 +16,8 @@ def get_session_id() -> str:
     """获取或生成安全的会话ID"""
     if 'session_id' not in session:
         session['session_id'] = secrets.token_hex(16)
-    return session['session_id']
+    session_id: str = session['session_id']
+    return session_id
 
 
 def validate_category(category: str) -> bool:

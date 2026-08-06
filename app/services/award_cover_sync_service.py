@@ -3,6 +3,7 @@
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 from ..models.schemas import AwardBook, db
 from ..utils.error_handler import ErrorCategory, log_error
@@ -71,7 +72,7 @@ class AwardCoverSyncService:
             return {'status': 'already_running'}
 
         self._is_running = True
-        result: dict[str, str | int | list[str]] = {
+        result: dict[str, Any] = {
             'total_checked': 0,
             'updated': 0,
             'failed': 0,
@@ -192,7 +193,8 @@ class AwardCoverSyncService:
             try:
                 result = self._google_client.fetch_book_details(isbn)
                 if result and result.get('cover_url'):
-                    return result['cover_url']
+                    cover: str = result['cover_url']
+                    return cover
             except Exception as e:
                 log_error(ErrorCategory.API_CALL, f'Google Books ISBN查询失败 ({isbn}): {e}', level='warning')
 
@@ -202,7 +204,8 @@ class AwardCoverSyncService:
                 result = self._google_client.search_book_by_title(title, author)
                 if result and result.get('cover_url'):
                     logger.info(f'通过书名搜索找到封面: {title}')
-                    return result['cover_url']
+                    cover = result['cover_url']
+                    return cover
             except Exception as e:
                 log_error(ErrorCategory.API_CALL, f'Google Books书名搜索失败 ({title}): {e}', level='warning')
 

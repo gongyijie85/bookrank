@@ -14,6 +14,7 @@ API 文档: https://developers.google.com/books/docs/v1/reference/volumes/list
 
 import logging
 from collections.abc import Generator
+from typing import Any
 
 from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BookInfo, CrawlerConfig
@@ -90,7 +91,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     break
 
                 remaining = max_books - collected
-                params = {
+                params: dict[str, Any] = {
                     'q': search_query,
                     'maxResults': min(remaining, 40),
                     'startIndex': start_index,
@@ -182,7 +183,8 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
         identifiers = volume_info.get('industryIdentifiers', [])
         for ident in identifiers:
             if ident.get('type') in ('ISBN_13', 'ISBN_10'):
-                return ident.get('identifier', '')
+                identifier: str = ident.get('identifier', '')
+                return identifier
         title = volume_info.get('title', '')
         author = (volume_info.get('authors') or [''])[0]
         return f'{title}|{author}'.lower()

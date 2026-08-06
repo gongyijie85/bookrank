@@ -232,7 +232,7 @@ class SyncEngine:
         不会阻塞主流程继续同步下一家；其残留请求最终会因各自的
         请求级超时而自行终结。
         """
-        app_obj = current_app._get_current_object()
+        app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
 
         def _worker() -> dict[str, Any]:
             with app_obj.app_context():

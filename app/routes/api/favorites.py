@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_session_id() -> str:
-    return session.get('session_id', '')
+    session_id: str = session.get('session_id', '')
+    return session_id
 
 
 def register_favorite_routes(bp):

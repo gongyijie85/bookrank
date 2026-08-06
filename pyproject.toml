@@ -51,95 +51,42 @@ warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
 module = [
+    "flask",
     "flask.*",
+    "flask_sqlalchemy",
     "flask_sqlalchemy.*",
+    "flask_cors",
     "flask_cors.*",
+    "flask_migrate",
     "flask_migrate.*",
+    "flask_mail",
     "flask_mail.*",
     "apscheduler.*",
+    "mistune",
     "mistune.*",
+    "bs4",
     "bs4.*",
+    "tenacity",
     "tenacity.*",
+    "zhipuai",
     "zhipuai.*",
+    "deep_translator",
     "deep_translator.*",
+    "fpdf",
     "fpdf.*",
+    "openpyxl",
     "openpyxl.*",
+    "werkzeug",
     "werkzeug.*",
+    "dotenv",
     "dotenv.*",
+    "flask_babel",
     "flask_babel.*",
+    "crawl4ai",
     "crawl4ai.*",
+    "psutil",
     "psutil.*",
+    "bleach",
     "bleach.*",
 ]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = [
-    "app.models.schemas",
-    "app.models.new_book",
-    "app.models.book",
-]
-disable_error_code = [
-    "attr-defined",
-    "union-attr",
-    "operator",
-    "arg-type",
-    "assignment",
-    "name-defined",
-    "no-any-return",
-]
-
-[[tool.mypy.overrides]]
-module = [
-    "app.services.new_book_service",
-    "app.services.award_book_service",
-    "app.services.award_cover_sync_service",
-    "app.services.translation_cache_service",
-    "app.services.weekly_report_service",
-    "app.services.book_service",
-    "app.services.api_cache_service",
-    "app.services.google_books_client",
-    "app.services.zhipu_translation_service",
-    "app.services.nyt_client",
-    "app.services.open_library_client",
-    "app.services.recommendation_service",
-    "app.services.free_translation_service",
-    "app.services.book_language_pack",
-    "app.services.api_utils",
-    "app.services.publisher_crawler.*",
-    "app.routes.admin",
-    "app.routes.main",
-    "app.routes.api.*",
-    "app.routes.analytics_bp",
-    "app.routes.health",
-    "app.routes.new_books",
-    "app.routes.public_api",
-    "app.tasks.weekly_report_task",
-    "app.utils.error_tracker",
-    "app.utils.security",
-    "app.utils.service_helpers",
-    "app.utils.api_helpers",
-    "app.services.new_book.*",
-    "app.services.book_detail_service",
-    "app.utils.book_filters",
-    "app.utils.date_helpers",
-]
-disable_error_code = [
-    "attr-defined",
-    "union-attr",
-    "no-any-return",
-    "arg-type",
-    "operator",
-    "assignment",
-    "name-defined",
-    "var-annotated",
-    "has-type",
-    "call-overload",
-    "misc",
-    "call-arg",
-    "return",
-]
-
-[[tool.mypy.overrides]]
-module = ["run"]
-disable_error_code = ["union-attr"]

@@ -56,7 +56,7 @@ class TranslationCacheService:
         source_hash = self._compute_source_hash(source_text)
 
         # 查找缓存
-        cache = TranslationCache.query.filter_by(
+        cache: TranslationCache | None = TranslationCache.query.filter_by(
             source_hash=source_hash, source_lang=source_lang, target_lang=target_lang
         ).first()
 
@@ -124,21 +124,22 @@ class TranslationCacheService:
         source_hash = self._compute_source_hash(source_text)
 
         # 检查是否已存在
-        existing = TranslationCache.query.filter_by(
+        existing: TranslationCache | None = TranslationCache.query.filter_by(
             source_hash=source_hash, source_lang=source_lang, target_lang=target_lang
         ).first()
 
         if existing:
             # 更新现有缓存
-            existing.translated_text = translated_text
-            existing.model_name = model_name or self.default_model
-            existing.model_version = model_version
-            existing.quality_score = quality_score
-            existing.last_used_at = datetime.now(UTC)
-            existing.usage_count += 1
+            record: TranslationCache = existing
+            record.translated_text = translated_text
+            record.model_name = model_name or self.default_model
+            record.model_version = model_version
+            record.quality_score = quality_score
+            record.last_used_at = datetime.now(UTC)
+            record.usage_count = (record.usage_count or 0) + 1
         else:
             # 创建新缓存
-            existing = TranslationCache(
+            record = TranslationCache(
                 source_hash=source_hash,
                 source_text=source_text,
                 source_lang=source_lang,
@@ -150,27 +151,27 @@ class TranslationCacheService:
                 usage_count=1,
                 last_used_at=datetime.now(UTC),
             )
-            db.session.add(existing)
+            db.session.add(record)
 
         try:
             db.session.commit()
             logger.info(f'翻译缓存已保存: {source_lang}->{target_lang}')
-            return existing
+            return record
         except IntegrityError:
             db.session.rollback()
-            existing = TranslationCache.query.filter_by(
+            retried: TranslationCache | None = TranslationCache.query.filter_by(
                 source_hash=source_hash, source_lang=source_lang, target_lang=target_lang
             ).first()
-            if existing:
-                existing.translated_text = translated_text
-                existing.model_name = model_name or self.default_model
-                existing.model_version = model_version
-                existing.quality_score = quality_score
-                existing.last_used_at = datetime.now(UTC)
-                existing.usage_count += 1
+            if retried:
+                retried.translated_text = translated_text
+                retried.model_name = model_name or self.default_model
+                retried.model_version = model_version
+                retried.quality_score = quality_score
+                retried.last_used_at = datetime.now(UTC)
+                retried.usage_count = (retried.usage_count or 0) + 1
                 db.session.commit()
                 logger.info(f'翻译缓存已更新(并发冲突): {source_lang}->{target_lang}')
-                return existing
+                return retried
             raise
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'保存翻译缓存失败: {e}')
@@ -233,7 +234,8 @@ class TranslationCacheService:
         if target_lang:
             query = query.filter_by(target_lang=target_lang)
 
-        return query.order_by(TranslationCache.last_used_at.desc()).limit(limit).all()
+        results: list[TranslationCache] = query.order_by(TranslationCache.last_used_at.desc()).limit(limit).all()
+        return results
 
     def search(
         self, keyword: str, limit: int = 50, source_lang: str | None = None, target_lang: str | None = None
@@ -262,7 +264,8 @@ class TranslationCacheService:
         if target_lang:
             query = query.filter_by(target_lang=target_lang)
 
-        return query.order_by(TranslationCache.usage_count.desc()).limit(limit).all()
+        results: list[TranslationCache] = query.order_by(TranslationCache.usage_count.desc()).limit(limit).all()
+        return results
 
     def get_least_used(self, limit: int = 100, older_than_days: int | None = None) -> list[TranslationCache]:
         """
@@ -281,7 +284,8 @@ class TranslationCacheService:
             cutoff_date = datetime.now(UTC) - timedelta(days=older_than_days)
             query = query.filter(TranslationCache.last_used_at < cutoff_date)
 
-        return query.order_by(TranslationCache.usage_count.asc()).limit(limit).all()
+        results: list[TranslationCache] = query.order_by(TranslationCache.usage_count.asc()).limit(limit).all()
+        return results
 
     def auto_cleanup(self, max_items: int = 10000, keep_recent_days: int = 30) -> int:
         """
@@ -324,7 +328,7 @@ class TranslationCacheService:
         )
 
         # 删除不在保留范围内的记录
-        deleted = TranslationCache.query.filter(~TranslationCache.id.in_(records_to_keep)).delete(
+        deleted: int = TranslationCache.query.filter(~TranslationCache.id.in_(records_to_keep)).delete(
             synchronize_session=False
         )
 
@@ -363,7 +367,7 @@ class TranslationCacheService:
             if min_usage is not None:
                 query = query.filter(TranslationCache.usage_count < min_usage)
 
-        deleted_count = query.delete()
+        deleted_count: int = query.delete()
         try:
             db.session.commit()
             logger.info(f'已删除 {deleted_count} 条翻译缓存')
@@ -380,7 +384,7 @@ class TranslationCacheService:
         Returns:
             删除的记录数
         """
-        count = TranslationCache.query.delete()
+        count: int = TranslationCache.query.delete()
         try:
             db.session.commit()
             logger.warning(f'已清空所有翻译缓存（{count}条）')

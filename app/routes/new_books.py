@@ -58,12 +58,14 @@ def _get_sync_lock() -> threading.Lock:
     """获取应用级同步锁（多 worker 安全）"""
     if 'sync_lock' not in current_app.extensions:
         current_app.extensions['sync_lock'] = threading.Lock()
-    return current_app.extensions['sync_lock']
+    lock: threading.Lock = current_app.extensions['sync_lock']
+    return lock
 
 
 def _get_last_sync_time() -> float:
     """获取上次同步时间（存储在 app.extensions）"""
-    return current_app.extensions.get('last_sync_time', 0.0)
+    last_sync: float = current_app.extensions.get('last_sync_time', 0.0)
+    return last_sync
 
 
 def _set_last_sync_time(timestamp: float) -> None:

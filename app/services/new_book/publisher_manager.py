@@ -63,7 +63,8 @@ class PublisherManager:
         if active_only:
             query = query.filter_by(is_active=True)
 
-        return query.order_by(Publisher.name_en).all()
+        publishers: list[Publisher] = query.order_by(Publisher.name_en).all()
+        return publishers
 
     def get_publisher(self, publisher_id: int) -> Publisher | None:
         return db.session.get(Publisher, publisher_id)
@@ -96,4 +97,4 @@ class PublisherManager:
             .group_by(NewBook.publisher_id)
             .all()
         )
-        return dict(results)
+        return {publisher_id: count for publisher_id, count in results}

@@ -22,7 +22,7 @@ class GoogleTranslationService:
     def __init__(self, delay: float = 0.5):
         self.delay = delay
         self._client = None
-        self._last_request_time = 0
+        self._last_request_time: float = 0
         self._deep_translator_warned = False
 
     def _get_client(self):
@@ -65,7 +65,7 @@ class GoogleTranslationService:
                 target = lang_map.get(target_lang, target_lang)
 
                 translator = client_class(source=source, target=target)
-                result = translator.translate(text)
+                result: str | None = translator.translate(text)
 
                 self._last_request_time = time.time()
 

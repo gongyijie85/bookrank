@@ -282,7 +282,7 @@ def get_book_details(isbn: str):
             cover_url = f'https://covers.openlibrary.org/b/isbn/{book_data["isbn_13"]}-L.jpg'
 
         details_en = book_data.get('details', '')
-        details_zh = ''
+        details_zh: str | None = ''
 
         # 通过 Service 层获取翻译缓存（不直接访问 db.session）
         try:

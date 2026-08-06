@@ -111,7 +111,8 @@ class MixedCrawl4AICrawler(BaseCrawler):
                 result = await crawler.arun(url=url, config=run_config)
                 if result and result.success and result.html:
                     logger.info(f'✅ {self.PUBLISHER_NAME_EN}: Crawl4AI 爬取成功')
-                    return result.html
+                    html: str = result.html
+                    return html
             return None
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'{self.PUBLISHER_NAME_EN}: Crawl4AI 出错: {e}', level='warning')
@@ -416,7 +417,8 @@ class MixedCrawl4AICrawler(BaseCrawler):
             if img:
                 src = img.get('src') or img.get('data-src')
                 if src:
-                    return urljoin(self.PUBLISHER_WEBSITE, src)
+                    joined: str = urljoin(self.PUBLISHER_WEBSITE, str(src))
+                    return joined
         return None
 
     def _extract_category(self, soup) -> str | None:
@@ -477,7 +479,8 @@ class MixedCrawl4AICrawler(BaseCrawler):
         for selector in self.ISBN_SELECTORS.split(', '):
             elem = soup.select_one(selector.strip())
             if elem:
-                return elem.get_text()
+                elem_text: str = elem.get_text()
+                return elem_text
 
         # 从页面文本查找
         page_text = soup.get_text()
