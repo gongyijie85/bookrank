@@ -471,6 +471,92 @@ class TestGetCrawler:
         mock_crawler_cls.assert_not_called()
 
 
+class TestBackfillWindowSelection:
+    """窗口模式判定：按出版社存量书数量选回填/增量并传入爬虫（工单 #87）"""
+
+    @staticmethod
+    def _backfill_capable_crawler():
+        mock_crawler = MagicMock()
+        mock_crawler.SUPPORTS_BACKFILL = True
+        mock_crawler.get_new_books.return_value = iter([])
+        mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
+        mock_crawler.__exit__ = MagicMock(return_value=False)
+        return mock_crawler
+
+    def test_zero_existing_books_triggers_backfill(self, engine, publisher_manager, sample_publisher, db):
+        publisher_manager.get_publisher.return_value = sample_publisher
+        mock_crawler = self._backfill_capable_crawler()
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            engine.sync_publisher_books(sample_publisher.id)
+
+        assert mock_crawler.get_new_books.call_args.kwargs.get('backfill') is True
+
+    def test_existing_books_falls_back_to_incremental(self, engine, publisher_manager, sample_publisher, db):
+        existing = NewBook(
+            publisher_id=sample_publisher.id,
+            title='Existing Book',
+            author='Someone',
+            description='d',
+            cover_url='https://example.com/c.jpg',
+        )
+        db.session.add(existing)
+        db.session.commit()
+        publisher_manager.get_publisher.return_value = sample_publisher
+        mock_crawler = self._backfill_capable_crawler()
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            engine.sync_publisher_books(sample_publisher.id)
+
+        assert mock_crawler.get_new_books.call_args.kwargs.get('backfill') is False
+
+    def test_crawler_without_backfill_support_gets_no_backfill_kwarg(
+        self, engine, publisher_manager, sample_publisher, db
+    ):
+        publisher_manager.get_publisher.return_value = sample_publisher
+        mock_crawler = MagicMock()
+        mock_crawler.SUPPORTS_BACKFILL = False
+        mock_crawler.get_new_books.return_value = iter([])
+        mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
+        mock_crawler.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            engine.sync_publisher_books(sample_publisher.id)
+
+        assert 'backfill' not in mock_crawler.get_new_books.call_args.kwargs
+
+    def test_backfill_expands_max_books_cap(self, engine, publisher_manager, sample_publisher, db, monkeypatch):
+        """回填模式放大入库上限，否则拉全量也只能入默认额度（工单 #87）"""
+        import app.services.new_book.sync_engine as se_mod
+
+        monkeypatch.setattr(se_mod, '_BACKFILL_MAX_BOOKS', 500)
+        publisher_manager.get_publisher.return_value = sample_publisher
+        mock_crawler = self._backfill_capable_crawler()
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            engine.sync_publisher_books(sample_publisher.id, max_books=30)
+
+        assert mock_crawler.get_new_books.call_args.kwargs['max_books'] == 500
+
+    def test_incremental_keeps_requested_max_books(self, engine, publisher_manager, sample_publisher, db):
+        existing = NewBook(
+            publisher_id=sample_publisher.id,
+            title='Existing Book',
+            author='Someone',
+            description='d',
+            cover_url='https://example.com/c.jpg',
+        )
+        db.session.add(existing)
+        db.session.commit()
+        publisher_manager.get_publisher.return_value = sample_publisher
+        mock_crawler = self._backfill_capable_crawler()
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            engine.sync_publisher_books(sample_publisher.id, max_books=30)
+
+        assert mock_crawler.get_new_books.call_args.kwargs['max_books'] == 30
+
+
 class TestSaveBook:
     """_save_book 保存与去重逻辑测试"""
 

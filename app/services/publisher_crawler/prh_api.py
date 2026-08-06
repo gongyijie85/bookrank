@@ -42,11 +42,17 @@ class PrhApiCrawler(BaseCrawler):
     # rows=1000 实测可用（status=warning 但数据完整）
     PAGE_ROWS = 1000
 
+    # 回填模式的翻页上限：showNewReleases 全量约 1.3 万条，约 13 页，留余量到 20
+    BACKFILL_MAX_PAGES = 20
+
     # division code 黑名单：加拿大系（CAD 定价/加拿大发行）与 Audio
     EXCLUDED_DIVISION_CODES = frozenset({'91', '29', '9B', '9E', '97', '22'})
 
     # workId 去重时的格式优先级：精装 > 平装 > 其余
     FORMAT_PRIORITY = {'HC': 2, 'TR': 1}
+
+    # 能力声明：支持同步引擎按存量书数量传入窗口模式（工单 #87）
+    SUPPORTS_BACKFILL = True
 
     # BISAC subject 描述 -> 现有分类体系的英文规范名（按顺序取首个命中）。
     # 规则顺序有讲究：更具体的类目（Young Adult/Juvenile/Science Fiction）
@@ -78,6 +84,8 @@ class PrhApiCrawler(BaseCrawler):
             config = CrawlerConfig(request_delay=0.5)
         # 官方 API 无 robots.txt 约束；避免去爬官网 robots.txt 引入挂起风险
         config.respect_robots_txt = False
+        # 默认 max_pages=10 盖不住回填全量（~13 页），抬高到回填上限
+        config.max_pages = max(config.max_pages, self.BACKFILL_MAX_PAGES)
         super().__init__(config)
         if not self.config.api_key:
             raise ValueError('PrhApiCrawler 需要 PRH_API_KEY（环境变量注入）')
@@ -86,18 +94,24 @@ class PrhApiCrawler(BaseCrawler):
         self,
         category: str | None = None,
         max_books: int = 100,
+        backfill: bool = False,
     ) -> Generator[BookInfo]:
         """
-        获取近 14 天窗口内的 PRH 新书
+        获取 PRH 新书
 
         Args:
             category: 未使用（API 窗口模式不支持分类检索，分类在入库时映射）
             max_books: 最大产出数量（去重后计数）
+            backfill: True 走首次 180 天全量回填（showNewReleases），
+                False 走近 14 天增量窗口；模式由同步引擎判定传入，爬虫无状态
         """
-        window_end = date.today()
-        window_start = window_end - timedelta(days=self.INCREMENTAL_WINDOW_DAYS)
+        if backfill:
+            raw_titles = self._fetch_pages(self._backfill_params(), '近 180 天回填窗口')
+        else:
+            window_end = date.today()
+            window_start = window_end - timedelta(days=self.INCREMENTAL_WINDOW_DAYS)
+            raw_titles = self._fetch_window(window_start, window_end)
 
-        raw_titles = self._fetch_window(window_start, window_end)
         deduped = self._dedup_by_work_id(t for t in raw_titles if self._division_allowed(t))
 
         yielded = 0
@@ -120,6 +134,17 @@ class PrhApiCrawler(BaseCrawler):
 
     # ---------- 请求与分页 ----------
 
+    def _backfill_params(self) -> dict:
+        """首次回填参数：showNewReleases=true 自带近 180 天窗口（实测 ~1.3 万条），
+        不用日期对"""
+        return {
+            'showNewReleases': 'true',
+            'sort': 'onsale',
+            'dir': 'desc',
+            'rows': self.PAGE_ROWS,
+            'api_key': self.config.api_key,
+        }
+
     def _fetch_window(self, window_start: date, window_end: date) -> list[dict]:
         """成对 onSaleFrom/onSaleTo 拉取窗口内全部 title（分页）"""
         base_params = {
@@ -131,7 +156,10 @@ class PrhApiCrawler(BaseCrawler):
             'rows': self.PAGE_ROWS,
             'api_key': self.config.api_key,
         }
+        return self._fetch_pages(base_params, f'窗口 {window_start} ~ {window_end}')
 
+    def _fetch_pages(self, base_params: dict, label: str) -> list[dict]:
+        """按 start 偏移翻页拉取全部 title，首页失败抛异常、中途失败返回已取部分"""
         all_titles: list[dict] = []
         offset = 0
         max_pages = max(1, self.config.max_pages)
@@ -142,7 +170,7 @@ class PrhApiCrawler(BaseCrawler):
             response = self._make_request(self.API_URL, method='GET', params=params)
             if response is None:
                 if page == 0:
-                    raise RuntimeError(f'PRH API 首页请求失败（窗口 {window_start} ~ {window_end}）')
+                    raise RuntimeError(f'PRH API 首页请求失败（{label}）')
                 # 中途失败：宁可漏报不误报，返回已取部分
                 logger.warning('⚠️ PRH API 第 %d 页请求失败，返回已获取的 %d 条', page + 1, len(all_titles))
                 break
@@ -170,7 +198,7 @@ class PrhApiCrawler(BaseCrawler):
             if not titles or offset >= record_count:
                 break
 
-        logger.info('📦 PRH API 窗口 %s ~ %s 共获取 %d 条原始记录', window_start, window_end, len(all_titles))
+        logger.info('📦 PRH API %s 共获取 %d 条原始记录', label, len(all_titles))
         return all_titles
 
     # ---------- 过滤与去重 ----------

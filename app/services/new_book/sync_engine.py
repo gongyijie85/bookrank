@@ -26,6 +26,11 @@ logger = logging.getLogger(__name__)
 # 避免单家挂起拖死整批同步（宁可漏报不误报）。
 _PER_PUBLISHER_TIMEOUT = float(os.environ.get('SYNC_PUBLISHER_TIMEOUT', '600'))
 
+# 首次回填模式的入库上限：防止异常数据导致无界入库。
+# 注意：默认 translate=True 时翻译开销大，受单家 600s 熔断约束，
+# 一次同步不一定全部入库；未入完部分的补齐策略由生产验证（工单 #88）定夺。
+_BACKFILL_MAX_BOOKS = int(os.environ.get('SYNC_BACKFILL_MAX_BOOKS', '2000'))
+
 
 class SyncEngine:
     _GOOGLE_BOOKS_CRAWLERS: set[str] = {
@@ -60,6 +65,16 @@ class SyncEngine:
         if not crawler:
             return {'success': False, 'error': '爬虫不可用'}
 
+        # 窗口模式判定（工单 #87）：支持回填的爬虫按该出版社存量书数量选择，
+        # 无存量书走首次 180 天全量回填，此后自动回落 14 天增量；爬虫保持无状态
+        supports_backfill = getattr(crawler, 'SUPPORTS_BACKFILL', False) is True
+        backfill = False
+        if supports_backfill:
+            existing_count = NewBook.query.filter_by(publisher_id=publisher.id).count()
+            backfill = existing_count == 0
+            if backfill:
+                logger.info('📦 %s 无存量书，启用近 180 天全量回填窗口', publisher.name_en)
+
         result: dict[str, Any] = {
             'success': True,
             'status': 'running',
@@ -80,7 +95,13 @@ class SyncEngine:
             logger.info(f'开始同步 {publisher.name_en} 新书...')
 
             with crawler:
-                for book_info in crawler.get_new_books(category=category, max_books=max_books):
+                # 回填模式放大入库上限，否则拉全量也只能入 30~50 本，
+                # 「首次同步一次性补齐」形同虚设（工单 #87）
+                effective_max_books = max(max_books, _BACKFILL_MAX_BOOKS) if backfill else max_books
+                fetch_kwargs: dict[str, Any] = {'category': category, 'max_books': effective_max_books}
+                if supports_backfill:
+                    fetch_kwargs['backfill'] = backfill
+                for book_info in crawler.get_new_books(**fetch_kwargs):
                     result['transport_status'] = 'success'
                     result['total'] += 1
 

@@ -144,6 +144,60 @@ class TestRequestParams:
         assert 'showNewReleases' not in params
 
 
+class TestBackfillMode:
+    """首次 180 天全量回填窗口模式（工单 #87）"""
+
+    def test_backfill_uses_show_new_releases_without_date_pair(self):
+        crawler, mock_request = _crawler([_response([_title()])])
+        list(crawler.get_new_books(backfill=True))
+        params = mock_request.call_args.kwargs['params']
+        assert params['showNewReleases'] == 'true'
+        # 回填模式不用日期对，showNewReleases 自带近 180 天窗口
+        assert 'onSaleFrom' not in params
+        assert 'onSaleTo' not in params
+        assert params['sort'] == 'onsale'
+        assert params['dir'] == 'desc'
+        assert params['rows'] == PrhApiCrawler.PAGE_ROWS
+        assert params['api_key'] == 'test-key'
+
+    def test_backfill_pagination_covers_full_volume(self):
+        """翻页按 recordCount 驱动，start 递增，覆盖全量"""
+        page1 = _response([_title(isbn=9780000000001, work_id=100)], record_count=3)
+        page2 = _response([_title(isbn=9780000000002, work_id=101)], record_count=3)
+        page3 = _response([_title(isbn=9780000000003, work_id=102)], record_count=3)
+        crawler, mock_request = _crawler([page1, page2, page3])
+        books = list(crawler.get_new_books(backfill=True, max_books=100))
+        assert len(books) == 3
+        assert mock_request.call_count == 3
+        starts = [c.kwargs['params']['start'] for c in mock_request.call_args_list]
+        assert starts == [0, 1, 2]
+
+    def test_backfill_tolerates_warning_status(self):
+        """rows=1000 实测返回 status=warning 但数据完整，不得误判为失败"""
+        resp = MagicMock(status_code=200, content=b'{}')
+        resp.json.return_value = {
+            'status': 'warning',
+            'recordCount': 1,
+            'data': {'titles': [_title()], '_links': []},
+            'error': None,
+        }
+        resp.raise_for_status = MagicMock()
+        crawler, _ = _crawler([resp])
+        books = list(crawler.get_new_books(backfill=True))
+        assert len(books) == 1
+
+    def test_explicit_incremental_mode_uses_date_window(self):
+        crawler, mock_request = _crawler([_response([_title()])])
+        list(crawler.get_new_books(backfill=False))
+        params = mock_request.call_args.kwargs['params']
+        assert 'onSaleFrom' in params
+        assert 'onSaleTo' in params
+        assert 'showNewReleases' not in params
+
+    def test_backfill_support_capability_flag(self):
+        assert PrhApiCrawler.SUPPORTS_BACKFILL is True
+
+
 class TestDivisionFilter:
     @pytest.mark.parametrize('code', ['91', '29', '9B', '9E', '97', '22'])
     def test_excludes_canadian_and_audio_divisions(self, code):
