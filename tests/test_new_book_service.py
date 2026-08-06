@@ -540,8 +540,10 @@ class TestNewBookService:
         service.init_publishers()
 
         # 用启用中的出版社：Google Books/Open Library 默认停用，
-        # 用它们会在同步前就因"出版社已禁用"短路返回
-        publisher = Publisher.query.filter_by(is_active=True).first()
+        # 用它们会在同步前就因"出版社已禁用"短路返回；
+        # 排除 PrhApiCrawler——它要求环境中有 PRH_API_KEY（CI 无 key 时
+        # get_crawler 快速失败返回 None，本测试只关心语言包写入）
+        publisher = Publisher.query.filter_by(is_active=True).filter(Publisher.crawler_class != 'PrhApiCrawler').first()
         assert publisher is not None
 
         mock_crawler = Mock()

@@ -35,6 +35,9 @@ services:
         sync: false
       - key: GOOGLE_API_KEY
         sync: false
+      # PRH 官方开发者 API Key（新书速递·企鹅兰登爬虫，工单 #86/#88；值在 Render Dashboard 手动设置）
+      - key: PRH_API_KEY
+        sync: false
       # 数据库连接（Supabase / 外部 PostgreSQL）
       # 在 Render Dashboard 中手动设置为 Supabase 的 Session Pooler 或 Direct URL。
       - key: DATABASE_URL
