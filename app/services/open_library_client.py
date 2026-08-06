@@ -52,7 +52,7 @@ class OpenLibraryClient:
         cache_key = f'isbn_{isbn}'
 
         if cache_service:
-            cached = cache_service.get('open_library', cache_key)
+            cached: dict[str, Any] | None = cache_service.get('open_library', cache_key)
             if cached:
                 logger.info(f'返回Open Library缓存数据: ISBN {isbn}')
                 return cached
@@ -211,7 +211,7 @@ class OpenLibraryClient:
     def search_books(self, query: str, limit: int = 10) -> list:
         """搜索图书"""
         url = f'{self._base_url}/search.json'
-        params = {'q': query, 'limit': limit}
+        params: dict[str, Any] = {'q': query, 'limit': limit}
 
         try:
             response = self._session.get(url, params=params, timeout=self._timeout)

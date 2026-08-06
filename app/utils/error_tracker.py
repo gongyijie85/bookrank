@@ -12,13 +12,16 @@ class ErrorTracker:
 
     _instance: 'ErrorTracker | None' = None
     _MAX_RECORDS = 500
+    _records: deque[dict[str, Any]]
+    _sentry: Any
 
     def __new__(cls) -> 'ErrorTracker':
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._records: deque[dict[str, Any]] = deque(maxlen=cls._MAX_RECORDS)
-            cls._instance._sentry = None
-            cls._instance._init_sentry()
+            instance = super().__new__(cls)
+            instance._records = deque(maxlen=cls._MAX_RECORDS)
+            instance._sentry = None
+            instance._init_sentry()
+            cls._instance = instance
         return cls._instance
 
     def _init_sentry(self) -> None:

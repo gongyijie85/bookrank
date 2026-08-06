@@ -117,14 +117,14 @@ class NewBookQueryService:
         from sqlalchemy import func
 
         results = (
-            db.session.query(NewBook.category, func.count(NewBook.id).label('count'))
+            db.session.query(NewBook.category, func.count(NewBook.id).label('category_count'))
             .filter(NewBook.category.isnot(None), NewBook.is_displayable.is_(True))
             .group_by(NewBook.category)
             .order_by(func.count(NewBook.id).desc())
             .all()
         )
 
-        return [{'name': r.category, 'count': r.count} for r in results]
+        return [{'name': r.category, 'count': r.category_count} for r in results]
 
     def get_statistics(self) -> dict[str, Any]:
         from sqlalchemy import func
@@ -150,7 +150,7 @@ class NewBookQueryService:
         ).count()
 
         category_stats = (
-            db.session.query(NewBook.category, func.count(NewBook.id).label('count'))
+            db.session.query(NewBook.category, func.count(NewBook.id).label('category_count'))
             .filter(NewBook.category.isnot(None))
             .group_by(NewBook.category)
             .order_by(func.count(NewBook.id).desc())
@@ -164,7 +164,7 @@ class NewBookQueryService:
             'active_publishers': active_publishers,
             'recent_books_7d': recent_books_7d,
             'recent_books_30d': recent_books_30d,
-            'top_categories': [{'category': c.category, 'count': c.count} for c in category_stats],
+            'top_categories': [{'category': c.category, 'count': c.category_count} for c in category_stats],
         }
 
     @staticmethod

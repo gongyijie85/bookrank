@@ -14,9 +14,13 @@ HarperCollins 出版社爬虫
 import logging
 import re
 from collections.abc import Generator
+from typing import TYPE_CHECKING, cast
 
 from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo
+
+if TYPE_CHECKING:
+    from bs4 import Tag
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +132,8 @@ class HarperCollinsCrawler(BaseCrawler):
         seen_isbns = set()
 
         for img in soup.find_all('img'):
-            alt = img.get('alt', '').strip()
+            img_tag = cast('Tag', img)
+            alt = str(img_tag.get('alt', '')).strip()
             match = ALT_PATTERN.match(alt)
             if match:
                 title = match.group(1).strip()
@@ -141,13 +146,14 @@ class HarperCollinsCrawler(BaseCrawler):
                 seen_isbns.add(isbn)
 
                 # 获取封面图 URL
-                cover_url = img.get('src', '')
+                cover_url = str(img_tag.get('src', ''))
 
                 # 获取产品链接
                 product_url = ''
-                parent_link = img.find_parent('a', href=True)
+                parent_link = img_tag.find_parent('a', href=True)
                 if parent_link:
-                    href = parent_link.get('href', '')
+                    link = cast('Tag', parent_link)
+                    href = str(link.get('href', ''))
                     if href.startswith('/'):
                         product_url = f'https://www.harpercollins.com{href}'
                     elif href.startswith('http'):

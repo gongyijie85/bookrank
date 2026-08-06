@@ -93,7 +93,7 @@ class TranslationPipeline:
 
         translator = self._translator if translate else None
         try:
-            stats = self._language_pack.translate_and_store_books(books, translator=translator)
+            stats: dict[str, int] = self._language_pack.translate_and_store_books(books, translator=translator)
             logger.info(
                 '新书语言包同步完成: 触达%s本, 新翻译字段%s个, 写入%s次',
                 stats.get('books_seen', 0),

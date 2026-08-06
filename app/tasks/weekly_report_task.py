@@ -38,7 +38,7 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
         today = datetime.date.today()
         week_start, week_end = compute_expected_week_range(today)
 
-        existing_report = WeeklyReport.query.filter(
+        existing_report: WeeklyReport | None = WeeklyReport.query.filter(
             WeeklyReport.week_start == week_start, WeeklyReport.week_end == week_end
         ).first()
 

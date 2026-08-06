@@ -1,14 +1,16 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+
+from sqlalchemy.orm import DynamicMapped, Mapped
 
 from .book import Book
 from .database import db
 
 
-class CSRFToken(db.Model):
+class CSRFToken(db.Model):  # type: ignore[name-defined]
     __tablename__ = 'csrf_tokens'
 
-    token = db.Column(db.String(64), primary_key=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    token: Mapped[str] = db.Column(db.String(64), primary_key=True)
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     __table_args__ = (db.Index('idx_csrf_tokens_created_at', 'created_at'),)
 
@@ -16,18 +18,22 @@ class CSRFToken(db.Model):
     __mapper_args__ = {'confirm_deleted_rows': False}
 
 
-class UserPreference(db.Model):
+class UserPreference(db.Model):  # type: ignore[name-defined]
     """用户偏好设置"""
 
     __tablename__ = 'user_preferences'
 
-    session_id = db.Column(db.String(64), primary_key=True)
-    view_mode = db.Column(db.String(20), default='grid')
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    session_id: Mapped[str] = db.Column(db.String(64), primary_key=True)
+    view_mode: Mapped[str | None] = db.Column(db.String(20), default='grid')
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime | None] = db.Column(
+        db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
-    categories = db.relationship('UserCategory', back_populates='user', cascade='all, delete-orphan', lazy='dynamic')
-    viewed_books = db.relationship(
+    categories: DynamicMapped['UserCategory'] = db.relationship(
+        'UserCategory', back_populates='user', cascade='all, delete-orphan', lazy='dynamic'
+    )  # type: ignore[assignment]
+    viewed_books: DynamicMapped['UserViewedBook'] = db.relationship(  # type: ignore[assignment]
         'UserViewedBook', back_populates='user', cascade='all, delete-orphan', lazy='dynamic'
     )
 
@@ -42,44 +48,48 @@ class UserPreference(db.Model):
         }
 
 
-class UserCategory(db.Model):
+class UserCategory(db.Model):  # type: ignore[name-defined]
     """用户关注的分类"""
 
     __tablename__ = 'user_categories'
 
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(64), db.ForeignKey('user_preferences.session_id'), nullable=False, index=True)
-    category_id = db.Column(db.String(50), nullable=False)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    session_id: Mapped[str] = db.Column(
+        db.String(64), db.ForeignKey('user_preferences.session_id'), nullable=False, index=True
+    )
+    category_id: Mapped[str] = db.Column(db.String(50), nullable=False)
 
-    user = db.relationship('UserPreference', back_populates='categories')
+    user: Mapped['UserPreference'] = db.relationship('UserPreference', back_populates='categories')  # type: ignore[assignment]
 
     __table_args__ = (db.UniqueConstraint('session_id', 'category_id', name='uix_user_category'),)
 
 
-class UserViewedBook(db.Model):
+class UserViewedBook(db.Model):  # type: ignore[name-defined]
     """用户浏览过的书籍"""
 
     __tablename__ = 'user_viewed_books'
 
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(64), db.ForeignKey('user_preferences.session_id'), nullable=False, index=True)
-    isbn = db.Column(db.String(13), nullable=False, index=True)
-    viewed_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    session_id: Mapped[str] = db.Column(
+        db.String(64), db.ForeignKey('user_preferences.session_id'), nullable=False, index=True
+    )
+    isbn: Mapped[str] = db.Column(db.String(13), nullable=False, index=True)
+    viewed_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
 
-    user = db.relationship('UserPreference', back_populates='viewed_books')
+    user: Mapped['UserPreference'] = db.relationship('UserPreference', back_populates='viewed_books')  # type: ignore[assignment]
 
     __table_args__ = (db.UniqueConstraint('session_id', 'isbn', name='uix_user_book'),)
 
 
-class UserFavorite(db.Model):
+class UserFavorite(db.Model):  # type: ignore[name-defined]
     """用户收藏的书籍"""
 
     __tablename__ = 'user_favorites'
 
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(64), nullable=False, index=True)
-    isbn = db.Column(db.String(13), nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    session_id: Mapped[str] = db.Column(db.String(64), nullable=False, index=True)
+    isbn: Mapped[str] = db.Column(db.String(13), nullable=False, index=True)
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
 
     __table_args__ = (
         db.UniqueConstraint('session_id', 'isbn', name='uix_user_favorite'),
@@ -97,23 +107,25 @@ class UserFavorite(db.Model):
         }
 
 
-class BookMetadata(db.Model):
+class BookMetadata(db.Model):  # type: ignore[name-defined]
     """书籍元数据缓存"""
 
     __tablename__ = 'book_metadata'
 
-    isbn = db.Column(db.String(13), primary_key=True)
-    title = db.Column(db.String(500), nullable=False)
-    author = db.Column(db.String(300), nullable=False)
-    details = db.Column(db.Text)
-    page_count = db.Column(db.Integer)
-    language = db.Column(db.String(50))
-    publication_date = db.Column(db.String(50))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-    title_zh = db.Column(db.String(500))
-    description_zh = db.Column(db.Text)
-    details_zh = db.Column(db.Text)
-    translated_at = db.Column(db.DateTime)
+    isbn: Mapped[str] = db.Column(db.String(13), primary_key=True)
+    title: Mapped[str] = db.Column(db.String(500), nullable=False)
+    author: Mapped[str] = db.Column(db.String(300), nullable=False)
+    details: Mapped[str | None] = db.Column(db.Text)
+    page_count: Mapped[int | None] = db.Column(db.Integer)
+    language: Mapped[str | None] = db.Column(db.String(50))
+    publication_date: Mapped[str | None] = db.Column(db.String(50))
+    updated_at: Mapped[datetime | None] = db.Column(
+        db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
+    title_zh: Mapped[str | None] = db.Column(db.String(500))
+    description_zh: Mapped[str | None] = db.Column(db.Text)
+    details_zh: Mapped[str | None] = db.Column(db.Text)
+    translated_at: Mapped[datetime | None] = db.Column(db.DateTime)
 
     __table_args__ = (
         db.Index('idx_book_metadata_title', 'title'),
@@ -139,16 +151,16 @@ class BookMetadata(db.Model):
         }
 
 
-class SearchHistory(db.Model):
+class SearchHistory(db.Model):  # type: ignore[name-defined]
     """搜索历史"""
 
     __tablename__ = 'search_history'
 
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(64), nullable=False, index=True)
-    keyword = db.Column(db.String(200), nullable=False)
-    result_count = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    session_id: Mapped[str] = db.Column(db.String(64), nullable=False, index=True)
+    keyword: Mapped[str] = db.Column(db.String(200), nullable=False)
+    result_count: Mapped[int | None] = db.Column(db.Integer, default=0)
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
 
     __table_args__ = (db.Index('idx_search_history_session_created', 'session_id', 'created_at'),)
 
@@ -161,24 +173,26 @@ class SearchHistory(db.Model):
         }
 
 
-class Award(db.Model):
+class Award(db.Model):  # type: ignore[name-defined]
     """国际图书奖项"""
 
     __tablename__ = 'awards'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, index=True)
-    name_en = db.Column(db.String(100))
-    country = db.Column(db.String(50))
-    description = db.Column(db.Text)
-    category_count = db.Column(db.Integer, default=1)
-    icon_class = db.Column(db.String(50))
-    established_year = db.Column(db.Integer)
-    award_month = db.Column(db.Integer)
-    wikidata_id = db.Column(db.String(50))
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    name: Mapped[str] = db.Column(db.String(100), nullable=False, index=True)
+    name_en: Mapped[str | None] = db.Column(db.String(100))
+    country: Mapped[str | None] = db.Column(db.String(50))
+    description: Mapped[str | None] = db.Column(db.Text)
+    category_count: Mapped[int | None] = db.Column(db.Integer, default=1)
+    icon_class: Mapped[str | None] = db.Column(db.String(50))
+    established_year: Mapped[int | None] = db.Column(db.Integer)
+    award_month: Mapped[int | None] = db.Column(db.Integer)
+    wikidata_id: Mapped[str | None] = db.Column(db.String(50))
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
-    books = db.relationship('AwardBook', back_populates='award', cascade='all, delete-orphan', lazy='dynamic')
+    books: DynamicMapped['AwardBook'] = db.relationship(
+        'AwardBook', back_populates='award', cascade='all, delete-orphan', lazy='dynamic'
+    )  # type: ignore[assignment]
 
     def to_dict(self) -> dict:
         return {
@@ -196,43 +210,45 @@ class Award(db.Model):
         }
 
 
-class AwardBook(db.Model):
+class AwardBook(db.Model):  # type: ignore[name-defined]
     """获奖图书"""
 
     __tablename__ = 'award_books'
 
-    id = db.Column(db.Integer, primary_key=True)
-    award_id = db.Column(db.Integer, db.ForeignKey('awards.id'), nullable=False, index=True)
-    year = db.Column(db.Integer, nullable=False, index=True)
-    category = db.Column(db.String(100))
-    rank = db.Column(db.Integer)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    award_id: Mapped[int] = db.Column(db.Integer, db.ForeignKey('awards.id'), nullable=False, index=True)
+    year: Mapped[int] = db.Column(db.Integer, nullable=False, index=True)
+    category: Mapped[str | None] = db.Column(db.String(100))
+    rank: Mapped[int | None] = db.Column(db.Integer)
 
-    title = db.Column(db.String(500), nullable=False, index=True)
-    title_zh = db.Column(db.String(500))
-    author = db.Column(db.String(300), nullable=False, index=True)
-    description = db.Column(db.Text)
-    description_zh = db.Column(db.Text)
+    title: Mapped[str] = db.Column(db.String(500), nullable=False, index=True)
+    title_zh: Mapped[str | None] = db.Column(db.String(500))
+    author: Mapped[str] = db.Column(db.String(300), nullable=False, index=True)
+    description: Mapped[str | None] = db.Column(db.Text)
+    description_zh: Mapped[str | None] = db.Column(db.Text)
 
-    cover_local_path = db.Column(db.String(255))
-    cover_original_url = db.Column(db.String(500))
+    cover_local_path: Mapped[str | None] = db.Column(db.String(255))
+    cover_original_url: Mapped[str | None] = db.Column(db.String(500))
 
-    isbn13 = db.Column(db.String(13), index=True)
-    isbn10 = db.Column(db.String(10))
-    publisher = db.Column(db.String(200))
-    publication_year = db.Column(db.Integer)
+    isbn13: Mapped[str | None] = db.Column(db.String(13), index=True)
+    isbn10: Mapped[str | None] = db.Column(db.String(10))
+    publisher: Mapped[str | None] = db.Column(db.String(200))
+    publication_year: Mapped[int | None] = db.Column(db.Integer)
 
-    details = db.Column(db.Text)
-    buy_links = db.Column(db.Text)
+    details: Mapped[str | None] = db.Column(db.Text)
+    buy_links: Mapped[str | None] = db.Column(db.Text)
 
-    verification_status = db.Column(db.String(20), default='pending', index=True)
-    verification_checked_at = db.Column(db.DateTime)
-    verification_errors = db.Column(db.Text)
-    is_displayable = db.Column(db.Boolean, default=False, index=True)
+    verification_status: Mapped[str | None] = db.Column(db.String(20), default='pending', index=True)
+    verification_checked_at: Mapped[datetime | None] = db.Column(db.DateTime)
+    verification_errors: Mapped[str | None] = db.Column(db.Text)
+    is_displayable: Mapped[bool | None] = db.Column(db.Boolean, default=False, index=True)
 
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime | None] = db.Column(
+        db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
-    award = db.relationship('Award', back_populates='books')
+    award: Mapped['Award'] = db.relationship('Award', back_populates='books')  # type: ignore[assignment]
 
     __table_args__ = (
         db.UniqueConstraint('award_id', 'year', 'category', 'isbn13', name='uix_award_book'),
@@ -299,34 +315,34 @@ class AwardBook(db.Model):
         return data
 
 
-class TranslationCache(db.Model):
+class TranslationCache(db.Model):  # type: ignore[name-defined]
     """翻译内容缓存表"""
 
     __tablename__ = 'translation_cache'
 
-    id = db.Column(db.Integer, primary_key=True)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
     # 源文本哈希（用于快速查找）
-    source_hash = db.Column(db.String(64), nullable=False, index=True)
+    source_hash: Mapped[str] = db.Column(db.String(64), nullable=False, index=True)
     # 源文本
-    source_text = db.Column(db.Text, nullable=False)
+    source_text: Mapped[str] = db.Column(db.Text, nullable=False)
     # 源语言
-    source_lang = db.Column(db.String(10), nullable=False, default='en')
+    source_lang: Mapped[str] = db.Column(db.String(10), nullable=False, default='en')
     # 目标语言
-    target_lang = db.Column(db.String(10), nullable=False, default='zh')
+    target_lang: Mapped[str] = db.Column(db.String(10), nullable=False, default='zh')
     # 翻译结果
-    translated_text = db.Column(db.Text, nullable=False)
+    translated_text: Mapped[str] = db.Column(db.Text, nullable=False)
     # 使用的模型
-    model_name = db.Column(db.String(100), default='glm-4.7-flash')
+    model_name: Mapped[str | None] = db.Column(db.String(100), default='glm-4.7-flash')
     # 模型版本
-    model_version = db.Column(db.String(50))
+    model_version: Mapped[str | None] = db.Column(db.String(50))
     # 翻译质量评分（0-1）
-    quality_score = db.Column(db.Float)
+    quality_score: Mapped[float | None] = db.Column(db.Float)
     # 使用次数
-    usage_count = db.Column(db.Integer, default=0)
+    usage_count: Mapped[int | None] = db.Column(db.Integer, default=0)
     # 最后使用时间
-    last_used_at = db.Column(db.DateTime, index=True)
+    last_used_at: Mapped[datetime | None] = db.Column(db.DateTime, index=True)
     # 创建时间
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
 
     __table_args__ = (
         # 唯一约束：相同的源文本+源语言+目标语言只能有一条记录
@@ -353,23 +369,23 @@ class TranslationCache(db.Model):
         }
 
 
-class APICache(db.Model):
+class APICache(db.Model):  # type: ignore[name-defined]
     """外部API缓存表 - 用于缓存NYT、Google Books等API调用结果"""
 
     __tablename__ = 'api_cache'
 
-    id = db.Column(db.Integer, primary_key=True)
-    api_source = db.Column(db.String(50), nullable=False, index=True)
-    request_key = db.Column(db.String(255), nullable=False, index=True)
-    request_hash = db.Column(db.String(64), nullable=False, index=True)
-    response_data = db.Column(db.Text, nullable=False)
-    status_code = db.Column(db.Integer, default=200)
-    error_message = db.Column(db.Text)
-    ttl_seconds = db.Column(db.Integer, default=86400)
-    usage_count = db.Column(db.Integer, default=0)
-    last_used_at = db.Column(db.DateTime, index=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
-    expires_at = db.Column(db.DateTime, index=True)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    api_source: Mapped[str] = db.Column(db.String(50), nullable=False, index=True)
+    request_key: Mapped[str] = db.Column(db.String(255), nullable=False, index=True)
+    request_hash: Mapped[str] = db.Column(db.String(64), nullable=False, index=True)
+    response_data: Mapped[str] = db.Column(db.Text, nullable=False)
+    status_code: Mapped[int | None] = db.Column(db.Integer, default=200)
+    error_message: Mapped[str | None] = db.Column(db.Text)
+    ttl_seconds: Mapped[int | None] = db.Column(db.Integer, default=86400)
+    usage_count: Mapped[int | None] = db.Column(db.Integer, default=0)
+    last_used_at: Mapped[datetime | None] = db.Column(db.DateTime, index=True)
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    expires_at: Mapped[datetime | None] = db.Column(db.DateTime, index=True)
 
     __table_args__ = (
         db.UniqueConstraint('api_source', 'request_hash', name='uix_api_cache_source_hash'),
@@ -402,15 +418,17 @@ class APICache(db.Model):
         }
 
 
-class SystemConfig(db.Model):
+class SystemConfig(db.Model):  # type: ignore[name-defined]
     """系统配置表"""
 
     __tablename__ = 'system_config'
 
-    key = db.Column(db.String(100), primary_key=True)
-    value = db.Column(db.Text)
-    description = db.Column(db.String(255))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    key: Mapped[str] = db.Column(db.String(100), primary_key=True)
+    value: Mapped[str | None] = db.Column(db.Text)
+    description: Mapped[str | None] = db.Column(db.String(255))
+    updated_at: Mapped[datetime | None] = db.Column(
+        db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     @classmethod
     def get_value(cls, key: str, default: str | None = None) -> str | None:
@@ -430,26 +448,30 @@ class SystemConfig(db.Model):
         return config
 
 
-class WeeklyReport(db.Model):
+class WeeklyReport(db.Model):  # type: ignore[name-defined]
     """每周畅销书报告"""
 
     __tablename__ = 'weekly_reports'
 
-    id = db.Column(db.Integer, primary_key=True)
-    report_date = db.Column(db.Date, nullable=False, index=True)
-    week_start = db.Column(db.Date, nullable=False)
-    week_end = db.Column(db.Date, nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    summary = db.Column(db.Text)
-    content = db.Column(db.Text)  # JSON格式存储详细内容
-    top_changes = db.Column(db.Text)  # JSON格式存储最大变化
-    featured_books = db.Column(db.Text)  # JSON格式存储推荐书籍
-    view_count = db.Column(db.Integer, default=0)  # 阅读量
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    report_date: Mapped[date] = db.Column(db.Date, nullable=False, index=True)
+    week_start: Mapped[date] = db.Column(db.Date, nullable=False)
+    week_end: Mapped[date] = db.Column(db.Date, nullable=False)
+    title: Mapped[str] = db.Column(db.String(200), nullable=False)
+    summary: Mapped[str | None] = db.Column(db.Text)
+    content: Mapped[str | None] = db.Column(db.Text)
+    top_changes: Mapped[str | None] = db.Column(db.Text)
+    featured_books: Mapped[str | None] = db.Column(db.Text)
+    view_count: Mapped[int | None] = db.Column(db.Integer, default=0)
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime | None] = db.Column(
+        db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
     # 关系
-    views = db.relationship('ReportView', back_populates='report', cascade='all, delete-orphan')
+    views: Mapped[list['ReportView']] = db.relationship(
+        'ReportView', back_populates='report', cascade='all, delete-orphan'
+    )  # type: ignore[assignment]
 
     __table_args__ = (
         db.Index('idx_weekly_reports_date', 'report_date'),
@@ -474,20 +496,20 @@ class WeeklyReport(db.Model):
         }
 
 
-class ReportView(db.Model):
+class ReportView(db.Model):  # type: ignore[name-defined]
     """周报阅读记录"""
 
     __tablename__ = 'report_views'
 
-    id = db.Column(db.Integer, primary_key=True)
-    report_id = db.Column(db.Integer, db.ForeignKey('weekly_reports.id'), nullable=False, index=True)
-    session_id = db.Column(db.String(64), nullable=False, index=True)
-    viewed_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
-    user_agent = db.Column(db.String(500))
-    ip_address = db.Column(db.String(50))
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    report_id: Mapped[int] = db.Column(db.Integer, db.ForeignKey('weekly_reports.id'), nullable=False, index=True)
+    session_id: Mapped[str] = db.Column(db.String(64), nullable=False, index=True)
+    viewed_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    user_agent: Mapped[str | None] = db.Column(db.String(500))
+    ip_address: Mapped[str | None] = db.Column(db.String(50))
 
     # 关系
-    report = db.relationship('WeeklyReport', back_populates='views')
+    report: Mapped['WeeklyReport'] = db.relationship('WeeklyReport', back_populates='views')  # type: ignore[assignment]
 
     __table_args__ = (
         db.Index('idx_report_views_report_session', 'report_id', 'session_id'),
@@ -495,20 +517,20 @@ class ReportView(db.Model):
     )
 
 
-class UserBehavior(db.Model):
+class UserBehavior(db.Model):  # type: ignore[name-defined]
     """用户行为数据"""
 
     __tablename__ = 'user_behaviors'
 
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(64), nullable=False, index=True)
-    event_type = db.Column(db.String(50), nullable=False, index=True)  # view_book, view_report, export_report, etc.
-    target_id = db.Column(db.String(100), index=True)  # 目标ID，如书籍ISBN或周报日期
-    target_type = db.Column(db.String(50))  # 目标类型，如 book, report
-    duration = db.Column(db.Integer)  # 停留时间（秒）
-    user_agent = db.Column(db.String(500))
-    ip_address = db.Column(db.String(50))
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
+    id: Mapped[int] = db.Column(db.Integer, primary_key=True)
+    session_id: Mapped[str] = db.Column(db.String(64), nullable=False, index=True)
+    event_type: Mapped[str] = db.Column(db.String(50), nullable=False, index=True)
+    target_id: Mapped[str | None] = db.Column(db.String(100), index=True)
+    target_type: Mapped[str | None] = db.Column(db.String(50))
+    duration: Mapped[int | None] = db.Column(db.Integer)
+    user_agent: Mapped[str | None] = db.Column(db.String(500))
+    ip_address: Mapped[str | None] = db.Column(db.String(50))
+    created_at: Mapped[datetime | None] = db.Column(db.DateTime, default=lambda: datetime.now(UTC), index=True)
 
     __table_args__ = (
         db.Index('idx_user_behaviors_session_event', 'session_id', 'event_type'),

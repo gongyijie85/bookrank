@@ -76,7 +76,7 @@ class WeeklyReportService:
             book_service: 图书服务实例
         """
         self._book_service = book_service
-        self._translation_service = None
+        self._translation_service: Any = None
 
     def _get_translation_service(self):
         """获取翻译服务"""
@@ -102,7 +102,7 @@ class WeeklyReportService:
         """
         try:
             # 检查是否已经生成过该周的报告
-            existing_report = WeeklyReport.query.filter(
+            existing_report: WeeklyReport | None = WeeklyReport.query.filter(
                 WeeklyReport.week_start == week_start, WeeklyReport.week_end == week_end
             ).first()
 
@@ -281,7 +281,7 @@ class WeeklyReportService:
             books = weekly_data.get('books', [])
 
             # 分类统计
-            category_stats = {}
+            category_stats: dict[str, dict[str, Any]] = {}
             for book in books:
                 cat = book.get('category', '其他')
                 if cat not in category_stats:
@@ -449,7 +449,7 @@ class WeeklyReportService:
                     prompt += f'{_format_book_title(book["title"])}({book["author"]}) - {book["reason"]}；'
 
             # 使用专门的AI摘要生成方法（如果可用），否则回退到翻译接口
-            ai_result = None
+            ai_result: str | None = None
 
             # 尝试使用专门的摘要生成方法
             if hasattr(translation_service, 'generate_summary'):
@@ -563,7 +563,10 @@ class WeeklyReportService:
             List[WeeklyReport]: 周报列表
         """
         try:
-            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all()
+            reports: list[WeeklyReport] = (
+                WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all()
+            )
+            return reports
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取周报列表时出错: {e!s}')
             return []
@@ -578,7 +581,8 @@ class WeeklyReportService:
             WeeklyReport: 周报
         """
         try:
-            return WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first()
+            report: WeeklyReport | None = WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first()
+            return report
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据日期获取周报时出错: {e!s}')
             return None
@@ -593,7 +597,8 @@ class WeeklyReportService:
             WeeklyReport: 周报
         """
         try:
-            return WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first()
+            report: WeeklyReport | None = WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first()
+            return report
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据周结束日期获取周报时出错: {e!s}')
             return None
@@ -605,7 +610,8 @@ class WeeklyReportService:
             WeeklyReport: 最新周报
         """
         try:
-            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first()
+            report: WeeklyReport | None = WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first()
+            return report
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取最新周报时出错: {e!s}')
             return None

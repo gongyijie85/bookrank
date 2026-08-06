@@ -198,7 +198,7 @@ def cleanup_categories():
     """清理新书分类中的营销文案数据"""
     try:
         from ..models.new_book import NewBook
-        from ..services.new_book_service import NewBookService
+        from ..services.publisher_data import sanitize_category as _sanitize_category
 
         if request.method == 'GET':
             dry_run = True
@@ -210,7 +210,7 @@ def cleanup_categories():
 
         invalid_books = []
         for book in books:
-            cleaned = NewBookService._sanitize_category(book.category)
+            cleaned = _sanitize_category(book.category)
             if cleaned != book.category:
                 invalid_books.append(
                     {'id': book.id, 'title': book.title, 'old_category': book.category, 'new_category': cleaned}
@@ -753,7 +753,7 @@ def backup_import():
         if not data or 'tables' not in data:
             return APIResponse.error('无效的导入数据格式', 400)
 
-        table_models = {
+        table_models: dict[str, type] = {
             'awards': Award,
             'award_books': AwardBook,
             'weekly_reports': WeeklyReport,
@@ -782,7 +782,7 @@ def seed_award_books():
     try:
         from ..initialization.sample_award_books import init_sample_award_books
 
-        init_sample_award_books(current_app._get_current_object())
+        init_sample_award_books(current_app._get_current_object())  # type: ignore[attr-defined]
 
         from ..models.schemas import AwardBook
 

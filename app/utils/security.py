@@ -84,4 +84,4 @@ def log_safe(message: str, **kwargs: Any) -> None:
         else:
             safe_kwargs[k] = v
 
-    logger.info(message, **safe_kwargs)
+    logger.info(message, **safe_kwargs)  # type: ignore[arg-type]

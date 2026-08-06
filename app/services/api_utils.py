@@ -87,7 +87,7 @@ class ImageCacheService:
         self._cache_dir = cache_dir
         self._default_cover = default_cover
         self._cache_dir.mkdir(parents=True, exist_ok=True)
-        self._memory_cache = OrderedDict()
+        self._memory_cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
         self._memory_cache_ttl = 3600
         self._memory_cache_max_size = 1000
         self._session = create_session_with_retry(max_retries=2)

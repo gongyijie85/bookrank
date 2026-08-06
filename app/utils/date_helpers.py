@@ -32,7 +32,7 @@ def parse_report_content(report) -> dict | None:
     if not report or not report.content:
         return None
     try:
-        content = json.loads(report.content) if isinstance(report.content, str) else report.content
+        content: dict | None = json.loads(report.content) if isinstance(report.content, str) else report.content
     except (json.JSONDecodeError, TypeError):
         return None
     return content

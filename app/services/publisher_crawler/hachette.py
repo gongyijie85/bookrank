@@ -14,9 +14,13 @@ import logging
 import re
 import time
 from collections.abc import Generator
+from typing import TYPE_CHECKING, Any, cast
 
 from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo
+
+if TYPE_CHECKING:
+    from bs4 import Tag
 
 logger = logging.getLogger(__name__)
 
@@ -125,9 +129,9 @@ class HachetteCrawler(BaseCrawler):
                 tabpanel = soup
 
         # 3. 提取所有书籍链接
-        book_links = []
-        for link in tabpanel.find_all('a', href=True):
-            href = link.get('href', '')
+        book_links: list[dict[str, Any]] = []
+        for link in cast('Tag', tabpanel).find_all('a', href=True):
+            href = str(cast('Tag', link).get('href', ''))
             match = ISBN_PATTERN.search(href)
             if match:
                 isbn = match.group(1)
@@ -236,7 +240,7 @@ class HachetteCrawler(BaseCrawler):
         Returns:
             包含详情信息的字典
         """
-        result = {
+        result: dict[str, Any] = {
             'author': '',
             'description': '',
             'publication_date': None,
@@ -280,9 +284,9 @@ class HachetteCrawler(BaseCrawler):
             if not result['publication_date']:
                 date_pattern = re.compile(r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}')
                 for date_match in soup.find_all(string=date_pattern):
-                    date_text = date_pattern.search(str(date_match))
-                    if date_text:
-                        result['publication_date'] = self._parse_date(date_text.group())
+                    date_found = date_pattern.search(str(date_match))
+                    if date_found:
+                        result['publication_date'] = self._parse_date(date_found.group())
                         break
 
             # 提取描述：查找 Description 按钮后的文本
@@ -311,8 +315,9 @@ class HachetteCrawler(BaseCrawler):
             if not result['description']:
                 # 查找包含较多文本的段落
                 for p in soup.find_all(['p', 'div']):
-                    text = self._clean_text(p.get_text())
-                    if len(text) > 100 and len(text) < 2000 and not p.find('a', href=True):
+                    p_tag = cast('Tag', p)
+                    text = self._clean_text(p_tag.get_text())
+                    if len(text) > 100 and len(text) < 2000 and not p_tag.find('a', href=True):
                         result['description'] = text
                         break
 
@@ -338,7 +343,7 @@ class HachetteCrawler(BaseCrawler):
             if genre_heading:
                 genre_container = genre_heading.find_parent()
                 if genre_container:
-                    for link in genre_container.find_all('a'):
+                    for link in cast('Tag', genre_container).find_all('a'):
                         genre = self._clean_text(link.get_text())
                         if genre:
                             result['categories'].append(genre)
@@ -346,7 +351,7 @@ class HachetteCrawler(BaseCrawler):
             # 提取封面图
             og_image = soup.find('meta', property='og:image')
             if og_image:
-                result['cover_url'] = og_image.get('content', '')
+                result['cover_url'] = str(cast('Tag', og_image).get('content', ''))
 
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'获取详情页失败: {e}, URL: {book_url}')

@@ -40,9 +40,10 @@ class GoogleBooksClient:
             return False
 
         try:
+            probe_params: dict[str, Any] = {'q': 'test', 'maxResults': 1, 'key': self._api_key}
             resp = self._session.get(
                 self._base_url,
-                params={'q': 'test', 'maxResults': 1, 'key': self._api_key},
+                params=probe_params,
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -79,7 +80,7 @@ class GoogleBooksClient:
         cache_key = f'isbn_{isbn}'
 
         if cache_service:
-            cached = cache_service.get('google_books', cache_key)
+            cached: dict | None = cache_service.get('google_books', cache_key)
             if cached:
                 logger.info('返回Google Books缓存数据: ISBN %s', isbn)
                 return cached
@@ -116,7 +117,7 @@ class GoogleBooksClient:
             return {}
 
     @api_retry(max_attempts=2, backoff_factor=1.5)
-    def search_book_by_title(self, title: str, author: str = None) -> dict[str, Any]:
+    def search_book_by_title(self, title: str, author: str | None = None) -> dict[str, Any]:
         """根据书名搜索图书"""
         if not title:
             return {}
@@ -127,7 +128,7 @@ class GoogleBooksClient:
         cache_service = self._get_cache_service()
 
         if cache_service:
-            cached = cache_service.get('google_books', cache_key)
+            cached: dict | None = cache_service.get('google_books', cache_key)
             if cached:
                 logger.info("返回Google Books缓存搜索结果: '%s'", title)
                 return cached
@@ -210,19 +211,22 @@ class GoogleBooksClient:
         identifiers = volume_info.get('industryIdentifiers', [])
         for identifier in identifiers:
             if identifier.get('type') == isbn_type:
-                return identifier.get('identifier')
+                isbn_value: str | None = identifier.get('identifier')
+                return isbn_value
         return None
 
-    def get_cover_url(self, isbn: str = None, title: str = None, author: str = None) -> str | None:
+    def get_cover_url(self, isbn: str | None = None, title: str | None = None, author: str | None = None) -> str | None:
         """获取图书封面URL"""
         if isbn:
             details = self.fetch_book_details(isbn)
             if details and details.get('cover_url'):
-                return details['cover_url']
+                cover_url: str = details['cover_url']
+                return cover_url
 
         if title:
             details = self.search_book_by_title(title, author)
             if details and details.get('cover_url'):
-                return details['cover_url']
+                cover_url = details['cover_url']
+                return cover_url
 
         return None

@@ -61,7 +61,8 @@ class RecommendationService:
             # 如果推荐结果不足，补充热门图书
             if len(recommendations) < limit:
                 popular = self._get_popular_recommendations(limit - len(recommendations))
-                recommendations.extend(popular)
+                popular_items: list[dict] = popular.get('recommendations', [])
+                recommendations.extend(popular_items)
 
             return {
                 'recommendations': recommendations,
@@ -75,12 +76,13 @@ class RecommendationService:
 
     def _get_viewed_books(self, session_id: str) -> list[UserViewedBook]:
         """获取用户浏览的图书"""
-        return (
+        books: list[UserViewedBook] = (
             UserViewedBook.query.filter_by(session_id=session_id)
             .order_by(UserViewedBook.viewed_at.desc())
             .limit(20)
             .all()
         )
+        return books
 
     def _analyze_user_interests(self, session_id: str, viewed_books: list[UserViewedBook]) -> dict[str, Any]:
         """
@@ -95,7 +97,7 @@ class RecommendationService:
         Returns:
             用户兴趣特征字典
         """
-        interests = {'keywords': [], 'authors': [], 'publishers': [], 'categories': []}
+        interests: dict[str, Any] = {'keywords': [], 'authors': [], 'publishers': [], 'categories': []}
 
         # 获取用户关注的分类
         user_categories = UserCategory.query.filter_by(session_id=session_id).all()

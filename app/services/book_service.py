@@ -1,7 +1,7 @@
 import logging
 import threading
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC
 from pathlib import Path
@@ -91,7 +91,7 @@ class BookService:
         # 2. 遍历缓存并构建索引
         for category_id in self._categories:
             cache_key = f'books_{category_id}'
-            cached_data = self._cache.get(cache_key)
+            cached_data: list[dict[str, Any]] = self._cache.get(cache_key)
             if not cached_data:
                 continue
             with self._isbn_index_lock:
@@ -294,7 +294,7 @@ class BookService:
 
     def _batch_get_supplements(self, isbns: list[str]) -> dict[str, dict]:
         """并发获取Google Books补充信息，提升批量查询效率"""
-        supplements = {}
+        supplements: dict[str, dict] = {}
         if not isbns:
             return supplements
 
@@ -448,7 +448,8 @@ class BookService:
             return True
 
         try:
-            return self._run_with_context(_save)
+            saved_ok: bool = self._run_with_context(_save)
+            return saved_ok
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存图书元数据失败: {e}')
             try:
@@ -457,7 +458,7 @@ class BookService:
                 pass
             return False
 
-    def save_book_metadata_batch(self, books: list[Book | dict[str, Any]]) -> int:
+    def save_book_metadata_batch(self, books: Sequence[Book | dict[str, Any]]) -> int:
         """批量保存NYT图书英文资料，通过一次 IN 查询避免 N+1"""
         if not books:
             return 0
@@ -491,7 +492,8 @@ class BookService:
             return saved
 
         try:
-            return self._run_with_context(_save)
+            saved_count: int = self._run_with_context(_save)
+            return saved_count
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'批量保存图书元数据失败: {e}')
             try:
@@ -531,7 +533,8 @@ class BookService:
             return True
 
         try:
-            return self._run_with_context(_save)
+            saved_ok: bool = self._run_with_context(_save)
+            return saved_ok
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存翻译失败: {e}')
             try:

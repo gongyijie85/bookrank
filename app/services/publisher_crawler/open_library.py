@@ -97,7 +97,8 @@ class OpenLibraryCrawler(BaseCrawler):
                 result = await crawler.arun(url=url, config=run_config)
                 if result and result.success and result.html:
                     logger.info('✅ OpenLibrary: Crawl4AI 爬取成功')
-                    return result.html
+                    html: str = result.html
+                    return html
             return None
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'OpenLibrary: Crawl4AI 出错: {e}', level='warning')

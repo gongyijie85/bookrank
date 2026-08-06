@@ -43,6 +43,9 @@ class PublisherRSSCrawler(BaseCrawler):
     # 子类可覆盖：从 Feed 项中提取 ISBN 的正则
     ISBN_PATTERN = re.compile(r'(97[89]\d{10}|\d{9}[\dXx])')
 
+    # 子类可覆盖：分类名规范化映射
+    CATEGORY_MAP: dict[str, str] = {}
+
     def __init__(self, config: CrawlerConfig | None = None):
         super().__init__(config)
 
@@ -107,7 +110,7 @@ class PublisherRSSCrawler(BaseCrawler):
 
     def _parse_feed(self, xml_text: str) -> list[dict[str, Any]]:
         """解析 RSS/Atom Feed XML"""
-        items = []
+        items: list[dict[str, Any]] = []
 
         try:
             root = ET.fromstring(xml_text)
@@ -257,7 +260,8 @@ class PublisherRSSCrawler(BaseCrawler):
         """安全获取 XML 元素文本"""
         elem = parent.find(tag, ns) if ns else parent.find(tag)
         if elem is not None and elem.text:
-            return elem.text.strip()
+            text: str = elem.text.strip()
+            return text
         return None
 
     def _item_to_book_info(self, item: dict[str, Any]) -> BookInfo | None:
@@ -268,7 +272,7 @@ class PublisherRSSCrawler(BaseCrawler):
 
         # 清理 HTML 标签
         description = self._strip_html(item.get('description', ''))
-        description = self._truncate_description(description)
+        description = self._truncate_description(description) or ''
 
         # 提取作者
         author = item.get('author', '').strip()

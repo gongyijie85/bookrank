@@ -75,7 +75,7 @@ class APICacheService:
         cache_key = f'{api_source}:{request_hash}'
 
         # 1. 内存 LRU 快速路径
-        mem_data = self._mem_get(cache_key)
+        mem_data: dict | None = self._mem_get(cache_key)
         if mem_data is not None:
             return mem_data
 
@@ -94,7 +94,7 @@ class APICacheService:
             logger.info(f'API缓存命中: {api_source} - {request_key}')
 
             try:
-                data = json.loads(cache.response_data)
+                data: dict = json.loads(cache.response_data)
             except json.JSONDecodeError:
                 data = {'error': cache.response_data}
 
@@ -132,7 +132,7 @@ class APICacheService:
         ttl_seconds = ttl_seconds or self.DEFAULT_TTL.get(api_source, 86400)
         cache_key = f'{api_source}:{request_hash}'
 
-        existing = APICache.query.filter_by(api_source=api_source, request_hash=request_hash).first()
+        existing: APICache | None = APICache.query.filter_by(api_source=api_source, request_hash=request_hash).first()
 
         if existing:
             existing.response_data = response_str
@@ -140,7 +140,7 @@ class APICacheService:
             existing.error_message = error_message
             existing.ttl_seconds = ttl_seconds
             existing.expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
-            existing.usage_count += 1
+            existing.usage_count = (existing.usage_count or 0) + 1
             existing.last_used_at = datetime.now(UTC)
         else:
             expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
@@ -188,7 +188,7 @@ class APICacheService:
             cutoff_date = datetime.now(UTC) - timedelta(days=older_than_days)
             query = query.filter(APICache.created_at < cutoff_date)
 
-        deleted_count = query.delete()
+        deleted_count: int = query.delete()
         try:
             db.session.commit()
 
@@ -211,7 +211,7 @@ class APICacheService:
 
     def clear_expired(self) -> int:
         """清理过期缓存"""
-        deleted = APICache.query.filter(APICache.expires_at < datetime.now(UTC)).delete()
+        deleted: int = APICache.query.filter(APICache.expires_at < datetime.now(UTC)).delete()
 
         try:
             db.session.commit()
@@ -285,7 +285,8 @@ class APICacheService:
             query = APICache.query
             if api_source:
                 query = query.filter_by(api_source=api_source)
-            return query.order_by(APICache.last_used_at.desc()).limit(limit).all()
+            records: list[APICache] = query.order_by(APICache.last_used_at.desc()).limit(limit).all()
+            return records
         except Exception as e:
             log_error(ErrorCategory.CACHE, f'获取最近缓存记录失败: {e}')
             return []
