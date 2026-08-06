@@ -40,6 +40,14 @@ class TestConstants:
         for old_class, new_class in CRAWLER_MIGRATION.items():
             assert old_class != new_class, f'{old_class} 是无意义的自映射'
 
+    def test_prh_migrates_from_google_books_variant_to_official_api(self):
+        """企鹅兰登从 Google Books 变体迁移到官方 API 爬虫（工单 #86）"""
+        assert CRAWLER_MIGRATION['PenguinRandomHouseCrawler'] == 'PrhApiCrawler'
+
+    def test_prh_seed_uses_official_api_crawler(self):
+        by_name_en = {p['name_en']: p for p in DEFAULT_PUBLISHERS}
+        assert by_name_en['Penguin Random House']['crawler_class'] == 'PrhApiCrawler'
+
     def test_google_books_and_open_library_default_to_inactive(self):
         """通用 GoogleBooksCrawler(非出版社限定关键词搜索)实测会把公版经典的
         重印版当新书返回；OpenLibraryCrawler 实测直接不返回任何结果。两者都

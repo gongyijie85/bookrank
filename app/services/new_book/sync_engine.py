@@ -500,6 +500,15 @@ class SyncEngine:
                 config = CrawlerConfig(api_key=api_key)
                 return crawler_cls(config)
 
+        if crawler_class == 'PrhApiCrawler':
+            # PRH 官方 API 爬虫：key 缺失时快速失败（返回 None → 该出版社标记失败），
+            # 不阻塞其余出版社同步（工单 #86）
+            api_key = current_app.config.get('PRH_API_KEY') if current_app else None
+            if not api_key:
+                log_error(ErrorCategory.CRAWLER, 'PRH_API_KEY 未配置，跳过 PrhApiCrawler', level='error')
+                return None
+            return crawler_cls(CrawlerConfig(api_key=api_key, request_delay=0.5))
+
         return crawler_cls()
 
     @staticmethod

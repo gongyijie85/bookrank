@@ -74,6 +74,24 @@ class TestNewBookService:
         refreshed = Publisher.query.filter_by(name_en='Google Books').first()
         assert refreshed.is_active is True
 
+    def test_init_publishers_migrates_prh_to_official_api_crawler(self, new_book_service, db):
+        """存量库中仍绑定旧 Google Books 变体的 PRH 记录，init_publishers()
+        应自动换向到官方 API 爬虫，无需手工改库（工单 #86）。"""
+        existing = Publisher(
+            name='企鹅兰登',
+            name_en='Penguin Random House',
+            website='https://www.penguinrandomhouse.com',
+            crawler_class='PenguinRandomHouseCrawler',
+            is_active=True,
+        )
+        db.session.add(existing)
+        db.session.commit()
+
+        new_book_service.init_publishers()
+
+        refreshed = Publisher.query.filter_by(name_en='Penguin Random House').first()
+        assert refreshed.crawler_class == 'PrhApiCrawler'
+
     def test_seed_from_static_data(self, new_book_service, db, tmp_path):
         """测试从静态新书 JSON 兜底导入"""
         static_file = tmp_path / 'google_books_books.json'

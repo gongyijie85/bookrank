@@ -36,7 +36,7 @@ DEFAULT_PUBLISHERS: list[dict[str, str | bool]] = [
         'name': '企鹅兰登',
         'name_en': 'Penguin Random House',
         'website': 'https://www.penguinrandomhouse.com',
-        'crawler_class': 'PenguinRandomHouseCrawler',
+        'crawler_class': 'PrhApiCrawler',
     },
     {
         'name': '西蒙舒斯特',
@@ -133,6 +133,7 @@ CRAWLER_MIGRATION: dict[str, str] = {
     'HachetteGoogleCrawler': 'HachetteCrawler',
     'HarperCollinsGoogleCrawler': 'HarperCollinsCrawler',
     'MacmillanGoogleCrawler': 'MacmillanCrawler',
+    'PenguinRandomHouseCrawler': 'PrhApiCrawler',
 }
 
 # 营销关键词过滤（_sanitize_category 使用）

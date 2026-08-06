@@ -62,6 +62,7 @@ class Config:
     NYT_API_KEY: str | None = os.environ.get('NYT_API_KEY')
     GOOGLE_API_KEY: str | None = os.environ.get('GOOGLE_API_KEY')
     ZHIPU_API_KEY: str | None = os.environ.get('ZHIPU_API_KEY')
+    PRH_API_KEY: str | None = os.environ.get('PRH_API_KEY')
 
     CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'simple')
     CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_TTL', 7200))

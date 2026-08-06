@@ -446,6 +446,30 @@ class TestGetCrawler:
             engine.get_crawler('GoogleBooksCrawler')
         mock_crawler_cls.assert_called_once_with()
 
+    @patch('app.services.new_book.sync_engine.get_crawler_class')
+    def test_prh_api_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
+        """PRH_API_KEY 存在时注入配置（工单 #86）"""
+        mock_crawler_cls = MagicMock()
+        mock_get_cls.return_value = mock_crawler_cls
+        app_context.config['PRH_API_KEY'] = 'test-prh-key'
+        engine.get_crawler('PrhApiCrawler')
+        mock_crawler_cls.assert_called_once()
+        call_args = mock_crawler_cls.call_args
+        assert call_args[0][0].api_key == 'test-prh-key'
+
+    @patch('app.services.new_book.sync_engine.get_crawler_class')
+    def test_prh_api_crawler_without_api_key_returns_none(self, mock_get_cls, app):
+        """PRH_API_KEY 缺失时快速失败返回 None，不实例化爬虫（工单 #86）"""
+        mock_crawler_cls = MagicMock()
+        mock_get_cls.return_value = mock_crawler_cls
+
+        with app.app_context():
+            app.config.pop('PRH_API_KEY', None)
+            engine = SyncEngine(MagicMock(), MagicMock())
+            result = engine.get_crawler('PrhApiCrawler')
+        assert result is None
+        mock_crawler_cls.assert_not_called()
+
 
 class TestSaveBook:
     """_save_book 保存与去重逻辑测试"""

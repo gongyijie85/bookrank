@@ -39,6 +39,7 @@ _CRAWLER_MODULES = [
     ('OpenLibraryCrawler', '.open_library'),
     ('GoogleBooksCrawler', '.google_books'),
     ('PenguinRandomHouseCrawler', '.penguin_random_house'),
+    ('PrhApiCrawler', '.prh_api'),
     ('SimonSchusterCrawler', '.simon_schuster'),
     ('HachetteCrawler', '.hachette'),
     ('HarperCollinsCrawler', '.harpercollins'),
