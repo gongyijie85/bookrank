@@ -61,7 +61,6 @@ module = [
     "flask_migrate.*",
     "flask_mail",
     "flask_mail.*",
-    "apscheduler",
     "apscheduler.*",
     "mistune",
     "mistune.*",
