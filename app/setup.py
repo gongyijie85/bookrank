@@ -514,20 +514,34 @@ def run_auto_sync() -> dict:
     try:
         import json as _json
 
+        # 工单 #83：Google Books 系日期过滤拒绝计数的字段名（仅 Google 系
+        # 爬虫的同步结果字典携带），随各家条目写入摘要供 2 周观测期判定
+        _date_filter_keys = (
+            'traversed_total',
+            'rejected_no_date',
+            'rejected_unparseable',
+            'rejected_out_of_window',
+            'rejected_future_placeholder',
+            'accepted_year_only',
+        )
+        publishers_summary = []
+        for r in results:
+            entry = {
+                'publisher': r.get('publisher'),
+                'status': r.get('status'),
+                'elapsed_seconds': r.get('elapsed_seconds'),
+                'added': r.get('added', 0),
+                'error': (r.get('error') or '')[:200] or None,
+            }
+            if 'traversed_total' in r:
+                entry['date_filter'] = {k: r[k] for k in _date_filter_keys if k in r}
+            publishers_summary.append(entry)
+
         summary = {
             'finished_at': datetime.now(UTC).isoformat(),
             'added': total_added,
             'updated': total_updated,
-            'publishers': [
-                {
-                    'publisher': r.get('publisher'),
-                    'status': r.get('status'),
-                    'elapsed_seconds': r.get('elapsed_seconds'),
-                    'added': r.get('added', 0),
-                    'error': (r.get('error') or '')[:200] or None,
-                }
-                for r in results
-            ],
+            'publishers': publishers_summary,
         }
         SystemConfig.set_value('last_auto_sync_result', _json.dumps(summary, ensure_ascii=False))
     except Exception as e:

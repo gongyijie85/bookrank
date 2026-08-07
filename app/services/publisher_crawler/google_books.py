@@ -74,6 +74,17 @@ class GoogleBooksCrawler(BaseCrawler):
         self._api_key = config.api_key if config else None
         self._key_validated = False
         self._key_is_valid = False
+        # 工单 #83：日期过滤分类拒绝计数器——量化"日期缺失保守拒绝"策略的
+        # 漏报代价。只测量、不改变任何收录/拒绝行为；计数随同步结果字典流出，
+        # 由 auto_sync 持久化到 last_auto_sync_result 摘要。
+        self.date_filter_stats: dict[str, int] = {
+            'traversed_total': 0,
+            'rejected_no_date': 0,
+            'rejected_unparseable': 0,
+            'rejected_out_of_window': 0,
+            'rejected_future_placeholder': 0,
+            'accepted_year_only': 0,
+        }
 
     def _validate_api_key(self) -> bool:
         """验证 API Key 是否有效，无效则自动降级为无Key模式"""
@@ -242,7 +253,9 @@ class GoogleBooksCrawler(BaseCrawler):
                 volume_info = item.get('volumeInfo', {})
                 published_date = volume_info.get('publishedDate', '')
 
-                if not self._is_recent_book(published_date, cutoff_date):
+                category = self._classify_date_filter(published_date, cutoff_date)
+                self._record_date_filter(category)
+                if not category.startswith('accepted'):
                     continue
 
                 book_info = self._parse_volume_info(volume_info, subject)
@@ -274,24 +287,50 @@ class GoogleBooksCrawler(BaseCrawler):
         return datetime.now().date() - timedelta(days=cls.RECENCY_WINDOW_DAYS)
 
     @staticmethod
+    def _classify_date_filter(published_date: str, cutoff_date: date) -> str:
+        """对单条日期判定做分类（工单 #83 漏报测量）。
+
+        返回值即收录/拒绝类别，与 _is_recent_book 的布尔判定完全同构：
+
+        - accepted: 日期有效且在窗口内
+        - accepted_year_only: 年份-only（如 '2026'）按当年1月1日放行，单独计数
+        - rejected_no_date: 日期字段缺失
+        - rejected_unparseable: 有值但解析失败
+        - rejected_future_placeholder: 未来超1年的占位日期
+        - rejected_out_of_window: 早于新书窗口
+        """
+        if not published_date:
+            return 'rejected_no_date'
+
+        parsed = parse_static_date(published_date)
+        if parsed is None:
+            return 'rejected_unparseable'
+
+        today = datetime.now().date()
+        # 过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）
+        if parsed > today + timedelta(days=365):
+            return 'rejected_future_placeholder'
+        if parsed < cutoff_date:
+            return 'rejected_out_of_window'
+        if published_date.strip().isdigit() and len(published_date.strip()) == 4:
+            return 'accepted_year_only'
+        return 'accepted'
+
+    @staticmethod
     def _is_recent_book(published_date: str, cutoff_date: date) -> bool:
         """判断书籍是否为近期出版（排除未来占位日期、过旧书籍和日期缺失的书籍）
 
         日期缺失或无法解析时保守拒绝：无法确认"新"就不能当新书展示，
         宁可漏掉少数元数据不全的书，也不能把无法验证时间的书混进新书速递。
         """
-        if not published_date:
-            return False
+        category = GoogleBooksCrawler._classify_date_filter(published_date, cutoff_date)
+        return category.startswith('accepted')
 
-        parsed = parse_static_date(published_date)
-        if parsed is None:
-            return False
-
-        today = datetime.now().date()
-        # 过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）
-        if parsed > today + timedelta(days=365):
-            return False
-        return parsed >= cutoff_date
+    def _record_date_filter(self, category: str) -> None:
+        """累计一条日期过滤判定到实例计数器（工单 #83）"""
+        self.date_filter_stats['traversed_total'] += 1
+        if category in self.date_filter_stats:
+            self.date_filter_stats[category] += 1
 
     def _parse_volume_info(self, volume_info: dict, default_category: str) -> BookInfo | None:
         """解析 Google Books 卷信息"""

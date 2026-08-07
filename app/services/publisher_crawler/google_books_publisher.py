@@ -140,7 +140,9 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     volume_info = item.get('volumeInfo', {})
                     published_date = volume_info.get('publishedDate', '')
 
-                    if not self._is_recent_book(published_date, cutoff_date):
+                    category = self._classify_date_filter(published_date, cutoff_date)
+                    self._record_date_filter(category)
+                    if not category.startswith('accepted'):
                         continue
 
                     # 去重：用 ISBN 或标题
@@ -182,7 +184,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
         identifiers = volume_info.get('industryIdentifiers', [])
         for ident in identifiers:
             if ident.get('type') in ('ISBN_13', 'ISBN_10'):
-                return ident.get('identifier', '')
+                return str(ident.get('identifier', ''))
         title = volume_info.get('title', '')
         author = (volume_info.get('authors') or [''])[0]
         return f'{title}|{author}'.lower()

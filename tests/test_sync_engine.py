@@ -148,6 +148,54 @@ class TestSyncPublisherBooks:
         assert book.title == 'Test Book'
         assert book.isbn13 == '9780000000001'
 
+    def test_date_filter_stats_flow_into_result(
+        self, engine, publisher_manager, sample_publisher, sample_book_info, db
+    ):
+        """工单 #83：Google Books 系爬虫的日期过滤拒绝计数随单家同步结果字典流出"""
+        publisher_manager.get_publisher.return_value = sample_publisher
+
+        mock_crawler = MagicMock()
+        mock_crawler.get_new_books.return_value = iter([sample_book_info])
+        mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
+        mock_crawler.__exit__ = MagicMock(return_value=False)
+        mock_crawler.date_filter_stats = {
+            'traversed_total': 6,
+            'rejected_no_date': 2,
+            'rejected_unparseable': 1,
+            'rejected_out_of_window': 1,
+            'rejected_future_placeholder': 1,
+            'accepted_year_only': 1,
+        }
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            result = engine.sync_publisher_books(sample_publisher.id, translate=False)
+
+        assert result['success'] is True
+        assert result['traversed_total'] == 6
+        assert result['rejected_no_date'] == 2
+        assert result['rejected_unparseable'] == 1
+        assert result['rejected_out_of_window'] == 1
+        assert result['accepted_year_only'] == 1
+
+    def test_crawler_without_real_stats_does_not_pollute_result(
+        self, engine, publisher_manager, sample_publisher, sample_book_info, db
+    ):
+        """非 Google 系爬虫（或 Mock 的自动属性）不带真实计数字典时，
+        结果字典不应被污染"""
+        publisher_manager.get_publisher.return_value = sample_publisher
+
+        mock_crawler = MagicMock()  # date_filter_stats 自动属性是 MagicMock，不是 dict
+        mock_crawler.get_new_books.return_value = iter([sample_book_info])
+        mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
+        mock_crawler.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(engine, 'get_crawler', return_value=mock_crawler):
+            result = engine.sync_publisher_books(sample_publisher.id, translate=False)
+
+        assert result['success'] is True
+        assert 'traversed_total' not in result
+        assert 'rejected_no_date' not in result
+
     def test_sync_skips_duplicate_by_isbn13(self, engine, publisher_manager, sample_publisher, db):
         existing = NewBook(
             publisher_id=sample_publisher.id,

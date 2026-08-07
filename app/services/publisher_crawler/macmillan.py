@@ -175,7 +175,9 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 volume_info = item.get('volumeInfo', {})
                 published_date = volume_info.get('publishedDate', '')
 
-                if not self._is_recent_book(published_date, cutoff_date):
+                category = self._classify_date_filter(published_date, cutoff_date)
+                self._record_date_filter(category)
+                if not category.startswith('accepted'):
                     continue
 
                 book = self._parse_volume_info(volume_info, 'general')
@@ -405,6 +407,11 @@ class MacmillanCrawler(GoogleBooksCrawler):
                     continue
 
                 if not self._is_book_recent(book, cutoff_date):
+                    # 工单 #83：sitemap 补充路径同样计入日期过滤拒绝分类
+                    # （此路径拿到的是已解析日期，只可能是缺失或窗口外）
+                    self._record_date_filter(
+                        'rejected_no_date' if not book.publication_date else 'rejected_out_of_window'
+                    )
                     continue
 
                 isbn_key = book.isbn13 or isbn

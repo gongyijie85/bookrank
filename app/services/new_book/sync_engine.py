@@ -130,6 +130,14 @@ class SyncEngine:
                         db.session.commit()
 
             result['transport_status'] = 'success'
+
+            # 工单 #83：Google Books 系日期过滤的分类拒绝计数随结果字典流出，
+            # 供 auto_sync 摘要持久化（只测量，不改变行为）。非 Google 系爬虫
+            # 无此属性；isinstance 检查同时避免 Mock 爬虫的自动属性污染结果。
+            date_filter_stats = getattr(crawler, 'date_filter_stats', None)
+            if isinstance(date_filter_stats, dict):
+                result.update(date_filter_stats)
+
             if result['total'] == 0:
                 # 空结果可能表示“确实没有新书”，也可能表示数据源已经失效；
                 # 在没有额外探针确认前，不能把它记录为一次成功同步。
