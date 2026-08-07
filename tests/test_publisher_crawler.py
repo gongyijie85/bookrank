@@ -265,7 +265,7 @@ class TestGoogleBooksParsing:
 
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
         recent = (date.today() - timedelta(days=10)).isoformat()
         assert GoogleBooksCrawler._is_recent_book(recent, cutoff) is True
 
@@ -274,7 +274,7 @@ class TestGoogleBooksParsing:
 
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
         old = (date.today() - timedelta(days=200)).isoformat()
         assert GoogleBooksCrawler._is_recent_book(old, cutoff) is False
 
@@ -285,7 +285,7 @@ class TestGoogleBooksParsing:
 
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
         assert GoogleBooksCrawler._is_recent_book('', cutoff) is False
 
     def test_is_recent_book_invalid_is_rejected(self):
@@ -293,7 +293,7 @@ class TestGoogleBooksParsing:
 
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
         assert GoogleBooksCrawler._is_recent_book('invalid', cutoff) is False
 
     def test_is_recent_book_far_future_placeholder_rejected(self):
@@ -302,7 +302,7 @@ class TestGoogleBooksParsing:
 
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
         far_future = (date.today() + timedelta(days=400)).isoformat()
         assert GoogleBooksCrawler._is_recent_book(far_future, cutoff) is False
 
@@ -383,7 +383,7 @@ class TestMacmillanRecencyCheck:
         from app.services.publisher_crawler.base_crawler import BookInfo
         from app.services.publisher_crawler.macmillan import MacmillanCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=MacmillanCrawler.RECENCY_WINDOW_DAYS)
         book = BookInfo(title='T', author='A', publication_date=date.today() - timedelta(days=10))
         assert MacmillanCrawler._is_book_recent(book, cutoff) is True
 
@@ -393,7 +393,7 @@ class TestMacmillanRecencyCheck:
         from app.services.publisher_crawler.base_crawler import BookInfo
         from app.services.publisher_crawler.macmillan import MacmillanCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=MacmillanCrawler.RECENCY_WINDOW_DAYS)
         book = BookInfo(title='T', author='A', publication_date=date.today() - timedelta(days=200))
         assert MacmillanCrawler._is_book_recent(book, cutoff) is False
 
@@ -404,7 +404,7 @@ class TestMacmillanRecencyCheck:
         from app.services.publisher_crawler.base_crawler import BookInfo
         from app.services.publisher_crawler.macmillan import MacmillanCrawler
 
-        cutoff = date.today() - timedelta(days=180)
+        cutoff = date.today() - timedelta(days=MacmillanCrawler.RECENCY_WINDOW_DAYS)
         book = BookInfo(title='T', author='A', publication_date=None)
         assert MacmillanCrawler._is_book_recent(book, cutoff) is False
 

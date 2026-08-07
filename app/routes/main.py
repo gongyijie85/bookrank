@@ -378,9 +378,10 @@ def _parse_new_books_params(args) -> dict:
     selected_category = args.get('category', '')
 
     try:
-        selected_days = min(max(1, int(args.get('days', '90'))), 365)
+        # 默认 30 天：维护者决议的"新书"标准（出版 30 天内），与 API 默认一致
+        selected_days = min(max(1, int(args.get('days', '30'))), 365)
     except (ValueError, TypeError):
-        selected_days = 90
+        selected_days = 30
 
     search_query = args.get('search', '').strip()[:100]
 

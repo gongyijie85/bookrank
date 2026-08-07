@@ -28,7 +28,8 @@ _PER_PUBLISHER_TIMEOUT = float(os.environ.get('SYNC_PUBLISHER_TIMEOUT', '600'))
 
 # 首次回填模式的入库上限：防止异常数据导致无界入库。
 # 注意：默认 translate=True 时翻译开销大，受单家 600s 熔断约束，
-# 一次同步不一定全部入库；未入完部分的补齐策略由生产验证（工单 #88）定夺。
+# 一次同步不一定全部入库。回填窗口已收窄到 30 天（维护者决议的"新书"标准，
+# 2026-08-07），窗口内记录数有限，正常情况一轮即可入完。
 _BACKFILL_MAX_BOOKS = int(os.environ.get('SYNC_BACKFILL_MAX_BOOKS', '2000'))
 
 
@@ -66,14 +67,14 @@ class SyncEngine:
             return {'success': False, 'error': '爬虫不可用'}
 
         # 窗口模式判定（工单 #87）：支持回填的爬虫按该出版社存量书数量选择，
-        # 无存量书走首次 180 天全量回填，此后自动回落 14 天增量；爬虫保持无状态
+        # 无存量书走首次回填窗口（爬虫自定窗口天数），此后自动回落增量；爬虫保持无状态
         supports_backfill = getattr(crawler, 'SUPPORTS_BACKFILL', False) is True
         backfill = False
         if supports_backfill:
             existing_count = NewBook.query.filter_by(publisher_id=publisher.id).count()
             backfill = existing_count == 0
             if backfill:
-                logger.info('📦 %s 无存量书，启用近 180 天全量回填窗口', publisher.name_en)
+                logger.info('📦 %s 无存量书，启用首次回填窗口', publisher.name_en)
 
         result: dict[str, Any] = {
             'success': True,

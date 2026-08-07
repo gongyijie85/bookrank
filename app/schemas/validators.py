@@ -111,8 +111,9 @@ class NewBookListQuery(BaseModel):
 
     publisher_id: int | None = Field(default=None, ge=1)
     category: str | None = Field(default=None, max_length=100)
-    # 默认90天：列表页首屏是宽泛的"最近新书"浏览场景，需要有足够内容可看。
-    days: int = Field(default=90, ge=1, le=365)
+    # 默认30天：维护者决议（2026-08-07）——出版 30 天内才算"新书"，
+    # 全链路（展示/抓取窗口）统一按此标准；前端仍保留更宽选项供手动放宽。
+    days: int = Field(default=30, ge=1, le=365)
     search: str = Field(default='', max_length=100)
     page: int = Field(default=1, ge=1, le=10000)
     per_page: int = Field(default=20, ge=1, le=50)

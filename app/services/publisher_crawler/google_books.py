@@ -42,10 +42,11 @@ class GoogleBooksCrawler(BaseCrawler):
 
     BASE_URL = 'https://www.googleapis.com/books/v1/volumes'
 
-    # "新书"窗口：默认只保留最近半年内出版的书。Google Books 没有可靠的
-    # "首次出版日期"字段，粗粒度的"近2-3年"窗口会把经典作品的重印/新版
-    # 当成新书返回，缩到按天计算的窗口能显著减少这种误判。
-    RECENCY_WINDOW_DAYS = 180
+    # "新书"窗口：只保留最近 30 天内出版的书（维护者决议，2026-08-07：
+    # 出版 30 天内才算"新书"，与展示层默认窗口一致）。Google Books 没有
+    # 可靠的"首次出版日期"字段，按天计算的窄窗口能显著减少把经典作品
+    # 重印/新版当新书返回的误判。
+    RECENCY_WINDOW_DAYS = 30
 
     SUBJECT_MAP = {
         'fiction': '小说',

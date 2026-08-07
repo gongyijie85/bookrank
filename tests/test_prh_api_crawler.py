@@ -145,16 +145,22 @@ class TestRequestParams:
 
 
 class TestBackfillMode:
-    """首次 180 天全量回填窗口模式（工单 #87）"""
+    """首次回填窗口模式（工单 #87；窗口后收窄为 30 天新书标准）"""
 
-    def test_backfill_uses_show_new_releases_without_date_pair(self):
+    def test_backfill_uses_paired_30_day_window(self):
+        """回填不再用 showNewReleases（固定近 180 天），改用成对日期拉精确 30 天"""
         crawler, mock_request = _crawler([_response([_title()])])
         list(crawler.get_new_books(backfill=True))
         params = mock_request.call_args.kwargs['params']
-        assert params['showNewReleases'] == 'true'
-        # 回填模式不用日期对，showNewReleases 自带近 180 天窗口
-        assert 'onSaleFrom' not in params
-        assert 'onSaleTo' not in params
+        assert 'showNewReleases' not in params
+        # 实证修正：onSaleFrom 单独使用不生效，必须与 onSaleTo 成对
+        assert 'onSaleFrom' in params
+        assert 'onSaleTo' in params
+        date_from = datetime.strptime(params['onSaleFrom'], '%m/%d/%Y').date()
+        date_to = datetime.strptime(params['onSaleTo'], '%m/%d/%Y').date()
+        assert (date_to - date_from).days == PrhApiCrawler.BACKFILL_WINDOW_DAYS
+        assert PrhApiCrawler.BACKFILL_WINDOW_DAYS == 30
+        assert date_to == date.today()
         assert params['sort'] == 'onsale'
         assert params['dir'] == 'desc'
         assert params['rows'] == PrhApiCrawler.PAGE_ROWS
