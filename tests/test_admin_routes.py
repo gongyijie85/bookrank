@@ -3,6 +3,7 @@
 覆盖以下路由处理器:
 - POST /api/admin/award-covers/sync
 - GET  /api/admin/award-covers/status
+- GET  /api/admin/new-books/last-sync
 - POST /api/admin/weekly-report/regenerate
 - POST /api/admin/weekly-report/regenerate-all
 - GET|POST /api/admin/categories/cleanup
@@ -1174,3 +1175,50 @@ class TestCleanReportText:
         result = _clean_report_text('*《书名》*')
         assert '*《' not in result
         assert '《书名》' in result
+
+
+# ==================== 新书同步摘要（工单 #83 观测通道） ====================
+
+
+class TestGetNewBooksLastSync:
+    """GET /api/admin/new-books/last-sync"""
+
+    def test_returns_summary_with_date_filter(self, client, admin_headers, db):
+        from app.models.schemas import SystemConfig
+
+        summary = {
+            'finished_at': '2026-08-07T07:00:00+00:00',
+            'added': 3,
+            'updated': 0,
+            'publishers': [
+                {
+                    'publisher': 'Hachette',
+                    'status': 'success',
+                    'elapsed_seconds': 12.3,
+                    'added': 1,
+                    'error': None,
+                    'date_filter': {'traversed_total': 45, 'rejected_no_date': 5},
+                }
+            ],
+        }
+        SystemConfig.set_value('last_auto_sync_result', json.dumps(summary, ensure_ascii=False))
+        SystemConfig.set_value('last_auto_sync_time', '2026-08-07T07:00:00+00:00')
+        db.session.commit()
+
+        response = client.get('/api/admin/new-books/last-sync', headers=admin_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['last_auto_sync_time'] == '2026-08-07T07:00:00+00:00'
+        assert data['result']['publishers'][0]['date_filter']['traversed_total'] == 45
+
+    def test_returns_none_when_no_sync_yet(self, client, admin_headers, db):
+        response = client.get('/api/admin/new-books/last-sync', headers=admin_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['result'] is None
+
+    def test_without_auth_rejected(self, client):
+        response = client.get('/api/admin/new-books/last-sync')
+        assert response.status_code == 403

@@ -76,6 +76,31 @@ def get_award_covers_status():
         return APIResponse.error('获取状态失败', 500)
 
 
+@admin_bp.route('/new-books/last-sync')
+@admin_required
+def get_new_books_last_sync():
+    """读取最近一次新书自动同步结果（工单 #83 观测通道）
+
+    返回 last_auto_sync_time 与 last_auto_sync_result 摘要，后者包含
+    Google Books 系各家的 date_filter 分类拒绝计数，是 2 周观测期
+    漏报率判定的数据读取入口。
+    """
+    try:
+        from ..models.schemas import SystemConfig
+
+        raw = SystemConfig.get_value('last_auto_sync_result')
+        summary = json_lib.loads(raw) if raw else None
+        return APIResponse.success(
+            data={
+                'last_auto_sync_time': SystemConfig.get_value('last_auto_sync_time'),
+                'result': summary,
+            }
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'读取新书同步摘要失败: {e}', exc_info=True)
+        return APIResponse.error('读取失败', 500)
+
+
 @admin_bp.route('/weekly-report/regenerate', methods=['POST'])
 @csrf_protect
 @admin_required
@@ -206,11 +231,11 @@ def cleanup_categories():
             data = request.get_json(silent=True) or {}
             dry_run = data.get('dry_run', True)
 
-        books = NewBook.query.filter(NewBook.category.isnot(None)).all()
+        books = NewBook.query.filter(NewBook.category.isnot(None)).all()  # type: ignore[union-attr]
 
         invalid_books = []
         for book in books:
-            cleaned = NewBookService._sanitize_category(book.category)
+            cleaned = NewBookService._sanitize_category(book.category)  # type: ignore[attr-defined]
             if cleaned != book.category:
                 invalid_books.append(
                     {'id': book.id, 'title': book.title, 'old_category': book.category, 'new_category': cleaned}
@@ -762,7 +787,7 @@ def backup_import():
             'search_histories': SearchHistory,
         }
 
-        imported_counts = batch_import_from_dict(table_models, data['tables'])
+        imported_counts = batch_import_from_dict(table_models, data['tables'])  # type: ignore[arg-type]
 
         return APIResponse.success(
             data={'imported': imported_counts, 'total': sum(imported_counts.values())},
@@ -782,7 +807,7 @@ def seed_award_books():
     try:
         from ..initialization.sample_award_books import init_sample_award_books
 
-        init_sample_award_books(current_app._get_current_object())
+        init_sample_award_books(current_app._get_current_object())  # type: ignore[attr-defined]
 
         from ..models.schemas import AwardBook
 
