@@ -95,6 +95,38 @@ class TestNewBookService:
         refreshed = Publisher.query.filter_by(name_en='Penguin Random House').first()
         assert refreshed.crawler_class == 'PrhApiCrawler'
 
+    def test_init_publishers_migrates_hachette_hc_to_google_books_channel(self, new_book_service, db):
+        """存量库中绑定站点爬虫的 Hachette/HarperCollins 记录，init_publishers()
+        应自动切回 Google Books 出版社通道（工单 #112：站点抓取在生产失效）。"""
+        db.session.add(
+            Publisher(
+                name='阿歇特',
+                name_en='Hachette',
+                website='https://www.hachettebookgroup.com',
+                crawler_class='HachetteCrawler',
+                is_active=True,
+            )
+        )
+        db.session.add(
+            Publisher(
+                name='哈珀柯林斯',
+                name_en='HarperCollins',
+                website='https://www.harpercollins.com',
+                crawler_class='HarperCollinsCrawler',
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        new_book_service.init_publishers()
+
+        # expire_all 强制从数据库重新加载，避免同会话脏对象掩盖落库遗漏（工单 #88）
+        db.session.expire_all()
+        hachette = Publisher.query.filter_by(name_en='Hachette').first()
+        harper = Publisher.query.filter_by(name_en='HarperCollins').first()
+        assert hachette.crawler_class == 'HachetteGoogleCrawler'
+        assert harper.crawler_class == 'HarperCollinsGoogleCrawler'
+
     def test_seed_from_static_data(self, new_book_service, db, tmp_path):
         """测试从静态新书 JSON 兜底导入"""
         static_file = tmp_path / 'google_books_books.json'

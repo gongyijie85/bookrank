@@ -44,6 +44,20 @@ class TestConstants:
         """企鹅兰登从 Google Books 变体迁移到官方 API 爬虫（工单 #86）"""
         assert CRAWLER_MIGRATION['PenguinRandomHouseCrawler'] == 'PrhApiCrawler'
 
+    def test_hachette_hc_migrate_back_to_google_books_channel(self):
+        """工单 #112：站点爬虫在生产失效（2026-06-22 起零入库），
+        迁移方向反转为 站点爬虫 -> Google Books 出版社通道"""
+        assert CRAWLER_MIGRATION['HachetteCrawler'] == 'HachetteGoogleCrawler'
+        assert CRAWLER_MIGRATION['HarperCollinsCrawler'] == 'HarperCollinsGoogleCrawler'
+        # 旧的反向迁移条目已废弃移除
+        assert 'HachetteGoogleCrawler' not in CRAWLER_MIGRATION
+        assert 'HarperCollinsGoogleCrawler' not in CRAWLER_MIGRATION
+
+    def test_hachette_hc_seed_uses_google_books_crawler(self):
+        by_name_en = {p['name_en']: p for p in DEFAULT_PUBLISHERS}
+        assert by_name_en['Hachette']['crawler_class'] == 'HachetteGoogleCrawler'
+        assert by_name_en['HarperCollins']['crawler_class'] == 'HarperCollinsGoogleCrawler'
+
     def test_prh_seed_uses_official_api_crawler(self):
         by_name_en = {p['name_en']: p for p in DEFAULT_PUBLISHERS}
         assert by_name_en['Penguin Random House']['crawler_class'] == 'PrhApiCrawler'
