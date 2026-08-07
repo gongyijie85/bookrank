@@ -1,9 +1,11 @@
 """外部 cron 触发端点测试"""
 
-from unittest.mock import patch
+import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.models.schemas import SystemConfig
 from app.utils.rate_limiter import get_rate_limiter
 
 
@@ -116,6 +118,48 @@ class TestTriggerNewBooksSync:
         data = response.get_json()
         assert data['success'] is True
         assert '跳过' in data['message']
+
+
+class TestRunAutoSyncPersistence:
+    """run_auto_sync 必须 commit SystemConfig，否则 last-sync 读不到摘要。"""
+
+    def test_persists_last_auto_sync_result_after_commit(self, app, db):
+        from app.setup import run_auto_sync
+
+        mock_service = MagicMock()
+        mock_service.init_publishers.return_value = None
+        mock_service.sync_all_publishers.return_value = [
+            {
+                'publisher': 'Simon & Schuster',
+                'status': 'success',
+                'success': True,
+                'elapsed_seconds': 1.2,
+                'added': 1,
+                'updated': 0,
+                'error': None,
+                'traversed_total': 10,
+                'rejected_no_date': 2,
+                'rejected_unparseable': 0,
+                'rejected_out_of_window': 3,
+                'rejected_future_placeholder': 0,
+                'accepted_year_only': 1,
+            }
+        ]
+
+        with (
+            app.app_context(),
+            patch('app.services.new_book_service.NewBookService', return_value=mock_service),
+            patch('app.utils.service_helpers.get_translation_service', return_value=None),
+        ):
+            result = run_auto_sync()
+
+        assert result['status'] == 'synced'
+        raw = SystemConfig.get_value('last_auto_sync_result')
+        assert raw is not None
+        summary = json.loads(raw)
+        assert summary['publishers'][0]['date_filter']['traversed_total'] == 10
+        assert summary['publishers'][0]['date_filter']['rejected_no_date'] == 2
+        assert SystemConfig.get_value('last_auto_sync_time') is not None
 
 
 class TestCronRateLimit:

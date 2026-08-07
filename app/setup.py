@@ -360,9 +360,18 @@ def _track_task_failure(app, task_name: str, error_message: str) -> None:
     _task_failure_counts[task_name] = _task_failure_counts.get(task_name, 0) + 1
     count = _task_failure_counts[task_name]
     try:
+        from .models import db
+
         SystemConfig.set_value(f'last_failure_count_{task_name}', str(count))
+        db.session.commit()
     except Exception as err:
         logger.warning('记录失败计数失败: %s', err)
+        try:
+            from .models import db
+
+            db.session.rollback()
+        except Exception:
+            pass
 
     if count >= 2:
         _notify_task_failure(app, task_name, count, error_message)
@@ -507,12 +516,16 @@ def run_auto_sync() -> dict:
     total_added = sum(r.get('added', 0) for r in results)
     total_updated = sum(r.get('updated', 0) for r in results)
     failed_results = [result for result in results if result.get('success') is False]
-    if results and not failed_results:
-        SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
 
     # 持久化本次同步摘要，便于生产诊断（哪家失败/超时、各自耗时）
+    # SystemConfig.set_value 只写 session，必须 commit 后 last-sync 端点才能读到。
     try:
         import json as _json
+
+        from .models import db
+
+        if results and not failed_results:
+            SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
 
         # 工单 #83：Google Books 系日期过滤拒绝计数的字段名（仅 Google 系
         # 爬虫的同步结果字典携带），随各家条目写入摘要供 2 周观测期判定
@@ -544,8 +557,15 @@ def run_auto_sync() -> dict:
             'publishers': publishers_summary,
         }
         SystemConfig.set_value('last_auto_sync_result', _json.dumps(summary, ensure_ascii=False))
+        db.session.commit()
     except Exception as e:
         current_app.logger.warning(f'保存同步摘要失败: {e}')
+        try:
+            from .models import db
+
+            db.session.rollback()
+        except Exception:
+            pass
 
     return {
         'status': 'synced' if not failed_results else 'partial',
@@ -635,7 +655,10 @@ def _nyt_ranking_sync_task(app):
         failures = [result for result in results if not result.get('success')]
 
         if successful:
+            from .models import db
+
             SystemConfig.set_value('last_nyt_ranking_sync_time', datetime.now(UTC).isoformat())
+            db.session.commit()
 
         if failures:
             app.logger.warning('NYT排行榜同步部分失败：%s/%s 个分类失败', len(failures), len(results))
@@ -720,6 +743,15 @@ def _award_refresh_task(app):
 def _log_failure(app, key: str):
     """记录失败时间到系统配置"""
     try:
+        from .models import db
+
         SystemConfig.set_value(key, datetime.now(UTC).isoformat())
+        db.session.commit()
     except Exception as err:
         log_error(ErrorCategory.DB_QUERY, f'记录失败时间失败: {err}')
+        try:
+            from .models import db
+
+            db.session.rollback()
+        except Exception:
+            pass
