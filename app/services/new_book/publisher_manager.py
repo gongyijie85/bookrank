@@ -17,6 +17,7 @@ class PublisherManager:
         """初始化出版社数据，事务控制在 Service 层完成"""
         try:
             count = 0
+            migrated = 0
 
             for pub_data in self.DEFAULT_PUBLISHERS:
                 existing = Publisher.query.filter_by(name_en=pub_data['name_en']).first()
@@ -25,6 +26,7 @@ class PublisherManager:
                         old_class = existing.crawler_class
                         new_class = self._CRAWLER_MIGRATION[old_class]
                         existing.crawler_class = new_class
+                        migrated += 1
                         logger.info(f'出版社爬虫迁移: {pub_data["name_en"]} {old_class} -> {new_class}')
                     else:
                         logger.info(f'出版社已存在: {pub_data["name_en"]}')
@@ -42,9 +44,14 @@ class PublisherManager:
                 count += 1
                 logger.info(f'创建出版社: {pub_data["name_en"]}')
 
-            if count > 0:
+            if count > 0 or migrated > 0:
+                # 新建或有爬虫迁移变更时才提交；只判断 count 会让存量库的
+                # 迁移修改永远不落库（生产验证工单 #88 实测发现）
                 db.session.commit()
-                logger.info(f'成功创建 {count} 个出版社')
+                if count > 0:
+                    logger.info(f'成功创建 {count} 个出版社')
+                if migrated > 0:
+                    logger.info(f'已提交 {migrated} 个出版社的爬虫迁移')
             else:
                 logger.info('所有出版社已存在，无需创建')
 
@@ -63,7 +70,7 @@ class PublisherManager:
         if active_only:
             query = query.filter_by(is_active=True)
 
-        return query.order_by(Publisher.name_en).all()
+        return query.order_by(Publisher.name_en).all()  # type: ignore[no-any-return]
 
     def get_publisher(self, publisher_id: int) -> Publisher | None:
         return db.session.get(Publisher, publisher_id)
@@ -91,8 +98,8 @@ class PublisherManager:
         from sqlalchemy import func
 
         results = (
-            db.session.query(NewBook.publisher_id, func.count(NewBook.id).label('count'))
-            .filter(NewBook.is_displayable.is_(True))
+            db.session.query(NewBook.publisher_id, func.count(NewBook.id).label('count'))  # type: ignore[call-overload, arg-type]
+            .filter(NewBook.is_displayable.is_(True))  # type: ignore[attr-defined]
             .group_by(NewBook.publisher_id)
             .all()
         )

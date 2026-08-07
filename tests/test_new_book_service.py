@@ -89,6 +89,9 @@ class TestNewBookService:
 
         new_book_service.init_publishers()
 
+        # expire_all 强制从数据库重新加载：同会话内直接 query 会命中
+        # 未提交的内存脏对象，掩盖"迁移不 commit"这类落库遗漏（工单 #88）
+        db.session.expire_all()
         refreshed = Publisher.query.filter_by(name_en='Penguin Random House').first()
         assert refreshed.crawler_class == 'PrhApiCrawler'
 
