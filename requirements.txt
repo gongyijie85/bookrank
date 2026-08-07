@@ -65,4 +65,4 @@ pre-commit>=4.2.0
 pytest-cov>=6.1.0
 pytest-timeout>=2.3.0
 pydantic>=2.10.0
-types-requests>=2.32.0
+types-requests>=2.33.0.20260712
