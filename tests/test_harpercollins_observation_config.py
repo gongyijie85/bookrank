@@ -1,5 +1,8 @@
 """Contract coverage for the HarperCollins observation prototype."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from app.services.publisher_observer.contracts import (
@@ -61,9 +64,12 @@ def test_observation_report_serializes_tuples_in_stable_order() -> None:
         title="Alpha",
         author="A Author",
         source_url="https://example.test/products/a",
-        editions=(),
+        editions=(
+            EditionObservation("E-book", "9780063416185", False),
+            EditionObservation("Hardcover", "9780063416178", True),
+        ),
         publication_date=None,
-        missing_fields=(),
+        missing_fields=("publication_date", "author"),
     )
     second = BookObservation(
         title="Beta",
@@ -119,6 +125,11 @@ def test_observation_report_serializes_tuples_in_stable_order() -> None:
         "css",
         "xpath",
     ]
+    assert [item["format"] for item in payload["records"][0]["editions"]] == [
+        "E-book",
+        "Hardcover",
+    ]
+    assert payload["records"][0]["missing_fields"] == ["publication_date", "author"]
 
 
 def test_observation_report_cannot_enable_writes() -> None:
@@ -133,3 +144,34 @@ def test_observation_report_cannot_enable_writes() -> None:
             ai_fallback_calls=0,
             write_enabled=True,
         )
+
+
+def test_fixture_manifest_lists_every_harpercollins_fixture() -> None:
+    fixture_dir = Path(__file__).parent / "fixtures" / "publisher_observer" / "harpercollins"
+    manifest = json.loads((fixture_dir / "manifest.json").read_text(encoding="utf-8"))
+    fixture_names = {item["name"] for item in manifest["fixtures"]}
+
+    assert manifest["source"] == "harpercollins"
+    assert fixture_names == {
+        "new-releases.atom",
+        "product-whistler.json",
+        "product-missing-author.json",
+        "collection-page-1-css.json",
+        "collection-page-1-xpath.json",
+        "collection-page-2-css.json",
+        "collection-page-2-xpath.json",
+        "collection-drift-css.json",
+        "collection-drift-xpath.json",
+        "fixed-ai-candidate.json",
+    }
+    assert all("live" not in item and "credentials" not in item for item in manifest["fixtures"])
+    by_name = {item["name"]: item for item in manifest["fixtures"]}
+    assert all(item["source_url"] for item in by_name.values())
+    assert by_name["collection-page-1-xpath.json"]["page"] == 1
+    assert by_name["collection-page-1-xpath.json"]["next_url"].endswith("page=2")
+    assert by_name["collection-page-2-xpath.json"] == {
+        "name": "collection-page-2-xpath.json",
+        "source_url": "https://www.harpercollins.com/collections/new-releases?page=2",
+        "page": 2,
+        "next_url": None,
+    }
