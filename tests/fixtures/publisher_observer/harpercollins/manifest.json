@@ -31,14 +31,14 @@
     },
     {
       "name": "collection-drift-css.json",
-      "source_url": "https://www.harpercollins.com/collections/new-releases?view=drift",
-      "page": 1,
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=3",
+      "page": 3,
       "next_url": null
     },
     {
       "name": "collection-drift-xpath.json",
-      "source_url": "https://www.harpercollins.com/collections/new-releases?view=drift",
-      "page": 1,
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=3",
+      "page": 3,
       "next_url": null
     },
     {

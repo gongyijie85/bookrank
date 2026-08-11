@@ -6,6 +6,7 @@ from typing import Any
 
 
 class ExtractionMethod(StrEnum):
+    MANIFEST = "manifest"
     ATOM = "atom"
     PRODUCT_JSON = "product_json"
     CSS = "css"
@@ -67,6 +68,7 @@ class ObservationReport:
     candidate_urls: tuple[str, ...]
     unverified_ai_candidates: tuple[TemplateCandidate, ...]
     ai_fallback_calls: int
+    manifest_sha256: str | None = None
     write_enabled: bool = field(default=False, init=False)
 
     @property
@@ -77,6 +79,7 @@ class ObservationReport:
         return {
             "source": self.source,
             "schema_version": self.schema_version,
+            "manifest_sha256": self.manifest_sha256,
             "records": [
                 _serialize(record)
                 for record in sorted(self.records, key=lambda item: (item.source_url, item.title))
