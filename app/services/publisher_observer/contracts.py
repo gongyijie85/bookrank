@@ -6,20 +6,20 @@ from typing import Any
 
 
 class ExtractionMethod(StrEnum):
-    MANIFEST = "manifest"
-    ATOM = "atom"
-    PRODUCT_JSON = "product_json"
-    CSS = "css"
-    XPATH = "xpath"
-    AI_CANDIDATE = "ai_candidate"
+    MANIFEST = 'manifest'
+    ATOM = 'atom'
+    PRODUCT_JSON = 'product_json'
+    CSS = 'css'
+    XPATH = 'xpath'
+    AI_CANDIDATE = 'ai_candidate'
 
 
 class EvidenceStatus(StrEnum):
-    VALID = "valid"
-    EXTRACTION_FAILED = "extraction_failed"
-    VALIDATION_FAILED = "validation_failed"
-    ACCESS_BLOCKED = "access_blocked"
-    EMPTY = "empty"
+    VALID = 'valid'
+    EXTRACTION_FAILED = 'extraction_failed'
+    VALIDATION_FAILED = 'validation_failed'
+    ACCESS_BLOCKED = 'access_blocked'
+    EMPTY = 'empty'
 
 
 @dataclass(frozen=True)
@@ -77,30 +77,27 @@ class ObservationReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "source": self.source,
-            "schema_version": self.schema_version,
-            "manifest_sha256": self.manifest_sha256,
-            "records": [
-                _serialize(record)
-                for record in sorted(self.records, key=lambda item: (item.source_url, item.title))
+            'source': self.source,
+            'schema_version': self.schema_version,
+            'manifest_sha256': self.manifest_sha256,
+            'records': [
+                _serialize(record) for record in sorted(self.records, key=lambda item: (item.source_url, item.title))
             ],
-            "evidence": [
+            'evidence': [
                 _serialize(item)
-                for item in sorted(
-                    self.evidence, key=lambda item: (item.document_id, item.method.value)
-                )
+                for item in sorted(self.evidence, key=lambda item: (item.document_id, item.method.value))
             ],
-            "candidate_urls": sorted(self.candidate_urls),
-            "unverified_ai_candidates": [
+            'candidate_urls': sorted(self.candidate_urls),
+            'unverified_ai_candidates': [
                 _serialize(item)
                 for item in sorted(
                     self.unverified_ai_candidates,
                     key=lambda item: (item.selector_kind, item.selector),
                 )
             ],
-            "ai_fallback_calls": self.ai_fallback_calls,
-            "write_enabled": self.write_enabled,
-            "empty_result": self.empty_result,
+            'ai_fallback_calls': self.ai_fallback_calls,
+            'write_enabled': self.write_enabled,
+            'empty_result': self.empty_result,
         }
 
 
@@ -109,6 +106,6 @@ def _serialize(value: Any) -> Any:
         return value.value
     if isinstance(value, tuple):
         return [_serialize(item) for item in value]
-    if hasattr(value, "__dataclass_fields__"):
+    if hasattr(value, '__dataclass_fields__'):
         return {key: _serialize(item) for key, item in asdict(value).items()}
     return value
