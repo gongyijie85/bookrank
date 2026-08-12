@@ -46,6 +46,8 @@ class Publisher(db.Model):
     consecutive_successes: int = db.Column(db.Integer, default=0, nullable=False, comment='连续计划成功次数')
     last_success_batch_id: str | None = db.Column(db.String(128), comment='上次成功导入 batch_id')
     last_attempt_at: datetime | None = db.Column(db.DateTime, comment='上次计划尝试时间')
+    last_error_code: str | None = db.Column(db.String(64), comment='最近计划失败机器码')
+    last_error_summary: str | None = db.Column(db.String(500), comment='最近计划失败摘要（无密钥无正文）')
     created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now(UTC), comment='创建时间')
     updated_at: datetime = db.Column(
         db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), comment='更新时间'
