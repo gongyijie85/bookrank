@@ -23,6 +23,9 @@ def harper(app, db):
         )
         db.session.add(pub)
         db.session.commit()
+    pub.site_import_enabled = True
+    pub.site_display_primary = True
+    db.session.commit()
     return pub
 
 

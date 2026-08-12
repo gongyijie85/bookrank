@@ -44,6 +44,7 @@ class NewBookQueryService:
         from sqlalchemy.orm import joinedload
 
         query = NewBook.query.options(joinedload(NewBook.publisher)).filter(NewBook.is_displayable.is_(True))
+        query = self._exclude_hidden_site_primary_books(query)
 
         query = self._apply_publication_window(query, days)
 
@@ -95,6 +96,7 @@ class NewBookQueryService:
             )
             .filter(NewBook.is_displayable.is_(True))
         )
+        query = self._exclude_hidden_site_primary_books(query)
 
         if publisher_id:
             query = query.filter(NewBook.publisher_id == publisher_id)
@@ -166,6 +168,18 @@ class NewBookQueryService:
             'recent_books_30d': recent_books_30d,
             'top_categories': [{'category': c.category, 'count': c.count} for c in category_stats],
         }
+
+    @staticmethod
+    def _exclude_hidden_site_primary_books(query: Any):
+        """Hide site-import cards when publisher.site_display_primary is false (#137)."""
+        from sqlalchemy import or_
+
+        return query.join(Publisher).filter(
+            or_(
+                NewBook.last_import_batch_id.is_(None),
+                Publisher.site_display_primary.is_(True),
+            )
+        )
 
     @staticmethod
     def _apply_publication_window(query, days: int):
