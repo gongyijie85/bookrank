@@ -1,0 +1,14 @@
+{
+  "product": {
+    "title": "Whistler",
+    "handle": "whistler-ann-patchett",
+    "published_at": "2025-06-03T00:00:00Z",
+    "images": [
+      {"alt": "Whistler by Ann Patchett (9780063416178)"}
+    ],
+    "variants": [
+      {"title": "Hardcover", "barcode": "9780063416178"},
+      {"title": "E-book", "barcode": "9780063416185"}
+    ]
+  }
+}

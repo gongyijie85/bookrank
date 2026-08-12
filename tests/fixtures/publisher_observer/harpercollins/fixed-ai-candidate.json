@@ -1,0 +1,6 @@
+{
+  "selector_kind": "css",
+  "selector": ".product-card a",
+  "reason": "candidate for manual verification",
+  "verified": false
+}
