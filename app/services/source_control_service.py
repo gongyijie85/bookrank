@@ -61,6 +61,16 @@ def set_flags(
         publisher.site_import_enabled = site_import_enabled
         changes['site_import_enabled'] = site_import_enabled
     if site_display_primary is not None and site_display_primary != publisher.site_display_primary:
+        if site_display_primary:
+            from flask import current_app
+
+            from . import pilot_gate_service
+
+            # Enforce pilot/compliance gates outside automated unit tests.
+            if not current_app.config.get('TESTING', False):
+                allowed, reason = pilot_gate_service.can_enable_display_primary(source_id)
+                if not allowed:
+                    raise ValueError(reason)
         publisher.site_display_primary = site_display_primary
         changes['site_display_primary'] = site_display_primary
         _apply_display_primary(publisher, site_display_primary)

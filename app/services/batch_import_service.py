@@ -172,6 +172,9 @@ def import_batch(payload: dict[str, Any]) -> BatchImportResult:
         db.session.add(row)
         db.session.commit()
         source_health_service.record_plan_success(source_id, batch_id=batch_id)
+        from . import pilot_gate_service
+
+        pilot_gate_service.record_evidence_run(source_id, success=True, batch_id=batch_id)
         return BatchImportResult(status='applied', receipt=receipt, http_status=200)
     except BatchImportError as exc:
         if source_id_for_health:
@@ -179,6 +182,13 @@ def import_batch(payload: dict[str, Any]) -> BatchImportResult:
                 source_id_for_health,
                 error_code=exc.code,
                 error_summary=exc.message,
+            )
+            from . import pilot_gate_service
+
+            pilot_gate_service.record_evidence_run(
+                source_id_for_health,
+                success=False,
+                error_code=exc.code,
             )
         raise
 

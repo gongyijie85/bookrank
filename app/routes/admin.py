@@ -130,6 +130,94 @@ def get_source_control_audit():
         return APIResponse.error('读取失败', 500)
 
 
+@admin_bp.route('/new-books/pilot/<source_id>/evidence')
+@admin_required
+def get_pilot_evidence(source_id: str):
+    """试点证据集（#140）。"""
+    try:
+        from ..services import pilot_gate_service
+
+        return APIResponse.success(data={'evidence': pilot_gate_service.get_evidence_bundle(source_id)})
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'读取试点证据失败: {e}', exc_info=True)
+        return APIResponse.error('读取失败', 500)
+
+
+@admin_bp.route('/new-books/pilot/<source_id>/gates')
+@admin_required
+def get_pilot_gates(source_id: str):
+    """试点质量闸门评估（#140）。"""
+    try:
+        from ..services import pilot_gate_service
+
+        report = pilot_gate_service.evaluate_gates(source_id)
+        allowed, reason = pilot_gate_service.can_enable_display_primary(source_id)
+        report['can_enable_display_primary'] = allowed
+        report['can_enable_reason'] = reason
+        return APIResponse.success(data=report)
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'评估试点闸门失败: {e}', exc_info=True)
+        return APIResponse.error('读取失败', 500)
+
+
+@admin_bp.route('/new-books/pilot/<source_id>/rollback-drill', methods=['POST'])
+@admin_required
+def post_pilot_rollback_drill(source_id: str):
+    """无重新部署回滚演练（#140）。"""
+    try:
+        from ..services import pilot_gate_service
+
+        data = request.get_json(silent=True) or {}
+        actor = str(data.get('actor') or 'admin')
+        result = pilot_gate_service.run_rollback_drill(source_id, actor=actor)
+        return APIResponse.success(data=result, message='rollback drill completed')
+    except ValueError as e:
+        return APIResponse.error(str(e), 400)
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'回滚演练失败: {e}', exc_info=True)
+        return APIResponse.error('演练失败', 500)
+
+
+@admin_bp.route('/new-books/pilot/<source_id>/compliance-go', methods=['POST'])
+@admin_required
+def post_pilot_compliance_go(source_id: str):
+    """记录合规 GO/NO-GO（通常对应 #124）。"""
+    try:
+        from ..services import pilot_gate_service
+
+        data = request.get_json(silent=True) or {}
+        go = bool(data.get('go'))
+        actor = str(data.get('actor') or 'admin')
+        pilot_gate_service.set_compliance_go(source_id, go, actor=actor)
+        return APIResponse.success(data={'source_id': source_id, 'go': go})
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'写入合规 GO 失败: {e}', exc_info=True)
+        return APIResponse.error('写入失败', 500)
+
+
+@admin_bp.route('/new-books/source-alert/sync/<source_id>', methods=['POST'])
+@admin_required
+def post_sync_source_alert(source_id: str):
+    """手动同步 degraded 告警 Issue（alert 相位也可调用，不持有导入密钥）。"""
+    try:
+        from ..services import source_alert_service
+        from ..services.source_health_service import publisher_for_source
+
+        pub = publisher_for_source(source_id)
+        if pub is None:
+            return APIResponse.error('unknown source', 400)
+        if pub.source_status == 'degraded':
+            issue = source_alert_service.sync_degraded_alert(source_id, pub)
+            return APIResponse.success(data={'action': 'synced', 'issue': issue})
+        if pub.source_status == 'healthy':
+            source_alert_service.close_degraded_alert(source_id, recovery_batch_id=pub.last_success_batch_id)
+            return APIResponse.success(data={'action': 'closed_if_open'})
+        return APIResponse.success(data={'action': 'noop', 'status': pub.source_status})
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'同步来源告警失败: {e}', exc_info=True)
+        return APIResponse.error('同步失败', 500)
+
+
 @admin_bp.route('/new-books/last-sync')
 @admin_required
 def get_new_books_last_sync():
