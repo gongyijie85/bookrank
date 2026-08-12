@@ -1,6 +1,6 @@
 from .book import Book
 from .database import db, init_db
-from .new_book import NewBook, Publisher
+from .new_book import BatchImportReceipt, NewBook, Publisher
 from .schemas import (
     APICache,
     Award,
@@ -24,6 +24,7 @@ __all__ = [
     'Book',
     'BookMetadata',
     'CSRFToken',
+    'BatchImportReceipt',
     'NewBook',
     'Publisher',
     'ReportView',

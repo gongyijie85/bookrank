@@ -244,3 +244,19 @@ class NewBook(db.Model):
 
     def __repr__(self) -> str:
         return f'<NewBook {self.title} by {self.author}>'
+
+
+class BatchImportReceipt(db.Model):  # type: ignore[name-defined]
+    """采集批次导入回执：支撑 batch_id 幂等与内容冲突检测。"""
+
+    __tablename__ = 'batch_import_receipts'
+
+    batch_id: str = db.Column(db.String(128), primary_key=True)
+    content_sha256: str = db.Column(db.String(64), nullable=False)
+    source_id: str = db.Column(db.String(64), nullable=False, index=True)
+    status: str = db.Column(db.String(32), nullable=False, comment='applied|duplicate|rejected')
+    receipt_json: str = db.Column(db.Text, nullable=False)
+    created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return json.loads(self.receipt_json)
