@@ -160,10 +160,7 @@ def close_degraded_alert(source_id: str, *, recovery_batch_id: str | None) -> No
     title = alert_title(source_id)
     mapped = _load_issue_map()
     number = mapped.get(source_id.lower())
-    comment = (
-        f'来源已恢复 healthy。'
-        f'{f" 最近成功 batch_id={recovery_batch_id}." if recovery_batch_id else ""}'
-    )
+    comment = f'来源已恢复 healthy。{f" 最近成功 batch_id={recovery_batch_id}." if recovery_batch_id else ""}'
     existing = client.find_open_by_title(title)
     if existing is not None:
         client.close_issue(int(existing['number']), comment=comment)
