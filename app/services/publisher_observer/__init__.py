@@ -1,5 +1,6 @@
 """Contracts for publisher observation prototypes."""
 
+from .batch_draft import export_batch_draft, observe_fixture_manifest_as_batch_draft
 from .contracts import (
     BookObservation,
     EditionObservation,
@@ -36,8 +37,10 @@ __all__ = [
     'FixedTemplateFallback',
     'ObservationReport',
     'TemplateCandidate',
+    'export_batch_draft',
     'is_valid_isbn13',
     'observe_fixture_manifest',
+    'observe_fixture_manifest_as_batch_draft',
     'parse_atom_candidates',
     'parse_product_document',
 ]
