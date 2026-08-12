@@ -39,6 +39,8 @@ class Config:
     SECRET_KEY: str = os.environ.get('SECRET_KEY', '')
     ADMIN_SECRET: str = os.environ.get('ADMIN_SECRET', '')
     CRON_SECRET: str = os.environ.get('CRON_SECRET', '')
+    # 官网采集批次导入专用密钥；与 CRON_SECRET 分离（#118 / #134）
+    BATCH_IMPORT_SECRET: str = os.environ.get('BATCH_IMPORT_SECRET', '')
     SESSION_COOKIE_SECURE: bool = True
     SESSION_COOKIE_HTTPONLY: bool = True
     SESSION_COOKIE_SAMESITE: str = 'Lax'
