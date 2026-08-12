@@ -30,6 +30,22 @@ class Publisher(db.Model):
     is_active: bool = db.Column(db.Boolean, default=True, index=True, comment='是否启用爬虫')
     last_sync_at: datetime | None = db.Column(db.DateTime, comment='最后同步时间')
     sync_count: int = db.Column(db.Integer, default=0, comment='同步次数')
+    # 官网采集主路径开关与健康状态（#132 预留；默认保持 Google 系现网路径）
+    site_crawl_enabled: bool = db.Column(db.Boolean, default=False, nullable=False, comment='是否启用官网采集')
+    site_import_enabled: bool = db.Column(db.Boolean, default=False, nullable=False, comment='是否启用批次入库')
+    site_display_primary: bool = db.Column(
+        db.Boolean, default=False, nullable=False, comment='展示是否以官网批次为主权威'
+    )
+    fallback_google_enabled: bool = db.Column(
+        db.Boolean, default=True, nullable=False, comment='降级时是否启用 Google 兜底'
+    )
+    source_status: str = db.Column(
+        db.String(32), default='healthy', nullable=False, comment='来源健康状态 healthy/degraded/disabled/recovering'
+    )
+    consecutive_failures: int = db.Column(db.Integer, default=0, nullable=False, comment='连续计划失败次数')
+    consecutive_successes: int = db.Column(db.Integer, default=0, nullable=False, comment='连续计划成功次数')
+    last_success_batch_id: str | None = db.Column(db.String(128), comment='上次成功导入 batch_id')
+    last_attempt_at: datetime | None = db.Column(db.DateTime, comment='上次计划尝试时间')
     created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now(UTC), comment='创建时间')
     updated_at: datetime = db.Column(
         db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), comment='更新时间'
@@ -109,6 +125,12 @@ class NewBook(db.Model):
 
     # 来源信息
     source_url: str | None = db.Column(db.String(500), comment='来源页面URL')
+    canonical_source_url: str | None = db.Column(db.String(500), comment='规范化官网产品 URL（归并键）')
+
+    # 关联版本与字段出处（JSON 文本；不做全站 Edition 表）
+    editions_json: str | None = db.Column(db.Text, comment='关联版本 JSON')
+    field_provenance_json: str | None = db.Column(db.Text, comment='字段出处 JSON')
+    last_import_batch_id: str | None = db.Column(db.String(128), comment='写入本卡片的上次导入 batch_id')
 
     # 状态信息
     is_verified: bool = db.Column(db.Boolean, default=False, index=True, comment='是否已验证')
@@ -168,6 +190,10 @@ class NewBook(db.Model):
             'language': self.language,
             'buy_links': json.loads(self.buy_links) if self.buy_links else [],
             'source_url': self.source_url,
+            'canonical_source_url': self.canonical_source_url,
+            'editions': self.get_editions(),
+            'field_provenance': self.get_field_provenance(),
+            'last_import_batch_id': self.last_import_batch_id,
             'is_verified': self.is_verified,
             'is_displayable': self.is_displayable,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -193,6 +219,28 @@ class NewBook(db.Model):
     def get_buy_links(self) -> list[dict[str, str]]:
         """获取购买链接"""
         return json.loads(self.buy_links) if self.buy_links else []
+
+    def set_editions(self, editions: list[dict[str, Any]]) -> None:
+        """设置关联版本列表（元素含 format / isbn13 / is_main）。"""
+        self.editions_json = json.dumps(editions, ensure_ascii=False)
+
+    def get_editions(self) -> list[dict[str, Any]]:
+        """读取关联版本；无数据时返回空列表。"""
+        if not self.editions_json:
+            return []
+        raw = json.loads(self.editions_json)
+        return raw if isinstance(raw, list) else []
+
+    def set_field_provenance(self, provenance: list[dict[str, Any]]) -> None:
+        """设置字段出处列表。"""
+        self.field_provenance_json = json.dumps(provenance, ensure_ascii=False)
+
+    def get_field_provenance(self) -> list[dict[str, Any]]:
+        """读取字段出处；无数据时返回空列表。"""
+        if not self.field_provenance_json:
+            return []
+        raw = json.loads(self.field_provenance_json)
+        return raw if isinstance(raw, list) else []
 
     def __repr__(self) -> str:
         return f'<NewBook {self.title} by {self.author}>'
