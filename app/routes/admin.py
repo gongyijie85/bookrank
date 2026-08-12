@@ -76,6 +76,19 @@ def get_award_covers_status():
         return APIResponse.error('获取状态失败', 500)
 
 
+@admin_bp.route('/new-books/source-health')
+@admin_required
+def get_new_books_source_health():
+    """按来源返回官网采集健康状态与降级计数（#136）。"""
+    try:
+        from ..services.source_health_service import list_source_health
+
+        return APIResponse.success(data={'sources': list_source_health()})
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'读取来源健康状态失败: {e}', exc_info=True)
+        return APIResponse.error('读取失败', 500)
+
+
 @admin_bp.route('/new-books/last-sync')
 @admin_required
 def get_new_books_last_sync():
