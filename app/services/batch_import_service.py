@@ -119,6 +119,13 @@ def import_batch(payload: dict[str, Any]) -> BatchImportResult:
         if publisher is None:
             raise BatchImportError('SOURCE_MISMATCH', f'publisher not registered for {source_id}', 400)
 
+        if not bool(publisher.site_import_enabled):
+            raise BatchImportError(
+                'IMPORT_DISABLED',
+                f'site_import_enabled is false for {source_id}',
+                403,
+            )
+
         record_results: list[dict[str, Any]] = []
         accepted = 0
         pending_review = 0
@@ -330,6 +337,7 @@ def _write_accepted(
     provenance: list[dict[str, Any]],
     batch_id: str,
 ) -> dict[str, Any]:
+    displayable = bool(publisher.site_display_primary)
     if book is None:
         book = NewBook(
             publisher_id=publisher.id,
@@ -338,7 +346,7 @@ def _write_accepted(
             isbn13=isbn13,
             source_url=source_url,
             publication_date=publication_date,
-            is_displayable=True,
+            is_displayable=displayable,
             is_verified=False,
         )
         db.session.add(book)
@@ -348,7 +356,7 @@ def _write_accepted(
             book.isbn13 = isbn13
         if source_url:
             book.source_url = source_url
-        book.is_displayable = True
+        book.is_displayable = displayable
 
     book.canonical_source_url = source_url
     book.last_import_batch_id = batch_id

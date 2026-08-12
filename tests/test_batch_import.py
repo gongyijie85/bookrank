@@ -29,6 +29,10 @@ def harper_publisher(app, db):
         )
         db.session.add(pub)
         db.session.commit()
+    # #137 defaults keep import off; enable for import-path unit tests
+    pub.site_import_enabled = True
+    pub.site_display_primary = True
+    db.session.commit()
     return pub
 
 

@@ -27,6 +27,8 @@ def harper(app, db):
     pub.consecutive_successes = 0
     pub.source_status = 'healthy'
     pub.last_success_batch_id = None
+    pub.site_import_enabled = True
+    pub.site_display_primary = True
     db.session.commit()
     return pub
 

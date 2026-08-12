@@ -89,6 +89,47 @@ def get_new_books_source_health():
         return APIResponse.error('读取失败', 500)
 
 
+@admin_bp.route('/new-books/source-control/<source_id>', methods=['GET', 'POST'])
+@admin_required
+def manage_new_books_source_control(source_id: str):
+    """读取或更新来源级官网主路径开关（#137，无重新部署）。"""
+    try:
+        from ..services import source_control_service
+
+        if request.method == 'GET':
+            return APIResponse.success(data=source_control_service.get_flags(source_id))
+
+        data = request.get_json(silent=True) or {}
+        actor = str(data.get('actor') or request.headers.get('X-Admin-Actor') or 'admin')
+        flags = source_control_service.set_flags(
+            source_id,
+            actor=actor,
+            site_crawl_enabled=data.get('site_crawl_enabled'),
+            site_import_enabled=data.get('site_import_enabled'),
+            site_display_primary=data.get('site_display_primary'),
+            fallback_google_enabled=data.get('fallback_google_enabled'),
+        )
+        return APIResponse.success(data=flags, message='source control updated')
+    except ValueError as e:
+        return APIResponse.error(str(e), 400)
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'更新来源开关失败: {e}', exc_info=True)
+        return APIResponse.error('更新失败', 500)
+
+
+@admin_bp.route('/new-books/source-control-audit')
+@admin_required
+def get_source_control_audit():
+    """来源开关变更审计日志。"""
+    try:
+        from ..services import source_control_service
+
+        return APIResponse.success(data={'audit': source_control_service.list_audit(limit=50)})
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'读取来源开关审计失败: {e}', exc_info=True)
+        return APIResponse.error('读取失败', 500)
+
+
 @admin_bp.route('/new-books/last-sync')
 @admin_required
 def get_new_books_last_sync():
