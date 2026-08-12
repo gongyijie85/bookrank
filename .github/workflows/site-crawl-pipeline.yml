@@ -171,8 +171,24 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Alert phase uses ADMIN_SECRET only — never BATCH_IMPORT_SECRET (#139)
+    env:
+      SOURCE_ID: ${{ github.event.inputs.source_id || 'harpercollins' }}
+      BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
     steps:
-      - name: Alert phase stub (#121/#139 hook)
+      - name: Sync source degraded/recovery GitHub issue
+        env:
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         run: |
-          echo "Alert phase: create/update source degraded issues is handled by app after import health updates."
-          echo "observe=${{ needs.observe.result }} import=${{ needs.import.result }}"
+          set -e
+          if [ -z "$ADMIN_SECRET" ]; then
+            echo "ADMIN_SECRET not set; skip remote alert sync (app-side hooks still apply on import)."
+            exit 0
+          fi
+          code=$(curl -s -o /tmp/alert.json -w '%{http_code}' --max-time 30 \
+            -X POST "${BASE_URL}/api/admin/new-books/source-alert/sync/${SOURCE_ID}" \
+            -H "X-Admin-Secret: ${ADMIN_SECRET}")
+          echo "HTTP $code"
+          cat /tmp/alert.json || true
+          # do not fail the pipeline solely on alert transport; log for ops
+          exit 0

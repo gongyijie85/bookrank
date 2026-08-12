@@ -51,6 +51,10 @@ def record_plan_failure(
     if publisher.consecutive_failures >= FAILURE_THRESHOLD:
         publisher.source_status = 'degraded'
     db.session.commit()
+    if publisher.source_status == 'degraded':
+        from . import source_alert_service
+
+        source_alert_service.sync_degraded_alert(source_id, publisher)
 
 
 def record_plan_success(source_id: str, *, batch_id: str | None) -> None:
@@ -73,6 +77,7 @@ def record_plan_success(source_id: str, *, batch_id: str | None) -> None:
     publisher.consecutive_failures = 0
     publisher.consecutive_successes = int(publisher.consecutive_successes or 0) + 1
 
+    previous = publisher.source_status
     if publisher.source_status == 'degraded':
         if publisher.consecutive_successes >= RECOVERY_THRESHOLD:
             publisher.source_status = 'healthy'
@@ -85,6 +90,10 @@ def record_plan_success(source_id: str, *, batch_id: str | None) -> None:
         publisher.source_status = 'healthy'
 
     db.session.commit()
+    if previous in ('degraded', 'recovering') and publisher.source_status == 'healthy':
+        from . import source_alert_service
+
+        source_alert_service.close_degraded_alert(source_id, recovery_batch_id=batch_id)
 
 
 def list_source_health() -> list[dict[str, Any]]:
