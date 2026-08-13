@@ -92,25 +92,89 @@ jobs:
     needs: [lint, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - name: Trigger Render Deploy Hook
+      - name: Deploy and verify Render revision
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
           RENDER_BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
           set -euo pipefail
 
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "ERROR: RENDER_DEPLOY_HOOK_URL is required for deployment."
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "ERROR: RENDER_API_KEY not configured."
+            exit 1
+          fi
+
+          if [ -z "$RENDER_SERVICE_ID" ]; then
+            echo "ERROR: RENDER_SERVICE_ID not configured."
             exit 1
           fi
 
           if [ -z "$RENDER_BASE_URL" ]; then
-            echo "ERROR: RENDER_BASE_URL is required for readiness verification."
+            echo "ERROR: RENDER_BASE_URL not configured."
             exit 1
           fi
 
+          deploy_response="$(mktemp)"
+          deploy_status_response="$(mktemp)"
+          trap 'rm -f "$deploy_response" "$deploy_status_response"' EXIT
+
           curl --fail --show-error --silent --max-time 30 \
-            -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null
+            -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data "{\"clearCache\":\"do_not_clear\",\"commitId\":\"${GITHUB_SHA}\"}" \
+            -o "$deploy_response"
+
+          DEPLOY_ID="$(python3 - "$deploy_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              print(json.load(response).get("id", ""))
+          PY
+          )"
+
+          if [ -z "$DEPLOY_ID" ]; then
+            echo "ERROR: Render deployment response did not include a deployment ID."
+            exit 1
+          fi
+
+          for attempt in $(seq 1 20); do
+            curl --fail --show-error --silent --max-time 30 \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+              -o "$deploy_status_response"
+
+            DEPLOY_STATUS="$(python3 - "$deploy_status_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              print(json.load(response).get("status", ""))
+          PY
+            )"
+
+            if [ "$DEPLOY_STATUS" = "live" ]; then
+              echo "Render deployment is live."
+              break
+            fi
+
+            case "$DEPLOY_STATUS" in
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "ERROR: Render deployment entered terminal status: $DEPLOY_STATUS."
+                exit 1
+                ;;
+            esac
+
+            if [ "$attempt" -eq 20 ]; then
+              echo "ERROR: Render deployment did not become live after 20 checks."
+              exit 1
+            fi
+
+            echo "Render deployment status is ${DEPLOY_STATUS:-unknown}; retrying in 15 seconds."
+            sleep 15
+          done
 
           for attempt in $(seq 1 12); do
             if curl --fail --show-error --silent --max-time 30 \
