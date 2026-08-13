@@ -10,8 +10,8 @@ table-creation branch and the new-books/source-health branch so that
 """
 
 # revision identifiers, used by Alembic.
-revision = "merge_20260813_heads"
-down_revision = ("create_all_missing_tables", "add_pub_last_error")
+revision = 'merge_20260813_heads'
+down_revision = ('create_all_missing_tables', 'add_pub_last_error')
 branch_labels = None
 depends_on = None
 
@@ -22,4 +22,3 @@ def upgrade():
 
 def downgrade():
     """Restore the two independent migration heads."""
-

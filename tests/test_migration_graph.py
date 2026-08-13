@@ -6,9 +6,9 @@ from alembic.script import ScriptDirectory
 
 def test_alembic_has_exactly_one_head():
     """Production upgrades must never be ambiguous."""
-    config = Config("migrations/alembic.ini")
-    config.set_main_option("script_location", "migrations")
+    config = Config('migrations/alembic.ini')
+    config.set_main_option('script_location', 'migrations')
 
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == ["merge_20260813_heads"]
+    assert script.get_heads() == ['merge_20260813_heads']
