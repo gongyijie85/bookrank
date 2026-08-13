@@ -49,12 +49,12 @@
 
 ### 步骤 1：停止自动部署（关键）
 
-当前 `render.yaml` 设置了 `autoDeploy: true`，回滚前必须先关闭，否则 Git 回滚会再次触发自动部署。
+当前 `render.yaml` 已设置 `autoDeploy: false`。回滚期间必须保持自动部署关闭；生产部署仅由 `main` 当前 HEAD 的成功 GitHub Actions CI 调用 Render Public API 发起，较旧 CI 运行会成功跳过，避免覆盖更新提交。
 
 1. 登录 [Render Dashboard](https://dashboard.render.com)。
 2. 进入 `bookrank` Web Service → **Settings**。
 3. 找到 **Auto-Deploy**，切换为 **No**（或选择 "Deploy only when manually deployed"）。
-4. 保存。
+4. 确认该设置保持关闭后保存。
 
 ### 步骤 2：代码回滚
 
@@ -111,10 +111,10 @@ BookRank 使用 Flask-Migrate / Alembic（见 `run.py` 第 76-114 行）。
    - 如变更涉及数据删除/更新且无法通过 downgrade 恢复，优先从备份恢复。
    - Render 免费层外部 PostgreSQL（Supabase）备份策略需在 `docs/supabase-migration.md` 中确认。
 
-### 步骤 4：在 Render 上手动部署回滚版本
+### 步骤 4：在 Render 上部署回滚版本
 
-1. Render Dashboard → `bookrank` → **Manual Deploy** → **Deploy latest commit**。
-2. 如果步骤 2 使用的是分支，选择 **Deploy a specific branch/commit**。
+1. 将回滚提交推送到 `main` 后，等待该提交成为 `main` 当前 HEAD 后的成功 GitHub Actions `Deploy to Render` job 完成；该 job 用 Render Public API 为该提交创建部署并验证 `/health/ready`。
+2. 如果需要在不推送 `main` 的情况下紧急回滚，Render Dashboard → `bookrank` → **Manual Deploy**，选择指定的稳定 commit。
 3. 等待构建完成（通常 1-3 分钟）。
 4. 观察 **Events** 和 **Logs** 是否有错误。
 
@@ -143,8 +143,8 @@ curl https://<your-render-domain>/api/books?category=hardcover-fiction
 
 ### 步骤 7：恢复生产部署（可选）
 
-- 确认问题修复并通过 CI 后，**不要**直接在 Render Dashboard 重新开启 `autoDeploy`。
-- 生产部署应通过 CI 成功后的 Render Deploy Hook 触发（参见 `render.yaml` 与 `.github/workflows/ci.yml` 的 `deploy` job）。
+- 确认问题修复并通过 CI 后，**不要**直接在 Render Dashboard 重新开启 `autoDeploy`；保持 `autoDeploy: false`。
+- 生产部署由 CI 使用 Render Public API 发起（参见 `render.yaml` 与 `.github/workflows/ci.yml` 的 `deploy` job）。GitHub 必须配置最小权限的 Secret `RENDER_API_KEY`，以及非秘密 Repository Variables `RENDER_SERVICE_ID` 和 `RENDER_BASE_URL`。绝不将秘密保存到仓库。
 - 如需临时手动部署，使用 Render Dashboard → **Manual Deploy** → **Deploy latest commit**。
 
 ---

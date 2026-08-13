@@ -182,7 +182,7 @@ flask db upgrade
 1. 登录 Render Dashboard → 选择 `bookrank` Web Service。
 2. 找到 `DATABASE_URL`，更新为新的 Supabase Session Pooler URL。
 3. 点击 **Save**。
-4. 等待 Render 重新部署（因 `autoDeploy: false`，需手动触发 Deploy Hook 或 Render Dashboard 中点击 Manual Deploy）。
+4. 等待 Render 重新部署：`autoDeploy: false` 时，将数据库配置变更提交并推送到 `main`，由成功 CI 通过 Render Public API 部署；紧急情况可在 Render Dashboard 使用 Manual Deploy。该 CI 需要 Secret `RENDER_API_KEY` 及非秘密 Repository Variables `RENDER_SERVICE_ID`、`RENDER_BASE_URL`，且不会在仓库保存秘密。
 
 ### 4.4 切换后验证
 

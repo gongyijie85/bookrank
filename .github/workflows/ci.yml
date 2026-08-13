@@ -89,15 +89,218 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
+    timeout-minutes: 150
+    concurrency:
+      # Runs serialize, but only the current main SHA is allowed to deploy.
+      group: render-production-current-main-bookrank
+      cancel-in-progress: false
     needs: [lint, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - name: Trigger Render Deploy Hook
+      - name: Deploy and verify Render revision
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+          RENDER_BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL not set, skipping deploy"
+          set -euo pipefail
+
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "ERROR: RENDER_API_KEY not configured."
+            exit 1
+          fi
+
+          if [ -z "$RENDER_SERVICE_ID" ]; then
+            echo "ERROR: RENDER_SERVICE_ID not configured."
+            exit 1
+          fi
+
+          if [ -z "$RENDER_BASE_URL" ]; then
+            echo "ERROR: RENDER_BASE_URL not configured."
+            exit 1
+          fi
+
+          deploy_response="$(mktemp)"
+          deploy_list_response="$(mktemp)"
+          deploy_status_response="$(mktemp)"
+          trap 'rm -f "$deploy_response" "$deploy_list_response" "$deploy_status_response"' EXIT
+          DEPLOY_DEADLINE=$((SECONDS + 7200))
+
+          MAIN_HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$GITHUB_SHA" != "$MAIN_HEAD_SHA" ]; then
+            echo "Skipping stale deployment for ${GITHUB_SHA}; main is now ${MAIN_HEAD_SHA}."
             exit 0
           fi
-          curl -s -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null -w "%{http_code}"
+
+          MAIN_HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$GITHUB_SHA" != "$MAIN_HEAD_SHA" ]; then
+            echo "Skipping stale deployment for ${GITHUB_SHA}; main is now ${MAIN_HEAD_SHA}."
+            exit 0
+          fi
+
+          DEPLOY_HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 \
+            -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data "{\"clearCache\":\"do_not_clear\",\"commitId\":\"${GITHUB_SHA}\"}" \
+            -o "$deploy_response" \
+            -w '%{http_code}')"
+
+          case "$DEPLOY_HTTP_CODE" in
+            201)
+              DEPLOY_ID="$(python3 - "$deploy_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              print(json.load(response).get("id", ""))
+          PY
+              )"
+              ;;
+            202)
+              DEPLOY_ID=""
+              while [ "$SECONDS" -lt "$DEPLOY_DEADLINE" ]; do
+                if ! curl --fail --show-error --silent --max-time 30 \
+                  -H "Authorization: Bearer ${RENDER_API_KEY}" \
+                  "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys?limit=100" \
+                  -o "$deploy_list_response"; then
+                  echo "Render deployment discovery request failed; retrying in 30 seconds."
+                  sleep 30
+                  continue
+                fi
+
+                DEPLOY_ID="$(python3 - "$deploy_list_response" "$GITHUB_SHA" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              payload = json.load(response)
+
+          deploys = payload.get("deploys", payload) if isinstance(payload, dict) else payload
+          if not isinstance(deploys, list):
+              raise SystemExit("Render deployment list was not an array.")
+
+          for item in deploys:
+              deploy = item.get("deploy", item) if isinstance(item, dict) else {}
+              commit = deploy.get("commit", {})
+              if isinstance(commit, dict) and commit.get("id") == sys.argv[2] and deploy.get("id"):
+                  print(deploy["id"])
+                  break
+          PY
+                )"
+
+                if [ -n "$DEPLOY_ID" ]; then
+                  echo "Found queued Render deployment for ${GITHUB_SHA}."
+                  break
+                fi
+
+                echo "Render deployment is queued; waiting for the requested revision."
+                sleep 30
+              done
+
+              if [ -z "$DEPLOY_ID" ]; then
+                echo "ERROR: Render did not create a deployment for ${GITHUB_SHA} before the total deployment deadline."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "ERROR: Render deployment request returned unexpected HTTP status ${DEPLOY_HTTP_CODE}."
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$DEPLOY_ID" ]; then
+            echo "ERROR: Render deployment response did not include a deployment ID."
+            exit 1
+          fi
+
+          DEPLOY_LIVE=false
+          while [ "$SECONDS" -lt "$DEPLOY_DEADLINE" ]; do
+            if ! curl --fail --show-error --silent --max-time 30 \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+              -o "$deploy_status_response"; then
+              echo "Render deployment status request failed; retrying in 30 seconds."
+              sleep 30
+              continue
+            fi
+
+            DEPLOY_DETAILS="$(python3 - "$deploy_status_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              deploy = json.load(response)
+
+          commit = deploy.get("commit", {})
+          print(f"{deploy.get('status', '')}\t{commit.get('id', '') if isinstance(commit, dict) else ''}")
+          PY
+            )"
+            IFS=$'\t' read -r DEPLOY_STATUS DEPLOY_COMMIT_ID <<< "$DEPLOY_DETAILS"
+
+            if [ "$DEPLOY_COMMIT_ID" != "$GITHUB_SHA" ]; then
+              echo "ERROR: Render deployment ${DEPLOY_ID} is associated with an unexpected commit."
+              exit 1
+            fi
+
+            if [ "$DEPLOY_STATUS" = "live" ]; then
+              echo "Render deployment is live."
+              DEPLOY_LIVE=true
+              break
+            fi
+
+            case "$DEPLOY_STATUS" in
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "ERROR: Render deployment entered terminal status: $DEPLOY_STATUS."
+                exit 1
+                ;;
+            esac
+
+            echo "Render deployment status is ${DEPLOY_STATUS:-unknown}; retrying in 30 seconds."
+            sleep 30
+          done
+
+          if [ "$DEPLOY_LIVE" != "true" ]; then
+            echo "ERROR: Render deployment did not become live before the total deployment deadline."
+            exit 1
+          fi
+
+          curl --fail --show-error --silent --max-time 30 \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+            -o "$deploy_status_response"
+
+          DEPLOY_DETAILS="$(python3 - "$deploy_status_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              deploy = json.load(response)
+
+          commit = deploy.get("commit", {})
+          print(f"{deploy.get('status', '')}\t{commit.get('id', '') if isinstance(commit, dict) else ''}")
+          PY
+          )"
+          IFS=$'\t' read -r DEPLOY_STATUS DEPLOY_COMMIT_ID <<< "$DEPLOY_DETAILS"
+
+          if [ "$DEPLOY_STATUS" != "live" ] || [ "$DEPLOY_COMMIT_ID" != "$GITHUB_SHA" ]; then
+            echo "ERROR: Render deployment did not remain live for the requested commit."
+            exit 1
+          fi
+
+          for attempt in $(seq 1 12); do
+            if curl --fail --show-error --silent --max-time 30 \
+              "$RENDER_BASE_URL/health/ready" -o /dev/null; then
+              echo "Render deployment is ready."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 12 ]; then
+              echo "Render readiness check ${attempt}/12 failed; retrying in 15 seconds."
+              sleep 15
+            fi
+          done
+
+          echo "ERROR: Render deployment did not become ready after 12 checks."
+          exit 1
