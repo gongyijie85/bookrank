@@ -95,9 +95,35 @@ jobs:
       - name: Trigger Render Deploy Hook
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
+          set -euo pipefail
+
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL not set, skipping deploy"
-            exit 0
+            echo "ERROR: RENDER_DEPLOY_HOOK_URL is required for deployment."
+            exit 1
           fi
-          curl -s -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null -w "%{http_code}"
+
+          if [ -z "$RENDER_BASE_URL" ]; then
+            echo "ERROR: RENDER_BASE_URL is required for readiness verification."
+            exit 1
+          fi
+
+          curl --fail --show-error --silent --max-time 30 \
+            -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null
+
+          for attempt in $(seq 1 12); do
+            if curl --fail --show-error --silent --max-time 30 \
+              "$RENDER_BASE_URL/health/ready" -o /dev/null; then
+              echo "Render deployment is ready."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 12 ]; then
+              echo "Render readiness check ${attempt}/12 failed; retrying in 15 seconds."
+              sleep 15
+            fi
+          done
+
+          echo "ERROR: Render deployment did not become ready after 12 checks."
+          exit 1
