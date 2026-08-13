@@ -89,6 +89,10 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
+    timeout-minutes: 150
+    concurrency:
+      group: render-production-bookrank
+      cancel-in-progress: false
     needs: [lint, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
@@ -116,44 +120,105 @@ jobs:
           fi
 
           deploy_response="$(mktemp)"
+          deploy_list_response="$(mktemp)"
           deploy_status_response="$(mktemp)"
-          trap 'rm -f "$deploy_response" "$deploy_status_response"' EXIT
+          trap 'rm -f "$deploy_response" "$deploy_list_response" "$deploy_status_response"' EXIT
 
-          curl --fail --show-error --silent --max-time 30 \
+          DEPLOY_HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 \
             -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Content-Type: application/json" \
             --data "{\"clearCache\":\"do_not_clear\",\"commitId\":\"${GITHUB_SHA}\"}" \
-            -o "$deploy_response"
+            -o "$deploy_response" \
+            -w '%{http_code}')"
 
-          DEPLOY_ID="$(python3 - "$deploy_response" <<'PY'
+          case "$DEPLOY_HTTP_CODE" in
+            201)
+              DEPLOY_ID="$(python3 - "$deploy_response" <<'PY'
           import json
           import sys
 
           with open(sys.argv[1], encoding="utf-8") as response:
               print(json.load(response).get("id", ""))
           PY
-          )"
+              )"
+              ;;
+            202)
+              DEPLOY_ID=""
+              for attempt in $(seq 1 120); do
+                curl --fail --show-error --silent --max-time 30 \
+                  -H "Authorization: Bearer ${RENDER_API_KEY}" \
+                  "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys?limit=100" \
+                  -o "$deploy_list_response"
+
+                DEPLOY_ID="$(python3 - "$deploy_list_response" "$GITHUB_SHA" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              payload = json.load(response)
+
+          deploys = payload.get("deploys", payload) if isinstance(payload, dict) else payload
+          if not isinstance(deploys, list):
+              raise SystemExit("Render deployment list was not an array.")
+
+          for item in deploys:
+              deploy = item.get("deploy", item) if isinstance(item, dict) else {}
+              commit = deploy.get("commit", {})
+              if isinstance(commit, dict) and commit.get("id") == sys.argv[2] and deploy.get("id"):
+                  print(deploy["id"])
+                  break
+          PY
+                )"
+
+                if [ -n "$DEPLOY_ID" ]; then
+                  echo "Found queued Render deployment for ${GITHUB_SHA}."
+                  break
+                fi
+
+                if [ "$attempt" -eq 120 ]; then
+                  echo "ERROR: Render did not create a deployment for ${GITHUB_SHA} after 120 checks."
+                  exit 1
+                fi
+
+                echo "Render deployment is queued; waiting for the requested revision."
+                sleep 30
+              done
+              ;;
+            *)
+              echo "ERROR: Render deployment request returned unexpected HTTP status ${DEPLOY_HTTP_CODE}."
+              exit 1
+              ;;
+          esac
 
           if [ -z "$DEPLOY_ID" ]; then
             echo "ERROR: Render deployment response did not include a deployment ID."
             exit 1
           fi
 
-          for attempt in $(seq 1 20); do
+          for attempt in $(seq 1 120); do
             curl --fail --show-error --silent --max-time 30 \
               -H "Authorization: Bearer ${RENDER_API_KEY}" \
               "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
               -o "$deploy_status_response"
 
-            DEPLOY_STATUS="$(python3 - "$deploy_status_response" <<'PY'
+            DEPLOY_DETAILS="$(python3 - "$deploy_status_response" <<'PY'
           import json
           import sys
 
           with open(sys.argv[1], encoding="utf-8") as response:
-              print(json.load(response).get("status", ""))
+              deploy = json.load(response)
+
+          commit = deploy.get("commit", {})
+          print(f"{deploy.get('status', '')}\t{commit.get('id', '') if isinstance(commit, dict) else ''}")
           PY
             )"
+            IFS=$'\t' read -r DEPLOY_STATUS DEPLOY_COMMIT_ID <<< "$DEPLOY_DETAILS"
+
+            if [ "$DEPLOY_COMMIT_ID" != "$GITHUB_SHA" ]; then
+              echo "ERROR: Render deployment ${DEPLOY_ID} is associated with an unexpected commit."
+              exit 1
+            fi
 
             if [ "$DEPLOY_STATUS" = "live" ]; then
               echo "Render deployment is live."
@@ -167,14 +232,37 @@ jobs:
                 ;;
             esac
 
-            if [ "$attempt" -eq 20 ]; then
-              echo "ERROR: Render deployment did not become live after 20 checks."
+            if [ "$attempt" -eq 120 ]; then
+              echo "ERROR: Render deployment did not become live after 120 checks."
               exit 1
             fi
 
-            echo "Render deployment status is ${DEPLOY_STATUS:-unknown}; retrying in 15 seconds."
-            sleep 15
+            echo "Render deployment status is ${DEPLOY_STATUS:-unknown}; retrying in 30 seconds."
+            sleep 30
           done
+
+          curl --fail --show-error --silent --max-time 30 \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+            -o "$deploy_status_response"
+
+          DEPLOY_DETAILS="$(python3 - "$deploy_status_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              deploy = json.load(response)
+
+          commit = deploy.get("commit", {})
+          print(f"{deploy.get('status', '')}\t{commit.get('id', '') if isinstance(commit, dict) else ''}")
+          PY
+          )"
+          IFS=$'\t' read -r DEPLOY_STATUS DEPLOY_COMMIT_ID <<< "$DEPLOY_DETAILS"
+
+          if [ "$DEPLOY_STATUS" != "live" ] || [ "$DEPLOY_COMMIT_ID" != "$GITHUB_SHA" ]; then
+            echo "ERROR: Render deployment did not remain live for the requested commit."
+            exit 1
+          fi
 
           for attempt in $(seq 1 12); do
             if curl --fail --show-error --silent --max-time 30 \
