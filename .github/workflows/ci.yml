@@ -133,6 +133,12 @@ jobs:
             exit 0
           fi
 
+          MAIN_HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$GITHUB_SHA" != "$MAIN_HEAD_SHA" ]; then
+            echo "Skipping stale deployment for ${GITHUB_SHA}; main is now ${MAIN_HEAD_SHA}."
+            exit 0
+          fi
+
           DEPLOY_HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 \
             -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
