@@ -217,8 +217,8 @@ BookRank3/
    - `DATABASE_URL`（外部 PostgreSQL，如 Supabase Session Pooler）
    - `NYT_API_KEY`、`GOOGLE_API_KEY`、`ZHIPU_API_KEY`
    - `SENTRY_DSN`、`ALERT_WEBHOOK_URL`（生产环境建议配置）
-4. **关闭自动部署**：`render.yaml` 中 `autoDeploy: false`，改为 CI 成功后通过 Render Deploy Hook 触发，避免未经测试的代码直接上线。
-5. 在 GitHub 仓库 Settings → Secrets 添加 `RENDER_DEPLOY_HOOK_URL`，CI 的 `deploy` job 会自动调用。
+4. **关闭自动部署**：`render.yaml` 中 `autoDeploy: false`。生产部署仅由 `main` 当前 HEAD 的成功 CI 通过 Render Public API 发起；较旧 CI 运行会成功跳过，避免覆盖较新的提交。
+5. 在 GitHub 仓库配置最小权限 Secret `RENDER_API_KEY`，以及非秘密 Repository Variables `RENDER_SERVICE_ID` 和 `RENDER_BASE_URL`。CI 使用这些配置调用 Render Public API；绝不将秘密提交到仓库。紧急情况可在 Render Dashboard 使用 Manual Deploy。
 6. Render 免费层内存限制为 512MB，已强制 `WEB_CONCURRENCY=1` / `MAX_WORKERS=1`，避免多 worker OOM。
 7. 等待构建完成，获取访问 URL。
 
