@@ -3,9 +3,11 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
-from datetime import UTC, date, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -34,12 +36,75 @@ _PER_PUBLISHER_TIMEOUT = float(os.environ.get('SYNC_PUBLISHER_TIMEOUT', '600'))
 _BACKFILL_MAX_BOOKS = int(os.environ.get('SYNC_BACKFILL_MAX_BOOKS', '2000'))
 
 
+@dataclass
+class IngestStats:
+    """一次入库流的统计；total 为尝试计数（含保存失败的尝试）。"""
+
+    total: int = 0
+    added: int = 0
+    updated: int = 0
+    skipped: int = 0
+    errors: int = 0
+
+    def merge_into(self, result: dict[str, Any]) -> None:
+        """把本统计累加进调用方的结果字典（两路共用的合并动作）。"""
+        for key in ('total', 'added', 'updated', 'skipped', 'errors'):
+            result[key] = result.get(key, 0) + getattr(self, key)
+
+
 class SyncEngine:
     def __init__(self, publisher_manager: PublisherManager, translation_pipeline: TranslationPipeline) -> None:
         self._publisher_manager = publisher_manager
         self._translation_pipeline = translation_pipeline
         # 入库规则集中到深模块 NewBookIngestor，SyncEngine 只管同步编排。
         self._ingestor = NewBookIngestor(self._translation_pipeline)
+
+    def _ingest_book_stream(
+        self,
+        book_infos: Iterable[BookInfo],
+        publisher: Publisher,
+        *,
+        translate: bool,
+        touched_books: list[NewBook],
+        commit_interval: int | None = None,
+        on_error: Callable[[Exception, BookInfo], None] | None = None,
+    ) -> IngestStats:
+        """对 BookInfo 流做保存/计数/错误隔离/可选批量提交（爬虫流与静态流共用）。
+
+        total 统一为尝试计数（含保存失败的尝试，errors 同步 +1）。
+        """
+        stats = IngestStats()
+
+        for book_info in book_infos:
+            stats.total += 1
+
+            try:
+                save_outcome = self._ingestor.save_book(
+                    publisher,
+                    book_info,
+                    translate,
+                    auto_commit=False,
+                    touched_books=touched_books,
+                )
+
+                if save_outcome is SaveOutcome.ADDED:
+                    stats.added += 1
+                elif save_outcome is SaveOutcome.UPDATED:
+                    stats.updated += 1
+                else:
+                    stats.skipped += 1
+
+            except Exception as e:
+                if on_error:
+                    on_error(e, book_info)
+                else:
+                    log_error(ErrorCategory.DB_QUERY, '保存书籍失败: ' + book_info.title + ' - ' + str(e))
+                stats.errors += 1
+
+            if commit_interval is not None and stats.total % commit_interval == 0:
+                db.session.commit()
+
+        return stats
 
     def sync_publisher_books(
         self,
@@ -98,32 +163,20 @@ class SyncEngine:
                     backfill=backfill,
                 )
                 outcome = crawler.get_new_books(request)
-                for book_info in outcome.books:
-                    result['transport_status'] = 'success'
-                    result['total'] += 1
 
-                    try:
-                        save_outcome = self._ingestor.save_book(
-                            publisher,
-                            book_info,
-                            translate,
-                            auto_commit=False,
-                            touched_books=touched_books,
-                        )
+                def _mark_transport():
+                    for book_info in outcome.books:
+                        result['transport_status'] = 'success'
+                        yield book_info
 
-                        if save_outcome is SaveOutcome.ADDED:
-                            result['added'] += 1
-                        elif save_outcome is SaveOutcome.UPDATED:
-                            result['updated'] += 1
-                        else:
-                            result['skipped'] += 1
-
-                    except Exception as e:
-                        log_error(ErrorCategory.DB_QUERY, f'保存书籍失败: {book_info.title} - {e}')
-                        result['errors'] += 1
-
-                    if result['total'] % batch_commit_interval == 0:
-                        db.session.commit()
+                ingest_stats = self._ingest_book_stream(
+                    _mark_transport(),
+                    publisher,
+                    translate=translate,
+                    touched_books=touched_books,
+                    commit_interval=batch_commit_interval,
+                )
+                ingest_stats.merge_into(result)
 
             result['transport_status'] = 'success'
 
@@ -288,7 +341,7 @@ class SyncEngine:
     def seed_from_static_data(self, static_data_dir: str | Path | None = None) -> dict[str, Any]:
         self._publisher_manager.init_publishers()
 
-        data_dir = self._resolve_static_data_dir(static_data_dir)
+        data_dir = pd.resolve_static_data_dir(static_data_dir)
         result: dict[str, Any] = {
             'success': True,
             'files_seen': 0,
@@ -323,50 +376,18 @@ class SyncEngine:
                 continue
 
             touched_books: list[NewBook] = []
-            for row in rows:
-                if not isinstance(row, dict):
-                    result['skipped'] += 1
-                    continue
 
-                title = (row.get('title') or '').strip()
-                author = (row.get('author') or '').strip()
-                if not title or not author:
-                    result['skipped'] += 1
-                    continue
+            def _static_error_log(e: Exception, book_info: BookInfo) -> None:
+                log_error(ErrorCategory.CRAWLER, f'静态新书导入失败: {book_info.title} - {e}', level='warning')
 
-                try:
-                    book_info = BookInfo(
-                        title=title,
-                        author=author,
-                        isbn13=self._normalize_isbn(row.get('isbn13'), 13),
-                        isbn10=self._normalize_isbn(row.get('isbn10'), 10),
-                        description=row.get('description'),
-                        cover_url=row.get('cover_url'),
-                        category=row.get('category'),
-                        publication_date=self._parse_static_date(row.get('publication_date')),
-                        price=row.get('price'),
-                        page_count=self._parse_int(row.get('page_count')),
-                        language=row.get('language'),
-                        buy_links=row.get('buy_links') if isinstance(row.get('buy_links'), list) else [],  # type: ignore[arg-type]
-                        source_url=row.get('source_url'),
-                    )
-                    save_outcome = self._ingestor.save_book(
-                        publisher,
-                        book_info,
-                        translate=False,
-                        auto_commit=False,
-                        touched_books=touched_books,
-                    )
-                    result['total'] += 1
-                    if save_outcome is SaveOutcome.ADDED:
-                        result['added'] += 1
-                    elif save_outcome is SaveOutcome.UPDATED:
-                        result['updated'] += 1
-                    else:
-                        result['skipped'] += 1
-                except Exception as e:
-                    log_error(ErrorCategory.CRAWLER, f'静态新书导入失败: {title} - {e}', level='warning')
-                    result['errors'] += 1
+            ingest_stats = self._ingest_book_stream(
+                self._iter_static_book_infos(rows, result),
+                publisher,
+                translate=False,
+                touched_books=touched_books,
+                on_error=_static_error_log,
+            )
+            ingest_stats.merge_into(result)
 
             try:
                 self._translation_pipeline.persist_language_pack(touched_books, translate=False)
@@ -420,18 +441,35 @@ class SyncEngine:
         config = CrawlerConfig(**config_kwargs) if config_kwargs else None
         return crawler_cls(config)
 
-    @staticmethod
-    def _resolve_static_data_dir(static_data_dir: str | Path | None = None) -> Path:
-        return pd.resolve_static_data_dir(static_data_dir)
+    def _iter_static_book_infos(self, rows: list, result: dict[str, Any]) -> Iterator[BookInfo]:
+        """静态数据行 → BookInfo 流：非法行计入 skipped，构造异常计入 errors。"""
+        for row in rows:
+            if not isinstance(row, dict):
+                result['skipped'] += 1
+                continue
 
-    @staticmethod
-    def _normalize_isbn(value: Any, length: int) -> str | None:
-        return pd.normalize_isbn(value, length)
+            title = (row.get('title') or '').strip()
+            author = (row.get('author') or '').strip()
+            if not title or not author:
+                result['skipped'] += 1
+                continue
 
-    @staticmethod
-    def _parse_static_date(value: Any) -> date | None:
-        return pd.parse_static_date(value)
-
-    @staticmethod
-    def _parse_int(value: Any) -> int | None:
-        return pd.parse_int_safe(value)
+            try:
+                yield BookInfo(
+                    title=title,
+                    author=author,
+                    isbn13=pd.normalize_isbn(row.get('isbn13'), 13),
+                    isbn10=pd.normalize_isbn(row.get('isbn10'), 10),
+                    description=row.get('description'),
+                    cover_url=row.get('cover_url'),
+                    category=row.get('category'),
+                    publication_date=pd.parse_static_date(row.get('publication_date')),
+                    price=row.get('price'),
+                    page_count=pd.parse_int_safe(row.get('page_count')),
+                    language=row.get('language'),
+                    buy_links=row.get('buy_links') if isinstance(row.get('buy_links'), list) else [],  # type: ignore[arg-type]
+                    source_url=row.get('source_url'),
+                )
+            except Exception as e:
+                log_error(ErrorCategory.CRAWLER, f'静态新书导入失败: {title} - {e}', level='warning')
+                result['errors'] += 1

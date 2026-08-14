@@ -661,6 +661,50 @@ class TestSyncPublisherWithTimeout:
             result = engine._sync_publisher_with_timeout(sample_publisher, None, 50, False)
         assert result == expected
 
+    def test_ingest_book_stream_counts_total_on_save_failure(self, engine, sample_publisher, db):
+        """入库管道统一语义：total 计入所有尝试，保存失败时 errors 同步 +1"""
+
+        book_info = BookInfo(title='Bad Book', author='Author')
+        with patch.object(engine._ingestor, 'save_book', side_effect=RuntimeError('DB boom')):
+            stats = engine._ingest_book_stream(
+                [book_info],
+                sample_publisher,
+                translate=False,
+                touched_books=[],
+            )
+
+        assert stats.total == 1
+        assert stats.errors == 1
+        assert stats.added == 0
+
+    def test_iter_static_book_infos_skips_invalid_rows(self, engine):
+        """静态行生成器：非字典行与缺标题/作者行计入 skipped，不产出 BookInfo"""
+        rows = [
+            'not-a-dict',
+            {'title': '', 'author': 'A'},
+            {'title': 'T', 'author': ''},
+            {'title': 'OK', 'author': 'A', 'isbn13': '9780000000001'},
+        ]
+        result = {'total': 0, 'skipped': 0, 'errors': 0}
+
+        books = list(engine._iter_static_book_infos(rows, result))
+
+        assert result['skipped'] == 3
+        assert len(books) == 1
+        assert books[0].title == 'OK'
+
+    def test_iter_static_book_infos_counts_construction_error(self, engine):
+        """静态行构造异常：计入 errors，不产出 BookInfo（spec L42）"""
+        rows = [{'title': 'Boom', 'author': 'A', 'isbn13': 'bad-isbn-object'}]
+        result = {'total': 0, 'skipped': 0, 'errors': 0}
+
+        with patch('app.services.new_book.sync_engine.pd.normalize_isbn', side_effect=RuntimeError('构造失败')):
+            books = list(engine._iter_static_book_infos(rows, result))
+
+        assert books == []
+        assert result['errors'] == 1
+        assert result['skipped'] == 0
+
     def test_times_out_and_returns_timeout_result(self, engine, sample_publisher, db):
         import time as _time
 
