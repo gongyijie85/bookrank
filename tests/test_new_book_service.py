@@ -402,7 +402,7 @@ class TestNewBookService:
         book_info.language = 'en-US'
         book_info.source_url = 'https://example.com/new'
 
-        updated = new_book_service._sync_engine._update_book_fields(book, book_info, auto_commit=False)
+        updated = new_book_service._sync_engine._ingestor.update_book_fields(book, book_info, auto_commit=False)
 
         assert updated is True
         assert book.category == '小说'  # sanitize_category 将 'Fiction' 映射为 '小说'

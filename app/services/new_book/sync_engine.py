@@ -17,6 +17,7 @@ from ...utils.error_handler import ErrorCategory, log_error
 from .. import publisher_data as pd
 from ..publisher_crawler import get_crawler_class
 from ..publisher_crawler.base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .ingestor import NewBookIngestor, SaveOutcome
 from .publisher_manager import PublisherManager
 from .translation_pipeline import TranslationPipeline
 
@@ -47,6 +48,8 @@ class SyncEngine:
     def __init__(self, publisher_manager: PublisherManager, translation_pipeline: TranslationPipeline) -> None:
         self._publisher_manager = publisher_manager
         self._translation_pipeline = translation_pipeline
+        # 入库规则集中到深模块 NewBookIngestor，SyncEngine 只管同步编排。
+        self._ingestor = NewBookIngestor(self._translation_pipeline)
 
     def sync_publisher_books(
         self,
@@ -107,7 +110,7 @@ class SyncEngine:
                     result['total'] += 1
 
                     try:
-                        save_result = self._save_book(
+                        save_outcome = self._ingestor.save_book(
                             publisher,
                             book_info,
                             translate,
@@ -115,9 +118,9 @@ class SyncEngine:
                             touched_books=touched_books,
                         )
 
-                        if save_result == 'added':
+                        if save_outcome is SaveOutcome.ADDED:
                             result['added'] += 1
-                        elif save_result == 'updated':
+                        elif save_outcome is SaveOutcome.UPDATED:
                             result['updated'] += 1
                         else:
                             result['skipped'] += 1
@@ -157,7 +160,7 @@ class SyncEngine:
             else:
                 result['status'] = 'success'
 
-            result['language_pack'] = self._translation_pipeline._translate_and_store_language_pack(
+            result['language_pack'] = self._translation_pipeline.persist_language_pack(
                 touched_books, translate=translate
             )
 
@@ -290,124 +293,6 @@ class SyncEngine:
             # 不能用 with 语句，那会在退出时 shutdown(wait=True) 导致熔断失效。
             executor.shutdown(wait=False, cancel_futures=True)
 
-    def _save_book(
-        self,
-        publisher: Publisher,
-        book_info: BookInfo,
-        translate: bool = True,
-        auto_commit: bool = True,
-        touched_books: list[NewBook] | None = None,
-    ) -> str:
-        existing = None
-
-        if book_info.isbn13:
-            existing = NewBook.query.filter_by(publisher_id=publisher.id, isbn13=book_info.isbn13).first()
-
-        if not existing and book_info.isbn10:
-            existing = NewBook.query.filter_by(publisher_id=publisher.id, isbn10=book_info.isbn10).first()
-
-        if not existing:
-            existing = NewBook.query.filter_by(
-                publisher_id=publisher.id, title=book_info.title, author=book_info.author
-            ).first()
-
-        if existing:
-            updated = self._update_book_fields(existing, book_info, auto_commit=auto_commit)
-            translated = False
-            if translate and self._translation_pipeline._translator:
-                translated = self._translation_pipeline._translate_book(existing)
-            if touched_books is not None:
-                touched_books.append(existing)
-            if updated:
-                return 'updated'
-            if translated:
-                if auto_commit:
-                    db.session.commit()
-                return 'updated'
-            return 'skipped'
-
-        new_book = NewBook(
-            publisher_id=publisher.id,
-            title=book_info.title,
-            author=book_info.author,
-            isbn13=book_info.isbn13,
-            isbn10=book_info.isbn10,
-            description=book_info.description,
-            cover_url=book_info.cover_url,
-            category=self._sanitize_category(book_info.category),
-            publication_date=self._coerce_publication_date(book_info.publication_date),
-            price=book_info.price,
-            page_count=book_info.page_count,
-            language=book_info.language,
-            source_url=book_info.source_url,
-        )
-
-        if book_info.buy_links:
-            new_book.set_buy_links(book_info.buy_links)
-
-        if translate and self._translation_pipeline._translator:
-            self._translation_pipeline._translate_book(new_book)
-
-        db.session.add(new_book)
-        if touched_books is not None:
-            touched_books.append(new_book)
-        if auto_commit:
-            db.session.commit()
-
-        return 'added'
-
-    def _update_book_fields(self, book: NewBook, book_info: BookInfo, auto_commit: bool = True) -> bool:
-        updated = False
-
-        if book_info.description and book_info.description != book.description:
-            book.description = book_info.description
-            book.description_zh = None
-            updated = True
-
-        if book_info.cover_url and book_info.cover_url != book.cover_url:
-            book.cover_url = book_info.cover_url
-            updated = True
-
-        category = self._sanitize_category(getattr(book_info, 'category', None))
-        if category and category != book.category:
-            book.category = category
-            updated = True
-
-        publication_date = self._coerce_publication_date(getattr(book_info, 'publication_date', None))
-        if publication_date and publication_date != book.publication_date:
-            book.publication_date = publication_date
-            updated = True
-
-        if book_info.price and book_info.price != book.price:
-            book.price = book_info.price
-            updated = True
-
-        page_count = getattr(book_info, 'page_count', None)
-        if page_count and page_count != book.page_count:
-            book.page_count = page_count
-            updated = True
-
-        language = getattr(book_info, 'language', None)
-        if language and language != book.language:
-            book.language = language
-            updated = True
-
-        source_url = getattr(book_info, 'source_url', None)
-        if source_url and source_url != book.source_url:
-            book.source_url = source_url
-            updated = True
-
-        if book_info.buy_links:
-            book.set_buy_links(book_info.buy_links)
-            updated = True
-
-        if updated:
-            book.updated_at = datetime.now(UTC)
-            if auto_commit:
-                db.session.commit()
-
-        return updated
-
     def seed_from_static_data(self, static_data_dir: str | Path | None = None) -> dict[str, Any]:
         self._publisher_manager.init_publishers()
 
@@ -473,7 +358,7 @@ class SyncEngine:
                         buy_links=row.get('buy_links') if isinstance(row.get('buy_links'), list) else [],  # type: ignore[arg-type]
                         source_url=row.get('source_url'),
                     )
-                    save_result = self._save_book(
+                    save_outcome = self._ingestor.save_book(
                         publisher,
                         book_info,
                         translate=False,
@@ -481,9 +366,9 @@ class SyncEngine:
                         touched_books=touched_books,
                     )
                     result['total'] += 1
-                    if save_result == 'added':
+                    if save_outcome is SaveOutcome.ADDED:
                         result['added'] += 1
-                    elif save_result == 'updated':
+                    elif save_outcome is SaveOutcome.UPDATED:
                         result['updated'] += 1
                     else:
                         result['skipped'] += 1
@@ -492,7 +377,7 @@ class SyncEngine:
                     result['errors'] += 1
 
             try:
-                self._translation_pipeline._translate_and_store_language_pack(touched_books, translate=False)
+                self._translation_pipeline.persist_language_pack(touched_books, translate=False)
                 publisher.last_sync_at = datetime.now(UTC)
                 if touched_books:
                     publisher.sync_count = (publisher.sync_count or 0) + 1
@@ -554,13 +439,5 @@ class SyncEngine:
         return pd.parse_static_date(value)
 
     @staticmethod
-    def _coerce_publication_date(value: Any) -> date | None:
-        return pd.coerce_publication_date(value)
-
-    @staticmethod
     def _parse_int(value: Any) -> int | None:
         return pd.parse_int_safe(value)
-
-    @staticmethod
-    def _sanitize_category(category: str | None) -> str | None:
-        return pd.sanitize_category(category)

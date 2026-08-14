@@ -1,11 +1,27 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.87
-**发布日期**：2026-07-16
+**当前版本**：v0.9.88
+**发布日期**：2026-08-14
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.88 (2026-08-14) — 提取 NewBookIngestor 深模块，瘦身 SyncEngine
+
+**背景**：`SyncEngine` 承担同步编排以外的过多入库规则，接口与实现一样复杂（浅模块）。
+本次将去重、字段合并、新建与 ORM 持久化集中到深模块 `NewBookIngestor`，对外只暴露
+`save_book` / `update_book_fields` 两个稳定接口；`TranslationPipeline` 增加公共接缝
+（`translate_book` / `persist_language_pack` / `translator_enabled`）。
+
+**关键优化**
+- **深模块**：新增 `app/services/new_book/ingestor.py`，用 `SaveOutcome` 枚举替代裸字符串
+- **接缝**：`TranslationPipeline` 私有方法转公共，斩断与 SyncEngine 的紧耦合
+- **测试可测性**：入库规则不再经由 SyncEngine 私有方法测试，直接面向稳定接口
+
+**决议**：`BatchImportService` 保留独立入库实现，与 `NewBookIngestor` 并存。
+
+**验证**：`pytest` 2381 passed / 1 skipped；`ruff`、`mypy` 通过。
 
 ### v0.9.87 (2026-07-16) — 依赖安全漏洞修复（Dependabot 36 个 alert）
 

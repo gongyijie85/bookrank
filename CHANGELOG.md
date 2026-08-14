@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.9.88 - 2026-08-14
+
+### refactor(architecture): 提取 NewBookIngestor 深模块，瘦身 SyncEngine
+
+**背景**：`SyncEngine` 承担了同步编排以外的过多入库规则（去重、字段合并、
+新建、ORM 持久化），接口与实现一样复杂（浅模块），既难测也难导航。
+本次按 improve-codebase-architecture 候选 A 落地，将入库规则集中到深模块
+`NewBookIngestor`，对外只暴露 `save_book` / `update_book_fields` 两个稳定接口。
+
+**改动**
+
+#### 新增深模块
+- `app/services/new_book/ingestor.py`（新增）：
+  - `NewBookIngestor`：集中去重（isbn13 → isbn10 → 标题+作者）、字段合并、
+    新建与 ORM 持久化逻辑
+  - `SaveOutcome` 枚举（`ADDED` / `UPDATED` / `SKIPPED`）替代裸字符串常量
+
+#### 为 TranslationPipeline 增加公共接缝
+- `app/services/new_book/translation_pipeline.py`：
+  - 私有 `_translate_book` → 公共 `translate_book`
+  - 私有 `_translate_and_store_language_pack` → 公共 `persist_language_pack`
+  - 新增 `translator_enabled` 属性，供入库模块判断是否触发翻译
+
+#### 瘦身 SyncEngine
+- `app/services/new_book/sync_engine.py`：
+  - 移除 `_save_book` / `_update_book_fields`，改为注入 `NewBookIngestor`
+  - 翻译调用改用公共接缝，SyncEngine 只管同步编排
+
+#### 测试迁移
+- `tests/test_ingestor.py`（新增）：承接原 `TestSaveBook` / `TestUpdateBookFields`，
+  直接面向入库模块稳定接口与 `SaveOutcome`
+- `tests/test_sync_engine.py`：移除已迁移用例，翻译 mock 改用公共方法名
+- `tests/test_new_book_service.py`：`_update_book_fields` 改用 `_ingestor.update_book_fields`
+
+**决议**：`BatchImportService` 保留独立入库实现，与 `NewBookIngestor` 并存，
+不强行合并（各自处理不同来源、不同去重诉求，合并会引入不必要耦合）。
+
+**验证**
+- `pytest`：2381 passed，1 skipped
+- `ruff check / format app/services/new_book/ tests/test_ingestor.py`：通过
+- `mypy app/services/new_book/`：通过
+
+**相关文件**
+- 新增：`app/services/new_book/ingestor.py`、`tests/test_ingestor.py`
+- 修改：`app/services/new_book/sync_engine.py`、`app/services/new_book/translation_pipeline.py`、
+  `tests/test_sync_engine.py`、`tests/test_new_book_service.py`
+
+---
+
 ## v0.9.87 - 2026-07-16
 
 ### fix(deps): 修复 Dependabot 36 个依赖安全漏洞

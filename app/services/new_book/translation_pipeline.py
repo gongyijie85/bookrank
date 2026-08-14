@@ -13,7 +13,12 @@ class TranslationPipeline:
         self._translator = translator
         self._language_pack = language_pack
 
-    def _translate_book(self, book: NewBook) -> bool:
+    @property
+    def translator_enabled(self) -> bool:
+        """是否有可用翻译器（供入库模块判断是否触发翻译）。"""
+        return self._translator is not None
+
+    def translate_book(self, book: NewBook) -> bool:
         if not self._translator:
             return False
 
@@ -79,7 +84,7 @@ class TranslationPipeline:
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'新书语言包补齐跳过: {e}', level='debug')
 
-    def _translate_and_store_language_pack(self, books: list[NewBook], translate: bool = True) -> dict[str, int]:
+    def persist_language_pack(self, books: list[NewBook], translate: bool = True) -> dict[str, int]:
         if not books:
             return {
                 'books_seen': 0,
