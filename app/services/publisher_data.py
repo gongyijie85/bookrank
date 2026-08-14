@@ -142,7 +142,7 @@ CRAWLER_MIGRATION: dict[str, str] = {
     'PenguinRandomHouseCrawler': 'PrhApiCrawler',
 }
 
-# 营销关键词过滤（_sanitize_category 使用）
+# 营销关键词过滤（sanitize_category 使用）
 MARKETING_KEYWORDS: list[str] = [
     'learn more',
     'read more',

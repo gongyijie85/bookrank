@@ -26,8 +26,10 @@
 | 出版 30 天内“新书”标准（维护者决议） | tests/test_query_service.py::test_get_new_books_filters_by_publication_date | 出版日期窗口 + 14 天预告宽限 |
 | 死适配器残留注册（候选 #7） | tests/test_publisher_crawler.py::test_registry_has_all_live_crawlers | 注册表精确等于 8 个活跃类 |
 
+| 分类清洗规则散落三条 seam（候选 #3） | tests/test_category_cleanup_service.py + test_admin_routes.py::test_cleanup_with_real_sanitize_detects_marketing_category | scan/apply 共用模块，真实路径可用 |
+| 装配失败导致路由裸 500（#154） | tests/test_setup_extended.py::TestNewBookModulesAssemblyFallback | 降级空装配 + 二次失败不注册 |
+| 适配器包装重复漂移（#153 模板方法） | tests/test_publisher_crawler.py::TestCrawlerRegistry + tests/test_publisher_crawler_extended.py | 钩子 _iter_new_books 单点组装，注册表精确 8 类 |
+
 ## 待补（候选流水线产出后登记）
 
-- 候选 #3 分类清洗单一归属 → 迁移/清理共例回归
-- issue #154 装配失败降级 → 故障注入回归
-- issue #153 基类模板方法 → 适配器包装收敛后更新索引
+- issue #153/#154 已实现并登记；暂无新待补项

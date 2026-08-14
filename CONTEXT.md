@@ -28,6 +28,10 @@
 - **日期过滤计数（date_filter_stats）** — Google Books 系适配器在抓取
   过程中统计的分类拒绝计数器（traversed_total、rejected_no_date 等），
   随 `CrawlOutcome` 返回，仅供测量持久化，不改变同步行为。
+- **分类清洗（category cleanup）** — 对 `NewBook.category` 的营销文案过滤与
+  英文→中文归一。sanitize=单值规则（`publisher_data.sanitize_category`），
+  scan=清单扫描，apply=批量写入（`category_cleanup_service`）；入库路径只做
+  单值清洗，不参与扫描。
 - **API Key 配置（API_KEY_CONFIG / api_key_required / REQUEST_DELAY）** — 基类声明的
   配置事实：适配器所需的 API Key 配置键名（如 `GOOGLE_API_KEY`、
   `PRH_API_KEY`）、缺 key 时是否快速失败（PRH 为必填），以及引擎注入

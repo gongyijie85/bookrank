@@ -7,17 +7,6 @@ from ..models.database import db
 logger = logging.getLogger(__name__)
 
 
-def batch_update_categories(id_to_category: dict[int, str]) -> int:
-    """批量更新 NewBook 分类，返回更新条数"""
-    from ..models.new_book import NewBook
-
-    books = db.session.query(NewBook).filter(NewBook.id.in_(list(id_to_category.keys()))).all()  # type: ignore[attr-defined]
-    for book in books:
-        book.category = id_to_category[book.id]
-    db.session.commit()
-    return len(books)
-
-
 def get_weekly_report_by_id(report_id: int):
     """获取周报记录"""
     from ..models.schemas import WeeklyReport

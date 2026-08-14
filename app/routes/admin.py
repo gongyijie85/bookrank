@@ -11,7 +11,6 @@ from flask import Blueprint, Response, current_app, request
 from ..services.admin_service import (
     batch_commit,
     batch_import_from_dict,
-    batch_update_categories,
     get_weekly_report_by_id,
     rollback,
     update_book_metadata_records,
@@ -364,8 +363,7 @@ def regenerate_all_weekly_reports():
 def cleanup_categories():
     """清理新书分类中的营销文案数据"""
     try:
-        from ..models.new_book import NewBook
-        from ..services import publisher_data
+        from ..services.category_cleanup_service import apply_cleanup
 
         if request.method == 'GET':
             dry_run = True
@@ -373,37 +371,27 @@ def cleanup_categories():
             data = request.get_json(silent=True) or {}
             dry_run = data.get('dry_run', True)
 
-        books = NewBook.query.filter(NewBook.category.isnot(None)).all()  # type: ignore[union-attr]
-
-        invalid_books = []
-        for book in books:
-            cleaned = publisher_data.sanitize_category(book.category)
-            if cleaned != book.category:
-                invalid_books.append(
-                    {'id': book.id, 'title': book.title, 'old_category': book.category, 'new_category': cleaned}
-                )
+        result = apply_cleanup(dry_run=dry_run)
 
         if not dry_run:
-            id_to_category = {item['id']: item['new_category'] for item in invalid_books}
-            updated = batch_update_categories(id_to_category)
             return APIResponse.success(
                 data={
-                    'total_checked': len(books),
-                    'invalid_found': len(invalid_books),
-                    'updated': updated,
-                    'details': invalid_books[:50],
+                    'total_checked': result.total_checked,
+                    'invalid_found': result.invalid_found,
+                    'updated': result.updated,
+                    'details': result.details,
                 },
-                message=f'清理完成: 修复{updated}条分类数据',
+                message=f'清理完成: 修复{result.updated}条分类数据',
             )
         else:
             return APIResponse.success(
                 data={
-                    'total_checked': len(books),
-                    'invalid_found': len(invalid_books),
-                    'details': invalid_books[:50],
+                    'total_checked': result.total_checked,
+                    'invalid_found': result.invalid_found,
+                    'details': result.details,
                     'message': '预览模式，未实际修改。发送 dry_run=false 执行清理',
                 },
-                message=f'预览: 发现{len(invalid_books)}条无效分类',
+                message=f'预览: 发现{result.invalid_found}条无效分类',
             )
 
     except Exception as e:

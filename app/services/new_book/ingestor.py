@@ -56,7 +56,7 @@ class NewBookIngestor:
             book.cover_url = book_info.cover_url
             updated = True
 
-        category = self._sanitize_category(getattr(book_info, 'category', None))
+        category = pd.sanitize_category(getattr(book_info, 'category', None))
         if category and category != book.category:
             book.category = category
             updated = True
@@ -151,7 +151,7 @@ class NewBookIngestor:
             isbn10=book_info.isbn10,
             description=book_info.description,
             cover_url=book_info.cover_url,
-            category=self._sanitize_category(book_info.category),
+            category=pd.sanitize_category(book_info.category),
             publication_date=self._coerce_publication_date(book_info.publication_date),
             price=book_info.price,
             page_count=book_info.page_count,
@@ -176,7 +176,3 @@ class NewBookIngestor:
     @staticmethod
     def _coerce_publication_date(value: date | None) -> date | None:
         return pd.coerce_publication_date(value)
-
-    @staticmethod
-    def _sanitize_category(category: str | None) -> str | None:
-        return pd.sanitize_category(category)

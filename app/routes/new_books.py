@@ -466,47 +466,22 @@ def init_publishers():
         return APIResponse.error('初始化失败', 500)
 
 
-def _migrate_categories() -> dict[str, int]:
-    """迁移已有书籍分类数据（英文分类统一为中文），事务控制在本函数内完成。"""
-    from ..models.database import db
-    from ..models.new_book import NewBook
-    from ..services.publisher_data import sanitize_category
-
-    try:
-        books = NewBook.query.filter(NewBook.category.isnot(None)).all()
-        migrated_count = 0
-
-        for book in books:
-            old_category = book.category
-            new_category = sanitize_category(old_category)
-            if new_category != old_category:
-                book.category = new_category
-                migrated_count += 1
-
-        if migrated_count > 0:
-            db.session.commit()
-
-        return {'migrated_count': migrated_count, 'total_checked': len(books)}
-    except Exception:
-        # 事务失败时回滚并重新抛出，由路由层统一返回 500
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-        raise
-
-
 @new_books_bp.route('/migrate-categories', methods=['POST'])
 @csrf_protect
 @admin_required
 def migrate_categories():
-    """迁移已有书籍分类数据（英文分类统一为中文）"""
+    """迁移已有书籍分类数据（英文分类统一为中文），走分类清洗模块"""
     try:
-        result = _migrate_categories()
+        from ..services.category_cleanup_service import apply_cleanup
+
+        result = apply_cleanup(dry_run=False)
 
         return APIResponse.success(
-            data=result,
-            message=f'成功迁移 {result["migrated_count"]} 本书籍分类',
+            data={
+                'migrated_count': result.updated,
+                'total_checked': result.total_checked,
+            },
+            message=f'成功迁移 {result.updated} 本书籍分类',
         )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'迁移分类数据失败: {e}', exc_info=True)
