@@ -13,10 +13,9 @@ URL格式：/titles/{author-slug}/{title-slug}/{ISBN}/
 import logging
 import re
 import time
-from collections.abc import Generator
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BaseCrawler, BookInfo
+from .base_crawler import BaseCrawler, BookInfo, CrawlOutcome, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +85,17 @@ class HachetteCrawler(BaseCrawler):
             {'id': 'travel', 'name': '旅行'},
         ]
 
-    def get_new_books(
+    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
+        """按抓取请求获取新书（无统计：返回 date_filter_stats=None）。"""
+        return CrawlOutcome(books=self._iter_new_books(request.category, request.max_books))
+
+    def _iter_new_books(
         self,
         category: str | None = None,
         max_books: int = 100,
-    ) -> Generator[BookInfo]:
+    ):
         """
-        获取 Hachette 新书列表
+        获取 Hachette 新书列表的生成器实现
 
         从首页 New Releases 轮播提取书籍链接，
         然后逐个访问详情页获取完整信息。
@@ -100,9 +103,6 @@ class HachetteCrawler(BaseCrawler):
         Args:
             category: 分类筛选（可选）
             max_books: 最大获取数量
-
-        Yields:
-            BookInfo 对象
         """
         logger.info('🔍 开始从 Hachette 官网首页获取新书...')
 

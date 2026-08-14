@@ -13,7 +13,7 @@ import pytest
 from app.models.new_book import NewBook, Publisher
 from app.services.new_book.ingestor import SaveOutcome
 from app.services.new_book.sync_engine import SyncEngine
-from app.services.publisher_crawler.base_crawler import BookInfo
+from app.services.publisher_crawler.base_crawler import BookInfo, CrawlOutcome
 
 
 @pytest.fixture
@@ -50,6 +50,15 @@ def sample_publisher(db):
     return publisher
 
 
+def _make_crawler_mock(books=(), stats=None):
+    """构造符合新接口形状的爬虫 mock：get_new_books 返回 CrawlOutcome。"""
+    mock_crawler = MagicMock()
+    mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter(books), date_filter_stats=stats)
+    mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
+    mock_crawler.__exit__ = MagicMock(return_value=False)
+    return mock_crawler
+
+
 @pytest.fixture
 def sample_book_info():
     return BookInfo(
@@ -76,15 +85,6 @@ class TestSyncEngineInit:
         engine = SyncEngine(publisher_manager, translation_pipeline)
         assert engine._publisher_manager is publisher_manager
         assert engine._translation_pipeline is translation_pipeline
-
-    def test_google_books_crawlers_set(self, engine):
-        assert 'GoogleBooksCrawler' in engine._GOOGLE_BOOKS_CRAWLERS
-        assert 'MacmillanCrawler' in engine._GOOGLE_BOOKS_CRAWLERS
-        # PenguinRandomHouseCrawler 继承自 GoogleBooksCrawler（见
-        # app/services/publisher_crawler/penguin_random_house.py），同步时
-        # 也需要拿到 GOOGLE_API_KEY，否则只能用匿名限流额度。
-        assert 'PenguinRandomHouseCrawler' in engine._GOOGLE_BOOKS_CRAWLERS
-        assert len(engine._GOOGLE_BOOKS_CRAWLERS) == 7
 
 
 class TestSyncPublisherBooks:
@@ -114,7 +114,7 @@ class TestSyncPublisherBooks:
         publisher_manager.get_publisher.return_value = sample_publisher
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -134,7 +134,7 @@ class TestSyncPublisherBooks:
         publisher_manager.get_publisher.return_value = sample_publisher
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([sample_book_info])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([sample_book_info]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -155,18 +155,17 @@ class TestSyncPublisherBooks:
         """工单 #83：Google Books 系爬虫的日期过滤拒绝计数随单家同步结果字典流出"""
         publisher_manager.get_publisher.return_value = sample_publisher
 
-        mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([sample_book_info])
-        mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
-        mock_crawler.__exit__ = MagicMock(return_value=False)
-        mock_crawler.date_filter_stats = {
-            'traversed_total': 6,
-            'rejected_no_date': 2,
-            'rejected_unparseable': 1,
-            'rejected_out_of_window': 1,
-            'rejected_future_placeholder': 1,
-            'accepted_year_only': 1,
-        }
+        mock_crawler = _make_crawler_mock(
+            [sample_book_info],
+            stats={
+                'traversed_total': 6,
+                'rejected_no_date': 2,
+                'rejected_unparseable': 1,
+                'rejected_out_of_window': 1,
+                'rejected_future_placeholder': 1,
+                'accepted_year_only': 1,
+            },
+        )
 
         with patch.object(engine, 'get_crawler', return_value=mock_crawler):
             result = engine.sync_publisher_books(sample_publisher.id, translate=False)
@@ -181,12 +180,12 @@ class TestSyncPublisherBooks:
     def test_crawler_without_real_stats_does_not_pollute_result(
         self, engine, publisher_manager, sample_publisher, sample_book_info, db
     ):
-        """非 Google 系爬虫（或 Mock 的自动属性）不带真实计数字典时，
+        """非 Google 系适配器的抓取结果不带统计（date_filter_stats=None）时，
         结果字典不应被污染"""
         publisher_manager.get_publisher.return_value = sample_publisher
 
-        mock_crawler = MagicMock()  # date_filter_stats 自动属性是 MagicMock，不是 dict
-        mock_crawler.get_new_books.return_value = iter([sample_book_info])
+        mock_crawler = MagicMock()  # CrawlOutcome 未带统计时返回 None
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([sample_book_info]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -233,7 +232,7 @@ class TestSyncPublisherBooks:
         publisher_manager.get_publisher.return_value = sample_publisher
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([book_info])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([book_info]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -259,7 +258,7 @@ class TestSyncPublisherBooks:
         publisher_manager.get_publisher.return_value = sample_publisher
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([sample_book_info])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([sample_book_info]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -275,15 +274,12 @@ class TestSyncPublisherBooks:
     def test_sync_counts_book_save_error(self, engine, publisher_manager, sample_publisher, db):
         publisher_manager.get_publisher.return_value = sample_publisher
 
-        mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter(
+        mock_crawler = _make_crawler_mock(
             [
                 BookInfo(title='OK Book', author='Author A'),
                 BookInfo(title='Bad Book', author='Author B'),
             ]
         )
-        mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
-        mock_crawler.__exit__ = MagicMock(return_value=False)
 
         call_count = 0
 
@@ -327,7 +323,7 @@ class TestSyncPublisherBooks:
         books = [BookInfo(title=f'Book {i}', author=f'Author {i}') for i in range(12)]
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter(books)
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter(books), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -342,7 +338,9 @@ class TestSyncPublisherBooks:
         publisher_manager.get_publisher.return_value = sample_publisher
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([BookInfo(title='Successful book', author='Author')])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(
+            books=iter([BookInfo(title='Successful book', author='Author')]), date_filter_stats=None
+        )
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -377,7 +375,7 @@ class TestSyncPublisherBooks:
         publisher_manager.get_publisher.return_value = sample_publisher
 
         mock_crawler = MagicMock()
-        mock_crawler.get_new_books.return_value = iter([sample_book_info])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([sample_book_info]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
@@ -459,7 +457,14 @@ class TestGetCrawler:
 
     @patch('app.services.new_book.sync_engine.get_crawler_class')
     def test_returns_crawler_instance(self, mock_get_cls, engine):
-        MockCrawler = MagicMock
+        class MockCrawler:
+            API_KEY_CONFIG = None
+            api_key_required = False
+            REQUEST_DELAY = None
+
+            def __init__(self, config=None):
+                self.config = config
+
         mock_get_cls.return_value = MockCrawler
         result = engine.get_crawler('PenguinCrawler')
         assert result is not None
@@ -467,6 +472,9 @@ class TestGetCrawler:
     @patch('app.services.new_book.sync_engine.get_crawler_class')
     def test_google_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
         mock_crawler_cls = MagicMock()
+        mock_crawler_cls.API_KEY_CONFIG = 'GOOGLE_API_KEY'
+        mock_crawler_cls.api_key_required = False
+        mock_crawler_cls.REQUEST_DELAY = None
         mock_get_cls.return_value = mock_crawler_cls
         app_context.config['GOOGLE_API_KEY'] = 'test-google-key'
         engine.get_crawler('GoogleBooksCrawler')
@@ -477,6 +485,9 @@ class TestGetCrawler:
     @patch('app.services.new_book.sync_engine.get_crawler_class')
     def test_penguin_random_house_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
         mock_crawler_cls = MagicMock()
+        mock_crawler_cls.API_KEY_CONFIG = 'GOOGLE_API_KEY'
+        mock_crawler_cls.api_key_required = False
+        mock_crawler_cls.REQUEST_DELAY = None
         mock_get_cls.return_value = mock_crawler_cls
         app_context.config['GOOGLE_API_KEY'] = 'test-google-key'
         engine.get_crawler('PenguinRandomHouseCrawler')
@@ -487,29 +498,39 @@ class TestGetCrawler:
     @patch('app.services.new_book.sync_engine.get_crawler_class')
     def test_google_crawler_without_api_key_uses_default(self, mock_get_cls, app):
         mock_crawler_cls = MagicMock()
+        mock_crawler_cls.API_KEY_CONFIG = 'GOOGLE_API_KEY'
+        mock_crawler_cls.api_key_required = False
+        mock_crawler_cls.REQUEST_DELAY = None
         mock_get_cls.return_value = mock_crawler_cls
 
         with app.app_context():
             app.config.pop('GOOGLE_API_KEY', None)
             engine = SyncEngine(MagicMock(), MagicMock())
             engine.get_crawler('GoogleBooksCrawler')
-        mock_crawler_cls.assert_called_once_with()
+        mock_crawler_cls.assert_called_once_with(None)
 
     @patch('app.services.new_book.sync_engine.get_crawler_class')
     def test_prh_api_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
         """PRH_API_KEY 存在时注入配置（工单 #86）"""
         mock_crawler_cls = MagicMock()
+        mock_crawler_cls.API_KEY_CONFIG = 'PRH_API_KEY'
+        mock_crawler_cls.api_key_required = True
+        mock_crawler_cls.REQUEST_DELAY = 0.5
         mock_get_cls.return_value = mock_crawler_cls
         app_context.config['PRH_API_KEY'] = 'test-prh-key'
         engine.get_crawler('PrhApiCrawler')
         mock_crawler_cls.assert_called_once()
         call_args = mock_crawler_cls.call_args
         assert call_args[0][0].api_key == 'test-prh-key'
+        assert call_args[0][0].request_delay == 0.5
 
     @patch('app.services.new_book.sync_engine.get_crawler_class')
     def test_prh_api_crawler_without_api_key_returns_none(self, mock_get_cls, app):
         """PRH_API_KEY 缺失时快速失败返回 None，不实例化爬虫（工单 #86）"""
         mock_crawler_cls = MagicMock()
+        mock_crawler_cls.API_KEY_CONFIG = 'PRH_API_KEY'
+        mock_crawler_cls.api_key_required = True
+        mock_crawler_cls.REQUEST_DELAY = 0.5
         mock_get_cls.return_value = mock_crawler_cls
 
         with app.app_context():
@@ -527,7 +548,7 @@ class TestBackfillWindowSelection:
     def _backfill_capable_crawler():
         mock_crawler = MagicMock()
         mock_crawler.SUPPORTS_BACKFILL = True
-        mock_crawler.get_new_books.return_value = iter([])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
         return mock_crawler
@@ -539,7 +560,8 @@ class TestBackfillWindowSelection:
         with patch.object(engine, 'get_crawler', return_value=mock_crawler):
             engine.sync_publisher_books(sample_publisher.id)
 
-        assert mock_crawler.get_new_books.call_args.kwargs.get('backfill') is True
+        request = mock_crawler.get_new_books.call_args[0][0]
+        assert request.backfill is True
 
     def test_existing_books_falls_back_to_incremental(self, engine, publisher_manager, sample_publisher, db):
         existing = NewBook(
@@ -557,22 +579,24 @@ class TestBackfillWindowSelection:
         with patch.object(engine, 'get_crawler', return_value=mock_crawler):
             engine.sync_publisher_books(sample_publisher.id)
 
-        assert mock_crawler.get_new_books.call_args.kwargs.get('backfill') is False
+        request = mock_crawler.get_new_books.call_args[0][0]
+        assert request.backfill is False
 
-    def test_crawler_without_backfill_support_gets_no_backfill_kwarg(
+    def test_crawler_without_backfill_support_gets_backfill_false(
         self, engine, publisher_manager, sample_publisher, db
     ):
         publisher_manager.get_publisher.return_value = sample_publisher
         mock_crawler = MagicMock()
         mock_crawler.SUPPORTS_BACKFILL = False
-        mock_crawler.get_new_books.return_value = iter([])
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=iter([]), date_filter_stats=None)
         mock_crawler.__enter__ = MagicMock(return_value=mock_crawler)
         mock_crawler.__exit__ = MagicMock(return_value=False)
 
         with patch.object(engine, 'get_crawler', return_value=mock_crawler):
             engine.sync_publisher_books(sample_publisher.id)
 
-        assert 'backfill' not in mock_crawler.get_new_books.call_args.kwargs
+        request = mock_crawler.get_new_books.call_args[0][0]
+        assert request.backfill is False
 
     def test_backfill_expands_max_books_cap(self, engine, publisher_manager, sample_publisher, db, monkeypatch):
         """回填模式放大入库上限，否则拉全量也只能入默认额度（工单 #87）"""
@@ -585,7 +609,8 @@ class TestBackfillWindowSelection:
         with patch.object(engine, 'get_crawler', return_value=mock_crawler):
             engine.sync_publisher_books(sample_publisher.id, max_books=30)
 
-        assert mock_crawler.get_new_books.call_args.kwargs['max_books'] == 500
+        request = mock_crawler.get_new_books.call_args[0][0]
+        assert request.max_books == 500
 
     def test_incremental_keeps_requested_max_books(self, engine, publisher_manager, sample_publisher, db):
         existing = NewBook(
@@ -603,7 +628,8 @@ class TestBackfillWindowSelection:
         with patch.object(engine, 'get_crawler', return_value=mock_crawler):
             engine.sync_publisher_books(sample_publisher.id, max_books=30)
 
-        assert mock_crawler.get_new_books.call_args.kwargs['max_books'] == 30
+        request = mock_crawler.get_new_books.call_args[0][0]
+        assert request.max_books == 30
 
 
 class TestEnsureStaticDataSeeded:
@@ -652,6 +678,124 @@ class TestSyncPublisherWithTimeout:
         assert result['status'] == 'timeout'
         assert result['publisher'] == sample_publisher.name_en
         assert '超时' in result['error']
+
+
+class TestSeedFromStaticData:
+    """静态兜底导入与 ensure 跳过路径（由门面测试迁移而来）"""
+
+    def test_seed_from_static_data_and_ensure_skips_afterwards(self, db, tmp_path):
+        """测试从静态新书 JSON 兜底导入，已有书后 ensure 直接跳过"""
+        import json
+
+        from app.services.book_language_pack import BookLanguagePack
+        from app.services.new_book.publisher_manager import PublisherManager
+        from app.services.new_book.translation_pipeline import TranslationPipeline
+
+        manager = PublisherManager()
+        pipeline = TranslationPipeline(None, BookLanguagePack(None))
+        engine = SyncEngine(manager, pipeline)
+
+        static_file = tmp_path / 'google_books_books.json'
+        static_file.write_text(
+            json.dumps(
+                [
+                    {
+                        'title': 'Static Test Book',
+                        'author': 'Static Author',
+                        'isbn13': '9780000000999',
+                        'isbn10': '0000000999',
+                        'description': 'Static description',
+                        'cover_url': 'https://example.com/static.jpg',
+                        'category': 'Fiction',
+                        'publication_date': '2026-05-01',
+                        'page_count': 240,
+                        'language': 'en',
+                        'buy_links': [{'name': 'Google Books', 'url': 'https://example.com/book'}],
+                        'source_url': 'https://example.com/book',
+                    }
+                ]
+            ),
+            encoding='utf-8',
+        )
+
+        result = engine.seed_from_static_data(tmp_path)
+
+        assert result['added'] == 1
+        assert NewBook.query.count() == 1
+        book = NewBook.query.first()
+        assert book.title == 'Static Test Book'
+        assert book.publisher.name_en == 'Google Books'
+        assert book.publication_date.isoformat() == '2026-05-01'
+        assert book.get_buy_links()[0]['name'] == 'Google Books'
+
+        assert engine.ensure_static_data_seeded() is None
+
+
+class TestSyncWritesLanguagePack:
+    """同步时把翻译写入语言包（由门面测试迁移而来）"""
+
+    def test_sync_publisher_books_writes_language_pack(self, db, tmp_path):
+        """同步新书时会把翻译写入语言包文件"""
+        import json
+        from datetime import UTC, datetime
+        from unittest.mock import Mock, patch
+
+        from app.services.book_language_pack import BookLanguagePack
+        from app.services.new_book.publisher_manager import PublisherManager
+        from app.services.new_book.translation_pipeline import TranslationPipeline
+
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        mock_translator = Mock()
+
+        def translate(text, source_lang='en', target_lang='zh', field_type='text'):
+            return {'title': '测试新书名', 'description': '测试新书简介'}[field_type]
+
+        mock_translator.translate.side_effect = translate
+        manager = PublisherManager()
+        pipeline = TranslationPipeline(mock_translator, BookLanguagePack(pack_path))
+        engine = SyncEngine(manager, pipeline)
+        manager.init_publishers()
+
+        # 用启用中的出版社：Google Books/Open Library 默认停用，
+        # 用它们会在同步前就因"出版社已禁用"短路返回；
+        # 排除 PrhApiCrawler——它要求环境中有 PRH_API_KEY（CI 无 key 时
+        # get_crawler 快速失败返回 None，本测试只关心语言包写入）
+        publisher = Publisher.query.filter_by(is_active=True).filter(Publisher.crawler_class != 'PrhApiCrawler').first()
+        assert publisher is not None
+
+        mock_crawler = Mock()
+        mock_crawler.__enter__ = Mock(return_value=mock_crawler)
+        mock_crawler.__exit__ = Mock(return_value=None)
+
+        mock_book_info = Mock()
+        mock_book_info.title = 'New Test Book'
+        mock_book_info.author = 'Test Author'
+        mock_book_info.isbn13 = '9780000000002'
+        mock_book_info.isbn10 = '0000000002'
+        mock_book_info.description = 'New test description'
+        mock_book_info.cover_url = 'https://example.com/cover.jpg'
+        mock_book_info.category = 'Fiction'
+        mock_book_info.publication_date = datetime.now(UTC)
+        mock_book_info.price = '29.99'
+        mock_book_info.page_count = 300
+        mock_book_info.language = 'en'
+        mock_book_info.source_url = 'https://example.com/book'
+        mock_book_info.buy_links = []
+
+        mock_crawler.get_new_books.return_value = CrawlOutcome(books=[mock_book_info], date_filter_stats=None)
+        mock_crawler_cls = Mock(return_value=mock_crawler)
+        mock_crawler_cls.API_KEY_CONFIG = None
+        mock_crawler_cls.api_key_required = False
+        mock_crawler_cls.REQUEST_DELAY = None
+
+        with patch('app.services.new_book.sync_engine.get_crawler_class', side_effect=lambda name: mock_crawler_cls):
+            result = engine.sync_publisher_books(publisher.id, max_books=1)
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert result['success'] is True
+        assert result['language_pack']['pack_writes'] == 1
+        assert saved['books']['9780000000002']['title_zh'] == '测试新书名'
+        assert saved['books']['9780000000002']['description_zh'] == '测试新书简介'
 
     def test_worker_exception_returns_request_failed(self, engine, sample_publisher, db):
         with patch.object(engine, 'sync_publisher_books', side_effect=RuntimeError('boom')):

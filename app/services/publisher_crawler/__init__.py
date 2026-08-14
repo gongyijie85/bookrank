@@ -22,13 +22,15 @@ import importlib
 import logging
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     'BaseCrawler',
     'BookInfo',
+    'CrawlOutcome',
+    'CrawlRequest',
     'CrawlerConfig',
     'get_all_crawlers',
     'get_crawler_class',

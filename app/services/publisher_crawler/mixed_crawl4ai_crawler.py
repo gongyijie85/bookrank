@@ -8,14 +8,13 @@
 import asyncio
 import logging
 import re
-from collections.abc import Generator
 from typing import Any
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -157,18 +156,19 @@ class MixedCrawl4AICrawler(BaseCrawler):
         logger.warning(f'❌ {self.PUBLISHER_NAME_EN}: 所有方法都失败: {url}')
         return None, None
 
-    def get_new_books(self, category: str | None = None, max_books: int = 100) -> Generator[BookInfo]:
+    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
+        """按抓取请求获取新书（无统计：返回 date_filter_stats=None）。"""
+        return CrawlOutcome(books=self._iter_new_books(request.category, request.max_books))
+
+    def _iter_new_books(self, category: str | None = None, max_books: int = 100):
         """
-        获取新书列表（混合架构）
+        获取新书列表的生成器实现（混合架构）
 
         先尝试传统 requests，失败后用 Crawl4AI 降级
 
         Args:
             category: 分类ID
             max_books: 最大获取数量
-
-        Yields:
-            BookInfo 对象
         """
         page = 1
         count = 0

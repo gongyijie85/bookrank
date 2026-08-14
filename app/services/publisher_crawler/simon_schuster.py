@@ -11,6 +11,7 @@ Google Books 查询语法:
 import logging
 from typing import Any
 
+from .base_crawler import CrawlOutcome, CrawlRequest
 from .google_books import GoogleBooksCrawler
 
 logger = logging.getLogger(__name__)
@@ -95,12 +96,7 @@ class SimonSchusterCrawler(GoogleBooksCrawler):
 
         return params
 
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        year_from: int | None = None,
-    ):
+    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
         """
         获取 Simon & Schuster 新书列表
 
@@ -110,8 +106,4 @@ class SimonSchusterCrawler(GoogleBooksCrawler):
             '正在通过 Google Books API 获取 %s 的新书...',
             self.PUBLISHER_NAME_EN,
         )
-        yield from super().get_new_books(
-            category=category,
-            max_books=max_books,
-            year_from=year_from,
-        )
+        return super().get_new_books(request)

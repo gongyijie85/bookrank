@@ -16,7 +16,7 @@ from datetime import datetime
 import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, SimpleResponse
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest, SimpleResponse
 
 logger = logging.getLogger(__name__)
 
@@ -167,14 +167,17 @@ class OpenLibraryCrawler(BaseCrawler):
             {'id': 'young_adult', 'name': '青少年'},
         ]
 
-    def get_new_books(self, category: str | None = None, max_books: int = 100, year_from: int | None = None):
+    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
+        """按抓取请求获取新书（无统计：返回 date_filter_stats=None）。"""
+        return CrawlOutcome(books=self._iter_new_books(request.category, request.max_books))
+
+    def _iter_new_books(self, category: str | None = None, max_books: int = 100):
         """
-        获取新书列表
+        获取新书列表的生成器实现
 
         Args:
             category: 分类主题
             max_books: 最大数量
-            year_from: 出版年份起（用于筛选新书，默认近2年）
         """
         subject = category or 'fiction'
         limit = min(max_books * 2, 100)  # 多获取一些以便过滤
@@ -183,7 +186,7 @@ class OpenLibraryCrawler(BaseCrawler):
         logger.info(f'📚 正在从 Open Library 获取 {subject} 类新书...')
 
         current_year = datetime.now().year
-        min_year = year_from or (current_year - 2)  # 默认近2年
+        min_year = current_year - 2  # 默认近2年
 
         response = self._make_request_with_fallback(url)
         if not response:

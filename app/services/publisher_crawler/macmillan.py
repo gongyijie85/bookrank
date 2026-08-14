@@ -19,7 +19,7 @@ from datetime import date, datetime
 import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BookInfo, CrawlerConfig
+from .base_crawler import BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
 from .google_books import GoogleBooksCrawler
 
 logger = logging.getLogger(__name__)
@@ -334,14 +334,20 @@ class MacmillanCrawler(GoogleBooksCrawler):
     #  主入口：两路合并
     # ------------------------------------------------------------------ #
 
-    def get_new_books(
+    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
+        """按抓取请求获取新书（含 Google Books 系日期过滤计数）。"""
+        return CrawlOutcome(
+            books=self._iter_new_books(request.category, request.max_books),
+            date_filter_stats=self.date_filter_stats,
+        )
+
+    def _iter_new_books(
         self,
         category: str | None = None,
         max_books: int = 100,
-        year_from: int | None = None,
-    ) -> Generator[BookInfo]:
+    ):
         """
-        获取 Macmillan 新书列表
+        获取 Macmillan 新书列表的生成器实现
 
         两路合并：
         1. Google Books 多印记 inpublisher 查询（主要）
@@ -350,9 +356,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
         Args:
             category: 分类（未使用，保持接口兼容）
             max_books: 最大返回数量
-            year_from: 出版年份起（可选，覆盖默认的滚动天数窗口）
         """
-        cutoff_date = self._compute_cutoff_date(year_from)
+        cutoff_date = self._compute_cutoff_date()
 
         logger.info(
             '正在获取 %s 的新书（多印记查询 + Sitemap 补充，>= %s）...',

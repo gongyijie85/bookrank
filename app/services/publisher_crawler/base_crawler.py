@@ -12,7 +12,7 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Generator
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
@@ -110,6 +110,23 @@ class CrawlerConfig:
     respect_robots_txt: bool = True
 
 
+@dataclass
+class CrawlRequest:
+    """抓取请求：调用爬虫接口时的统一请求参数（见 CONTEXT.md 术语表）。"""
+
+    category: str | None = None
+    max_books: int = 100
+    backfill: bool = False
+
+
+@dataclass
+class CrawlOutcome:
+    """抓取结果：书籍流 + 日期过滤计数（非 Google Books 系为 None）。"""
+
+    books: Iterable[BookInfo]
+    date_filter_stats: dict[str, int] | None = None
+
+
 class BaseCrawler(ABC):
     """
     出版社爬虫抽象基类
@@ -123,6 +140,16 @@ class BaseCrawler(ABC):
     PUBLISHER_WEBSITE: str = ''
     CRAWLER_CLASS_NAME: str = ''
 
+    # 能力与配置声明（接口事实，调用方直接读取，不得用 getattr 猜测）：
+    # 是否支持回填窗口模式（引擎按存量书数决定开关）
+    SUPPORTS_BACKFILL: bool = False
+    # 所需 API Key 的配置键名（如 'GOOGLE_API_KEY' / 'PRH_API_KEY'）；None 表示无需注入
+    API_KEY_CONFIG: str | None = None
+    # 缺 API Key 时是否快速失败（PRH 官方 API 为必填）
+    api_key_required: bool = False
+    # 引擎注入配置时的请求间隔（秒）；None 用 CrawlerConfig 默认值
+    REQUEST_DELAY: float | None = None
+
     def __init__(self, config: CrawlerConfig | None = None):
         """
         初始化爬虫
@@ -134,6 +161,8 @@ class BaseCrawler(ABC):
         self._session = self._create_session()
         self._robots_parser: RobotFileParser | None = None
         self._is_allowed_by_robots = True
+        # 日期过滤计数：Google Books 系子类重置为计数字典，其余保持 None
+        self.date_filter_stats: dict[str, int] | None = None
 
         # 初始化 robots.txt 解析器
         if self.config.respect_robots_txt and self.PUBLISHER_WEBSITE:
@@ -459,75 +488,17 @@ class BaseCrawler(ABC):
         return description[: self.config.max_description_length - 3] + '...'
 
     @abstractmethod
-    def get_new_books(self, category: str | None = None, max_books: int = 100) -> Generator[BookInfo]:
+    def get_new_books(self, request: 'CrawlRequest') -> 'CrawlOutcome':
         """
-        获取新书列表（抽象方法，子类必须实现）
+        按抓取请求获取新书（抽象方法，子类必须实现）。
 
         Args:
-            category: 分类筛选（可选）
-            max_books: 最大获取数量
-
-        Yields:
-            BookInfo 对象
-        """
-        pass
-
-    @abstractmethod
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """
-        获取书籍详情（抽象方法，子类必须实现）
-
-        Args:
-            book_url: 书籍详情页 URL
+            request: 抓取请求（category / max_books / backfill）
 
         Returns:
-            BookInfo 对象或 None
+            抓取结果（书籍流 + 日期过滤计数）
         """
         pass
-
-    @abstractmethod
-    def get_categories(self) -> list[dict[str, str]]:
-        """
-        获取支持的分类列表（抽象方法，子类必须实现）
-
-        Returns:
-            分类列表，每个元素包含 id 和 name
-        """
-        pass
-
-    def crawl(self, category: str | None = None, max_books: int = 100) -> list[BookInfo]:
-        """
-        执行爬取任务
-
-        Args:
-            category: 分类筛选
-            max_books: 最大获取数量
-
-        Returns:
-            书籍信息列表
-        """
-        logger.info(f'🔍 开始爬取 {self.PUBLISHER_NAME} 新书...')
-
-        books = []
-        count = 0
-
-        try:
-            for book_info in self.get_new_books(category=category, max_books=max_books):
-                books.append(book_info)
-                count += 1
-
-                if count >= max_books:
-                    break
-
-                # 进度日志
-                if count % 10 == 0:
-                    logger.info(f'📖 已爬取 {count} 本书籍...')
-
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'爬取过程中出错: {e}')
-
-        logger.info(f'✅ 爬取完成，共获取 {len(books)} 本书籍')
-        return books
 
     def close(self) -> None:
         """关闭爬虫，释放资源"""

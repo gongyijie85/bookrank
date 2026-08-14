@@ -17,7 +17,12 @@ from datetime import date
 import pytest
 
 from app.services.publisher_crawler import get_all_crawlers, get_crawler_class
-from app.services.publisher_crawler.base_crawler import BaseCrawler, BookInfo, SimpleResponse
+from app.services.publisher_crawler.base_crawler import (
+    BaseCrawler,
+    BookInfo,
+    CrawlOutcome,
+    SimpleResponse,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -52,8 +57,8 @@ class _TestCrawler(BaseCrawler):
     PUBLISHER_WEBSITE = 'https://example.com'
     CRAWLER_CLASS_NAME = 'TestCrawler'
 
-    def get_new_books(self, category=None, max_books=100):
-        yield from []
+    def get_new_books(self, request):
+        return CrawlOutcome(books=iter([]))
 
     def get_book_details(self, book_url=''):
         return None
@@ -323,22 +328,15 @@ class TestGoogleBooksParsing:
         cutoff = date(date.today().year, 1, 1)
         assert GoogleBooksCrawler._is_recent_book(str(date.today().year - 3), cutoff) is False
 
-    def test_compute_cutoff_date_with_year_from(self):
-        from datetime import date
-
-        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
-
-        assert GoogleBooksCrawler._compute_cutoff_date(2020) == date(2020, 1, 1)
-
     def test_compute_cutoff_date_default_window(self):
-        """未显式指定 year_from 时，用滚动天数窗口而不是粗粒度的"近几年"，
+        """用滚动天数窗口而不是粗粒度的"近几年"，
         默认窗口足够窄，才能配得上"新书速递"这个名字。"""
         from datetime import date, timedelta
 
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
         expected = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
-        assert GoogleBooksCrawler._compute_cutoff_date(None) == expected
+        assert GoogleBooksCrawler._compute_cutoff_date() == expected
 
     def test_parse_volume_info_complete(self):
         volume = {

@@ -31,7 +31,7 @@ def _no_network(monkeypatch):
 
 
 from app.services.publisher_crawler import get_all_crawlers, get_crawler_class
-from app.services.publisher_crawler.base_crawler import CrawlerConfig
+from app.services.publisher_crawler.base_crawler import CrawlerConfig, CrawlRequest
 from app.services.publisher_crawler.prh_api import PrhApiCrawler
 
 
@@ -114,7 +114,7 @@ class TestApiKey:
 class TestRequestParams:
     def test_incremental_window_params_are_paired(self):
         crawler, mock_request = _crawler([_response([_title()])])
-        list(crawler.get_new_books())
+        list(crawler.get_new_books(CrawlRequest()).books)
 
         assert mock_request.call_count == 1
         url = (
@@ -139,7 +139,7 @@ class TestRequestParams:
 
     def test_does_not_use_show_new_releases_in_incremental_mode(self):
         crawler, mock_request = _crawler([_response([_title()])])
-        list(crawler.get_new_books())
+        list(crawler.get_new_books(CrawlRequest()).books)
         params = mock_request.call_args.kwargs['params']
         assert 'showNewReleases' not in params
 
@@ -150,7 +150,7 @@ class TestBackfillMode:
     def test_backfill_uses_paired_30_day_window(self):
         """回填不再用 showNewReleases（固定近 180 天），改用成对日期拉精确 30 天"""
         crawler, mock_request = _crawler([_response([_title()])])
-        list(crawler.get_new_books(backfill=True))
+        list(crawler.get_new_books(CrawlRequest(backfill=True)).books)
         params = mock_request.call_args.kwargs['params']
         assert 'showNewReleases' not in params
         # 实证修正：onSaleFrom 单独使用不生效，必须与 onSaleTo 成对
@@ -172,7 +172,7 @@ class TestBackfillMode:
         page2 = _response([_title(isbn=9780000000002, work_id=101)], record_count=3)
         page3 = _response([_title(isbn=9780000000003, work_id=102)], record_count=3)
         crawler, mock_request = _crawler([page1, page2, page3])
-        books = list(crawler.get_new_books(backfill=True, max_books=100))
+        books = list(crawler.get_new_books(CrawlRequest(backfill=True, max_books=100)).books)
         assert len(books) == 3
         assert mock_request.call_count == 3
         starts = [c.kwargs['params']['start'] for c in mock_request.call_args_list]
@@ -189,12 +189,12 @@ class TestBackfillMode:
         }
         resp.raise_for_status = MagicMock()
         crawler, _ = _crawler([resp])
-        books = list(crawler.get_new_books(backfill=True))
+        books = list(crawler.get_new_books(CrawlRequest(backfill=True)).books)
         assert len(books) == 1
 
     def test_explicit_incremental_mode_uses_date_window(self):
         crawler, mock_request = _crawler([_response([_title()])])
-        list(crawler.get_new_books(backfill=False))
+        list(crawler.get_new_books(CrawlRequest(backfill=False)).books)
         params = mock_request.call_args.kwargs['params']
         assert 'onSaleFrom' in params
         assert 'onSaleTo' in params
@@ -208,17 +208,17 @@ class TestDivisionFilter:
     @pytest.mark.parametrize('code', ['91', '29', '9B', '9E', '97', '22'])
     def test_excludes_canadian_and_audio_divisions(self, code):
         crawler, _ = _crawler([_response([_title(division_code=code)])])
-        assert list(crawler.get_new_books()) == []
+        assert list(crawler.get_new_books(CrawlRequest()).books) == []
 
     def test_keeps_distributed_publishers_like_mit_press(self):
         crawler, _ = _crawler([_response([_title(division_code='H1', division_desc='MIT Press')])])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
         assert books[0].title == 'Test Book'
 
     def test_keeps_regular_prh_divisions(self):
         crawler, _ = _crawler([_response([_title(division_code='62', division_desc='Random House')])])
-        assert len(list(crawler.get_new_books())) == 1
+        assert len(list(crawler.get_new_books(CrawlRequest()).books)) == 1
 
 
 class TestWorkIdDedup:
@@ -229,7 +229,7 @@ class TestWorkIdDedup:
             _title(isbn=9780000000003, format_code='HC', work_id=100, onsale='2026-07-21'),
         ]
         crawler, _ = _crawler([_response(titles)])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
         assert books[0].isbn13 == '9780000000003'
 
@@ -239,7 +239,7 @@ class TestWorkIdDedup:
             _title(isbn=9780000000002, format_code='TR', work_id=100),
         ]
         crawler, _ = _crawler([_response(titles)])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
         assert books[0].isbn13 == '9780000000002'
 
@@ -249,7 +249,7 @@ class TestWorkIdDedup:
             _title(isbn=9780000000002, format_code='HC', work_id=100, onsale='2026-07-21'),
         ]
         crawler, _ = _crawler([_response(titles)])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
         assert books[0].isbn13 == '9780000000002'
 
@@ -257,7 +257,7 @@ class TestWorkIdDedup:
         page1 = _response([_title(isbn=9780000000001, format_code='TR', work_id=100)], record_count=2)
         page2 = _response([_title(isbn=9780000000002, format_code='HC', work_id=100)], record_count=2)
         crawler, _ = _crawler([page1, page2])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
         assert books[0].isbn13 == '9780000000002'
 
@@ -267,14 +267,14 @@ class TestWorkIdDedup:
             _title(isbn=9780000000002, work_id=101, title='Book B'),
         ]
         crawler, _ = _crawler([_response(titles)])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert {b.title for b in books} == {'Book A', 'Book B'}
 
     def test_records_without_work_id_are_kept_not_dropped(self):
         """无 workId 的记录不参与去重，不应被静默丢弃（审查反馈）"""
         title = _title(isbn=9780000000001, work_id=0, title='Orphan Book')
         crawler, _ = _crawler([_response([title])])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
         assert books[0].title == 'Orphan Book'
 
@@ -297,7 +297,7 @@ class TestFieldMapping:
             seo_url='/books/307257/wolfsbane-by-andrea-robertson/9780143130321',
         )
         crawler, _ = _crawler([_response([title])])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
 
         assert len(books) == 1
         book = books[0]
@@ -318,13 +318,13 @@ class TestFieldMapping:
     def test_price_falls_back_to_first_when_no_usd(self):
         title = _title(price=[{'amount': 19.99, 'currencyCode': 'CAD', 'pricingType': None}])
         crawler, _ = _crawler([_response([title])])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert books[0].price == '19.99'
 
     def test_price_none_when_missing(self):
         title = _title(price=[])
         crawler, _ = _crawler([_response([title])])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert books[0].price is None
 
     @pytest.mark.parametrize(
@@ -347,25 +347,25 @@ class TestFieldMapping:
     def test_bisac_category_mapping(self, bisac, expected):
         title = _title(subjects=[{'code': 'XXX000000', 'description': bisac}])
         crawler, _ = _crawler([_response([title])])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert books[0].category == expected
 
     def test_category_none_when_no_mappable_subject(self):
         title = _title(subjects=[{'code': 'XXX000000', 'description': 'Poetry - General'}])
         crawler, _ = _crawler([_response([title])])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert books[0].category is None
 
     def test_unparseable_onsale_skips_book(self):
         title = _title(onsale='not-a-date')
         crawler, _ = _crawler([_response([title])])
-        assert list(crawler.get_new_books()) == []
+        assert list(crawler.get_new_books(CrawlRequest()).books) == []
 
 
 class TestResponses:
     def test_empty_titles_yields_nothing(self):
         crawler, _ = _crawler([_response([])])
-        assert list(crawler.get_new_books()) == []
+        assert list(crawler.get_new_books(CrawlRequest()).books) == []
 
     def test_error_status_response_raises_on_first_page(self):
         """首屏 status=error 业务错误信封：抛异常走熔断，不静默产出空结果（审查反馈）"""
@@ -379,7 +379,7 @@ class TestResponses:
         resp.raise_for_status = MagicMock()
         crawler, _ = _crawler([resp])
         with pytest.raises(RuntimeError):
-            list(crawler.get_new_books())
+            list(crawler.get_new_books(CrawlRequest()).books)
 
     def test_error_status_mid_pagination_returns_partial(self):
         """翻页中途遇 status=error：返回已取部分（宁可漏报不误报）"""
@@ -394,27 +394,27 @@ class TestResponses:
         resp.raise_for_status = MagicMock()
         crawler = PrhApiCrawler(CrawlerConfig(api_key='test-key'))
         crawler._session.request = MagicMock(side_effect=[page1, resp])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
 
     def test_first_page_failure_raises(self):
         crawler = PrhApiCrawler(CrawlerConfig(api_key='test-key'))
         crawler._session.request = MagicMock(return_value=None)
         with pytest.raises(RuntimeError):
-            list(crawler.get_new_books())
+            list(crawler.get_new_books(CrawlRequest()).books)
 
     def test_later_page_failure_returns_partial(self):
         page1 = _response([_title(isbn=9780000000001, work_id=100)], record_count=5)
         crawler = PrhApiCrawler(CrawlerConfig(api_key='test-key'))
         crawler._session.request = MagicMock(side_effect=[page1, None])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 1
 
     def test_pagination_follows_record_count(self):
         page1 = _response([_title(isbn=9780000000001, work_id=100)], record_count=2)
         page2 = _response([_title(isbn=9780000000002, work_id=101)], record_count=2)
         crawler, mock_request = _crawler([page1, page2])
-        books = list(crawler.get_new_books())
+        books = list(crawler.get_new_books(CrawlRequest()).books)
         assert len(books) == 2
         assert mock_request.call_count == 2
         second_params = mock_request.call_args_list[1].kwargs['params']
@@ -423,5 +423,5 @@ class TestResponses:
     def test_max_books_cap(self):
         titles = [_title(isbn=9780000000000 + i, work_id=100 + i, title=f'Book {i}') for i in range(5)]
         crawler, _ = _crawler([_response(titles, record_count=5)])
-        books = list(crawler.get_new_books(max_books=3))
+        books = list(crawler.get_new_books(CrawlRequest(max_books=3)).books)
         assert len(books) == 3

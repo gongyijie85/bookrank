@@ -15,12 +15,11 @@ RSS Feed 是结构化数据，比 HTML 爬取更稳定可靠。
 import logging
 import re
 import xml.etree.ElementTree as ET
-from collections.abc import Generator
 from datetime import date, datetime
 from typing import Any
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +45,21 @@ class PublisherRSSCrawler(BaseCrawler):
     def __init__(self, config: CrawlerConfig | None = None):
         super().__init__(config)
 
-    def get_new_books(
+    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
+        """按抓取请求从 RSS Feed 获取新书（无统计：返回 date_filter_stats=None）。"""
+        return CrawlOutcome(books=self._iter_new_books(request.category, request.max_books))
+
+    def _iter_new_books(
         self,
         category: str | None = None,
         max_books: int = 100,
-    ) -> Generator[BookInfo]:
+    ):
         """
-        从 RSS Feed 获取新书
+        从 RSS Feed 获取新书的生成器实现
 
         Args:
             category: 未使用（保持接口兼容）
             max_books: 最大获取数量
-
-        Yields:
-            BookInfo 对象
         """
         if not self.FEED_URLS:
             logger.warning('%s: 未配置 RSS Feed URL', self.PUBLISHER_NAME_EN)

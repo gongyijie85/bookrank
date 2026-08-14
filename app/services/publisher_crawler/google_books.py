@@ -22,7 +22,7 @@ import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
 from ..publisher_data import parse_static_date
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,8 @@ class GoogleBooksCrawler(BaseCrawler):
     PUBLISHER_NAME_EN = 'Google Books'
     PUBLISHER_WEBSITE = 'https://books.google.com'
     CRAWLER_CLASS_NAME = 'GoogleBooksCrawler'
+    # Google Books 系（含各出版社变体）统一走 GOOGLE_API_KEY 注入
+    API_KEY_CONFIG = 'GOOGLE_API_KEY'
 
     BASE_URL = 'https://www.googleapis.com/books/v1/volumes'
 
@@ -163,22 +165,23 @@ class GoogleBooksCrawler(BaseCrawler):
             {'id': 'young_adult', 'name': '青少年'},
         ]
 
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        year_from: int | None = None,
-    ):
+    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
+        """按抓取请求获取新书（返回抓取结果：书籍流 + 日期过滤计数）。"""
+        return CrawlOutcome(
+            books=self._iter_new_books(request.category, request.max_books),
+            date_filter_stats=self.date_filter_stats,
+        )
+
+    def _iter_new_books(self, category: str | None = None, max_books: int = 100):
         """
-        获取新书列表
+        抓取新书的生成器实现
 
         Args:
             category: 分类主题
             max_books: 最大数量
-            year_from: 出版年份起（可选，覆盖默认的滚动天数窗口）
         """
         subject = category or 'fiction'
-        cutoff_date = self._compute_cutoff_date(year_from)
+        cutoff_date = self._compute_cutoff_date()
 
         logger.info(
             '正在从 Google Books 获取 %s 类新书 (>= %s)...',
@@ -279,11 +282,8 @@ class GoogleBooksCrawler(BaseCrawler):
             logger.info('Google Books 共获取 %s 本 %s 类新书', collected, subject)
 
     @classmethod
-    def _compute_cutoff_date(cls, year_from: int | None) -> date:
-        """计算"新书"截止日期：显式传 year_from 时按该年1月1日算，否则用
-        RECENCY_WINDOW_DAYS 滚动窗口（比粗粒度的"近几年"精确得多）。"""
-        if year_from:
-            return date(year_from, 1, 1)
+    def _compute_cutoff_date(cls) -> date:
+        """计算"新书"截止日期：按 RECENCY_WINDOW_DAYS 滚动窗口。"""
         return datetime.now().date() - timedelta(days=cls.RECENCY_WINDOW_DAYS)
 
     @staticmethod

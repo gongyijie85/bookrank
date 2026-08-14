@@ -43,6 +43,8 @@ from app.services.publisher_crawler.base_crawler import (
     BaseCrawler,
     BookInfo,
     CrawlerConfig,
+    CrawlOutcome,
+    CrawlRequest,
     SimpleResponse,
 )
 
@@ -57,8 +59,8 @@ class ConcreteCrawler(BaseCrawler):
     PUBLISHER_WEBSITE = 'https://test.com'
     CRAWLER_CLASS_NAME = 'ConcreteCrawler'
 
-    def get_new_books(self, category=None, max_books=100):
-        yield BookInfo(title='X', author='Y')
+    def get_new_books(self, request):
+        return CrawlOutcome(books=iter([BookInfo(title='X', author='Y')]))
 
     def get_book_details(self, book_url):
         return BookInfo(title='D', author='A')
@@ -264,14 +266,14 @@ class TestHachetteCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert books == []
 
     def test_get_new_books_empty_page(self):
         c = self._make()
         resp = MagicMock(status_code=200, text='<html><body></body></html>')
         with patch.object(c, '_make_request', return_value=resp):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert books == []
 
     def test_get_new_books_with_links(self):
@@ -288,7 +290,7 @@ class TestHachetteCrawler:
         resp = MagicMock(status_code=200, text=html)
         detail_resp = MagicMock(status_code=200, text='<html><body><p>Desc</p></body></html>')
         with patch.object(c, '_make_request', side_effect=[resp, detail_resp]):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert len(books) >= 1
 
     def test_get_book_details_no_response(self):
@@ -303,12 +305,6 @@ class TestHachetteCrawler:
         with patch.object(c, '_make_request', return_value=resp):
             book = c.get_book_details('https://hachette.com/titles/a/t/9781234567890/')
             assert book is not None
-
-    def test_crawl_method(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
-            assert isinstance(books, list)
 
 
 # ---------- Macmillan ----------
@@ -332,14 +328,14 @@ class TestMacmillanCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert books == []
 
     def test_get_new_books_empty_page(self):
         c = self._make()
         resp = MagicMock(status_code=200, text='<html><body></body></html>')
         with patch.object(c, '_make_request', return_value=resp):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
     def test_get_book_details_no_response(self):
@@ -381,7 +377,7 @@ class TestMacmillanCrawler:
             patch.object(c, '_fetch_sitemap_isbns', return_value=['1', '2', '3']),
             patch.object(c, '_lookup_isbn', side_effect=rate_limited_lookup) as lookup,
         ):
-            assert list(c.get_new_books(max_books=1)) == []
+            assert list(c.get_new_books(CrawlRequest(max_books=1)).books) == []
 
         lookup.assert_called_once_with('1')
 
@@ -412,14 +408,14 @@ class TestHarperCollinsCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert books == []
 
     def test_get_new_books_empty_page(self):
         c = self._make()
         resp = MagicMock(status_code=200, text='<html><body></body></html>')
         with patch.object(c, '_make_request', return_value=resp):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
     def test_get_new_books_with_alt(self):
@@ -431,19 +427,13 @@ class TestHarperCollinsCrawler:
         """
         resp = MagicMock(status_code=200, text=html)
         with patch.object(c, '_make_request', return_value=resp):
-            books = list(c.get_new_books(max_books=5))
+            books = list(c.get_new_books(CrawlRequest(max_books=5)).books)
             assert len(books) >= 1
 
     def test_get_book_details_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
             assert c.get_book_details('https://harpercollins.com/products/book') is None
-
-    def test_crawl_books(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
-            assert isinstance(books, list)
 
 
 # ---------- OpenLibrary ----------
@@ -467,7 +457,7 @@ class TestOpenLibraryCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
     def test_get_new_books_success(self):
@@ -489,7 +479,7 @@ class TestOpenLibraryCrawler:
         mock_resp.json.return_value = data
         mock_resp.raise_for_status = MagicMock()
         c._session.get = MagicMock(return_value=mock_resp)
-        books = list(c.get_new_books(max_books=1))
+        books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
         assert len(books) >= 1
 
     def test_get_book_details_no_response(self):
@@ -515,12 +505,6 @@ class TestOpenLibraryCrawler:
         c._session.request = MagicMock(side_effect=[mock_resp1, mock_resp2])
         book = c.get_book_details('/works/OL1W')
         assert book is not None
-
-    def test_crawl_books(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
-            assert isinstance(books, list)
 
 
 # ---------- GoogleBooks ----------
@@ -549,7 +533,7 @@ class TestGoogleBooksCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
     def test_get_new_books_success(self):
@@ -580,7 +564,7 @@ class TestGoogleBooksCrawler:
         resp.json.return_value = data
         resp.raise_for_status = MagicMock()
         c._session.get = MagicMock(return_value=resp)
-        books = list(c.get_new_books(max_books=1))
+        books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
         assert len(books) >= 1
 
     def test_get_book_details_no_response(self):
@@ -602,12 +586,6 @@ class TestGoogleBooksCrawler:
         c._session.get = MagicMock(return_value=mock_resp)
         book = c.get_book_details('9781234567890')
         assert book is not None
-
-    def test_crawl(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
-            assert isinstance(books, list)
 
 
 # ---------- GoogleBooksPublisher ----------
@@ -632,13 +610,7 @@ class TestGoogleBooksPublisherCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
-            assert isinstance(books, list)
-
-    def test_crawl_books(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
 
@@ -664,13 +636,7 @@ class TestPenguinRandomHouseCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
-            assert isinstance(books, list)
-
-    def test_crawl_books(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
 
@@ -696,13 +662,7 @@ class TestSimonSchusterCrawler:
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
-            assert isinstance(books, list)
-
-    def test_crawl_books(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
 
@@ -751,13 +711,13 @@ class TestPublisherRSSCrawler:
                 return []
 
         c = _EmptyRSS()
-        books = list(c.get_new_books(max_books=1))
+        books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
         assert books == []
 
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
 
     def test_get_new_books_rss_format(self):
@@ -777,7 +737,7 @@ class TestPublisherRSSCrawler:
         </rss>"""
         resp = MagicMock(status_code=200, text=rss_xml)
         with patch.object(c, '_make_request', return_value=resp):
-            books = list(c.get_new_books(max_books=5))
+            books = list(c.get_new_books(CrawlRequest(max_books=5)).books)
             assert len(books) >= 1
 
     def test_get_new_books_atom_format(self):
@@ -795,7 +755,7 @@ class TestPublisherRSSCrawler:
         </feed>"""
         resp = MagicMock(status_code=200, text=atom_xml)
         with patch.object(c, '_make_request', return_value=resp):
-            books = list(c.get_new_books(max_books=5))
+            books = list(c.get_new_books(CrawlRequest(max_books=5)).books)
             assert len(books) >= 1
 
     def test_parse_feed_invalid_xml(self):
@@ -815,12 +775,6 @@ class TestPublisherRSSCrawler:
         atom = '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>A</title></entry></feed>'
         items = c._parse_feed(atom)
         assert len(items) >= 1
-
-    def test_crawl_books(self):
-        c = self._make()
-        with patch.object(c, '_make_request', return_value=None):
-            books = c.crawl(max_books=1)
-            assert isinstance(books, list)
 
 
 # ---------- MixedCrawl4AICrawler ----------
@@ -1034,7 +988,7 @@ class TestMixedCrawlerBooks:
     def test_get_new_books_empty(self):
         c = _make_mixed()
         with patch.object(c, '_make_request_with_fallback', return_value=(None, None)):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert books == []
 
     def test_get_book_details_none(self):
@@ -1091,5 +1045,5 @@ class TestMixedCrawlerBooks:
     def test_crawl_books_yields(self):
         c = _make_mixed()
         with patch.object(c, '_make_request_with_fallback', return_value=(None, None)):
-            books = list(c.get_new_books(max_books=1))
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)

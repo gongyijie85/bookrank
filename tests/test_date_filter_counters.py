@@ -12,9 +12,9 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from app.services.publisher_crawler.base_crawler import CrawlerConfig
+from app.services.publisher_crawler.base_crawler import CrawlerConfig, CrawlRequest
 from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 from app.services.publisher_crawler.google_books_publisher import GoogleBooksPublisherCrawler
 from app.services.publisher_crawler.macmillan import MacmillanCrawler
@@ -106,8 +106,10 @@ class TestGetNewBooksCounters:
         crawler = GoogleBooksCrawler(_make_config())
         crawler._session.get = MagicMock(return_value=_mock_google_response(self._items()))
 
-        # year_from=当年 → cutoff 为当年1月1日，让年份-only 落在窗口内
-        books = list(crawler.get_new_books(max_books=100, year_from=_today().year))
+        # year_from 参数已随接口深化移除：用 _compute_cutoff_date 补丁把
+        # cutoff 定在当年1月1日，让年份-only 落在窗口内
+        with patch.object(GoogleBooksCrawler, '_compute_cutoff_date', return_value=date(_today().year, 1, 1)):
+            books = list(crawler.get_new_books(CrawlRequest(max_books=100)).books)
 
         assert [b.title for b in books] == ['Recent Book', 'Year Only Book']
         stats = crawler.date_filter_stats
@@ -136,7 +138,7 @@ class TestGetNewBooksCounters:
         ]
         crawler._session.get = MagicMock(return_value=_mock_google_response(items))
 
-        books = list(crawler.get_new_books(max_books=100))
+        books = list(crawler.get_new_books(CrawlRequest(max_books=100)).books)
 
         assert [b.title for b in books] == ['Recent']
         stats = crawler.date_filter_stats
@@ -152,7 +154,7 @@ class TestGetNewBooksCounters:
         crawler = HachetteGoogleCrawler(_make_config())
         crawler._session.get = MagicMock(return_value=_mock_google_response([_volume('No Date', '', '9780000000021')]))
 
-        books = list(crawler.get_new_books(max_books=100))
+        books = list(crawler.get_new_books(CrawlRequest(max_books=100)).books)
 
         assert books == []
         # 主社1轮 + 子社5家，每轮至少遍历1本 → 计数跨轮累积不为零
@@ -191,7 +193,7 @@ class TestMacmillanCounters:
             ]
         )
 
-        books = list(crawler.get_new_books(max_books=10))
+        books = list(crawler.get_new_books(CrawlRequest(max_books=10)).books)
 
         assert books == []
         stats = crawler.date_filter_stats

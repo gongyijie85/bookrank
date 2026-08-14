@@ -16,7 +16,7 @@ from ...models.new_book import NewBook, Publisher
 from ...utils.error_handler import ErrorCategory, log_error
 from .. import publisher_data as pd
 from ..publisher_crawler import get_crawler_class
-from ..publisher_crawler.base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from ..publisher_crawler.base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 from .ingestor import NewBookIngestor, SaveOutcome
 from .publisher_manager import PublisherManager
 from .translation_pipeline import TranslationPipeline
@@ -35,16 +35,6 @@ _BACKFILL_MAX_BOOKS = int(os.environ.get('SYNC_BACKFILL_MAX_BOOKS', '2000'))
 
 
 class SyncEngine:
-    _GOOGLE_BOOKS_CRAWLERS: set[str] = {
-        'GoogleBooksCrawler',
-        'SimonSchusterGoogleCrawler',
-        'HachetteGoogleCrawler',
-        'HarperCollinsGoogleCrawler',
-        'MacmillanGoogleCrawler',
-        'MacmillanCrawler',
-        'PenguinRandomHouseCrawler',
-    }
-
     def __init__(self, publisher_manager: PublisherManager, translation_pipeline: TranslationPipeline) -> None:
         self._publisher_manager = publisher_manager
         self._translation_pipeline = translation_pipeline
@@ -71,7 +61,7 @@ class SyncEngine:
 
         # 窗口模式判定（工单 #87）：支持回填的爬虫按该出版社存量书数量选择，
         # 无存量书走首次回填窗口（爬虫自定窗口天数），此后自动回落增量；爬虫保持无状态
-        supports_backfill = getattr(crawler, 'SUPPORTS_BACKFILL', False) is True
+        supports_backfill = crawler.SUPPORTS_BACKFILL is True
         backfill = False
         if supports_backfill:
             existing_count = NewBook.query.filter_by(publisher_id=publisher.id).count()
@@ -102,10 +92,13 @@ class SyncEngine:
                 # 回填模式放大入库上限，否则拉全量也只能入 30~50 本，
                 # 「首次同步一次性补齐」形同虚设（工单 #87）
                 effective_max_books = max(max_books, _BACKFILL_MAX_BOOKS) if backfill else max_books
-                fetch_kwargs: dict[str, Any] = {'category': category, 'max_books': effective_max_books}
-                if supports_backfill:
-                    fetch_kwargs['backfill'] = backfill
-                for book_info in crawler.get_new_books(**fetch_kwargs):
+                request = CrawlRequest(
+                    category=category,
+                    max_books=effective_max_books,
+                    backfill=backfill,
+                )
+                outcome = crawler.get_new_books(request)
+                for book_info in outcome.books:
                     result['transport_status'] = 'success'
                     result['total'] += 1
 
@@ -134,12 +127,11 @@ class SyncEngine:
 
             result['transport_status'] = 'success'
 
-            # 工单 #83：Google Books 系日期过滤的分类拒绝计数随结果字典流出，
-            # 供 auto_sync 摘要持久化（只测量，不改变行为）。非 Google 系爬虫
-            # 无此属性；isinstance 检查同时避免 Mock 爬虫的自动属性污染结果。
-            date_filter_stats = getattr(crawler, 'date_filter_stats', None)
-            if isinstance(date_filter_stats, dict):
-                result.update(date_filter_stats)
+            # 工单 #83：Google Books 系日期过滤的分类拒绝计数随抓取结果流出，
+            # 供 auto_sync 摘要持久化（只测量，不改变行为）。非 Google 系
+            # 适配器返回 None（基类声明的接口事实），无需 isinstance 防御。
+            if outcome.date_filter_stats:
+                result.update(outcome.date_filter_stats)
 
             if result['total'] == 0:
                 # 空结果可能表示“确实没有新书”，也可能表示数据源已经失效；
@@ -409,22 +401,24 @@ class SyncEngine:
             logger.error(f'未找到爬虫类: {crawler_class}')
             return None
 
-        if crawler_class in self._GOOGLE_BOOKS_CRAWLERS:
-            api_key = current_app.config.get('GOOGLE_API_KEY') if current_app else None
-            if api_key:
-                config = CrawlerConfig(api_key=api_key)
-                return crawler_cls(config)
+        # 配置注入统一走基类声明的接口事实（API_KEY_CONFIG / api_key_required /
+        # REQUEST_DELAY），不再按类名字符串分支。
+        api_key_config = crawler_cls.API_KEY_CONFIG
+        api_key = current_app.config.get(api_key_config) if (api_key_config and current_app) else None
 
-        if crawler_class == 'PrhApiCrawler':
-            # PRH 官方 API 爬虫：key 缺失时快速失败（返回 None → 该出版社标记失败），
-            # 不阻塞其余出版社同步（工单 #86）
-            api_key = current_app.config.get('PRH_API_KEY') if current_app else None
-            if not api_key:
-                log_error(ErrorCategory.CRAWLER, 'PRH_API_KEY 未配置，跳过 PrhApiCrawler', level='error')
-                return None
-            return crawler_cls(CrawlerConfig(api_key=api_key, request_delay=0.5))
+        if api_key_config and not api_key and crawler_cls.api_key_required:
+            # 必填 key 的适配器（如 PRH 官方 API）：缺 key 快速失败
+            # （返回 None → 该出版社标记失败），不阻塞其余出版社同步（工单 #86）
+            log_error(ErrorCategory.CRAWLER, f'{api_key_config} 未配置，跳过 {crawler_class}', level='error')
+            return None
 
-        return crawler_cls()
+        config_kwargs: dict[str, Any] = {}
+        if api_key:
+            config_kwargs['api_key'] = api_key
+        if crawler_cls.REQUEST_DELAY is not None:
+            config_kwargs['request_delay'] = crawler_cls.REQUEST_DELAY
+        config = CrawlerConfig(**config_kwargs) if config_kwargs else None
+        return crawler_cls(config)
 
     @staticmethod
     def _resolve_static_data_dir(static_data_dir: str | Path | None = None) -> Path:
