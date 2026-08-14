@@ -87,10 +87,10 @@ def check_crawler_classes():
     crawlers_to_check = [
         ('Google Books', 'google_books', 'GoogleBooksCrawler'),
         ('Open Library', 'open_library', 'OpenLibraryCrawler'),
-        ('Penguin Random House', 'penguin_random_house', 'PenguinRandomHouseCrawler'),
-        ('Simon & Schuster', 'simon_schuster', 'SimonSchusterCrawler'),
-        ('Hachette', 'hachette', 'HachetteCrawler'),
-        ('HarperCollins', 'harpercollins', 'HarperCollinsCrawler'),
+        ('Penguin Random House', 'prh_api', 'PrhApiCrawler'),
+        ('Simon & Schuster', 'google_books_publisher', 'SimonSchusterGoogleCrawler'),
+        ('Hachette', 'google_books_publisher', 'HachetteGoogleCrawler'),
+        ('HarperCollins', 'google_books_publisher', 'HarperCollinsGoogleCrawler'),
         ('Macmillan', 'macmillan', 'MacmillanCrawler'),
     ]
 

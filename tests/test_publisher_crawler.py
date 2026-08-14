@@ -5,9 +5,8 @@
 - BaseCrawler 通用方法（_clean_text, _extract_isbn, _parse_date, _parse_price, _truncate_description）
 - BookInfo 数据类
 - SimpleResponse 包装类
-- PenguinRandomHouse 迁移验证
-- SimonSchuster/Macmillan __init__ 修复验证
-- 爬虫注册机制
+- Macmillan __init__ 修复验证
+- 爬虫注册机制（精确等于 8 个生产活跃类）
 - GoogleBooks/OpenLibrary 解析方法
 """
 
@@ -177,38 +176,8 @@ class TestSimpleResponse:
         assert resp.status_code == 404
 
 
-class TestPenguinRandomHouseMigration:
-    """企鹅兰登爬虫迁移验证"""
-
-    def test_inherits_from_google_books_crawler(self):
-        """PRH 已从 MixedCrawl4AI 迁移到 GoogleBooksCrawler (v1.6+)"""
-        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
-        from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-
-        assert issubclass(PenguinRandomHouseCrawler, GoogleBooksCrawler)
-
-    def test_publisher_name(self):
-        from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-
-        assert PenguinRandomHouseCrawler.PUBLISHER_NAME == '企鹅兰登'
-        assert PenguinRandomHouseCrawler.CRAWLER_CLASS_NAME == 'PenguinRandomHouseCrawler'
-
-    def test_category_map_exists(self):
-        from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-
-        assert 'fiction' in PenguinRandomHouseCrawler.CATEGORY_MAP
-        assert PenguinRandomHouseCrawler.CATEGORY_MAP['fiction'] == '小说'
-
-
 class TestCrawlerInitBug:
     """爬虫 __init__ 重复定义 bug 修复验证"""
-
-    def test_simon_schuster_no_duplicate_init(self):
-        from app.services.publisher_crawler.simon_schuster import SimonSchusterCrawler
-
-        source = inspect.getsource(SimonSchusterCrawler)
-        init_count = source.count('def __init__')
-        assert init_count == 1
 
     def test_macmillan_no_duplicate_init(self):
         from app.services.publisher_crawler.macmillan import MacmillanCrawler
@@ -223,32 +192,27 @@ class TestCrawlerInitBug:
         crawler = MacmillanCrawler()
         assert crawler.config.request_delay == 0.8
 
-    def test_simon_schuster_request_delay(self):
-        from app.services.publisher_crawler.simon_schuster import SimonSchusterCrawler
-
-        crawler = SimonSchusterCrawler()
-        assert crawler.config.request_delay == 0.8
-
 
 class TestCrawlerRegistry:
     """爬虫注册机制测试"""
 
-    def test_registry_has_all_seven_crawlers(self):
+    def test_registry_has_all_live_crawlers(self):
+        """死适配器清理后：注册表只含 8 个生产活跃类（2026-08 清理决议）"""
         all_crawlers = get_all_crawlers()
         expected = [
             'OpenLibraryCrawler',
             'GoogleBooksCrawler',
-            'PenguinRandomHouseCrawler',
-            'SimonSchusterCrawler',
-            'HachetteCrawler',
-            'HarperCollinsCrawler',
+            'PrhApiCrawler',
             'MacmillanCrawler',
+            'SimonSchusterGoogleCrawler',
+            'HachetteGoogleCrawler',
+            'HarperCollinsGoogleCrawler',
+            'MacmillanGoogleCrawler',
         ]
-        for name in expected:
-            assert name in all_crawlers, f'缺少爬虫: {name}'
+        assert set(all_crawlers) == set(expected)
 
     def test_get_crawler_class_returns_correct_type(self):
-        cls = get_crawler_class('PenguinRandomHouseCrawler')
+        cls = get_crawler_class('PrhApiCrawler')
         assert cls is not None
         assert issubclass(cls, BaseCrawler)
 

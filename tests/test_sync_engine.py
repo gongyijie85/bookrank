@@ -483,14 +483,16 @@ class TestGetCrawler:
         assert call_args[0][0].api_key == 'test-google-key'
 
     @patch('app.services.new_book.sync_engine.get_crawler_class')
-    def test_penguin_random_house_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
+    def test_google_publisher_crawler_gets_api_key_config(self, mock_get_cls, engine, app_context):
+        """Google Books 出版社变体（如 SimonSchusterGoogleCrawler）经基类声明
+        继承 GOOGLE_API_KEY 注入"""
         mock_crawler_cls = MagicMock()
         mock_crawler_cls.API_KEY_CONFIG = 'GOOGLE_API_KEY'
         mock_crawler_cls.api_key_required = False
         mock_crawler_cls.REQUEST_DELAY = None
         mock_get_cls.return_value = mock_crawler_cls
         app_context.config['GOOGLE_API_KEY'] = 'test-google-key'
-        engine.get_crawler('PenguinRandomHouseCrawler')
+        engine.get_crawler('SimonSchusterGoogleCrawler')
         mock_crawler_cls.assert_called_once()
         call_args = mock_crawler_cls.call_args
         assert call_args[0][0].api_key == 'test-google-key'

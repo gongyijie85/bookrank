@@ -24,9 +24,10 @@
 | CSV 公式注入（v0.9.68） | tests/test_new_books_routes.py::test_export_csv_returns_csv_with_injection_safe_content 等 | 前缀单引号转义 |
 | 封面缓存文件在生产重启后丢失（6b7b633） | tests/test_award_cover_sync_service.py::test_cache_path_file_not_exists | 文件存在性探测路径 |
 | 出版 30 天内“新书”标准（维护者决议） | tests/test_query_service.py::test_get_new_books_filters_by_publication_date | 出版日期窗口 + 14 天预告宽限 |
+| 死适配器残留注册（候选 #7） | tests/test_publisher_crawler.py::test_registry_has_all_live_crawlers | 注册表精确等于 8 个活跃类 |
 
 ## 待补（候选流水线产出后登记）
 
-- 候选 #7 死适配器删除 → legacy 爬虫测试删除记录
 - 候选 #3 分类清洗单一归属 → 迁移/清理共例回归
 - issue #154 装配失败降级 → 故障注入回归
+- issue #153 基类模板方法 → 适配器包装收敛后更新索引

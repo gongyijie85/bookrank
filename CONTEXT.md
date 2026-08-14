@@ -10,9 +10,10 @@
   `app/data/publishers.py` 的展示目录条目。每家出版社绑定一个爬虫类
   （`crawler_class`）与启用状态（`is_active`）。
 - **爬虫适配器（crawler adapter）** — 实现 `BaseCrawler` 接口、从某一
-  数据源（Google Books / PRH 官方 API / 站点 / RSS 等）产出新书数据的模块。
-  一个接口、多个适配器；适配器之间的差异（回填能力、所需 API Key、
-  日期过滤计数）必须在基类声明，调用方不得用 `getattr` 猜测。
+  数据源（Google Books / PRH 官方 API / 出版社站点等，2026-08 死适配器
+  清理后仅保留生产活跃类）产出新书数据的模块。一个接口、多个适配器；
+  适配器之间的差异（回填能力、所需 API Key、日期过滤计数）必须在基类
+  声明，调用方不得用 `getattr` 猜测。
 - **抓取请求（CrawlRequest）** — 调用爬虫接口时传入的请求参数对象：
   `category`（分类筛选）、`max_books`（最大取书数）、`backfill`
   （是否回填窗口模式）。

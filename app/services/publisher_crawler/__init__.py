@@ -1,21 +1,18 @@
 """
 出版社爬虫模块
 
-提供多种数据源的爬虫实现：
-- Open Library（推荐，稳定可靠）
-- Google Books（支持年份筛选）
-- Google Books Publisher（按出版社名搜索，推荐用于无API的出版社）
-- Publisher RSS（RSS Feed 解析）
-- Penguin Random House（企鹅兰登，有结构化API）
-- Simon & Schuster（西蒙舒斯特，Google Books API）
-- Hachette（阿歇特，官网直接爬取 v1.7.0）
-- HarperCollins（哈珀柯林斯，官网首页解析 v1.7.0）
-- Macmillan（麦克米伦，Sitemap+Google Books 双路 v1.7.0）
+生产活跃数据源（2026-08 死适配器清理后）：
+- Open Library（默认停用，数据质量实测不可靠）
+- Google Books（通用关键词搜索，默认停用）
+- Google Books Publisher（按出版社名搜索：Simon & Schuster / Hachette /
+  HarperCollins / Macmillan 四个出版社变体）
+- PrhApiCrawler（企鹅兰登官方 API，14 天增量 + 30 天回填窗口）
+- Macmillan（麦克米伦，Sitemap+Google Books 双路）
 
 推荐优先级：
-1. 出版社自有 API 或官网爬虫（如企鹅兰登、阿歇特）
+1. 出版社自有 API（企鹅兰登 PrhApiCrawler）
 2. Google Books Publisher（按出版社名搜索，稳定可靠）
-3. RSS Feed（如果有配置的话）
+3. Macmillan 双路（自有站点补充）
 """
 
 import importlib
@@ -37,24 +34,18 @@ __all__ = [
 ]
 
 # 爬虫模块映射表（统一注册入口）
+# 仅保留生产活跃类；legacy 站点爬虫 / RSS / MixedCrawl4AI 已随
+# docs/superpowers/specs/2026-08-14-retire-dead-adapters.md 删除。
 _CRAWLER_MODULES = [
     ('OpenLibraryCrawler', '.open_library'),
     ('GoogleBooksCrawler', '.google_books'),
-    ('PenguinRandomHouseCrawler', '.penguin_random_house'),
     ('PrhApiCrawler', '.prh_api'),
-    ('SimonSchusterCrawler', '.simon_schuster'),
-    ('HachetteCrawler', '.hachette'),
-    ('HarperCollinsCrawler', '.harpercollins'),
     ('MacmillanCrawler', '.macmillan'),
     # Google Books 出版社搜索爬虫（按出版社名搜索，稳定可靠）
     ('SimonSchusterGoogleCrawler', '.google_books_publisher'),
     ('HachetteGoogleCrawler', '.google_books_publisher'),
     ('HarperCollinsGoogleCrawler', '.google_books_publisher'),
     ('MacmillanGoogleCrawler', '.google_books_publisher'),
-    # RSS Feed 爬虫
-    ('PenguinRandomHouseRSSCrawler', '.rss_crawler'),
-    ('HarperCollinsRSSCrawler', '.rss_crawler'),
-    ('SimonSchusterRSSCrawler', '.rss_crawler'),
 ]
 
 
