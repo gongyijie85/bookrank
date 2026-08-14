@@ -688,3 +688,43 @@ class TestSyncMissingCoversWithBooks:
             db.session.refresh(book)
             assert result['total_checked'] == 0
             assert book.cover_local_path == '/cache/images/cover.jpg'
+
+    def test_skips_book_when_local_file_exists_even_without_url(self, app, db, tmp_path):
+        """code review #160 修正：URL 空但本地缓存文件在的书也应跳过（不回源、不虚计 updated）。"""
+        cache_file = tmp_path / 'cover.jpg'
+        cache_file.write_bytes(b'fake image')
+
+        with app.app_context():
+            award = Award(name='Test Award', description='Test award', country='US')
+            db.session.add(award)
+            db.session.flush()
+
+            book = AwardBook(
+                award_id=award.id,
+                year=2025,
+                category='Fiction',
+                rank=1,
+                title='Local Only Book',
+                author='Author One',
+                isbn13='9780143127550',
+                is_displayable=True,
+                cover_original_url=None,
+                cover_local_path='/cache/images/cover.jpg',
+            )
+            db.session.add(book)
+            db.session.commit()
+
+            cache = MagicMock()
+            cache.is_cached_file_present.return_value = True  # 文件存在
+
+            service = AwardCoverSyncService(
+                FakeGoogleBooksClient(),
+                openlibrary_client=FakeOpenLibraryClient(),
+                image_cache=cache,
+            )
+            result = service.sync_missing_covers(batch_size=10, delay=0)
+
+            db.session.refresh(book)
+            assert result['total_checked'] == 0
+            assert book.cover_original_url is None
+            assert book.cover_local_path == '/cache/images/cover.jpg'

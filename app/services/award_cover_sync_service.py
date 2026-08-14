@@ -71,8 +71,10 @@ class AwardCoverSyncService:
             books_to_update: list[AwardBook] = []
             for b in books_candidates:
                 local_path = (b.cover_local_path or '').strip()
-                cover_url = (b.cover_original_url or '').strip()
-                if not cover_url or not self._resolver.cached_path_available(local_path):
+                # 本地缓存文件仍可用时无需同步（code review #160 修正：旧过滤器
+                # 对「URL 空 + 本地文件在」的书仍会回源；统一为"有可用本地封面
+                # 即跳过"，避免循环内 resolve 本地短路造成虚计 updated）
+                if not self._resolver.cached_path_available(local_path):
                     books_to_update.append(b)
                     if len(books_to_update) >= batch_size:
                         break

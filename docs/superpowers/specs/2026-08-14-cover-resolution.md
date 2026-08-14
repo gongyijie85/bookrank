@@ -30,6 +30,9 @@
 - AwardCoverSyncService 退化为批编排：候选筛选（cached_path_available）、
   逐个 resolve、delay、统计（total_checked/updated/failed/skipped/errors/status）、
   _is_running 防重入——字段与语义不变。
+- 一处经 code review 修正的语义统一：候选筛选改为「本地缓存文件仍可用即跳过」
+  （含 URL 为空的书）。旧过滤器对「URL 空 + 本地文件在」仍会回源并可能计入
+  updated；统一后此类书被跳过且不计数——更符合注释本意，避免虚计。
 - main.py 的 resolve_cover_for_book 调用签名不变。
 
 ## 变更文件
