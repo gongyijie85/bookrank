@@ -8,21 +8,20 @@ class TestCheckSyncCooldown:
         """测试无冷却时返回 None"""
         import app.routes.new_books as mod
 
-        # 设置同步时间为 0（很久之前）
         with app.app_context():
-            mod._set_last_sync_time(0.0)
+            gate = mod.get_sync_request_gate()
+            gate.reset()
             result = mod._check_sync_cooldown()
             assert result is None
 
     def test_in_cooldown(self, app):
         """测试冷却中返回剩余秒数"""
-        import time
 
         import app.routes.new_books as mod
 
-        # 设置同步时间为当前
         with app.app_context():
-            mod._set_last_sync_time(time.time())
+            gate = mod.get_sync_request_gate()
+            gate.record_sync()
             result = mod._check_sync_cooldown()
             assert result is not None
             assert '秒' in result
@@ -174,7 +173,7 @@ class TestExportCooldown:
         import app.routes.new_books as mod
 
         with app.app_context():
-            mod.current_app.extensions.pop('export_last_127.0.0.1', None) if hasattr(mod, 'current_app') else None
+            mod.get_sync_request_gate().reset()
 
         # 第一次
         r1 = client.get('/api/new-books/export/csv?days=30')

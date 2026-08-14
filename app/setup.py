@@ -60,6 +60,8 @@ def init_services(app):
         register_service(app, 'image_cache_service', image_cache)
     translation_service = _init_translation_service(app)
 
+    _init_sync_request_gate(app)
+
     _init_new_book_modules(app, translation_service)
 
     book_service = _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg)
@@ -144,6 +146,16 @@ def _init_translation_service(app):
     except Exception as e:
         log_error(ErrorCategory.TRANSLATION, f'翻译服务初始化失败: {e}', level='warning')
         return None
+
+
+def _init_sync_request_gate(app):
+    """注册同步请求闸门（无依赖，装配不可能失败；仍按惯例容错）。"""
+    try:
+        from .services.sync_request_gate import SyncRequestGate
+
+        register_service(app, 'sync_request_gate', SyncRequestGate())
+    except Exception as e:
+        log_error(ErrorCategory.UNKNOWN, f'同步请求闸门初始化失败: {e}', level='warning')
 
 
 def _init_new_book_modules(app, translation_service):

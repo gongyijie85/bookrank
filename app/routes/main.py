@@ -40,6 +40,7 @@ from ..utils.service_helpers import (
     get_image_cache_service,
     get_new_book_modules,
     get_or_create_recommendation_service,
+    get_sync_request_gate,
     get_translation_service,
     hash_client_ip,
     submit_background_task,
@@ -407,7 +408,7 @@ def _parse_new_books_params(args) -> dict:
 def _load_new_books_data(modules, params: dict) -> dict:
     """加载 new_books() 渲染所需数据，每段查询独立降级"""
     try:
-        modules.sync_engine.ensure_static_data_seeded()
+        get_sync_request_gate().seed_static_data(modules.sync_engine)
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'新书静态数据兜底初始化失败: {e}', level='warning')
 

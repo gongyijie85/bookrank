@@ -16,6 +16,10 @@
   适配器只实现 `_iter_new_books(request)` 钩子；适配器之间的差异（回填能力、
   所需 API Key、日期过滤计数）必须在基类声明，调用方不得用 `getattr`
   猜测。
+- **同步请求闸门（sync request gate）** — 应用级同步请求状态模块
+  （`SyncRequestGate`，注册于 `app.extensions['sync_request_gate']`）：同步冷却、
+  multi-worker 锁、per-IP 导出冷却（惰性过期清理）与静态播种一次性化。
+- **导出冷却（export cooldown）** — 每 IP 10 秒的 CSV 导出限速，状态在闸门内。
 - **抓取请求（CrawlRequest）** — 调用爬虫接口时传入的请求参数对象：
   `category`（分类筛选）、`max_books`（最大取书数）、`backfill`
   （是否回填窗口模式）。

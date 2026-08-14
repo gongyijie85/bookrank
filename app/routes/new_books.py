@@ -1,13 +1,11 @@
 import csv
 import logging
-import threading
-import time
 from datetime import UTC, datetime
 from io import StringIO
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
-from flask import Blueprint, current_app, make_response, request
+from flask import Blueprint, make_response, request
 from pydantic import ValidationError
 
 if TYPE_CHECKING:
@@ -23,7 +21,7 @@ from ..schemas.validators import (
 from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
-from ..utils.service_helpers import get_new_book_modules
+from ..utils.service_helpers import get_new_book_modules, get_sync_request_gate
 
 logger = logging.getLogger(__name__)
 
@@ -44,34 +42,18 @@ def _sanitize_csv_field(value: object) -> str:
     return text
 
 
+def _cooldown_message(verb: str, remaining: float) -> str:
+    """冷却期消息的统一格式（同步与导出共用）。"""
+    return f'{verb}过于频繁,请 {int(remaining)} 秒后再试'
+
+
 def _check_export_cooldown() -> str | None:
-    """v0.9.68: 每 IP 导出冷却(10 秒)防刷。"""
+    """v0.9.68: 每 IP 导出冷却(10 秒)防刷（状态在同步请求闸门内）。"""
     ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'anon').split(',')[0].strip()
-    key = f'export_last_{ip}'
-    last = current_app.extensions.get(key, 0.0)
-    elapsed = time.time() - last
-    if elapsed < _EXPORT_COOLDOWN_SECONDS:
-        remaining = int(_EXPORT_COOLDOWN_SECONDS - elapsed)
-        return f'导出过于频繁,请 {remaining} 秒后再试'
-    current_app.extensions[key] = time.time()
+    remaining = get_sync_request_gate().export_cooldown_remaining(ip)
+    if remaining is not None:
+        return _cooldown_message('导出', remaining)
     return None
-
-
-def _get_sync_lock() -> threading.Lock:
-    """获取应用级同步锁（多 worker 安全）"""
-    if 'sync_lock' not in current_app.extensions:
-        current_app.extensions['sync_lock'] = threading.Lock()
-    return current_app.extensions['sync_lock']
-
-
-def _get_last_sync_time() -> float:
-    """获取上次同步时间（存储在 app.extensions）"""
-    return current_app.extensions.get('last_sync_time', 0.0)
-
-
-def _set_last_sync_time(timestamp: float) -> None:
-    """设置上次同步时间（存储在 app.extensions）"""
-    current_app.extensions['last_sync_time'] = timestamp
 
 
 def _parse_or_422(model_cls):
@@ -85,21 +67,18 @@ def _parse_or_422(model_cls):
 
 
 def _ensure_static_seeded(modules: 'NewBookModules') -> None:
+    """静态数据兜底播种（进程内一次性，状态在同步请求闸门内）。"""
     try:
-        modules.sync_engine.ensure_static_data_seeded()
+        get_sync_request_gate().seed_static_data(modules.sync_engine)
     except Exception as e:
         logger.warning(f'新书静态数据兜底初始化失败: {e}')
 
 
 def _check_sync_cooldown() -> str | None:
-    """检查同步冷却时间，返回错误消息或None（多 worker 安全）"""
-    lock = _get_sync_lock()
-    with lock:
-        last_time = _get_last_sync_time()
-        elapsed = time.time() - last_time
-        if elapsed < _SYNC_COOLDOWN_SECONDS:
-            remaining = int(_SYNC_COOLDOWN_SECONDS - elapsed)
-            return f'同步操作过于频繁，请 {remaining} 秒后再试'
+    """检查同步冷却时间，返回错误消息或None（状态在同步请求闸门内）。"""
+    remaining = get_sync_request_gate().sync_cooldown_remaining()
+    if remaining is not None:
+        return _cooldown_message('同步操作', remaining)
     return None
 
 
@@ -300,10 +279,8 @@ def sync_all_publishers():
         max_books = min(max(1, request.args.get('max_books', 30, type=int)), 100)
         results = modules.sync_engine.sync_all_publishers(max_books_per_publisher=max_books)
 
-        # 更新同步时间（多 worker 安全）
-        lock = _get_sync_lock()
-        with lock:
-            _set_last_sync_time(time.time())
+        # 更新同步时间（闸门内多 worker 安全）
+        get_sync_request_gate().record_sync()
 
         total_added = sum(r.get('added', 0) for r in results)
         total_updated = sum(r.get('updated', 0) for r in results)
@@ -345,10 +322,8 @@ def sync_publisher(publisher_id: int):
         if not result.get('success'):
             return APIResponse.error(result.get('error', '同步失败'), 400)
 
-        # 更新同步时间（多 worker 安全）
-        lock = _get_sync_lock()
-        with lock:
-            _set_last_sync_time(time.time())
+        # 更新同步时间（闸门内多 worker 安全）
+        get_sync_request_gate().record_sync()
 
         return APIResponse.success(data=result)
     except Exception as e:

@@ -61,6 +61,11 @@ def get_new_book_modules() -> 'NewBookModules':
     return require_service('new_book_modules')
 
 
+def get_sync_request_gate() -> Any:
+    """获取已注册的同步请求闸门（冷却/锁/播种一次性化）。"""
+    return require_service('sync_request_gate')
+
+
 def get_recommendation_service() -> Any | None:
     """获取已注册的 RecommendationService 单例，缺失时返回 None"""
     return get_service('recommendation_service')
