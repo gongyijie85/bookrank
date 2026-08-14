@@ -135,6 +135,18 @@ class ImageCacheService:
             log_error(ErrorCategory.API_CALL, f'Failed to cache image from {original_url}: {e}', level='warning')
             return self._default_cover
 
+    def is_cached_file_present(self, local_path: str) -> bool:
+        """判断缓存图片文件是否仍存在（生产临时文件系统重启后可能丢失）。
+
+        空路径与默认封面返回 False；非 /cache/images 路径视为无需探测返回 True。
+        """
+        if not local_path or local_path == self._default_cover:
+            return False
+        if not local_path.startswith('/cache/images/'):
+            return True
+        filename = local_path.rsplit('/', 1)[-1]
+        return (self._cache_dir / filename).is_file()
+
     def _update_memory_cache(self, key: str, value: str, timestamp: float):
         """更新内存缓存，确保不超过最大大小"""
         if key in self._memory_cache:

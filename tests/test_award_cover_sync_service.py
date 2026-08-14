@@ -23,15 +23,26 @@ class FakeOpenLibraryClient:
 class FakeImageCache:
     def __init__(self):
         self.cached_urls = []
+        self.present_files: set[str] = set()
 
     def get_cached_image_url(self, original_url, ttl=3600):
         self.cached_urls.append((original_url, ttl))
         return '/cache/images/test-cover.jpg'
 
+    def is_cached_file_present(self, local_path: str) -> bool:
+        if not local_path or local_path == '/static/default-cover.png':
+            return False
+        if not local_path.startswith('/cache/images/'):
+            return True
+        return local_path in self.present_files
+
 
 class DefaultOnlyImageCache:
     def get_cached_image_url(self, original_url, ttl=3600):
         return '/static/default-cover.png'
+
+    def is_cached_file_present(self, local_path: str) -> bool:
+        return False
 
 
 class TestShouldRefreshCoverSource:
@@ -46,48 +57,48 @@ class TestShouldRefreshCoverSource:
 
     def test_ol_url_returns_true(self):
         url = 'https://covers.openlibrary.org/b/isbn/9780143127550-M.jpg'
-        assert self.service._should_refresh_cover_source(url) is True
+        assert self.service._resolver._should_refresh_cover_source(url) is True
 
     def test_ol_url_id_returns_true(self):
         url = 'https://covers.openlibrary.org/b/id/14631041-L.jpg?default=false'
-        assert self.service._should_refresh_cover_source(url) is True
+        assert self.service._resolver._should_refresh_cover_source(url) is True
 
     def test_google_url_returns_false(self):
         url = 'https://books.google.com/books/content?id=abc&img=1'
-        assert self.service._should_refresh_cover_source(url) is False
+        assert self.service._resolver._should_refresh_cover_source(url) is False
 
     def test_arbitrary_url_returns_false(self):
         url = 'https://example.com/covers/image.jpg'
-        assert self.service._should_refresh_cover_source(url) is False
+        assert self.service._resolver._should_refresh_cover_source(url) is False
 
     def test_empty_string_returns_false(self):
-        assert self.service._should_refresh_cover_source('') is False
+        assert self.service._resolver._should_refresh_cover_source('') is False
 
 
 class TestIsCachedPathAvailable:
-    """测试 _is_cached_path_available 方法"""
+    """测试 cached_path_available 探测方法"""
 
     def setup_method(self):
         self.service = AwardCoverSyncService(
             google_client=MagicMock(),
             openlibrary_client=MagicMock(),
-            image_cache=MagicMock(),
+            image_cache=FakeImageCache(),
         )
 
     def test_empty_path_returns_false(self):
-        assert self.service._is_cached_path_available('') is False
+        assert self.service._resolver.cached_path_available('') is False
 
     def test_whitespace_path_not_in_cache_dir_returns_true(self):
-        assert self.service._is_cached_path_available('   ') is True
+        assert self.service._resolver.cached_path_available('   ') is True
 
     def test_default_cover_path_returns_false(self):
-        assert self.service._is_cached_path_available('/static/default-cover.png') is False
+        assert self.service._resolver.cached_path_available('/static/default-cover.png') is False
 
     def test_non_cache_path_returns_true(self):
-        assert self.service._is_cached_path_available('/uploads/custom.jpg') is True
+        assert self.service._resolver.cached_path_available('/uploads/custom.jpg') is True
 
     def test_non_cache_relative_path_returns_true(self):
-        assert self.service._is_cached_path_available('covers/photo.png') is True
+        assert self.service._resolver.cached_path_available('covers/photo.png') is True
 
     def test_cache_path_without_image_cache_returns_true(self):
         service = AwardCoverSyncService(
@@ -95,38 +106,31 @@ class TestIsCachedPathAvailable:
             openlibrary_client=MagicMock(),
             image_cache=None,
         )
-        assert service._is_cached_path_available('/cache/images/test.jpg') is True
-
-    def test_cache_path_no_cache_dir_attribute_returns_true(self):
-        cache = MagicMock(spec=[])
-        service = AwardCoverSyncService(
-            google_client=MagicMock(),
-            openlibrary_client=MagicMock(),
-            image_cache=cache,
-        )
-        assert service._is_cached_path_available('/cache/images/test.jpg') is True
+        assert service._resolver.cached_path_available('/cache/images/test.jpg') is True
 
     def test_cache_path_file_exists(self, tmp_path):
+        from app.services.api_utils import ImageCacheService
+
         cache_file = tmp_path / 'cover.jpg'
         cache_file.write_bytes(b'fake image')
-        cache = MagicMock()
-        cache._cache_dir = str(tmp_path)
+        cache = ImageCacheService(cache_dir=tmp_path)
         service = AwardCoverSyncService(
             google_client=MagicMock(),
             openlibrary_client=MagicMock(),
             image_cache=cache,
         )
-        assert service._is_cached_path_available('/cache/images/cover.jpg') is True
+        assert service._resolver.cached_path_available('/cache/images/cover.jpg') is True
 
     def test_cache_path_file_not_exists(self, tmp_path):
-        cache = MagicMock()
-        cache._cache_dir = str(tmp_path)
+        from app.services.api_utils import ImageCacheService
+
+        cache = ImageCacheService(cache_dir=tmp_path)
         service = AwardCoverSyncService(
             google_client=MagicMock(),
             openlibrary_client=MagicMock(),
             image_cache=cache,
         )
-        assert service._is_cached_path_available('/cache/images/nonexistent.jpg') is False
+        assert service._resolver.cached_path_available('/cache/images/nonexistent.jpg') is False
 
 
 class TestGetSyncStatus:
@@ -313,7 +317,7 @@ class TestSyncMissingCovers:
                 openlibrary_client=MagicMock(),
                 image_cache=MagicMock(),
             )
-            service._cache_cover = MagicMock(side_effect=Exception('DB error'))
+            service._resolver._cache_cover = MagicMock(side_effect=Exception('DB error'))
             service.sync_missing_covers(delay=0)
             assert service._is_running is False
 
@@ -478,9 +482,9 @@ class TestResolveCoverForBook:
             service = AwardCoverSyncService(
                 google_client=None,
                 openlibrary_client=FakeOpenLibraryClient(),
-                image_cache=MagicMock(),
+                image_cache=FakeImageCache(),
             )
-            service._cache_cover = MagicMock(return_value=None)
+            service._resolver._cache_cover = MagicMock(return_value=None)
             result = service.resolve_cover_for_book(book, persist=False)
             assert result == 'https://example.com/fallback.jpg'
 
@@ -631,7 +635,7 @@ class TestSyncMissingCoversWithBooks:
             db.session.commit()
 
             cache = MagicMock()
-            cache._cache_dir = str(tmp_path)  # 目录为空 => /cache/images/missing.jpg 文件不存在
+            cache.is_cached_file_present.return_value = False  # 目录为空 => 文件不存在
             cache.get_cached_image_url.return_value = '/cache/images/test-cover.jpg'
 
             service = AwardCoverSyncService(
@@ -672,7 +676,7 @@ class TestSyncMissingCoversWithBooks:
             db.session.commit()
 
             cache = MagicMock()
-            cache._cache_dir = str(tmp_path)
+            cache.is_cached_file_present.return_value = True  # 文件存在
 
             service = AwardCoverSyncService(
                 FakeGoogleBooksClient(),

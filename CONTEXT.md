@@ -32,6 +32,9 @@
 - **日期过滤计数（date_filter_stats）** — Google Books 系适配器在抓取
   过程中统计的分类拒绝计数器（traversed_total、rejected_no_date 等），
   随 `CrawlOutcome` 返回，仅供测量持久化，不改变同步行为。
+- **封面解析（cover resolution）** — 获奖书籍封面的单一获取策略
+  （`CoverResolver`）：本地文件 → 原 URL 缓存 → 按需回源 → 缓存 → 持久化；
+  批编排（清单/延迟/统计）在 `AwardCoverSyncService`。
 - **分类清洗（category cleanup）** — 对 `NewBook.category` 的营销文案过滤与
   英文→中文归一。sanitize=单值规则（`publisher_data.sanitize_category`），
   scan=清单扫描，apply=批量写入（`category_cleanup_service`）；入库路径只做
