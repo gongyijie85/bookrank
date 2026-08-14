@@ -80,22 +80,28 @@ class AwardCoverSyncService:
         }
 
         try:
-            # 查找缺少封面的书籍
-            books_to_update = (
+            # 查找缺失封面的书籍：
+            # 1) cover_original_url 为空
+            # 2) cover_local_path 为空/默认封面
+            # 3) cover_local_path 指向的本地缓存文件已丢失（生产环境临时文件系统重启后）
+            # 第 3 种情况无法用 SQL 判断（依赖文件系统），故先拉取全部展示书再逐个验证文件存在性。
+            books_candidates = (
                 AwardBook.query.filter(
-                    db.or_(
-                        AwardBook.cover_original_url.is_(None),
-                        AwardBook.cover_original_url == '',
-                        AwardBook.cover_local_path.is_(None),
-                        AwardBook.cover_local_path == '',
-                        AwardBook.cover_local_path == '/static/default-cover.png',
-                    ),
                     AwardBook.isbn13.isnot(None),
                     AwardBook.is_displayable.is_(True),
                 )
-                .limit(batch_size)
+                .order_by(AwardBook.id)
                 .all()
             )
+
+            books_to_update: list[AwardBook] = []
+            for b in books_candidates:
+                local_path = (b.cover_local_path or '').strip()
+                cover_url = (b.cover_original_url or '').strip()
+                if not cover_url or not self._is_cached_path_available(local_path):
+                    books_to_update.append(b)
+                    if len(books_to_update) >= batch_size:
+                        break
 
             if not books_to_update:
                 logger.info('所有获奖书籍都已包含封面信息')

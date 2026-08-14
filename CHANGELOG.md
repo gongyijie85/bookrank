@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.9.90 - 2026-08-14
+
+### fix(awards): 修复生产环境封面同步无法识别"缓存文件丢失"
+
+**背景**：生产环境（Render 临时文件系统）重启后 `cache/images/` 丢失，但数据库
+（PostgreSQL 持久化）中 `cover_local_path` 仍保留旧值。实测获奖页面全部封面图片 404。
+原 `sync_missing_covers` 仅查询 `cover_local_path IS NULL/空/默认封面`，无法覆盖
+"数据库有路径但本地文件已丢失"的场景，因此直接触发同步也无法修复。
+
+**改动**
+
+- `app/services/award_cover_sync_service.py`：`sync_missing_covers` 改为先拉取全部
+  展示书籍，再通过 `_is_cached_path_available`（含文件系统存在性检查）识别真正缺失的封面，
+  覆盖"缓存文件丢失"场景，重新下载并回写。
+- `tests/test_award_cover_sync_service.py`：新增两个回归测试——
+  `test_resync_when_local_cache_file_missing`（文件丢失时重新下载）、
+  `test_skips_book_when_local_cache_file_exists`（文件存在时跳过）。
+
+**验证**：本地模拟"文件丢失"场景，3 本封面被正确重新下载（`updated: 3, failed: 0`）；
+  全部相关测试通过；`ruff`、`mypy` 通过。
+
+### 部署后操作
+生产环境重新部署后，需触发封面同步：
+`POST /api/admin/award-covers/sync`（携带 `X-Admin-Secret`），
+或访问获奖页面触发 `/award-book/<id>/cover` 懒加载自愈。
+
 ## v0.9.89 - 2026-08-14
 
 ### fix(awards): 修复获奖书单封面图片显示问题

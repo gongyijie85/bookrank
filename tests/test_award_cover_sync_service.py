@@ -607,3 +607,80 @@ class TestSyncMissingCoversWithBooks:
             assert google_client.fetch_calls == 0
             assert book.cover_original_url == 'https://covers.openlibrary.org/b/id/14631041-L.jpg?default=false'
             assert book.cover_local_path == '/cache/images/test-cover.jpg'
+
+    def test_resync_when_local_cache_file_missing(self, app, db, tmp_path):
+        """生产环境临时文件系统重启后：cover_local_path 有值但本地文件丢失，应重新下载并回写。"""
+        with app.app_context():
+            award = Award(name='Test Award', description='Test award', country='US')
+            db.session.add(award)
+            db.session.flush()
+
+            book = AwardBook(
+                award_id=award.id,
+                year=2025,
+                category='Fiction',
+                rank=1,
+                title='Lost Cache File',
+                author='Author One',
+                isbn13='9780143127550',
+                is_displayable=True,
+                cover_original_url='https://books.google.com/books/content?id=9780143127550&img=1',
+                cover_local_path='/cache/images/missing.jpg',
+            )
+            db.session.add(book)
+            db.session.commit()
+
+            cache = MagicMock()
+            cache._cache_dir = str(tmp_path)  # 目录为空 => /cache/images/missing.jpg 文件不存在
+            cache.get_cached_image_url.return_value = '/cache/images/test-cover.jpg'
+
+            service = AwardCoverSyncService(
+                FakeGoogleBooksClient(),
+                openlibrary_client=FakeOpenLibraryClient(),
+                image_cache=cache,
+            )
+            result = service.sync_missing_covers(batch_size=10, delay=0)
+
+            db.session.refresh(book)
+            assert result['updated'] == 1
+            # 旧路径文件丢失，被识别为"缺封面"并重新缓存
+            assert book.cover_local_path == '/cache/images/test-cover.jpg'
+
+    def test_skips_book_when_local_cache_file_exists(self, app, db, tmp_path):
+        """本地缓存文件存在时不应重复同步。"""
+        cache_file = tmp_path / 'cover.jpg'
+        cache_file.write_bytes(b'fake image')
+
+        with app.app_context():
+            award = Award(name='Test Award', description='Test award', country='US')
+            db.session.add(award)
+            db.session.flush()
+
+            book = AwardBook(
+                award_id=award.id,
+                year=2025,
+                category='Fiction',
+                rank=1,
+                title='Cached Book',
+                author='Author One',
+                isbn13='9780143127550',
+                is_displayable=True,
+                cover_original_url='https://books.google.com/books/content?id=9780143127550&img=1',
+                cover_local_path='/cache/images/cover.jpg',
+            )
+            db.session.add(book)
+            db.session.commit()
+
+            cache = MagicMock()
+            cache._cache_dir = str(tmp_path)
+
+            service = AwardCoverSyncService(
+                FakeGoogleBooksClient(),
+                openlibrary_client=FakeOpenLibraryClient(),
+                image_cache=cache,
+            )
+            result = service.sync_missing_covers(batch_size=10, delay=0)
+
+            db.session.refresh(book)
+            assert result['total_checked'] == 0
+            assert book.cover_local_path == '/cache/images/cover.jpg'
