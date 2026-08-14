@@ -1,0 +1,86 @@
+name: Production Monitor
+
+on:
+  schedule:
+    # GitHub scheduled workflows can be delayed under load; this is a five-minute
+    # probe cadence, not an uptime-SLA substitute.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ready-and-latency:
+    name: Check readiness and response time
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      RENDER_BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+      PRODUCTION_ALERT_WEBHOOK_URL: ${{ secrets.PRODUCTION_ALERT_WEBHOOK_URL }}
+      # 阈值来自 GitHub 仓库变量，未配置时回退到默认值（与 ci.yml 的 RENDER_BASE_URL 模式一致）
+      READY_LATENCY_WARNING_SECONDS: ${{ vars.READY_LATENCY_WARNING_SECONDS || '3' }}
+      READY_LATENCY_CRITICAL_SECONDS: ${{ vars.READY_LATENCY_CRITICAL_SECONDS || '10' }}
+    steps:
+      - name: Probe /health/ready
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(curl --silent --show-error --location --max-time 30 \
+            --output /dev/null --write-out '%{http_code} %{time_total}' \
+            "$RENDER_BASE_URL/health/ready" || true)"
+          read -r status elapsed <<< "$result" || true
+          status="${status:-000}"
+          elapsed="${elapsed:-30}"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "elapsed=$elapsed" >> "$GITHUB_OUTPUT"
+
+          if [[ "$status" != "200" ]]; then
+            echo "state=critical" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          if awk "BEGIN { exit !($elapsed > $READY_LATENCY_CRITICAL_SECONDS) }"; then
+            echo "state=critical" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          if awk "BEGIN { exit !($elapsed > $READY_LATENCY_WARNING_SECONDS) }"; then
+            echo "state=warning" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=healthy" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notify on warning or failure
+        if: always() && steps.probe.outputs.state != 'healthy'
+        shell: bash
+        env:
+          PROBE_STATE: ${{ steps.probe.outputs.state || 'critical' }}
+          PROBE_STATUS: ${{ steps.probe.outputs.status || '000' }}
+          PROBE_ELAPSED: ${{ steps.probe.outputs.elapsed || 'unknown' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$PRODUCTION_ALERT_WEBHOOK_URL" ]]; then
+            echo "PRODUCTION_ALERT_WEBHOOK_URL is not configured; unable to notify the on-call contact."
+            exit 1
+          fi
+
+          payload="$(python3 - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({
+              "msg_type": "text",
+              "content": {"text": (
+                  f"[BookRank][{os.environ['PROBE_STATE']}] production readiness probe: "
+                  f"HTTP {os.environ['PROBE_STATUS']}, "
+                  f"{os.environ['PROBE_ELAPSED']}s. "
+                  f"Run: {os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+              )},
+          }))
+          PY
+          )"
+          curl --fail --silent --show-error --max-time 15 \
+            -H 'Content-Type: application/json' \
+            --data "$payload" "$PRODUCTION_ALERT_WEBHOOK_URL"

@@ -54,6 +54,13 @@ __pycache__/
 .coverage
 pytest_output.txt
 
+# Node.js dependencies
+node_modules/
+
+# Archived / scratch working files
+.scratch/
+archive/
+
 # Agent / IDE data
 .workbuddy/
 
