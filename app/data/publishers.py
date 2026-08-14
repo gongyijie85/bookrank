@@ -17,6 +17,7 @@ PUBLISHERS_DATA = [
             {
                 'name': '麦克米伦出版集团',
                 'name_en': 'Pan Macmillan',
+                'sync_name_en': 'Macmillan',
                 'url': 'https://www.panmacmillan.com',
                 'description': '英国老牌出版集团，英语市场新书为主',
             },
@@ -29,6 +30,7 @@ PUBLISHERS_DATA = [
             {
                 'name': '阿歇特图书集团',
                 'name_en': 'Hachette Book Group',
+                'sync_name_en': 'Hachette',
                 'url': 'https://www.hachettebookgroup.com',
                 'description': '阿歇特英美分支，商业类、童书新书',
             },

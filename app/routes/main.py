@@ -507,21 +507,18 @@ def about():
     return render_adaptive('about.html')
 
 
-# 静态出版社目录里,部分条目的英文名写法与新书速递数据库中的出版社记录不完全一致
-_PUBLISHER_DIRECTORY_ALIASES: dict[str, str] = {
-    'Hachette Book Group': 'Hachette',
-    'Pan Macmillan': 'Macmillan',
-}
-
-
 def _resolve_new_books_publisher_ids(publishers_data: list[dict], db_publishers: list) -> dict[str, int]:
-    """把静态出版社目录条目的 name_en 映射到新书速递数据库对应出版社的 id（仅对已抓取入库的出版社生效）"""
+    """把出版社目录条目映射到新书速递数据库对应出版社的 id（仅对已抓取入库的出版社生效）。
+
+    目录条目可用可选字段 sync_name_en 声明与 DB 出版社的关联键（名称写法不一致时），
+    缺省回退到 name_en 精确匹配。
+    """
     id_by_db_name_en = {pub.name_en: pub.id for pub in db_publishers}
     result: dict[str, int] = {}
     for cat in publishers_data:
         for pub in cat['publishers']:
             name_en = pub.get('name_en', '')
-            db_name_en = _PUBLISHER_DIRECTORY_ALIASES.get(name_en, name_en)
+            db_name_en = pub.get('sync_name_en', name_en)
             pub_id = id_by_db_name_en.get(db_name_en)
             if pub_id is not None:
                 result[name_en] = pub_id

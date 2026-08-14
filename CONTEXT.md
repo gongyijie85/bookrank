@@ -5,6 +5,9 @@
 
 ## 词汇表
 
+- **出版社目录（publisher directory）** — 展示侧的出版社清单
+  （`app/data/publishers.py`）；可同步条目以显式 `sync_name_en` 声明与
+  同步集合（DB 出版社）的关联键，替代旧的路由别名表。
 - **出版社（Publisher）** — 新书速递同步的数据源主体，对应
   `app/models/new_book.py` 的 `Publisher` 行与
   `app/data/publishers.py` 的展示目录条目。每家出版社绑定一个爬虫类
