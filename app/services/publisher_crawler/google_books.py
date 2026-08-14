@@ -22,7 +22,7 @@ import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
 from ..publisher_data import parse_static_date
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -165,21 +165,15 @@ class GoogleBooksCrawler(BaseCrawler):
             {'id': 'young_adult', 'name': '青少年'},
         ]
 
-    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
-        """按抓取请求获取新书（返回抓取结果：书籍流 + 日期过滤计数）。"""
-        return CrawlOutcome(
-            books=self._iter_new_books(request.category, request.max_books),
-            date_filter_stats=self.date_filter_stats,
-        )
-
-    def _iter_new_books(self, category: str | None = None, max_books: int = 100):
+    def _iter_new_books(self, request: CrawlRequest):
         """
         抓取新书的生成器实现
 
         Args:
-            category: 分类主题
-            max_books: 最大数量
+            request: 抓取请求（category / max_books；backfill 忽略）
         """
+        category = request.category
+        max_books = request.max_books
         subject = category or 'fiction'
         cutoff_date = self._compute_cutoff_date()
 

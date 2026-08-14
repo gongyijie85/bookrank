@@ -116,6 +116,19 @@ REQUEST_DELAY: float | None = None  # 引擎注入配置时的请求间隔，Non
   删除 year_from 相关断言。
 - 验收门：全量 pytest、ruff check、mypy 通过。
 
+## 接口演化（#153）
+
+code review 发现 6 个适配器重复「get_new_books → CrawlOutcome」包装后，
+经 grilling 决策（2026-08-14）收敛为基类模板方法：
+
+- BaseCrawler.get_new_books 变为具体模板方法：组装
+  CrawlOutcome(books=_iter_new_books(request), date_filter_stats=self.date_filter_stats)
+  ——钩子直接收 CrawlRequest 对象（code review 发现三参重组即 Data Clumps）。
+- _iter_new_books 提升为唯一抽象钩子（单参数 CrawlRequest，非回填型实现
+  读取并忽略 backfill 字段）。
+- 适配器删除全部包装；date_filter_stats=None 的适配器由基类 __init__ 默认值
+  天然得到 None，无需分支。
+
 ## 术语
 
 见根目录 CONTEXT.md（出版社、爬虫适配器、抓取请求、抓取结果、

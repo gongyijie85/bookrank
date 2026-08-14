@@ -14,7 +14,7 @@ Penguin Random House 官方开发者 API 爬虫
 import logging
 from datetime import date, timedelta
 
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -100,25 +100,15 @@ class PrhApiCrawler(BaseCrawler):
         if not self.config.api_key:
             raise ValueError('PrhApiCrawler 需要 PRH_API_KEY（环境变量注入）')
 
-    def get_new_books(self, request: CrawlRequest) -> CrawlOutcome:
-        """按抓取请求获取 PRH 新书（无统计：返回 date_filter_stats=None）。"""
-        return CrawlOutcome(books=self._iter_new_books(request.category, request.max_books, request.backfill))
-
-    def _iter_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        backfill: bool = False,
-    ):
+    def _iter_new_books(self, request: CrawlRequest):
         """
         获取 PRH 新书的生成器实现
 
         Args:
-            category: 未使用（API 窗口模式不支持分类检索，分类在入库时映射）
-            max_books: 最大产出数量（去重后计数）
-            backfill: True 走首次回填窗口（成对日期拉近 BACKFILL_WINDOW_DAYS 天），
-                False 走近 14 天增量窗口；模式由同步引擎判定传入，爬虫无状态
+            request: 抓取请求（category 未使用；backfill 走回填窗口，爬虫无状态）
         """
+        max_books = request.max_books
+        backfill = request.backfill
         if backfill:
             window_end = date.today()
             window_start = window_end - timedelta(days=self.BACKFILL_WINDOW_DAYS)

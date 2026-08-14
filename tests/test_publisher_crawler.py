@@ -19,7 +19,6 @@ from app.services.publisher_crawler import get_all_crawlers, get_crawler_class
 from app.services.publisher_crawler.base_crawler import (
     BaseCrawler,
     BookInfo,
-    CrawlOutcome,
     SimpleResponse,
 )
 
@@ -56,8 +55,8 @@ class _TestCrawler(BaseCrawler):
     PUBLISHER_WEBSITE = 'https://example.com'
     CRAWLER_CLASS_NAME = 'TestCrawler'
 
-    def get_new_books(self, request):
-        return CrawlOutcome(books=iter([]))
+    def _iter_new_books(self, request):
+        yield from []
 
     def get_book_details(self, book_url=''):
         return None

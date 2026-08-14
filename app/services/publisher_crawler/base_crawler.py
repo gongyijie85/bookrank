@@ -487,16 +487,29 @@ class BaseCrawler(ABC):
 
         return description[: self.config.max_description_length - 3] + '...'
 
-    @abstractmethod
     def get_new_books(self, request: 'CrawlRequest') -> 'CrawlOutcome':
         """
-        按抓取请求获取新书（抽象方法，子类必须实现）。
+        按抓取请求获取新书（模板方法）。
+
+        组装抓取结果：书籍流由抽象钩子 _iter_new_books 产出；
+        日期过滤计数取实例属性 date_filter_stats（非 Google Books 系为 None）。
 
         Args:
             request: 抓取请求（category / max_books / backfill）
 
         Returns:
             抓取结果（书籍流 + 日期过滤计数）
+        """
+        return CrawlOutcome(
+            books=self._iter_new_books(request),
+            date_filter_stats=self.date_filter_stats,
+        )
+
+    @abstractmethod
+    def _iter_new_books(self, request: 'CrawlRequest') -> 'Iterable[BookInfo]':
+        """按抓取请求产出新书流的生成器实现（模板方法钩子，子类必须实现）。
+
+        非回填型适配器读取并忽略 backfill 字段。
         """
         pass
 
