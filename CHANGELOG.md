@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.9.89 - 2026-08-14
+
+### fix(awards): 修复获奖书单封面图片显示问题
+
+**背景**：获奖书单页面图片显示异常。诊断发现所有 `AwardBook.cover_local_path` 均为空，
+前端退化为每次远程加载 Open Library 封面（`covers.openlibrary.org`），依赖外部网络、
+加载慢且不稳定；生产环境临时文件系统还会导致缓存丢失。
+
+**改动**
+
+- `static/js/base.js`：重构 `initImageErrorHandler`，实现多级回退
+  （本地缓存 → 原始 URL → 默认封面），通过 `data-original` / `data-fallback` /
+  `data-img-tried` 属性避免无限回退。
+- `templates/awards.html`：网格与列表视图的 `<img>` 增加 `data-original`（原始封面 URL）
+  与 `data-fallback`（默认封面）属性，作为展示兜底。
+- 数据修复：运行标题封面同步（`AwardCoverSyncService.sync_missing_covers`），
+  将 34 本获奖图书的封面下载到本地缓存并回写 `cover_local_path`，本地文件验证全部存在。
+
+**验证**：302 个获奖/路由/服务相关测试全部通过；`ruff`、`mypy` 不涉及源码逻辑改动。
+
+### feat(awards): 更新 2020-2026 最新获奖书单
+
+从 Wikidata / Open Library / Google Books 同步最新获奖图书，新增 2026 年数据：
+
+- 普利策奖 2026：Angel Down、There Is No Place for Us、A Flower Traveled in My Blood、Mother Emanuel
+- 国际布克奖 2026：Taiwan Travelogue
+- 爱伦·坡奖 2026：The Big Empty
+
 ## v0.9.88 - 2026-08-14
 
 ### refactor(architecture): 提取 NewBookIngestor 深模块，瘦身 SyncEngine

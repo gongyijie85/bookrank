@@ -1,11 +1,26 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.88
+**当前版本**：v0.9.89
 **发布日期**：2026-08-14
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.89 (2026-08-14) — 修复获奖书单封面显示 + 更新 2026 最新获奖书单
+
+**背景**：获奖书单页面图片显示异常。诊断发现所有 `AwardBook.cover_local_path` 均为空，
+前端退化为每次远程加载 Open Library 封面，加载慢且不稳定；生产环境临时文件系统还会导致缓存丢失。
+
+**关键优化**
+- **多级封面回退**：`base.js` 重构 `initImageErrorHandler`，`awards.html` 增加
+  `data-original` / `data-fallback`，实现 本地缓存 → 原始 URL → 默认封面 三级兜底
+- **封面缓存补齐**：运行 `sync_missing_covers` 将 34 本获奖图书封面下载到本地缓存并回写
+  `cover_local_path`，本地文件验证全部存在
+- **数据更新**：同步 2020-2026 最新获奖书单，新增 2026 年数据
+  （普利策奖 4 本、国际布克奖 Taiwan Travelogue、爱伦·坡奖 The Big Empty）
+
+**验证**：302 个获奖/路由/服务相关测试全部通过。
 
 ### v0.9.88 (2026-08-14) — 提取 NewBookIngestor 深模块，瘦身 SyncEngine
 

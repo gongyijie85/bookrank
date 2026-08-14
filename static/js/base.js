@@ -493,14 +493,27 @@
 
     /**
      * 全局图片错误处理 - 替代 onerror 内联属性
+     *
+     * 多级回退：本地缓存(cover_local_path) → 原始URL(cover_original_url) → 默认封面(data-fallback)
+     * 通过 data-original / data-fallback 属性实现，避免无限回退。
      */
     function initImageErrorHandler() {
         document.addEventListener('error', function(e) {
-            if (e.target.tagName === 'IMG') {
-                const fallback = e.target.getAttribute('data-fallback');
-                if (fallback && e.target.src !== fallback) {
-                    e.target.src = fallback;
-                }
+            if (e.target.tagName !== 'IMG') return;
+            const img = e.target;
+            const tried = img.dataset.imgTried ? img.dataset.imgTried.split(',') : [];
+            const current = img.currentSrc || img.src;
+            if (tried.indexOf(current) === -1) tried.push(current);
+
+            const original = img.getAttribute('data-original');
+            const fallback = img.getAttribute('data-fallback');
+            const candidates = [];
+            if (original && tried.indexOf(original) === -1) candidates.push(original);
+            if (fallback && tried.indexOf(fallback) === -1) candidates.push(fallback);
+
+            if (candidates.length > 0) {
+                img.dataset.imgTried = tried.join(',') + ',' + candidates[0];
+                img.src = candidates[0];
             }
         }, true);
     }
