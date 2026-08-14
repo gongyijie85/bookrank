@@ -609,6 +609,30 @@ class TestCleanupCategories:
         assert data['success'] is True
         assert data['data']['invalid_found'] == 0
 
+    def test_cleanup_with_real_sanitize_detects_marketing_category(self, client, admin_headers, db):
+        """回归（门面坍塌修复）：不 patch、走真实 sanitize_category 的路径。
+        曾有幽灵引用 NewBookService._sanitize_category 导致本端点 500，
+        而测试用 patch(create=True) 掩盖了它——本用例保证真实路径可用。"""
+        from app.models.new_book import NewBook, Publisher
+
+        pub = Publisher(name='测试社', name_en='Test Pub', crawler_class='TestCrawler')
+        db.session.add(pub)
+        db.session.flush()
+
+        book = NewBook(
+            publisher_id=pub.id,
+            title='测试书',
+            author='作者',
+            category='Fiction learn more',
+        )
+        db.session.add(book)
+        db.session.commit()
+
+        response = client.get('/api/admin/categories/cleanup', headers=admin_headers)
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['data']['invalid_found'] >= 1
+
 
 # ==================== 周报书名号清理 ====================
 
