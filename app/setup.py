@@ -156,8 +156,17 @@ def _init_new_book_modules(app, translation_service):
         app.logger.info('新书速递子模块初始化成功')
         return modules
     except Exception as e:
-        log_error(ErrorCategory.UNKNOWN, f'新书速递子模块初始化失败: {e}', level='warning')
-        return None
+        # code review #154：装配失败时注册"空装配"降级（翻译器缺位），
+        # 保证 require_service('new_book_modules') 不再抛错、相关路由不裸 500。
+        # 仍只有装配工厂这一个装配入口。
+        log_error(ErrorCategory.UNKNOWN, f'新书速递子模块装配失败，降级为空装配: {e}', level='warning')
+        try:
+            modules = create_new_book_modules(translation_service=None)
+            register_service(app, 'new_book_modules', modules)
+            return modules
+        except Exception:
+            log_error(ErrorCategory.UNKNOWN, '新书速递子模块降级装配也失败', level='error')
+            return None
 
 
 def _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg):

@@ -800,3 +800,41 @@ class TestInitServicesExtended:
             mock_bg.assert_called_once()
             call_args = mock_bg.call_args[0]
             assert call_args[1] is None
+
+
+# ==================== _init_new_book_modules 装配降级（#154） ====================
+
+
+class TestNewBookModulesAssemblyFallback:
+    """装配失败时注册空装配，保证 require_service 不抛错"""
+
+    def test_assembly_failure_registers_empty_fallback(self, app):
+        from app.services.new_book import create_new_book_modules
+        from app.setup import _init_new_book_modules
+
+        real_modules = create_new_book_modules(translation_service=None)
+
+        with app.app_context():
+            app.extensions.pop('new_book_modules', None)
+            with patch(
+                'app.services.new_book.create_new_book_modules',
+                side_effect=[RuntimeError('装配失败'), real_modules],
+            ):
+                result = _init_new_book_modules(app, None)
+
+        assert result is real_modules
+        assert app.extensions['new_book_modules'] is real_modules
+
+    def test_both_attempts_fail_returns_none_without_registration(self, app):
+        from app.setup import _init_new_book_modules
+
+        with app.app_context():
+            app.extensions.pop('new_book_modules', None)
+            with patch(
+                'app.services.new_book.create_new_book_modules',
+                side_effect=RuntimeError('一直失败'),
+            ):
+                result = _init_new_book_modules(app, None)
+
+        assert result is None
+        assert 'new_book_modules' not in app.extensions
