@@ -126,9 +126,9 @@ class TestRunAutoSyncPersistence:
     def test_persists_last_auto_sync_result_after_commit(self, app, db):
         from app.setup import run_auto_sync
 
-        mock_service = MagicMock()
-        mock_service.init_publishers.return_value = None
-        mock_service.sync_all_publishers.return_value = [
+        mock_modules = MagicMock()
+        mock_modules.publisher_manager.init_publishers.return_value = None
+        mock_modules.sync_engine.sync_all_publishers.return_value = [
             {
                 'publisher': 'Simon & Schuster',
                 'status': 'success',
@@ -148,8 +148,7 @@ class TestRunAutoSyncPersistence:
 
         with (
             app.app_context(),
-            patch('app.services.new_book_service.NewBookService', return_value=mock_service),
-            patch('app.utils.service_helpers.get_translation_service', return_value=None),
+            patch('app.setup.require_service', return_value=mock_modules),
         ):
             result = run_auto_sync()
 

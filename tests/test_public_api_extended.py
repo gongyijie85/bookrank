@@ -637,25 +637,25 @@ class TestGetWeeklyReportByDateExtended:
 class TestGetNewBooksExtended:
     """测试 /api/public/new-books 的异常路径"""
 
-    @patch('app.services.new_book.NewBookService')
-    def test_exception_returns_500(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.get_new_books.side_effect = Exception('DB error')
-        MockNBS.return_value = mock_svc
+    @patch('app.routes.public_api.get_new_book_modules')
+    def test_exception_returns_500(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_new_books.side_effect = Exception('DB error')
+        mock_get_modules.return_value = mock_modules
         resp = client.get('/api/public/new-books')
         data = json.loads(resp.data)
         assert data['success'] is False
         assert resp.status_code == 500
 
-    @patch('app.services.new_book.NewBookService')
-    def test_with_publisher_id(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+    @patch('app.routes.public_api.get_new_book_modules')
+    def test_with_publisher_id(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         resp = client.get('/api/public/new-books?publisher_id=1')
         data = json.loads(resp.data)
         assert data['success'] is True
-        mock_svc.get_new_books.assert_called_once()
+        mock_modules.query_service.get_new_books.assert_called_once()
 
     def test_per_page_clamped(self, client, db):
         resp = client.get('/api/public/new-books?per_page=200')
@@ -671,26 +671,26 @@ class TestGetNewBooksExtended:
 class TestGetNewBooksByPublisherExtended:
     """测试 /api/public/new-books/<publisher_name> 的各种路径"""
 
-    @patch('app.services.new_book.NewBookService')
-    def test_exception_returns_500(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.get_publishers.side_effect = Exception('DB error')
-        MockNBS.return_value = mock_svc
+    @patch('app.routes.public_api.get_new_book_modules')
+    def test_exception_returns_500(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.publisher_manager.get_publishers.side_effect = Exception('DB error')
+        mock_get_modules.return_value = mock_modules
         resp = client.get('/api/public/new-books/TestPublisher')
         data = json.loads(resp.data)
         assert data['success'] is False
         assert resp.status_code == 500
 
-    @patch('app.services.new_book.NewBookService')
-    def test_publisher_found_success(self, MockNBS, client):
+    @patch('app.routes.public_api.get_new_book_modules')
+    def test_publisher_found_success(self, mock_get_modules, client):
         mock_publisher = MagicMock()
         mock_publisher.id = 1
         mock_publisher.name = 'TestPublisher'
 
-        mock_svc = MagicMock()
-        mock_svc.get_publishers.return_value = [mock_publisher]
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.publisher_manager.get_publishers.return_value = [mock_publisher]
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
 
         resp = client.get('/api/public/new-books/TestPublisher')
         data = json.loads(resp.data)

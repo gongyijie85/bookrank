@@ -7,7 +7,7 @@ from flask import Blueprint, current_app, request
 from ..services.award_book_service import AwardBookService
 from ..utils.api_helpers import PublicAPIResponse, public_rate_limit, validate_isbn
 from ..utils.error_handler import ErrorCategory, log_error
-from ..utils.service_helpers import get_book_service
+from ..utils.service_helpers import get_book_service, get_new_book_modules
 
 logger = logging.getLogger(__name__)
 
@@ -294,15 +294,15 @@ def get_weekly_report_by_date(date: str):
 @public_rate_limit(max_requests=60, window=60)
 def get_new_books():
     try:
-        from ..services.new_book import NewBookService
-
         page = max(request.args.get('page', 1, type=int), 1)
         per_page = min(request.args.get('per_page', 20, type=int), 50)
         category = request.args.get('category')
         publisher_id = request.args.get('publisher_id', type=int)
 
-        service = NewBookService()
-        books, total = service.get_new_books(publisher_id=publisher_id, category=category, page=page, per_page=per_page)
+        modules = get_new_book_modules()
+        books, total = modules.query_service.get_new_books(
+            publisher_id=publisher_id, category=category, page=page, per_page=per_page
+        )
 
         return PublicAPIResponse.success(
             data={
@@ -321,18 +321,16 @@ def get_new_books():
 @public_rate_limit(max_requests=60, window=60)
 def get_new_books_by_publisher(publisher_name: str):
     try:
-        from ..services.new_book import NewBookService
-
         page = max(request.args.get('page', 1, type=int), 1)
         per_page = min(request.args.get('per_page', 20, type=int), 50)
 
-        service = NewBookService()
-        publishers = service.get_publishers(active_only=True)
+        modules = get_new_book_modules()
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
         publisher = next((p for p in publishers if p.name == publisher_name), None)
         if not publisher:
             return PublicAPIResponse.error('Publisher not found', 404)
 
-        books, total = service.get_new_books(publisher_id=publisher.id, page=page, per_page=per_page)
+        books, total = modules.query_service.get_new_books(publisher_id=publisher.id, page=page, per_page=per_page)
 
         return PublicAPIResponse.success(
             data={

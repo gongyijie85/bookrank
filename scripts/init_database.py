@@ -29,21 +29,21 @@ def init_database():
 
         # 初始化出版社数据
         print('\n📢 初始化出版社数据...')
-        from app.services.new_book_service import NewBookService
+        from app.services.new_book import create_new_book_modules
 
-        service = NewBookService()
-        count = service.init_publishers()
+        modules = create_new_book_modules()
+        count = modules.publisher_manager.init_publishers()
         print(f'✅ 成功初始化 {count} 个出版社')
 
         # 测试同步数据
         print('\n🔄 测试同步新书数据...')
         try:
             # 同步Google Books数据
-            publishers = service.get_publishers(active_only=True)
+            publishers = modules.publisher_manager.get_publishers(active_only=True)
             for publisher in publishers:
                 if publisher.crawler_class == 'GoogleBooksCrawler':
                     print(f'  同步 {publisher.name} 数据...')
-                    result = service.sync_publisher_books(publisher.id, max_books=10)
+                    result = modules.sync_engine.sync_publisher_books(publisher.id, max_books=10)
                     print(f'  结果: {result}')
                     break
         except Exception as e:

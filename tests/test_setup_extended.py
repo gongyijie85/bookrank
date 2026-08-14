@@ -491,13 +491,12 @@ class TestAutoSyncTask:
         from app.setup import _auto_sync_task
 
         mock_config.get_value.return_value = None
-        mock_service = MagicMock()
-        mock_service.sync_all_publishers.return_value = [{'added': 2, 'updated': 1}]
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.sync_all_publishers.return_value = [{'added': 2, 'updated': 1}]
         with app.app_context():
-            with patch('app.services.new_book_service.NewBookService', return_value=mock_service):
-                with patch('app.utils.service_helpers.get_translation_service', return_value=MagicMock()):
-                    _auto_sync_task(app)
-                    mock_service.sync_all_publishers.assert_called_once()
+            with patch('app.setup.require_service', return_value=mock_modules):
+                _auto_sync_task(app)
+                mock_modules.sync_engine.sync_all_publishers.assert_called_once()
 
     @patch('app.setup.SystemConfig')
     @patch('app.setup.log_error')
@@ -505,15 +504,14 @@ class TestAutoSyncTask:
         from app.setup import _auto_sync_task
 
         mock_config.get_value.return_value = None
-        mock_service = MagicMock()
-        mock_service.sync_all_publishers.return_value = [
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.sync_all_publishers.return_value = [
             {'success': True, 'added': 1, 'updated': 0},
             {'success': False, 'status': 'request_failed', 'added': 0, 'updated': 0},
         ]
         with app.app_context():
-            with patch('app.services.new_book_service.NewBookService', return_value=mock_service):
-                with patch('app.utils.service_helpers.get_translation_service', return_value=MagicMock()):
-                    _auto_sync_task(app)
+            with patch('app.setup.require_service', return_value=mock_modules):
+                _auto_sync_task(app)
 
         assert not any(call.args[0] == 'last_auto_sync_time' for call in mock_config.set_value.call_args_list)
 

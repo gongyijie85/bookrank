@@ -388,114 +388,114 @@ class TestNewBooksPage:
         response = client.get('/new-books?view=invalid')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_service_ensure_fails(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.side_effect = Exception('seed error')
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_service_ensure_fails(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.side_effect = Exception('seed error')
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_publishers_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.side_effect = Exception('db error')
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_publishers_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.side_effect = Exception('db error')
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_categories_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.side_effect = Exception('db error')
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_categories_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.side_effect = Exception('db error')
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_statistics_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.side_effect = Exception('db error')
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_statistics_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.side_effect = Exception('db error')
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_get_books_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_get_books_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.side_effect = Exception('db error')
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.side_effect = Exception('db error')
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_search_path(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_search_path(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.search_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.search_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books?search=test')
         assert response.status_code == 200
-        mock_svc.search_books.assert_called_once()
+        mock_modules.query_service.search_books.assert_called_once()
 
     def test_new_books_ssr_card_shows_freshness_badge(self, client, app, db):
         """首屏 SSR 渲染的卡片也应该有"刚上市"徽章，和 AJAX 局部刷新保持一致"""
@@ -559,18 +559,18 @@ class TestNewBooksPage:
 
 
 class TestNewBookDetail:
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_not_found(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = None
-        MockNBS.return_value = mock_svc
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_not_found(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = None
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-book/999')
         assert response.status_code == 200
 
     @patch('app.routes.main.submit_background_task')
     @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_needs_translation(self, MockNBS, mock_trans, mock_bg, client):
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_needs_translation(self, mock_get_modules, mock_trans, mock_bg, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -581,9 +581,9 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
         mock_trans.return_value = MagicMock()
 
         response = client.get('/new-book/1')
@@ -591,8 +591,8 @@ class TestNewBookDetail:
         mock_bg.assert_called_once()
 
     @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_already_translated(self, MockNBS, mock_trans, client):
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_already_translated(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -603,16 +603,16 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
 
         response = client.get('/new-book/1')
         assert response.status_code == 200
 
     @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_no_translation_service(self, MockNBS, mock_trans, client):
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_no_translation_service(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -623,17 +623,17 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
         mock_trans.return_value = None
 
         response = client.get('/new-book/1')
         assert response.status_code == 200
 
     @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_partial_translation(self, MockNBS, mock_trans, client):
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_partial_translation(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -644,9 +644,9 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
         mock_trans.return_value = MagicMock()
 
         response = client.get('/new-book/1')

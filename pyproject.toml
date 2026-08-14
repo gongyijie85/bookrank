@@ -91,7 +91,6 @@ disable_error_code = [
 
 [[tool.mypy.overrides]]
 module = [
-    "app.services.new_book_service",
     "app.services.award_book_service",
     "app.services.award_cover_sync_service",
     "app.services.translation_cache_service",

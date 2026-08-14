@@ -182,10 +182,10 @@ def _init_database_lazy():
 
                 if db.session.query(Publisher).count() == 0:
                     logger.info('初始化出版社数据...')
-                    from app.services.new_book_service import NewBookService
+                    from app.services.new_book import create_new_book_modules
 
-                    service = NewBookService()
-                    service.init_publishers()
+                    modules = create_new_book_modules()
+                    modules.publisher_manager.init_publishers()
 
             except Exception as e:
                 logger.warning(f'基础数据初始化跳过: {e}')

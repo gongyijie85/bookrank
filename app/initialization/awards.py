@@ -174,10 +174,10 @@ def init_awards_data(app):
 
         # 初始化出版社数据
         app.logger.info('📝 初始化出版社数据...')
-        from ..services.new_book_service import NewBookService
+        from ..services.new_book import create_new_book_modules
 
-        service = NewBookService()
-        publisher_count = service.init_publishers()
+        modules = create_new_book_modules()
+        publisher_count = modules.publisher_manager.init_publishers()
         app.logger.info(f'✅ 已初始化 {publisher_count} 个出版社')
 
     except Exception as e:

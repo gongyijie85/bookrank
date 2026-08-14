@@ -2,7 +2,10 @@ import hashlib
 from collections.abc import Generator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..services.new_book import NewBookModules
 
 from flask import current_app, request
 from sqlalchemy.orm import Session
@@ -51,6 +54,11 @@ def get_image_cache_service() -> ImageCacheService | None:
 
 def get_translation_service() -> HybridTranslationService | None:
     return get_service('translation_service')
+
+
+def get_new_book_modules() -> 'NewBookModules':
+    """获取已注册的新书速递子模块持有对象（SyncEngine/Query/PublisherManager/TranslationPipeline）。"""
+    return require_service('new_book_modules')
 
 
 def get_recommendation_service() -> Any | None:

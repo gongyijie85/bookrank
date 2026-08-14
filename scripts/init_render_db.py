@@ -37,10 +37,10 @@ def init_database():
 
         # 初始化出版社数据
         print('🏢 初始化出版社数据...')
-        from app.services.new_book_service import NewBookService
+        from app.services.new_book import create_new_book_modules
 
-        service = NewBookService()
-        count = service.init_publishers()
+        modules = create_new_book_modules()
+        count = modules.publisher_manager.init_publishers()
         print(f'✅ 创建了 {count} 个出版社')
 
         print('\n🎉 数据库初始化完成！')

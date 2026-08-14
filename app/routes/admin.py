@@ -21,7 +21,7 @@ from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.error_tracker import error_tracker
-from ..utils.service_helpers import get_book_service, get_image_cache_service
+from ..utils.service_helpers import get_book_service, get_image_cache_service, get_new_book_modules
 
 _ADMIN_ERROR_MSG = '操作失败，请查看服务器日志获取详情'
 
@@ -365,7 +365,7 @@ def cleanup_categories():
     """清理新书分类中的营销文案数据"""
     try:
         from ..models.new_book import NewBook
-        from ..services.new_book_service import NewBookService
+        from ..services import publisher_data
 
         if request.method == 'GET':
             dry_run = True
@@ -377,7 +377,7 @@ def cleanup_categories():
 
         invalid_books = []
         for book in books:
-            cleaned = NewBookService._sanitize_category(book.category)  # type: ignore[attr-defined]
+            cleaned = publisher_data.sanitize_category(book.category)
             if cleaned != book.category:
                 invalid_books.append(
                     {'id': book.id, 'title': book.title, 'old_category': book.category, 'new_category': cleaned}
@@ -735,10 +735,8 @@ def clear_errors():
 @admin_required
 def run_crawler(publisher_name: str):
     try:
-        from ..services.new_book import NewBookService
-
-        service = NewBookService()
-        publishers = service.get_publishers(active_only=True)
+        modules = get_new_book_modules()
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
         publisher = next((p for p in publishers if p.name == publisher_name), None)
         if not publisher:
             return APIResponse.error(f'出版社不存在: {publisher_name}', 404)
@@ -754,7 +752,7 @@ def run_crawler(publisher_name: str):
         }
 
         try:
-            result = service.sync_publisher_books(
+            result = modules.sync_engine.sync_publisher_books(
                 publisher_id=publisher.id,
                 category=category,
                 max_books=max_books,
@@ -787,11 +785,9 @@ def run_crawler(publisher_name: str):
 @admin_required
 def crawler_status():
     try:
-        from ..services.new_book import NewBookService
-
-        service = NewBookService()
-        publishers = service.get_publishers(active_only=True)
-        pub_book_counts = service.get_publisher_book_counts()
+        modules = get_new_book_modules()
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
+        pub_book_counts = modules.publisher_manager.get_publisher_book_counts()
 
         publishers_info = []
         for p in publishers:

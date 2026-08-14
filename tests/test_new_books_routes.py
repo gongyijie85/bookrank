@@ -253,12 +253,13 @@ class TestStatistics30d:
 
     def test_statistics_returns_recent_books_30d(self, app, db):
         """get_statistics 返回值包含 recent_books_30d 字段(v0.9.68 升级)"""
-        from app.services.new_book_service import NewBookService
+        from unittest.mock import MagicMock
+
+        from app.services.new_book.query_service import NewBookQueryService
 
         with app.app_context():
-            NewBookService.reset_instance()
-            service = NewBookService()
-            stats = service.get_statistics()
+            query_service = NewBookQueryService(MagicMock())
+            stats = query_service.get_statistics()
             assert 'recent_books_7d' in stats
             assert 'recent_books_30d' in stats
             assert isinstance(stats['recent_books_30d'], int)

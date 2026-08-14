@@ -38,6 +38,7 @@ from ..utils.service_helpers import (
     get_book_service,
     get_google_books_client,
     get_image_cache_service,
+    get_new_book_modules,
     get_or_create_recommendation_service,
     get_translation_service,
     hash_client_ip,
@@ -361,11 +362,9 @@ def _load_awards_data(award_service, params: dict) -> dict:
 @main_bp.route('/new-books')
 def new_books():
     """新书速递页面"""
-    from ..services.new_book_service import NewBookService
-
     params = _parse_new_books_params(request.args)
-    service = NewBookService()
-    context = _load_new_books_data(service, params)
+    modules = get_new_book_modules()
+    context = _load_new_books_data(modules, params)
     return render_template('new_books.html', **context)
 
 
@@ -405,33 +404,33 @@ def _parse_new_books_params(args) -> dict:
     }
 
 
-def _load_new_books_data(service, params: dict) -> dict:
+def _load_new_books_data(modules, params: dict) -> dict:
     """加载 new_books() 渲染所需数据，每段查询独立降级"""
     try:
-        service.ensure_static_data_seeded()
+        modules.sync_engine.ensure_static_data_seeded()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'新书静态数据兜底初始化失败: {e}', level='warning')
 
     try:
-        publishers = service.get_publishers(active_only=True)
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取出版社列表失败: {e}', level='warning')
         publishers = []
 
     try:
-        publisher_book_counts = service.get_publisher_book_counts()
+        publisher_book_counts = modules.publisher_manager.get_publisher_book_counts()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取出版社图书计数失败: {e}')
         publisher_book_counts = {}
 
     try:
-        categories = service.get_categories()
+        categories = modules.query_service.get_categories()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取分类列表失败: {e}', level='warning')
         categories = []
 
     try:
-        stats = service.get_statistics()
+        stats = modules.query_service.get_statistics()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取统计数据失败: {e}', level='warning')
         stats = {
@@ -451,7 +450,7 @@ def _load_new_books_data(service, params: dict) -> dict:
 
     try:
         if search_query:
-            books, total = service.search_books(
+            books, total = modules.query_service.search_books(
                 search_query,
                 page,
                 per_page,
@@ -460,7 +459,7 @@ def _load_new_books_data(service, params: dict) -> dict:
                 days=selected_days,
             )
         else:
-            books, total = service.get_new_books(
+            books, total = modules.query_service.get_new_books(
                 publisher_id=selected_publisher,
                 category=selected_category if selected_category else None,
                 days=selected_days,
@@ -531,14 +530,12 @@ def _resolve_new_books_publisher_ids(publishers_data: list[dict], db_publishers:
 @main_bp.route('/publishers')
 def publishers():
     """出版社导航页面"""
-    from ..services.new_book_service import NewBookService
-
     total_publishers = sum(len(cat['publishers']) for cat in PUBLISHERS_DATA)
 
     try:
-        service = NewBookService(translation_service=get_translation_service())
+        modules = get_new_book_modules()
         new_books_publisher_ids = _resolve_new_books_publisher_ids(
-            PUBLISHERS_DATA, service.get_publishers(active_only=True)
+            PUBLISHERS_DATA, modules.publisher_manager.get_publishers(active_only=True)
         )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'出版社跳转链接匹配失败: {e}', level='warning')
@@ -568,10 +565,8 @@ def analytics_dashboard():
 @main_bp.route('/new-book/<int:book_id>')
 def new_book_detail(book_id):
     """新书详情页（异步翻译，不阻塞响应）"""
-    from ..services.new_book_service import NewBookService
-
-    service = NewBookService()
-    book = service.get_book(book_id)
+    modules = get_new_book_modules()
+    book = modules.query_service.get_book(book_id)
 
     if not book:
         return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
@@ -581,7 +576,7 @@ def new_book_detail(book_id):
         if translation_service:
 
             def translate_book_async():
-                service.translate_book_background(book_id, translation_service)
+                modules.translation_pipeline.translate_book_background(book_id, translation_service)
 
             submit_background_task(translate_book_async)
 

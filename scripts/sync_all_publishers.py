@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app import create_app
 from app.models.database import db
 from app.models.new_book import NewBook
-from app.services.new_book_service import NewBookService
+from app.services.new_book import create_new_book_modules
 
 
 def main():
@@ -28,15 +28,15 @@ def main():
         print('📦 初始化数据库...')
         db.create_all()
 
-        # 初始化出版社服务
-        service = NewBookService()
+        # 装配新书速递子模块
+        modules = create_new_book_modules()
 
         # 初始化默认出版社
         print('📚 初始化出版社...')
-        service.init_publishers()
+        modules.publisher_manager.init_publishers()
 
         # 获取所有启用的出版社
-        publishers = service.get_publishers(active_only=True)
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
         print(f'\n📊 准备同步 {len(publishers)} 个出版社...')
 
         # 同步每个出版社
@@ -48,7 +48,7 @@ def main():
 
             try:
                 # 每个出版社先同步 20 本（避免耗时太长）
-                result = service.sync_publisher_books(publisher.id, category=None, max_books=20, translate=False)
+                result = modules.sync_engine.sync_publisher_books(publisher.id, category=None, max_books=20, translate=False)
                 results.append(result)
 
                 if result['success']:

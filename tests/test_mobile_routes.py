@@ -565,15 +565,15 @@ class TestMobileV978:
         assert b'href="#publisher-cat-1"' in resp.data
         assert b'id="publisher-cat-1"' in resp.data
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_publishers_mobile_links_matched_entry_to_new_books(self, MockService, client) -> None:
+    @patch('app.routes.main.get_new_book_modules')
+    def test_publishers_mobile_links_matched_entry_to_new_books(self, mock_get_modules, client) -> None:
         """移动端出版社页,数据库里有对应记录的条目应出现「查看新书」跳转链接"""
         mock_pub = MagicMock()
         mock_pub.id = 42
         mock_pub.name_en = 'Penguin Random House'
-        mock_svc = MagicMock()
-        mock_svc.get_publishers.return_value = [mock_pub]
-        MockService.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.publisher_manager.get_publishers.return_value = [mock_pub]
+        mock_get_modules.return_value = mock_modules
 
         resp = client.get('/publishers', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200

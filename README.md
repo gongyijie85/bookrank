@@ -138,10 +138,10 @@ BookRank3/
 │   ├── services/                 # 业务服务层
 │   │   ├── api_client.py         # NYT/Google API 客户端
 │   │   ├── book_service.py       # 图书服务
-│   │   ├── new_book_service.py   # 新书速递服务（重导出）
-│   │   ├── new_book/             # 新书速递子模块（拆分）
+│   │   ├── new_book/             # 新书速递子模块（__init__ 为装配工厂）
 │   │   │   ├── publisher_manager.py  # 出版社管理
 │   │   │   ├── sync_engine.py        # 数据同步引擎
+│   │   │   ├── ingestor.py           # 入库规则
 │   │   │   ├── translation_pipeline.py # 翻译管道
 │   │   │   └── query_service.py      # 查询服务
 │   │   ├── book_detail_service.py # 书籍详情服务

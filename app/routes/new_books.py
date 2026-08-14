@@ -4,10 +4,14 @@ import threading
 import time
 from datetime import UTC, datetime
 from io import StringIO
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from flask import Blueprint, current_app, make_response, request
 from pydantic import ValidationError
+
+if TYPE_CHECKING:
+    from ..services.new_book import NewBookModules
 
 from ..schemas.validators import (
     NewBookExportQuery,
@@ -16,11 +20,10 @@ from ..schemas.validators import (
     NewBookSyncQuery,
     parse_query_args,
 )
-from ..services.new_book_service import NewBookService
 from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
-from ..utils.service_helpers import get_translation_service
+from ..utils.service_helpers import get_new_book_modules
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +84,9 @@ def _parse_or_422(model_cls):
         return None, APIResponse.error(f'参数无效: {msg}', 422)
 
 
-def get_new_book_service() -> NewBookService:
-    """获取新书服务单例"""
-    return NewBookService(translation_service=get_translation_service())
-
-
-def _ensure_static_seeded(service: NewBookService) -> None:
+def _ensure_static_seeded(modules: 'NewBookModules') -> None:
     try:
-        service.ensure_static_data_seeded()
+        modules.sync_engine.ensure_static_data_seeded()
     except Exception as e:
         logger.warning(f'新书静态数据兜底初始化失败: {e}')
 
@@ -109,10 +107,10 @@ def _check_sync_cooldown() -> str | None:
 def get_publishers():
     """获取出版社列表（批量查询书籍数量，避免N+1）"""
     try:
-        service = get_new_book_service()
-        _ensure_static_seeded(service)
-        publishers = service.get_publishers(active_only=True)
-        book_counts = service.get_publisher_book_counts()
+        modules = get_new_book_modules()
+        _ensure_static_seeded(modules)
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
+        book_counts = modules.publisher_manager.get_publisher_book_counts()
 
         result = []
         for pub in publishers:
@@ -137,8 +135,8 @@ def get_publishers():
 def get_publisher(publisher_id: int):
     """获取单个出版社详情"""
     try:
-        service = get_new_book_service()
-        publisher = service.get_publisher(publisher_id)
+        modules = get_new_book_modules()
+        publisher = modules.publisher_manager.get_publisher(publisher_id)
         if not publisher:
             return APIResponse.error('出版社不存在', 404)
         return APIResponse.success(data={'publisher': publisher.to_dict(include_book_count=True)})
@@ -161,8 +159,8 @@ def update_publisher_status(publisher_id: int):
         if is_active is None:
             return APIResponse.error('缺少 is_active 参数', 400)
 
-        service = get_new_book_service()
-        success = service.update_publisher_status(publisher_id, is_active)
+        modules = get_new_book_modules()
+        success = modules.publisher_manager.update_publisher_status(publisher_id, is_active)
         if not success:
             return APIResponse.error('出版社不存在', 404)
 
@@ -186,10 +184,10 @@ def get_new_books():
     page, per_page = query.page, query.per_page
 
     try:
-        service = get_new_book_service()
-        _ensure_static_seeded(service)
+        modules = get_new_book_modules()
+        _ensure_static_seeded(modules)
         if search_query:
-            books, total = service.search_books(
+            books, total = modules.query_service.search_books(
                 search_query,
                 page,
                 per_page,
@@ -198,7 +196,7 @@ def get_new_books():
                 days=days,
             )
         else:
-            books, total = service.get_new_books(
+            books, total = modules.query_service.get_new_books(
                 publisher_id=publisher_id, category=category, days=days, page=page, per_page=per_page
             )
 
@@ -223,8 +221,8 @@ def get_new_books():
 def get_book_detail(book_id: int):
     """获取新书详情"""
     try:
-        service = get_new_book_service()
-        book = service.get_book(book_id)
+        modules = get_new_book_modules()
+        book = modules.query_service.get_book(book_id)
         if not book:
             return APIResponse.error('图书不存在', 404)
         return APIResponse.success(data={'book': book.to_dict()})
@@ -244,9 +242,9 @@ def search_new_books():
     page, per_page = query.page, query.per_page
 
     try:
-        service = get_new_book_service()
-        _ensure_static_seeded(service)
-        books, total = service.search_books(
+        modules = get_new_book_modules()
+        _ensure_static_seeded(modules)
+        books, total = modules.query_service.search_books(
             keyword,
             page,
             per_page,
@@ -277,9 +275,9 @@ def search_new_books():
 def get_categories():
     """获取分类列表"""
     try:
-        service = get_new_book_service()
-        _ensure_static_seeded(service)
-        categories = service.get_categories()
+        modules = get_new_book_modules()
+        _ensure_static_seeded(modules)
+        categories = modules.query_service.get_categories()
         return APIResponse.success(data={'categories': categories})
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取分类列表失败: {e}', exc_info=True)
@@ -296,11 +294,11 @@ def sync_all_publishers():
         return APIResponse.error(cooldown_error, 429)
 
     try:
-        service = get_new_book_service()
-        service.init_publishers()
+        modules = get_new_book_modules()
+        modules.publisher_manager.init_publishers()
 
         max_books = min(max(1, request.args.get('max_books', 30, type=int)), 100)
-        results = service.sync_all_publishers(max_books_per_publisher=max_books)
+        results = modules.sync_engine.sync_all_publishers(max_books_per_publisher=max_books)
 
         # 更新同步时间（多 worker 安全）
         lock = _get_sync_lock()
@@ -337,12 +335,12 @@ def sync_publisher(publisher_id: int):
         return APIResponse.error(cooldown_error, 429)
 
     try:
-        service = get_new_book_service()
+        modules = get_new_book_modules()
         sync_q, err = _parse_or_422(NewBookSyncQuery)
         if err is not None:
             return err
         assert sync_q is not None
-        result = service.sync_publisher_books(publisher_id, max_books=sync_q.max_books)
+        result = modules.sync_engine.sync_publisher_books(publisher_id, max_books=sync_q.max_books)
 
         if not result.get('success'):
             return APIResponse.error(result.get('error', '同步失败'), 400)
@@ -362,9 +360,9 @@ def sync_publisher(publisher_id: int):
 def get_statistics():
     """获取统计数据"""
     try:
-        service = get_new_book_service()
-        _ensure_static_seeded(service)
-        stats = service.get_statistics()
+        modules = get_new_book_modules()
+        _ensure_static_seeded(modules)
+        stats = modules.query_service.get_statistics()
         return APIResponse.success(data=stats)
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取统计数据失败: {e}', exc_info=True)
@@ -383,10 +381,10 @@ def export_csv():
         return err
     assert query is not None
     try:
-        service = get_new_book_service()
-        _ensure_static_seeded(service)
+        modules = get_new_book_modules()
+        _ensure_static_seeded(modules)
 
-        books, _ = service.get_new_books(
+        books, _ = modules.query_service.get_new_books(
             publisher_id=query.publisher_id,
             category=query.category,
             days=query.days,
@@ -460,12 +458,42 @@ def export_csv():
 def init_publishers():
     """初始化出版社数据"""
     try:
-        service = get_new_book_service()
-        count = service.init_publishers()
+        modules = get_new_book_modules()
+        count = modules.publisher_manager.init_publishers()
         return APIResponse.success(data={'created_count': count}, message=f'成功初始化 {count} 个出版社')
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'初始化出版社失败: {e}', exc_info=True)
         return APIResponse.error('初始化失败', 500)
+
+
+def _migrate_categories() -> dict[str, int]:
+    """迁移已有书籍分类数据（英文分类统一为中文），事务控制在本函数内完成。"""
+    from ..models.database import db
+    from ..models.new_book import NewBook
+    from ..services.publisher_data import sanitize_category
+
+    try:
+        books = NewBook.query.filter(NewBook.category.isnot(None)).all()
+        migrated_count = 0
+
+        for book in books:
+            old_category = book.category
+            new_category = sanitize_category(old_category)
+            if new_category != old_category:
+                book.category = new_category
+                migrated_count += 1
+
+        if migrated_count > 0:
+            db.session.commit()
+
+        return {'migrated_count': migrated_count, 'total_checked': len(books)}
+    except Exception:
+        # 事务失败时回滚并重新抛出，由路由层统一返回 500
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        raise
 
 
 @new_books_bp.route('/migrate-categories', methods=['POST'])
@@ -474,8 +502,7 @@ def init_publishers():
 def migrate_categories():
     """迁移已有书籍分类数据（英文分类统一为中文）"""
     try:
-        service = get_new_book_service()
-        result = service.migrate_categories()
+        result = _migrate_categories()
 
         return APIResponse.success(
             data=result,

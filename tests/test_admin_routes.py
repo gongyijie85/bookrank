@@ -508,9 +508,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='小说',
-            create=True,
         ):
             response = client.get('/api/admin/categories/cleanup', headers=admin_headers)
             data = json.loads(response.data)
@@ -534,9 +533,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='干净分类',
-            create=True,
         ):
             response = client.post(
                 '/api/admin/categories/cleanup',
@@ -564,9 +562,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='营销',
-            create=True,
         ):
             response = client.post(
                 '/api/admin/categories/cleanup',
@@ -594,9 +591,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='小说',
-            create=True,
         ):
             response = client.get('/api/admin/categories/cleanup', headers=admin_headers)
             data = json.loads(response.data)

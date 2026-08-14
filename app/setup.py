@@ -26,7 +26,7 @@ from .services import (
 )
 from .utils import RateLimiter
 from .utils.error_handler import ErrorCategory, log_error
-from .utils.service_helpers import register_service
+from .utils.service_helpers import register_service, require_service
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,8 @@ def init_services(app):
     if image_cache:
         register_service(app, 'image_cache_service', image_cache)
     translation_service = _init_translation_service(app)
+
+    _init_new_book_modules(app, translation_service)
 
     book_service = _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg)
 
@@ -141,6 +143,20 @@ def _init_translation_service(app):
         return service
     except Exception as e:
         log_error(ErrorCategory.TRANSLATION, f'翻译服务初始化失败: {e}', level='warning')
+        return None
+
+
+def _init_new_book_modules(app, translation_service):
+    """装配新书速递子模块并注册到 app.extensions（启动时一次性绑定翻译器）。"""
+    try:
+        from .services.new_book import create_new_book_modules
+
+        modules = create_new_book_modules(translation_service=translation_service)
+        register_service(app, 'new_book_modules', modules)
+        app.logger.info('新书速递子模块初始化成功')
+        return modules
+    except Exception as e:
+        log_error(ErrorCategory.UNKNOWN, f'新书速递子模块初始化失败: {e}', level='warning')
         return None
 
 
@@ -495,10 +511,7 @@ def run_auto_sync() -> dict:
     """
     from flask import current_app
 
-    from .services.new_book_service import NewBookService
-    from .utils.service_helpers import get_translation_service
-
-    service = NewBookService(translation_service=get_translation_service())
+    modules = require_service('new_book_modules')
 
     last_sync = SystemConfig.get_value('last_auto_sync_time')
     if last_sync:
@@ -510,8 +523,8 @@ def run_auto_sync() -> dict:
             return {'status': 'skipped', 'reason': f'距离上次同步仅 {hours_since:.1f} 小时'}
 
     current_app.logger.info('开始自动同步新书数据...')
-    service.init_publishers()
-    results = service.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
+    modules.publisher_manager.init_publishers()
+    results = modules.sync_engine.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
 
     total_added = sum(r.get('added', 0) for r in results)
     total_updated = sum(r.get('updated', 0) for r in results)

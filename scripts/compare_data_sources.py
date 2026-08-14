@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app
-from app.services.new_book_service import NewBookService
+from app.services.new_book import create_new_book_modules
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -24,21 +24,21 @@ def compare_data_sources():
     app = create_app()
 
     with app.app_context():
-        service = NewBookService()
+        modules = create_new_book_modules()
 
         # 同步Google Books数据
         logger.info('\n🔄 同步 Google Books 数据...')
-        google_result = service.sync_publisher_books(6, max_books=10)  # Google Books ID
+        google_result = modules.sync_engine.sync_publisher_books(6, max_books=10)  # Google Books ID
         logger.info(f'Google Books 同步结果: {google_result}')
 
         # 同步Open Library数据
         logger.info('\n🔄 同步 Open Library 数据...')
-        open_library_result = service.sync_publisher_books(7, max_books=10)  # Open Library ID
+        open_library_result = modules.sync_engine.sync_publisher_books(7, max_books=10)  # Open Library ID
         logger.info(f'Open Library 同步结果: {open_library_result}')
 
         # 获取所有新书
         logger.info('\n📊 对比两个数据源的结果...')
-        books, _total = service.get_new_books(days=365, page=1, per_page=50)
+        books, _total = modules.query_service.get_new_books(days=365, page=1, per_page=50)
 
         google_books = []
         open_library_books = []
