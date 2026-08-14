@@ -26,6 +26,12 @@
 `POST /api/admin/award-covers/sync`（携带 `X-Admin-Secret`），
 或访问获奖页面触发 `/award-book/<id>/cover` 懒加载自愈。
 
+### 生产环境执行记录（2026-08-14）
+- 部署 v0.9.90 后，调用 `GET /api/csrf-token` 获取一次性 CSRF token，
+  再 `POST /api/admin/award-covers/sync`（携带 `X-Admin-Secret` + `X-CSRF-Token`）。
+- 同步结果：`updated: 34, failed: 0, skipped: 0`。
+- 验证：获奖页面全部 24 张封面图片由 404 恢复为 200，`24/24` 通过，0 失败。
+
 ## v0.9.89 - 2026-08-14
 
 ### fix(awards): 修复获奖书单封面图片显示问题
