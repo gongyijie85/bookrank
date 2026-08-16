@@ -1,5 +1,7 @@
 # BookRank
 
+**[中文](./README.md) | [English](./README.en.md)**
+
 [![CI - Tests & Quality](https://github.com/gongyijie85/bookrank/actions/workflows/ci.yml/badge.svg)](https://github.com/gongyijie85/bookrank/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/gongyijie85/bookrank/branch/main/graph/badge.svg)](https://codecov.io/gh/gongyijie85/bookrank)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
