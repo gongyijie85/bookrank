@@ -1,7 +1,6 @@
 """Server-side book content language-pack hydration."""
 
 import json
-import logging
 import threading
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
@@ -16,8 +15,6 @@ from ..models.schemas import BookMetadata, TranslationCache
 from ..utils.api_helpers import clean_translation_text
 from ..utils.error_handler import ErrorCategory, log_error
 from .translation_cache_service import TranslationCacheService
-
-logger = logging.getLogger(__name__)
 
 
 class BookLanguagePack:
@@ -147,10 +144,6 @@ class BookLanguagePack:
                 stats['pack_writes'] = 1
 
         return stats
-
-    def store_books(self, books: Iterable[Any]) -> dict[str, int]:
-        """Persist existing zh fields from book objects into the language pack."""
-        return self.translate_and_store_books(books, translator=None, save_metadata=None)
 
     def get_book_metadata_translations(self, isbns: list[str]) -> dict[str, dict[str, str | None]]:
         """Read BookMetadata translations while tolerating older schemas."""

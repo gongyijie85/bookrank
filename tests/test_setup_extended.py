@@ -534,7 +534,7 @@ class TestNytRankingSyncTask:
     def test_skips_when_no_book_service(self, mock_log_error, app):
         from app.setup import _nyt_ranking_sync_task
 
-        with app.app_context(), patch('app.utils.service_helpers.get_book_service', return_value=None):
+        with app.app_context(), patch('app.utils.service_helpers.get_service', return_value=None):
             _nyt_ranking_sync_task(app)
 
     @patch('app.setup.SystemConfig')
@@ -544,7 +544,7 @@ class TestNytRankingSyncTask:
 
         mock_config.get_value.return_value = datetime.now(UTC).isoformat()
         mock_book_svc = MagicMock()
-        with app.app_context(), patch('app.utils.service_helpers.get_book_service', return_value=mock_book_svc):
+        with app.app_context(), patch('app.utils.service_helpers.get_service', return_value=mock_book_svc):
             _nyt_ranking_sync_task(app)
             mock_book_svc.sync_all_categories.assert_not_called()
 
@@ -558,8 +558,8 @@ class TestNytRankingSyncTask:
         mock_book_svc.sync_all_categories.return_value = [
             {'success': True, 'books': 5, 'metadata_saved': 3, 'language_pack': {'fields_translated': 2}},
         ]
-        with app.app_context(), patch('app.utils.service_helpers.get_book_service', return_value=mock_book_svc):
-            with patch('app.utils.service_helpers.get_translation_service', return_value=MagicMock()):
+        with app.app_context(), patch('app.utils.service_helpers.get_service', return_value=mock_book_svc):
+            with patch('app.utils.service_helpers.get_service', side_effect=lambda name: mock_book_svc if name == 'book_service' else MagicMock()):
                 _nyt_ranking_sync_task(app)
                 mock_book_svc.sync_all_categories.assert_called_once()
 
@@ -574,18 +574,18 @@ class TestNytRankingSyncTask:
             {'success': True, 'books': 5, 'metadata_saved': 3, 'language_pack': {'fields_translated': 2}},
             {'success': False, 'books': 0, 'metadata_saved': 0, 'language_pack': {}},
         ]
-        with app.app_context(), patch('app.utils.service_helpers.get_book_service', return_value=mock_book_svc):
-            with patch('app.utils.service_helpers.get_translation_service', return_value=MagicMock()):
+        with app.app_context(), patch('app.utils.service_helpers.get_service', return_value=mock_book_svc):
+            with patch('app.utils.service_helpers.get_service', side_effect=lambda name: mock_book_svc if name == 'book_service' else MagicMock()):
                 _nyt_ranking_sync_task(app)
 
     @patch('app.setup.SystemConfig')
     @patch('app.setup.log_error')
     @patch('app.setup._log_failure')
-    @patch('app.utils.service_helpers.get_book_service')
-    def test_handles_exception(self, mock_get_book, mock_log_failure, mock_log_error, mock_config, app):
+    @patch('app.utils.service_helpers.get_service')
+    def test_handles_exception(self, mock_get_service, mock_log_failure, mock_log_error, mock_config, app):
         from app.setup import _nyt_ranking_sync_task
 
-        mock_get_book.return_value = MagicMock()
+        mock_get_service.return_value = MagicMock()
         mock_config.get_value.side_effect = Exception('DB错误')
         with app.app_context():
             _nyt_ranking_sync_task(app)
@@ -603,7 +603,7 @@ class TestCoverSyncTask:
         mock_sync_svc.sync_missing_covers.return_value = {'status': 'success', 'updated': 3, 'skipped': 1}
         with app.app_context():
             with patch('app.utils.service_helpers.get_google_books_client', return_value=MagicMock()):
-                with patch('app.utils.service_helpers.get_image_cache_service', return_value=MagicMock()):
+                with patch('app.utils.service_helpers.get_service', return_value=MagicMock()):
                     with patch(
                         'app.services.award_cover_sync_service.AwardCoverSyncService',
                         return_value=mock_sync_svc,
@@ -618,7 +618,7 @@ class TestCoverSyncTask:
         mock_sync_svc.sync_missing_covers.return_value = {'status': 'complete'}
         with app.app_context():
             with patch('app.utils.service_helpers.get_google_books_client', return_value=MagicMock()):
-                with patch('app.utils.service_helpers.get_image_cache_service', return_value=MagicMock()):
+                with patch('app.utils.service_helpers.get_service', return_value=MagicMock()):
                     with patch(
                         'app.services.award_cover_sync_service.AwardCoverSyncService',
                         return_value=mock_sync_svc,
@@ -633,7 +633,7 @@ class TestCoverSyncTask:
         mock_sync_svc.sync_missing_covers.return_value = {'status': 'unknown'}
         with app.app_context():
             with patch('app.utils.service_helpers.get_google_books_client', return_value=MagicMock()):
-                with patch('app.utils.service_helpers.get_image_cache_service', return_value=MagicMock()):
+                with patch('app.utils.service_helpers.get_service', return_value=MagicMock()):
                     with patch(
                         'app.services.award_cover_sync_service.AwardCoverSyncService',
                         return_value=mock_sync_svc,
@@ -647,7 +647,7 @@ class TestCoverSyncTask:
         mock_sync_svc = MagicMock()
         mock_sync_svc.sync_missing_covers.return_value = {'status': 'success', 'updated': 0, 'skipped': 0}
         with app.app_context(), patch('app.utils.service_helpers.get_google_books_client', return_value=None):
-            with patch('app.utils.service_helpers.get_image_cache_service', return_value=MagicMock()):
+            with patch('app.utils.service_helpers.get_service', return_value=MagicMock()):
                 with patch(
                     'app.services.award_cover_sync_service.AwardCoverSyncService',
                     return_value=mock_sync_svc,

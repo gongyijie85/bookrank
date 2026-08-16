@@ -1,12 +1,9 @@
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ...models.database import db
 from ...models.new_book import NewBook, Publisher
 from .translation_pipeline import TranslationPipeline
-
-logger = logging.getLogger(__name__)
 
 
 class NewBookQueryService:

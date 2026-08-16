@@ -1,18 +1,16 @@
-import logging
 
 from flask import request
 
-from ...utils.api_helpers import APIResponse, handle_api_errors, validate_pagination
+from ...utils.api_helpers import APIResponse, handle_api_errors, rate_limit, validate_pagination
 from ...utils.service_helpers import (
     get_or_create_recommendation_service,
     get_or_create_smart_search_service,
 )
 from . import api_bp, get_session_id
 
-logger = logging.getLogger(__name__)
-
 
 @api_bp.route('/recommendations')
+@rate_limit()
 @handle_api_errors
 def get_recommendations():
     """获取个性化推荐"""
@@ -43,6 +41,7 @@ def get_recommendations():
 
 
 @api_bp.route('/recommendations/similarity')
+@rate_limit()
 @handle_api_errors
 def get_similarity_recommendations():
     """获取相似图书推荐"""
@@ -65,6 +64,7 @@ def get_similarity_recommendations():
 
 
 @api_bp.route('/search/suggestions')
+@rate_limit()
 @handle_api_errors
 def get_search_suggestions():
     """获取搜索建议（自动补全）"""
@@ -81,6 +81,7 @@ def get_search_suggestions():
 
 
 @api_bp.route('/search/smart')
+@rate_limit()
 @handle_api_errors
 def smart_search():
     """智能搜索（支持多种筛选条件）"""
@@ -110,6 +111,7 @@ def smart_search():
 
 
 @api_bp.route('/search/popular')
+@rate_limit()
 @handle_api_errors
 def get_popular_searches():
     """获取热门搜索词"""

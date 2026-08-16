@@ -1,12 +1,9 @@
-import logging
 
 from flask import session
 
 from ...services.user_service import UserService
-from ...utils.api_helpers import APIResponse, csrf_protect
+from ...utils.api_helpers import APIResponse, csrf_protect, rate_limit
 from ...utils.error_handler import ErrorCategory, log_error
-
-logger = logging.getLogger(__name__)
 
 
 def _get_session_id() -> str:
@@ -17,6 +14,7 @@ def register_favorite_routes(bp):
     """注册收藏相关路由到指定 Blueprint"""
 
     @bp.route('/favorites', methods=['GET'])
+    @rate_limit()
     def get_favorites():
         try:
             sid = _get_session_id()
@@ -31,6 +29,7 @@ def register_favorite_routes(bp):
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites', methods=['POST'])
+    @rate_limit()
     @csrf_protect
     def add_favorite():
         try:
@@ -55,6 +54,7 @@ def register_favorite_routes(bp):
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites/<isbn>', methods=['DELETE'])
+    @rate_limit()
     @csrf_protect
     def remove_favorite(isbn: str):
         try:
@@ -72,6 +72,7 @@ def register_favorite_routes(bp):
             return APIResponse.error('Internal server error', 500)
 
     @bp.route('/favorites/check/<isbn>', methods=['GET'])
+    @rate_limit()
     def check_favorite(isbn: str):
         try:
             sid = _get_session_id()

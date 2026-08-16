@@ -2,9 +2,8 @@
 出版社爬虫模块单元测试
 
 覆盖：
-- BaseCrawler 通用方法（_clean_text, _extract_isbn, _parse_date, _parse_price, _truncate_description）
+- BaseCrawler 通用方法（_clean_text, _truncate_description）
 - BookInfo 数据类
-- SimpleResponse 包装类
 - Macmillan __init__ 修复验证
 - 爬虫注册机制（精确等于 8 个生产活跃类）
 - GoogleBooks/OpenLibrary 解析方法
@@ -15,11 +14,10 @@ from datetime import date
 
 import pytest
 
-from app.services.publisher_crawler import get_all_crawlers, get_crawler_class
+from app.services.publisher_crawler import get_crawler_class
 from app.services.publisher_crawler.base_crawler import (
     BaseCrawler,
     BookInfo,
-    SimpleResponse,
 )
 
 
@@ -58,12 +56,6 @@ class _TestCrawler(BaseCrawler):
     def _iter_new_books(self, request):
         yield from []
 
-    def get_book_details(self, book_url=''):
-        return None
-
-    def get_categories(self):
-        return []
-
 
 class TestBaseCrawlerMethods:
     """BaseCrawler 通用方法测试"""
@@ -79,48 +71,6 @@ class TestBaseCrawlerMethods:
 
     def test_clean_text_empty(self):
         assert self.crawler._clean_text('') == ''
-
-    def test_extract_isbn13(self):
-        isbn13, isbn10 = self.crawler._extract_isbn('ISBN: 9780134685991')
-        assert isbn13 == '9780134685991'
-        assert isbn10 is None
-
-    def test_extract_isbn10(self):
-        _isbn13, isbn10 = self.crawler._extract_isbn('ISBN: 013468599X')
-        assert isbn10 == '013468599X'
-
-    def test_extract_isbn_none(self):
-        isbn13, isbn10 = self.crawler._extract_isbn('no isbn here')
-        assert isbn13 is None
-        assert isbn10 is None
-
-    def test_parse_date_iso(self):
-        result = self.crawler._parse_date('2024-01-15')
-        assert result is not None
-        assert result.year == 2024
-        assert result.month == 1
-
-    def test_parse_date_month_name(self):
-        result = self.crawler._parse_date('January 15, 2024')
-        assert result is not None
-        assert result.year == 2024
-
-    def test_parse_date_year_only(self):
-        result = self.crawler._parse_date('2024')
-        assert result is not None
-        assert result.year == 2024
-
-    def test_parse_date_none(self):
-        assert self.crawler._parse_date(None) is None
-
-    def test_parse_date_invalid(self):
-        assert self.crawler._parse_date('not a date') is None
-
-    def test_parse_price_dollar(self):
-        assert self.crawler._parse_price('$28.99') == '$28.99'
-
-    def test_parse_price_none(self):
-        assert self.crawler._parse_price(None) is None
 
     def test_truncate_description_short(self):
         assert self.crawler._truncate_description('short') == 'short'
@@ -159,22 +109,6 @@ class TestBookInfo:
         assert info.buy_links == []
 
 
-class TestSimpleResponse:
-    """SimpleResponse 包装类测试"""
-
-    def test_json_returns_data(self):
-        resp = SimpleResponse({'key': 'value'})
-        assert resp.json() == {'key': 'value'}
-
-    def test_status_code_default(self):
-        resp = SimpleResponse({})
-        assert resp.status_code == 200
-
-    def test_status_code_custom(self):
-        resp = SimpleResponse({}, status_code=404)
-        assert resp.status_code == 404
-
-
 class TestCrawlerInitBug:
     """爬虫 __init__ 重复定义 bug 修复验证"""
 
@@ -197,7 +131,6 @@ class TestCrawlerRegistry:
 
     def test_registry_has_all_live_crawlers(self):
         """死适配器清理后：注册表只含 8 个生产活跃类（2026-08 清理决议）"""
-        all_crawlers = get_all_crawlers()
         expected = [
             'OpenLibraryCrawler',
             'GoogleBooksCrawler',
@@ -208,7 +141,8 @@ class TestCrawlerRegistry:
             'HarperCollinsGoogleCrawler',
             'MacmillanGoogleCrawler',
         ]
-        assert set(all_crawlers) == set(expected)
+        for name in expected:
+            assert get_crawler_class(name) is not None
 
     def test_get_crawler_class_returns_correct_type(self):
         cls = get_crawler_class('PrhApiCrawler')

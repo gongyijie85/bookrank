@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, NoReturn
@@ -22,7 +22,6 @@ from .contracts import (
     ExtractionEvidence,
     ExtractionMethod,
     ObservationReport,
-    TemplateCandidate,
 )
 
 
@@ -116,57 +115,6 @@ _ATOM_SOURCE_URL = 'https://www.harpercollins.com/blogs/literary-hub/new-release
 _COLLECTION_PATH = '/collections/new-releases'
 _HANDLE_PATTERN = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 _COLLECTION_SUFFIXES = ('-css.json', '-xpath.json')
-
-
-@dataclass
-class FixedTemplateFallback:
-    """A fixed, auditable stand-in for a one-call AI proposal budget."""
-
-    _candidate: TemplateCandidate
-    input_sha256: str
-    document_id: str
-    fixture_path: Path
-    call_count: int = 0
-
-    @classmethod
-    def from_path(cls, path: str | Path) -> FixedTemplateFallback:
-        fixture_path = Path(path)
-        raw = fixture_path.read_bytes()
-        value = json.loads(raw)
-        if not isinstance(value, dict):
-            raise ValueError('fixed fallback fixture must be an object')
-        selector_kind = value.get('selector_kind')
-        selector = value.get('selector')
-        reason = value.get('reason')
-        verified_value = value.get('verified')
-        if (
-            not isinstance(selector_kind, str)
-            or not selector_kind
-            or not isinstance(selector, str)
-            or not selector
-            or not isinstance(reason, str)
-            or not reason
-        ):
-            raise ValueError('fixed fallback fixture is missing candidate fields')
-        return cls(
-            _candidate=TemplateCandidate(
-                selector_kind=selector_kind,
-                selector=selector,
-                reason=reason,
-                verified=(verified_value if isinstance(verified_value, bool) else True),
-            ),
-            input_sha256=_digest(raw),
-            document_id=fixture_path.name,
-            fixture_path=fixture_path.resolve(strict=True),
-        )
-
-    def propose(self, reason: str) -> TemplateCandidate:
-        """Return the fixed proposal without verifying or applying it."""
-
-        if not reason:
-            raise ValueError('a compact fallback reason is required')
-        self.call_count += 1
-        return self._candidate
 
 
 def is_valid_isbn13(value: object) -> bool:
@@ -342,10 +290,7 @@ def _validate_manifest_metadata(fixtures: list[dict[str, Any]]) -> None:
                 raise ValueError('collection next_url must be a canonical HarperCollins collection URL')
 
 
-def observe_fixture_manifest(
-    manifest_path: str | Path,
-    fallback: FixedTemplateFallback | None = None,
-) -> ObservationReport:
+def observe_fixture_manifest(manifest_path: str | Path) -> ObservationReport:
     """Observe one HarperCollins fixture manifest without external side effects."""
 
     path = Path(manifest_path)
@@ -391,7 +336,6 @@ def observe_fixture_manifest(
     candidate_urls: list[str] = []
     seen_candidates: set[str] = set()
     collection_items: list[dict[str, Any]] = []
-    fallback_items: list[dict[str, Any]] = []
 
     for item in fixtures:
         name = item.get('name')
@@ -424,7 +368,6 @@ def observe_fixture_manifest(
             )
             continue
         if name == 'fixed-ai-candidate.json':
-            fallback_items.append(item)
             continue
 
         fixture_path = _safe_fixture_path(base_dir, name)
@@ -464,23 +407,14 @@ def observe_fixture_manifest(
     evidence.extend(collection_evidence)
     _extend_unique(candidate_urls, seen_candidates, collection_candidates)
 
-    drifted = any(item.error_code == 'TEMPLATE_DRIFT' for item in evidence)
-    fallback_evidence, ai_candidates, fallback_calls = _observe_fallback(
-        base_dir=base_dir,
-        fallback_items=fallback_items,
-        fallback=fallback,
-        drifted=drifted,
-    )
-    evidence.extend(fallback_evidence)
-
     return ObservationReport(
         source=SOURCE_ID,
         schema_version=SCHEMA_VERSION,
         records=tuple(records),
         evidence=tuple(evidence),
         candidate_urls=tuple(candidate_urls),
-        unverified_ai_candidates=ai_candidates,
-        ai_fallback_calls=fallback_calls,
+        unverified_ai_candidates=(),
+        ai_fallback_calls=0,
         manifest_sha256=manifest_digest,
     )
 
@@ -836,205 +770,6 @@ def _read_collection_output(
     )
 
 
-def _observe_fallback(
-    *,
-    base_dir: Path,
-    fallback_items: list[dict[str, Any]],
-    fallback: FixedTemplateFallback | None,
-    drifted: bool,
-) -> tuple[list[ExtractionEvidence], tuple[TemplateCandidate, ...], int]:
-    if not fallback_items:
-        if fallback is None or not drifted:
-            return [], (), 0
-        return (
-            [
-                _evidence(
-                    fallback.document_id,
-                    '',
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EXTRACTION_FAILED,
-                    0,
-                    fallback.input_sha256,
-                    'FALLBACK_PROVENANCE_MISMATCH',
-                )
-            ],
-            (),
-            0,
-        )
-
-    if len(fallback_items) != 1:
-        result: list[ExtractionEvidence] = []
-        for item in fallback_items:
-            name = item.get('name')
-            if not isinstance(name, str):
-                continue
-            raw = _safe_fixture_path(base_dir, name).read_bytes()
-            result.append(
-                _evidence(
-                    name,
-                    _string_value(item, 'source_url'),
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EXTRACTION_FAILED,
-                    0,
-                    _digest(raw),
-                    'FALLBACK_MANIFEST_AMBIGUOUS',
-                )
-            )
-        return result, (), 0
-
-    item = fallback_items[0]
-    name = item.get('name')
-    source_url = _string_value(item, 'source_url')
-    if not isinstance(name, str):
-        return (
-            [
-                _metadata_evidence(
-                    'invalid-fallback-item',
-                    source_url,
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EXTRACTION_FAILED,
-                    item,
-                    'INVALID_MANIFEST_ITEM',
-                )
-            ],
-            (),
-            0,
-        )
-
-    manifest_path = _safe_fixture_path(base_dir, name)
-    raw = manifest_path.read_bytes()
-    digest = _digest(raw)
-    candidate, validation_error = _fixed_candidate_from_raw(raw)
-    if validation_error is not None or candidate is None:
-        return (
-            [
-                _evidence(
-                    name,
-                    source_url,
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EXTRACTION_FAILED,
-                    0,
-                    digest,
-                    validation_error or 'FALLBACK_CANDIDATE_INVALID',
-                )
-            ],
-            (),
-            0,
-        )
-    if candidate.verified:
-        return (
-            [
-                _evidence(
-                    name,
-                    source_url,
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EXTRACTION_FAILED,
-                    0,
-                    digest,
-                    'FALLBACK_CANDIDATE_NOT_UNVERIFIED',
-                )
-            ],
-            (),
-            0,
-        )
-    if not drifted or fallback is None:
-        return (
-            [
-                _evidence(
-                    name,
-                    source_url,
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EMPTY,
-                    0,
-                    digest,
-                    'FALLBACK_NOT_USED',
-                )
-            ],
-            (),
-            0,
-        )
-    if (
-        fallback.fixture_path != manifest_path
-        or fallback.document_id != name
-        or fallback.input_sha256 != digest
-        or fallback._candidate != candidate
-    ):
-        return (
-            [
-                _evidence(
-                    name,
-                    source_url,
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EXTRACTION_FAILED,
-                    0,
-                    digest,
-                    'FALLBACK_PROVENANCE_MISMATCH',
-                )
-            ],
-            (),
-            0,
-        )
-
-    proposal = fallback.propose('TEMPLATE_DRIFT')
-    if proposal != candidate or proposal.verified:
-        return (
-            [
-                _evidence(
-                    name,
-                    source_url,
-                    ExtractionMethod.AI_CANDIDATE,
-                    EvidenceStatus.EXTRACTION_FAILED,
-                    0,
-                    digest,
-                    'FALLBACK_PROPOSAL_MISMATCH',
-                )
-            ],
-            (),
-            0,
-        )
-    return (
-        [
-            _evidence(
-                name,
-                source_url,
-                ExtractionMethod.AI_CANDIDATE,
-                EvidenceStatus.VALIDATION_FAILED,
-                1,
-                digest,
-                'UNVERIFIED_AI_CANDIDATE',
-            )
-        ],
-        (proposal,),
-        1,
-    )
-
-
-def _fixed_candidate_from_raw(
-    raw: bytes,
-) -> tuple[TemplateCandidate | None, str | None]:
-    try:
-        value = json.loads(raw)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None, 'FALLBACK_CANDIDATE_INVALID'
-    if not isinstance(value, dict):
-        return None, 'FALLBACK_CANDIDATE_INVALID'
-    selector_kind = value.get('selector_kind')
-    selector = value.get('selector')
-    reason = value.get('reason')
-    verified = value.get('verified')
-    if (
-        not isinstance(selector_kind, str)
-        or not selector_kind
-        or not isinstance(selector, str)
-        or not selector
-        or not isinstance(reason, str)
-        or not reason
-        or not isinstance(verified, bool)
-    ):
-        return None, 'FALLBACK_CANDIDATE_INVALID'
-    return TemplateCandidate(selector_kind, selector, reason, verified), None
-
-
 def _parse_editions(value: object) -> tuple[EditionObservation, ...]:
     if not isinstance(value, list):
         return ()
@@ -1248,7 +983,6 @@ __all__ = [
     'MAX_COLLECTION_PAGES',
     'SCHEMA_VERSION',
     'SOURCE_ID',
-    'FixedTemplateFallback',
     'is_valid_isbn13',
     'observe_fixture_manifest',
     'parse_atom_candidates',

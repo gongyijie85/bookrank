@@ -42,7 +42,6 @@ from app.services.publisher_crawler.base_crawler import (
     BookInfo,
     CrawlerConfig,
     CrawlRequest,
-    SimpleResponse,
 )
 
 # ---------- 辅助具体爬虫 ----------
@@ -58,12 +57,6 @@ class ConcreteCrawler(BaseCrawler):
 
     def _iter_new_books(self, request):
         yield BookInfo(title='X', author='Y')
-
-    def get_book_details(self, book_url):
-        return BookInfo(title='D', author='A')
-
-    def get_categories(self):
-        return [{'id': 'fiction', 'name': '小说'}]
 
 
 # ---------- BaseCrawler ----------
@@ -128,11 +121,6 @@ class TestBaseCrawlerRequest:
 
 
 class TestBaseCrawlerParsing:
-    def test_parse_html(self):
-        c = ConcreteCrawler()
-        soup = c._parse_html('<html><body><p>Hello</p></body></html>')
-        assert soup.find('p').get_text() == 'Hello'
-
     def test_clean_text(self):
         c = ConcreteCrawler()
         assert c._clean_text('  a\nb  ') == 'a b'
@@ -150,61 +138,6 @@ class TestBaseCrawlerParsing:
     def test_truncate_description_none(self):
         c = ConcreteCrawler()
         assert c._truncate_description(None) is None
-
-    def test_parse_date_valid(self):
-        c = ConcreteCrawler()
-        d = c._parse_date('January 15, 2025')
-        assert d is not None
-        assert d.year == 2025
-
-    def test_parse_date_none(self):
-        c = ConcreteCrawler()
-        assert c._parse_date(None) is None
-
-    def test_parse_date_invalid(self):
-        c = ConcreteCrawler()
-        assert c._parse_date('not a date') is None
-
-    def test_parse_price_valid(self):
-        c = ConcreteCrawler()
-        assert c._parse_price('$29.99') == '$29.99'
-
-    def test_parse_price_none(self):
-        c = ConcreteCrawler()
-        assert c._parse_price(None) is None
-
-    def test_parse_price_no_number(self):
-        c = ConcreteCrawler()
-        assert c._parse_price('no number') == 'no number'
-
-
-class TestBaseCrawlerExtractIsbn:
-    def test_isbn13(self):
-        c = ConcreteCrawler()
-        isbn13, isbn10 = c._extract_isbn('9781234567890')
-        assert isbn13 == '9781234567890'
-
-    def test_isbn10(self):
-        c = ConcreteCrawler()
-        isbn13, isbn10 = c._extract_isbn('1234567890')
-        assert isbn10 == '1234567890'
-
-    def test_both(self):
-        c = ConcreteCrawler()
-        isbn13, isbn10 = c._extract_isbn('9781234567890 123456789X')
-        assert isbn13 == '9781234567890'
-
-    def test_none(self):
-        c = ConcreteCrawler()
-        isbn13, isbn10 = c._extract_isbn('')
-        assert isbn13 is None
-
-
-class TestSimpleResponse:
-    def test_json(self):
-        r = SimpleResponse({'key': 'val'}, 200)
-        assert r.json() == {'key': 'val'}
-        assert r.status_code == 200
 
 
 class TestBookInfo:
@@ -253,11 +186,6 @@ class TestMacmillanCrawler:
         c = self._make()
         assert c.PUBLISHER_NAME == '麦克米伦'
 
-    def test_get_categories(self):
-        c = self._make()
-        cats = c.get_categories()
-        assert len(cats) > 0
-
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
@@ -270,33 +198,6 @@ class TestMacmillanCrawler:
         with patch.object(c, '_make_request', return_value=resp):
             books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
             assert isinstance(books, list)
-
-    def test_get_book_details_no_response(self):
-        c = self._make()
-        c._session.get = MagicMock(side_effect=Exception('net'))
-        assert c.get_book_details('https://macmillan.com/book/1') is None
-
-    def test_get_book_details_success(self):
-        c = self._make()
-        data = {
-            'volumeInfo': {
-                'title': 'Macmillan Book',
-                'authors': ['Author'],
-                'description': 'Desc',
-                'industryIdentifiers': [{'type': 'ISBN_13', 'identifier': '9781234567890'}],
-                'imageLinks': {'thumbnail': 'http://img.jpg'},
-                'categories': ['Fiction'],
-                'publishedDate': '2025-01-01',
-                'pageCount': 300,
-                'language': 'en',
-            },
-        }
-        mock_resp = MagicMock(status_code=200)
-        mock_resp.json.return_value = data
-        mock_resp.raise_for_status = MagicMock()
-        c._session.get = MagicMock(return_value=mock_resp)
-        book = c.get_book_details('9781234567890')
-        assert book is not None
 
     def test_sitemap_stops_after_google_rate_limit(self):
         c = self._make()
@@ -328,11 +229,6 @@ class TestOpenLibraryCrawler:
         c = self._make()
         assert c.PUBLISHER_NAME == 'Open Library'
 
-    def test_get_categories(self):
-        c = self._make()
-        cats = c.get_categories()
-        assert len(cats) > 0
-
     def test_get_new_books_no_response(self):
         c = self._make()
         with patch.object(c, '_make_request', return_value=None):
@@ -357,33 +253,9 @@ class TestOpenLibraryCrawler:
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = data
         mock_resp.raise_for_status = MagicMock()
-        c._session.get = MagicMock(return_value=mock_resp)
-        books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
+        with patch.object(c, '_make_request', return_value=mock_resp):
+            books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
         assert len(books) >= 1
-
-    def test_get_book_details_no_response(self):
-        c = self._make()
-        c._session.request = MagicMock(side_effect=Exception('net'))
-        assert c.get_book_details('/works/OL1W') is None
-
-    def test_get_book_details_success(self):
-        c = self._make()
-        data = {
-            'title': 'Detail Book',
-            'authors': [{'author': {'key': '/authors/OL1A'}}],
-            'description': {'value': 'A great book'},
-            'covers': [999],
-        }
-        author_data = {'name': 'Author Name'}
-        mock_resp1 = MagicMock(status_code=200)
-        mock_resp1.json.return_value = data
-        mock_resp1.raise_for_status = MagicMock()
-        mock_resp2 = MagicMock(status_code=200)
-        mock_resp2.json.return_value = author_data
-        mock_resp2.raise_for_status = MagicMock()
-        c._session.request = MagicMock(side_effect=[mock_resp1, mock_resp2])
-        book = c.get_book_details('/works/OL1W')
-        assert book is not None
 
 
 # ---------- GoogleBooks ----------
@@ -403,11 +275,6 @@ class TestGoogleBooksCrawler:
     def test_init_without_key(self):
         c = self._make()
         assert c._api_key is None
-
-    def test_get_categories(self):
-        c = self._make()
-        cats = c.get_categories()
-        assert len(cats) > 0
 
     def test_get_new_books_no_response(self):
         c = self._make()
@@ -446,26 +313,6 @@ class TestGoogleBooksCrawler:
         books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
         assert len(books) >= 1
 
-    def test_get_book_details_no_response(self):
-        c = self._make()
-        c._session.get = MagicMock(side_effect=Exception('net'))
-        assert c.get_book_details('9781234567890') is None
-
-    def test_get_book_details_success(self):
-        c = self._make()
-        item = {
-            'volumeInfo': {
-                'title': 'Detail Book',
-                'authors': ['Author'],
-            },
-        }
-        mock_resp = MagicMock(status_code=200)
-        mock_resp.json.return_value = item
-        mock_resp.raise_for_status = MagicMock()
-        c._session.get = MagicMock(return_value=mock_resp)
-        book = c.get_book_details('9781234567890')
-        assert book is not None
-
 
 # ---------- GoogleBooksPublisher ----------
 
@@ -480,11 +327,6 @@ class TestGoogleBooksPublisherCrawler:
     def test_init(self):
         c = self._make('test_key')
         assert c._api_key == 'test_key'
-
-    def test_get_categories(self):
-        c = self._make()
-        cats = c.get_categories()
-        assert len(cats) > 0
 
     def test_get_new_books_no_response(self):
         c = self._make()

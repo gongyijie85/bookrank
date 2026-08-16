@@ -1,17 +1,15 @@
-import logging
 
 from flask import request
 
 from ...services.api_cache_service import get_api_cache_service
 from ...utils.admin_auth import admin_required
-from ...utils.api_helpers import APIResponse, csrf_protect
+from ...utils.api_helpers import APIResponse, csrf_protect, rate_limit
 from ...utils.error_handler import ErrorCategory, log_error
 from . import api_bp
 
-logger = logging.getLogger(__name__)
-
 
 @api_bp.route('/cache/stats')
+@rate_limit()
 @admin_required
 def get_api_cache_stats():
     """获取API缓存统计信息（通过 Service 层）"""
@@ -27,6 +25,7 @@ def get_api_cache_stats():
 
 
 @api_bp.route('/cache/recent')
+@rate_limit()
 @admin_required
 def get_api_cache_recent():
     """获取最近的API缓存记录（通过 Service 层）"""
@@ -61,6 +60,7 @@ def get_api_cache_recent():
 
 
 @api_bp.route('/cache/clear', methods=['POST'])
+@rate_limit()
 @csrf_protect
 @admin_required
 def clear_api_cache():
@@ -80,6 +80,7 @@ def clear_api_cache():
 
 
 @api_bp.route('/cache/clear-expired', methods=['POST'])
+@rate_limit()
 @csrf_protect
 @admin_required
 def clear_expired_api_cache():

@@ -38,16 +38,6 @@ def update_book_metadata_records(isbn_list: list[str], fix_fn) -> int:
     return len(records)
 
 
-def batch_commit() -> None:
-    """提交当前事务"""
-    db.session.commit()
-
-
-def rollback() -> None:
-    """回滚当前事务"""
-    db.session.rollback()
-
-
 def batch_import_from_dict(
     table_models: dict[str, type],
     tables_data: dict,

@@ -5,7 +5,6 @@ from flask import Flask
 
 from app.utils.api_helpers import (
     APIResponse,
-    PublicAPIResponse,
     clean_translation_text,
     handle_api_errors,
     validate_isbn,
@@ -99,22 +98,15 @@ class TestAPIResponse:
             assert status == 422
             assert response.json['errors'] == {'field': 'missing'}
 
-
-class TestPublicAPIResponse:
-    @pytest.fixture
-    def app(self):
-        app = Flask(__name__)
-        return app
-
-    def test_success_has_timestamp(self, app):
+    def test_success_include_timestamp(self, app):
         with app.test_request_context():
-            response, status = PublicAPIResponse.success(data={'x': 1})
+            response, status = APIResponse.success(data={'x': 1}, include_timestamp=True)
             assert status == 200
             assert 'timestamp' in response.json
 
-    def test_error_has_timestamp(self, app):
+    def test_error_include_timestamp(self, app):
         with app.test_request_context():
-            response, status = PublicAPIResponse.error('Gone', 410)
+            response, status = APIResponse.error('Gone', 410, include_timestamp=True)
             assert status == 410
             assert 'timestamp' in response.json
 

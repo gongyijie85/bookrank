@@ -1,15 +1,12 @@
-import logging
 import re
 from datetime import datetime
 
 from flask import Blueprint, current_app, request
 
 from ..services.award_book_service import AwardBookService
-from ..utils.api_helpers import PublicAPIResponse, public_rate_limit, validate_isbn
+from ..utils.api_helpers import APIResponse, rate_limit, validate_isbn
 from ..utils.error_handler import ErrorCategory, log_error
-from ..utils.service_helpers import get_book_service, get_new_book_modules
-
-logger = logging.getLogger(__name__)
+from ..utils.service_helpers import get_new_book_modules, get_service
 
 public_api_bp = Blueprint('public_api', __name__, url_prefix='/api/public')
 
@@ -17,13 +14,13 @@ _award_service = AwardBookService()
 
 
 @public_api_bp.route('/bestsellers')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_all_bestsellers():
     try:
         limit = min(request.args.get('limit', 10, type=int), 50)
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
-            return PublicAPIResponse.error('Service unavailable', 503)
+            return APIResponse.error('Service unavailable', 503, include_timestamp=True)
         categories = current_app.config.get('CATEGORIES', {})
 
         all_books = {}
@@ -31,30 +28,30 @@ def get_all_bestsellers():
             books = book_service.get_books_by_category(cat_id)
             all_books[cat_id] = {'category_name': cat_name, 'books': [book.to_dict() for book in books[:limit]]}
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={'categories': categories, 'books': all_books, 'last_updated': book_service.get_latest_cache_time()}
-        )
+        , include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_all_bestsellers: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/bestsellers/<category>')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_bestsellers_by_category(category: str):
     try:
         categories = current_app.config.get('CATEGORIES', {})
         if category not in categories:
-            return PublicAPIResponse.error(f'Invalid category. Available categories: {list(categories.keys())}', 400)
+            return APIResponse.error(f'Invalid category. Available categories: {list(categories.keys())}', 400, include_timestamp=True)
 
         limit = min(request.args.get('limit', 20, type=int), 50)
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
-            return PublicAPIResponse.error('Service unavailable', 503)
+            return APIResponse.error('Service unavailable', 503, include_timestamp=True)
         books = book_service.get_books_by_category(category)
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={
                 'category_id': category,
                 'category_name': categories[category],
@@ -62,45 +59,45 @@ def get_bestsellers_by_category(category: str):
                 'total': len(books),
                 'last_updated': book_service.get_latest_cache_time(),
             }
-        )
+        , include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_bestsellers_by_category: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/bestsellers/search')
-@public_rate_limit(max_requests=30, window=60)
+@rate_limit(max_requests=30, window=60)
 def search_bestsellers():
     try:
         keyword = request.args.get('keyword', '').strip()
 
         if not keyword:
-            return PublicAPIResponse.error('Keyword is required', 400)
+            return APIResponse.error('Keyword is required', 400, include_timestamp=True)
         if len(keyword) < 2:
-            return PublicAPIResponse.error('Keyword must be at least 2 characters', 400)
+            return APIResponse.error('Keyword must be at least 2 characters', 400, include_timestamp=True)
         if len(keyword) > 100:
-            return PublicAPIResponse.error('Keyword must be at most 100 characters', 400)
+            return APIResponse.error('Keyword must be at most 100 characters', 400, include_timestamp=True)
         if not re.match(r'^[\w\s\-\u4e00-\u9fff]+$', keyword):
-            return PublicAPIResponse.error('Invalid keyword format', 400)
+            return APIResponse.error('Invalid keyword format', 400, include_timestamp=True)
 
         limit = min(request.args.get('limit', 20, type=int), 50)
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
-            return PublicAPIResponse.error('Service unavailable', 503)
+            return APIResponse.error('Service unavailable', 503, include_timestamp=True)
         results = book_service.search_books(keyword)
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={'keyword': keyword, 'books': [book.to_dict() for book in results[:limit]], 'total': len(results)}
-        )
+        , include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in search_bestsellers: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/awards')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_all_awards():
     try:
         awards = _award_service.get_all_awards()
@@ -119,20 +116,20 @@ def get_all_awards():
                 }
             )
 
-        return PublicAPIResponse.success(data={'awards': awards_data, 'total': len(awards_data)})
+        return APIResponse.success(data={'awards': awards_data, 'total': len(awards_data)}, include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_all_awards: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/awards/<award_name>')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_award_books(award_name: str):
     try:
         award = _award_service.get_award_by_name(award_name)
         if not award:
-            return PublicAPIResponse.error('Award not found', 404)
+            return APIResponse.error('Award not found', 404, include_timestamp=True)
 
         year = request.args.get('year', type=int)
         limit = min(request.args.get('limit', 20, type=int), 50)
@@ -142,7 +139,7 @@ def get_award_books(award_name: str):
 
         years = _award_service.get_distinct_years(award_id=award.id)
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={
                 'award': {
                     'id': award.id,
@@ -154,117 +151,117 @@ def get_award_books(award_name: str):
                 'total': len(books),
                 'years': years,
             }
-        )
+        , include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_award_books: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/awards/<award_name>/<int:year>')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_award_books_by_year(award_name: str, year: int):
     try:
         award = _award_service.get_award_by_name(award_name)
         if not award:
-            return PublicAPIResponse.error('Award not found', 404)
+            return APIResponse.error('Award not found', 404, include_timestamp=True)
 
         books, _ = _award_service.get_award_books(
             award_id=award.id, year=year, include_displayable_only=True, page=1, limit=1000
         )
 
         if not books:
-            return PublicAPIResponse.error(f'No books found for {award_name} in {year}', 404)
+            return APIResponse.error(f'No books found for {award_name} in {year}', 404, include_timestamp=True)
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={
                 'award': {'id': award.id, 'name': award.name, 'name_en': award.name_en},
                 'year': year,
                 'books': [book.to_dict() for book in books],
                 'total': len(books),
             }
-        )
+        , include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_award_books_by_year: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/book/<isbn>')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_book_details(isbn: str):
     try:
         if not validate_isbn(isbn):
-            return PublicAPIResponse.error('Invalid ISBN format', 400)
+            return APIResponse.error('Invalid ISBN format', 400, include_timestamp=True)
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
-            return PublicAPIResponse.error('Service unavailable', 503)
+            return APIResponse.error('Service unavailable', 503, include_timestamp=True)
         all_books = []
         for cat_id in current_app.config['CATEGORIES']:
             all_books.extend(book_service.get_books_by_category(cat_id))
 
         book = next((b for b in all_books if b.isbn13 == isbn), None)
         if book:
-            return PublicAPIResponse.success(data={'book': book.to_dict(), 'source': 'bestseller'})
+            return APIResponse.success(data={'book': book.to_dict(), 'source': 'bestseller'}, include_timestamp=True)
 
         award_book = _award_service.find_award_book_by_isbn(isbn)
         if award_book:
-            return PublicAPIResponse.success(data={'book': award_book.to_dict(), 'source': 'award'})
+            return APIResponse.success(data={'book': award_book.to_dict(), 'source': 'award'}, include_timestamp=True)
 
-        return PublicAPIResponse.error('Book not found', 404)
+        return APIResponse.error('Book not found', 404, include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_book_details: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/reports/weekly')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_weekly_reports():
     try:
         from ..services.weekly_report_service import WeeklyReportService
 
         limit = min(request.args.get('limit', 10, type=int), 50)
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
-            return PublicAPIResponse.error('Service unavailable', 503)
+            return APIResponse.error('Service unavailable', 503, include_timestamp=True)
         report_service = WeeklyReportService(book_service)
         reports = report_service.get_reports(limit)
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={'reports': [report.to_dict() for report in reports], 'total': len(reports)}
-        )
+        , include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_weekly_reports: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/reports/weekly/latest')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_latest_weekly_report():
     try:
         from ..services.weekly_report_service import WeeklyReportService
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
-            return PublicAPIResponse.error('Service unavailable', 503)
+            return APIResponse.error('Service unavailable', 503, include_timestamp=True)
         report_service = WeeklyReportService(book_service)
         report = report_service.get_latest_report()
 
         if not report:
-            return PublicAPIResponse.error('No report available', 404)
+            return APIResponse.error('No report available', 404, include_timestamp=True)
 
-        return PublicAPIResponse.success(data={'report': report.to_dict()})
+        return APIResponse.success(data={'report': report.to_dict()}, include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_latest_weekly_report: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/reports/weekly/<date>')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_weekly_report_by_date(date: str):
     try:
         from ..services.weekly_report_service import WeeklyReportService
@@ -272,26 +269,26 @@ def get_weekly_report_by_date(date: str):
         try:
             report_date = datetime.strptime(date, '%Y-%m-%d').date()
         except ValueError:
-            return PublicAPIResponse.error('Invalid date format. Use YYYY-MM-DD', 400)
+            return APIResponse.error('Invalid date format. Use YYYY-MM-DD', 400, include_timestamp=True)
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
-            return PublicAPIResponse.error('Service unavailable', 503)
+            return APIResponse.error('Service unavailable', 503, include_timestamp=True)
         report_service = WeeklyReportService(book_service)
         report = report_service.get_report_by_date(report_date)
 
         if not report:
-            return PublicAPIResponse.error('Report not found', 404)
+            return APIResponse.error('Report not found', 404, include_timestamp=True)
 
-        return PublicAPIResponse.success(data={'report': report.to_dict()})
+        return APIResponse.success(data={'report': report.to_dict()}, include_timestamp=True)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_weekly_report_by_date: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/new-books')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_new_books():
     try:
         page = max(request.args.get('page', 1, type=int), 1)
@@ -304,21 +301,21 @@ def get_new_books():
             publisher_id=publisher_id, category=category, page=page, per_page=per_page
         )
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={
                 'books': [_serialize_new_book(b) for b in books],
                 'total': total,
                 'page': page,
                 'per_page': per_page,
             }
-        )
+        , include_timestamp=True)
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_new_books: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/new-books/<publisher_name>')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_new_books_by_publisher(publisher_name: str):
     try:
         page = max(request.args.get('page', 1, type=int), 1)
@@ -328,11 +325,11 @@ def get_new_books_by_publisher(publisher_name: str):
         publishers = modules.publisher_manager.get_publishers(active_only=True)
         publisher = next((p for p in publishers if p.name == publisher_name), None)
         if not publisher:
-            return PublicAPIResponse.error('Publisher not found', 404)
+            return APIResponse.error('Publisher not found', 404, include_timestamp=True)
 
         books, total = modules.query_service.get_new_books(publisher_id=publisher.id, page=page, per_page=per_page)
 
-        return PublicAPIResponse.success(
+        return APIResponse.success(
             data={
                 'publisher': {'id': publisher.id, 'name': publisher.name},
                 'books': [_serialize_new_book(b) for b in books],
@@ -340,14 +337,14 @@ def get_new_books_by_publisher(publisher_name: str):
                 'page': page,
                 'per_page': per_page,
             }
-        )
+        , include_timestamp=True)
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_new_books_by_publisher: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 @public_api_bp.route('/recommendations')
-@public_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_recommendations():
     try:
         from ..services.recommendation_service import RecommendationService
@@ -357,10 +354,10 @@ def get_recommendations():
         service = RecommendationService()
         result = service.get_smart_recommendations(limit=limit)
 
-        return PublicAPIResponse.success(data=result)
+        return APIResponse.success(data=result, include_timestamp=True)
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_recommendations: {e}')
-        return PublicAPIResponse.error('Internal server error', 500)
+        return APIResponse.error('Internal server error', 500, include_timestamp=True)
 
 
 def _serialize_new_book(book) -> dict:
@@ -381,8 +378,9 @@ def _serialize_new_book(book) -> dict:
 
 
 @public_api_bp.route('/')
+@rate_limit()
 def api_info():
-    return PublicAPIResponse.success(
+    return APIResponse.success(
         data={
             'name': 'BookRank Public API',
             'version': '1.2.0',
@@ -408,5 +406,6 @@ def api_info():
             ],
             'rate_limit': '60 requests per minute per IP',
             'documentation': 'https://github.com/gongyijie85/bookrank#api-documentation',
-        }
+        },
+        include_timestamp=True,
     )

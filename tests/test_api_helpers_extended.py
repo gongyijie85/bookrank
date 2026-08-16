@@ -8,19 +8,16 @@ from flask import Flask
 
 from app.utils.api_helpers import (
     APIResponse,
-    PublicAPIResponse,
-    _add_book_title_marks,
     _clean_title_text,
     _cleanup_expired_csrf_tokens,
     _extract_field_content,
     _strip_markdown,
-    api_rate_limit,
     clean_translation_text,
     csrf_protect,
     get_csrf_token,
     handle_api_errors,
-    public_rate_limit,
     quick_clean_translation,
+    rate_limit,
     validate_csrf_token,
 )
 from app.utils.exceptions import BookRankException
@@ -88,17 +85,16 @@ class TestHandleApiErrorsExtended:
             assert '不可用' in response.json['message']
 
 
-class TestApiRateLimitDecorator:
+class TestRateLimitDecorator:
     def test_testing_mode_bypasses_limit(self, app):
         app.config['TESTING'] = True
 
-        @api_rate_limit(max_requests=1, window=60)
+        @rate_limit(max_requests=1, window=60)
         def my_view():
             return 'ok'
 
         with app.test_request_context():
-            result = my_view()
-            assert result == 'ok'
+            assert my_view() == 'ok'
 
     def test_rate_limit_exceeded(self, app):
         app.config['TESTING'] = False
@@ -113,7 +109,7 @@ class TestApiRateLimitDecorator:
                     with patch('app.utils.api_helpers.request') as mock_req:
                         mock_req.remote_addr = '1.2.3.4'
 
-                        @api_rate_limit(max_requests=1, window=60)
+                        @rate_limit(max_requests=1, window=60)
                         def my_view():
                             return 'ok'
 
@@ -133,45 +129,12 @@ class TestApiRateLimitDecorator:
                     with patch('app.utils.api_helpers.request') as mock_req:
                         mock_req.remote_addr = '1.2.3.4'
 
-                        @api_rate_limit(max_requests=60, window=60)
+                        @rate_limit(max_requests=60, window=60)
                         def my_view():
                             return 'ok'
 
                         result = my_view()
                         assert result == 'ok'
-
-
-class TestPublicRateLimitDecorator:
-    def test_testing_mode_bypasses(self, app):
-        app.config['TESTING'] = True
-
-        @public_rate_limit(max_requests=1, window=60)
-        def my_view():
-            return 'ok'
-
-        with app.test_request_context():
-            assert my_view() == 'ok'
-
-    def test_rate_limit_exceeded(self, app):
-        app.config['TESTING'] = False
-
-        mock_limiter = MagicMock()
-        mock_limiter.is_allowed.return_value = False
-        mock_limiter.get_retry_after.return_value = 45
-
-        with app.test_request_context():
-            with patch('app.utils.api_helpers.get_rate_limiter', return_value=mock_limiter):
-                with patch('app.utils.api_helpers.current_app', app):
-                    with patch('app.utils.api_helpers.request') as mock_req:
-                        mock_req.remote_addr = '5.6.7.8'
-
-                        @public_rate_limit(max_requests=1, window=60)
-                        def my_view():
-                            return 'ok'
-
-                        response, status = my_view()
-                        assert status == 429
-                        assert '45s' in response.json['message']
 
     def test_unknown_remote_addr(self, app):
         app.config['TESTING'] = False
@@ -185,7 +148,7 @@ class TestPublicRateLimitDecorator:
                     with patch('app.utils.api_helpers.request') as mock_req:
                         mock_req.remote_addr = None
 
-                        @public_rate_limit()
+                        @rate_limit()
                         def my_view():
                             return 'ok'
 
@@ -408,24 +371,6 @@ class TestExtractFieldContent:
         assert result == 'English Book'
 
 
-class TestAddBookTitleMarks:
-    def test_empty_text(self):
-        assert _add_book_title_marks('') == ''
-        assert _add_book_title_marks(None) is None
-
-    def test_already_has_marks(self):
-        assert _add_book_title_marks('《活着》') == '《活着》'
-
-    def test_chinese_title_gets_marks(self):
-        assert _add_book_title_marks('活着') == '《活着》'
-
-    def test_english_title_no_marks(self):
-        assert _add_book_title_marks('The Great Gatsby') == 'The Great Gatsby'
-
-    def test_mixed_text_no_marks(self):
-        assert _add_book_title_marks('活着 Alive') == '活着 Alive'
-
-
 class TestCleanTitleText:
     def test_empty(self):
         assert _clean_title_text('') == ''
@@ -554,28 +499,6 @@ class TestQuickCleanTranslation:
     def test_dirty_marker_bold(self):
         result = quick_clean_translation('**粗体文本**')
         assert '**' not in result
-
-
-class TestPublicAPIResponseExtended:
-    @pytest.fixture
-    def app(self):
-        return Flask(__name__)
-
-    def test_error_with_list_errors(self, app):
-        with app.test_request_context():
-            response, status = PublicAPIResponse.error('err', 400, errors=['e1', 'e2'])
-            assert status == 400
-            assert response.json['errors'] == ['e1', 'e2']
-
-    def test_error_without_errors(self, app):
-        with app.test_request_context():
-            response, status = PublicAPIResponse.error('err', 400, errors=None)
-            assert 'errors' not in response.json
-
-    def test_success_custom_status(self, app):
-        with app.test_request_context():
-            response, status = PublicAPIResponse.success(data='d', status_code=201)
-            assert status == 201
 
 
 class TestAPIResponseExtended:

@@ -16,7 +16,10 @@ from sqlalchemy.orm import selectinload
 from ..models import db
 from ..models.schemas import Award, AwardBook, SystemConfig
 from ..utils.error_handler import ErrorCategory, log_error
-from .api_client import GoogleBooksClient, ImageCacheService, OpenLibraryClient, WikidataClient
+from .api_utils import ImageCacheService
+from .google_books_client import GoogleBooksClient
+from .open_library_client import OpenLibraryClient
+from .wikidata_client import WikidataClient
 
 logger = logging.getLogger(__name__)
 
@@ -385,68 +388,6 @@ class AwardBookService:
             return cover_url
 
         return None
-
-    def fetch_missing_covers(self, batch_size: int = 10) -> dict[str, int]:
-        """
-        为缺失封面的图书获取封面
-
-        Args:
-            batch_size: 每批处理数量
-
-        Returns:
-            处理结果统计
-        """
-        if not self.image_cache:
-            logger.error('❌ ImageCacheService 未初始化')
-            return {'success': 0, 'failed': 0}
-
-        # 获取缺失封面的图书
-        books = (
-            AwardBook.query.filter(
-                (AwardBook.cover_local_path.is_(None)) | (AwardBook.cover_local_path == '/static/default-cover.png')
-            )
-            .limit(batch_size)
-            .all()
-        )
-
-        if not books:
-            logger.info('✅ 所有图书已有封面')
-            return {'success': 0, 'failed': 0}
-
-        logger.info(f'📚 开始为 {len(books)} 本图书获取封面...')
-
-        stats = {'success': 0, 'failed': 0}
-
-        for book in books:
-            try:
-                isbn = book.isbn13 or book.isbn10
-                if not isbn:
-                    continue
-
-                cover_url = self._get_cover_url(isbn)
-                if not cover_url:
-                    stats['failed'] += 1
-                    continue
-
-                cached_path = self.image_cache.get_cached_image_url(cover_url)
-                if cached_path and cached_path != '/static/default-cover.png':
-                    book.cover_original_url = cover_url
-                    book.cover_local_path = cached_path
-                    stats['success'] += 1
-                    logger.info(f'✅ {book.title[:40]}...')
-                else:
-                    stats['failed'] += 1
-
-                time.sleep(0.3)
-
-            except Exception as e:
-                log_error(ErrorCategory.API_CALL, f'❌ 获取封面失败: {e}')
-                stats['failed'] += 1
-
-        db.session.commit()
-        logger.info(f'✅ 封面获取完成: 成功 {stats["success"]} 本, 失败 {stats["failed"]} 本')
-
-        return stats
 
     def get_refresh_status(self) -> dict[str, Any]:
         """获取刷新状态"""

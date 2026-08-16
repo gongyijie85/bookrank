@@ -91,12 +91,8 @@ class FileCache:
         self._default_ttl = default_ttl
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def _get_cache_path(self, key: str) -> Path:
-        safe_key = hashlib.sha256(key.encode()).hexdigest()
-        return self._cache_dir / f'{safe_key}.json'
-
     def _read_cache_file(self, key: str) -> tuple[Any, float | None] | None:
-        cache_path = self._get_cache_path(key)
+        cache_path = self.get_cache_path(key)
 
         if not cache_path.exists():
             return None
@@ -143,7 +139,7 @@ class FileCache:
         return value
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        cache_path = self._get_cache_path(key)
+        cache_path = self.get_cache_path(key)
         ttl = self._default_ttl if ttl is None else ttl
         payload = {
             self._CACHE_MARKER: self._CACHE_VERSION,

@@ -1,5 +1,4 @@
 import csv
-import logging
 import re
 from datetime import datetime
 from io import StringIO
@@ -10,16 +9,14 @@ from flask import current_app, request
 from ...services.user_service import UserService
 from ...utils.api_helpers import (
     APIResponse,
-    api_rate_limit,
     clean_translation_text,
     csrf_protect,
+    rate_limit,
     validate_isbn,
 )
 from ...utils.error_handler import ErrorCategory, log_error
-from ...utils.service_helpers import get_book_service, get_translation_service
+from ...utils.service_helpers import get_service
 from . import api_bp, get_session_id, validate_category
-
-logger = logging.getLogger(__name__)
 
 _user_service = UserService()
 
@@ -28,7 +25,7 @@ _UTF8_BOM = '﻿'.encode()
 
 
 @api_bp.route('/books/<category>')
-@api_rate_limit(max_requests=60, window=60)
+@rate_limit(max_requests=60, window=60)
 def get_books(category: str):
     """获取图书列表"""
     try:
@@ -41,7 +38,7 @@ def get_books(category: str):
             )
 
         session_id = get_session_id()
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('Service unavailable', 503)
 
@@ -74,7 +71,7 @@ def get_books(category: str):
 
 
 @api_bp.route('/search')
-@api_rate_limit(max_requests=30, window=60)
+@rate_limit(max_requests=30, window=60)
 def search_books():
     """搜索图书"""
     try:
@@ -90,7 +87,7 @@ def search_books():
             return APIResponse.error('Invalid keyword format', 400)
 
         session_id = get_session_id()
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('Service unavailable', 503)
 
@@ -115,6 +112,7 @@ def search_books():
 
 
 @api_bp.route('/search/history')
+@rate_limit()
 def get_search_history():
     """获取搜索历史"""
     try:
@@ -131,6 +129,7 @@ def get_search_history():
 
 
 @api_bp.route('/user/preferences', methods=['GET', 'POST'])
+@rate_limit()
 @csrf_protect
 def user_preferences():
     """获取或更新用户偏好（通过 UserService 层操作数据库）"""
@@ -171,13 +170,14 @@ def user_preferences():
 
 
 @api_bp.route('/export/<category>')
+@rate_limit()
 def export_csv(category: str):
     """导出CSV（流式输出，按分类分批生成,避免 category='all' 时内存峰值）"""
     try:
         if not validate_category(category):
             return APIResponse.error('Invalid category', 400)
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('Service unavailable', 503)
 
@@ -257,6 +257,7 @@ def export_csv(category: str):
 
 
 @api_bp.route('/book-details/<isbn>')
+@rate_limit()
 def get_book_details(isbn: str):
     """从 Google Books API 获取图书详细信息（含中文翻译）"""
     try:
@@ -295,7 +296,7 @@ def get_book_details(isbn: str):
         # 如果没有翻译，尝试同步翻译
         if details_en and not details_zh:
             try:
-                translation_service = get_translation_service()
+                translation_service = get_service('translation_service')
                 if translation_service:
                     details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
             except Exception as e:

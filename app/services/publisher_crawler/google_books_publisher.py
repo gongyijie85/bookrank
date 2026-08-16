@@ -15,7 +15,7 @@ API 文档: https://developers.google.com/books/docs/v1/reference/volumes/list
 import logging
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import CrawlerConfig, CrawlRequest
+from .base_crawler import CrawlRequest
 from .google_books import GoogleBooksCrawler
 
 logger = logging.getLogger(__name__)
@@ -37,9 +37,6 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
 
     # 子类需要覆盖
     SEARCH_QUERIES: list[str] = ['books']
-
-    def __init__(self, config: CrawlerConfig | None = None):
-        super().__init__(config)
 
     def _iter_new_books(self, request: CrawlRequest):
         """

@@ -323,7 +323,7 @@ class TestSyncMissingCovers:
 
 
 class TestResolveCoverForBook:
-    """测试 resolve_cover_for_book 方法"""
+    """测试 CoverResolver.resolve 方法"""
 
     def test_local_path_available(self, app, db):
         with app.app_context():
@@ -351,7 +351,7 @@ class TestResolveCoverForBook:
                 openlibrary_client=MagicMock(),
                 image_cache=MagicMock(),
             )
-            result = service.resolve_cover_for_book(book)
+            result = service._resolver.resolve(book)
             assert result == '/uploads/custom.jpg'
 
     def test_ol_url_cached_successfully(self, app, db):
@@ -381,7 +381,7 @@ class TestResolveCoverForBook:
                 openlibrary_client=MagicMock(),
                 image_cache=image_cache,
             )
-            result = service.resolve_cover_for_book(book)
+            result = service._resolver.resolve(book)
             assert result == '/cache/images/test-cover.jpg'
             db.session.refresh(book)
             assert book.cover_local_path == '/cache/images/test-cover.jpg'
@@ -417,7 +417,7 @@ class TestResolveCoverForBook:
                 openlibrary_client=FakeOpenLibraryClient(),
                 image_cache=image_cache,
             )
-            result = service.resolve_cover_for_book(book)
+            result = service._resolver.resolve(book)
             assert result == '/cache/images/test-cover.jpg'
             db.session.refresh(book)
             assert book.cover_original_url == 'https://books.google.com/books/content?id=9780000000001&img=1'
@@ -453,7 +453,7 @@ class TestResolveCoverForBook:
                 openlibrary_client=FakeOpenLibraryClient(),
                 image_cache=FakeImageCache(),
             )
-            result = service.resolve_cover_for_book(book, persist=False)
+            result = service._resolver.resolve(book, persist=False)
             assert result is not None
             db.session.refresh(book)
             assert book.cover_original_url is None
@@ -485,7 +485,7 @@ class TestResolveCoverForBook:
                 image_cache=FakeImageCache(),
             )
             service._resolver._cache_cover = MagicMock(return_value=None)
-            result = service.resolve_cover_for_book(book, persist=False)
+            result = service._resolver.resolve(book, persist=False)
             assert result == 'https://example.com/fallback.jpg'
 
 

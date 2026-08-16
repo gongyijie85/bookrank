@@ -10,12 +10,23 @@ import logging
 import os
 import re
 import time
-from collections import OrderedDict
+from functools import lru_cache
 from typing import Any
 
+from ..utils.api_helpers import clean_translation_text
 from ..utils.error_handler import ErrorCategory, log_error
+from .api_utils import run_with_app_context
 
 logger = logging.getLogger(__name__)
+
+_AUTHOR_TRANSLATION_MISS = object()
+
+
+@lru_cache(maxsize=1000)
+def _cached_translate_author_name(translator: Any, author: str) -> Any:
+    """翻译作者名（带 lru_cache）；失败用哨兵值避免缓存 None。"""
+    translated = translator.translate(author, field_type='author')
+    return translated if translated is not None else _AUTHOR_TRANSLATION_MISS
 
 
 def _translate_book_info(translator, book_data: dict[str, Any], target_lang: str = 'zh') -> dict[str, Any]:
@@ -81,8 +92,6 @@ class ZhipuTranslationService:
         self._client = None
         self._last_request_time = 0
         self._request_interval = 0.1
-        self._author_name_cache: OrderedDict[str, str] = OrderedDict()
-        self._author_name_cache_max_size = 1000
         self._cache_service = None
 
         self._field_prompts: dict[str, str] = {
@@ -254,7 +263,7 @@ class ZhipuTranslationService:
                 if result:
                     if not self._validate_translation(result, text):
                         logger.warning(f'翻译质量校验失败(含污染标记)，将尝试后处理: {result[:100]}')
-                    result = self._postprocess_translation(result, field_type=field_type)
+                    result = clean_translation_text(result, field_type=field_type)
                     logger.info(f'智谱AI翻译成功: {text[:50]}... -> {result[:50]}...')
                     return result
 
@@ -538,13 +547,6 @@ class ZhipuTranslationService:
         return None
 
     @staticmethod
-    def _postprocess_translation(text: str, field_type: str = 'text') -> str:
-        """翻译结果后处理（委托到统一清洁函数）"""
-        from ..utils.api_helpers import clean_translation_text
-
-        return clean_translation_text(text, field_type=field_type)
-
-    @staticmethod
     def _validate_translation(translated: str, source: str) -> bool:
         """校验翻译结果质量，返回True表示可接受"""
         if not translated:
@@ -554,6 +556,9 @@ class ZhipuTranslationService:
         if any(marker in translated for marker in _DIRTY_MARKERS):
             return False
         return translated.strip() != source.strip()
+
+    def _translate_author_name_cached(self, author: str) -> Any:
+        return _cached_translate_author_name(self, author)
 
     def translate_author_name(self, author: str) -> str | None:
         """
@@ -567,23 +572,8 @@ class ZhipuTranslationService:
         """
         if not author or not author.strip():
             return None
-
-        if author in self._author_name_cache:
-            self._author_name_cache.move_to_end(author)
-            return self._author_name_cache[author]
-
-        if len(self._author_name_cache) >= self._author_name_cache_max_size:
-            remove_count = int(self._author_name_cache_max_size * 0.2)
-            for _ in range(remove_count):
-                self._author_name_cache.popitem(last=False)
-            logger.debug(f'作者名缓存已清理 {remove_count} 条，当前大小: {len(self._author_name_cache)}')
-
-        translated = self.translate(author, field_type='author')
-        if translated:
-            self._author_name_cache[author] = translated
-            logger.debug(f'作者名已翻译并缓存: {author} -> {translated}')
-
-        return translated
+        result = self._translate_author_name_cached(author)
+        return None if result is _AUTHOR_TRANSLATION_MISS else result
 
     def get_cache_stats(self) -> dict[str, Any]:
         """获取缓存统计信息"""
@@ -640,13 +630,6 @@ class HybridTranslationService:
                 pass
         return self._fallback
 
-    def _run_with_context(self, func, *args):
-        """在应用上下文中执行函数（如有app则自动推送上下文）"""
-        if self._app:
-            with self._app.app_context():
-                return func(*args)
-        return func(*args)
-
     def translate(
         self, text: str, source_lang: str = 'en', target_lang: str = 'zh', field_type: str = 'text'
     ) -> str | None:
@@ -656,7 +639,7 @@ class HybridTranslationService:
         cache_service = self._get_cache_service()
         if cache_service:
             try:
-                cached = self._run_with_context(lambda: cache_service.get(text, source_lang, target_lang))
+                cached = run_with_app_context(self._app, lambda: cache_service.get(text, source_lang, target_lang))
                 if cached:
                     from ..utils.api_helpers import clean_translation_text
 
@@ -683,7 +666,8 @@ class HybridTranslationService:
                 from .translation_cache_service import TranslationCacheService
 
                 cache_version = str(TranslationCacheService.CACHE_VERSION)
-                self._run_with_context(
+                run_with_app_context(
+                    self._app,
                     lambda: cache_service.set(
                         text,
                         translated,
@@ -739,7 +723,7 @@ class HybridTranslationService:
                 continue
             if cache_service:
                 try:
-                    cached = self._run_with_context(lambda t=text: cache_service.get(t, source_lang, target_lang))
+                    cached = run_with_app_context(self._app, lambda t=text: cache_service.get(t, source_lang, target_lang))
                     if cached:
                         results[i] = clean_translation_text(cached.translated_text)
                         continue

@@ -23,12 +23,6 @@ logger = logging.getLogger(__name__)
 class SmartSearchService:
     """智能搜索服务"""
 
-    # 搜索建议缓存时间（秒）
-    SUGGESTION_CACHE_TTL = 600
-
-    # 搜索结果缓存时间（秒）
-    SEARCH_CACHE_TTL = 300
-
     def __init__(self, categories: dict | None = None):
         """
         初始化智能搜索服务

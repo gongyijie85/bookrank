@@ -143,20 +143,7 @@ def init_awards_data(app):
         # 使用fallback数据直接初始化，避免启动时API调用超时
         app.logger.info('📝 使用本地数据初始化奖项...')
 
-        awards_data = []
-        for _award_key, fallback_data in AWARDS_FALLBACK_DATA.items():
-            merged_data = {
-                'name': fallback_data['name'],
-                'name_en': fallback_data['name_en'],
-                'country': fallback_data['country'],
-                'description': fallback_data['description'],
-                'category_count': fallback_data['category_count'],
-                'icon_class': fallback_data['icon_class'],
-                'established_year': fallback_data['established_year'],
-                'award_month': fallback_data['award_month'],
-                'wikidata_id': None,
-            }
-            awards_data.append(merged_data)
+        awards_data = [{**fallback_data, 'wikidata_id': None} for fallback_data in AWARDS_FALLBACK_DATA.values()]
 
         created_awards = 0
         for award_data in awards_data:

@@ -15,6 +15,14 @@ from ..utils.error_handler import ErrorCategory, log_error
 logger = logging.getLogger(__name__)
 
 
+def run_with_app_context(app, func, *args):
+    """Run *func* inside *app*'s context when an app is available."""
+    if app is not None:
+        with app.app_context():
+            return func(*args)
+    return func(*args)
+
+
 def create_session_with_retry(max_retries: int = 3, backoff_factor: float = 0.5) -> requests.Session:
     """创建配置了重试机制的 requests Session"""
     session = requests.Session()

@@ -1,8 +1,5 @@
-import logging
 
 from flask import current_app
-
-logger = logging.getLogger(__name__)
 
 
 def get_category_update_frequency(category_id: str) -> str:

@@ -1,5 +1,4 @@
 import json as json_lib
-import logging
 import re
 import time
 from datetime import UTC, datetime
@@ -8,11 +7,10 @@ from typing import Any
 import psutil
 from flask import Blueprint, Response, current_app, request
 
+from ..models.database import db
 from ..services.admin_service import (
-    batch_commit,
     batch_import_from_dict,
     get_weekly_report_by_id,
-    rollback,
     update_book_metadata_records,
     update_translation_cache_records,
 )
@@ -20,12 +18,11 @@ from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.error_tracker import error_tracker
-from ..utils.service_helpers import get_book_service, get_image_cache_service, get_new_book_modules
+from ..utils.service_helpers import get_new_book_modules, get_service
 
 _ADMIN_ERROR_MSG = '操作失败，请查看服务器日志获取详情'
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
-logger = logging.getLogger(__name__)
 
 _crawler_status: dict[str, dict[str, Any]] = {}
 
@@ -41,7 +38,7 @@ def sync_award_covers():
 
         google_client = get_or_create_google_books_client()
 
-        sync_service = AwardCoverSyncService(google_client, image_cache=get_image_cache_service())
+        sync_service = AwardCoverSyncService(google_client, image_cache=get_service('image_cache_service'))
 
         data = request.get_json(silent=True) or {}
         batch_size = min(max(1, data.get('batch_size', 10)), 50)
@@ -266,7 +263,7 @@ def regenerate_weekly_report():
         if report_date > date.today():
             return APIResponse.error('不能重新生成未来的周报', 400)
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
@@ -321,7 +318,7 @@ def regenerate_all_weekly_reports():
                 message='所有周报数据正常',
             )
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
@@ -478,7 +475,7 @@ def clean_report_brackets():
 
                 updated += 1
 
-            batch_commit()
+            db.session.commit()
             return APIResponse.success(
                 data={'total_reports': len(reports), 'fixable': len(fixable), 'updated': updated, 'details': fixable},
                 message=f'清理完成: 修复{updated}份周报',
@@ -495,7 +492,7 @@ def clean_report_brackets():
             )
 
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理周报书名号失败: {e}', exc_info=True)
         return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
@@ -563,7 +560,7 @@ def fix_truncated_titles():
                     report.content = json_lib.dumps(content, ensure_ascii=False)
 
         if not dry_run and fixed_count > 0:
-            batch_commit()
+            db.session.commit()
 
         return APIResponse.success(
             data={
@@ -576,7 +573,7 @@ def fix_truncated_titles():
         )
 
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'修复截断书名失败: {e}', exc_info=True)
         return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
@@ -658,7 +655,7 @@ def cleanup_translations():
                 m_isbn_list, lambda r: setattr(r, 'title_zh', clean_translation_text(r.title_zh, field_type='title'))
             )
 
-            batch_commit()
+            db.session.commit()
             return APIResponse.success(
                 data={
                     'translation_cache': {'total': len(t_records), 'fixed': t_updated},
@@ -681,7 +678,7 @@ def cleanup_translations():
             )
 
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理翻译缓存失败: {e}', exc_info=True)
         return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
@@ -818,9 +815,9 @@ def system_status():
             db_type = 'mysql'
 
         try:
-            from ..utils.service_helpers import get_cache_service as _get_cs
+            from ..utils.service_helpers import get_service as _get_svc
 
-            cs = _get_cs()
+            cs = _get_svc('cache_service')
             cache_stats = (
                 cs.get_stats() if cs else {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
             )
@@ -920,7 +917,7 @@ def backup_import():
             message=f'导入完成，共导入 {sum(imported_counts.values())} 条记录',
         )
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'数据导入失败: {e}', exc_info=True)
         return APIResponse.error('数据导入失败', 500)
 

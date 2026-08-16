@@ -1,8 +1,5 @@
 import json
-import logging
 from datetime import date, datetime
-
-logger = logging.getLogger(__name__)
 
 
 def format_chinese_date(value: date) -> str:

@@ -21,11 +21,6 @@ MIN_SUCCESS_RATE = 0.80
 MAX_DEGRADED_EPISODES = 1
 
 
-def reset_evidence(source_id: str) -> None:
-    SystemConfig.set_value(_evidence_key(source_id), '[]')
-    db.session.commit()
-
-
 def record_evidence_run(
     source_id: str,
     *,

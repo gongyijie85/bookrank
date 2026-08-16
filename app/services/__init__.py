@@ -1,8 +1,12 @@
-from .api_client import GoogleBooksClient, ImageCacheService, NYTApiClient, OpenLibraryClient, WikidataClient
+from .api_utils import ImageCacheService
 from .award_book_service import AwardBookService
 from .book_service import BookService
 from .cache_service import CacheService, FileCache, MemoryCache
+from .google_books_client import GoogleBooksClient
+from .nyt_client import NYTApiClient
+from .open_library_client import OpenLibraryClient
 from .user_service import UserService
+from .wikidata_client import WikidataClient
 from .zhipu_translation_service import (
     HybridTranslationService,
     ZhipuTranslationService,

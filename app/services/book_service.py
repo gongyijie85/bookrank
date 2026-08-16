@@ -15,9 +15,11 @@ from ..models.book import Book
 from ..models.schemas import BookMetadata, db
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.exceptions import APIException, APIRateLimitException, ExternalAPIError
-from .api_client import GoogleBooksClient, ImageCacheService, NYTApiClient
+from .api_utils import ImageCacheService, run_with_app_context
 from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
+from .google_books_client import GoogleBooksClient
+from .nyt_client import NYTApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -376,13 +378,6 @@ class BookService:
 
         return book
 
-    def _run_with_context(self, func: Callable[[], Any]) -> Any:
-        """在应用上下文中执行函数（如有app则自动推送上下文）"""
-        if self._app:
-            with self._app.app_context():
-                return func()
-        return func()
-
     @staticmethod
     def _book_value(book: Book | dict[str, Any], attr: str) -> Any:
         return book.get(attr) if isinstance(book, dict) else getattr(book, attr, None)
@@ -448,11 +443,11 @@ class BookService:
             return True
 
         try:
-            return self._run_with_context(_save)
+            return run_with_app_context(self._app, _save)
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存图书元数据失败: {e}')
             try:
-                self._run_with_context(lambda: db.session.rollback())
+                run_with_app_context(self._app, lambda: db.session.rollback())
             except (IntegrityError, OperationalError, SQLAlchemyError):
                 pass
             return False
@@ -491,11 +486,11 @@ class BookService:
             return saved
 
         try:
-            return self._run_with_context(_save)
+            return run_with_app_context(self._app, _save)
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'批量保存图书元数据失败: {e}')
             try:
-                self._run_with_context(lambda: db.session.rollback())
+                run_with_app_context(self._app, lambda: db.session.rollback())
             except (IntegrityError, OperationalError, SQLAlchemyError):
                 pass
             return 0
@@ -531,11 +526,11 @@ class BookService:
             return True
 
         try:
-            return self._run_with_context(_save)
+            return run_with_app_context(self._app, _save)
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存翻译失败: {e}')
             try:
-                self._run_with_context(lambda: db.session.rollback())
+                run_with_app_context(self._app, lambda: db.session.rollback())
             except (IntegrityError, OperationalError, SQLAlchemyError):
                 pass
             return False

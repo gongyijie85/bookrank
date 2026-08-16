@@ -46,27 +46,6 @@ def _codes(report: ObservationReport) -> set[str | None]:
     return {item.error_code for item in report.evidence}
 
 
-def _write_fixed_candidate(directory: Path, *, selector: str = '.product-card a', verified: bool = False) -> Path:
-    path = directory / 'fixed-ai-candidate.json'
-    _write_json(
-        path,
-        {
-            'selector_kind': 'css',
-            'selector': selector,
-            'reason': 'candidate for manual verification',
-            'verified': verified,
-        },
-    )
-    return path
-
-
-def _fixed_candidate_item() -> dict[str, object]:
-    return {
-        'name': 'fixed-ai-candidate.json',
-        'source_url': 'https://www.harpercollins.com/collections/new-releases?page=1',
-    }
-
-
 def _write_collection_pair(
     directory: Path,
     *,
@@ -141,23 +120,6 @@ def test_parse_product_document_preserves_only_observed_whistler_fields() -> Non
     assert record.publication_date is None
     assert record.missing_fields == ('publication_date',)
     assert evidence.status is EvidenceStatus.VALIDATION_FAILED
-
-
-def test_manifest_observation_uses_one_unverified_fallback_candidate() -> None:
-    api = _observer_api()
-    fallback = api.FixedTemplateFallback.from_path(FIXTURE_DIR / 'fixed-ai-candidate.json')
-
-    report = api.observe_fixture_manifest(FIXTURE_DIR / 'manifest.json', fallback=fallback)
-
-    assert report.source == 'harpercollins'
-    assert report.schema_version == 'hc-observer-v1'
-    assert report.ai_fallback_calls == 1
-    assert fallback.call_count == 1
-    assert report.unverified_ai_candidates
-    assert all(not item.verified for item in report.unverified_ai_candidates)
-    assert 'TEMPLATE_DRIFT' in _codes(report)
-    assert all(len(item.input_sha256) == 64 for item in report.evidence)
-    assert report.write_enabled is False
 
 
 def test_report_includes_exact_manifest_digest() -> None:
@@ -330,32 +292,6 @@ def test_collection_pair_metadata_must_agree(tmp_path: Path, field: str) -> None
 
     with pytest.raises(ValueError, match='metadata'):
         api.observe_fixture_manifest(_write_manifest(tmp_path / 'manifest.json', [css, xpath]))
-
-
-def test_blocked_collection_member_terminates_page_without_drift_or_fallback(
-    tmp_path: Path,
-) -> None:
-    api = _observer_api()
-    xpath_name = 'collection-page-1-xpath.json'
-    _write_json(
-        tmp_path / xpath_name,
-        [{'title': 'One', 'url': 'https://www.harpercollins.com/products/one'}],
-    )
-    css_item = _collection_item('collection-page-1-css.json', 1)
-    css_item['status'] = 'access_blocked'
-    fallback_path = _write_fixed_candidate(tmp_path)
-    manifest = _write_manifest(
-        tmp_path / 'manifest.json',
-        [css_item, _collection_item(xpath_name, 1), _fixed_candidate_item()],
-    )
-    fallback = api.FixedTemplateFallback.from_path(fallback_path)
-
-    report = api.observe_fixture_manifest(manifest, fallback=fallback)
-
-    assert EvidenceStatus.ACCESS_BLOCKED in {item.status for item in report.evidence}
-    assert 'TEMPLATE_DRIFT' not in _codes(report)
-    assert fallback.call_count == report.ai_fallback_calls == 0
-    assert report.unverified_ai_candidates == ()
 
 
 def test_isbn_checksum_and_format_priority_choose_one_print_main(tmp_path: Path) -> None:
@@ -681,86 +617,6 @@ def test_collection_root_entering_cycle_emits_duplicate_page_evidence(
     assert len(report.candidate_urls) == 3
 
 
-def test_multiple_drift_pages_consume_one_fallback_call(tmp_path: Path) -> None:
-    api = _observer_api()
-    fixtures: list[dict[str, object]] = []
-    for page in (1, 2):
-        for method in ('css', 'xpath'):
-            name = f'drift-{page}-{method}.json'
-            _write_json(tmp_path / name, [])
-            fixtures.append(_collection_item(name, page))
-    fallback_path = _write_fixed_candidate(tmp_path)
-    fixtures.append(_fixed_candidate_item())
-    fallback = api.FixedTemplateFallback.from_path(fallback_path)
-
-    report = api.observe_fixture_manifest(_write_manifest(tmp_path / 'manifest.json', fixtures), fallback=fallback)
-
-    assert report.ai_fallback_calls == fallback.call_count == 1
-    assert len(report.unverified_ai_candidates) == 1
-
-
-def test_fallback_fixture_mismatch_fails_closed(tmp_path: Path) -> None:
-    api = _observer_api()
-    fixtures = _write_collection_pair(
-        tmp_path,
-        stem='collection-drift',
-        source_url='https://www.harpercollins.com/collections/new-releases',
-        next_url=None,
-        rows=[],
-    )
-    _write_fixed_candidate(tmp_path, selector='.manifest-owned')
-    fixtures.append(_fixed_candidate_item())
-    other_dir = tmp_path / 'other'
-    other_dir.mkdir()
-    fallback = api.FixedTemplateFallback.from_path(_write_fixed_candidate(other_dir, selector='.caller-owned'))
-
-    report = api.observe_fixture_manifest(_write_manifest(tmp_path / 'manifest.json', fixtures), fallback=fallback)
-
-    assert fallback.call_count == report.ai_fallback_calls == 0
-    assert report.unverified_ai_candidates == ()
-    assert 'FALLBACK_PROVENANCE_MISMATCH' in _codes(report)
-
-
-def test_verified_fallback_candidate_is_rejected(tmp_path: Path) -> None:
-    api = _observer_api()
-    fixtures = _write_collection_pair(
-        tmp_path,
-        stem='collection-drift',
-        source_url='https://www.harpercollins.com/collections/new-releases',
-        next_url=None,
-        rows=[],
-    )
-    fallback_path = _write_fixed_candidate(tmp_path, verified=True)
-    fixtures.append(_fixed_candidate_item())
-    fallback = api.FixedTemplateFallback.from_path(fallback_path)
-
-    report = api.observe_fixture_manifest(_write_manifest(tmp_path / 'manifest.json', fixtures), fallback=fallback)
-
-    assert fallback.call_count == report.ai_fallback_calls == 0
-    assert report.unverified_ai_candidates == ()
-    assert 'FALLBACK_CANDIDATE_NOT_UNVERIFIED' in _codes(report)
-
-
-def test_access_blocked_never_calls_fallback(tmp_path: Path) -> None:
-    api = _observer_api()
-    fallback = api.FixedTemplateFallback.from_path(FIXTURE_DIR / 'fixed-ai-candidate.json')
-    manifest = _write_manifest(
-        tmp_path / 'manifest.json',
-        [
-            {
-                'name': 'not-readable.json',
-                'source_url': 'https://www.harpercollins.com/collections/new-releases',
-                'status': 'access_blocked',
-            }
-        ],
-    )
-
-    report = api.observe_fixture_manifest(manifest, fallback=fallback)
-
-    assert fallback.call_count == report.ai_fallback_calls == 0
-    assert report.evidence[0].status is EvidenceStatus.ACCESS_BLOCKED
-
-
 @pytest.mark.parametrize('source', ['hachette', 'penguin-random-house', ''])
 def test_non_harper_source_is_rejected_before_documents_are_read(tmp_path: Path, source: str) -> None:
     api = _observer_api()
@@ -880,7 +736,6 @@ def test_identical_runs_are_byte_for_byte_deterministic_and_safe() -> None:
 def test_public_package_exports_observer_api() -> None:
     from app.services import publisher_observer
 
-    assert publisher_observer.FixedTemplateFallback
     assert publisher_observer.observe_fixture_manifest
     assert publisher_observer.parse_atom_candidates
     assert publisher_observer.parse_product_document
@@ -919,7 +774,6 @@ def test_observation_report_serializes_a_safe_deterministic_payload() -> None:
     payload = report.to_dict()
 
     assert payload['empty_result'] is False
-    assert payload['write_enabled'] is False
     assert payload['records'][0]['editions'][0]['isbn13'] == '9780063416178'
     assert payload['evidence'][0]['method'] == 'product_json'
     assert payload['evidence'][0]['status'] == 'validation_failed'
@@ -998,20 +852,6 @@ def test_observation_report_serializes_tuples_in_stable_order() -> None:
         'Hardcover',
     ]
     assert payload['records'][0]['missing_fields'] == ['publication_date', 'author']
-
-
-def test_observation_report_cannot_enable_writes() -> None:
-    with pytest.raises(TypeError, match='write_enabled'):
-        ObservationReport(
-            source='harpercollins',
-            schema_version='hc-observer-v1',
-            records=(),
-            evidence=(),
-            candidate_urls=(),
-            unverified_ai_candidates=(),
-            ai_fallback_calls=0,
-            write_enabled=True,
-        )
 
 
 def test_fixture_manifest_lists_every_harpercollins_fixture() -> None:

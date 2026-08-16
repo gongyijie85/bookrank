@@ -30,7 +30,7 @@ def _no_network(monkeypatch):
     monkeypatch.setattr(bc_mod.time, 'sleep', lambda x: None)
 
 
-from app.services.publisher_crawler import get_all_crawlers, get_crawler_class
+from app.services.publisher_crawler import get_crawler_class
 from app.services.publisher_crawler.base_crawler import CrawlerConfig, CrawlRequest
 from app.services.publisher_crawler.prh_api import PrhApiCrawler
 
@@ -93,7 +93,6 @@ def _crawler(responses) -> tuple[PrhApiCrawler, MagicMock]:
 class TestRegistry:
     def test_registered_in_crawler_registry(self):
         assert get_crawler_class('PrhApiCrawler') is PrhApiCrawler
-        assert 'PrhApiCrawler' in get_all_crawlers()
 
     def test_publisher_metadata(self):
         crawler, _ = _crawler([_response([])])

@@ -77,7 +77,7 @@ class TestCachedImage:
 
 class TestAwardBookCover:
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
-    @patch('app.routes.main.get_image_cache_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_google_books_client')
     def test_cover_resolved_successfully(self, mock_gbc, mock_ics, MockACSS, client, app, db):
         from app.models.schemas import Award, AwardBook
@@ -98,7 +98,7 @@ class TestAwardBookCover:
             book_id = book.id
 
         mock_sync = MagicMock()
-        mock_sync.resolve_cover_for_book.return_value = 'https://example.com/cover.jpg'
+        mock_sync._resolver.resolve.return_value = 'https://example.com/cover.jpg'
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
@@ -106,7 +106,7 @@ class TestAwardBookCover:
         assert 'max-age=3600' in response.headers.get('Cache-Control', '')
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
-    @patch('app.routes.main.get_image_cache_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_google_books_client')
     def test_cover_resolve_fails_fallback_to_original(self, mock_gbc, mock_ics, MockACSS, client, app, db):
         from app.models.schemas import Award, AwardBook
@@ -128,14 +128,14 @@ class TestAwardBookCover:
             book_id = book.id
 
         mock_sync = MagicMock()
-        mock_sync.resolve_cover_for_book.side_effect = Exception('API Error')
+        mock_sync._resolver.resolve.side_effect = Exception('API Error')
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
         assert 'original.jpg' in response.location
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
-    @patch('app.routes.main.get_image_cache_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_google_books_client')
     def test_cover_resolve_fails_no_original_url(self, mock_gbc, mock_ics, MockACSS, client, app, db):
         from app.models.schemas import Award, AwardBook
@@ -157,7 +157,7 @@ class TestAwardBookCover:
             book_id = book.id
 
         mock_sync = MagicMock()
-        mock_sync.resolve_cover_for_book.side_effect = Exception('API Error')
+        mock_sync._resolver.resolve.side_effect = Exception('API Error')
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
@@ -568,7 +568,7 @@ class TestNewBookDetail:
         assert response.status_code == 200
 
     @patch('app.routes.main.submit_background_task')
-    @patch('app.routes.main.get_translation_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_new_book_modules')
     def test_book_found_needs_translation(self, mock_get_modules, mock_trans, mock_bg, client):
         mock_book = MagicMock()
@@ -590,7 +590,7 @@ class TestNewBookDetail:
         assert response.status_code == 200
         mock_bg.assert_called_once()
 
-    @patch('app.routes.main.get_translation_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_new_book_modules')
     def test_book_found_already_translated(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
@@ -610,7 +610,7 @@ class TestNewBookDetail:
         response = client.get('/new-book/1')
         assert response.status_code == 200
 
-    @patch('app.routes.main.get_translation_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_new_book_modules')
     def test_book_found_no_translation_service(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
@@ -631,7 +631,7 @@ class TestNewBookDetail:
         response = client.get('/new-book/1')
         assert response.status_code == 200
 
-    @patch('app.routes.main.get_translation_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_new_book_modules')
     def test_book_found_partial_translation(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()

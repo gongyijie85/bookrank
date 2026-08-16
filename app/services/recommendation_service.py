@@ -6,22 +6,15 @@ AI 推荐服务
 2. 基于用户收藏的推荐
 3. 基于奖项相似度的推荐
 """
-
-import logging
 from collections import Counter
 from typing import Any
 
 from ..models.schemas import AwardBook, BookMetadata, UserCategory, UserViewedBook, db
 from ..utils.error_handler import ErrorCategory, log_error
 
-logger = logging.getLogger(__name__)
-
 
 class RecommendationService:
     """AI 图书推荐服务"""
-
-    # 推荐结果缓存时间（秒）
-    CACHE_TTL = 300
 
     def __init__(self, categories: dict | None = None):
         """

@@ -30,7 +30,7 @@ class TestSyncAwardCovers:
 
         with (
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -52,7 +52,7 @@ class TestSyncAwardCovers:
 
         with (
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -75,7 +75,7 @@ class TestSyncAwardCovers:
 
         with (
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -96,7 +96,7 @@ class TestSyncAwardCovers:
 
         with (
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -117,7 +117,7 @@ class TestSyncAwardCovers:
 
         with (
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=None),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,

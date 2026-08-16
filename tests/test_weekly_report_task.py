@@ -1,9 +1,7 @@
 """weekly_report_task 模块测试
 
 覆盖范围：
-- send_weekly_report_email（已禁用，始终返回 False）
 - generate_weekly_report（冷却、锁竞争、无 book_service、成功生成、已有报告跳过）
-- schedule_weekly_report
 - compute_expected_week_range（v0.9.46 新增）
 """
 
@@ -30,19 +28,6 @@ class _MockWeeklyReport:
         self.week_start = week_start or (date.today() - timedelta(days=7))
         self.week_end = week_end or (date.today() - timedelta(days=1))
         self.view_count = 0
-
-
-class TestSendWeeklyReportEmail:
-    """测试 send_weekly_report_email 函数（已禁用）"""
-
-    def test_always_returns_false(self, app):
-        """验证邮件发送始终返回 False（Render 免费版禁用）"""
-        with app.app_context():
-            from app.tasks.weekly_report_task import send_weekly_report_email
-
-            report = _MockWeeklyReport()
-            result = send_weekly_report_email(report)
-            assert result is False
 
 
 class TestGenerateWeeklyReport:
@@ -75,7 +60,7 @@ class TestGenerateWeeklyReport:
             import app.tasks.weekly_report_task as mod
 
             mod._last_report_trigger_time = time.time()
-            with patch.object(mod, 'require_book_service', side_effect=RuntimeError('未初始化')):
+            with patch.object(mod, 'require_service', side_effect=RuntimeError('未初始化')):
                 result = mod.generate_weekly_report(force_regenerate=True)
                 assert result is None  # RuntimeError 被捕获返回 None
 
@@ -99,7 +84,7 @@ class TestGenerateWeeklyReport:
         with app.app_context():
             import app.tasks.weekly_report_task as mod
 
-            with patch.object(mod, 'require_book_service', side_effect=RuntimeError('服务未初始化')):
+            with patch.object(mod, 'require_service', side_effect=RuntimeError('服务未初始化')):
                 result = mod.generate_weekly_report(force_regenerate=True)
                 assert result is None
 
@@ -115,7 +100,7 @@ class TestGenerateWeeklyReport:
             mock_report_service.generate_report.return_value = mock_report
 
             with (
-                patch.object(mod, 'require_book_service', return_value=mock_book_service),
+                patch.object(mod, 'require_service', return_value=mock_book_service),
                 patch.object(mod, 'WeeklyReportService', return_value=mock_report_service),
                 patch.object(mod, 'WeeklyReport') as MockWR,
             ):
@@ -135,7 +120,7 @@ class TestGenerateWeeklyReport:
             mock_book_service = MagicMock()
 
             with (
-                patch.object(mod, 'require_book_service', return_value=mock_book_service),
+                patch.object(mod, 'require_service', return_value=mock_book_service),
                 patch.object(mod, 'WeeklyReport') as MockWR,
             ):
                 MockWR.query.filter.return_value.first.return_value = existing
@@ -156,7 +141,7 @@ class TestGenerateWeeklyReport:
             mock_report_service.generate_report.return_value = new_report
 
             with (
-                patch.object(mod, 'require_book_service', return_value=mock_book_service),
+                patch.object(mod, 'require_service', return_value=mock_book_service),
                 patch.object(mod, 'WeeklyReportService', return_value=mock_report_service),
                 patch.object(mod, 'WeeklyReport') as MockWR,
             ):
@@ -177,7 +162,7 @@ class TestGenerateWeeklyReport:
             mock_report_service.generate_report.return_value = None
 
             with (
-                patch.object(mod, 'require_book_service', return_value=mock_book_service),
+                patch.object(mod, 'require_service', return_value=mock_book_service),
                 patch.object(mod, 'WeeklyReportService', return_value=mock_report_service),
                 patch.object(mod, 'WeeklyReport') as MockWR,
             ):
@@ -195,7 +180,7 @@ class TestGenerateWeeklyReport:
             mock_book_service = MagicMock()
 
             with (
-                patch.object(mod, 'require_book_service', return_value=mock_book_service),
+                patch.object(mod, 'require_service', return_value=mock_book_service),
                 patch.object(mod, 'WeeklyReportService', side_effect=Exception('意外错误')),
                 patch.object(mod, 'WeeklyReport') as MockWR,
             ):
@@ -211,7 +196,7 @@ class TestGenerateWeeklyReport:
             import app.tasks.weekly_report_task as mod
 
             with (
-                patch.object(mod, 'require_book_service', side_effect=RuntimeError('未初始化')),
+                patch.object(mod, 'require_service', side_effect=RuntimeError('未初始化')),
                 patch.object(mod, 'WeeklyReport') as MockWR,
             ):
                 MockWR.query.filter.return_value.first.return_value = None
@@ -231,7 +216,7 @@ class TestGenerateWeeklyReport:
             mock_report_service.generate_report.return_value = mock_report
 
             with (
-                patch.object(mod, 'require_book_service', return_value=mock_book_service),
+                patch.object(mod, 'require_service', return_value=mock_book_service),
                 patch.object(mod, 'WeeklyReportService', return_value=mock_report_service),
                 patch.object(mod, 'WeeklyReport') as MockWR,
             ):
@@ -239,32 +224,6 @@ class TestGenerateWeeklyReport:
                 mod.generate_weekly_report(force_regenerate=True)
 
             assert not mod._weekly_report_lock.locked()
-
-
-class TestScheduleWeeklyReport:
-    """测试 schedule_weekly_report 函数"""
-
-    def test_calls_generate(self, app):
-        """验证调度函数调用 generate_weekly_report"""
-        with app.app_context():
-            import app.tasks.weekly_report_task as mod
-
-            mock_report = _MockWeeklyReport()
-            with patch.object(mod, 'generate_weekly_report', return_value=mock_report) as mock_gen:
-                result = mod.schedule_weekly_report()
-
-            mock_gen.assert_called_once_with()
-            assert result is mock_report
-
-    def test_returns_none_on_failure(self, app):
-        """验证生成失败时返回 None"""
-        with app.app_context():
-            import app.tasks.weekly_report_task as mod
-
-            with patch.object(mod, 'generate_weekly_report', return_value=None):
-                result = mod.schedule_weekly_report()
-
-            assert result is None
 
 
 class TestComputeExpectedWeekRange:

@@ -438,16 +438,6 @@ SAMPLE_AWARD_BOOKS = [
 ]
 
 
-def _looks_like_isbn(text: str | None) -> bool:
-    """检测字符串是否像 ISBN（10/13 位纯数字，可能带连字符）"""
-    if not text:
-        return False
-    cleaned = text.replace('-', '').replace(' ', '')
-    if not cleaned.isdigit():
-        return False
-    return len(cleaned) in (10, 13)
-
-
 def init_sample_award_books(app):
     """
     初始化预置获奖图书数据
@@ -501,7 +491,7 @@ def init_sample_award_books(app):
                 if existing:
                     target_title_zh = book_data.get('title_zh') or ''
                     need_fix_title = (
-                        not existing.title or existing.title == target_isbn or _looks_like_isbn(existing.title)
+                        not existing.title or existing.title == target_isbn or AwardBook._looks_like_isbn(existing.title)
                     ) and book_data.get('title')
                     if need_fix_title:
                         old_title = existing.title
@@ -518,7 +508,7 @@ def init_sample_award_books(app):
                         not existing.title_zh
                         or existing.title_zh == target_isbn
                         or existing.title_zh == existing.title
-                        or _looks_like_isbn(existing.title_zh)
+                        or AwardBook._looks_like_isbn(existing.title_zh)
                     )
                     if need_fix_title_zh:
                         old_title_zh = existing.title_zh
@@ -581,7 +571,7 @@ def init_sample_award_books(app):
                     AwardBook.verification_status != 'wikidata',
                 ).all()
                 for entry in stale:
-                    if _looks_like_isbn(entry.title):
+                    if AwardBook._looks_like_isbn(entry.title):
                         entry.is_displayable = False
                         entry.verification_status = 'deprecated'
                         cleaned_count += 1

@@ -3,20 +3,13 @@ Open Library 新书数据源
 
 Open Library 提供免费的图书数据API，可以获取新出版图书信息。
 这是一个更稳定可靠的替代方案，用于替代直接爬取出版社网站。
-
-混合架构：先尝试传统 API，失败后自动用 Crawl4AI 降级
 """
 
-import asyncio
-import json
 import logging
-import time
 from datetime import datetime
 
-import requests
-
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest, SimpleResponse
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +19,6 @@ class OpenLibraryCrawler(BaseCrawler):
     Open Library 新书爬虫
 
     使用 Open Library API 获取新书数据，稳定可靠。
-    混合架构：先尝试传统 API，失败后自动用 Crawl4AI 降级
     API文档: https://openlibrary.org/developers/api
     """
 
@@ -62,110 +54,6 @@ class OpenLibraryCrawler(BaseCrawler):
         super().__init__(config)
         if config is None:
             self.config.request_delay = 0.5
-        self._crawl4ai_available = self._check_crawl4ai()
-
-    def _check_crawl4ai(self) -> bool:
-        """检查 Crawl4AI 是否可用"""
-        try:
-            import importlib.util
-
-            importlib.util.find_spec('crawl4ai')
-
-            logger.info('✅ OpenLibrary: Crawl4AI 可用')
-            return True
-        except (ImportError, ModuleNotFoundError):
-            logger.info('ℹ️ OpenLibrary: Crawl4AI 未安装，仅使用传统 API')
-            return False
-
-    async def _crawl_with_crawl4ai_async(self, url: str) -> str | None:
-        """使用 Crawl4AI 异步爬取（JSON API）"""
-        if not self._crawl4ai_available:
-            return None
-
-        try:
-            from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
-
-            logger.info(f'🕸️ OpenLibrary: 使用 Crawl4AI 爬取: {url}')
-
-            browser_config = BrowserConfig(headless=True, verbose=False)
-            run_config = CrawlerRunConfig(
-                cache_mode=CacheMode.BYPASS,
-                word_count_threshold=1,
-            )
-
-            async with AsyncWebCrawler(config=browser_config) as crawler:
-                result = await crawler.arun(url=url, config=run_config)
-                if result and result.success and result.html:
-                    logger.info('✅ OpenLibrary: Crawl4AI 爬取成功')
-                    return result.html
-            return None
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'OpenLibrary: Crawl4AI 出错: {e}', level='warning')
-            return None
-
-    def _crawl_with_crawl4ai(self, url: str) -> str | None:
-        """同步使用 Crawl4AI 爬取（带全局超时，防止无头浏览器挂起拖死同步批次）"""
-        try:
-            return asyncio.run(asyncio.wait_for(self._crawl_with_crawl4ai_async(url), timeout=90))
-        except TimeoutError:
-            log_error(ErrorCategory.CRAWLER, 'OpenLibrary: Crawl4AI 超时(>90s)，放弃降级', level='warning')
-            return None
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'OpenLibrary: Crawl4AI 同步调用失败: {e}', level='warning')
-            return None
-
-    def _make_request_with_fallback(self, url: str) -> requests.Response | SimpleResponse | None:
-        """
-        带降级的请求方法
-
-        先尝试传统 requests，失败后用 Crawl4AI（尝试从 HTML 中提取 JSON）
-        """
-        logger.info('OpenLibrary: 尝试传统 requests: %s', url)
-
-        for attempt in range(3):
-            try:
-                response = self._session.get(url, timeout=self.config.timeout)
-                response.raise_for_status()
-                logger.info('OpenLibrary: 传统 requests 成功 (尝试: %s)', attempt + 1)
-                return response
-            except requests.RequestException as e:
-                logger.warning('OpenLibrary: 请求失败 (尝试: %s): %s', attempt + 1, e)
-                time.sleep(self.config.request_delay * (attempt + 1))
-
-        if self._crawl4ai_available:
-            logger.info('OpenLibrary: 尝试使用 Crawl4AI 获取数据')
-            html = self._crawl_with_crawl4ai(url)
-            if html:
-                logger.info('OpenLibrary: Crawl4AI 成功获取页面')
-                try:
-                    import re
-
-                    json_match = re.search(r'window\.APP_DATA = (\{.*?\});', html, re.DOTALL)
-                    if json_match:
-                        logger.info('OpenLibrary: 从 HTML 中提取 JSON 成功')
-                        from .base_crawler import SimpleResponse
-
-                        return SimpleResponse(json.loads(json_match.group(1)))
-                except Exception as e:
-                    log_error(ErrorCategory.CRAWLER, f'OpenLibrary: 从 HTML 提取 JSON 失败: {e}', level='warning')
-
-        logger.error('OpenLibrary: 所有方法都失败: %s', url)
-        return None
-
-    def get_categories(self) -> list[dict[str, str]]:
-        return [
-            {'id': 'fiction', 'name': '小说'},
-            {'id': 'nonfiction', 'name': '非虚构'},
-            {'id': 'mystery', 'name': '悬疑'},
-            {'id': 'romance', 'name': '言情'},
-            {'id': 'thriller', 'name': '惊悚'},
-            {'id': 'science_fiction', 'name': '科幻'},
-            {'id': 'fantasy', 'name': '奇幻'},
-            {'id': 'biography', 'name': '传记'},
-            {'id': 'history', 'name': '历史'},
-            {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young_adult', 'name': '青少年'},
-        ]
 
     def _iter_new_books(self, request: CrawlRequest):
         """
@@ -185,7 +73,7 @@ class OpenLibraryCrawler(BaseCrawler):
         current_year = datetime.now().year
         min_year = current_year - 2  # 默认近2年
 
-        response = self._make_request_with_fallback(url)
+        response = self._make_request(url)
         if not response:
             logger.error(f'❌ 无法获取 Open Library 数据: {url}')
             return
@@ -295,48 +183,3 @@ class OpenLibraryCrawler(BaseCrawler):
             )
 
         return links
-
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """获取书籍详情"""
-        if not book_url.startswith(self.BASE_URL):
-            book_url = f'{self.BASE_URL}{book_url}'
-
-        response = self._make_request(book_url)
-        if not response:
-            return None
-
-        try:
-            data = response.json()
-
-            title = data.get('title', 'Unknown Title')
-            author_key = data.get('authors', [{}])[0].get('author', {}).get('key', '')
-            author_name = 'Unknown Author'
-
-            if author_key:
-                author_url = f'{self.BASE_URL}{author_key}.json'
-                author_response = self._make_request(author_url)
-                if author_response:
-                    author_data = author_response.json()
-                    author_name = author_data.get('name', 'Unknown Author')
-
-            description = data.get('description', {})
-            if isinstance(description, dict):
-                description = description.get('value', '')
-
-            cover_id = data.get('covers', [None])[0]
-            cover_url = None
-            if cover_id:
-                cover_url = f'https://covers.openlibrary.org/b/id/{cover_id}-M.jpg'
-
-            return BookInfo(
-                title=title,
-                author=author_name,
-                description=description,
-                cover_url=cover_url,
-                language='English',
-                source_url=book_url,
-            )
-
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'解析书籍详情失败: {e}')
-            return None

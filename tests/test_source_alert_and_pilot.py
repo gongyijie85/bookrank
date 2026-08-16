@@ -8,7 +8,13 @@ from typing import Any
 import pytest
 
 from app.models.new_book import Publisher
+from app.models.schemas import SystemConfig
 from app.services import pilot_gate_service, source_alert_service, source_control_service, source_health_service
+
+
+def _clear_evidence(db, source_id: str) -> None:
+    SystemConfig.query.filter_by(key=f'pilot_evidence:{source_id}').delete()
+    db.session.commit()
 
 
 class FakeGithubIssues:
@@ -136,7 +142,7 @@ def test_disabled_not_auto_closed_by_success(app, db, harper, fake_gh):
 
 
 def test_pilot_gates_require_volume_and_success_rate(app, db, harper):
-    pilot_gate_service.reset_evidence('harpercollins')
+    _clear_evidence(db, 'harpercollins')
     # only 5 runs
     for i in range(5):
         pilot_gate_service.record_evidence_run(
@@ -151,7 +157,7 @@ def test_pilot_gates_require_volume_and_success_rate(app, db, harper):
 
 
 def test_pilot_gates_pass_with_enough_history(app, db, harper):
-    pilot_gate_service.reset_evidence('harpercollins')
+    _clear_evidence(db, 'harpercollins')
     pilot_gate_service.set_compliance_go('harpercollins', True, actor='test')
     base = datetime.now(UTC)
     for i in range(14):
@@ -176,7 +182,7 @@ def test_pilot_gates_pass_with_enough_history(app, db, harper):
 
 
 def test_display_primary_requires_compliance_and_gates(app, db, harper):
-    pilot_gate_service.reset_evidence('harpercollins')
+    _clear_evidence(db, 'harpercollins')
     pilot_gate_service.set_compliance_go('harpercollins', False, actor='test')
     allowed, reason = pilot_gate_service.can_enable_display_primary('harpercollins')
     assert allowed is False

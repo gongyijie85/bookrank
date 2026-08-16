@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from app.services.publisher_observer import (
-    FixedTemplateFallback,
     observe_fixture_manifest,
 )
 from app.services.publisher_observer.batch_draft import (
@@ -20,8 +19,7 @@ FIXTURES = Path(__file__).parent / 'fixtures' / 'publisher_observer' / 'harperco
 
 
 def test_export_batch_draft_from_observation_report_is_import_shaped_and_no_write():
-    fallback = FixedTemplateFallback.from_path(FIXTURES / 'fixed-ai-candidate.json')
-    report = observe_fixture_manifest(FIXTURES / 'manifest.json', fallback=fallback)
+    report = observe_fixture_manifest(FIXTURES / 'manifest.json')
     produced_at = datetime(2026, 8, 12, 8, 0, 0, tzinfo=UTC)
 
     draft = export_batch_draft(

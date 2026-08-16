@@ -61,47 +61,11 @@ class MacmillanCrawler(GoogleBooksCrawler):
     PUBLISHER_WEBSITE = 'https://us.macmillan.com'
     CRAWLER_CLASS_NAME = 'MacmillanCrawler'
 
-    CATEGORY_MAP = {
-        'fiction': '小说',
-        'nonfiction': '非虚构',
-        'mystery': '悬疑',
-        'romance': '言情',
-        'thriller': '惊悚',
-        'science_fiction': '科幻',
-        'fantasy': '奇幻',
-        'biography': '传记',
-        'history': '历史',
-        'children': '儿童读物',
-        'young_adult': '青少年',
-        'science': '科学',
-        'business': '商业',
-        'graphic_novels': '图像小说',
-    }
-
     def __init__(self, config: CrawlerConfig | None = None):
         super().__init__(config)
         self._google_rate_limited = False
         if config is None:
             self.config.request_delay = 0.8
-
-    def get_categories(self) -> list[dict[str, str]]:
-        """获取支持的分类列表"""
-        return [
-            {'id': 'fiction', 'name': '小说'},
-            {'id': 'nonfiction', 'name': '非虚构'},
-            {'id': 'mystery', 'name': '悬疑'},
-            {'id': 'romance', 'name': '言情'},
-            {'id': 'thriller', 'name': '惊悚'},
-            {'id': 'science_fiction', 'name': '科幻'},
-            {'id': 'fantasy', 'name': '奇幻'},
-            {'id': 'biography', 'name': '传记'},
-            {'id': 'history', 'name': '历史'},
-            {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young_adult', 'name': '青少年'},
-            {'id': 'science', 'name': '科学'},
-            {'id': 'business', 'name': '商业'},
-            {'id': 'graphic_novels', 'name': '图像小说'},
-        ]
 
     # ------------------------------------------------------------------ #
     #  路径一：Google Books 多印记查询

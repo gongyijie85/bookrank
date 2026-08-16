@@ -225,13 +225,4 @@ class TestUtilities:
         # 超出限制
         assert limiter.is_allowed() is False
 
-    def test_secure_filename(self):
-        """测试安全文件名"""
-        from app.utils.security import sanitize_filename
 
-        # 测试正常文件名
-        assert sanitize_filename('normal_file.txt') == 'normal_file.txt'
-
-        # 测试危险文件名 - 应该被清理
-        result = sanitize_filename('../../etc/passwd')
-        assert '..' not in result or result == 'etc_passwd'

@@ -1,11 +1,18 @@
-import logging
 
 from flask import Blueprint, request
 
-from app.services.analytics_service import get_analytics_service
+from app.services.analytics_service import (
+    get_daily_stats as fetch_daily_stats,
+)
+from app.services.analytics_service import (
+    get_report_view_stats,
+    get_user_behavior_stats,
+    get_user_session_stats,
+)
+from app.services.analytics_service import (
+    get_top_reports as fetch_top_reports,
+)
 from app.utils.api_helpers import APIResponse, handle_api_errors
-
-logger = logging.getLogger(__name__)
 
 analytics_bp = Blueprint('analytics', __name__)
 
@@ -19,8 +26,7 @@ def _clamp(value: int, min_val: int, max_val: int) -> int:
 def get_report_views():
     """获取周报阅读统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
-    analytics_service = get_analytics_service()
-    stats = analytics_service.get_report_view_stats(days)
+    stats = get_report_view_stats(days)
     return APIResponse.success(data=stats)
 
 
@@ -29,8 +35,7 @@ def get_report_views():
 def get_user_behavior():
     """获取用户行为统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
-    analytics_service = get_analytics_service()
-    stats = analytics_service.get_user_behavior_stats(days)
+    stats = get_user_behavior_stats(days)
     return APIResponse.success(data=stats)
 
 
@@ -39,8 +44,7 @@ def get_user_behavior():
 def get_daily_stats():
     """获取每日统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
-    analytics_service = get_analytics_service()
-    stats = analytics_service.get_daily_stats(days)
+    stats = fetch_daily_stats(days)
     return APIResponse.success(data=stats)
 
 
@@ -49,8 +53,7 @@ def get_daily_stats():
 def get_top_reports():
     """获取阅读量最高的周报"""
     limit = _clamp(request.args.get('limit', 10, type=int), 1, 50)
-    analytics_service = get_analytics_service()
-    top_reports = analytics_service.get_top_reports(limit)
+    top_reports = fetch_top_reports(limit)
     return APIResponse.success(data=top_reports)
 
 
@@ -59,6 +62,5 @@ def get_top_reports():
 def get_session_stats():
     """获取用户会话统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
-    analytics_service = get_analytics_service()
-    stats = analytics_service.get_user_session_stats(days)
+    stats = get_user_session_stats(days)
     return APIResponse.success(data=stats)

@@ -9,12 +9,12 @@
 - 模块级 _translate_book_info 辅助函数
 """
 
-from collections import OrderedDict
 from unittest.mock import MagicMock, Mock, patch
 
 from app.services.zhipu_translation_service import (
     HybridTranslationService,
     ZhipuTranslationService,
+    _cached_translate_author_name,
     _translate_book_info,
     get_translation_service,
     translate_book_info,
@@ -126,8 +126,6 @@ class TestZhipuTranslationServiceInit:
         assert service._client is None
         assert service._cache_service is None
         assert service._last_request_time == 0
-        assert isinstance(service._author_name_cache, OrderedDict)
-        assert len(service._author_name_cache) == 0
 
 
 class TestZhipuTranslationServiceAvailability:
@@ -439,7 +437,7 @@ class TestZhipuTranslationServiceTranslate:
         service, mock_client = _make_zhipu_service()
         mock_client.chat.completions.create.return_value = _make_api_response('翻译结果')
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -463,7 +461,7 @@ class TestZhipuTranslationServiceTranslate:
         mock_client.chat.completions.create.return_value = _make_api_response('书名：测试')
         with (
             patch.object(service, '_validate_translation', return_value=False),
-            patch.object(service, '_postprocess_translation', return_value='测试'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='测试'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -483,27 +481,29 @@ class TestZhipuTranslationServiceTranslateAuthorName:
 
     def test_cached_author_returns_from_cache(self):
         service, _ = _make_zhipu_service()
-        service._author_name_cache['John Smith'] = '约翰·史密斯'
-        result = service.translate_author_name('John Smith')
-        assert result == '约翰·史密斯'
+        with patch.object(service, 'translate', return_value='约翰·史密斯') as mock_translate:
+            assert service.translate_author_name('John Smith') == '约翰·史密斯'
+            assert service.translate_author_name('John Smith') == '约翰·史密斯'
+            mock_translate.assert_called_once_with('John Smith', field_type='author')
 
-    def test_cache_eviction_when_full(self):
+    def test_lru_cache_bounds_size(self):
         service, _ = _make_zhipu_service()
-        service._author_name_cache_max_size = 5
-        for i in range(5):
-            service._author_name_cache[f'Author {i}'] = f'作者{i}'
-        with patch.object(service, 'translate', return_value='新作者'):
-            result = service.translate_author_name('New Author')
-            assert result == '新作者'
-            assert len(service._author_name_cache) <= 5
+        with patch.object(service, 'translate', return_value='作者'):
+            for i in range(1001):
+                service.translate_author_name(f'Author {i}')
+        info = _cached_translate_author_name.cache_info()
+        assert info.currsize <= 1000
 
-    def test_lru_move_to_end(self):
+    def test_lru_cache_hits_on_repeat(self):
         service, _ = _make_zhipu_service()
-        service._author_name_cache['A'] = '甲'
-        service._author_name_cache['B'] = '乙'
-        service._author_name_cache['C'] = '丙'
-        service.translate_author_name('A')
-        assert list(service._author_name_cache.keys()) == ['B', 'C', 'A']
+        with patch.object(service, 'translate', return_value='甲') as mock_translate:
+            service.translate_author_name('A')
+            service.translate_author_name('B')
+            service.translate_author_name('C')
+            service.translate_author_name('A')
+        info = _cached_translate_author_name.cache_info()
+        assert info.hits >= 1
+        assert mock_translate.call_count == 3
 
 
 class TestHybridTranslationServiceGetCacheStats:

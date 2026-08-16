@@ -66,23 +66,6 @@ class APIResponse:
         return jsonify(response), status_code
 
 
-class PublicAPIResponse:
-    """公开API响应格式（带时间戳）
-
-    已合并至 APIResponse；本类保留为向后兼容的薄包装。
-    """
-
-    @staticmethod
-    def success(data: Any = None, message: str = 'Success', status_code: int = 200) -> tuple[Response, int]:
-        return APIResponse.success(data=data, message=message, status_code=status_code, include_timestamp=True)
-
-    @staticmethod
-    def error(
-        message: str = 'Error', status_code: int = 400, errors: list | dict | None = None
-    ) -> tuple[Response, int]:
-        return APIResponse.error(message=message, status_code=status_code, errors=errors, include_timestamp=True)
-
-
 def handle_api_errors(f: Callable[..., Any]) -> Callable[..., Any]:
     """统一API异常处理装饰器：捕获自定义异常与常见异常并返回标准格式响应"""
 
@@ -152,7 +135,11 @@ def validate_pagination(page: int, limit: int, max_limit: int = 50) -> tuple[int
     return page, limit
 
 
-def api_rate_limit(max_requests: int = 60, window: int = 60) -> Callable[..., Any]:
+def rate_limit(
+    max_requests: int = 60,
+    window: int = 60,
+    response_cls: type[APIResponse] = APIResponse,
+) -> Callable[..., Any]:
     """API限流装饰器"""
 
     def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
@@ -166,30 +153,7 @@ def api_rate_limit(max_requests: int = 60, window: int = 60) -> Callable[..., An
 
             if not limiter.is_allowed(client_id):
                 retry_after = limiter.get_retry_after(client_id)
-                return APIResponse.error(f'Rate limit exceeded. Retry after {retry_after}s.', 429)
-
-            return f(*args, **kwargs)
-
-        return wrapped
-
-    return decorator
-
-
-def public_rate_limit(max_requests: int = 60, window: int = 60) -> Callable[..., Any]:
-    """公开API限流装饰器"""
-
-    def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
-        @wraps(f)
-        def wrapped(*args: Any, **kwargs: Any) -> Any:
-            if current_app.config.get('TESTING'):
-                return f(*args, **kwargs)
-
-            limiter = get_rate_limiter(max_requests, window)
-            client_id = request.remote_addr or 'unknown'
-
-            if not limiter.is_allowed(client_id):
-                retry_after = limiter.get_retry_after(client_id)
-                return PublicAPIResponse.error(f'Rate limit exceeded. Retry after {retry_after}s.', 429)
+                return response_cls.error(f'Rate limit exceeded. Retry after {retry_after}s.', 429)
 
             return f(*args, **kwargs)
 
@@ -339,18 +303,6 @@ def _extract_field_content(text: str, field_type: str) -> str:
     return text[start_pos:end_pos].strip()
 
 
-def _add_book_title_marks(text: str) -> str:
-    """给纯中文书名添加《》（仅在标题上下文中使用）"""
-    if not text:
-        return text
-    text = text.strip()
-    if text.startswith('《') and text.endswith('》'):
-        return text
-    if re.search(r'[a-zA-Z]', text):
-        return text
-    return f'《{text}》'
-
-
 def _clean_title_text(text: str) -> str:
     """清理书名中混入的作者名、描述等多余内容
 
@@ -440,9 +392,6 @@ def clean_translation_text(text: str, field_type: str = 'text') -> str:
         text = _extract_field_content(text, field_type)
     for pattern in _FIELD_PREFIX_PATTERNS:
         text = re.sub(pattern, '', text, flags=re.IGNORECASE)
-    # 统一引号
-    text = text.replace('\u201c', '\u201c').replace('\u201d', '\u201d')
-    text = text.replace('\u2018', '\u2018').replace('\u2019', '\u2019')
     if field_type == 'title':
         text = _clean_title_text(text)
     # 清除空行

@@ -1,5 +1,4 @@
 import ipaddress
-import logging
 import re
 from pathlib import Path
 
@@ -18,9 +17,9 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
-from ..services.book_detail_service import fetch_google_books_details, is_valid_isbn, merge_or_translate_book
+from ..services.book_detail_service import fetch_google_books_details, merge_or_translate_book
 from ..utils import ExternalAPIError
-from ..utils.api_helpers import APIResponse, handle_api_errors, quick_clean_translation
+from ..utils.api_helpers import APIResponse, handle_api_errors, quick_clean_translation, validate_isbn
 from ..utils.book_filters import (
     filter_books_by_publisher,
     filter_books_by_search,
@@ -35,19 +34,16 @@ from ..utils.template_resolver import render_adaptive
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 from ..utils.service_helpers import (
-    get_book_service,
     get_google_books_client,
-    get_image_cache_service,
     get_new_book_modules,
     get_or_create_recommendation_service,
+    get_service,
     get_sync_request_gate,
-    get_translation_service,
     hash_client_ip,
     submit_background_task,
 )
 
 main_bp = Blueprint('main', __name__)
-logger = logging.getLogger(__name__)
 
 
 def _get_list_published_date(books_data: list[dict]) -> str | None:
@@ -65,7 +61,7 @@ def _get_books_for_category(category: str) -> tuple[list, str | None]:
     if category not in categories:
         category = default_category
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return [], None
 
@@ -181,11 +177,11 @@ def award_book_cover(book_id: int):
         abort(404)
     sync_service = AwardCoverSyncService(
         get_google_books_client(),
-        image_cache=get_image_cache_service(),
+        image_cache=get_service('image_cache_service'),
     )
 
     try:
-        cover_url = sync_service.resolve_cover_for_book(book)
+        cover_url = sync_service._resolver.resolve(book)
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'获奖图书封面解析失败 book_id={book_id}: {e}', level='warning')
         cover_url = (book.cover_original_url or '').strip()
@@ -289,22 +285,19 @@ def _load_awards_data(award_service, params: dict) -> dict:
             limit=params['per_page'],
         )
 
-        def _is_isbn(text: str) -> bool:
-            """简易 ISBN 检测：10/13 位纯数字（可含连字符/空格）"""
-            if not text:
-                return False
-            c = text.replace('-', '').replace(' ', '')
-            return c.isdigit() and len(c) in (10, 13)
+        from ..models.schemas import AwardBook
 
         for book in books:
             # title_en: 原始 DB title 供前端 data-en 使用；
             # 若原始 title 是 ISBN 脏数据则退回 display_title
             raw_title = (book.title or '').strip()
-            title_en = book.display_title or '' if _is_isbn(raw_title) else (raw_title or book.display_title or '')
+            title_en = (
+                book.display_title or '' if AwardBook._looks_like_isbn(raw_title) else (raw_title or book.display_title or '')
+            )
 
             # title_zh: 清理后的中文标题；ISBN 脏数据直接清空
             raw_zh = quick_clean_translation(book.title_zh, 'title')
-            title_zh = '' if _is_isbn(raw_zh or '') else (raw_zh or '')
+            title_zh = '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or '')
 
             books_data.append(
                 {
@@ -570,7 +563,7 @@ def new_book_detail(book_id):
         return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
 
     if not book.title_zh or not book.description_zh:
-        translation_service = get_translation_service()
+        translation_service = get_service('translation_service')
         if translation_service:
 
             def translate_book_async():
@@ -654,7 +647,7 @@ def book_detail(book_index):
     book = books_data[book_index]
 
     isbn = book.get('isbn13') or book.get('isbn10')
-    if isbn and is_valid_isbn(isbn):
+    if isbn and validate_isbn(isbn):
         fetch_google_books_details(book, isbn)
         merge_or_translate_book(book, isbn)
 
@@ -746,7 +739,7 @@ def api_category_books():
     update_time = None
 
     try:
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if book_service:
             try:
                 books = book_service.get_books_by_category(category)
@@ -781,7 +774,7 @@ def weekly_reports():
     """
     from ..services.weekly_report_service import WeeklyReportService
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return render_adaptive('error.html', message='服务不可用', back_url='/')
 
@@ -813,7 +806,7 @@ def weekly_report_status():
     from ..services.weekly_report_service import WeeklyReportService
     from ..tasks.weekly_report_task_helpers import compute_expected_week_range
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return jsonify({'error': '服务不可用'}), 503
 
@@ -839,7 +832,7 @@ def weekly_report_detail(date):
 
     from ..services.weekly_report_service import WeeklyReportService
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
@@ -889,7 +882,7 @@ def export_weekly_report(date):
     from ..services.export_service import ExportService
     from ..services.weekly_report_service import WeeklyReportService
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
