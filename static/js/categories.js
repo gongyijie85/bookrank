@@ -59,17 +59,11 @@
             var label = getLabel(id, lang);
             var selected = (id === currentId) ? ' selected' : '';
             html += '<option value="' + escapeAttr(id) + '"' + selected + '>' +
-                    escapeHtml(label) + '</option>';
+                    esc(label) + '</option>';
         }
         return html;
     }
 
-    function escapeHtml(s) {
-        return String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-    }
     function escapeAttr(s) {
         return String(s).replace(/"/g, '&quot;');
     }

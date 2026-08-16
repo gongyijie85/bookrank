@@ -1,5 +1,3 @@
-import { api } from './api.js';
-
 /* ============================================
    BookRank 首页交互逻辑 (Notion 设计系统)
    ============================================ */
@@ -38,72 +36,6 @@ function updateLanguageButtons(lang) {
         enBtn.classList.toggle('active', lang === 'en');
         enBtn.setAttribute('aria-pressed', lang === 'en');
     }
-}
-
-/**
- * 内部语言切换处理函数（仅处理翻译文本切换）
- */
-function _handleLanguageChange(lang) {
-    if (lang === 'zh') {
-        const translationData = [];
-        const books = window.booksData || [];
-        books.forEach(book => {
-            const isbn = book.isbn13 || book.isbn10;
-            if (!isbn) return;
-            const trans = {
-                title: book.title_zh || book.title,
-                description: book.description_zh || book.description,
-                category: book.category_name || ''
-            };
-            translationData.push({
-                isbn: isbn,
-                language: 'zh',
-                data: trans
-            });
-            const titleEl = document.querySelector(`.card[data-isbn="${isbn}"] .card-title`);
-            if (titleEl && book.title_zh) {
-                titleEl.textContent = book.title_zh;
-                if (!titleEl.querySelector('.translation-badge')) {
-                    titleEl.insertAdjacentHTML('beforeend', '<span class="translation-badge">译</span>');
-                }
-            }
-        });
-        if (typeof BookI18n !== 'undefined') {
-            BookI18n.updateBatch(translationData);
-            BookI18n.applyLanguage('zh');
-        } else {
-            translateAllBooks();
-        }
-    } else {
-        restoreAllBooks();
-        if (typeof BookI18n !== 'undefined') {
-            BookI18n.applyLanguage('en');
-        }
-    }
-}
-
-/**
- * 翻译系统入口函数（带节流控制）
- */
-let translateTimer = null;
-function startTranslationSystem() {
-    if (translateTimer) {
-        clearTimeout(translateTimer);
-    }
-    translateTimer = setTimeout(() => {
-        if (currentLanguage === 'zh') {
-            _handleLanguageChange('zh');
-        }
-    }, 1000);
-}
-
-// 切换语言
-function switchLanguage(lang) {
-    currentLanguage = lang;
-    localStorage.setItem('bookrank_language', lang);
-    updateLanguageButtons(lang);
-    _handleLanguageChange(lang);
-    document.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } }));
 }
 
 // ========== 搜索功能 ==========
@@ -154,9 +86,9 @@ function renderSearchSuggestions() {
             results.forEach(book => {
                 const title = currentLanguage === 'zh' ? (book.title_zh || book.title) : book.title;
                 html += `
-                    <li class="suggestion-item" data-search-query="${escapeHtml(book.title)}">
+                    <li class="suggestion-item" data-search-query="${esc(book.title)}">
                         <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
-                        <span>${escapeHtml(title)}</span>
+                        <span>${esc(title)}</span>
                     </li>`;
             });
             html += '</ul>';
@@ -167,10 +99,10 @@ function renderSearchSuggestions() {
             html += '<ul class="suggestions-list">';
             history.slice(0, 5).forEach(item => {
                 html += `
-                    <li class="suggestion-item" data-search-query="${escapeHtml(item.query)}">
+                    <li class="suggestion-item" data-search-query="${esc(item.query)}">
                         <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
-                        <span>${escapeHtml(item.query)}</span>
-                        <svg class="icon delete-history" width="14" height="14" data-delete-query="${escapeHtml(item.query)}"><use href="#icon-x"/></svg>
+                        <span>${esc(item.query)}</span>
+                        <svg class="icon delete-history" width="14" height="14" data-delete-query="${esc(item.query)}"><use href="#icon-x"/></svg>
                     </li>`;
             });
             html += '</ul>';
@@ -183,10 +115,10 @@ function renderSearchSuggestions() {
         html += '<ul class="suggestions-list">';
         history.slice(0, 10).forEach(item => {
             html += `
-                <li class="suggestion-item" data-search-query="${escapeHtml(item.query)}">
+                <li class="suggestion-item" data-search-query="${esc(item.query)}">
                     <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
-                    <span>${escapeHtml(item.query)}</span>
-                    <svg class="icon delete-history" width="14" height="14" data-delete-query="${escapeHtml(item.query)}"><use href="#icon-x"/></svg>
+                    <span>${esc(item.query)}</span>
+                    <svg class="icon delete-history" width="14" height="14" data-delete-query="${esc(item.query)}"><use href="#icon-x"/></svg>
                 </li>`;
         });
         html += '</ul>';
@@ -349,313 +281,6 @@ function hideLoading() {
     if (overlay) overlay.style.display = 'none';
 }
 
-function showToast(message, type) {
-    const toast = document.createElement('div');
-    toast.className = `toast-message ${type === 'error' ? 'toast-error' : type === 'success' ? 'toast-success' : ''}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-// ========== 翻译系统 ==========
-
-const translationCache = {
-    cache: {},
-    getBook: function(isbn) {
-        try {
-            const key = `bookrank_trans_${isbn}`;
-            const data = localStorage.getItem(key);
-            if (data) {
-                const parsed = JSON.parse(data);
-                if (Date.now() - parsed.timestamp < 604800000) {
-                    return parsed.data;
-                }
-            }
-        } catch (e) {}
-        return null;
-    },
-    setBook: function(isbn, data) {
-        try {
-            const key = `bookrank_trans_${isbn}`;
-            localStorage.setItem(key, JSON.stringify({
-                timestamp: Date.now(),
-                data: data
-            }));
-        } catch (e) {}
-    }
-};
-
-function showTranslationProgress(current, total) {
-    const progressEl = document.getElementById('translation-progress');
-    const fillEl = document.getElementById('progress-fill');
-    const textEl = document.getElementById('progress-text');
-    if (progressEl && fillEl && textEl) {
-        progressEl.classList.add('active');
-        const percent = Math.round((current / total) * 100);
-        fillEl.style.width = `${percent}%`;
-        textEl.textContent = `${current}/${total} (${percent}%)`;
-    }
-}
-
-function hideTranslationProgress() {
-    const progressEl = document.getElementById('translation-progress');
-    if (progressEl) {
-        progressEl.classList.remove('active');
-    }
-}
-
-async function parallelLimit(tasks, concurrency = 3) {
-    const results = [];
-    let nextIndex = 0;
-
-    async function worker() {
-        while (nextIndex < tasks.length) {
-            const idx = nextIndex++;
-            results[idx] = await tasks[idx]();
-        }
-    }
-
-    const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker());
-    await Promise.all(workers);
-    return results;
-}
-
-async function translateAllBooks() {
-    const books = window.booksData;
-    let toTranslate = [];
-    let appliedCount = 0;
-
-    showTranslationProgress(0, books.length);
-
-    for (let i = 0; i < books.length; i++) {
-        const book = books[i];
-        const isbn = book.isbn13 || book.isbn10;
-
-        if (!isbn) continue;
-
-        if (book.title_zh || book.description_zh) {
-            applyTranslationToCard(i, {
-                title_zh: book.title_zh,
-                desc_zh: book.description_zh,
-                details_zh: book.details_zh
-            });
-            appliedCount++;
-            showTranslationProgress(appliedCount, books.length);
-            continue;
-        }
-
-        const cached = translationCache.getBook(isbn);
-        if (cached && cached.title_zh) {
-            applyTranslationToCard(i, cached);
-            appliedCount++;
-            showTranslationProgress(appliedCount, books.length);
-            continue;
-        }
-
-        toTranslate.push({ index: i, book, isbn });
-    }
-
-    if (toTranslate.length === 0) {
-        hideTranslationProgress();
-        return;
-    }
-
-    let translatedCount = appliedCount;
-    const tasks = toTranslate.map(({ index, book, isbn }) => async () => {
-        await translateSingleBook(index, book, isbn);
-        translatedCount++;
-        showTranslationProgress(translatedCount, books.length);
-    });
-
-    await parallelLimit(tasks, 3);
-}
-
-async function translateSingleBook(index, book, isbn) {
-    try {
-        const bestDescription = getBestDescription(book);
-        const detailsText = (bestDescription && bestDescription !== book.description)
-            ? bestDescription : '';
-
-        const result = await api.translateBookFields({
-            title: book.title || '',
-            description: book.description || '',
-            details: detailsText
-        }, 'en', 'zh');
-
-        let translatedTitle = book.title;
-        let translatedDesc = book.description;
-        let translatedDetails = bestDescription || book.description;
-
-        if (result.success && result.data) {
-            if (result.data.title_zh) translatedTitle = result.data.title_zh;
-            if (result.data.description_zh) translatedDesc = result.data.description_zh;
-            if (result.data.details_zh) {
-                translatedDetails = result.data.details_zh;
-            } else if (result.data.description_zh) {
-                translatedDetails = result.data.description_zh;
-            }
-        } else {
-
-            try {
-                const tResult = await api.translateText(book.title, 'en', 'zh', 'title');
-                if (tResult.success) translatedTitle = tResult.data.translated;
-            } catch (e) { /* 标题翻译失败: */ }
-            try {
-                const dResult = await api.translateText(book.description, 'en', 'zh', 'description');
-                if (dResult.success) translatedDesc = dResult.data.translated;
-            } catch (e) { /* 描述翻译失败: */ }
-            if (detailsText) {
-                try {
-                    const dtResult = await api.translateText(detailsText, 'en', 'zh', 'details');
-                    if (dtResult.success) translatedDetails = dtResult.data.translated;
-                } catch (e) {
-
-                    translatedDetails = translatedDesc;
-                }
-            } else {
-                translatedDetails = translatedDesc;
-            }
-        }
-
-        const translatedData = {
-            title_zh: translatedTitle,
-            desc_zh: translatedDesc,
-            details_zh: translatedDetails,
-            original_title: book.title,
-            original_desc: book.description,
-            original_details: bestDescription
-        };
-
-        if (isbn) {
-            translationCache.setBook(isbn, translatedData);
-        }
-
-        applyTranslationToCard(index, translatedData);
-
-    } catch (error) {
-        console.error('翻译失败:', error);
-    }
-}
-
-async function translateMissingBooks(missingIsbns) {
-    if (!missingIsbns || !missingIsbns.length) return;
-    var books = window.booksData;
-    if (!books) return;
-
-    for (var i = 0; i < books.length; i++) {
-        var book = books[i];
-        var isbn = book.isbn13 || book.isbn10;
-        if (!isbn || missingIsbns.indexOf(isbn) === -1) continue;
-
-        try {
-            var result = await api.translateBookFields({
-                title: book.title || '',
-                description: book.description || '',
-                details: ''
-            }, 'en', 'zh');
-
-            if (result.success && result.data) {
-                var transData = {
-                    title: result.data.title_zh || book.title,
-                    description: result.data.description_zh || book.description,
-                    category: book.category_name || ''
-                };
-                if (typeof BookI18n !== 'undefined') {
-                    BookI18n.updateTranslation(isbn, 'zh', transData);
-                }
-                book.title_zh = transData.title;
-                book.description_zh = transData.description;
-            }
-        } catch (e) {
-
-        }
-    }
-
-    if (typeof BookI18n !== 'undefined') {
-        BookI18n.applyLanguage('zh');
-    }
-}
-
-function applyTranslationToCard(index, data) {
-    const cards = document.querySelectorAll('.card');
-    const listItems = document.querySelectorAll('.list-item');
-
-    if (cards[index]) {
-        const titleEl = cards[index].querySelector('.card-title');
-        const descEl = cards[index].querySelector('.card-desc');
-
-        if (titleEl) {
-            titleEl.textContent = data.title_zh;
-            titleEl.title = data.title_zh;
-            if (!titleEl.querySelector('.translation-badge')) {
-                titleEl.insertAdjacentHTML('beforeend', '<span class="translation-badge">译</span>');
-            }
-        }
-        if (descEl && data.desc_zh) {
-            const shortDesc = data.desc_zh.slice(0, 100) +
-                (data.desc_zh.length > 100 ? '...' : '');
-            descEl.textContent = shortDesc;
-        }
-    }
-
-    if (listItems[index]) {
-        const titleEl = listItems[index].querySelector('.list-item-title');
-        const descEl = listItems[index].querySelector('.list-item-desc');
-
-        if (titleEl) {
-            titleEl.textContent = data.title_zh;
-        }
-        if (descEl && data.desc_zh) {
-            const shortDesc = data.desc_zh.slice(0, 200) +
-                (data.desc_zh.length > 200 ? '...' : '');
-            descEl.textContent = shortDesc;
-        }
-    }
-}
-
-function restoreAllBooks() {
-    const books = window.booksData;
-
-    for (let i = 0; i < books.length; i++) {
-        const book = books[i];
-        const cards = document.querySelectorAll('.card');
-        const listItems = document.querySelectorAll('.list-item');
-
-        if (cards[i]) {
-            const titleEl = cards[i].querySelector('.card-title');
-            const descEl = cards[i].querySelector('.card-desc');
-
-            if (titleEl) {
-                titleEl.textContent = book.title;
-                titleEl.title = book.title;
-                const badge = titleEl.querySelector('.translation-badge');
-                if (badge) badge.remove();
-            }
-            if (descEl && book.description) {
-                const shortDesc = book.description.slice(0, 100) +
-                    (book.description.length > 100 ? '...' : '');
-                descEl.textContent = shortDesc;
-            }
-        }
-
-        if (listItems[i]) {
-            const titleEl = listItems[i].querySelector('.list-item-title');
-            const descEl = listItems[i].querySelector('.list-item-desc');
-
-            if (titleEl) {
-                titleEl.textContent = book.title;
-            }
-            if (descEl && book.description) {
-                const shortDesc = book.description.slice(0, 200) +
-                    (book.description.length > 200 ? '...' : '');
-                descEl.textContent = shortDesc;
-            }
-        }
-    }
-}
 
 // ========== 初始化 ==========
 
@@ -718,12 +343,6 @@ const categoryCache = {
             localStorage.setItem(key, JSON.stringify(data));
         } catch (e) { /* 忽略 */ }
     },
-    /**
-     * v0.9.55: 移除批量预拉取（preload）
-     * 改为按需加载：用户切换到哪个分类才请求哪个，避免每天 500 次 NYT 配额被浪费
-     * 保留方法名仅供向后兼容（不执行任何网络请求）
-     */
-    preload: function(_categories, _currentCategory) { /* no-op, v0.9.55 按需加载 */ }
 };
 
 /**
@@ -981,44 +600,44 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             const catLabel = resolveCategoryLabel(book, category, lang);
             return `
             <article class="card card-animate"
-                     data-isbn="${escapeHtml(book.isbn13 || book.isbn10 || '')}"
+                     data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
                      data-index="${index}"
                      role="button"
                      tabindex="0"
-                     aria-label="${escapeHtml(title)} - ${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}">
+                     aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="card-image">
                     <div class="cover-frame">
                         <img src="${book.cover || defaultCover}"
-                             alt="${escapeHtml(t('card_cover_alt', lang, { title }))}"
+                             alt="${esc(t('card_cover_alt', lang, { title }))}"
                              loading="lazy"
                              width="280"
                              height="240"
                              data-fallback="${defaultCover}">
                     </div>
-                    <span class="card-category-tag">${escapeHtml(catLabel)}</span>
+                    <span class="card-category-tag">${esc(catLabel)}</span>
                     <span class="card-badge ${index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : 'other'}"
-                          aria-label="${escapeHtml(t('card_badge_aria', lang, { n: index + 1 }))}">
+                          aria-label="${esc(t('card_badge_aria', lang, { n: index + 1 }))}">
                         ${index + 1}
                     </span>
                     ${book.rank_last_week && book.rank_last_week !== '0' ?
                         (() => {
                             const change = parseInt(book.rank_last_week) - (index + 1);
-                            if (change > 0) return `<span class="rank-change up" aria-label="${escapeHtml(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
-                            if (change < 0) return `<span class="rank-change down" aria-label="${escapeHtml(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
+                            if (change > 0) return `<span class="rank-change up" aria-label="${esc(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
+                            if (change < 0) return `<span class="rank-change down" aria-label="${esc(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
                             return '';
                         })() :
-                        `<span class="rank-change new" aria-label="${escapeHtml(t('card_new_aria', lang))}">${escapeHtml(t('card_new_badge', lang))}</span>`
+                        `<span class="rank-change new" aria-label="${esc(t('card_new_aria', lang))}">${esc(t('card_new_badge', lang))}</span>`
                     }
                 </div>
                 <div class="card-content">
                     <div class="card-rank-row">
-                        <span class="card-rank-badge">${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}</span>
-                        ${book.weeks_on_list ? `<span class="card-weeks"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${escapeHtml(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
+                        <span class="card-rank-badge">${esc(t('card_rank_aria', lang, { n: index + 1 }))}</span>
+                        ${book.weeks_on_list ? `<span class="card-weeks"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                     </div>
-                    <h3 class="card-title" title="${escapeHtml(title)}">${escapeHtml(title)}</h3>
-                    <p class="card-author">${escapeHtml(book.author)}</p>
-                    ${book.isbn13 ? `<p class="card-isbn">${escapeHtml(t('card_isbn_prefix', lang))} ${escapeHtml(book.isbn13)}</p>` : book.isbn10 ? `<p class="card-isbn">${escapeHtml(t('card_isbn_prefix', lang))} ${escapeHtml(book.isbn10)}</p>` : ''}
-                    ${desc ? `<p class="card-desc">${escapeHtml(desc.slice(0, 100))}${desc.length > 100 ? '...' : ''}</p>` : ''}
+                    <h3 class="card-title" title="${esc(title)}">${esc(title)}</h3>
+                    <p class="card-author">${esc(book.author)}</p>
+                    ${book.isbn13 ? `<p class="card-isbn">${esc(t('card_isbn_prefix', lang))} ${esc(book.isbn13)}</p>` : book.isbn10 ? `<p class="card-isbn">${esc(t('card_isbn_prefix', lang))} ${esc(book.isbn10)}</p>` : ''}
+                    ${desc ? `<p class="card-desc">${esc(desc.slice(0, 100))}${desc.length > 100 ? '...' : ''}</p>` : ''}
                 </div>
             </article>
         `}).join('');
@@ -1032,14 +651,14 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             const catLabel = resolveCategoryLabel(book, category, lang);
             return `
             <article class="list-item card-animate"
-                     data-isbn="${escapeHtml(book.isbn13 || book.isbn10 || '')}"
+                     data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
                      data-index="${index}"
                      role="button"
                      tabindex="0"
-                     aria-label="${escapeHtml(title)} - ${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}">
+                     aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="list-item-image">
                     <img src="${book.cover || defaultCover}"
-                         alt="${escapeHtml(t('card_cover_alt', lang, { title }))}"
+                         alt="${esc(t('card_cover_alt', lang, { title }))}"
                          loading="lazy"
                          width="100"
                          height="150"
@@ -1048,26 +667,26 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                 <div class="list-item-content">
                     <div class="list-item-header">
                         <span class="list-item-rank ${index === 0 ? 'rank-gold' : index === 1 ? 'rank-silver' : index === 2 ? 'rank-bronze' : ''}"
-                              aria-label="${escapeHtml(t('card_rank_aria', lang, { n: index + 1 }))}">
+                              aria-label="${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
                             ${index + 1}
                         </span>
                         ${book.rank_last_week && book.rank_last_week !== '0' ?
                             (() => {
                                 const change = parseInt(book.rank_last_week) - (index + 1);
-                                if (change > 0) return `<span class="rank-change-badge up" aria-label="${escapeHtml(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
-                                if (change < 0) return `<span class="rank-change-badge down" aria-label="${escapeHtml(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
+                                if (change > 0) return `<span class="rank-change-badge up" aria-label="${esc(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
+                                if (change < 0) return `<span class="rank-change-badge down" aria-label="${esc(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
                                 return '';
                             })() :
-                            `<span class="rank-change-badge new" aria-label="${escapeHtml(t('card_new_aria', lang))}">${escapeHtml(t('card_new_badge', lang))}</span>`
+                            `<span class="rank-change-badge new" aria-label="${esc(t('card_new_aria', lang))}">${esc(t('card_new_badge', lang))}</span>`
                         }
-                        <h3 class="list-item-title">${escapeHtml(title)}</h3>
+                        <h3 class="list-item-title">${esc(title)}</h3>
                     </div>
-                    <p class="list-item-author">${escapeHtml(book.author)}</p>
-                    ${desc ? `<p class="list-item-desc">${escapeHtml(desc.slice(0, 200))}${desc.length > 200 ? '...' : ''}</p>` : ''}
+                    <p class="list-item-author">${esc(book.author)}</p>
+                    ${desc ? `<p class="list-item-desc">${esc(desc.slice(0, 200))}${desc.length > 200 ? '...' : ''}</p>` : ''}
                     <div class="list-item-meta">
-                        <span class="card-tag">${escapeHtml(catLabel)}</span>
-                        ${book.weeks_on_list ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${escapeHtml(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
-                        ${book.publisher ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ${escapeHtml(book.publisher)}</span>` : ''}
+                        <span class="card-tag">${esc(catLabel)}</span>
+                        ${book.weeks_on_list ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
+                        ${book.publisher ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ${esc(book.publisher)}</span>` : ''}
                     </div>
                 </div>
             </article>
@@ -1084,11 +703,6 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
         }
     }
 }
-
-// v0.9.55: 已移除 8 分类批量预拉取（每天浪费 8 次 NYT 配额）
-// 改为按需加载：用户切换到哪个分类才请求哪个，首次切换显示 skeleton 占位
-// （实现见 changeCategory() 和 categoryCache.get()）
-document.addEventListener('DOMContentLoaded', function() { /* on-demand loading, no prefetch */ });
 
 window.addEventListener('popstate', function(e) {
     if (e.state && e.state.category) {
@@ -1125,35 +739,6 @@ document.addEventListener('touchend', function(e) {
         }
     }
 }, { passive: true });
-
-if (!window.applyFilters) {
-    window.applyFilters = function() {
-        const category = document.getElementById('category-select').value;
-        const search = document.getElementById('search-input').value;
-        const publisher = document.getElementById('publisher-select')?.value || '';
-        const weeks = document.getElementById('weeks-select')?.value || '';
-        const sort = document.getElementById('sort-select')?.value || '';
-
-        if (search) {
-            saveSearchHistory(search);
-        }
-
-        showLoading('搜索中...');
-
-        const params = new URLSearchParams(window.location.search);
-        params.set('category', category);
-        if (search) params.set('search', search.trim());
-        else params.delete('search');
-        if (publisher) params.set('publisher', publisher);
-        else params.delete('publisher');
-        if (weeks) params.set('weeks', weeks);
-        else params.delete('weeks');
-        if (sort) params.set('sort', sort);
-        else params.delete('sort');
-
-        window.location.href = window.location.pathname + '?' + params.toString();
-    };
-}
 
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-input');
@@ -1211,56 +796,6 @@ function refreshData() {
 function exportBooks(category) {
     showToast('正在导出...', 'info');
     window.location.href = `/api/export/${encodeURIComponent(category)}`;
-}
-
-const escapeHtml = window.escapeHtml || function(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-};
-
-function getBestDescription(book) {
-    const hasDetails = book.details && book.details.length > 50;
-    const hasDescription = book.description && book.description.length > 50;
-
-    if (hasDetails && hasDescription) {
-        return book.details.length > book.description.length ? book.details : book.description;
-    }
-
-    if (hasDetails) return book.details;
-    if (hasDescription) return book.description;
-
-    return '暂无详细描述';
-}
-
-function buildDetailItem(label, value) {
-    return `
-        <div class="detail-item">
-            <span class="detail-label">${escapeHtml(label)}</span>
-            <span class="detail-value">${escapeHtml(value) || '暂无'}</span>
-        </div>
-    `;
-}
-
-function renderBuyLinks(container, buyLinks) {
-    container.innerHTML = '';
-    if (!buyLinks || buyLinks.length === 0) {
-        container.innerHTML = '<p class="no-links">暂无购买链接</p>';
-        return;
-    }
-
-    buyLinks.forEach(link => {
-        if (!link.url) return;
-        const a = document.createElement('a');
-        a.href = link.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.className = 'buy-link';
-        a.innerHTML = `<svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg> ${escapeHtml(link.name || '购买链接')}`;
-        a.setAttribute('aria-label', `在 ${escapeHtml(link.name || '购买链接')} 上购买`);
-        container.appendChild(a);
-    });
 }
 
 const booksGrid = document.getElementById('books-grid');

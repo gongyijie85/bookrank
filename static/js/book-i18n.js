@@ -109,11 +109,6 @@ var BookI18n = (function() {
         };
     }
 
-    function getRaw(isbn) {
-        var entry = _store.get(isbn);
-        return entry ? entry._raw : null;
-    }
-
     function updateTranslation(isbn, lang, data) {
         var entry = _store.get(isbn);
         if (!entry) return;
@@ -138,17 +133,12 @@ var BookI18n = (function() {
         }
     }
 
-    function hasTranslation(isbn, lang) {
-        var entry = _store.get(isbn);
-        if (!entry) return false;
-        if (lang === 'en') return true;
-        return entry[lang] && entry[lang].title && entry[lang].title !== entry.en.title;
-    }
-
     function getMissingTranslations(lang) {
         var missing = [];
         _store.forEach(function(entry, isbn) {
-            if (!hasTranslation(isbn, lang)) {
+            if (lang === 'en') return;
+            var has = entry[lang] && entry[lang].title && entry[lang].title !== entry.en.title;
+            if (!has) {
                 missing.push(isbn);
             }
         });
@@ -300,10 +290,8 @@ var BookI18n = (function() {
         register: register,
         registerAll: registerAll,
         get: get,
-        getRaw: getRaw,
         updateTranslation: updateTranslation,
         updateBatch: updateBatch,
-        hasTranslation: hasTranslation,
         getMissingTranslations: getMissingTranslations,
         applyLanguage: applyLanguage,
         applyPublisherLanguage: applyPublisherLanguage,

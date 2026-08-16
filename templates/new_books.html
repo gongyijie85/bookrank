@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from '_macros.html' import new_book_card, empty_state, pagination %}
+{% from '_macros.html' import new_book_card %}
 
 {% block title %}{{ _('新书速递') }} - BookRank{% endblock %}
 {% block og_title %}{{ _('新书速递') }} - BookRank{% endblock %}
@@ -186,29 +186,6 @@
 <script nonce="{{ csp_nonce() }}">
 'use strict';
 
-const translationCache = {
-    getBook(isbn) {
-        if (!isbn) return null;
-        try {
-            const cached = localStorage.getItem('bookrank_trans_' + isbn);
-            if (!cached) return null;
-            const parsed = JSON.parse(cached);
-            if (parsed._ts && Date.now() - parsed._ts > 86400000) {
-                localStorage.removeItem('bookrank_trans_' + isbn);
-                return null;
-            }
-            return parsed;
-        } catch { return null; }
-    },
-    saveBook(isbn, data) {
-        if (!isbn || !data) return;
-        try {
-            data._ts = Date.now();
-            localStorage.setItem('bookrank_trans_' + isbn, JSON.stringify(data));
-        } catch {}
-    }
-};
-
 let currentPage = {{ page }};
 let isLoading = false;
 let searchTimer = null;
@@ -388,7 +365,7 @@ function loadBooks(queryString) {
         })
         .catch(error => {
             container.innerHTML = '<div class="empty-state"><svg class="icon" width="48" height="48"><use href="#icon-alert-circle"/></svg>' +
-                '<h3>{{ _('加载失败') }}</h3><p>' + escapeHtml(error.message) + '</p>' +
+                '<h3>{{ _('加载失败') }}</h3><p>' + esc(error.message) + '</p>' +
                 '<button class="btn btn-outline" id="btn-retry" style="margin-top:1rem">{{ _('重试') }}</button></div>';
         })
         .finally(() => {
@@ -434,7 +411,7 @@ function renderBooks(data) {
 
 function renderBookCard(book) {
     const coverHtml = book.cover_url
-        ? '<img src="' + escapeHtml(book.cover_url) + '" alt="' + escapeHtml(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
+        ? '<img src="' + esc(book.cover_url) + '" alt="' + esc(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
         : '<div class="book-cover-placeholder"><svg class="icon" style="width:3rem;height:3rem"><use href="#icon-book"/></svg></div>';
 
     const titleZh = book.title_zh || book.title;
@@ -451,14 +428,14 @@ function renderBookCard(book) {
             '<svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>{{ _("刚上市") }}</span>';
     }
     if (book.category) {
-        tagsHtml += '<span class="book-tag tag-category">' + escapeHtml(book.category) + '</span>';
+        tagsHtml += '<span class="book-tag tag-category">' + esc(book.category) + '</span>';
     } else {
         tagsHtml += '<span class="book-tag tag-category tag-muted">{{ _("分类未公开") }}</span>';
     }
     if (book.publication_date) {
         const pubDate = formatPublicationDate(book.publication_date);
-        tagsHtml += '<span class="book-tag tag-date" title="{{ _("出版日期") }} ' + escapeHtml(pubDate) + '">' +
-            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + escapeHtml(pubDate) + '</span>';
+        tagsHtml += '<span class="book-tag tag-date" title="{{ _("出版日期") }} ' + esc(pubDate) + '">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + esc(pubDate) + '</span>';
     } else {
         tagsHtml += '<span class="book-tag tag-date tag-muted">' +
             '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>{{ _("日期未公开") }}</span>';
@@ -466,19 +443,19 @@ function renderBookCard(book) {
     tagsHtml += '</div>';
 
     const isbnHtml = book.isbn13
-        ? '<p class="book-isbn">' + escapeHtml(book.isbn13) + '</p>'
-        : (book.isbn10 ? '<p class="book-isbn">' + escapeHtml(book.isbn10) + '</p>' : '');
+        ? '<p class="book-isbn">' + esc(book.isbn13) + '</p>'
+        : (book.isbn10 ? '<p class="book-isbn">' + esc(book.isbn10) + '</p>' : '');
 
     const priceHtml = book.price
-        ? '<span class="book-price">' + escapeHtml(book.price) + '</span>'
+        ? '<span class="book-price">' + esc(book.price) + '</span>'
         : '';
 
-    return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + escapeHtml(book.isbn13 || book.isbn10 || '') + '">' +
+    return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + esc(book.isbn13 || book.isbn10 || '') + '">' +
         '<div class="book-cover-wrapper">' + coverHtml + '</div>' +
         '<div class="book-info">' +
-        '<div class="book-title" title="' + escapeHtml(titleDisplay) + '" data-en="' + escapeHtml(book.title) + '" data-zh="' + escapeHtml(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="/new-book/' + book.id + '">' + escapeHtml(titleDisplay) + '</a></div>' +
-        '<div class="book-author" data-en="' + escapeHtml(book.author) + '">' + escapeHtml(authorDisplay) + '</div>' +
-        '<div class="book-meta"><span class="book-publisher" data-pub-name-zh="' + escapeHtml(pubNameZh) + '" data-pub-name-en="' + escapeHtml(pubNameEn) + '"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + escapeHtml(pubNameDisplay) + '</span>' + priceHtml + '</div>' +
+        '<div class="book-title" title="' + esc(titleDisplay) + '" data-en="' + esc(book.title) + '" data-zh="' + esc(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="/new-book/' + book.id + '">' + esc(titleDisplay) + '</a></div>' +
+        '<div class="book-author" data-en="' + esc(book.author) + '">' + esc(authorDisplay) + '</div>' +
+        '<div class="book-meta"><span class="book-publisher" data-pub-name-zh="' + esc(pubNameZh) + '" data-pub-name-en="' + esc(pubNameEn) + '"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + esc(pubNameDisplay) + '</span>' + priceHtml + '</div>' +
         tagsHtml + isbnHtml +
         '</div></div>';
 }
@@ -526,91 +503,6 @@ function formatPublicationDate(value) {
     return String(value).substring(0, 10);
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-}
-
-async function translateAllBooks() {
-    const books = document.querySelectorAll('.book-card');
-    if (!books.length) return;
-
-    if (currentLanguage === 'en') return;
-
-    const tasks = [];
-    for (let i = 0; i < books.length; i++) {
-        const card = books[i];
-        const titleEl = card.querySelector('.book-title');
-        if (!titleEl) continue;
-
-        const titleZh = titleEl.dataset.zh || '';
-        const titleEn = titleEl.dataset.en || '';
-        if (titleZh && titleZh !== titleEn) {
-            titleEl.textContent = titleZh;
-            continue;
-        }
-
-        const isbn = titleEl.dataset.isbn || '';
-        const cached = translationCache.getBook(isbn);
-        if (cached && cached.title_zh) {
-            titleEl.textContent = cached.title_zh;
-            continue;
-        }
-
-        if (isbn) tasks.push({ card, isbn });
-    }
-
-    const limit = 3;
-    const executing = [];
-    for (const task of tasks) {
-        const p = translateSingleBook(task.card, task.isbn).then(() => executing.splice(executing.indexOf(p), 1));
-        executing.push(p);
-        if (executing.length >= limit) {
-            await Promise.race(executing);
-        }
-    }
-}
-
-async function translateSingleBook(card, isbn) {
-    const titleEl = card.querySelector('.book-title');
-    if (!titleEl || !isbn) return;
-
-    try {
-        const response = await fetch('/api/translate/book/' + isbn, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        if (data.success && data.data && data.data.book) {
-            const book = data.data.book;
-            if (book.title_zh) {
-                titleEl.textContent = book.title_zh;
-                titleEl.dataset.zh = book.title_zh;
-            }
-            translationCache.saveBook(isbn, book);
-            if (typeof BookI18n !== 'undefined') {
-                BookI18n.updateTranslation(isbn, 'zh', {
-                    title: book.title_zh || '',
-                    description: book.description_zh || ''
-                });
-            }
-        }
-    } catch (e) {
-        console.warn('[Translation] {{ _('翻译失败') }}:', isbn, e);
-    }
-}
-
-async function translateSingleBookByIsbn(isbn) {
-    if (!isbn) return;
-    const card = document.querySelector('.book-card .book-title[data-isbn="' + isbn + '"]');
-    if (!card) return;
-    const bookCard = card.closest('.book-card');
-    if (!bookCard) return;
-    await translateSingleBook(bookCard, isbn);
-}
-
 function exportExcel() {
     const publisher = document.getElementById('publisher-filter').value;
     const category = document.getElementById('category-filter').value;
@@ -652,7 +544,7 @@ function syncNewBooks() {
     })
     .catch(error => {
         statusDiv.className = 'sync-status error';
-        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--error-color, #ef4444)"><use href="#icon-alert-circle"/></svg> {{ _('同步失败') }}: ' + escapeHtml(error.message);
+        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--error-color, #ef4444)"><use href="#icon-alert-circle"/></svg> {{ _('同步失败') }}: ' + esc(error.message);
     })
     .finally(() => {
         btn.disabled = false;

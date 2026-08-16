@@ -451,6 +451,14 @@ function setGlobalLanguage(lang) {
     localStorage.setItem('app_language', lang);
     localStorage.setItem('bookrank_language', lang);
 
+    // 同步 html lang，便于屏幕阅读器正确发音
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+    // 设置语言 cookie，服务端后续请求保持同一语言
+    const host = window.location.hostname;
+    const cookieDomain = host.includes('.') ? host : '';
+    document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
+
     if (typeof updateLangDropdown === 'function') {
         try { updateLangDropdown(lang); } catch(e) { console.warn('updateLangDropdown error:', e); }
     }
@@ -477,3 +485,4 @@ window.TRANSLATIONS = TRANSLATIONS;
 window.t = t;
 window.applyPageTranslation = applyPageTranslation;
 window.setGlobalLanguage = setGlobalLanguage;
+window.switchLanguage = setGlobalLanguage;
