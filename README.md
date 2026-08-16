@@ -5,6 +5,7 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![Flask 3.1](https://img.shields.io/badge/flask-3.1-black.svg)](https://flask.palletsprojects.com/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/gongyijie85/bookrank)](https://github.com/gongyijie85/bookrank/releases)
 
 纽约时报畅销书排行榜应用，追踪国际大型出版社最新出版物，展示各类图书奖项。
 
@@ -15,7 +16,7 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
 ## 功能特性
 
 - 📚 **畅销书榜单**：展示纽约时报各类别畅销书，支持多维度排序和筛选
-- 🏆 **获奖书单**：收集和展示8大国际图书奖项，包含详细的获奖信息
+- 🏆 **获奖书单**：收集和展示 7 大国际图书奖项（普利策奖、布克奖、国际布克奖、雨果奖、星云奖、诺贝尔文学奖、爱伦·坡奖），包含详细的获奖信息
 - 🆕 **新书速递**：追踪国际大型出版社最新出版物，支持按出版社筛选
 - 📊 **多维度筛选**：支持按出版社、分类、时间等多维度筛选
 - 🌐 **双端适配**：桌面端 + 移动端独立版本，同一 URL 根据 User-Agent 自动切换移动版模板。移动端核心 8 页面（首页、书籍详情、奖项榜单、获奖详情、关于、错误页、周报列表、周报详情）信息完整度已对齐桌面端，含 Tab 切换、元信息网格、购买链接、收藏/分享、30 秒轮询、搜索过滤、SEO 元数据（canonical + Open Graph + JSON-LD）
@@ -91,10 +92,11 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
    >
    > **v0.9.79 提示**：`.env.example` 已包含完整变量说明，首次配置请直接复制该文件。
 
-5. **初始化数据库**
+5. **初始化数据库（可选）**
    ```bash
-   python run.py
+   python init_db.py
    ```
+   `run.py` 首次启动时也会自动完成惰性数据库初始化，此步可跳过。
 
 6. **启动开发服务器**
    ```bash
@@ -106,7 +108,7 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
 ## 项目结构
 
 ```
-BookRank3/
+bookrank/
 ├── app/                          # 应用核心目录
 │   ├── __init__.py               # 应用工厂函数
 │   ├── config.py                 # 配置管理
@@ -132,7 +134,8 @@ BookRank3/
 │   │       ├── translation.py    # 翻译 API
 │   │       ├── cache.py          # 缓存管理 API
 │   │       ├── awards.py         # 奖项 API
-│   │       └── recommendations.py # 推荐 API
+│   │       ├── recommendations.py # 推荐 API
+│   │       └── cron.py           # cron 触发端点
 │   ├── schemas/                  # Pydantic 验证层
 │   │   └── validators.py         # 请求验证模型
 │   ├── services/                 # 业务服务层
@@ -150,6 +153,7 @@ BookRank3/
 │   │   ├── zhipu_translation_service.py # 智谱AI翻译
 │   │   ├── weekly_report_service.py # 周报服务
 │   │   ├── publisher_crawler/    # 出版社爬虫模块
+│   │   ├── award_cover_sync_service.py # 获奖封面同步
 │   │   └── ...
 │   ├── tasks/                    # 后台任务
 │   │   └── weekly_report_task.py # 周报任务
@@ -287,6 +291,9 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- v0.9.90 - 修复生产环境封面同步（2026-08-14）：识别「数据库有路径但本地缓存文件丢失」场景并重新下载；新增两个回归测试。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.89 - 获奖书单封面回退 + 2026 最新获奖书单（2026-08-14）：多级封面回退（本地缓存 → 原始 URL → 默认封面）；同步 2020-2026 最新获奖书单（普利策 4 本、国际布克奖 Taiwan Travelogue、爱伦·坡奖 The Big Empty）。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.88 - 提取 NewBookIngestor 深模块（2026-08-14）：入库规则集中到 `NewBookIngestor`（对外只暴露 `save_book` / `update_book_fields` 稳定接口），瘦身 SyncEngine；TranslationPipeline 增加公共接缝；2381 passed。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.87 - 依赖安全漏洞修复（2026-07-16）：修复 GitHub Dependabot 报告的 36 个漏洞，升级 Werkzeug、Flask-CORS、requests、python-dotenv、Pillow、bleach、mistune 至安全版本；同步更新 `requirements.txt` 与 `requirements-prod.txt`；2130 passed，覆盖率 81.55%；Ruff / mypy 通过。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.86 - cron 端点规范化（2026-07-16）：迁移到 `app/routes/api/`，统一 `@handle_api_errors` 错误处理；`trigger-weekly-report.yml` 使用 `RENDER_BASE_URL` 变量并保留周五/六/日三次触发兜底；新增 `tests/test_cron_routes.py`。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.85 - v0.9.84 收尾与仓库整理（2026-07-16）：确认 GitHub Private Vulnerability Reporting 已启用；将 `.gh-cache/` 加入 `.gitignore`；提交 v0.9.84 遗留的 Agent 文档（`AGENTS.md`、`docs/agents/`）；归档 v0.9.83 审计交付物（`deliverables/bookrank-audit-20260708/` 含三端截图与 `audit-data.json`）。详见 [CHANGELOG.md](./CHANGELOG.md)
@@ -354,23 +361,22 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 未来规划
 
-### 短期规划（Q1 2026）
-- 管理后台
-- 用户收藏系统
-- 批量翻译优化
-- 错误监控告警
+当前路线图见 [ROADMAP.md](./ROADMAP.md)，重点方向：
 
-### 中期规划（Q2-Q3 2026）
-- 图书推荐算法
-- 用户评论系统
-- 数据分析面板
-- API v2版本
+### v1.0（进行中）
+- 机器可读 OpenAPI 规范与文档（`/openapi.json`）
+- 出版社爬虫选择器漂移监控与告警
+- mypy override 债务清理（解除 `disable_error_code`）
+- 低覆盖率模块测试补齐（整体覆盖率稳定 ≥80%）
+- N+1 查询回归保护
+- 翻译质量评估与采样（月度人工采样）
+- Code Wiki 与 GitHub Wiki 同步机制
+- Render 资源阈值告警（内存 / 响应时间）
 
-### 长期规划（2027）
-- 移动端App
-- AI图书助手
-- 社区功能
-- 多语言支持
+### 长期方向
+- 持续维护依赖安全与性能
+- 根据社区反馈调整功能优先级
+- 保持代码质量门禁（Ruff / mypy / pytest-cov）通过
 
 ## 许可证
 
@@ -379,6 +385,10 @@ MIT License
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
+
+- 提交前请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 与 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- 安全相关问题请按照 [SECURITY.md](./SECURITY.md) 描述的方式报告
+- Issue 标签约定：类型（`bug` / `enhancement` / `documentation`）+ 优先级（`p0`–`p3`）+ 模块（`awards` / `new-books` / `mobile` 等），完整词汇表见 [docs/agents/triage-labels.md](./docs/agents/triage-labels.md)
 
 ## 联系方式
 
@@ -390,3 +400,6 @@ MIT License
 - **GitHub仓库**：https://github.com/gongyijie85/bookrank
 - **API文档**：API_DOCUMENTATION.md
 - **项目说明文档**：docs/项目说明文档.md
+- **路线图**：ROADMAP.md
+- **贡献指南**：CONTRIBUTING.md
+- **安全策略**：SECURITY.md

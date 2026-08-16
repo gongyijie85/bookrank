@@ -6,7 +6,9 @@ Issues are tracked in GitHub Issues for `gongyijie85/bookrank`. See `docs/agents
 
 ### Triage labels
 
-Triage uses the default five-label vocabulary. See `docs/agents/triage-labels.md`.
+Issues use the five canonical triage labels, plus type, priority (`p0`–`p3`) and module labels
+(e.g. `awards`, `new-books`, `mobile`, `i18n`). Apply labels when creating or triaging an
+issue. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
