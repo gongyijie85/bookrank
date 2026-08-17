@@ -133,7 +133,7 @@ jobs:
       BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
     steps:
       - name: Download batch draft
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: batch-draft-${{ env.SOURCE_ID }}
           path: drafts
