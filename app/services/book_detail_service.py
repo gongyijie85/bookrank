@@ -129,6 +129,10 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
             if meta.title_zh and not book.get('title_zh'):
                 book['title_zh'] = clean_translation_text(meta.title_zh, 'title')
 
+            # 临时修复：CIRCE翻译错误
+            if isbn == '9780316556323' and book.get('title_zh') == '循环经济委员会':
+                book['title_zh'] = '喀耳刻'
+
             if meta.title_zh and meta.description_zh and meta.details_zh:
                 return
 
@@ -167,6 +171,9 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
                             title_zh = translation_service.translate(
                                 book.get('title', ''), 'en', 'zh', field_type='title'
                             )
+                            # 临时修复：CIRCE翻译错误
+                            if isbn == '9780316556323' and title_zh == '循环经济委员会':
+                                title_zh = '喀耳刻'
                         except Exception as e:
                             log_error(ErrorCategory.TRANSLATION, f'异步书名翻译失败: {e}', level='warning')
 
