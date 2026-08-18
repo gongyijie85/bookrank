@@ -13,6 +13,14 @@ from ..utils.service_helpers import (
 
 logger = logging.getLogger(__name__)
 
+# 翻译覆盖映射：用于修复特定书籍的错误翻译
+# 格式: { isbn: { 'title_zh': 'correct_title', 'description_zh': 'correct_desc', ... } }
+TRANSLATION_OVERRIDES = {
+    '9780316556323': {
+        'title_zh': '喀耳刻',
+    }
+}
+
 
 def fetch_google_books_details(book: dict, isbn: str) -> None:
     cache_key = f'google_books_detail:{isbn}'
@@ -115,6 +123,16 @@ def update_book_from_google_books(book: dict, details: dict) -> None:
         translate_field_async(book, 'description', 'description_zh')
 
 
+def _apply_translation_overrides(book: dict, isbn: str) -> None:
+    """应用翻译覆盖映射"""
+    overrides = TRANSLATION_OVERRIDES.get(isbn)
+    if overrides:
+        for key, value in overrides.items():
+            if value and (not book.get(key) or book.get(key) != value):
+                book[key] = value
+                logger.info(f'应用翻译覆盖: {isbn} {key} -> {value}')
+
+
 def merge_or_translate_book(book: dict, isbn: str) -> None:
     try:
         from .user_service import UserService
@@ -129,9 +147,8 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
             if meta.title_zh and not book.get('title_zh'):
                 book['title_zh'] = clean_translation_text(meta.title_zh, 'title')
 
-            # 临时修复：CIRCE翻译错误
-            if isbn == '9780316556323' and book.get('title_zh') == '循环经济委员会':
-                book['title_zh'] = '喀耳刻'
+            # 应用翻译覆盖
+            _apply_translation_overrides(book, isbn)
 
             if meta.title_zh and meta.description_zh and meta.details_zh:
                 return
@@ -149,6 +166,8 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
         )
 
         if not needs_title and not needs_desc and not needs_details:
+            # 即使不需要翻译，也检查是否需要应用覆盖
+            _apply_translation_overrides(book, isbn)
             return
 
         translation_service = get_service('translation_service')
@@ -171,9 +190,6 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
                             title_zh = translation_service.translate(
                                 book.get('title', ''), 'en', 'zh', field_type='title'
                             )
-                            # 临时修复：CIRCE翻译错误
-                            if isbn == '9780316556323' and title_zh == '循环经济委员会':
-                                title_zh = '喀耳刻'
                         except Exception as e:
                             log_error(ErrorCategory.TRANSLATION, f'异步书名翻译失败: {e}', level='warning')
 
@@ -193,8 +209,18 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
                         except Exception as e:
                             log_error(ErrorCategory.TRANSLATION, f'异步详情翻译失败: {e}', level='warning')
 
+                    # 应用翻译覆盖
+                    if title_zh:
+                        book['title_zh'] = title_zh
+                    if desc_zh:
+                        book['description_zh'] = desc_zh
+                    if details_zh:
+                        book['details_zh'] = details_zh
+                    
+                    _apply_translation_overrides(book, isbn)
+
                     user_svc.save_book_translation(
-                        isbn, title_zh=title_zh, description_zh=desc_zh, details_zh=details_zh
+                        isbn, title_zh=book.get('title_zh'), description_zh=book.get('description_zh'), details_zh=book.get('details_zh')
                     )
                     logger.info(f'异步翻译完成: {isbn}')
                 except Exception as e:
