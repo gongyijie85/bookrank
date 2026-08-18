@@ -72,7 +72,7 @@ def _get_books_for_category(category: str) -> tuple[list, str | None]:
         books_data = [book.to_dict() for book in books]
     except Exception as e:
         raise ExternalAPIError(
-            f"获取分类 '{category}' 数据失败", api_name='book_service', details={'category': category }
+            f"获取分类 '{category}' 数据失败", api_name='book_service', details={'category': category}
         ) from e
 
     try:

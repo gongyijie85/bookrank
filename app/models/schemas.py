@@ -298,6 +298,7 @@ class AwardBook(db.Model):
 
             # 应用翻译覆盖
             from ..services.book_detail_service import TRANSLATION_OVERRIDES
+
             isbn = data.get('isbn13') or data.get('isbn10')
             if isbn and isbn in TRANSLATION_OVERRIDES:
                 overrides = TRANSLATION_OVERRIDES[isbn]
