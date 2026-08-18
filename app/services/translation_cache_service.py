@@ -342,6 +342,7 @@ class TranslationCacheService:
             db.session.rollback()
             raise
 
+
 # 全局缓存服务实例
 _translation_cache_service: TranslationCacheService | None = None
 

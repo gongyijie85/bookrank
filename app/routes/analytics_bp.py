@@ -1,4 +1,3 @@
-
 from flask import Blueprint, request
 
 from app.services.analytics_service import (

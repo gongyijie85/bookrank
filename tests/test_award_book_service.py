@@ -281,6 +281,3 @@ class TestRefreshAwardBooks:
             award_service.wikidata_client.get_all_award_books.return_value = {}
             result = award_service.refresh_award_books(force=True)
             assert result['total_awards'] > 0
-
-
-

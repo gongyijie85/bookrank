@@ -29,8 +29,9 @@ def get_all_bestsellers():
             all_books[cat_id] = {'category_name': cat_name, 'books': [book.to_dict() for book in books[:limit]]}
 
         return APIResponse.success(
-            data={'categories': categories, 'books': all_books, 'last_updated': book_service.get_latest_cache_time()}
-        , include_timestamp=True)
+            data={'categories': categories, 'books': all_books, 'last_updated': book_service.get_latest_cache_time()},
+            include_timestamp=True,
+        )
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_all_bestsellers: {e}')
@@ -43,7 +44,9 @@ def get_bestsellers_by_category(category: str):
     try:
         categories = current_app.config.get('CATEGORIES', {})
         if category not in categories:
-            return APIResponse.error(f'Invalid category. Available categories: {list(categories.keys())}', 400, include_timestamp=True)
+            return APIResponse.error(
+                f'Invalid category. Available categories: {list(categories.keys())}', 400, include_timestamp=True
+            )
 
         limit = min(request.args.get('limit', 20, type=int), 50)
         book_service = get_service('book_service')
@@ -58,8 +61,9 @@ def get_bestsellers_by_category(category: str):
                 'books': [book.to_dict() for book in books[:limit]],
                 'total': len(books),
                 'last_updated': book_service.get_latest_cache_time(),
-            }
-        , include_timestamp=True)
+            },
+            include_timestamp=True,
+        )
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_bestsellers_by_category: {e}')
@@ -88,8 +92,9 @@ def search_bestsellers():
         results = book_service.search_books(keyword)
 
         return APIResponse.success(
-            data={'keyword': keyword, 'books': [book.to_dict() for book in results[:limit]], 'total': len(results)}
-        , include_timestamp=True)
+            data={'keyword': keyword, 'books': [book.to_dict() for book in results[:limit]], 'total': len(results)},
+            include_timestamp=True,
+        )
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in search_bestsellers: {e}')
@@ -150,8 +155,9 @@ def get_award_books(award_name: str):
                 'books': [book.to_dict() for book in books],
                 'total': len(books),
                 'years': years,
-            }
-        , include_timestamp=True)
+            },
+            include_timestamp=True,
+        )
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_award_books: {e}')
@@ -179,8 +185,9 @@ def get_award_books_by_year(award_name: str, year: int):
                 'year': year,
                 'books': [book.to_dict() for book in books],
                 'total': len(books),
-            }
-        , include_timestamp=True)
+            },
+            include_timestamp=True,
+        )
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_award_books_by_year: {e}')
@@ -230,8 +237,8 @@ def get_weekly_reports():
         reports = report_service.get_reports(limit)
 
         return APIResponse.success(
-            data={'reports': [report.to_dict() for report in reports], 'total': len(reports)}
-        , include_timestamp=True)
+            data={'reports': [report.to_dict() for report in reports], 'total': len(reports)}, include_timestamp=True
+        )
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_weekly_reports: {e}')
@@ -307,8 +314,9 @@ def get_new_books():
                 'total': total,
                 'page': page,
                 'per_page': per_page,
-            }
-        , include_timestamp=True)
+            },
+            include_timestamp=True,
+        )
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_new_books: {e}')
         return APIResponse.error('Internal server error', 500, include_timestamp=True)
@@ -336,8 +344,9 @@ def get_new_books_by_publisher(publisher_name: str):
                 'total': total,
                 'page': page,
                 'per_page': per_page,
-            }
-        , include_timestamp=True)
+            },
+            include_timestamp=True,
+        )
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Error in get_new_books_by_publisher: {e}')
         return APIResponse.error('Internal server error', 500, include_timestamp=True)

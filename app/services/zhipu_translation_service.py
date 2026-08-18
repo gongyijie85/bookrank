@@ -675,7 +675,7 @@ class HybridTranslationService:
                         target_lang,
                         model_name='glm-4.7-flash',
                         model_version=cache_version,
-                    )
+                    ),
                 )
                 logger.info('翻译结果已缓存')
             except Exception as e:
@@ -723,7 +723,9 @@ class HybridTranslationService:
                 continue
             if cache_service:
                 try:
-                    cached = run_with_app_context(self._app, lambda t=text: cache_service.get(t, source_lang, target_lang))
+                    cached = run_with_app_context(
+                        self._app, lambda t=text: cache_service.get(t, source_lang, target_lang)
+                    )
                     if cached:
                         results[i] = clean_translation_text(cached.translated_text)
                         continue

@@ -6,6 +6,7 @@ AI 推荐服务
 2. 基于用户收藏的推荐
 3. 基于奖项相似度的推荐
 """
+
 from collections import Counter
 from typing import Any
 
