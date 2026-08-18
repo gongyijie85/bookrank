@@ -319,7 +319,7 @@ jobs:
 
           echo "Triggering HuggingFace Space restart: ${HF_SPACE_REPO}"
 
-          HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 \
+          HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 -L \
             -X POST "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/restart" \
             -H "Authorization: Bearer ${HF_TOKEN}" \
             -w '%{http_code}' \
