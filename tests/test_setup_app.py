@@ -278,9 +278,7 @@ class TestShutdownScheduler:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.communicate()
-            raise AssertionError(
-                'create_app() 启动的调度器线程阻塞了解释器退出（进程 25s 未退出）'
-            )
+            raise AssertionError('create_app() 启动的调度器线程阻塞了解释器退出（进程 25s 未退出）')
         assert b'SCHED_STARTED' in out
         bad = [b'cannot schedule new futures', b'Error submitting job', b'The operation was canceled.']
         for marker in bad:
