@@ -292,7 +292,9 @@ def _load_awards_data(award_service, params: dict) -> dict:
             # 若原始 title 是 ISBN 脏数据则退回 display_title
             raw_title = (book.title or '').strip()
             title_en = (
-                book.display_title or '' if AwardBook._looks_like_isbn(raw_title) else (raw_title or book.display_title or '')
+                book.display_title or ''
+                if AwardBook._looks_like_isbn(raw_title)
+                else (raw_title or book.display_title or '')
             )
 
             # title_zh: 清理后的中文标题；ISBN 脏数据直接清空

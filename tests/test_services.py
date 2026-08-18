@@ -224,5 +224,3 @@ class TestUtilities:
 
         # 超出限制
         assert limiter.is_allowed() is False
-
-

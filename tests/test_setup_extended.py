@@ -559,7 +559,10 @@ class TestNytRankingSyncTask:
             {'success': True, 'books': 5, 'metadata_saved': 3, 'language_pack': {'fields_translated': 2}},
         ]
         with app.app_context(), patch('app.utils.service_helpers.get_service', return_value=mock_book_svc):
-            with patch('app.utils.service_helpers.get_service', side_effect=lambda name: mock_book_svc if name == 'book_service' else MagicMock()):
+            with patch(
+                'app.utils.service_helpers.get_service',
+                side_effect=lambda name: mock_book_svc if name == 'book_service' else MagicMock(),
+            ):
                 _nyt_ranking_sync_task(app)
                 mock_book_svc.sync_all_categories.assert_called_once()
 
@@ -575,7 +578,10 @@ class TestNytRankingSyncTask:
             {'success': False, 'books': 0, 'metadata_saved': 0, 'language_pack': {}},
         ]
         with app.app_context(), patch('app.utils.service_helpers.get_service', return_value=mock_book_svc):
-            with patch('app.utils.service_helpers.get_service', side_effect=lambda name: mock_book_svc if name == 'book_service' else MagicMock()):
+            with patch(
+                'app.utils.service_helpers.get_service',
+                side_effect=lambda name: mock_book_svc if name == 'book_service' else MagicMock(),
+            ):
                 _nyt_ranking_sync_task(app)
 
     @patch('app.setup.SystemConfig')

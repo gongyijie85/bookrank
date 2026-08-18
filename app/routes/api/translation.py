@@ -1,4 +1,3 @@
-
 from flask import request
 
 from ...utils.admin_auth import admin_required

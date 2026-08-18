@@ -491,7 +491,9 @@ def init_sample_award_books(app):
                 if existing:
                     target_title_zh = book_data.get('title_zh') or ''
                     need_fix_title = (
-                        not existing.title or existing.title == target_isbn or AwardBook._looks_like_isbn(existing.title)
+                        not existing.title
+                        or existing.title == target_isbn
+                        or AwardBook._looks_like_isbn(existing.title)
                     ) and book_data.get('title')
                     if need_fix_title:
                         old_title = existing.title
