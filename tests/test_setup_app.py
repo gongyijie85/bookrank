@@ -248,3 +248,38 @@ class TestShutdownScheduler:
             mock_s.running = True
             shutdown_scheduler(app)
             mock_s.shutdown.assert_called_once_with(wait=True)
+
+    def test_background_scheduler_does_not_block_interpreter_exit(self):
+        """启动真实调度器的进程必须能干净退出（不挂起、不产生 apscheduler 噪音）。
+
+        回归：_start_background_tasks 用 daemon=False 启动非 daemon 主循环线程；
+        CPython 在 atexit 之前就 threading._shutdown 去 join 非 daemon 线程，
+        于是解释器退出被该线程挂起（短跑）或报
+        "cannot schedule new futures after interpreter shutdown"（长跑 CI）。
+        通过子进程验证真实 create_app()（development，会启动调度器）能及时退出。
+        """
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent
+        snippet = (
+            "import os, sys; os.environ['FLASK_ENV']='testing'; "
+            "from app import create_app; create_app(); print('SCHED_STARTED', flush=True)"
+        )
+        proc = subprocess.Popen(
+            [sys.executable, '-c', snippet],
+            cwd=str(root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            out, _ = proc.communicate(timeout=25)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise AssertionError('create_app() 启动的调度器线程阻塞了解释器退出（进程 25s 未退出）')
+        assert b'SCHED_STARTED' in out
+        bad = [b'cannot schedule new futures', b'Error submitting job', b'The operation was canceled.']
+        for marker in bad:
+            assert marker not in out, f'退出时出现 apscheduler 噪音: {marker.decode()!r}'

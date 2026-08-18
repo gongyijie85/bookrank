@@ -216,11 +216,14 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
                         book['description_zh'] = desc_zh
                     if details_zh:
                         book['details_zh'] = details_zh
-                    
+
                     _apply_translation_overrides(book, isbn)
 
                     user_svc.save_book_translation(
-                        isbn, title_zh=book.get('title_zh'), description_zh=book.get('description_zh'), details_zh=book.get('details_zh')
+                        isbn,
+                        title_zh=book.get('title_zh'),
+                        description_zh=book.get('description_zh'),
+                        details_zh=book.get('details_zh'),
                     )
                     logger.info(f'异步翻译完成: {isbn}')
                 except Exception as e:

@@ -317,6 +317,26 @@ def _seed_award(app, db):
     return {'award_id': award.id, 'book_id': book.id}
 
 
+@pytest.fixture(scope='session', autouse=True)
+def _no_scheduler_leak_at_session_end():
+    """会话结束时不得残留运行中的 APScheduler（否则解释器退出挂起/CI 噪音）。
+
+    回归：test_circe_translation.py 曾用 create_app()（默认 development 配置）
+    在测试里启动了真实调度器且从不关闭，导致退出时
+    "cannot schedule new futures after interpreter shutdown"（长跑 CI）或
+    进程挂起（本机）。测试代码只能用 create_app('testing')。
+    """
+    yield
+    from app import setup as _setup
+
+    sched = _setup._scheduler
+    assert sched is None or not sched.running, (
+        '测试会话结束时仍有运行中的 APScheduler 泄漏: '
+        f'{sched!r}。请检查是否有测试调用了 create_app()（非 testing 配置）'
+        '或启动了调度器却未关闭。'
+    )
+
+
 @pytest.fixture
 def clear_auth_failures():
     """清理 admin_auth 的失败计数，避免测试间污染。

@@ -250,7 +250,11 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     cover_sync_delay = 120 if is_render_free else 60
 
     _scheduler = BackgroundScheduler(
-        daemon=False,  # 非 daemon：进程退出前等待任务完成
+        # daemon 线程：非 daemon 主循环线程会被 threading._shutdown 在 atexit 之前
+        # join，导致解释器退出挂起（或退出时提交到期任务报 "cannot schedule new
+        # futures after interpreter shutdown"）。运行中任务的完成等待由 atexit 注册的
+        # shutdown_scheduler(wait=True) 保证。
+        daemon=True,
         job_defaults={
             'coalesce': True,  # 合并错过的执行
             'max_instances': 1,  # 防止重叠执行
