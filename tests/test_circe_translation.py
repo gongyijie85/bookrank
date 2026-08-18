@@ -4,9 +4,11 @@
 """
 
 import pytest
+
 from app import create_app
-from app.models.schemas import BookMetadata
 from app.models import db
+from app.models.schemas import BookMetadata
+
 
 @pytest.fixture
 def app():
@@ -14,7 +16,7 @@ def app():
     app = create_app()
     app.config['TESTING'] = True
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-    
+
     with app.app_context():
         db.create_all()
         yield app
@@ -45,7 +47,7 @@ def test_circe_translation_fix(app):
             )
             db.session.add(circe_metadata)
             db.session.commit()
-            
+
             # 验证记录已创建
             saved_metadata = BookMetadata.query.filter_by(isbn='9780316556323').first()
             assert saved_metadata is not None
