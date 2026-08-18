@@ -56,8 +56,6 @@ def _get_list_published_date(books_data: list[dict]) -> str | None:
 
 def _get_books_for_category(category: str) -> tuple[list, str | None]:
     """获取指定分类的书籍数据（统一入口）"""
-    from ..services.book_detail_service import TRANSLATION_OVERRIDES, _apply_translation_overrides
-
     categories = current_app.config['CATEGORIES']
     default_category = next(iter(categories.keys()))
     if category not in categories:
@@ -72,12 +70,6 @@ def _get_books_for_category(category: str) -> tuple[list, str | None]:
     try:
         books = book_service.get_books_by_category(category) or []
         books_data = [book.to_dict() for book in books]
-        
-        # 应用翻译覆盖
-        for book_dict in books_data:
-            isbn = book_dict.get('isbn13') or book_dict.get('isbn10')
-            if isbn:
-                _apply_translation_overrides(book_dict, isbn)
     except Exception as e:
         raise ExternalAPIError(
             f"获取分类 '{category}' 数据失败", api_name='book_service', details={'category': category }

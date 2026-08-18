@@ -39,6 +39,16 @@ class Book:
         data['title_zh'] = quick_clean_translation(self.title_zh, 'title')
         data['description_zh'] = quick_clean_translation(self.description_zh, 'description')
         data['details_zh'] = quick_clean_translation(self.details_zh, 'details')
+        
+        # 应用翻译覆盖
+        from ..services.book_detail_service import TRANSLATION_OVERRIDES
+        isbn = data.get('isbn13') or data.get('isbn10')
+        if isbn and isbn in TRANSLATION_OVERRIDES:
+            overrides = TRANSLATION_OVERRIDES[isbn]
+            for key, value in overrides.items():
+                if value:
+                    data[key] = value
+        
         return data
 
     @classmethod
