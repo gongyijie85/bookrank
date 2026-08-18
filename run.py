@@ -88,7 +88,15 @@ def _run_migrations():
             return True
     except Exception:
         db.session.rollback()
-        logger.info('alembic_version 表不存在，需要检查当前 schema')
+        logger.info('迁移升级失败或 alembic_version 表不存在，尝试清理并重新 stamp')
+
+    # 迁移失败时：清理 alembic_version，检查 schema 后重新 stamp
+    try:
+        db.session.execute(db.text('DELETE FROM alembic_version'))
+        db.session.commit()
+        logger.info('已清理 alembic_version 表')
+    except Exception:
+        db.session.rollback()
 
     has_app_tables, schema_is_current = _inspect_schema_state()
     if schema_is_current:
