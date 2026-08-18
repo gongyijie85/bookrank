@@ -87,7 +87,7 @@ jobs:
             --cov-fail-under=70
 
   deploy:
-    name: Deploy to Render
+    name: Deploy to Render & HuggingFace
     runs-on: ubuntu-latest
     timeout-minutes: 150
     concurrency:
@@ -304,3 +304,32 @@ jobs:
 
           echo "ERROR: Render deployment did not become ready after 12 checks."
           exit 1
+
+      - name: Restart HuggingFace Space (backup)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'elvis85/bookrank' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$HF_TOKEN" ]; then
+            echo "WARNING: HF_TOKEN not configured; skipping HuggingFace Space rebuild."
+            exit 0
+          fi
+
+          echo "Triggering HuggingFace Space restart: ${HF_SPACE_REPO}"
+
+          HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 \
+            -X POST "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/restart" \
+            -H "Authorization: Bearer ${HF_TOKEN}" \
+            -w '%{http_code}' \
+            -o /dev/null)" || true
+
+          case "$HTTP_CODE" in
+            200)
+              echo "HuggingFace Space restart triggered successfully."
+              ;;
+            *)
+              echo "WARNING: HF Space restart returned HTTP ${HTTP_CODE}; check HF_TOKEN and repo permissions."
+              ;;
+          esac
