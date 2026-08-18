@@ -150,21 +150,6 @@ class GoogleBooksCrawler(BaseCrawler):
 
         return params
 
-    def get_categories(self) -> list[dict[str, str]]:
-        return [
-            {'id': 'fiction', 'name': '小说'},
-            {'id': 'nonfiction', 'name': '非虚构'},
-            {'id': 'mystery', 'name': '悬疑'},
-            {'id': 'romance', 'name': '言情'},
-            {'id': 'thriller', 'name': '惊悚'},
-            {'id': 'science_fiction', 'name': '科幻'},
-            {'id': 'fantasy', 'name': '奇幻'},
-            {'id': 'biography', 'name': '传记'},
-            {'id': 'history', 'name': '历史'},
-            {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young_adult', 'name': '青少年'},
-        ]
-
     def _iter_new_books(self, request: CrawlRequest):
         """
         抓取新书的生成器实现
@@ -403,37 +388,4 @@ class GoogleBooksCrawler(BaseCrawler):
 
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'解析 Google Books 卷信息失败: {e}', level='warning')
-            return None
-
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """获取书籍详情"""
-        if not book_url:
-            return None
-
-        try:
-            if 'volumes/' in book_url:
-                volume_id = book_url.split('volumes/')[-1]
-                url = f'{self.BASE_URL}/{volume_id}'
-            else:
-                url = book_url
-
-            params = {}
-            if self._key_is_valid and self._api_key:
-                params['key'] = self._api_key
-
-            response = self._session.get(url, params=params, timeout=self.config.timeout)
-
-            if response.status_code == 400 and self._key_is_valid:
-                self._key_is_valid = False
-                params.pop('key', None)
-                response = self._session.get(url, params=params, timeout=self.config.timeout)
-
-            response.raise_for_status()
-            data = response.json()
-
-            volume_info = data.get('volumeInfo', {})
-            return self._parse_volume_info(volume_info, 'general')
-
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'获取 Google Books 详情失败: {e}')
             return None

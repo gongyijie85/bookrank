@@ -4,9 +4,9 @@ import json
 from unittest.mock import MagicMock, patch
 
 from app.services.book_detail_service import (
-    is_valid_isbn,
     update_book_from_google_books,
 )
+from app.utils.api_helpers import validate_isbn as is_valid_isbn
 from app.utils.book_filters import (
     filter_books_by_publisher,
     filter_books_by_search,

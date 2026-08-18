@@ -7,7 +7,7 @@
 - translate 速率限制、重试逻辑、异常处理
 - translate_batch 缓存预检 + 并行翻译 + 进度回调
 - translate_book_fields 合并翻译全路径
-- HybridTranslationService._run_with_context / _get_fallback / 缓存写入
+- HybridTranslationService._get_fallback / 缓存写入
 - HybridTranslationService.translate_batch 完整流程
 """
 
@@ -137,7 +137,7 @@ class TestTranslateRateLimiting:
         service._last_request_time = time.time()
         service._request_interval = 0.5
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = service._last_request_time + 0.1
@@ -151,7 +151,7 @@ class TestTranslateRateLimiting:
         service._last_request_time = 0
         service._request_interval = 0.1
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -199,7 +199,7 @@ class TestTranslateRetryLogic:
         service, mock_client = _make_zhipu_service()
         mock_client.chat.completions.create.return_value = _make_api_response('翻译结果')
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -236,7 +236,7 @@ class TestTranslateBatch:
         callback = Mock()
         with (
             patch.object(service, '_get_cache_service', return_value=None),
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch.object(service, 'is_available', return_value=True),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
@@ -502,14 +502,6 @@ class TestTranslateBookFields:
             assert result['title_zh'] == '单字段_Title'
 
 
-class TestPostprocessTranslation:
-    def test_postprocess_delegates_to_clean(self):
-        with patch('app.utils.api_helpers.clean_translation_text', return_value='清理后') as mock_clean:
-            result = ZhipuTranslationService._postprocess_translation('**清理前**', field_type='title')
-            assert result == '清理后'
-            mock_clean.assert_called_once_with('**清理前**', field_type='title')
-
-
 class TestHybridGetClientErrorPaths:
     def test_get_fallback_success(self):
         service = HybridTranslationService(zhipu_api_key=None)
@@ -557,26 +549,6 @@ class TestHybridGetCacheServiceErrorPaths:
         service._cache_service = mock_cache
         result = service._get_cache_service()
         assert result is mock_cache
-
-
-class TestHybridRunWithContext:
-    def test_without_app_calls_directly(self):
-        service = HybridTranslationService(zhipu_api_key=None)
-        func = Mock(return_value='result')
-        result = service._run_with_context(func, 'arg1')
-        func.assert_called_once_with('arg1')
-        assert result == 'result'
-
-    def test_with_app_uses_app_context(self):
-        mock_app = MagicMock()
-        mock_context = MagicMock()
-        mock_app.app_context.return_value.__enter__ = Mock(return_value=mock_context)
-        mock_app.app_context.return_value.__exit__ = Mock(return_value=False)
-        service = HybridTranslationService(zhipu_api_key=None, app=mock_app)
-        func = Mock(return_value='ctx_result')
-        result = service._run_with_context(func, 'arg1')
-        func.assert_called_once_with('arg1')
-        assert result == 'ctx_result'
 
 
 class TestHybridTranslateExtended:

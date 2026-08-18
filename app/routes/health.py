@@ -7,7 +7,7 @@ import logging
 
 from flask import Blueprint, make_response
 
-from ..services.health_service import HealthService
+from ..services.health_service import check_database
 
 health_bp = Blueprint('health', __name__)
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def detailed_health_check():
 def readiness_check():
     """就绪检查 - 快速检测数据库连通性（不重试，减少延迟）"""
     try:
-        HealthService.check_database()
+        check_database()
         return _json_response('{"success":true,"status":"ready"}')
     except Exception as e:
         logger.warning(f'Readiness check failed: {e}')

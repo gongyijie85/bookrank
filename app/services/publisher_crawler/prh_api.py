@@ -130,14 +130,6 @@ class PrhApiCrawler(BaseCrawler):
             if yielded >= max_books:
                 break
 
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """不支持详情页抓取（列表端点已包含所需字段）"""
-        return None
-
-    def get_categories(self) -> list[dict[str, str]]:
-        """API 窗口模式不支持分类检索"""
-        return []
-
     # ---------- 请求与分页 ----------
 
     def _fetch_window(self, window_start: date, window_end: date) -> list[dict]:

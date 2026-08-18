@@ -9,7 +9,9 @@ import logging
 
 from ..models.schemas import AwardBook, db
 from ..utils.error_handler import ErrorCategory, log_error
-from .api_client import GoogleBooksClient, ImageCacheService, OpenLibraryClient
+from .api_utils import ImageCacheService
+from .google_books_client import GoogleBooksClient
+from .open_library_client import OpenLibraryClient
 
 logger = logging.getLogger(__name__)
 

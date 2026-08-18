@@ -4,7 +4,7 @@ from flask import request
 
 from ...services.award_book_service import AwardBookService
 from ...utils.admin_auth import admin_required
-from ...utils.api_helpers import APIResponse, csrf_protect, validate_pagination
+from ...utils.api_helpers import APIResponse, csrf_protect, rate_limit, validate_pagination
 from ...utils.error_handler import ErrorCategory, log_error
 from . import api_bp
 
@@ -14,6 +14,7 @@ _award_service = AwardBookService()
 
 
 @api_bp.route('/awards')
+@rate_limit()
 def get_awards():
     """获取所有奖项列表（通过 Service 层）"""
     try:
@@ -26,6 +27,7 @@ def get_awards():
 
 
 @api_bp.route('/awards/<int:award_id>/books')
+@rate_limit()
 def get_award_books(award_id: int):
     """获取指定奖项的图书列表（通过 Service 层）"""
     try:
@@ -60,6 +62,7 @@ def get_award_books(award_id: int):
 
 
 @api_bp.route('/award-books')
+@rate_limit()
 def get_all_award_books():
     """获取所有获奖图书（支持筛选，通过 Service 层）"""
     try:
@@ -91,6 +94,7 @@ def get_all_award_books():
 
 
 @api_bp.route('/award-books/<int:book_id>')
+@rate_limit()
 def get_award_book_detail(book_id: int):
     """获取图书详情（通过 Service 层）"""
     try:
@@ -106,6 +110,7 @@ def get_award_book_detail(book_id: int):
 
 
 @api_bp.route('/award-books/search')
+@rate_limit()
 def search_award_books():
     """搜索获奖图书（通过 Service 层）"""
     try:
@@ -135,6 +140,7 @@ def search_award_books():
 
 
 @api_bp.route('/admin/fix-award-book-titles', methods=['POST'])
+@rate_limit()
 @admin_required
 @csrf_protect
 def fix_award_book_titles():
@@ -162,6 +168,7 @@ def fix_award_book_titles():
 
 
 @api_bp.route('/admin/fix-award-book-titles-by-ids', methods=['POST'])
+@rate_limit()
 @admin_required
 @csrf_protect
 def fix_award_book_titles_by_ids():

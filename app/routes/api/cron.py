@@ -4,37 +4,18 @@
 兜底触发方式（主要用于 Render 免费层冷启动场景）。
 """
 
-import logging
-import secrets
+from flask import current_app
 
-from flask import current_app, request
-
-from ...utils.api_helpers import APIResponse, handle_api_errors
-from . import api_bp
-
-logger = logging.getLogger(__name__)
-
-
-def _verify_cron_secret() -> bool:
-    """验证 cron 请求携带的 Bearer token 与配置是否一致"""
-    secret = current_app.config.get('CRON_SECRET') or ''
-    if not secret:
-        logger.warning('CRON_SECRET 未配置，拒绝 cron 请求')
-        return False
-
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return False
-
-    token = auth_header[7:]
-    return secrets.compare_digest(token, secret)
+from ...utils.api_helpers import APIResponse, handle_api_errors, rate_limit
+from . import _verify_bearer, api_bp
 
 
 @api_bp.route('/cron/trigger-weekly-report')
+@rate_limit(max_requests=20, window=60)
 @handle_api_errors
 def trigger_weekly_report() -> tuple:
     """触发周报生成（供外部 cron 调用）"""
-    if not _verify_cron_secret():
+    if not _verify_bearer('CRON_SECRET'):
         return APIResponse.error('Unauthorized', 401)
 
     # 函数内导入，避免启动阶段循环导入
@@ -60,6 +41,7 @@ def trigger_weekly_report() -> tuple:
 
 
 @api_bp.route('/cron/trigger-new-books-sync')
+@rate_limit(max_requests=20, window=60)
 @handle_api_errors
 def trigger_new_books_sync() -> tuple:
     """触发新书速递自动同步（供外部 cron 调用）
@@ -68,7 +50,7 @@ def trigger_new_books_sync() -> tuple:
     立即返回；同步逻辑内置 24 小时自我节流与实例锁，与 APScheduler
     定时器并存也不会重复或并发同步。
     """
-    if not _verify_cron_secret():
+    if not _verify_bearer('CRON_SECRET'):
         return APIResponse.error('Unauthorized', 401)
 
     # 函数内导入，避免启动阶段循环导入

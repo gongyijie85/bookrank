@@ -7,7 +7,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from ..models.database import db
@@ -235,54 +235,6 @@ class TranslationCacheService:
 
         return query.order_by(TranslationCache.last_used_at.desc()).limit(limit).all()
 
-    def search(
-        self, keyword: str, limit: int = 50, source_lang: str | None = None, target_lang: str | None = None
-    ) -> list[TranslationCache]:
-        """
-        搜索缓存记录
-
-        Args:
-            keyword: 搜索关键词
-            limit: 返回数量限制
-            source_lang: 源语言筛选
-            target_lang: 目标语言筛选
-
-        Returns:
-            匹配的缓存记录列表
-        """
-        safe_keyword = keyword.replace('%', '\\%').replace('_', '\\_')
-        pattern = f'%{safe_keyword}%'
-        query = TranslationCache.query.filter(
-            or_(TranslationCache.source_text.ilike(pattern), TranslationCache.translated_text.ilike(pattern))
-        )
-
-        if source_lang:
-            query = query.filter_by(source_lang=source_lang)
-
-        if target_lang:
-            query = query.filter_by(target_lang=target_lang)
-
-        return query.order_by(TranslationCache.usage_count.desc()).limit(limit).all()
-
-    def get_least_used(self, limit: int = 100, older_than_days: int | None = None) -> list[TranslationCache]:
-        """
-        获取最少使用的缓存记录（用于清理）
-
-        Args:
-            limit: 返回数量限制
-            older_than_days: 筛选N天前的记录
-
-        Returns:
-            最少使用的缓存记录列表
-        """
-        query = TranslationCache.query
-
-        if older_than_days:
-            cutoff_date = datetime.now(UTC) - timedelta(days=older_than_days)
-            query = query.filter(TranslationCache.last_used_at < cutoff_date)
-
-        return query.order_by(TranslationCache.usage_count.asc()).limit(limit).all()
-
     def auto_cleanup(self, max_items: int = 10000, keep_recent_days: int = 30) -> int:
         """
         自动清理缓存，保留热门内容
@@ -389,32 +341,6 @@ class TranslationCacheService:
             log_error(ErrorCategory.TRANSLATION, f'清空翻译缓存失败: {e}')
             db.session.rollback()
             raise
-
-    def export_cache(self, format: str = 'json') -> dict[str, Any]:
-        """
-        导出缓存数据
-
-        Args:
-            format: 导出格式 ('json' 或 'csv')
-
-        Returns:
-            导出数据
-        """
-        caches = TranslationCache.query.order_by(TranslationCache.usage_count.desc()).limit(1000).all()
-
-        if format == 'json':
-            return {
-                'total': len(caches),
-                'exported_at': datetime.now(UTC).isoformat(),
-                'data': [c.to_dict() for c in caches],
-            }
-        else:
-            # CSV 格式
-            lines = ['source_text,translated_text,source_lang,target_lang,usage_count']
-            for c in caches:
-                lines.append(f'"{c.source_text}","{c.translated_text}",{c.source_lang},{c.target_lang},{c.usage_count}')
-            return {'total': len(caches), 'csv': '\n'.join(lines)}
-
 
 # 全局缓存服务实例
 _translation_cache_service: TranslationCacheService | None = None

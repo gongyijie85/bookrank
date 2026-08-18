@@ -62,7 +62,7 @@ def check_google_books_api():
 def check_google_books_client():
     """检查 GoogleBooksClient (api_client)"""
     from app.config import Config
-    from app.services.api_client import GoogleBooksClient
+    from app.services.google_books_client import GoogleBooksClient
 
     logger.info('=' * 50)
     logger.info('检查 GoogleBooksClient')
@@ -114,7 +114,7 @@ def check_google_books_client():
 def check_nyt_api():
     """检查 NYT API"""
     from app.config import Config
-    from app.services.api_client import NYTApiClient
+    from app.services.nyt_client import NYTApiClient
     from app.utils.rate_limiter import RateLimiter
 
     logger.info('=' * 50)
@@ -182,7 +182,7 @@ def check_nyt_api():
 
 def check_open_library():
     """检查 Open Library API"""
-    from app.services.api_client import OpenLibraryClient
+    from app.services.open_library_client import OpenLibraryClient
 
     logger.info('=' * 50)
     logger.info('检查 Open Library API')

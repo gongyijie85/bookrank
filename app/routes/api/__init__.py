@@ -1,15 +1,8 @@
-import logging
 import secrets
 
-from flask import Blueprint, current_app, session
-
-from ...services.user_service import UserService
-
-logger = logging.getLogger(__name__)
+from flask import Blueprint, current_app, request, session
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
-
-_user_service = UserService()
 
 
 def get_session_id() -> str:
@@ -23,6 +16,21 @@ def validate_category(category: str) -> bool:
     """验证分类ID是否有效"""
     categories = current_app.config.get('CATEGORIES', {})
     return category in categories or category == 'all'
+
+
+def _verify_bearer(config_key: str) -> bool:
+    """验证请求携带的 Bearer token 与指定配置密钥一致"""
+    secret = current_app.config.get(config_key) or ''
+    if not secret:
+        current_app.logger.warning(f'{config_key} 未配置，拒绝请求')
+        return False
+
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return False
+
+    token = auth_header[7:]
+    return secrets.compare_digest(token, secret)
 
 
 @api_bp.route('/health')

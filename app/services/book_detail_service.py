@@ -3,22 +3,15 @@ import logging
 from flask import current_app
 
 from ..utils import clean_translation_text
+from ..utils.api_helpers import validate_isbn
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import (
-    get_book_service,
     get_google_books_client,
-    get_translation_service,
+    get_service,
     submit_background_task,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def is_valid_isbn(value: str | None) -> bool:
-    """验证ISBN格式（委托给 api_helpers.validate_isbn）"""
-    from ..utils.api_helpers import validate_isbn
-
-    return validate_isbn(value)
 
 
 def fetch_google_books_details(book: dict, isbn: str) -> None:
@@ -26,7 +19,7 @@ def fetch_google_books_details(book: dict, isbn: str) -> None:
     cache_service = None
 
     try:
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if book_service:
             cache_service = book_service.cache
     except Exception as e:
@@ -64,7 +57,7 @@ def fetch_google_books_details(book: dict, isbn: str) -> None:
 
 def translate_field_async(book: dict, source_field: str, target_field: str) -> None:
     app = current_app._get_current_object()
-    translation_service = get_translation_service()
+    translation_service = get_service('translation_service')
 
     def _do_translate():
         try:
@@ -113,9 +106,9 @@ def update_book_from_google_books(book: dict, details: dict) -> None:
     if details.get('cover_url') and not book.get('cover'):
         book['cover'] = details['cover_url']
 
-    if details.get('isbn_13') and is_valid_isbn(details['isbn_13']) and not book.get('isbn13'):
+    if details.get('isbn_13') and validate_isbn(details['isbn_13']) and not book.get('isbn13'):
         book['isbn13'] = details['isbn_13']
-    if details.get('isbn_10') and is_valid_isbn(details['isbn_10']) and not book.get('isbn10'):
+    if details.get('isbn_10') and validate_isbn(details['isbn_10']) and not book.get('isbn10'):
         book['isbn10'] = details['isbn_10']
 
     if book.get('description') and not book.get('description_zh'):
@@ -154,7 +147,7 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
         if not needs_title and not needs_desc and not needs_details:
             return
 
-        translation_service = get_translation_service()
+        translation_service = get_service('translation_service')
         if not translation_service:
             return
         app = current_app._get_current_object()

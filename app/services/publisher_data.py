@@ -3,14 +3,10 @@
 
 从新书速递同步逻辑中提取，与实例状态分离。
 """
-
-import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 # ==================== 出版社定义 ====================
 

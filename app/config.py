@@ -66,7 +66,6 @@ class Config:
     ZHIPU_API_KEY: str | None = os.environ.get('ZHIPU_API_KEY')
     PRH_API_KEY: str | None = os.environ.get('PRH_API_KEY')
 
-    CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'simple')
     CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_TTL', 7200))
     MEMORY_CACHE_TTL: int = int(os.environ.get('MEMORY_CACHE_TTL', 600))
 
@@ -112,7 +111,6 @@ class Config:
     # 外部 API 缓存 TTL（秒）
     NYT_CACHE_TTL: int = 60 * 60 * 6  # 避免跨过 NYT 发榜时间仍返回上周数据
     GOOGLE_BOOKS_CACHE_TTL: int = _SECONDS_PER_DAY  # Google Books 缓存 24 小时
-    OPEN_LIBRARY_CACHE_TTL: int = _SECONDS_PER_DAY * 3  # Open Library 缓存 3 天
 
     # 智谱 AI 翻译模型
     ZHIPU_TRANSLATION_MODEL: str = 'glm-4.7-flash'
@@ -210,7 +208,6 @@ class ProductionConfig(Config):
 
     # 以下配置在 Render 免费层做了硬编码优化：
     # 当前部署无 Redis，使用 simple 缓存；如需外部缓存可改为环境变量读取。
-    CACHE_TYPE: str = 'simple'
     CACHE_DEFAULT_TIMEOUT: int = 3600  # 缩短缓存时间减少内存占用
     MEMORY_CACHE_TTL: int = 300
 
@@ -255,5 +252,4 @@ config: dict[str, type[Config]] = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'testing': TestingConfig,
-    'default': ProductionConfig,
 }

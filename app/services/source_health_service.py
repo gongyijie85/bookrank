@@ -7,14 +7,10 @@ from typing import Any
 
 from ..models.database import db
 from ..models.new_book import Publisher
+from .batch_import_service import SOURCE_TO_PUBLISHER_NAME_EN
 
 FAILURE_THRESHOLD = 3
 RECOVERY_THRESHOLD = 2
-
-# Keep in sync with batch_import_service.SOURCE_TO_PUBLISHER_NAME_EN
-SOURCE_TO_PUBLISHER_NAME_EN: dict[str, str] = {
-    'harpercollins': 'HarperCollins',
-}
 
 _SOURCE_BY_NAME_EN = {v: k for k, v in SOURCE_TO_PUBLISHER_NAME_EN.items()}
 

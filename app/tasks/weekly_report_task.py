@@ -7,7 +7,7 @@ import threading
 from ..models.schemas import WeeklyReport
 from ..services.weekly_report_service import WeeklyReportService
 from ..utils.error_handler import ErrorCategory, log_error
-from ..utils.service_helpers import require_book_service
+from ..utils.service_helpers import require_service
 from .weekly_report_task_helpers import compute_expected_week_range
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
 
     try:
         _last_report_trigger_time = time.time()
-        book_service = require_book_service()
+        book_service = require_service('book_service', '图书服务')
 
         today = datetime.date.today()
         week_start, week_end = compute_expected_week_range(today)
@@ -71,15 +71,3 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
             _weekly_report_lock.release()
         except RuntimeError:
             pass
-
-
-def send_weekly_report_email(report: WeeklyReport) -> bool:
-    """发送周报邮件（已禁用 — Render 免费版不支持 SMTP 出站连接）"""
-    logger.debug('邮件发送已禁用，周报仅在网页端查看')
-    return False
-
-
-def schedule_weekly_report():
-    """调度周报生成任务"""
-    report = generate_weekly_report()
-    return report

@@ -657,9 +657,9 @@ def trigger_auto_sync_background(app) -> dict:
 def _nyt_ranking_sync_task(app):
     """NYT排行榜自动同步任务：强制刷新榜单并写入中文语言包。"""
     try:
-        from .utils.service_helpers import get_book_service, get_translation_service
+        from .utils.service_helpers import get_service
 
-        service = get_book_service()
+        service = get_service('book_service')
         if not service:
             app.logger.warning('缺少 BookService，跳过NYT排行榜同步')
             return
@@ -679,7 +679,7 @@ def _nyt_ranking_sync_task(app):
         results = service.sync_all_categories(
             force_refresh=True,
             translate=True,
-            translator=get_translation_service(),
+            translator=get_service('translation_service'),
         )
 
         successful = [result for result in results if result.get('success')]
@@ -715,7 +715,7 @@ def _cover_sync_task(app):
     """获奖书籍封面自动同步任务"""
     try:
         from .services.award_cover_sync_service import AwardCoverSyncService
-        from .utils.service_helpers import get_image_cache_service
+        from .utils.service_helpers import get_service
 
         app.logger.info('开始检查获奖书籍封面...')
 
@@ -725,7 +725,7 @@ def _cover_sync_task(app):
 
         sync_service = AwardCoverSyncService(
             google_client,
-            image_cache=get_image_cache_service(),
+            image_cache=get_service('image_cache_service'),
         )
 
         result = sync_service.sync_missing_covers(batch_size=30, delay=0.5)

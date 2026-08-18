@@ -22,7 +22,8 @@ sys.path.insert(0, str(project_root))
 from app import create_app
 from app.models import db
 from app.models.schemas import AwardBook
-from app.services.api_client import GoogleBooksClient, ImageCacheService
+from app.services.api_utils import ImageCacheService
+from app.services.google_books_client import GoogleBooksClient
 
 
 def enrich_award_books(batch_size: int = 20):

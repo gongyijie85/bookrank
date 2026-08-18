@@ -58,7 +58,6 @@ module = [
     "flask_mail.*",
     "apscheduler.*",
     "mistune.*",
-    "bs4.*",
     "tenacity.*",
     "zhipuai.*",
     "deep_translator.*",
@@ -67,7 +66,6 @@ module = [
     "werkzeug.*",
     "dotenv.*",
     "flask_babel.*",
-    "crawl4ai.*",
     "psutil.*",
     "bleach.*",
 ]

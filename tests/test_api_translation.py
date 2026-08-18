@@ -140,12 +140,7 @@ class TestTranslateAwardBookDisplayTitle:
                 return _translate_book_info(self, book_data, target_lang)
 
         # 让 main book_service 拿不到数据 → 走 AwardBook fallback
-        from app.utils import service_helpers
-
-        def _fake_book_service():
-            return None
-
-        monkeypatch.setattr(service_helpers, 'get_book_service', _fake_book_service)
+        monkeypatch.setattr('app.routes.api.translation.get_service', lambda name: None)
         monkeypatch.setattr(
             'app.services.zhipu_translation_service.get_translation_service',
             lambda: CapturingTranslator(),
@@ -199,9 +194,7 @@ class TestTranslateAwardBookDisplayTitle:
 
                 return _translate_book_info(self, book_data, target_lang)
 
-        from app.utils import service_helpers
-
-        monkeypatch.setattr(service_helpers, 'get_book_service', lambda: None)
+        monkeypatch.setattr('app.routes.api.translation.get_service', lambda name: None)
         monkeypatch.setattr(
             'app.services.zhipu_translation_service.get_translation_service',
             lambda: CapturingTranslator(),

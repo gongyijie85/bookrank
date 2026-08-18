@@ -203,16 +203,9 @@
         </div>
     </div>
 
-    <script nonce="{{ csp_nonce() }}">
-        /**
-         * 转义 HTML 防止 XSS 攻击
-         */
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+    <script src="{{ url_for('static', filename='js/base.js') }}" nonce="{{ csp_nonce() }}"></script>
 
+    <script nonce="{{ csp_nonce() }}">
         // 图表颜色统一管理
         const chartColors = {
             green: 'rgba(75, 192, 192, 0.6)',
@@ -404,10 +397,10 @@
             data.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${escapeHtml(item.date)}</td>
-                    <td>${escapeHtml(item.title)}</td>
+                    <td>${esc(item.date)}</td>
+                    <td>${esc(item.title)}</td>
                     <td>${item.view_count}</td>
-                    <td><a href="/reports/weekly/${escapeHtml(item.date)}" class="btn btn-sm btn-primary">查看</a></td>
+                    <td><a href="/reports/weekly/${esc(item.date)}" class="btn btn-sm btn-primary">查看</a></td>
                 `;
                 tableBody.appendChild(row);
             });

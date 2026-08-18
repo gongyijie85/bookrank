@@ -16,12 +16,9 @@
 """
 
 import importlib
-import logging
 
 from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
-
-logger = logging.getLogger(__name__)
 
 __all__ = [
     'BaseCrawler',
@@ -29,9 +26,9 @@ __all__ = [
     'CrawlOutcome',
     'CrawlRequest',
     'CrawlerConfig',
-    'get_all_crawlers',
     'get_crawler_class',
 ]
+
 
 # 爬虫模块映射表（统一注册入口）
 # 仅保留生产活跃类；legacy 站点爬虫 / RSS / MixedCrawl4AI 已随
@@ -49,15 +46,6 @@ _CRAWLER_MODULES = [
 ]
 
 
-def __getattr__(name: str):
-    """延迟导入爬虫类"""
-    for class_name, module_path in _CRAWLER_MODULES:
-        if name == class_name:
-            module = importlib.import_module(module_path, package=__name__)
-            return getattr(module, class_name)
-    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
-
-
 CRAWLER_REGISTRY: dict[str, type[BaseCrawler]] = {}
 
 
@@ -68,11 +56,6 @@ def register_crawler(crawler_class: type[BaseCrawler]) -> None:
 def get_crawler_class(name: str) -> type[BaseCrawler] | None:
     _load_all_crawlers()
     return CRAWLER_REGISTRY.get(name)
-
-
-def get_all_crawlers() -> dict[str, type[BaseCrawler]]:
-    _load_all_crawlers()
-    return CRAWLER_REGISTRY.copy()
 
 
 def _load_all_crawlers() -> None:

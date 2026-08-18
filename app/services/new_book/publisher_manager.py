@@ -11,7 +11,6 @@ class PublisherManager:
     DEFAULT_PUBLISHERS = pd.DEFAULT_PUBLISHERS
     STATIC_DATA_FILES = pd.STATIC_DATA_FILES
     _CRAWLER_MIGRATION = pd.CRAWLER_MIGRATION
-    VALID_CATEGORIES = pd.VALID_CATEGORIES
 
     def init_publishers(self) -> int:
         """初始化出版社数据，事务控制在 Service 层完成"""

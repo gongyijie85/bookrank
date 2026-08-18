@@ -1,12 +1,9 @@
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from ..models.database import db
 from ..models.schemas import BookMetadata, SearchHistory, UserCategory, UserFavorite, UserPreference, UserViewedBook
 from ..utils.error_handler import ErrorCategory, log_error
-
-logger = logging.getLogger(__name__)
 
 
 class UserService:

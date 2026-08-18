@@ -14,30 +14,18 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 from urllib.parse import urljoin
 from urllib.robotparser import RobotFileParser
 
 import requests
-from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from ...utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
-
-
-class SimpleResponse:
-    """轻量级 HTTP 响应包装（用于 Crawl4AI 降级等场景）"""
-
-    def __init__(self, json_data: dict, status_code: int = 200):
-        self._json_data = json_data
-        self.status_code = status_code
-
-    def json(self):
-        return self._json_data
 
 
 @dataclass
@@ -95,7 +83,6 @@ class CrawlerConfig:
 
     # 分页配置
     max_pages: int = 10  # 最大爬取页数
-    page_size: int = 20  # 每页数量
 
     # 内容配置
     max_description_length: int = 2000  # 简介最大长度
@@ -160,7 +147,6 @@ class BaseCrawler(ABC):
         self.config = config or CrawlerConfig()
         self._session = self._create_session()
         self._robots_parser: RobotFileParser | None = None
-        self._is_allowed_by_robots = True
         # 日期过滤计数：Google Books 系子类重置为计数字典，其余保持 None
         self.date_filter_stats: dict[str, int] | None = None
 
@@ -348,19 +334,6 @@ class BaseCrawler(ABC):
         logger.error(f'❌ 所有尝试失败: {url}')
         return None
 
-    def _parse_html(self, html: str, parser: str = 'html.parser') -> BeautifulSoup:
-        """
-        解析 HTML 内容
-
-        Args:
-            html: HTML 字符串
-            parser: BeautifulSoup 解析器
-
-        Returns:
-            BeautifulSoup 对象
-        """
-        return BeautifulSoup(html, parser)
-
     def _clean_text(self, text: str | None) -> str:
         """
         清理文本（去除多余空白和换行）
@@ -377,97 +350,6 @@ class BaseCrawler(ABC):
         # 去除多余空白和换行
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
-
-    def _extract_isbn(self, text: str) -> tuple[str | None, str | None]:
-        """
-        从文本中提取 ISBN-13 和 ISBN-10
-
-        Args:
-            text: 包含 ISBN 的文本
-
-        Returns:
-            (isbn13, isbn10) 元组
-        """
-        isbn13 = None
-        isbn10 = None
-
-        # 提取 ISBN-13（13位数字，可能以978或979开头）
-        isbn13_match = re.search(r'(?:ISBN[-:\s]*)?(97[89]\d{10})', text, re.IGNORECASE)
-        if isbn13_match:
-            isbn13 = isbn13_match.group(1)
-
-        # 提取 ISBN-10（10位，最后一位可能是X）
-        isbn10_match = re.search(r'(?:ISBN[-:\s]*)?(\d{9}[\dXx])(?!\d)', text, re.IGNORECASE)
-        if isbn10_match and not isbn13:
-            isbn10 = isbn10_match.group(1).upper()
-
-        return isbn13, isbn10
-
-    def _parse_date(self, date_str: str | None) -> date | None:
-        """
-        解析日期字符串
-
-        支持多种常见格式：
-        - YYYY-MM-DD
-        - YYYY/MM/DD
-        - Month DD, YYYY
-        - DD Month YYYY
-
-        Args:
-            date_str: 日期字符串
-
-        Returns:
-            date 对象或 None
-        """
-        if not date_str:
-            return None
-
-        date_str = self._clean_text(date_str)
-
-        # 常见日期格式
-        formats = [
-            '%Y-%m-%d',
-            '%Y/%m/%d',
-            '%m/%d/%Y',
-            '%d/%m/%Y',
-            '%B %d, %Y',  # January 15, 2024
-            '%b %d, %Y',  # Jan 15, 2024
-            '%d %B %Y',  # 15 January 2024
-            '%d %b %Y',  # 15 Jan 2024
-            '%Y',  # 仅年份
-        ]
-
-        for fmt in formats:
-            try:
-                parsed = datetime.strptime(date_str, fmt)
-                return parsed.date()
-            except ValueError:
-                continue
-
-        logger.warning(f'⚠️ 无法解析日期: {date_str}')
-        return None
-
-    def _parse_price(self, price_str: str | None) -> str | None:
-        """
-        解析价格字符串
-
-        Args:
-            price_str: 价格字符串
-
-        Returns:
-            格式化后的价格
-        """
-        if not price_str:
-            return None
-
-        price_str = self._clean_text(price_str)
-
-        # 提取数字和货币符号
-        match = re.search(r'([\$€£¥]?\s*[\d,]+\.?\d*)', price_str)
-        if match:
-            return match.group(1).strip()
-
-        return price_str
 
     def _truncate_description(self, description: str | None) -> str | None:
         """

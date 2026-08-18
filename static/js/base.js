@@ -32,17 +32,11 @@
     /**
      * Escape HTML to prevent XSS
      */
-    function escapeHtml(text) {
+    function esc(text) {
+        if (text === undefined || text === null) return '';
         const div = document.createElement('div');
-        div.textContent = text;
+        div.textContent = String(text);
         return div.innerHTML;
-    }
-
-    /**
-     * Generate unique ID
-     */
-    function generateId() {
-        return 'id_' + Math.random().toString(36).substr(2, 9);
     }
 
     // ===== Loading Functions =====
@@ -112,7 +106,7 @@
 
         toast.innerHTML = `
             <svg class="icon" width="20" height="20" style="flex-shrink: 0;"><use href="#${iconClass}"/></svg>
-            <span>${escapeHtml(message)}</span>
+            <span>${esc(message)}</span>
             <button class="toast-close" aria-label="关闭提示">
                 <svg class="icon" width="16" height="16"><use href="#icon-x"/></svg>
             </button>
@@ -487,8 +481,8 @@
         const langOptEn = document.getElementById('lang-opt-en');
 
         if (langGlobe) langGlobe.addEventListener('click', toggleLangMenu);
-        if (langOptZh) langOptZh.addEventListener('click', () => switchLanguage('zh'));
-        if (langOptEn) langOptEn.addEventListener('click', () => switchLanguage('en'));
+        if (langOptZh) langOptZh.addEventListener('click', () => setGlobalLanguage('zh'));
+        if (langOptEn) langOptEn.addEventListener('click', () => setGlobalLanguage('en'));
     }
 
     /**
@@ -589,41 +583,6 @@
     }
 
     /**
-     * Switch language - uses backend /set-language to set cookie then refreshes page
-     * @param {string} lang - Language code (en, zh)
-     */
-    function switchLanguage(lang) {
-        localStorage.setItem('app_language', lang);
-        localStorage.setItem('bookrank_language', lang);
-
-        // 同步 html lang，便于屏幕阅读器正确发音
-        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-
-        if (typeof setGlobalLanguage === 'function') {
-            setGlobalLanguage(lang);
-        }
-
-        const host = window.location.hostname;
-        const cookieDomain = host.includes('.') ? host : '';
-        document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
-    }
-
-    /**
-     * Apply generic translation for pages without custom translation logic
-     * (Kept for backward compatibility with dynamic content)
-     * @param {string} lang - Language code (en, zh)
-     */
-    function applyGenericTranslation(lang) {
-        // Most static UI text is now handled by Flask-Babel server-side
-        // This remains for any dynamic elements with data-zh/data-en attributes
-        const translatableElements = document.querySelectorAll('[data-zh][data-en]');
-
-        translatableElements.forEach(el => {
-            el.textContent = lang === 'zh' ? el.getAttribute('data-zh') : el.getAttribute('data-en');
-        });
-    }
-
-    /**
      * Initialize language based on saved preference or browser detection
      */
     function initLanguage() {
@@ -649,21 +608,9 @@
 
     // ===== Expose Public API =====
 
-    window.BookRank = Object.assign(window.BookRank || {}, {
-        showLoading,
-        hideLoading,
-        showToast,
-        toggleView,
-        toggleFavorite,
-        clearFilters,
-        applyFilters,
-        toggleTheme,
-        toggleSidebar,
-        switchLanguage,
-        initLanguage
-    });
-
-    // Also expose as global functions for inline handlers
+    // Expose global helpers for inline handlers/templates
+    window.esc = esc;
+    window.escapeHtml = esc;
     window.showLoading = showLoading;
     window.hideLoading = hideLoading;
     window.showToast = showToast;
@@ -672,25 +619,7 @@
     window.clearFilters = clearFilters;
     window.applyFilters = applyFilters;
     window.toggleTheme = toggleTheme;
-    window.switchLanguage = switchLanguage;
     window.toggleLangMenu = toggleLangMenu;
     window.closeLangMenu = closeLangMenu;
-
-    /**
-     * 防御式主题颜色获取函数
-     * 避免旧构建产物或外部脚本调用时因返回 undefined 而抛出 TypeError
-     */
-    window.getThemeColors = function() {
-        const root = getComputedStyle(document.documentElement);
-        return {
-            exportedColors: {
-                primary: root.getPropertyValue('--primary').trim() || '#171717',
-                secondary: root.getPropertyValue('--secondary').trim() || '#525252',
-                background: root.getPropertyValue('--background').trim() || '#ffffff',
-                foreground: root.getPropertyValue('--foreground').trim() || '#171717',
-                accent: root.getPropertyValue('--accent').trim() || '#dc2626'
-            }
-        };
-    };
 
 })();

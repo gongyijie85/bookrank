@@ -10,6 +10,6 @@ typecheck:
 	mypy app/
 
 test:
-	python -m pytest tests/ -v --cov=app --cov-report=term-missing
+	python -m pytest tests/
 
 check: lint typecheck test

@@ -5,8 +5,10 @@ import time
 
 from ..models.schemas import AwardBook, db
 from ..utils.error_handler import ErrorCategory, log_error
-from .api_client import GoogleBooksClient, ImageCacheService, OpenLibraryClient
+from .api_utils import ImageCacheService
 from .cover_resolver import CoverResolver
+from .google_books_client import GoogleBooksClient
+from .open_library_client import OpenLibraryClient
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +26,6 @@ class AwardCoverSyncService:
         self._image_cache = image_cache
         self._resolver = CoverResolver(google_client, self._openlibrary_client, image_cache)
         self._is_running = False
-
-    def resolve_cover_for_book(self, book: AwardBook, persist: bool = True) -> str | None:
-        """解析单本获奖书籍的最佳封面 URL（策略在 CoverResolver）。"""
-        return self._resolver.resolve(book, persist=persist)
 
     def sync_missing_covers(self, batch_size: int = 10, delay: float = 1.5) -> dict:
         """

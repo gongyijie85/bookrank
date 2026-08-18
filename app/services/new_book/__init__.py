@@ -9,7 +9,6 @@ app.extensions['new_book_modules']。各子模块的深度藏在各自模块内�
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,8 +20,6 @@ from .publisher_manager import PublisherManager
 from .query_service import NewBookQueryService
 from .sync_engine import SyncEngine
 from .translation_pipeline import TranslationPipeline
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass

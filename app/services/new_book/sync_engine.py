@@ -164,13 +164,8 @@ class SyncEngine:
                 )
                 outcome = crawler.get_new_books(request)
 
-                def _mark_transport():
-                    for book_info in outcome.books:
-                        result['transport_status'] = 'success'
-                        yield book_info
-
                 ingest_stats = self._ingest_book_stream(
-                    _mark_transport(),
+                    outcome.books,
                     publisher,
                     translate=translate,
                     touched_books=touched_books,
