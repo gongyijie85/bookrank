@@ -13,7 +13,10 @@ from app.models.schemas import BookMetadata
 @pytest.fixture
 def app():
     """创建测试应用"""
-    app = create_app()
+    # 必须用 testing 配置：create_app() 默认 development 配置会在测试里启动真实
+    # APScheduler（非 daemon 线程），阻塞解释器退出 / CI 报 "cannot schedule new
+    # futures after interpreter shutdown"。回归见 tests/conftest.py 会话结束守护。
+    app = create_app('testing')
     app.config['TESTING'] = True
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
 
