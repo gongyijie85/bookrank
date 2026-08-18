@@ -22,10 +22,12 @@ def app():
         yield app
         db.drop_all()
 
+
 @pytest.fixture
 def client(app):
     """创建测试客户端"""
     return app.test_client()
+
 
 def test_circe_translation_fix(app):
     """测试CIRCE书名翻译修复"""
@@ -39,11 +41,7 @@ def test_circe_translation_fix(app):
         else:
             # 如果不存在，创建新记录
             circe_metadata = BookMetadata(
-                isbn='9780316556323',
-                title='CIRCE',
-                title_zh='喀耳刻',
-                author='Madeline Miller',
-                language='en'
+                isbn='9780316556323', title='CIRCE', title_zh='喀耳刻', author='Madeline Miller', language='en'
             )
             db.session.add(circe_metadata)
             db.session.commit()
@@ -55,11 +53,13 @@ def test_circe_translation_fix(app):
             assert saved_metadata.title_zh == '喀耳刻'
             assert saved_metadata.author == 'Madeline Miller'
 
+
 def test_circe_book_detail_page(client):
     """测试CIRCE书籍详情页"""
     # 注意：这个测试需要实际的数据库数据
     # 在实际环境中，需要确保CIRCE数据已存在
     pass
+
 
 def test_translation_cache_cleanup(app):
     """测试翻译缓存清理"""
