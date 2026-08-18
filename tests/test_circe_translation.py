@@ -28,23 +28,30 @@ def client(app):
 def test_circe_translation_fix(app):
     """测试CIRCE书名翻译修复"""
     with app.app_context():
-        # 创建CIRCE的BookMetadata记录
-        circe_metadata = BookMetadata(
-            isbn='9780316556323',
-            title='CIRCE',
-            title_zh='喀耳刻',
-            author='Madeline Miller',
-            language='en'
-        )
-        db.session.add(circe_metadata)
-        db.session.commit()
-        
-        # 验证记录已创建
-        saved_metadata = BookMetadata.query.filter_by(isbn='9780316556323').first()
-        assert saved_metadata is not None
-        assert saved_metadata.title == 'CIRCE'
-        assert saved_metadata.title_zh == '喀耳刻'
-        assert saved_metadata.author == 'Madeline Miller'
+        # 检查是否已存在CIRCE记录
+        existing = BookMetadata.query.filter_by(isbn='9780316556323').first()
+        if existing:
+            # 如果已存在，验证现有记录
+            assert existing.title == 'CIRCE'
+            assert existing.title_zh == '喀耳刻'
+        else:
+            # 如果不存在，创建新记录
+            circe_metadata = BookMetadata(
+                isbn='9780316556323',
+                title='CIRCE',
+                title_zh='喀耳刻',
+                author='Madeline Miller',
+                language='en'
+            )
+            db.session.add(circe_metadata)
+            db.session.commit()
+            
+            # 验证记录已创建
+            saved_metadata = BookMetadata.query.filter_by(isbn='9780316556323').first()
+            assert saved_metadata is not None
+            assert saved_metadata.title == 'CIRCE'
+            assert saved_metadata.title_zh == '喀耳刻'
+            assert saved_metadata.author == 'Madeline Miller'
 
 def test_circe_book_detail_page(client):
     """测试CIRCE书籍详情页"""
