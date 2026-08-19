@@ -59,6 +59,37 @@ class BatchImportError(Exception):
         self.status_code = status_code
 
 
+class _BatchLookup:
+    """批级书籍索引：一次性预载出版社书籍，避免每条 record 全表扫描。"""
+
+    def __init__(self, publisher: Publisher) -> None:
+        self._by_isbn: dict[str, NewBook] = {}
+        self._by_url: dict[str, NewBook] = {}
+        for book in NewBook.query.filter_by(publisher_id=publisher.id).all():
+            self._index(book)
+
+    def _index(self, book: NewBook) -> None:
+        if book.isbn13:
+            self._by_isbn.setdefault(book.isbn13, book)
+        for url in (book.canonical_source_url, book.source_url):
+            key = normalize_source_url(url)
+            if key:
+                self._by_url.setdefault(key, book)
+
+    def find(self, *, isbn13: str | None, source_url: str | None) -> NewBook | None:
+        if isbn13:
+            found = self._by_isbn.get(isbn13)
+            if found is not None:
+                return found
+        if source_url:
+            return self._by_url.get(source_url)
+        return None
+
+    def register_written(self, book: NewBook) -> None:
+        """新建/更新后的 book 重新入索引，供同批后续 record 命中。"""
+        self._index(book)
+
+
 @dataclass(frozen=True)
 class BatchImportResult:
     status: str
@@ -130,6 +161,7 @@ def import_batch(payload: dict[str, Any]) -> BatchImportResult:
         accepted = 0
         pending_review = 0
         rejected = 0
+        lookup = _BatchLookup(publisher)
         for index, raw in enumerate(records):
             if not isinstance(raw, dict):
                 rejected += 1
@@ -139,7 +171,7 @@ def import_batch(payload: dict[str, Any]) -> BatchImportResult:
                 rejected += 1
                 record_results.append({'index': index, 'outcome': 'rejected', 'reason': 'ai_candidate_not_allowed'})
                 continue
-            outcome = _apply_record(publisher, raw, batch_id)
+            outcome = _apply_record(publisher, raw, batch_id, lookup)
             record_results.append({'index': index, **outcome})
             if outcome['outcome'] == 'accepted':
                 accepted += 1
@@ -232,7 +264,12 @@ def choose_main_edition(editions: list[dict[str, Any]]) -> dict[str, Any] | None
     return print_editions[0][1]
 
 
-def _apply_record(publisher: Publisher, raw: dict[str, Any], batch_id: str) -> dict[str, Any]:
+def _apply_record(
+    publisher: Publisher,
+    raw: dict[str, Any],
+    batch_id: str,
+    lookup: _BatchLookup,
+) -> dict[str, Any]:
     title = (raw.get('title') or '').strip()
     author_raw = raw.get('author')
     author = (author_raw or '').strip() if author_raw is not None else ''
@@ -280,7 +317,7 @@ def _apply_record(publisher: Publisher, raw: dict[str, Any], batch_id: str) -> d
             edition['is_main'] = False
 
     provenance = _normalize_provenance(raw.get('field_provenance'))
-    book = _find_existing(publisher, isbn13=isbn13, source_url=source_url)
+    book = _find_existing(lookup, isbn13=isbn13, source_url=source_url)
 
     if grade == 'pending_review':
         return _write_pending(
@@ -295,6 +332,7 @@ def _apply_record(publisher: Publisher, raw: dict[str, Any], batch_id: str) -> d
             provenance=provenance,
             missing=missing,
             batch_id=batch_id,
+            lookup=lookup,
         )
 
     return _write_accepted(
@@ -308,6 +346,7 @@ def _apply_record(publisher: Publisher, raw: dict[str, Any], batch_id: str) -> d
         editions=editions,
         provenance=provenance,
         batch_id=batch_id,
+        lookup=lookup,
     )
 
 
@@ -346,6 +385,7 @@ def _write_accepted(
     editions: list[dict[str, Any]],
     provenance: list[dict[str, Any]],
     batch_id: str,
+    lookup: _BatchLookup,
 ) -> dict[str, Any]:
     displayable = bool(publisher.site_display_primary)
     if book is None:
@@ -372,6 +412,7 @@ def _write_accepted(
     book.last_import_batch_id = batch_id
     book.set_editions(_merge_edition_lists(book.get_editions(), editions))
     book.set_field_provenance(_merge_provenance(book.get_field_provenance(), provenance))
+    lookup.register_written(book)
     return {'outcome': 'accepted', 'isbn13': isbn13, 'source_url': source_url}
 
 
@@ -388,6 +429,7 @@ def _write_pending(
     provenance: list[dict[str, Any]],
     missing: list[str],
     batch_id: str,
+    lookup: _BatchLookup,
 ) -> dict[str, Any]:
     # ORM requires non-null author: store empty string, never invent a name.
     store_author = author if author else ''
@@ -425,6 +467,7 @@ def _write_pending(
     book.last_import_batch_id = batch_id
     book.set_editions(_merge_edition_lists(book.get_editions(), editions))
     book.set_field_provenance(_merge_provenance(book.get_field_provenance(), provenance))
+    lookup.register_written(book)
     return {
         'outcome': 'pending_review',
         'isbn13': isbn13,
@@ -434,24 +477,12 @@ def _write_pending(
 
 
 def _find_existing(
-    publisher: Publisher,
+    lookup: _BatchLookup,
     *,
     isbn13: str | None,
     source_url: str | None,
 ) -> NewBook | None:
-    if isbn13:
-        found = NewBook.query.filter_by(publisher_id=publisher.id, isbn13=isbn13).first()
-        if found is not None:
-            return found  # type: ignore[no-any-return]
-    if source_url:
-        # match normalized or raw
-        candidates = NewBook.query.filter_by(publisher_id=publisher.id).all()
-        for book in candidates:
-            if normalize_source_url(book.canonical_source_url) == source_url:
-                return book  # type: ignore[no-any-return]
-            if normalize_source_url(book.source_url) == source_url:
-                return book  # type: ignore[no-any-return]
-    return None
+    return lookup.find(isbn13=isbn13, source_url=source_url)
 
 
 def _merge_edition_lists(

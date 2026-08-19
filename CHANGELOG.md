@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.9.91 - 2026-08-19
+
+### perf(new-books): 批量导入消除 O(N×M) 全表扫描
+
+**背景**：代码评审发现 `import_batch` 每条 record 的 `_find_existing` 在 source_url
+匹配分支执行 `NewBook.query.filter_by(publisher_id=...).all()`，把该出版社全部书籍
+加载进内存逐本比对规范化 URL。几百条批次 × 数千存量书 = 数百次全表拉取（外部
+PostgreSQL round-trip），导入耗时分钟级。
+
+**改动**
+
+- `app/services/batch_import_service.py`：新增 `_BatchLookup` 批级索引——批次开始时
+  一次性预载该出版社书籍，构建 isbn13 与规范化 source_url（canonical/source 双字段）
+  两个内存字典；`_find_existing` 改为字典查找，消除循环内全表查询。
+- 写路径（`_write_accepted` / `_write_pending`）完成后调用 `register_written`
+  将新建/更新书籍回填索引，保持同批后续 record 的去重命中语义与原 SQL
+  autoflush 行为一致。
+
+**验证**：批量导入相关 31 个测试通过；全量测试 2153 passed / 1 skipped，
+覆盖率 83.19%；`ruff check`、`ruff format`、`mypy` 全部通过。
+
+**收益**：导入查询次数从 O(records × publisher_books) 降为每批 1 次预载，
+预期导入耗时分钟级降至秒级。
+
 ## v0.9.90 - 2026-08-14
 
 ### fix(awards): 修复生产环境封面同步无法识别"缓存文件丢失"

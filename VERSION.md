@@ -1,11 +1,23 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.90
-**发布日期**：2026-08-14
+**当前版本**：v0.9.91
+**发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.91 (2026-08-19) — 批量导入消除 O(N×M) 全表扫描
+
+**背景**：代码评审发现批量导入的 `_find_existing` 在每条 record 循环内执行
+该出版社全表加载并逐本内存匹配规范化 URL，几百条批次 × 数千存量书导致数百次
+外部 PostgreSQL 全表拉取，导入耗时分钟级。
+
+**核心优化**
+- [batch_import_service.py](file:///d:/BookRank3/app/services/batch_import_service.py) 新增 `_BatchLookup` 批级索引：批次开始一次性预载出版社书籍，构建 isbn13 / 规范化 URL 双字典，`_find_existing` 改为 O(1) 字典查找。
+- 写路径完成后回填索引（`register_written`），保持同批去重语义与原 SQL autoflush 行为一致。
+
+**验证**：全量测试 2153 passed / 1 skipped，覆盖率 83.19%；ruff / mypy 通过。
 
 ### v0.9.90 (2026-08-14) — 修复生产环境封面同步：识别"缓存文件丢失"并重新下载
 
