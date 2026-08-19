@@ -1,5 +1,9 @@
 """新书路由测试"""
 
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 
 class TestCheckSyncCooldown:
     """测试 _check_sync_cooldown（v0.9.64: 适配多 worker 安全锁）"""
@@ -99,6 +103,136 @@ class TestNewBooksAPIRoutes:
     def test_init_publishers_no_auth(self, client):
         response = client.post('/api/new-books/init')
         assert response.status_code in (403, 429, 500)
+
+
+class TestSyncAsyncSubmit:
+    """v0.9.96: 同步端点改后台任务（202 + 轮询状态）"""
+
+    @pytest.fixture(autouse=True)
+    def _reset_sync_state(self, app, clear_auth_failures):
+        """每个用例复位任务槽、同步冷却与 admin 认证失败计数，避免跨用例污染。"""
+        import app.routes.new_books as mod
+
+        with app.app_context():
+            mod.get_sync_request_gate().reset()
+        with mod._sync_task_lock:
+            mod._sync_task.clear()
+            mod._sync_task.update({'status': 'idle'})
+        yield
+        with mod._sync_task_lock:
+            mod._sync_task.clear()
+            mod._sync_task.update({'status': 'idle'})
+
+    def _inline_submit(self):
+        """替换 submit_background_task：记录并同步执行（便于断言后台行为）。"""
+
+        def _fake_submit(fn, *args, **kwargs):
+            fn()
+            return MagicMock()
+
+        return _fake_submit
+
+    def test_sync_all_returns_202_and_runs_background(self, client, admin_headers):
+        """端点立即返回 202，不同步等待（回归：请求线程内等 600s/社挂死管理端点）"""
+        modules = MagicMock()
+        modules.sync_engine.sync_all_publishers.return_value = [
+            {'success': True, 'added': 2, 'updated': 1, 'errors': 0},
+        ]
+
+        with (
+            patch('app.routes.new_books.submit_background_task', self._inline_submit()),
+            patch('app.routes.new_books.get_new_book_modules', return_value=modules),
+        ):
+            response = client.post('/api/new-books/sync', headers=admin_headers)
+            data = response.get_json()
+            assert response.status_code == 202
+            assert data['success'] is True
+            assert data['data']['status'] == 'submitted'
+            modules.sync_engine.sync_all_publishers.assert_called_once()
+
+            status_resp = client.get('/api/new-books/sync/status', headers=admin_headers)
+            status = status_resp.get_json()['data']
+            assert status['status'] == 'success'
+            assert status['summary']['total_added'] == 2
+            assert status['summary']['total_publishers'] == 1
+
+    def test_sync_publisher_returns_202_with_result(self, client, admin_headers):
+        modules = MagicMock()
+        modules.sync_engine.sync_publisher_books.return_value = {'success': True, 'added': 3, 'updated': 0}
+
+        with (
+            patch('app.routes.new_books.submit_background_task', self._inline_submit()),
+            patch('app.routes.new_books.get_new_book_modules', return_value=modules),
+        ):
+            response = client.post('/api/new-books/sync/1?max_books=20', headers=admin_headers)
+            assert response.status_code == 202
+            modules.sync_engine.sync_publisher_books.assert_called_once_with(1, max_books=20)
+
+            status = client.get('/api/new-books/sync/status', headers=admin_headers).get_json()['data']
+            assert status['status'] == 'success'
+            assert status['kind'] == 'publisher'
+            assert status['result']['added'] == 3
+
+    def test_sync_publisher_failure_marks_error(self, client, admin_headers):
+        """后台同步失败（result.success=False）落到 error 状态而非 HTTP 错误。"""
+        modules = MagicMock()
+        modules.sync_engine.sync_publisher_books.return_value = {'success': False, 'error': '出版社不存在'}
+
+        with (
+            patch('app.routes.new_books.submit_background_task', self._inline_submit()),
+            patch('app.routes.new_books.get_new_book_modules', return_value=modules),
+        ):
+            response = client.post('/api/new-books/sync/999', headers=admin_headers)
+            assert response.status_code == 202
+
+            status = client.get('/api/new-books/sync/status', headers=admin_headers).get_json()['data']
+            assert status['status'] == 'error'
+            assert status['error'] == '出版社不存在'
+
+    def test_sync_rejected_while_task_running(self, client, admin_headers, app):
+        """任务运行中再次触发返回 409（单任务槽互斥）。"""
+        import app.routes.new_books as mod
+
+        with mod._sync_task_lock:
+            mod._sync_task.update({'status': 'running'})
+
+        response = client.post('/api/new-books/sync', headers=admin_headers)
+        assert response.status_code == 409
+
+    def test_sync_cooldown_still_enforced(self, client, admin_headers, app):
+        """触发即记录冷却：60 秒内再次触发返回 429。"""
+        modules = MagicMock()
+        modules.sync_engine.sync_all_publishers.return_value = []
+
+        with (
+            patch('app.routes.new_books.submit_background_task', self._inline_submit()),
+            patch('app.routes.new_books.get_new_book_modules', return_value=modules),
+        ):
+            first = client.post('/api/new-books/sync', headers=admin_headers)
+            assert first.status_code == 202
+
+            second = client.post('/api/new-books/sync', headers=admin_headers)
+            assert second.status_code == 429
+
+    def test_sync_background_exception_marks_error(self, client, admin_headers):
+        """后台任务抛异常不影响已返回的 202，状态落 error。"""
+        modules = MagicMock()
+        modules.sync_engine.sync_all_publishers.side_effect = RuntimeError('upstream down')
+
+        with (
+            patch('app.routes.new_books.submit_background_task', self._inline_submit()),
+            patch('app.routes.new_books.get_new_book_modules', return_value=modules),
+        ):
+            response = client.post('/api/new-books/sync', headers=admin_headers)
+            assert response.status_code == 202
+
+            status = client.get('/api/new-books/sync/status', headers=admin_headers).get_json()['data']
+            assert status['status'] == 'error'
+            assert 'upstream down' in status['error']
+
+    def test_status_without_auth(self, client):
+        response = client.get('/api/new-books/sync/status')
+        assert response.status_code == 403
 
 
 class TestCSVSanitization:

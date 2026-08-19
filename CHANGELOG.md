@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.9.96 - 2026-08-19
+
+### perf(new-books): 同步端点改后台任务，消除请求线程最长 600s/社阻塞
+
+**背景**：性能评审发现 `/api/new-books/sync` 与 `/api/new-books/sync/<id>` 在
+HTTP 请求线程内同步执行爬虫同步：`sync_all_publishers` 内部每社
+`future.result(timeout=600)`，translate=True 时逐本 LLM 调用，全量最坏
+5 社 × 600s，远超 Render 免费版网关超时（约 100s）——网关超时后前端报
+"同步失败"，但服务端仍在跑，重试还会放大占用。
+
+**改动**
+
+- `app/routes/new_books.py`：
+  - 新增进程内单一同步任务槽（`_sync_task` + 锁）：两个触发端点共享，
+    任务运行中再触发返回 409（防并发跑批互相踩 DB）。
+  - `/sync`、`/sync/<id>` 改为 `submit_background_task` 后台执行
+    （app context 内），立即返回 202 + `status='submitted'`；
+    冷却改为触发即记录（防连点）。
+  - 新增 `GET /api/new-books/sync/status`：返回最近一次任务状态
+    （idle/running/success/error + summary/results/error）。
+- `templates/new_books.html`：`syncNewBooks()` 改为提交 + 每 3s 轮询
+  status（最长 15 分钟），成功展示与此前相同的汇总文案；运行中保持
+  spinner，错误/超时给出可读提示。
+- `tests/test_new_books_routes.py`：新增 `TestSyncAsyncSubmit` 7 个测试
+  （202 与后台执行、单社结果、失败落 error、运行中 409、冷却 429、
+  后台异常不影响 202、status 鉴权）。
+
+**行为变更**：`/sync`、`/sync/<id>` 响应从"同步完成后的完整结果（200）"
+变为"任务已受理（202）"；结果改由 `/sync/status` 获取。cron 路径
+（`/api/cron/trigger-new-books-sync`）本就后台化，不受影响。
+
+**验证**：全量测试 2174 passed / 1 skipped（+7），覆盖率 83.69%；
+ruff / mypy 通过。
+
 ## v0.9.95 - 2026-08-19
 
 ### perf(awards): 封面批同步改后台任务 + 模块级锁修复防重入失效

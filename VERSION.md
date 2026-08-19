@@ -1,11 +1,26 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.95
+**当前版本**：v0.9.96
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.96 (2026-08-19) — 同步端点改后台任务，消除请求线程最长 600s/社阻塞
+
+**背景**：性能评审发现 `/api/new-books/sync` 与 `/sync/<id>` 在请求线程内同步执行
+爬虫同步（全量最坏 5 社 × 600s + LLM 翻译），超 Render 网关超时后前端误报失败、
+服务端继续空跑。
+
+**核心修复**
+- [new_books.py](file:///d:/BookRank3/app/routes/new_books.py)：进程内单一任务槽（运行中再触发返回 409）；两个触发端点改 `submit_background_task` 后台执行并立即返回 202；冷却改触发即记录；新增 `GET /api/new-books/sync/status` 轮询端点。
+- [new_books.html](file:///d:/BookRank3/templates/new_books.html)：`syncNewBooks()` 改提交 + 每 3s 轮询（最长 15 分钟），成功/失败/超时均有可读提示。
+- 新增 7 个异步行为测试。
+
+**行为变更**：触发端点从"同步结果（200）"变为"任务已受理（202）"，结果经 `/sync/status` 获取。
+
+**验证**：全量测试 2174 passed / 1 skipped，覆盖率 83.69%；ruff / mypy 通过。
 
 ### v0.9.95 (2026-08-19) — 封面批同步改后台任务 + 模块级锁修复防重入失效
 

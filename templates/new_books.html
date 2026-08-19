@@ -519,6 +519,9 @@ function exportExcel() {
 function syncNewBooks() {
     const btn = document.getElementById('sync-btn');
     const statusDiv = document.getElementById('sync-status');
+    // 后台任务轮询：提交后每 3 秒查一次状态，最长等待 15 分钟
+    const POLL_INTERVAL = 3000;
+    const POLL_MAX_MS = 15 * 60 * 1000;
 
     btn.disabled = true;
     btn.innerHTML = '<svg class="icon icon-spin" width="18" height="18"><use href="#icon-spinner"/></svg> {{ _('同步中') }}...';
@@ -527,29 +530,54 @@ function syncNewBooks() {
     statusDiv.className = 'sync-status syncing';
     statusDiv.innerHTML = '<svg class="icon icon-spin" width="18" height="18"><use href="#icon-spinner"/></svg> {{ _('正在从出版社获取新书数据') }}...';
 
+    const showError = (message) => {
+        statusDiv.className = 'sync-status error';
+        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--error-color, #ef4444)"><use href="#icon-alert-circle"/></svg> {{ _('同步失败') }}: ' + esc(message);
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg> <span class="hide-mobile">{{ _('同步新书') }}</span>';
+    };
+
     fetch('/api/new-books/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            const summary = data.data.summary;
-            statusDiv.className = 'sync-status success';
-            statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--success-color, #10b981)"><use href="#icon-check-circle"/></svg> {{ _('同步完成') }}！{{ _('新增') }} ' + summary.total_added + ' {{ _('本') }}，{{ _('更新') }} ' + summary.total_updated + ' {{ _('本') }}';
-            setTimeout(() => { location.reload(); }, 2000);
-        } else {
-            throw new Error(data.message || '{{ _('同步失败') }}');
-        }
+        if (!data.success) throw new Error(data.message || '{{ _('同步失败') }}');
+
+        // 202 已受理，进入轮询直至任务结束
+        const pollStart = Date.now();
+        const poll = () => {
+            if (Date.now() - pollStart > POLL_MAX_MS) {
+                showError('{{ _('同步仍在后台执行，请稍后刷新页面查看结果') }}');
+                return;
+            }
+            fetch('/api/new-books/sync/status')
+                .then(r => r.json())
+                .then(statusData => {
+                    if (!statusData.success) throw new Error(statusData.message || '{{ _('查询状态失败') }}');
+                    const task = statusData.data ?? {};
+                    if (task.status === 'running' || task.status === 'submitted') {
+                        setTimeout(poll, POLL_INTERVAL);
+                    } else if (task.status === 'success') {
+                        const summary = task.summary ?? { total_added: 0, total_updated: 0 };
+                        statusDiv.className = 'sync-status success';
+                        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--success-color, #10b981)"><use href="#icon-check-circle"/></svg> {{ _('同步完成') }}！{{ _('新增') }} ' + summary.total_added + ' {{ _('本') }}，{{ _('更新') }} ' + summary.total_updated + ' {{ _('本') }}';
+                        setTimeout(() => { location.reload(); }, 2000);
+                        btn.disabled = false;
+                        btn.innerHTML = '<svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg> <span class="hide-mobile">{{ _('同步新书') }}</span>';
+                    } else if (task.status === 'error') {
+                        showError(task.error || '{{ _('同步失败') }}');
+                    } else {
+                        // idle：任务槽已复位（如服务重启），停止轮询
+                        showError('{{ _('同步任务状态已丢失，请稍后刷新页面查看结果') }}');
+                    }
+                })
+                .catch(err => showError(err.message));
+        };
+        setTimeout(poll, POLL_INTERVAL);
     })
-    .catch(error => {
-        statusDiv.className = 'sync-status error';
-        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--error-color, #ef4444)"><use href="#icon-alert-circle"/></svg> {{ _('同步失败') }}: ' + esc(error.message);
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = '<svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg> <span class="hide-mobile">{{ _('同步新书') }}</span>';
-    });
+    .catch(error => showError(error.message));
 }
 
 document.addEventListener('DOMContentLoaded', () => {

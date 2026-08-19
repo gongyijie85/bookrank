@@ -1,11 +1,12 @@
 import csv
 import logging
+import threading
 from datetime import UTC, datetime
 from io import StringIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
-from flask import Blueprint, make_response, request
+from flask import Blueprint, current_app, make_response, request
 from pydantic import ValidationError
 
 if TYPE_CHECKING:
@@ -21,7 +22,11 @@ from ..schemas.validators import (
 from ..utils.admin_auth import admin_required
 from ..utils.api_helpers import APIResponse, csrf_protect
 from ..utils.error_handler import ErrorCategory, log_error
-from ..utils.service_helpers import get_new_book_modules, get_sync_request_gate
+from ..utils.service_helpers import (
+    get_new_book_modules,
+    get_sync_request_gate,
+    submit_background_task,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,12 @@ new_books_bp = Blueprint('new_books', __name__, url_prefix='/api/new-books')
 _SYNC_COOLDOWN_SECONDS: int = 60
 _EXPORT_COOLDOWN_SECONDS: int = 10  # v0.9.68: CSV 导出每 IP 限速
 _CSV_INJECTION_PREFIXES: tuple[str, ...] = ('=', '+', '-', '@', '\t', '\r')
+
+# 同步任务状态（进程内单一任务槽）：全量同步含外部爬虫 + LLM 翻译，
+# 最坏可达每社 600s x 5 社，不能占住请求线程（Render 免费版网关超时约 100s）。
+# POST 触发后立即返回 202，前端/运维轮询 GET /sync/status 获取进度与结果。
+_sync_task_lock = threading.Lock()
+_sync_task: dict[str, Any] = {'status': 'idle'}
 
 
 def _sanitize_csv_field(value: object) -> str:
@@ -80,6 +91,28 @@ def _check_sync_cooldown() -> str | None:
     if remaining is not None:
         return _cooldown_message('同步操作', remaining)
     return None
+
+
+def _submit_sync_job(runner) -> tuple[bool, Any]:
+    """占用同步任务槽并提交后台执行；已在运行时返回 (False, 409 响应)。"""
+    with _sync_task_lock:
+        if _sync_task.get('status') == 'running':
+            return False, APIResponse.error('已有同步任务在执行中，请先等待完成', 409)
+        _sync_task.clear()
+        _sync_task.update({'status': 'running', 'started_at': datetime.now(UTC).isoformat()})
+    try:
+        submit_background_task(runner)
+    except Exception:
+        with _sync_task_lock:
+            _sync_task.update({'status': 'error', 'error': '后台任务提交失败'})
+        raise
+    return True, None
+
+
+def _finish_sync_job(**fields: Any) -> None:
+    """后台任务结束时落最终状态（success/error）。"""
+    with _sync_task_lock:
+        _sync_task.update({'finished_at': datetime.now(UTC).isoformat(), **fields})
 
 
 @new_books_bp.route('/publishers')
@@ -267,68 +300,109 @@ def get_categories():
 @csrf_protect
 @admin_required
 def sync_all_publishers():
-    """同步所有出版社新书（含冷却时间限制）"""
+    """同步所有出版社新书（后台任务，立即返回 202；含冷却与单任务限制）"""
     cooldown_error = _check_sync_cooldown()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
 
     try:
-        modules = get_new_book_modules()
-        modules.publisher_manager.init_publishers()
-
         max_books = min(max(1, request.args.get('max_books', 30, type=int)), 100)
-        results = modules.sync_engine.sync_all_publishers(max_books_per_publisher=max_books)
+        app_obj = current_app._get_current_object()
 
-        # 更新同步时间（闸门内多 worker 安全）
+        def _run_sync_all() -> None:
+            with app_obj.app_context():
+                try:
+                    modules = get_new_book_modules()
+                    modules.publisher_manager.init_publishers()
+                    results = modules.sync_engine.sync_all_publishers(max_books_per_publisher=max_books)
+
+                    total_added = sum(r.get('added', 0) for r in results)
+                    total_updated = sum(r.get('updated', 0) for r in results)
+                    total_errors = sum(r.get('errors', 0) for r in results)
+                    summary = {
+                        'total_publishers': len(results),
+                        'total_added': total_added,
+                        'total_updated': total_updated,
+                        'total_errors': total_errors,
+                    }
+                    _finish_sync_job(status='success', kind='all', summary=summary, results=results)
+                except Exception as e:
+                    log_error(ErrorCategory.CRAWLER, f'后台同步新书失败: {e}', exc_info=True)
+                    _finish_sync_job(status='error', kind='all', error=str(e))
+
+        # 触发即记录冷却（防连点）；任务期间由单一任务槽互斥
         get_sync_request_gate().record_sync()
-
-        total_added = sum(r.get('added', 0) for r in results)
-        total_updated = sum(r.get('updated', 0) for r in results)
-        total_errors = sum(r.get('errors', 0) for r in results)
+        submitted, conflict = _submit_sync_job(_run_sync_all)
+        if not submitted:
+            return conflict
 
         return APIResponse.success(
-            data={
-                'results': results,
-                'summary': {
-                    'total_publishers': len(results),
-                    'total_added': total_added,
-                    'total_updated': total_updated,
-                    'total_errors': total_errors,
-                },
-            }
+            data={'status': 'submitted', 'max_books': max_books},
+            message='同步已提交后台执行，可通过 /api/new-books/sync/status 查询进度',
+            status_code=202,
         )
     except Exception as e:
-        log_error(ErrorCategory.CRAWLER, f'同步新书失败: {e}', exc_info=True)
-        return APIResponse.error(f'同步失败: {e!s}', 500)
+        log_error(ErrorCategory.CRAWLER, f'提交同步任务失败: {e}', exc_info=True)
+        return APIResponse.error(f'提交同步任务失败: {e!s}', 500)
 
 
 @new_books_bp.route('/sync/<int:publisher_id>', methods=['POST'])
 @csrf_protect
 @admin_required
 def sync_publisher(publisher_id: int):
-    """同步指定出版社新书（含冷却时间限制）"""
+    """同步指定出版社新书（后台任务，立即返回 202；含冷却与单任务限制）"""
     cooldown_error = _check_sync_cooldown()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
 
     try:
-        modules = get_new_book_modules()
         sync_q, err = _parse_or_422(NewBookSyncQuery)
         if err is not None:
             return err
         assert sync_q is not None
-        result = modules.sync_engine.sync_publisher_books(publisher_id, max_books=sync_q.max_books)
+        app_obj = current_app._get_current_object()
 
-        if not result.get('success'):
-            return APIResponse.error(result.get('error', '同步失败'), 400)
+        def _run_sync_publisher() -> None:
+            with app_obj.app_context():
+                try:
+                    modules = get_new_book_modules()
+                    result = modules.sync_engine.sync_publisher_books(publisher_id, max_books=sync_q.max_books)
+                    if result.get('success'):
+                        _finish_sync_job(status='success', kind='publisher', publisher_id=publisher_id, result=result)
+                    else:
+                        _finish_sync_job(
+                            status='error',
+                            kind='publisher',
+                            publisher_id=publisher_id,
+                            error=result.get('error', '同步失败'),
+                            result=result,
+                        )
+                except Exception as e:
+                    log_error(ErrorCategory.CRAWLER, f'后台同步出版社新书失败: {e}', exc_info=True)
+                    _finish_sync_job(status='error', kind='publisher', publisher_id=publisher_id, error=str(e))
 
-        # 更新同步时间（闸门内多 worker 安全）
         get_sync_request_gate().record_sync()
+        submitted, conflict = _submit_sync_job(_run_sync_publisher)
+        if not submitted:
+            return conflict
 
-        return APIResponse.success(data=result)
+        return APIResponse.success(
+            data={'status': 'submitted', 'publisher_id': publisher_id, 'max_books': sync_q.max_books},
+            message='同步已提交后台执行，可通过 /api/new-books/sync/status 查询进度',
+            status_code=202,
+        )
     except Exception as e:
-        log_error(ErrorCategory.CRAWLER, f'同步出版社新书失败: {e}', exc_info=True)
-        return APIResponse.error(f'同步失败: {e!s}', 500)
+        log_error(ErrorCategory.CRAWLER, f'提交同步任务失败: {e}', exc_info=True)
+        return APIResponse.error(f'提交同步任务失败: {e!s}', 500)
+
+
+@new_books_bp.route('/sync/status')
+@admin_required
+def get_sync_status():
+    """查询最近一次同步任务的执行状态（idle/running/success/error）"""
+    with _sync_task_lock:
+        snapshot = dict(_sync_task)
+    return APIResponse.success(data=snapshot)
 
 
 @new_books_bp.route('/statistics')
