@@ -10,16 +10,9 @@ from ..utils.service_helpers import (
     get_service,
     submit_background_task,
 )
+from ..utils.translation_overrides import TRANSLATION_OVERRIDES
 
 logger = logging.getLogger(__name__)
-
-# 翻译覆盖映射：用于修复特定书籍的错误翻译
-# 格式: { isbn: { 'title_zh': 'correct_title', 'description_zh': 'correct_desc', ... } }
-TRANSLATION_OVERRIDES = {
-    '9780316556323': {
-        'title_zh': '喀耳刻',
-    }
-}
 
 
 def fetch_google_books_details(book: dict, isbn: str) -> None:

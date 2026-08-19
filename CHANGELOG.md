@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.9.94 - 2026-08-19
+
+### refactor(i18n): 提取翻译覆盖共享助手，消除模型层重复与反向依赖
+
+**背景**：规范评审发现"应用翻译覆盖"逻辑在 Book 与 AwardBook 两处逐字重复且
+行为已分叉（Book 版缺 `key in data` 守卫，会向序列化字典新增任意键），且模型层
+函数内 `from ..services.book_detail_service import TRANSLATION_OVERRIDES` 反向
+依赖服务层——历史上靠两个提交补丁式推进同一逻辑，典型 Shotgun Surgery 苗头。
+
+**改动**
+
+- 新建 `app/utils/translation_overrides.py`：`TRANSLATION_OVERRIDES` 映射 +
+  `apply_translation_overrides(data)` 共享助手（采用 AwardBook 版保守语义：
+  只覆盖已有键、空值跳过、isbn13/isbn10 双键命中）。
+- `app/models/book.py`、`app/models/schemas.py`（AwardBook）：两处重复块收敛为
+  共享助手调用，模型层依赖方向修正为 models → utils（消除对服务层的反向依赖）。
+- `app/services/book_detail_service.py`：`TRANSLATION_OVERRIDES` 数据源改为从
+  utils 导入（名称保留向后兼容）；其内部 `_apply_translation_overrides` 合并
+  语义不同（仅空值/不同值才写 + 日志），按原样保留不合并。
+- `tests/test_translation_overrides.py`：新增 9 个测试——纯函数 6 个（命中/
+  isbn10 回退/不新增键/无 ISBN/未命中/空值跳过）+ 模型接线 3 个
+  （Book.to_dict 覆盖与不覆盖、AwardBook.to_dict 覆盖）。
+
+**行为对齐说明**：Book 版统一后采用"不新增键"守卫；当前映射仅含
+`title_zh`（两个模型输出均含该键），可观察行为不变。
+
+**验证**：全量测试 2165 passed / 1 skipped（+9），覆盖率 83.26%；
+ruff / mypy 通过。
+
 ## v0.9.93 - 2026-08-19
 
 ### feat(new-books): 接线 fallback_google_enabled 开关（#137 规格缺口修复）

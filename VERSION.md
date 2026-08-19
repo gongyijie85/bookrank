@@ -1,11 +1,24 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.93
+**当前版本**：v0.9.94
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.94 (2026-08-19) — 提取翻译覆盖共享助手，消除模型层重复与反向依赖
+
+**背景**：规范评审发现"应用翻译覆盖"逻辑在 Book 与 AwardBook 两处逐字重复且行为
+已分叉（Book 版缺 key in data 守卫），且模型层反向依赖服务层。
+
+**核心重构**
+- 新建 [translation_overrides.py](file:///d:/BookRank3/app/utils/translation_overrides.py)：`TRANSLATION_OVERRIDES` 映射 + `apply_translation_overrides()` 共享助手（保守语义：只覆盖已有键、空值跳过、isbn13/isbn10 双键命中）。
+- Book / AwardBook 两处重复块收敛为共享助手，依赖方向修正为 models → utils。
+- `book_detail_service` 数据源改为从 utils 导入（名称向后兼容），合并语义不同的内部逻辑保留不合并。
+- 新增 9 个测试（纯函数 6 + 模型接线 3）。
+
+**验证**：全量测试 2165 passed / 1 skipped，覆盖率 83.26%；ruff / mypy 通过。
 
 ### v0.9.93 (2026-08-19) — 接线 fallback_google_enabled 开关（#137）
 
