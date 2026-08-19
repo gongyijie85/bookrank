@@ -22,20 +22,23 @@ from unittest.mock import MagicMock, patch
 
 
 class TestSyncAwardCovers:
-    """POST /api/admin/award-covers/sync"""
+    """POST /api/admin/award-covers/sync（异步：提交后台任务并返回 202）"""
 
-    def test_sync_success(self, client, admin_headers):
-        mock_sync_service = MagicMock()
-        mock_sync_service.sync_missing_covers.return_value = {'updated': 3, 'skipped': 2}
+    def _submit_and_run(self, submitted):
+        """替换 submit_background_task：记录提交的函数并同步执行（便于断言后台行为）"""
 
-        with (
-            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_service', return_value=MagicMock()),
-            patch(
-                'app.services.award_cover_sync_service.AwardCoverSyncService',
-                return_value=mock_sync_service,
-            ),
-        ):
+        def _fake_submit(fn, *args, **kwargs):
+            submitted.append(fn)
+            fn()
+            return MagicMock()
+
+        return _fake_submit
+
+    def test_sync_returns_202_and_submits_background(self, client, admin_headers):
+        """端点立即返回 202，不同步等待批同步完成（回归：请求线程内跑批超网关超时）"""
+        submitted: list = []
+
+        with patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)):
             response = client.post(
                 '/api/admin/award-covers/sync',
                 data=json.dumps({'batch_size': 5}),
@@ -43,14 +46,20 @@ class TestSyncAwardCovers:
                 headers=admin_headers,
             )
             data = json.loads(response.data)
+            assert response.status_code == 202
             assert data['success'] is True
-            assert '3' in data['message']
+            assert data['data']['status'] == 'submitted'
+            assert data['data']['batch_size'] == 5
+            assert len(submitted) == 1
 
-    def test_sync_default_batch_size(self, client, admin_headers):
+    def test_background_task_invokes_sync_service(self, client, admin_headers):
+        """后台任务在 app context 内调用 sync_missing_covers（batch_size 透传、delay=0.3）"""
         mock_sync_service = MagicMock()
-        mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        mock_sync_service.sync_missing_covers.return_value = {'status': 'success', 'updated': 2}
+        submitted: list = []
 
         with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
@@ -60,20 +69,45 @@ class TestSyncAwardCovers:
         ):
             response = client.post(
                 '/api/admin/award-covers/sync',
+                data=json.dumps({'batch_size': 7}),
+                content_type='application/json',
+                headers=admin_headers,
+            )
+            assert response.status_code == 202
+            call_kwargs = mock_sync_service.sync_missing_covers.call_args
+            assert call_kwargs.kwargs['batch_size'] == 7
+            assert call_kwargs.kwargs['delay'] == 0.3
+
+    def test_sync_default_batch_size(self, client, admin_headers):
+        mock_sync_service = MagicMock()
+        mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        submitted: list = []
+
+        with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
+            patch(
+                'app.services.award_cover_sync_service.AwardCoverSyncService',
+                return_value=mock_sync_service,
+            ),
+        ):
+            client.post(
+                '/api/admin/award-covers/sync',
                 data=json.dumps({}),
                 content_type='application/json',
                 headers=admin_headers,
             )
-            data = json.loads(response.data)
-            assert data['success'] is True
             call_kwargs = mock_sync_service.sync_missing_covers.call_args
             assert call_kwargs.kwargs['batch_size'] == 10
 
     def test_sync_batch_size_clamped(self, client, admin_headers):
         mock_sync_service = MagicMock()
         mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        submitted: list = []
 
         with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
@@ -93,8 +127,10 @@ class TestSyncAwardCovers:
     def test_sync_batch_size_minimum(self, client, admin_headers):
         mock_sync_service = MagicMock()
         mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        submitted: list = []
 
         with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
@@ -111,21 +147,21 @@ class TestSyncAwardCovers:
             call_kwargs = mock_sync_service.sync_missing_covers.call_args
             assert call_kwargs.kwargs['batch_size'] == 1
 
-    def test_sync_creates_client_when_none(self, client, admin_headers):
+    def test_background_task_swallows_sync_exception(self, client, admin_headers):
+        """后台任务的异常不再走 HTTP 错误路径（端点已返回 202），仅记录日志"""
         mock_sync_service = MagicMock()
-        mock_sync_service.sync_missing_covers.return_value = {'updated': 1}
+        mock_sync_service.sync_missing_covers.side_effect = RuntimeError('DB error')
+        submitted: list = []
 
         with (
-            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=None),
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
             patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
             ),
-            patch(
-                'app.services.google_books_client.GoogleBooksClient',
-                return_value=MagicMock(),
-            ),
+            patch('app.routes.admin.log_error'),
         ):
             response = client.post(
                 '/api/admin/award-covers/sync',
@@ -133,13 +169,15 @@ class TestSyncAwardCovers:
                 content_type='application/json',
                 headers=admin_headers,
             )
-            data = json.loads(response.data)
-            assert data['success'] is True
+            # 202 已返回，后台异常不影响响应
+            assert response.status_code == 202
 
-    def test_sync_exception(self, client, admin_headers):
+    def test_sync_submit_failure_returns_500(self, client, admin_headers):
         with (
-            patch('app.utils.service_helpers.get_google_books_client', return_value=None),
-            patch('app.services.google_books_client.GoogleBooksClient', side_effect=RuntimeError('连接失败')),
+            patch(
+                'app.utils.service_helpers.submit_background_task',
+                side_effect=RuntimeError('线程池已关闭'),
+            ),
             patch('app.routes.admin.log_error'),
         ):
             response = client.post(
@@ -150,6 +188,7 @@ class TestSyncAwardCovers:
             )
             data = json.loads(response.data)
             assert data['success'] is False
+            assert response.status_code == 500
 
     def test_sync_without_auth(self, client):
         response = client.post(

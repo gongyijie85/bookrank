@@ -31,25 +31,45 @@ _crawler_status: dict[str, dict[str, Any]] = {}
 @csrf_protect
 @admin_required
 def sync_award_covers():
-    """手动触发获奖书籍封面同步"""
+    """手动触发获奖书籍封面同步（后台任务，立即返回 202）
+
+    批同步含外部 API 调用 + 下载 + 逐本提交，最坏数百秒，不能占住
+    请求线程（Render 免费版网关超时约 100s）；改为提交后台线程执行，
+    进度与最近结果通过 /award-covers/status 轮询。
+    """
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
-        from ..utils.service_helpers import get_or_create_google_books_client
-
-        google_client = get_or_create_google_books_client()
-
-        sync_service = AwardCoverSyncService(google_client, image_cache=get_service('image_cache_service'))
+        from ..utils.service_helpers import (
+            get_or_create_google_books_client,
+            submit_background_task,
+        )
 
         data = request.get_json(silent=True) or {}
         batch_size = min(max(1, data.get('batch_size', 10)), 50)
 
-        result = sync_service.sync_missing_covers(batch_size=batch_size, delay=0.3)
+        app_obj = current_app._get_current_object()
 
-        return APIResponse.success(data=result, message=f'同步完成: 更新{result.get("updated", 0)}本')
+        def _run_sync() -> None:
+            with app_obj.app_context():
+                try:
+                    google_client = get_or_create_google_books_client()
+                    sync_service = AwardCoverSyncService(google_client, image_cache=get_service('image_cache_service'))
+                    result = sync_service.sync_missing_covers(batch_size=batch_size, delay=0.3)
+                    app_obj.logger.info(f'后台封面同步完成: {result.get("status")} 更新{result.get("updated", 0)}本')
+                except Exception as e:
+                    log_error(ErrorCategory.API_CALL, f'后台封面同步失败: {e}', exc_info=True)
+
+        submit_background_task(_run_sync)
+
+        return APIResponse.success(
+            data={'status': 'submitted', 'batch_size': batch_size},
+            message='封面同步已提交后台执行，可通过 /api/admin/award-covers/status 查询进度与最近结果',
+            status_code=202,
+        )
 
     except Exception as e:
-        log_error(ErrorCategory.DB_QUERY, f'同步获取书籍封面失败: {e}', exc_info=True)
-        return APIResponse.error('同步失败', 500)
+        log_error(ErrorCategory.DB_QUERY, f'提交封面同步任务失败: {e}', exc_info=True)
+        return APIResponse.error('提交同步任务失败', 500)
 
 
 @admin_bp.route('/award-covers/status')

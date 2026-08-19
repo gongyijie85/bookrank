@@ -1,7 +1,9 @@
 """获奖书籍封面自动同步服务（批编排；单书策略在 cover_resolver.CoverResolver）"""
 
 import logging
+import threading
 import time
+from typing import Any
 
 from ..models.schemas import AwardBook, db
 from ..utils.error_handler import ErrorCategory, log_error
@@ -11,6 +13,12 @@ from .google_books_client import GoogleBooksClient
 from .open_library_client import OpenLibraryClient
 
 logger = logging.getLogger(__name__)
+
+# 模块级互斥锁：调用方（定时任务 / admin 手动触发）各自实例化 Service，
+# 实例级 _is_running 标志无法跨实例防重入；进程内共享一把锁才能真正互斥。
+_sync_mutex = threading.Lock()
+# 最近一次批同步结果（供 /award-covers/status 轮询，异步化后不再同步返回）
+_last_result: dict[str, Any] | None = None
 
 
 class AwardCoverSyncService:
@@ -25,7 +33,6 @@ class AwardCoverSyncService:
         self._openlibrary_client = openlibrary_client or OpenLibraryClient()
         self._image_cache = image_cache
         self._resolver = CoverResolver(google_client, self._openlibrary_client, image_cache)
-        self._is_running = False
 
     def sync_missing_covers(self, batch_size: int = 10, delay: float = 1.5) -> dict:
         """
@@ -38,11 +45,12 @@ class AwardCoverSyncService:
         Returns:
             同步结果统计
         """
-        if self._is_running:
+        global _last_result
+
+        if not _sync_mutex.acquire(blocking=False):
             logger.warning('封面同步已在运行中，跳过')
             return {'status': 'already_running'}
 
-        self._is_running = True
         result: dict[str, str | int | list[str]] = {
             'total_checked': 0,
             'updated': 0,
@@ -115,7 +123,8 @@ class AwardCoverSyncService:
             db.session.rollback()
 
         finally:
-            self._is_running = False
+            _last_result = dict(result)
+            _sync_mutex.release()
 
         return result
 
@@ -132,5 +141,6 @@ class AwardCoverSyncService:
             'has_cover': has_cover,
             'missing_cover': missing,
             'coverage_percent': round(has_cover / total * 100, 1) if total > 0 else 0,
-            'is_syncing': self._is_running,
+            'is_syncing': _sync_mutex.locked(),
+            'last_result': _last_result,
         }

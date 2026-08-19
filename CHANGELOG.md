@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.9.95 - 2026-08-19
+
+### perf(awards): 封面批同步改后台任务 + 模块级锁修复防重入失效
+
+**背景**：性能评审发现两个问题——
+1. `POST /api/admin/award-covers/sync` 在 HTTP 请求线程内同步执行批同步：
+   batch_size 上限 50、每本书最多 4 次外部 API（timeout 10s）+ 封面下载 +
+   逐本 commit + 0.3s 间隔延迟，最坏数百秒，远超 Render 免费版网关超时
+   （约 100s），且网关超时重试会放大占用。
+2. 防重入标志失效：admin 每次请求新建 `AwardCoverSyncService` 实例，
+   实例级 `_is_running` 永为 False，手动触发与 APScheduler 定时任务
+   （`_cover_sync_task`）可并发跑批。
+
+**改动**
+
+- `app/routes/admin.py`：`sync_award_covers` 端点改为 `submit_background_task`
+  提交后台线程（app context 内执行，异常仅记日志），立即返回 202 +
+  `status='submitted'`；后台结果写入模块级 `_last_result`，通过
+  `/award-covers/status` 轮询（响应新增 `last_result` 字段）。
+- `app/services/award_cover_sync_service.py`：实例级 `_is_running` 替换为
+  模块级 `threading.Lock`（非阻塞 acquire，所有调用方共享），跨实例/
+  跨触发源防重入真实生效；`get_sync_status` 的 `is_syncing` 改为
+  `_sync_mutex.locked()`（此前恒为 False）。
+- 测试：`test_admin_routes.py` 的 `TestSyncAwardCovers` 重写为异步语义
+  （202 断言、后台任务行为断言、提交失败 500、后台异常不影响响应）；
+  `test_award_cover_sync_service.py` 适配模块级锁并新增跨实例防重入回归测试。
+
+**运维提示**：异步化后端点不再同步返回统计结果；触发后轮询
+`GET /api/admin/award-covers/status` 的 `is_syncing` / `last_result` 获取
+进度与最近一次结果。
+
+**验证**：全量测试 2167 passed / 1 skipped，覆盖率 83.29%；ruff / mypy 通过。
+
 ## v0.9.94 - 2026-08-19
 
 ### refactor(i18n): 提取翻译覆盖共享助手，消除模型层重复与反向依赖

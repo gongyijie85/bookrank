@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 from app.models.schemas import Award, AwardBook
-from app.services.award_cover_sync_service import AwardCoverSyncService
+from app.services.award_cover_sync_service import AwardCoverSyncService, _sync_mutex
 
 
 class FakeGoogleBooksClient:
@@ -263,8 +263,11 @@ class TestGetSyncStatus:
                 image_cache=MagicMock(),
             )
             assert service.get_sync_status()['is_syncing'] is False
-            service._is_running = True
-            assert service.get_sync_status()['is_syncing'] is True
+            _sync_mutex.acquire()
+            try:
+                assert service.get_sync_status()['is_syncing'] is True
+            finally:
+                _sync_mutex.release()
 
 
 class TestSyncMissingCovers:
@@ -288,9 +291,34 @@ class TestSyncMissingCovers:
                 openlibrary_client=MagicMock(),
                 image_cache=MagicMock(),
             )
-            service._is_running = True
-            result = service.sync_missing_covers()
-            assert result['status'] == 'already_running'
+            _sync_mutex.acquire()
+            try:
+                result = service.sync_missing_covers()
+                assert result['status'] == 'already_running'
+            finally:
+                _sync_mutex.release()
+
+    def test_mutex_blocks_across_instances(self, app, db):
+        """模块级锁跨实例生效：实例 A 持锁时，实例 B 的同步被拒（回归：实例级 _is_running 防重入失效）"""
+        with app.app_context():
+            service_a = AwardCoverSyncService(
+                google_client=MagicMock(),
+                openlibrary_client=MagicMock(),
+                image_cache=MagicMock(),
+            )
+            service_b = AwardCoverSyncService(
+                google_client=MagicMock(),
+                openlibrary_client=MagicMock(),
+                image_cache=MagicMock(),
+            )
+            _sync_mutex.acquire()
+            try:
+                result = service_b.sync_missing_covers()
+                assert result['status'] == 'already_running'
+            finally:
+                _sync_mutex.release()
+            # 锁释放后可再次运行
+            assert service_a.sync_missing_covers()['status'] == 'complete'
 
     def test_concurrent_flag_reset_after_error(self, app, db):
         with app.app_context():
@@ -319,7 +347,7 @@ class TestSyncMissingCovers:
             )
             service._resolver._cache_cover = MagicMock(side_effect=Exception('DB error'))
             service.sync_missing_covers(delay=0)
-            assert service._is_running is False
+            assert not _sync_mutex.locked()
 
 
 class TestResolveCoverForBook:

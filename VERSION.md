@@ -1,11 +1,24 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.94
+**当前版本**：v0.9.95
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.95 (2026-08-19) — 封面批同步改后台任务 + 模块级锁修复防重入失效
+
+**背景**：性能评审发现 admin 封面同步端点在请求线程内同步跑批（最坏数百秒，
+超 Render 网关超时），且每次请求新建 Service 实例导致实例级防重入标志恒为
+False，手动触发与定时任务可并发跑批。
+
+**核心修复**
+- [admin.py](file:///d:/BookRank3/app/routes/admin.py) `sync_award_covers`：改 `submit_background_task` 后台执行，立即返回 202；结果与进度通过 `/award-covers/status` 轮询（新增 `last_result` 字段）。
+- [award_cover_sync_service.py](file:///d:/BookRank3/app/services/award_cover_sync_service.py)：实例级 `_is_running` 替换为模块级 `threading.Lock`，跨实例/跨触发源（admin 手动 + APScheduler 定时）防重入真实生效。
+- 测试重写为异步语义 + 新增跨实例防重入回归测试。
+
+**验证**：全量测试 2167 passed / 1 skipped，覆盖率 83.29%；ruff / mypy 通过。
 
 ### v0.9.94 (2026-08-19) — 提取翻译覆盖共享助手，消除模型层重复与反向依赖
 
