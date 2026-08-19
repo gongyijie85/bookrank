@@ -1,11 +1,23 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.97
+**当前版本**：v0.9.98
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.98 (2026-08-19) — 来源降级告警改后台派发，导入请求不等待 GitHub API
+
+**背景**：性能评审发现 `import_batch` 健康钩子在请求线程内同步调 GitHub Issues API
+（最多 3-4 次 × timeout 20s，且每次拉 50 条 issues 列表），GitHub 抖动直接拖慢导入 P99。
+
+**核心优化**
+- [source_health_service.py](file:///d:/BookRank3/app/services/source_health_service.py) 新增 `_run_alert_job`（执行时重查 publisher + 状态守卫）与 `_dispatch_alert_async`（后台线程派发，无 app 上下文退回同步）；状态机 DB 更新保持同步，仅 GitHub HTTP 往返移出请求线程。
+- 陈旧任务守卫：派发与执行之间状态翻转时（如翻回 degraded），恢复关闭任务自动失效。
+- `fake_gh` fixture 同步直调适配 + 新增 3 个异步派发测试。
+
+**验证**：全量测试 2182 passed / 1 skipped，覆盖率 83.71%；ruff / mypy 通过。
 
 ### v0.9.97 (2026-08-19) — 入库去重批级预载索引，消除 ingestor N+1 查询
 

@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.9.98 - 2026-08-19
+
+### perf(new-books): 来源降级告警改后台派发，导入请求不等待 GitHub API
+
+**背景**：性能评审发现 `import_batch` 的健康状态钩子在请求线程内同步调用
+GitHub Issues API：`record_plan_failure/success` 状态翻转（降级/恢复）时
+触发 `sync_degraded_alert` / `close_degraded_alert`，内部 `urlopen
+(timeout=20)` 最多 3-4 次往返，且 `find_open_by_title` 每次拉取 50 条
+issues 列表——GitHub 抖动直接拖慢导入 P99，最坏 60-80s。
+
+**改动**
+
+- `app/services/source_health_service.py`：
+  - 新增 `_run_alert_job(source_id, action, batch_id)`：执行时**重新查询**
+    publisher（状态机已 commit，后台线程独立 session 可读最新值），
+    degraded 走 `sync_degraded_alert`（其内部守卫仍在），recovered 需
+    执行时刻状态为 healthy 才 `close_degraded_alert`——派发与执行之间
+    状态翻转时陈旧任务自动失效，不会错误关闭告警。
+  - 新增 `_dispatch_alert_async`：捕获 app 后 `submit_background_task`
+    提交后台线程（worker 自建 app context，异常记日志不外抛）；无
+    app 上下文时退回同步（CLI/脚本场景兜底）。
+  - `record_plan_failure` / `record_plan_success` 的告警直调改为派发；
+    **健康状态机的 DB 更新保持同步**（导入响应仍反映最新状态）。
+- `tests/test_source_alert_and_pilot.py`：`fake_gh` fixture 把派发器
+  monkeypatch 为同步直调（4 个既有断言语义不变）；新增
+  `TestAlertAsyncDispatch` 3 个测试——降级告警仅后台执行（请求返回时
+  未触达 GitHub）、恢复关闭同样后台执行、状态翻回 degraded 时陈旧
+  关闭任务被守卫挡下。
+
+**语义说明**：告警以"派发时刻意图 + 执行时刻最新状态"共同决定，比原
+同步路径更保守（避免关闭后马上重建陈旧告警）。
+
+**验证**：全量测试 2182 passed / 1 skipped（+3），覆盖率 83.71%；
+ruff / mypy 通过。
+
 ## v0.9.97 - 2026-08-19
 
 ### perf(new-books): 入库去重批级预载索引，消除 ingestor N+1 查询

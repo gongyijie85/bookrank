@@ -90,6 +90,8 @@ def harper(app, db):
 def fake_gh(monkeypatch):
     client = FakeGithubIssues()
     monkeypatch.setattr(source_alert_service, 'get_github_client', lambda: client)
+    # 性能#7 后 GitHub 告警走后台线程；测试同步直调保持断言语义
+    monkeypatch.setattr(source_health_service, '_dispatch_alert_async', source_health_service._run_alert_job)
     return client
 
 
@@ -139,6 +141,82 @@ def test_disabled_not_auto_closed_by_success(app, db, harper, fake_gh):
     source_health_service.record_plan_success('harpercollins', batch_id='by')
     assert issue['state'] == 'open'
     assert issue['number'] not in fake_gh.closed
+
+
+class TestAlertAsyncDispatch:
+    """性能#7：GitHub 告警改后台派发，导入请求线程不等外部 API"""
+
+    @pytest.fixture
+    def captured_submit(self, monkeypatch):
+        """捕获 submit_background_task 提交的 worker（不执行），并注入 fake GitHub client。"""
+        from app.utils import service_helpers
+
+        submitted: list = []
+
+        def _fake_submit(fn, *args, **kwargs):
+            submitted.append(fn)
+
+        monkeypatch.setattr(service_helpers, 'submit_background_task', _fake_submit)
+        client = FakeGithubIssues()
+        monkeypatch.setattr(source_alert_service, 'get_github_client', lambda: client)
+        return submitted, client
+
+    def test_degraded_alert_runs_only_in_background(self, app, db, harper, captured_submit):
+        """降级告警不在请求线程同步执行（导入 P99 不受 GitHub 抖动影响）。"""
+        submitted, gh = captured_submit
+
+        for _ in range(3):
+            source_health_service.record_plan_failure('harpercollins', error_code='E', error_summary='x')
+
+        # 前 2 次失败状态仍 healthy 不派发；第 3 次降级派发 1 个后台任务
+        assert len(submitted) == 1
+        # 请求线程返回时告警尚未触达 GitHub
+        assert gh.issues == []
+
+        # 后台任务执行：重查 publisher 后建 issue（不依赖派发时的 ORM 对象）
+        submitted[0]()
+        assert len(gh.issues) == 1
+        assert gh.issues[0]['title'] == '[source-degraded] harpercollins'
+
+    def test_recovered_alert_closes_in_background(self, app, db, harper, captured_submit):
+        """恢复 healthy 的关闭告警同样后台执行，且以执行时刻状态为准。"""
+        submitted, gh = captured_submit
+
+        for _ in range(3):
+            source_health_service.record_plan_failure('harpercollins', error_code='E', error_summary='x')
+        submitted[0]()  # 后台建 issue
+        number = gh.issues[0]['number']
+        assert gh.issues[0]['state'] == 'open'
+
+        source_health_service.record_plan_success('harpercollins', batch_id='b1')
+        source_health_service.record_plan_success('harpercollins', batch_id='b2')
+        # 第一次 success：degraded → recovering，不派发；第二次：→ healthy，派发关闭
+        assert len(submitted) == 2
+
+        submitted[1]()
+        assert number in gh.closed
+        assert gh.issues[0]['state'] == 'closed'
+
+    def test_recovered_worker_skips_when_status_flipped_back(self, app, db, harper, captured_submit):
+        """派发与执行之间状态又翻回 degraded 时，陈旧的关闭任务被守卫挡下。"""
+        submitted, gh = captured_submit
+
+        for _ in range(3):
+            source_health_service.record_plan_failure('harpercollins', error_code='E', error_summary='x')
+        submitted[0]()
+        assert gh.issues[0]['state'] == 'open'
+
+        source_health_service.record_plan_success('harpercollins', batch_id='b1')
+        source_health_service.record_plan_success('harpercollins', batch_id='b2')
+        assert len(submitted) == 2
+
+        # 执行前状态又翻回 degraded（3 次新失败）
+        for _ in range(3):
+            source_health_service.record_plan_failure('harpercollins', error_code='E2', error_summary='y')
+        submitted[1]()  # 陈旧的 recovered 任务：healthy 守卫不通过 → 不关闭
+
+        assert gh.issues[0]['state'] == 'open'
+        assert gh.closed == []
 
 
 def test_pilot_gates_require_volume_and_success_rate(app, db, harper):

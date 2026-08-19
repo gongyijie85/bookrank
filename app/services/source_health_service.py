@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from ..models.database import db
 from ..models.new_book import Publisher
 from .batch_import_service import SOURCE_TO_PUBLISHER_NAME_EN
+
+logger = logging.getLogger(__name__)
 
 FAILURE_THRESHOLD = 3
 RECOVERY_THRESHOLD = 2
@@ -20,6 +23,54 @@ def publisher_for_source(source_id: str) -> Publisher | None:
     if not name_en:
         return None
     return Publisher.query.filter_by(name_en=name_en).first()  # type: ignore[no-any-return]
+
+
+def _run_alert_job(source_id: str, action: str, batch_id: str | None = None) -> None:
+    """按最新 DB 状态执行 GitHub 告警（后台/同步共用）。
+
+    重新查询 publisher：状态机更新已 commit，后台线程用独立 session 也能
+    读最新值；执行时刻状态守卫避免派发与执行之间状态翻转产生陈旧告警。
+    """
+    from . import source_alert_service
+
+    publisher = publisher_for_source(source_id)
+    if publisher is None:
+        return
+    if action == 'degraded':
+        source_alert_service.sync_degraded_alert(source_id, publisher)
+    elif action == 'recovered' and publisher.source_status == 'healthy':
+        source_alert_service.close_degraded_alert(source_id, recovery_batch_id=batch_id)
+
+
+def _dispatch_alert_async(source_id: str, action: str, batch_id: str | None = None) -> None:
+    """把 GitHub 告警提交后台线程（性能#7：导入请求不等待外部 API）。
+
+    状态机的 DB 更新保持同步（导入响应反映最新健康状态），仅把
+    sync_degraded_alert / close_degraded_alert 的 GitHub HTTP 往返
+    （最多 3-4 次 × timeout 20s，且 find_open_by_title 拉取 50 条
+    issues 列表）移出请求线程；拿不到 app 上下文时退回同步执行。
+    """
+    from flask import current_app
+
+    from ..utils.service_helpers import submit_background_task
+
+    try:
+        app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
+    except RuntimeError:
+        app_obj = None
+
+    if app_obj is None:
+        _run_alert_job(source_id, action, batch_id)
+        return
+
+    def _worker() -> None:
+        with app_obj.app_context():
+            try:
+                _run_alert_job(source_id, action, batch_id)
+            except Exception as e:
+                logger.warning('来源告警后台执行失败 %s/%s: %s', source_id, action, e)
+
+    submit_background_task(_worker)
 
 
 def record_plan_failure(
@@ -48,9 +99,7 @@ def record_plan_failure(
         publisher.source_status = 'degraded'
     db.session.commit()
     if publisher.source_status == 'degraded':
-        from . import source_alert_service
-
-        source_alert_service.sync_degraded_alert(source_id, publisher)
+        _dispatch_alert_async(source_id, 'degraded')
 
 
 def record_plan_success(source_id: str, *, batch_id: str | None) -> None:
@@ -87,9 +136,7 @@ def record_plan_success(source_id: str, *, batch_id: str | None) -> None:
 
     db.session.commit()
     if previous in ('degraded', 'recovering') and publisher.source_status == 'healthy':
-        from . import source_alert_service
-
-        source_alert_service.close_degraded_alert(source_id, recovery_batch_id=batch_id)
+        _dispatch_alert_async(source_id, 'recovered', batch_id=batch_id)
 
 
 def list_source_health() -> list[dict[str, Any]]:
