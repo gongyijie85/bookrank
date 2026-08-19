@@ -76,34 +76,37 @@ class SyncEngine:
         """
         stats = IngestStats()
 
-        for book_info in book_infos:
-            stats.total += 1
+        # 批级预载：一次查询构建该社存量书索引，消除每本书最多 3 次的
+        # 逐本去重往返（性能评审 N+1：回填 2000 本 ≈ 6000 次 → 1 次预载）
+        with self._ingestor.preloaded_lookup(publisher):
+            for book_info in book_infos:
+                stats.total += 1
 
-            try:
-                save_outcome = self._ingestor.save_book(
-                    publisher,
-                    book_info,
-                    translate,
-                    auto_commit=False,
-                    touched_books=touched_books,
-                )
+                try:
+                    save_outcome = self._ingestor.save_book(
+                        publisher,
+                        book_info,
+                        translate,
+                        auto_commit=False,
+                        touched_books=touched_books,
+                    )
 
-                if save_outcome is SaveOutcome.ADDED:
-                    stats.added += 1
-                elif save_outcome is SaveOutcome.UPDATED:
-                    stats.updated += 1
-                else:
-                    stats.skipped += 1
+                    if save_outcome is SaveOutcome.ADDED:
+                        stats.added += 1
+                    elif save_outcome is SaveOutcome.UPDATED:
+                        stats.updated += 1
+                    else:
+                        stats.skipped += 1
 
-            except Exception as e:
-                if on_error:
-                    on_error(e, book_info)
-                else:
-                    log_error(ErrorCategory.DB_QUERY, '保存书籍失败: ' + book_info.title + ' - ' + str(e))
-                stats.errors += 1
+                except Exception as e:
+                    if on_error:
+                        on_error(e, book_info)
+                    else:
+                        log_error(ErrorCategory.DB_QUERY, '保存书籍失败: ' + book_info.title + ' - ' + str(e))
+                    stats.errors += 1
 
-            if commit_interval is not None and stats.total % commit_interval == 0:
-                db.session.commit()
+                if commit_interval is not None and stats.total % commit_interval == 0:
+                    db.session.commit()
 
         return stats
 

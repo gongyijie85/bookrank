@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.9.97 - 2026-08-19
+
+### perf(new-books): 入库去重批级预载索引，消除 ingestor N+1 查询
+
+**背景**：性能评审发现 `NewBookIngestor._find_existing` 每本书最多发起
+3 次去重查询（isbn13 → isbn10 → 标题+作者），虽有索引但仍是逐本外部
+PostgreSQL round-trip——首次回填 2000 本 ≈ 最多 6000 次往返，LLM 翻译
+之外的同步耗时大头。
+
+**改动**
+
+- `app/services/new_book/ingestor.py`：
+  - 新增 `_PublisherBookIndex` 内存索引（isbn13 / isbn10 /
+    (title, author) 三键，语义与原查询优先级一致，setdefault 等价
+    first() 的任意命中）。
+  - 新增 `preloaded_lookup(publisher)` 上下文管理器：进入时一次查询
+    构建该社存量书索引；`save_book` 的 `_find_existing` 优先走索引
+    （零查询），无上下文时回退原逐本路径（单本调用/测试兼容）。
+  - `_insert_new` 完成后回填索引，保持同批后续重复书命中的语义
+    （等价原 autoflush 后查询命中）。
+  - 索引状态存 `threading.local` 子类：同步线程与静态播种线程互不串扰。
+- `app/services/new_book/sync_engine.py`：`_ingest_book_stream`
+  （爬虫流与静态流共用）包裹预载上下文，两个调用路径自动受益。
+- `tests/test_ingestor.py`：新增 `TestPreloadedLookup` 5 个测试——
+  上下文内零查询命中（`_QueryBomb` 断言不触发任何 `NewBook.query`）、
+  title+author 键命中、同批重复书命中回填、退出上下文回退查询路径、
+  索引线程隔离。
+
+**收益**：去重查询从每本书最多 3 次往返降为每批 1 次预载——回填 2000 本
+≈ 6000 次 → 1 次；增量同步 30 本 ≈ 90 次 → 1 次。
+
+**验证**：全量测试 2179 passed / 1 skipped（+5），覆盖率 83.75%；
+ruff / mypy 通过。
+
 ## v0.9.96 - 2026-08-19
 
 ### perf(new-books): 同步端点改后台任务，消除请求线程最长 600s/社阻塞

@@ -8,7 +8,7 @@ NewBookIngestor 单元测试
 """
 
 from datetime import date
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -177,6 +177,113 @@ class TestSaveBook:
         result = ingestor.save_book(sample_publisher, sample_book_info, translate=False, auto_commit=False)
         assert result is SaveOutcome.ADDED
         assert NewBook.query.count() == 1
+
+
+class _QueryBomb:
+    """任何属性访问即爆炸：用于断言预载上下文内零 DB 查询。"""
+
+    def __getattr__(self, name: str):
+        raise AssertionError(f'不应触发 DB 查询: NewBook.query.{name}')
+
+
+class TestPreloadedLookup:
+    """批级预载索引（性能评审 N+1：每本书最多 3 次去重查询 → 1 次预载）"""
+
+    def test_preloaded_hit_makes_no_queries(self, ingestor, sample_publisher, db):
+        """上下文内去重查找走内存索引，零查询（回归：逐本 3 次往返）"""
+        book_info = BookInfo(
+            title='Test Book',
+            author='Test Author',
+            isbn13='9780000000001',
+            description='same',
+            cover_url='https://same.com',
+        )
+        existing = NewBook(
+            publisher_id=sample_publisher.id,
+            title='Test Book',
+            author='Test Author',
+            isbn13='9780000000001',
+            description='same',
+            cover_url='https://same.com',
+        )
+        db.session.add(existing)
+        db.session.commit()
+
+        with ingestor.preloaded_lookup(sample_publisher):
+            with patch.object(NewBook, 'query', _QueryBomb()):
+                result = ingestor.save_book(sample_publisher, book_info, translate=False)
+        assert result is SaveOutcome.SKIPPED
+        assert NewBook.query.count() == 1
+
+    def test_preloaded_title_author_hit(self, ingestor, sample_publisher, db):
+        """无 ISBN 的书靠 (title, author) 键命中索引。"""
+        existing = NewBook(
+            publisher_id=sample_publisher.id,
+            title='No ISBN Book',
+            author='Some Author',
+            description='same',
+        )
+        db.session.add(existing)
+        db.session.commit()
+
+        book_info = BookInfo(title='No ISBN Book', author='Some Author', description='same')
+        with ingestor.preloaded_lookup(sample_publisher):
+            with patch.object(NewBook, 'query', _QueryBomb()):
+                result = ingestor.save_book(sample_publisher, book_info, translate=False)
+        assert result is SaveOutcome.SKIPPED
+
+    def test_same_batch_duplicate_hits_inserted_book(self, ingestor, sample_publisher, sample_book_info, db):
+        """同批第二本重复书命中回填索引（等价原 autoflush 后查询命中的语义）。"""
+        duplicate = BookInfo(
+            title='Test Book',
+            author='Test Author',
+            isbn13='9780000000001',
+            description='A test book description',
+        )
+
+        with ingestor.preloaded_lookup(sample_publisher):
+            first = ingestor.save_book(sample_publisher, sample_book_info, translate=False, auto_commit=False)
+            second = ingestor.save_book(sample_publisher, duplicate, translate=False, auto_commit=False)
+
+        assert first is SaveOutcome.ADDED
+        assert second is not SaveOutcome.ADDED
+        assert NewBook.query.count() == 1
+
+    def test_context_exit_falls_back_to_queries(self, ingestor, sample_publisher, db):
+        """退出上下文后恢复逐本查询路径（单本调用 / 测试场景兼容）。"""
+        book_info = BookInfo(
+            title='Test Book',
+            author='Test Author',
+            isbn13='9780000000001',
+            description='same',
+            cover_url='https://same.com',
+        )
+        with ingestor.preloaded_lookup(sample_publisher):
+            ingestor.save_book(sample_publisher, book_info, translate=False)
+
+        # 上下文外再存同书：走回退查询路径命中 → SKIPPED
+        result = ingestor.save_book(sample_publisher, book_info, translate=False)
+        assert result is SaveOutcome.SKIPPED
+        assert NewBook.query.count() == 1
+
+    def test_index_is_thread_local(self, ingestor, sample_publisher, sample_book_info, db):
+        """预载状态线程隔离：其他线程未进入上下文时不受索引影响。"""
+        from threading import Thread
+
+        with ingestor.preloaded_lookup(sample_publisher):
+            errors: list[str] = []
+
+            def _other_thread() -> None:
+                # 另一线程无索引 → 应走回退路径（不会命中本线程索引）
+                if ingestor._local.index is not None:
+                    errors.append('其他线程不应看到索引')
+
+            t = Thread(target=_other_thread)
+            t.start()
+            t.join(timeout=5)
+
+            assert errors == []
+            assert ingestor._local.index is not None
 
 
 class TestUpdateBookFields:

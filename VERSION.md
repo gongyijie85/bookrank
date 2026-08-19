@@ -1,11 +1,25 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.96
+**当前版本**：v0.9.97
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.97 (2026-08-19) — 入库去重批级预载索引，消除 ingestor N+1 查询
+
+**背景**：性能评审发现 `NewBookIngestor._find_existing` 每本书最多 3 次去重查询
+（isbn13 → isbn10 → 标题+作者），首次回填 2000 本 ≈ 最多 6000 次外部 PG 往返。
+
+**核心优化**
+- [ingestor.py](file:///d:/BookRank3/app/services/new_book/ingestor.py) 新增 `_PublisherBookIndex` 三键内存索引 + `preloaded_lookup(publisher)` 上下文管理器：上下文内 `save_book` 去重走字典零查询，无上下文回退原逐本路径；新建书回填索引保持同批重复命中语义；索引状态线程隔离。
+- [sync_engine.py](file:///d:/BookRank3/app/services/new_book/sync_engine.py) `_ingest_book_stream`（爬虫流与静态流共用）包裹预载上下文。
+- 新增 5 个测试（零查询断言用 `_QueryBomb`）。
+
+**收益**：去重查询从每本最多 3 次往返降为每批 1 次预载——回填 2000 本 ≈ 6000 次 → 1 次。
+
+**验证**：全量测试 2179 passed / 1 skipped，覆盖率 83.75%；ruff / mypy 通过。
 
 ### v0.9.96 (2026-08-19) — 同步端点改后台任务，消除请求线程最长 600s/社阻塞
 
