@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.9.92 - 2026-08-19
+
+### fix(ci): 消除 GitHub Actions 脚本内的 secrets/输入直接内插
+
+**背景**：安全评审发现 5 处 `${{ }}` 表达式直接内插在 `run:` 脚本中，违反 GitHub
+官方安全加固指南（脚本应通过环境变量引用 secrets，而非模板渲染）：
+
+1. `site-crawl-pipeline.yml` observe job：dispatch 输入 `SOURCE_ID` 直接拼入
+   Python 字符串字面量，构成脚本注入面（需仓库 write 权限才可触达，非外部漏洞）；
+2. 同文件 observe job 的"断言无 secret"步骤自己先把 `BATCH_IMPORT_SECRET`
+   渲染进脚本（死代码 `if` 块，与 #138 相位隔离设计自相矛盾）；
+3. 三处 `CRON_SECRET` 直接内插 curl 参数（secret 含引号/`$` 时可致命令错乱）。
+
+**改动**（仅 YAML，无应用代码变更）
+
+- `site-crawl-pipeline.yml`：`source` 改读 `os.environ["SOURCE_ID"]`
+  （job 级 env 已存在）；删除死代码 `if` 块，保留 Python 断言；
+  wake job 的 `CRON_SECRET` 移入 step `env:` 块。
+- `trigger-new-books-sync.yml`、`trigger-weekly-report.yml`：`CRON_SECRET`
+  移入 step `env:` 块，curl 改用 `${CRON_SECRET}` 引用。
+
+**验证**：3 个 workflow YAML 语法解析通过；全仓库扫描确认 `run:` 脚本内
+零 `${{ }}` 内插（剩余 22 处均在 `env:`/`if:`/action 参数中，为安全写法）；
+pipeline 相关 17 个测试通过。
+
 ## v0.9.91 - 2026-08-19
 
 ### perf(new-books): 批量导入消除 O(N×M) 全表扫描

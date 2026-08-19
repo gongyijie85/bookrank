@@ -42,11 +42,12 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_auto_sync != true }}
         env:
           BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -e
           for i in 1 2 3; do
             code=$(curl -s -o /tmp/sync.json -w '%{http_code}' --max-time 60 \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
               "${BASE_URL}/api/cron/trigger-new-books-sync")
             echo "HTTP $code"
             cat /tmp/sync.json || true
@@ -78,10 +79,6 @@ jobs:
 
       - name: Assert import secret absent in observe job
         run: |
-          if [ -n "${{ secrets.BATCH_IMPORT_SECRET }}" ]; then
-            # Secret may exist in repo but must not be exported into this job env
-            true
-          fi
           python - <<'PY'
           import os
           from app.services.pipeline_draft import redact_secrets_from_env
@@ -100,7 +97,7 @@ jobs:
           from pathlib import Path
           from app.services.pipeline_draft import build_fixture_batch_draft
 
-          source = "${{ env.SOURCE_ID }}"
+          source = os.environ["SOURCE_ID"]
           if source != "harpercollins":
               raise SystemExit(f"fixture demo only supports harpercollins, got {source}")
           draft = build_fixture_batch_draft(

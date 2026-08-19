@@ -1,11 +1,23 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.91
+**当前版本**：v0.9.92
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.92 (2026-08-19) — 消除 CI 脚本内的 secrets/输入直接内插
+
+**背景**：安全评审发现 5 处 `${{ }}` 表达式直接内插在 GitHub Actions 的 `run:` 脚本中，
+包括 dispatch 输入拼入 Python 字符串（注入面）、"断言无 secret"步骤自己渲染 secret
+（死代码）、三处 `CRON_SECRET` 内插 curl 参数。
+
+**核心修复**
+- [site-crawl-pipeline.yml](file:///d:/BookRank3/.github/workflows/site-crawl-pipeline.yml)：`SOURCE_ID` 改读环境变量；删除渲染 secret 的死代码块；`CRON_SECRET` 移入 `env:`。
+- [trigger-new-books-sync.yml](file:///d:/BookRank3/.github/workflows/trigger-new-books-sync.yml)、[trigger-weekly-report.yml](file:///d:/BookRank3/.github/workflows/trigger-weekly-report.yml)：`CRON_SECRET` 移入 `env:` 块。
+
+**验证**：YAML 解析通过；`run:` 脚本内零 `${{ }}` 内插；相关 17 个测试通过。
 
 ### v0.9.91 (2026-08-19) — 批量导入消除 O(N×M) 全表扫描
 
