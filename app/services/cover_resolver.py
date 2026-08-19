@@ -29,8 +29,12 @@ class CoverResolver:
         self._openlibrary_client = openlibrary_client
         self._image_cache = image_cache
 
-    def resolve(self, book: AwardBook, persist: bool = True) -> str | None:
-        """解析单本获奖书籍的最佳封面 URL，并尽量回写缓存结果。"""
+    def resolve(self, book: AwardBook, persist: bool = True, auto_commit: bool = True) -> str | None:
+        """解析单本获奖书籍的最佳封面 URL，并尽量回写缓存结果。
+
+        auto_commit=False 供批同步路径使用：只改属性不提交，由调用方
+        批末统一 commit（性能评审 #9：消除每本书一次的外部 PG 往返）。
+        """
         local_path = (book.cover_local_path or '').strip()
         if self.cached_path_available(local_path):
             return local_path
@@ -41,7 +45,8 @@ class CoverResolver:
             if cached_cover:
                 if persist and cached_cover != book.cover_local_path:
                     book.cover_local_path = cached_cover
-                    db.session.commit()
+                    if auto_commit:
+                        db.session.commit()
                 return cached_cover
 
             if not self._should_refresh_cover_source(cover_url):
@@ -55,7 +60,8 @@ class CoverResolver:
         if persist:
             book.cover_original_url = fetched_cover
             book.cover_local_path = cached_cover
-            db.session.commit()
+            if auto_commit:
+                db.session.commit()
 
         return cached_cover or fetched_cover
 

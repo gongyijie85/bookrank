@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.9.99 - 2026-08-19
+
+### perf+chore: 评审清单低优先级项清理（冷却竞态 / 封面筛选与提交 / 运维脚本）
+
+**背景**：代码评审剩余低优先级项集中处理——性能#4（封面候选筛选全表
+ORM 实例化）、性能#8（同步冷却检查与记录非原子）、性能#9（封面批同步
+逐本 commit）、安全#5（根目录运维脚本进入部署产物）。
+
+**改动**
+
+- **性能#8 冷却竞态**（`app/services/sync_request_gate.py`）：
+  新增 `try_acquire_sync()`——锁内原子完成"检查冷却 + 记录"，消除
+  `sync_cooldown_remaining` + `record_sync` 两步间并发请求双双通过
+  的窗口；`export_cooldown_remaining` 的字典重建移入 `_export_lock`
+  （避免并发清理丢失他线程刚记录的条目）。两个同步端点改用原子占用
+  （`_check_sync_cooldown` → `_acquire_sync_slot`）。
+- **性能#4 候选筛选轻量化**（`app/services/award_cover_sync_service.py`）：
+  候选筛选改为 `db.select(id, cover_local_path)` 两列轻量查询 + 字符串
+  预筛（非 cache 路径纯字符串判定）+ 仅对命中候选按 id 取完整 ORM——
+  稳态（封面齐全）下定时任务不再全表实例化 ORM 对象。
+- **性能#9 批末统一提交**（`app/services/cover_resolver.py`）：
+  `resolve` 新增 `auto_commit=True` 参数；批同步传 `False`（只改属性），
+  循环结束后统一 `db.session.commit()`——每本书一次的外部 PG 往返
+  降为每批一次。懒加载路由保持默认逐本提交。
+- **安全#5 运维脚本清理**：删除已入库的 `fix-circe-complete.py`、
+  `fix-circe-translation.py`、`verify_fix.py`（直连生产 DB 的一次性
+  修复脚本；正式修复已由 TRANSLATION_OVERRIDES 落地，无保留价值）。
+- **安全#4 疑点关闭**：确认 Flask-Talisman 的功能已由自研
+  `add_security_headers` 钩子完整覆盖（CSP nonce / X-Frame-Options /
+  nosniff / Referrer-Policy / Permissions-Policy / 生产 HSTS / 移除
+  Server 头），且 CSP 域名白名单精确到各出版社域名——不引入依赖。
+
+**测试**：新增 `TestTryAcquireSync` 4 个（含 8 线程并发仅 1 个通过的
+原子性验证）；`TestCheckSyncCooldown` 重写为 `TestAcquireSyncSlot` 3 个。
+
+**验证**：全量测试 2187 passed / 1 skipped（+5），覆盖率 83.75%；
+ruff / mypy 通过。
+
 ## v0.9.98 - 2026-08-19
 
 ### perf(new-books): 来源降级告警改后台派发，导入请求不等待 GitHub API

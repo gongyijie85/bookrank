@@ -1,11 +1,22 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.98
+**当前版本**：v0.9.99
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.99 (2026-08-19) — 评审清单低优先级项清理
+
+**四项改动**：
+- [sync_request_gate.py](file:///d:/BookRank3/app/services/sync_request_gate.py)：`try_acquire_sync()` 原子检查+记录消除冷却竞态；export 字典重建加锁。
+- [award_cover_sync_service.py](file:///d:/BookRank3/app/services/award_cover_sync_service.py)：候选筛选改两列轻量查询 + 按需取 ORM，稳态零实例化。
+- [cover_resolver.py](file:///d:/BookRank3/app/services/cover_resolver.py)：`resolve` 支持 `auto_commit=False`，批同步批末统一提交。
+- 删除三个根目录运维脚本（fix-circe-*.py / verify_fix.py，正式修复已在 TRANSLATION_OVERRIDES）。
+- 安全#4 疑点关闭：自研 `add_security_headers` 已完整覆盖 Talisman 功能（CSP nonce/HSTS 等），不引入依赖。
+
+**验证**：全量测试 2187 passed / 1 skipped，覆盖率 83.75%；ruff / mypy 通过。
 
 ### v0.9.98 (2026-08-19) — 来源降级告警改后台派发，导入请求不等待 GitHub API
 

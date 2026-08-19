@@ -30,6 +30,40 @@ class TestSyncCooldown:
             assert gate.sync_cooldown_remaining() is None
 
 
+class TestTryAcquireSync:
+    """v0.9.99: 原子检查+记录（性能评审 #8：消除冷却竞态窗口）"""
+
+    def test_first_acquire_passes_and_records(self, gate):
+        assert gate.try_acquire_sync() is None
+        # 已记录：紧接着的检查命中冷却
+        assert gate.sync_cooldown_remaining() is not None
+
+    def test_second_acquire_within_cooldown_returns_remaining(self, gate):
+        gate.try_acquire_sync()
+        remaining = gate.try_acquire_sync()
+        assert remaining is not None
+        assert 0 < remaining <= 60
+
+    def test_acquire_after_window_passes_again(self, gate, monkeypatch):
+        gate.try_acquire_sync()
+        later = time.time() + 61
+        with monkeypatch.context() as m:
+            m.setattr('app.services.sync_request_gate.time.time', lambda: later)
+            assert gate.try_acquire_sync() is None
+
+    def test_concurrent_acquires_only_one_passes(self, gate):
+        """并发线程同时 acquire：仅一个通过，其余拿到剩余秒数。"""
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda _: gate.try_acquire_sync(), range(8)))
+
+        passed = [r for r in results if r is None]
+        blocked = [r for r in results if r is not None]
+        assert len(passed) == 1
+        assert len(blocked) == 7
+
+
 class TestExportCooldown:
     def test_first_export_ok_then_blocked(self, gate):
         assert gate.export_cooldown_remaining('1.2.3.4') is None

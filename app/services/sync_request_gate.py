@@ -18,6 +18,7 @@ class SyncRequestGate:
     def __init__(self) -> None:
         self._sync_lock = threading.Lock()
         self._last_sync_at = 0.0
+        self._export_lock = threading.Lock()
         self._export_last_at: dict[str, float] = {}
         self._seed_lock = threading.Lock()
         self._seed_done = False
@@ -26,7 +27,8 @@ class SyncRequestGate:
         """复位全部状态（测试与生命周期复位用）。"""
         with self._sync_lock:
             self._last_sync_at = 0.0
-        self._export_last_at = {}
+        with self._export_lock:
+            self._export_last_at = {}
         with self._seed_lock:
             self._seed_done = False
 
@@ -40,6 +42,19 @@ class SyncRequestGate:
                 return _SYNC_COOLDOWN_SECONDS - elapsed
             return None
 
+    def try_acquire_sync(self) -> float | None:
+        """原子地检查冷却并记录：通过返回 None，冷却中返回剩余秒数。
+
+        检查与记录在同一锁内完成，消除"并发请求双双通过冷却"的竞态窗口
+        （性能评审 #8：sync_cooldown_remaining + record_sync 两步间的间隙）。
+        """
+        with self._sync_lock:
+            elapsed = time.time() - self._last_sync_at
+            if elapsed < _SYNC_COOLDOWN_SECONDS:
+                return _SYNC_COOLDOWN_SECONDS - elapsed
+            self._last_sync_at = time.time()
+            return None
+
     def record_sync(self) -> None:
         """记录一次同步完成时间（多 worker 安全）。"""
         with self._sync_lock:
@@ -50,15 +65,17 @@ class SyncRequestGate:
     def export_cooldown_remaining(self, ip: str) -> float | None:
         """返回该 IP 的剩余导出冷却秒数；不在冷却期返回 None 并记录本次访问。
 
-        每次访问顺带惰性清理已过期条目，字典有界。
+        每次访问顺带惰性清理已过期条目，字典有界；锁内完成避免并发
+        重建字典时丢失他线程刚记录的条目（性能评审 #8）。
         """
         now = time.time()
-        self._export_last_at = {k: v for k, v in self._export_last_at.items() if now - v < _EXPORT_COOLDOWN_SECONDS}
-        last = self._export_last_at.get(ip)
-        if last is not None and now - last < _EXPORT_COOLDOWN_SECONDS:
-            return _EXPORT_COOLDOWN_SECONDS - (now - last)
-        self._export_last_at[ip] = now
-        return None
+        with self._export_lock:
+            self._export_last_at = {k: v for k, v in self._export_last_at.items() if now - v < _EXPORT_COOLDOWN_SECONDS}
+            last = self._export_last_at.get(ip)
+            if last is not None and now - last < _EXPORT_COOLDOWN_SECONDS:
+                return _EXPORT_COOLDOWN_SECONDS - (now - last)
+            self._export_last_at[ip] = now
+            return None
 
     # ---- 静态播种一次性化 ----
 

@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-class TestCheckSyncCooldown:
-    """测试 _check_sync_cooldown（v0.9.64: 适配多 worker 安全锁）"""
+class TestAcquireSyncSlot:
+    """测试 _acquire_sync_slot（v0.9.99: 原子检查+记录，消除冷却竞态窗口）"""
 
     def test_no_cooldown(self, app):
         """测试无冷却时返回 None"""
@@ -15,20 +15,33 @@ class TestCheckSyncCooldown:
         with app.app_context():
             gate = mod.get_sync_request_gate()
             gate.reset()
-            result = mod._check_sync_cooldown()
+            result = mod._acquire_sync_slot()
             assert result is None
 
     def test_in_cooldown(self, app):
         """测试冷却中返回剩余秒数"""
-
         import app.routes.new_books as mod
 
         with app.app_context():
             gate = mod.get_sync_request_gate()
+            gate.reset()
             gate.record_sync()
-            result = mod._check_sync_cooldown()
+            result = mod._acquire_sync_slot()
             assert result is not None
             assert '秒' in result
+
+    def test_acquire_is_atomic_check_and_record(self, app):
+        """通过即记录：第二次调用立即进入冷却（原子性，无双双通过窗口）"""
+        import app.routes.new_books as mod
+
+        with app.app_context():
+            gate = mod.get_sync_request_gate()
+            gate.reset()
+            assert mod._acquire_sync_slot() is None
+            # 检查与记录在同一锁内：紧接着的第二次调用必须命中冷却
+            second = mod._acquire_sync_slot()
+            assert second is not None
+            assert '秒' in second
 
 
 class TestNewBooksAPIRoutes:

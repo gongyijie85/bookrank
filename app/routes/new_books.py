@@ -85,9 +85,9 @@ def _ensure_static_seeded(modules: 'NewBookModules') -> None:
         logger.warning(f'新书静态数据兜底初始化失败: {e}')
 
 
-def _check_sync_cooldown() -> str | None:
-    """检查同步冷却时间，返回错误消息或None（状态在同步请求闸门内）。"""
-    remaining = get_sync_request_gate().sync_cooldown_remaining()
+def _acquire_sync_slot() -> str | None:
+    """原子地占用同步冷却（检查+记录一步，消除并发双双通过的竞态窗口）。"""
+    remaining = get_sync_request_gate().try_acquire_sync()
     if remaining is not None:
         return _cooldown_message('同步操作', remaining)
     return None
@@ -301,7 +301,7 @@ def get_categories():
 @admin_required
 def sync_all_publishers():
     """同步所有出版社新书（后台任务，立即返回 202；含冷却与单任务限制）"""
-    cooldown_error = _check_sync_cooldown()
+    cooldown_error = _acquire_sync_slot()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
 
@@ -330,8 +330,7 @@ def sync_all_publishers():
                     log_error(ErrorCategory.CRAWLER, f'后台同步新书失败: {e}', exc_info=True)
                     _finish_sync_job(status='error', kind='all', error=str(e))
 
-        # 触发即记录冷却（防连点）；任务期间由单一任务槽互斥
-        get_sync_request_gate().record_sync()
+        # 冷却已在 _acquire_sync_slot 原子占用；任务期间由单一任务槽互斥
         submitted, conflict = _submit_sync_job(_run_sync_all)
         if not submitted:
             return conflict
@@ -351,7 +350,7 @@ def sync_all_publishers():
 @admin_required
 def sync_publisher(publisher_id: int):
     """同步指定出版社新书（后台任务，立即返回 202；含冷却与单任务限制）"""
-    cooldown_error = _check_sync_cooldown()
+    cooldown_error = _acquire_sync_slot()
     if cooldown_error:
         return APIResponse.error(cooldown_error, 429)
 
@@ -381,7 +380,7 @@ def sync_publisher(publisher_id: int):
                     log_error(ErrorCategory.CRAWLER, f'后台同步出版社新书失败: {e}', exc_info=True)
                     _finish_sync_job(status='error', kind='publisher', publisher_id=publisher_id, error=str(e))
 
-        get_sync_request_gate().record_sync()
+        # 冷却已在 _acquire_sync_slot 原子占用；任务期间由单一任务槽互斥
         submitted, conflict = _submit_sync_job(_run_sync_publisher)
         if not submitted:
             return conflict

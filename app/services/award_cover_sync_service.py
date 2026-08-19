@@ -60,30 +60,7 @@ class AwardCoverSyncService:
         }
 
         try:
-            # 查找缺失封面的书籍：
-            # 1) cover_original_url 为空
-            # 2) cover_local_path 为空/默认封面
-            # 3) cover_local_path 指向的本地缓存文件已丢失（生产环境临时文件系统重启后）
-            # 第 3 种情况无法用 SQL 判断（依赖文件系统），故先拉取全部展示书再逐个验证文件存在性。
-            books_candidates = (
-                AwardBook.query.filter(
-                    AwardBook.isbn13.isnot(None),
-                    AwardBook.is_displayable.is_(True),
-                )
-                .order_by(AwardBook.id)
-                .all()
-            )
-
-            books_to_update: list[AwardBook] = []
-            for b in books_candidates:
-                local_path = (b.cover_local_path or '').strip()
-                # 本地缓存文件仍可用时无需同步（code review #160 修正：旧过滤器
-                # 对「URL 空 + 本地文件在」的书仍会回源；统一为"有可用本地封面
-                # 即跳过"，避免循环内 resolve 本地短路造成虚计 updated）
-                if not self._resolver.cached_path_available(local_path):
-                    books_to_update.append(b)
-                    if len(books_to_update) >= batch_size:
-                        break
+            books_to_update = self._collect_missing_cover_books(batch_size)
 
             if not books_to_update:
                 logger.info('所有获奖书籍都已包含封面信息')
@@ -92,10 +69,13 @@ class AwardCoverSyncService:
 
             logger.info(f'开始同步 {len(books_to_update)} 本书籍的封面信息')
 
+            # 批末统一提交：循环内 resolve(persist=True, auto_commit=False)
+            # 只改属性不逐本 commit（性能评审 #9：每本书一次 commit 的
+            # 外部 PG 往返在批同步下成倍放大）
             for i, book in enumerate(books_to_update, 1):
                 try:
                     result['total_checked'] += 1
-                    resolved = self._resolver.resolve(book, persist=True)
+                    resolved = self._resolver.resolve(book, persist=True, auto_commit=False)
                     if resolved:
                         result['updated'] += 1
                         logger.info(f'[{i}/{len(books_to_update)}] ✅ {book.title}: 封面已更新')
@@ -113,6 +93,7 @@ class AwardCoverSyncService:
                     result['errors'].append(error_msg)
                     log_error(ErrorCategory.API_CALL, f'[{i}/{len(books_to_update)}] {book.title}: {e}')
 
+            db.session.commit()
             result['status'] = 'success'
             logger.info(f'封面同步完成: 更新{result["updated"]}本, 跳过{result["skipped"]}本, 失败{result["failed"]}本')
 
@@ -127,6 +108,37 @@ class AwardCoverSyncService:
             _sync_mutex.release()
 
         return result
+
+    def _collect_missing_cover_books(self, batch_size: int) -> list[AwardBook]:
+        """筛选缺失封面的候选书（性能评审 #4：稳态下避免全表 ORM 实例化）。
+
+        查找规则（与历史语义一致）：
+        1) cover_original_url 为空
+        2) cover_local_path 为空/默认封面
+        3) cover_local_path 指向的本地缓存文件已丢失（生产临时文件系统重启后）
+        第 3 种依赖文件系统，无法用 SQL 判断——先用轻量两列查询筛出候选 id，
+        再按需加载完整 ORM 对象（稳态下零实例化、零回源）。
+        """
+        rows = db.session.execute(
+            db.select(AwardBook.id, AwardBook.cover_local_path).where(
+                AwardBook.isbn13.isnot(None),
+                AwardBook.is_displayable.is_(True),
+            )
+        ).all()
+
+        candidate_ids: list[int] = []
+        for book_id, cover_local_path in rows:
+            local_path = (cover_local_path or '').strip()
+            # 本地缓存文件仍可用时无需同步（code review #160 修正：统一为
+            # "有可用本地封面即跳过"；非 cache 目录路径纯字符串判定即返回）
+            if not self._resolver.cached_path_available(local_path):
+                candidate_ids.append(book_id)
+                if len(candidate_ids) >= batch_size:
+                    break
+
+        if not candidate_ids:
+            return []
+        return AwardBook.query.filter(AwardBook.id.in_(candidate_ids)).order_by(AwardBook.id).all()
 
     def get_sync_status(self) -> dict:
         """获取同步状态"""
