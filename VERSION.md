@@ -1,11 +1,24 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.92
+**当前版本**：v0.9.93
 **发布日期**：2026-08-19
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.93 (2026-08-19) — 接线 fallback_google_enabled 开关（#137）
+
+**背景**：规格评审发现 `fallback_google_enabled` 开关只有存储/审计/展示路径，
+无执行路径读取——关闭开关无法影响 Google 兜底，属无效控制面。
+
+**核心修复**
+- [sync_engine.py](file:///d:/BookRank3/app/services/new_book/sync_engine.py) `sync_publisher_books` 入口新增开关检查：Google 系爬虫 + 开关关闭 → 跳过同步，返回 `status='skipped'`（可观测，不算失败以保住 auto_sync 24h 节流）。
+- 新增 3 个测试覆盖：关→跳过、开→正常、非 Google 系→不受控。
+
+**语义边界**：只控制 Google 系爬虫同步；静态数据兜底与非 Google 系数据源不受影响。
+
+**验证**：全量测试 2156 passed / 1 skipped，覆盖率 83.19%；ruff / mypy 通过。
 
 ### v0.9.92 (2026-08-19) — 消除 CI 脚本内的 secrets/输入直接内插
 

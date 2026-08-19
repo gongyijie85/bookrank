@@ -14,6 +14,7 @@ from app.models.new_book import NewBook, Publisher
 from app.services.new_book.ingestor import SaveOutcome
 from app.services.new_book.sync_engine import SyncEngine
 from app.services.publisher_crawler.base_crawler import BookInfo, CrawlOutcome
+from app.services.publisher_crawler.google_books_publisher import HarperCollinsGoogleCrawler
 
 
 @pytest.fixture
@@ -383,6 +384,58 @@ class TestSyncPublisherBooks:
             engine.sync_publisher_books(sample_publisher.id, translate=True)
 
         engine._translation_pipeline.persist_language_pack.assert_called_once()
+
+
+class TestFallbackGoogleSwitch:
+    """#137 fallback_google_enabled 开关接线：Google 系爬虫同步受开关控制"""
+
+    def _google_crawler_mock(self, books=()):
+        """构造可通过 isinstance(crawler, GoogleBooksCrawler) 的 spec mock。"""
+        crawler = MagicMock(spec=HarperCollinsGoogleCrawler)
+        crawler.get_new_books.return_value = CrawlOutcome(books=iter(books), date_filter_stats=None)
+        crawler.__enter__ = MagicMock(return_value=crawler)
+        crawler.__exit__ = MagicMock(return_value=False)
+        return crawler
+
+    def test_fallback_disabled_skips_google_crawler(self, engine, publisher_manager, sample_publisher, db):
+        sample_publisher.fallback_google_enabled = False
+        publisher_manager.get_publisher.return_value = sample_publisher
+
+        crawler = self._google_crawler_mock()
+        with patch.object(engine, 'get_crawler', return_value=crawler):
+            result = engine.sync_publisher_books(sample_publisher.id, translate=False)
+
+        assert result['success'] is True
+        assert result['status'] == 'skipped'
+        assert 'fallback_google_enabled' in result['reason']
+        crawler.get_new_books.assert_not_called()
+
+    def test_fallback_enabled_runs_google_crawler(
+        self, engine, publisher_manager, sample_publisher, sample_book_info, db
+    ):
+        sample_publisher.fallback_google_enabled = True
+        publisher_manager.get_publisher.return_value = sample_publisher
+
+        crawler = self._google_crawler_mock([sample_book_info])
+        with patch.object(engine, 'get_crawler', return_value=crawler):
+            result = engine.sync_publisher_books(sample_publisher.id, translate=False)
+
+        assert result['status'] == 'success'
+        assert result['added'] == 1
+        crawler.get_new_books.assert_called_once()
+
+    def test_fallback_disabled_does_not_affect_non_google_crawler(
+        self, engine, publisher_manager, sample_publisher, sample_book_info, db
+    ):
+        sample_publisher.fallback_google_enabled = False
+        publisher_manager.get_publisher.return_value = sample_publisher
+
+        crawler = _make_crawler_mock([sample_book_info])
+        with patch.object(engine, 'get_crawler', return_value=crawler):
+            result = engine.sync_publisher_books(sample_publisher.id, translate=False)
+
+        assert result['status'] == 'success'
+        assert result['added'] == 1
 
 
 class TestSyncAllPublishers:

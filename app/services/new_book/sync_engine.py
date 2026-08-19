@@ -19,6 +19,7 @@ from ...utils.error_handler import ErrorCategory, log_error
 from .. import publisher_data as pd
 from ..publisher_crawler import get_crawler_class
 from ..publisher_crawler.base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
+from ..publisher_crawler.google_books import GoogleBooksCrawler
 from .ingestor import NewBookIngestor, SaveOutcome
 from .publisher_manager import PublisherManager
 from .translation_pipeline import TranslationPipeline
@@ -123,6 +124,26 @@ class SyncEngine:
         crawler = self.get_crawler(publisher.crawler_class)
         if not crawler:
             return {'success': False, 'error': '爬虫不可用'}
+
+        # #137 fallback_google_enabled 开关接线：Google 系爬虫的同步受开关控制。
+        # 跳过不算失败（运维有意关闭），否则 auto_sync 的 24h 节流会被
+        # failed_results 判定卡住不更新 last_auto_sync_time，导致每轮 cron 重跑。
+        if isinstance(crawler, GoogleBooksCrawler) and not publisher.fallback_google_enabled:
+            logger.info(
+                '⏭️ %s 的 Google 兜底已关闭（fallback_google_enabled=false），跳过同步',
+                publisher.name_en,
+            )
+            return {
+                'success': True,
+                'status': 'skipped',
+                'publisher': publisher.name_en,
+                'reason': 'fallback_google_enabled=false，Google 兜底同步已关闭',
+                'total': 0,
+                'added': 0,
+                'updated': 0,
+                'skipped': 0,
+                'errors': 0,
+            }
 
         # 窗口模式判定（工单 #87）：支持回填的爬虫按该出版社存量书数量选择，
         # 无存量书走首次回填窗口（爬虫自定窗口天数），此后自动回落增量；爬虫保持无状态

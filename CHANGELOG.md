@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.9.93 - 2026-08-19
+
+### feat(new-books): 接线 fallback_google_enabled 开关（#137 规格缺口修复）
+
+**背景**：规格评审发现 `fallback_google_enabled` 自 #137 引入以来只有存储、审计与
+告警展示三条路径，无任何执行路径读取它——关闭开关无法影响 Google 兜底，开关是
+无效控制面（回退实际由"隐藏官网卡片 + auto_sync 恒跑"隐式达成）。
+
+**改动**
+
+- `app/services/new_book/sync_engine.py`：`sync_publisher_books` 入口新增开关检查
+  ——爬虫为 Google 系（`isinstance(crawler, GoogleBooksCrawler)`，覆盖
+  HarperCollins/S&S/Hachette/Macmillan 等出版社变体）且
+  `publisher.fallback_google_enabled=False` 时跳过同步，返回
+  `status='skipped'` + `reason`（可观测，进入 auto_sync 摘要与 admin 手动
+  同步结果）。跳过计为 `success=True`，避免 auto_sync 的 24h 节流被
+  failed_results 判定卡住导致 cron 每轮重跑。
+- `tests/test_sync_engine.py`：新增 `TestFallbackGoogleSwitch` 三个测试——
+  开关关时 Google 系爬虫跳过且不发起抓取；开关开时正常同步；非 Google 系
+  爬虫（如 PRH 官方 API）不受开关影响。
+
+**语义边界**：开关只控制 Google 系爬虫同步；静态数据兜底导入
+（`seed_from_static_data`）与非 Google 系数据源不受影响。
+
+**验证**：全量测试 2156 passed / 1 skipped（含 3 个新测试），覆盖率 83.19%；
+ruff / mypy 通过。
+
 ## v0.9.92 - 2026-08-19
 
 ### fix(ci): 消除 GitHub Actions 脚本内的 secrets/输入直接内插
