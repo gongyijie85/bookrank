@@ -37,13 +37,19 @@ jobs:
           curl --silent --show-error --max-time 20 -L \
             -H "Authorization: Bearer ${HF_TOKEN}" \
             "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/runtime" \
-            | tee artifacts/runtime-before.json
-          echo
+            -o artifacts/runtime-before.json
+          python3 - <<'PY'
+          import json
+          with open("artifacts/runtime-before.json", encoding="utf-8") as fh:
+              runtime = json.load(fh)
+          print(f"stage={runtime.get('stage')} sha={runtime.get('sha')}")
+          PY
           curl --silent --show-error --max-time 20 -L \
             -H "Authorization: Bearer ${HF_TOKEN}" \
             "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/logs/run" \
-            | tee artifacts/logs-before.txt \
+            -o artifacts/logs-before.txt \
             || echo "WARNING: could not fetch run logs before reboot."
+          echo "Saved runtime and logs to artifacts (not printed; they may contain secrets)."
 
       - name: Reboot Space
         run: |
@@ -92,7 +98,8 @@ jobs:
                 curl --silent --show-error --max-time 20 -L \
                   -H "Authorization: Bearer ${HF_TOKEN}" \
                   "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/logs/run" \
-                  | tee artifacts/logs-after-error.txt || true
+                  -o artifacts/logs-after-error.txt || true
+                echo "Saved error logs to artifacts (not printed)."
                 exit 1
                 ;;
             esac
@@ -104,6 +111,12 @@ jobs:
                 curl --silent --show-error --max-time 20 \
                   "${SPACE_URL}/health/ready" || true
                 echo
+                if curl --fail --silent --show-error --max-time 45 \
+                  "${SPACE_URL}/" -o /dev/null; then
+                  echo "Space homepage also responded."
+                else
+                  echo "WARNING: homepage did not respond; health is up."
+                fi
                 exit 0
               fi
               echo "Stage is RUNNING but HTTP is not ready yet."
@@ -116,12 +129,12 @@ jobs:
           curl --silent --show-error --max-time 20 -L \
             -H "Authorization: Bearer ${HF_TOKEN}" \
             "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/runtime" \
-            | tee artifacts/runtime-after.json || true
-          echo
+            -o artifacts/runtime-after.json || true
           curl --silent --show-error --max-time 20 -L \
             -H "Authorization: Bearer ${HF_TOKEN}" \
             "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/logs/run" \
-            | tee artifacts/logs-after.txt || true
+            -o artifacts/logs-after.txt || true
+          echo "Saved post-timeout runtime and logs to artifacts (not printed)."
           exit 1
 
       - name: Upload diagnostics

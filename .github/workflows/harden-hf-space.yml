@@ -1,0 +1,98 @@
+name: Harden HuggingFace Space
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harden:
+    name: Stop background crawlers and verify homepage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
+      SPACE_URL: https://elvis85-bookrank.hf.space
+    steps:
+      - name: Check HuggingFace credentials
+        run: |
+          set -euo pipefail
+          if [ -z "$HF_TOKEN" ]; then
+            echo "ERROR: HF_TOKEN is not configured."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Disable APScheduler crawlers
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install 'huggingface_hub>=0.34.0'
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          token = os.environ["HF_TOKEN"]
+          repo = os.environ["HF_SPACE_REPO"]
+          api = HfApi(token=token)
+          api.add_space_variable(
+              repo,
+              "DISABLE_BACKGROUND_THREADS",
+              "true",
+              description="Prevent APScheduler crawlers from blocking the single Gunicorn worker",
+          )
+          print("Set DISABLE_BACKGROUND_THREADS=true")
+          runtime = api.restart_space(repo, factory_reboot=False)
+          print(f"Restart triggered, stage={runtime.stage}")
+          PY
+
+      - name: Wait until homepage serves HTTP
+        run: |
+          set -euo pipefail
+          DEADLINE=$((SECONDS + 600))
+          LAST_STAGE=""
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            STAGE="$(curl --silent --show-error --max-time 20 -L \
+              -H "Authorization: Bearer ${HF_TOKEN}" \
+              "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/runtime" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("stage",""))' \
+              || true)"
+            if [ "$STAGE" != "$LAST_STAGE" ]; then
+              echo "Space stage: ${STAGE:-unknown}"
+              LAST_STAGE="$STAGE"
+            fi
+
+            case "$STAGE" in
+              RUNTIME_ERROR|BUILD_ERROR|CONFIG_ERROR|APP_FAILED)
+                echo "ERROR: Space entered terminal stage ${STAGE}."
+                exit 1
+                ;;
+            esac
+
+            if [ "$STAGE" = "RUNNING" ]; then
+              if curl --fail --silent --show-error --max-time 25 \
+                "${SPACE_URL}/health/ready" -o /dev/null; then
+                echo "Health is ready; checking homepage."
+                if curl --fail --silent --show-error --max-time 60 \
+                  -o /tmp/hf-home.html \
+                  -w 'homepage HTTP %{http_code} time %{time_total}\n' \
+                  "${SPACE_URL}/"; then
+                  head -c 200 /tmp/hf-home.html; echo
+                  echo "Homepage is serving HTML."
+                  exit 0
+                fi
+                echo "Homepage not ready yet."
+              fi
+            fi
+
+            sleep 15
+          done
+
+          echo "ERROR: homepage did not become ready within 10 minutes."
+          exit 1
