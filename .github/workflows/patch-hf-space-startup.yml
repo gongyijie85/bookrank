@@ -1,0 +1,166 @@
+name: Patch HuggingFace Space Startup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch:
+    name: Unblock homepage on HuggingFace Space
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
+      SPACE_URL: https://elvis85-bookrank.hf.space
+    steps:
+      - name: Check HuggingFace credentials
+        run: |
+          set -euo pipefail
+          if [ -z "$HF_TOKEN" ]; then
+            echo "ERROR: HF_TOKEN is not configured."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Patch Space startup paths
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install 'huggingface_hub>=0.34.0'
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from huggingface_hub import CommitOperationAdd, HfApi, hf_hub_download
+
+          token = os.environ["HF_TOKEN"]
+          repo = os.environ["HF_SPACE_REPO"]
+          api = HfApi(token=token)
+
+          run_src = Path(
+              hf_hub_download(repo_id=repo, repo_type="space", filename="run.py", token=token)
+          ).read_text(encoding="utf-8")
+          book_src = Path(
+              hf_hub_download(
+                  repo_id=repo,
+                  repo_type="space",
+                  filename="app/services/book_service.py",
+                  token=token,
+              )
+          ).read_text(encoding="utf-8")
+
+          run_old = """        if result:
+            from flask_migrate import upgrade as _upgrade
+
+            _upgrade()
+            logger.info(f'数据库迁移已是最新版本: {result[0]}')
+            return True"""
+          run_new = """        if result:
+            logger.info(f'数据库已有迁移版本 {result[0]}，跳过 upgrade 以免阻塞请求')
+            return True"""
+          if run_old not in run_src:
+              raise SystemExit("run.py patch target not found")
+          run_src = run_src.replace(run_old, run_new, 1)
+
+          if "import os\n" not in book_src.split("from ", 1)[0]:
+              book_src = book_src.replace("import logging\n", "import logging\nimport os\n", 1)
+
+          book_flag_old = """        cache_key = f'books_{category_id}'
+"""
+          book_flag_new = """        if os.environ.get('SPACE_ID'):
+            auto_translate = False
+            notify_refresh = False
+
+        cache_key = f'books_{category_id}'
+"""
+          if book_flag_old not in book_src:
+              raise SystemExit("book_service.py cache_key patch target not found")
+          if "if os.environ.get('SPACE_ID'):" not in book_src:
+              book_src = book_src.replace(book_flag_old, book_flag_new, 1)
+
+          supp_old = """        isbns = [b.get('primary_isbn13') or b.get('primary_isbn10', '') for b in raw_books]
+        translations = self._batch_get_translations(isbns)
+        supplements = self._batch_get_supplements(isbns)
+"""
+          supp_new = """        isbns = [b.get('primary_isbn13') or b.get('primary_isbn10', '') for b in raw_books]
+        if os.environ.get('SPACE_ID'):
+            translations, supplements = {}, {}
+        else:
+            translations = self._batch_get_translations(isbns)
+            supplements = self._batch_get_supplements(isbns)
+"""
+          if supp_old not in book_src:
+              raise SystemExit("book_service.py supplement patch target not found")
+          book_src = book_src.replace(supp_old, supp_new, 1)
+
+          Path("run.py").write_text(run_src, encoding="utf-8")
+          Path("book_service.py").write_text(book_src, encoding="utf-8")
+
+          api.create_commit(
+              repo_id=repo,
+              repo_type="space",
+              operations=[
+                  CommitOperationAdd(path_in_repo="run.py", path_or_fileobj=Path("run.py").read_bytes()),
+                  CommitOperationAdd(
+                      path_in_repo="app/services/book_service.py",
+                      path_or_fileobj=Path("book_service.py").read_bytes(),
+                  ),
+              ],
+              commit_message="fix: do not block the only Gunicorn worker on first page load",
+          )
+          print("Uploaded startup patches to the Space.")
+          PY
+
+      - name: Wait until homepage serves HTTP
+        run: |
+          set -euo pipefail
+          DEADLINE=$((SECONDS + 1200))
+          LAST_STAGE=""
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            STAGE="$(curl --silent --show-error --max-time 20 -L \
+              -H "Authorization: Bearer ${HF_TOKEN}" \
+              "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/runtime" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("stage",""))' \
+              || true)"
+            if [ "$STAGE" != "$LAST_STAGE" ]; then
+              echo "Space stage: ${STAGE:-unknown}"
+              LAST_STAGE="$STAGE"
+            fi
+
+            case "$STAGE" in
+              RUNTIME_ERROR|BUILD_ERROR|CONFIG_ERROR|APP_FAILED)
+                echo "ERROR: Space entered terminal stage ${STAGE}."
+                exit 1
+                ;;
+            esac
+
+            if [ "$STAGE" = "RUNNING" ]; then
+              if curl --fail --silent --show-error --max-time 20 \
+                "${SPACE_URL}/health/ready" -o /dev/null; then
+                echo "Health is ready; checking homepage."
+                if curl --fail --silent --show-error --max-time 45 \
+                  -o /tmp/hf-home.html \
+                  -w 'homepage HTTP %{http_code} time %{time_total}\n' \
+                  "${SPACE_URL}/"; then
+                  head -c 200 /tmp/hf-home.html; echo
+                  echo "Homepage is serving HTML."
+                  exit 0
+                fi
+                echo "Homepage not ready yet."
+              else
+                echo "Health not ready yet."
+              fi
+            fi
+
+            sleep 20
+          done
+
+          echo "ERROR: homepage did not become ready within 20 minutes."
+          exit 1
