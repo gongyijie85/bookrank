@@ -1,0 +1,85 @@
+name: Patch HuggingFace Circe Override
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch:
+    name: Sync CIRCE title override to HuggingFace Space
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
+      SPACE_URL: https://elvis85-bookrank.hf.space
+    steps:
+      - name: Check HuggingFace credentials
+        run: |
+          set -euo pipefail
+          if [ -z "$HF_TOKEN" ]; then
+            echo "ERROR: HF_TOKEN is not configured."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Upload CIRCE override
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install 'huggingface_hub>=0.34.0'
+          python scripts/patch_hf_circe_override.py
+
+      - name: Wait until CIRCE title is correct
+        run: |
+          set -euo pipefail
+          DEADLINE=$((SECONDS + 900))
+          LAST_STAGE=""
+          URL="${SPACE_URL}/book/10?category=trade-fiction-paperback"
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            STAGE="$(curl --silent --show-error --max-time 20 -L \
+              -H "Authorization: Bearer ${HF_TOKEN}" \
+              "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/runtime" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("stage",""))' \
+              || true)"
+            if [ "$STAGE" != "$LAST_STAGE" ]; then
+              echo "Space stage: ${STAGE:-unknown}"
+              LAST_STAGE="$STAGE"
+            fi
+
+            case "$STAGE" in
+              RUNTIME_ERROR|BUILD_ERROR|CONFIG_ERROR|APP_FAILED)
+                echo "ERROR: Space entered terminal stage ${STAGE}."
+                exit 1
+                ;;
+            esac
+
+            if [ "$STAGE" = "RUNNING" ]; then
+              if curl --fail --silent --show-error --max-time 30 \
+                -o /tmp/circe.html "$URL"; then
+                if grep -q '循环经济委员会' /tmp/circe.html; then
+                  echo "Old wrong title still present; waiting for rebuild."
+                elif grep -q '喀耳刻' /tmp/circe.html; then
+                  echo "CIRCE title override is live."
+                  exit 0
+                else
+                  echo "Page loaded but CIRCE title not found yet."
+                fi
+              else
+                echo "Detail page not ready yet."
+              fi
+            fi
+
+            sleep 20
+          done
+
+          echo "ERROR: CIRCE override did not become live within 15 minutes."
+          exit 1
