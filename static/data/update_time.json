@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-08-17T03:08:31.281387",
+  "timestamp": "2026-08-24T03:07:09.700268",
   "publishers": [
+    "simon_schuster",
     "penguin_random_house",
     "harpercollins",
-    "macmillan",
     "hachette",
-    "simon_schuster",
-    "google_books",
-    "open_library"
+    "macmillan",
+    "open_library",
+    "google_books"
   ],
   "total_books": 0
 }
