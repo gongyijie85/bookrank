@@ -135,7 +135,9 @@ def get_translation_cache_stats():
     from ...services.zhipu_translation_service import get_translation_service
 
     service = get_translation_service()
-    zhipu_available = service.zhipu.is_available()
+    svc = service.zhipu
+    zhipu_available = svc.is_available()
+    provider_name = 'SiliconFlow Hunyuan-MT-7B' if svc.provider == 'siliconflow' else 'ZhipuAI GLM'
 
     try:
         cache_stats = service.get_cache_stats()
@@ -143,10 +145,10 @@ def get_translation_cache_stats():
         if 'no such table' in str(e):
             return APIResponse.success(
                 data={
-                    'service': 'ZhipuAI GLM-4.7-Flash',
+                    'service': provider_name,
                     'status': 'offline',
-                    'model': 'glm-4.7-flash',
-                    'description': '使用智谱AI免费模型进行高质量翻译',
+                    'model': svc.model,
+                    'description': f'翻译服务(provider={svc.provider}, model={svc.model})',
                     'message': 'Database not initialized',
                 }
             )
@@ -154,10 +156,10 @@ def get_translation_cache_stats():
 
     return APIResponse.success(
         data={
-            'service': 'ZhipuAI GLM-4.7-Flash',
+            'service': provider_name,
             'status': 'online' if zhipu_available else 'offline',
-            'model': 'glm-4.7-flash',
-            'description': '使用智谱AI免费模型进行高质量翻译',
+            'model': svc.model,
+            'description': f'翻译服务(provider={svc.provider}, model={svc.model})',
             'cache': cache_stats,
         }
     )

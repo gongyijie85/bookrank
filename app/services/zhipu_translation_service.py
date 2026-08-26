@@ -79,16 +79,43 @@ class ZhipuTranslationService:
             model: 使用的模型，默认从 app.config 读取，回退到 'glm-4.7-flash'
             app: Flask应用实例，用于提供应用上下文
         """
-        self.api_key = api_key or os.environ.get('ZHIPU_API_KEY')
         self._default_model = 'glm-4.7-flash'
         self._app = app
-        # 如果提供了 model 参数则使用，否则从 app.config 读取
+
+        # provider: 'zhipu'（智谱 GLM，免费）| 'siliconflow'（硅基流动 Hunyuan-MT-7B，付费）
+        # 默认走硅基流动 Hunyuan（线上实测期）；TRANSLATION_PROVIDER=zhipu 一键回退智谱。
+        self.provider = 'zhipu'
+        if app is not None:
+            self.provider = app.config.get('TRANSLATION_PROVIDER', 'zhipu')
+        if self.provider not in ('zhipu', 'siliconflow'):
+            logger.warning(f'未知 TRANSLATION_PROVIDER={self.provider!r}，回退为 zhipu')
+            self.provider = 'zhipu'
+
+        # API Key 与端点按 provider 选择
+        env_key = 'SILICONFLOW_API_KEY' if self.provider == 'siliconflow' else 'ZHIPU_API_KEY'
+        self.api_key = api_key or os.environ.get(env_key)
+        self.base_url = None
+        if app is not None:
+            self.base_url = app.config.get('SILICONFLOW_BASE_URL')
+
+        # 模型名：显式 model > 显式 TRANSLATION_MODEL > 按 provider 取默认
+        # （zhipu→旧键 ZHIPU_TRANSLATION_MODEL 向后兼容；siliconflow→Hunyuan-MT-7B）
         if model is not None:
             self.model = model
+        elif app is not None and app.config.get('TRANSLATION_MODEL'):
+            self.model = app.config['TRANSLATION_MODEL']
+        elif app is not None and self.provider == 'siliconflow':
+            self.model = 'tencent/Hunyuan-MT-7B'
         elif app is not None:
             self.model = app.config.get('ZHIPU_TRANSLATION_MODEL', self._default_model)
         else:
             self.model = self._default_model
+
+        # 合并 JSON 单次调用：zhipu 默认启用（已上线验证）；siliconflow 的 MT 模型默认逐字段，
+        # 避免 JSON 输出不稳。可被 TRANSLATION_USE_MERGED_JSON 显式覆盖。
+        merged_override = app.config.get('TRANSLATION_USE_MERGED_JSON') if app is not None else None
+        self.use_merged_json = merged_override if merged_override is not None else (self.provider == 'zhipu')
+
         self._client = None
         self._last_request_time = 0
         self._request_interval = 0.1
@@ -175,24 +202,39 @@ class ZhipuTranslationService:
         return self._field_prompts.get(field_type, self._field_prompts['text'])
 
     def _get_client(self):
-        """懒加载客户端"""
+        """懒加载客户端（按 provider 选择 zhipuai / openai 兼容客户端）"""
         if self._client is None:
             if not self.api_key:
-                logger.warning('智谱AI API Key未配置，请设置ZHIPU_API_KEY环境变量')
+                if self.provider == 'siliconflow':
+                    logger.warning('硅基流动 API Key未配置，请设置SILICONFLOW_API_KEY环境变量')
+                else:
+                    logger.warning('智谱AI API Key未配置，请设置ZHIPU_API_KEY环境变量')
                 return None
 
             try:
-                from zhipuai import ZhipuAI
+                if self.provider == 'siliconflow':
+                    from openai import OpenAI
 
-                # 显式超时：SDK 默认超时过长（可达数百秒），后台批量同步时
-                # 单次翻译挂起会成倍放大（每本书 2 个字段×重试），必须封顶。
-                self._client = ZhipuAI(api_key=self.api_key, timeout=60.0)
-                logger.info('智谱AI客户端初始化成功')
+                    self._client = OpenAI(
+                        api_key=self.api_key,
+                        base_url=self.base_url or 'https://api.siliconflow.cn/v1',
+                        timeout=60.0,
+                    )
+                    logger.info('硅基流动(Hunyuan-MT-7B)客户端初始化成功')
+                else:
+                    from zhipuai import ZhipuAI
+
+                    # 显式超时：SDK 默认超时过长（可达数百秒），后台批量同步时
+                    # 单次翻译挂起会成倍放大（每本书 2 个字段×重试），必须封顶。
+                    self._client = ZhipuAI(api_key=self.api_key, timeout=60.0)
+                    logger.info('智谱AI客户端初始化成功')
             except ImportError as e:
-                logger.error(f'zhipuai库未安装: {e}，请运行: pip install zhipuai')
+                lib = 'openai' if self.provider == 'siliconflow' else 'zhipuai'
+                logger.error(f'{lib}库未安装: {e}，请运行: pip install {lib}')
                 return None
             except (ConnectionError, TimeoutError, RuntimeError) as e:
-                logger.error(f'zhipuai库未安装或初始化失败: {e}，请运行: pip install zhipuai')
+                lib = 'openai' if self.provider == 'siliconflow' else 'zhipuai'
+                logger.error(f'{lib}库初始化失败: {e}，请运行: pip install {lib}')
                 return None
 
         return self._client
@@ -406,7 +448,9 @@ class ZhipuTranslationService:
         if not uncached_fields:
             return result
 
-        client = self._get_client()
+        # 合并 JSON 单次调用：zhipu 默认启用；siliconflow 的 MT 模型默认逐字段（JSON 输出不稳）。
+        # 当 use_merged_json=False 时 client 为 None，走下方逐字段回退逻辑。
+        client = self._get_client() if self.use_merged_json else None
         if not client:
             for field_type, text in uncached_fields:
                 single = self.translate(text, source_lang, target_lang, field_type=field_type)
@@ -673,7 +717,7 @@ class HybridTranslationService:
                         translated,
                         source_lang,
                         target_lang,
-                        model_name='glm-4.7-flash',
+                        model_name=self.zhipu.model,
                         model_version=cache_version,
                     ),
                 )

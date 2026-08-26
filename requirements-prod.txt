@@ -32,9 +32,10 @@ gunicorn==23.0.0
 # HTML 解析
 beautifulsoup4==4.13.0
 
-# AI 翻译
+# AI 翻译（智谱AI主用，deep-translator备用回退；硅基流动 Hunyuan 走 openai 兼容端点）
 zhipuai==2.1.5.20250825
 deep-translator==1.11.4
+openai>=1.40.0,<3
 
 # 工具库
 tenacity==9.0.0

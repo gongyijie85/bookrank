@@ -1,0 +1,32 @@
+[
+  {
+    "id": "s01",
+    "title": "The Calamity Club",
+    "description": "At a glittering London auction house, four strangers receive identical midnight invitations to an exclusive club where every wish comes true — for a price no one can afford to pay. When the first member turns up dead, the survivors must discover who is really running the game before their own wishes are granted."
+  },
+  {
+    "id": "s02",
+    "title": "Dungeon Crawler Carl: The Anarchist Cookbook",
+    "description": "Carl and his ex-girlfriend's cat are dragged into a twisted underground world where humanity has been turned into contestants in a brutal, televised game show. To survive the dungeon's deadly floors, Carl must level up, craft traps, and outsmart the alien showrunners — one absurd floor at a time."
+  },
+  {
+    "id": "s03",
+    "title": "The Babel Academy",
+    "description": "In 1830s Oxford, a brilliant but penniless translator wins a place at an elite magical institute that feeds on colonial languages. As her classmates' voices begin to fade, she uncovers the dark price the academy exacts for every word it steals."
+  },
+  {
+    "id": "s04",
+    "title": "Clean Code",
+    "description": "Even bad code can function. But if code isn't clean, it can bring a development organization to its knees. This book describes how to write code that is easy to read, easy to change, and free of hidden traps — a pragmatic guide for professional programmers."
+  },
+  {
+    "id": "s05",
+    "title": "The Night We Met",
+    "description": "A chance encounter on a midnight train brings two strangers together for one perfect evening — and then pulls them apart for fifteen years. Now fate has brought them back to the same platform, and both must decide whether some meetings are meant to be revisited."
+  },
+  {
+    "id": "s06",
+    "title": "Quantum Harvest: The Last Greenhouse",
+    "description": "On a dying orbital station, a botanist discovers that the station's quantum core can accelerate plant growth across time itself. But every accelerated harvest comes with a price: a memory taken from the crew. As the memories run out, the greenhouse begins to bloom in ways that threaten the survival of the last human colony."
+  }
+]

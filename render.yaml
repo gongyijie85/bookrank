@@ -52,4 +52,13 @@ services:
         value: "1"
       - key: MAX_WORKERS
         value: "1"
+      # 翻译服务（线上实测期默认硅基流动 Hunyuan-MT-7B）
+      # - TRANSLATION_PROVIDER=siliconflow（默认）；回退智谱 GLM 免费版：改 value 为 zhipu
+      # - SILICONFLOW_API_KEY 在 Render Dashboard 手动设置（付费按 token 计费）
+      - key: TRANSLATION_PROVIDER
+        value: siliconflow
+      - key: TRANSLATION_MODEL
+        value: tencent/Hunyuan-MT-7B
+      - key: SILICONFLOW_API_KEY
+        sync: false
 

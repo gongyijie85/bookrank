@@ -4,6 +4,7 @@
 
 import hashlib
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -20,10 +21,10 @@ logger = logging.getLogger(__name__)
 class TranslationCacheService:
     """翻译缓存服务类"""
 
-    CACHE_VERSION = 2  # 递增此值可使旧缓存失效
+    CACHE_VERSION = 3  # 递增此值可使旧缓存失效（v3: 切换 Hunyuan-MT-7B 实测，作废旧 GLM 缓存，避免命中旧结果）
 
     def __init__(self):
-        self.default_model = 'glm-4.7-flash'
+        self.default_model = os.environ.get('TRANSLATION_MODEL') or 'glm-4.7-flash'
 
     @staticmethod
     def _compute_source_hash(text: str) -> str:

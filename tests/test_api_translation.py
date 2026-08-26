@@ -22,6 +22,9 @@ def _stub_translation_service(monkeypatch):
     """所有翻译 API 测试统一使用假翻译服务，禁止真实网络请求"""
 
     class ZhipuFake:
+        provider = 'zhipu'
+        model = 'glm-4.7-flash'
+
         def is_available(self):
             return True
 

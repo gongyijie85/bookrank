@@ -112,8 +112,24 @@ class Config:
     NYT_CACHE_TTL: int = 60 * 60 * 6  # 避免跨过 NYT 发榜时间仍返回上周数据
     GOOGLE_BOOKS_CACHE_TTL: int = _SECONDS_PER_DAY  # Google Books 缓存 24 小时
 
-    # 智谱 AI 翻译模型
-    ZHIPU_TRANSLATION_MODEL: str = 'glm-4.7-flash'
+    # 翻译服务配置
+    # provider: 'zhipu'（智谱 GLM，免费）| 'siliconflow'（硅基流动 Hunyuan-MT-7B，付费）
+    # 线上实测期默认走 siliconflow/Hunyuan；回退智谱只需设 TRANSLATION_PROVIDER=zhipu。
+    TRANSLATION_PROVIDER: str = os.environ.get('TRANSLATION_PROVIDER', 'siliconflow')
+    # 显式模型名（render.yaml/线上设置）；缺省时由服务按 provider 决定
+    # （zhipu→ZHIPU_TRANSLATION_MODEL，siliconflow→tencent/Hunyuan-MT-7B）
+    TRANSLATION_MODEL: str | None = os.environ.get('TRANSLATION_MODEL')
+    # 兼容旧配置名；新代码优先读 TRANSLATION_MODEL
+    ZHIPU_TRANSLATION_MODEL: str = os.environ.get('ZHIPU_TRANSLATION_MODEL', 'glm-4.7-flash')
+    SILICONFLOW_API_KEY: str | None = os.environ.get('SILICONFLOW_API_KEY')
+    SILICONFLOW_BASE_URL: str = os.environ.get('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1')
+    # 合并 JSON 单次调用：zhipu 默认启用（GLM 已验证稳定）；siliconflow 的 MT 模型默认逐字段更稳。
+    # 显式设 TRANSLATION_USE_MERGED_JSON=1/true 强制开启，=0/false 强制关闭；不设则按 provider 决定。
+    TRANSLATION_USE_MERGED_JSON: bool | None = (
+        None
+        if os.environ.get('TRANSLATION_USE_MERGED_JSON') is None
+        else os.environ.get('TRANSLATION_USE_MERGED_JSON', '').strip().lower() in ('1', 'true', 'yes', 'on')
+    )
 
     # BookService 默认缓存 TTL（秒）
     BOOK_SERVICE_CACHE_TTL: int = _SECONDS_PER_DAY  # 24 小时
@@ -242,6 +258,9 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED: bool = False
     SESSION_COOKIE_SECURE: bool = False
     API_RATE_LIMIT: int = 10000
+    # 翻译：测试固定走智谱 GLM（合并 JSON 路径稳定），不受线上默认 provider 影响；
+    # 模型名不在此固定，由服务按 provider 决定（zhipu→ZHIPU_TRANSLATION_MODEL）
+    TRANSLATION_PROVIDER: str = 'zhipu'
     SQLALCHEMY_ENGINE_OPTIONS: dict[str, object] = {
         'poolclass': StaticPool,
         'connect_args': {'check_same_thread': False},
