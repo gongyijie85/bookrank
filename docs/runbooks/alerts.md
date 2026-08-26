@@ -1,6 +1,6 @@
 # BookRank 监控告警 Runbook
 
-**版本**: v1.1  
+**版本**: v1.2  
 **生效日期**: 2026-08-13  
 **适用范围**: Render 生产环境（`bookrank` Web Service）  
 **责任人**: 项目维护者 / On-call 人员
@@ -80,6 +80,14 @@
 2. 使用 `request_id` 关联日志与请求路径。
 3. 识别热点路径（榜单页、搜索、周报生成），必要时临时扩容或限流。
 
+### 4.4 GitHub 邮件 “Production Monitor: All jobs have failed”
+
+该邮件只说明工作流 job 失败，不自动等于生产宕机。先打开对应 run，看 **Probe /health/ready**。Notify 是尽力投递，缺少 webhook 或聊天接口失败不能单独把 job 标红；此邮件若在该约定之后仍出现，以 Probe 步骤为准：
+
+1. Probe 成功（HTTP 200）：生产可用。若耗时超过 Warning 阈值（默认 3s），run 会带 `::warning::` 注解，但 job 应成功。仓库未配置 `PRODUCTION_ALERT_WEBHOOK_URL` 时只会跳过即时消息，不再把 Warning 延迟标成失败。
+2. Probe 失败：`/health/ready` 非 200，或耗时超过 Critical 阈值（默认 10s）。按 4.1 处理。这才是需要按 Critical 响应的生产探测失败。
+3. 通知步骤是尽力投递：缺少 Secret 或 webhook 接口失败不应单独当作生产事故。需要值班即时消息时，在仓库 Secrets 中配置 `PRODUCTION_ALERT_WEBHOOK_URL`。
+
 ---
 
 ## 五、值班响应要求
@@ -137,3 +145,4 @@ Render 的 Metrics 页面会显示 CPU 和内存使用率，但目前 Render 仅
 |---|---|---|---|
 | v1.0 | 2026-07-02 | 初始版本，定义阈值、渠道与响应流程 | Trae Agent |
 | v1.1 | 2026-08-13 | 增加生产探测、Render 原生失败通知与免费层/Pro 指标边界 | Codex |
+| v1.2 | 2026-08-26 | 区分 Probe 失败与 Notify 失败；缺少 webhook 不再把 Warning 延迟当成生产宕机 | Gong |

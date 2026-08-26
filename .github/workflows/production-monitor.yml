@@ -35,25 +35,32 @@ jobs:
           elapsed="${elapsed:-30}"
           echo "status=$status" >> "$GITHUB_OUTPUT"
           echo "elapsed=$elapsed" >> "$GITHUB_OUTPUT"
+          echo "Ready probe HTTP ${status} in ${elapsed}s"
 
           if [[ "$status" != "200" ]]; then
             echo "state=critical" >> "$GITHUB_OUTPUT"
+            echo "::error::Ready probe failed: HTTP ${status} in ${elapsed}s"
             exit 1
           fi
 
           if awk "BEGIN { exit !($elapsed > $READY_LATENCY_CRITICAL_SECONDS) }"; then
             echo "state=critical" >> "$GITHUB_OUTPUT"
+            echo "::error::Ready probe critical latency: ${elapsed}s > ${READY_LATENCY_CRITICAL_SECONDS}s"
             exit 1
           fi
 
           if awk "BEGIN { exit !($elapsed > $READY_LATENCY_WARNING_SECONDS) }"; then
             echo "state=warning" >> "$GITHUB_OUTPUT"
+            echo "::warning::Ready probe warning latency: ${elapsed}s > ${READY_LATENCY_WARNING_SECONDS}s"
           else
             echo "state=healthy" >> "$GITHUB_OUTPUT"
           fi
 
+      # Notification is best-effort. A missing webhook or a down chat endpoint
+      # must not turn a latency warning into "All jobs have failed".
       - name: Notify on warning or failure
         if: always() && steps.probe.outputs.state != 'healthy'
+        continue-on-error: true
         shell: bash
         env:
           PROBE_STATE: ${{ steps.probe.outputs.state || 'critical' }}
@@ -62,8 +69,8 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$PRODUCTION_ALERT_WEBHOOK_URL" ]]; then
-            echo "PRODUCTION_ALERT_WEBHOOK_URL is not configured; unable to notify the on-call contact."
-            exit 1
+            echo "::warning::PRODUCTION_ALERT_WEBHOOK_URL is not configured; skipping on-call notification."
+            exit 0
           fi
 
           payload="$(python3 - <<'PY'
