@@ -196,7 +196,12 @@ def main() -> int:
 
         language_pack = BookLanguagePack(pack_path)
         before = _missing_field_count(language_pack, books)
-        translator = get_translation_service(app=app)
+        translation_service = get_translation_service(app=app)
+        # A forced regeneration is a model-quality migration. Never let a primary
+        # timeout silently populate the authoritative language pack via Google.
+        translator = translation_service.zhipu if args.force else translation_service
+        if args.force:
+            print(f'strict_primary=true model={translator.model}')
         stats = language_pack.translate_and_store_books(books, translator=translator, force=args.force)
         after = _missing_field_count(language_pack, books)
 

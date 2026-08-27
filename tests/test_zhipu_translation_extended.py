@@ -585,6 +585,31 @@ class TestHybridTranslateExtended:
             assert result == '智谱翻译'
             mock_cache.set.assert_called_once()
 
+    def test_fallback_cache_is_not_attributed_to_primary_model(self):
+        service = HybridTranslationService(zhipu_api_key='test-key')
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_zhipu = Mock()
+        mock_zhipu.provider = 'siliconflow'
+        mock_zhipu.model = 'tencent/Hunyuan-MT-7B'
+        mock_zhipu.build_cache_context.return_value = 'hunyuan-context'
+        mock_zhipu.is_available.return_value = True
+        mock_zhipu.translate.return_value = None
+        service.zhipu = mock_zhipu
+        mock_fallback = Mock()
+        mock_fallback.translate.return_value = 'Google 备用翻译'
+
+        with (
+            patch.object(service, '_get_cache_service', return_value=mock_cache),
+            patch.object(service, '_get_fallback', return_value=mock_fallback),
+        ):
+            result = service.translate('Verity', field_type='title', context={'author': 'Colleen Hoover'})
+
+        assert result == 'Google 备用翻译'
+        cache_kwargs = mock_cache.set.call_args.kwargs
+        assert cache_kwargs['model_name'] == HybridTranslationService.FALLBACK_MODEL_NAME
+        assert 'cache_context' not in cache_kwargs
+
     def test_cache_write_error_handled(self):
         service = HybridTranslationService(zhipu_api_key='test-key')
         mock_cache = Mock()

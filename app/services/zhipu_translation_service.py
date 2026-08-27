@@ -804,6 +804,8 @@ class HybridTranslationService:
     内置缓存系统避免重复翻译相同内容
     """
 
+    FALLBACK_MODEL_NAME = 'google-translate'
+
     def __init__(self, zhipu_api_key: str | None = None, app=None):
         """
         初始化混合翻译服务
@@ -873,6 +875,7 @@ class HybridTranslationService:
                 log_error(ErrorCategory.TRANSLATION, f'缓存读取失败: {e}', level='warning')
 
         translated = None
+        used_fallback = False
 
         if self.zhipu.is_available():
             logger.info('使用智谱AI翻译...')
@@ -886,6 +889,7 @@ class HybridTranslationService:
             if fallback:
                 logger.info('使用备用翻译服务...')
                 translated = fallback.translate(text, source_lang, target_lang)
+                used_fallback = bool(translated)
 
         if translated and cache_service:
             try:
@@ -894,10 +898,10 @@ class HybridTranslationService:
                 cache_version = str(TranslationCacheService.CACHE_VERSION)
 
                 cache_set_kwargs = {
-                    'model_name': self.zhipu.model,
+                    'model_name': self.FALLBACK_MODEL_NAME if used_fallback else self.zhipu.model,
                     'model_version': cache_version,
                 }
-                if cache_context:
+                if cache_context and not used_fallback:
                     cache_set_kwargs['cache_context'] = cache_context
                 run_with_app_context(
                     self._app,
