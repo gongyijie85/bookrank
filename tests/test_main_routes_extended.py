@@ -1350,9 +1350,7 @@ class TestIndexRoute:
             assert first_card.select_one('.list-item-title').get_text(strip=True) == 'Long Runner'
             assert first_card.select_one('.list-item-rank').get_text(strip=True) == '8'
             assert first_card.select_one('a')['href'].startswith('/book/7?')
-            assert item_list['itemListElement'][0]['item']['url'].endswith(
-                '/book/7?category=hardcover-fiction'
-            )
+            assert item_list['itemListElement'][0]['item']['url'].endswith('/book/7?category=hardcover-fiction')
         finally:
             with app.app_context():
                 app.extensions.pop('book_service', None)

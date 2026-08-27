@@ -331,9 +331,7 @@ class BookService:
             log_error(ErrorCategory.API_CALL, f'并发获取补充信息失败，降级为串行: {e}', level='warning')
             for isbn in valid_isbns:
                 try:
-                    supplements[isbn] = run_with_app_context(
-                        self._app, self._google_client.fetch_book_details, isbn
-                    )
+                    supplements[isbn] = run_with_app_context(self._app, self._google_client.fetch_book_details, isbn)
                 except (requests.RequestException, requests.Timeout, ValueError, KeyError):
                     supplements[isbn] = {}
 

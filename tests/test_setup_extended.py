@@ -251,7 +251,9 @@ class TestStartBackgroundTasks:
             assert 'weekly_report_init' in job_ids
             assert 'nyt_ranking_sync' in job_ids
             assert 'auto_sync' in job_ids
-            nyt_call = next(call for call in mock_scheduler.add_job.call_args_list if call.kwargs.get('id') == 'nyt_ranking_sync')
+            nyt_call = next(
+                call for call in mock_scheduler.add_job.call_args_list if call.kwargs.get('id') == 'nyt_ranking_sync'
+            )
             assert nyt_call.kwargs['trigger'].interval == timedelta(days=1)
 
     @patch('app.setup._scheduler', None)
@@ -586,7 +588,9 @@ class TestNytRankingSyncTask:
             ):
                 _nyt_ranking_sync_task(app)
                 success_writes = [
-                    call for call in mock_config.set_value.call_args_list if call.args[0] == 'last_nyt_ranking_sync_time'
+                    call
+                    for call in mock_config.set_value.call_args_list
+                    if call.args[0] == 'last_nyt_ranking_sync_time'
                 ]
                 assert success_writes == []
 
