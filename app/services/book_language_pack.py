@@ -122,7 +122,7 @@ class BookLanguagePack:
                     book_had_missing = True
                     if not translator:
                         continue
-                    translated = self._translate_field(translator, source_text, field_type)
+                    translated = self._translate_field(translator, source_text, field_type, context=book)
                     if not translated:
                         stats['failures'] += 1
                         continue
@@ -377,13 +377,21 @@ class BookLanguagePack:
             setattr(book, attr, value)
 
     @staticmethod
-    def _translate_field(translator: Any | None, text: str, field_type: str) -> str | None:
+    def _translate_field(
+        translator: Any | None,
+        text: str,
+        field_type: str,
+        context: dict[str, Any] | Any | None = None,
+    ) -> str | None:
         if not translator or not hasattr(translator, 'translate'):
             return None
         try:
-            return translator.translate(text, 'en', 'zh', field_type=field_type)
+            return translator.translate(text, 'en', 'zh', field_type=field_type, context=context)
         except TypeError:
-            return translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type)
+            try:
+                return translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type)
+            except TypeError:
+                return translator.translate(text, 'en', 'zh', field_type=field_type)
         except Exception as e:
             log_error(
                 ErrorCategory.TRANSLATION, f'Language-pack translation failed for {field_type}: {e}', level='warning'

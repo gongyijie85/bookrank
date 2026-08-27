@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 class TranslationCacheService:
     """翻译缓存服务类"""
 
-    CACHE_VERSION = 3  # 递增此值可使旧缓存失效（v3: 切换 Hunyuan-MT-7B 实测，作废旧 GLM 缓存，避免命中旧结果）
+    # v4: 提示词改为图书上下文感知；旧提示生成的译文不再复用。
+    CACHE_VERSION = 4
 
     def __init__(self):
         self.default_model = os.environ.get('TRANSLATION_MODEL') or 'glm-4.7-flash'
@@ -39,12 +40,20 @@ class TranslationCacheService:
         """
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
+    @classmethod
+    def _compute_cache_hash(cls, text: str, cache_context: str | None = None) -> str:
+        """计算缓存哈希；上下文不落入 source_text，但会隔离不同提示与图书语境。"""
+        if not cache_context:
+            return cls._compute_source_hash(text)
+        return cls._compute_source_hash(f'{cache_context}\0{text}')
+
     def get(
         self,
         source_text: str,
         source_lang: str = 'en',
         target_lang: str = 'zh',
         model_name: str | None = None,
+        cache_context: str | None = None,
     ) -> TranslationCache | None:
         """
         从缓存中获取翻译结果
@@ -54,6 +63,7 @@ class TranslationCacheService:
             source_lang: 源语言
             target_lang: 目标语言
             model_name: 期望的模型名；指定后不会复用其他模型的缓存
+            cache_context: 提示版本、字段类型和图书上下文组成的稳定标识
 
         Returns:
             TranslationCache对象或None
@@ -61,7 +71,7 @@ class TranslationCacheService:
         if not source_text or not source_text.strip():
             return None
 
-        source_hash = self._compute_source_hash(source_text)
+        source_hash = self._compute_cache_hash(source_text, cache_context)
 
         # 查找缓存
         cache = TranslationCache.query.filter_by(
@@ -114,6 +124,7 @@ class TranslationCacheService:
         model_name: str | None = None,
         model_version: str | None = None,
         quality_score: float | None = None,
+        cache_context: str | None = None,
     ) -> TranslationCache:
         """
         保存翻译结果到缓存
@@ -126,6 +137,7 @@ class TranslationCacheService:
             model_name: 使用的模型名称
             model_version: 模型版本
             quality_score: 翻译质量评分 (0-1)
+            cache_context: 提示版本、字段类型和图书上下文组成的稳定标识
 
         Returns:
             TranslationCache对象
@@ -133,7 +145,7 @@ class TranslationCacheService:
         if not source_text or not translated_text:
             raise ValueError('源文本和翻译结果不能为空')
 
-        source_hash = self._compute_source_hash(source_text)
+        source_hash = self._compute_cache_hash(source_text, cache_context)
 
         # 检查是否已存在
         existing = TranslationCache.query.filter_by(

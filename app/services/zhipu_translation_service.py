@@ -6,6 +6,7 @@
 内置翻译缓存系统避免重复翻译
 """
 
+import json
 import logging
 import os
 import re
@@ -51,7 +52,13 @@ def _translate_book_info(translator, book_data: dict[str, Any], target_lang: str
 
     for src_key, dst_key, field_type in fields:
         if book_data.get(src_key) and not book_data.get(dst_key):
-            translated = translator.translate(book_data[src_key], target_lang=target_lang, field_type=field_type)
+            try:
+                translated = translator.translate(
+                    book_data[src_key], target_lang=target_lang, field_type=field_type, context=book_data
+                )
+            except TypeError:
+                # 兼容只实现旧 translate 签名的测试替身和第三方适配器。
+                translated = translator.translate(book_data[src_key], target_lang=target_lang, field_type=field_type)
             if translated:
                 result[dst_key] = translated
 
@@ -69,6 +76,20 @@ class ZhipuTranslationService:
     - 支持上下文理解
     - 专业术语翻译准确
     """
+
+    PROMPT_VERSION = 'book-publishing-v1'
+    _CONTEXT_FIELDS = (
+        'title',
+        'title_zh',
+        'author',
+        'category',
+        'category_name',
+        'list_name',
+        'series',
+        'publisher',
+        'description',
+        'glossary',
+    )
 
     def __init__(self, api_key: str | None = None, model: str | None = None, app=None):
         """
@@ -202,6 +223,109 @@ class ZhipuTranslationService:
         """获取字段类型对应的提示词"""
         return self._field_prompts.get(field_type, self._field_prompts['text'])
 
+    @classmethod
+    def _normalize_book_context(cls, context: dict[str, Any] | Any | None) -> dict[str, Any]:
+        """提取稳定、紧凑的图书上下文，供提示和缓存共同使用。"""
+        if context is None:
+            return {}
+
+        normalized: dict[str, Any] = {}
+        for field in cls._CONTEXT_FIELDS:
+            value = context.get(field) if isinstance(context, dict) else getattr(context, field, None)
+            if value is None or value == '':
+                continue
+            if isinstance(value, (dict, list, tuple)):
+                normalized[field] = value
+                continue
+            cleaned = str(value).strip()
+            if not cleaned:
+                continue
+            # 简介只用于消歧；限制长度可避免详情字段把提示膨胀到不可控。
+            normalized[field] = cleaned[:1600] if field == 'description' else cleaned[:400]
+        return normalized
+
+    @classmethod
+    def build_cache_context(cls, field_type: str, context: dict[str, Any] | Any | None = None) -> str:
+        """返回包含提示版本、字段类型和图书语境的稳定缓存标识。"""
+        payload = {
+            'prompt_version': cls.PROMPT_VERSION,
+            'field_type': field_type,
+            'book_context': cls._normalize_book_context(context),
+        }
+        return json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(',', ':'),
+            default=str,
+        )
+
+    @classmethod
+    def _format_book_context(cls, context: dict[str, Any] | Any | None) -> str:
+        values = cls._normalize_book_context(context)
+        labels = {
+            'title': '英文书名',
+            'title_zh': '已确定中文书名',
+            'author': '作者',
+            'category': '类别',
+            'category_name': '中文类别',
+            'list_name': '榜单类别',
+            'series': '系列',
+            'publisher': '出版社',
+            'description': '内容简介',
+            'glossary': '术语表',
+        }
+        lines = []
+        for field, value in values.items():
+            rendered = (
+                json.dumps(value, ensure_ascii=False, default=str) if isinstance(value, (dict, list, tuple)) else value
+            )
+            lines.append(f'{labels[field]}：{rendered}')
+        return '\n'.join(lines) if lines else '无额外上下文'
+
+    @classmethod
+    def _build_hunyuan_prompt(
+        cls,
+        text: str,
+        target_lang: str,
+        field_type: str,
+        context: dict[str, Any] | Any | None = None,
+    ) -> str:
+        """构造符合 Hunyuan-MT 单 user 消息格式的出版翻译提示。"""
+        if target_lang != 'zh':
+            return f'Translate the following segment into {target_lang}, without additional explanation.\n\n{text}'
+
+        book_context = cls._format_book_context(context)
+        prompts = {
+            'title': (
+                '将下面的英文图书标题翻译成专业、自然的简体中文出版书名。只输出一个最终书名，'
+                '不要加书名号、英文原文或解释。\n\n'
+                '要求：结合作者、体裁和简介判断标题含义；允许有依据的意译和有限创译，优先保留作品的'
+                '核心含义、意象、情绪与类型气质；人名标题不必机械音译，若词义与主题相关可自然意译；'
+                '采用已确定译名和术语表；避免生硬逐字翻译、翻译腔、空泛套话及原文无依据的情节暗示。\n\n'
+                f'图书上下文（仅用于消歧）：\n{book_context}\n\n英文书名：\n{text}'
+            ),
+            'description': (
+                '将下面的英文图书简介翻译成专业、自然的简体中文。只输出译文，不要解释或使用 Markdown。\n\n'
+                '要求：完整忠实，不遗漏、不增添、不改变人物关系和情节；在准确的基础上使用凝练、流畅、'
+                '有节奏的现代中文，保留原文语气、悬念和体裁风格；采用上下文中的书名与术语并保持一致；'
+                '人物名不附英文，书名使用《》；保留原有段落结构。\n\n'
+                f'图书上下文：\n{book_context}\n\n待翻译简介：\n{text}'
+            ),
+            'details': (
+                '将下面的英文图书详情翻译成准确、自然的简体中文。只输出译文，不要解释或使用 Markdown。\n\n'
+                '要求：不增删事实；采用上下文中的书名与术语；保留段落、数字、日期、价格、ISBN及专有标识；'
+                '出版与装帧信息使用规范中文表达。\n\n'
+                f'图书上下文：\n{book_context}\n\n待翻译详情：\n{text}'
+            ),
+            'author': (
+                '将下面的作者姓名翻译成规范简体中文译名。优先采用公认译名，否则按通行音译规则处理；'
+                '只输出姓名，不要解释。\n\n' + text
+            ),
+            'text': '把下面的文本翻译成自然、准确的简体中文，不要额外解释。\n\n' + text,
+        }
+        return prompts.get(field_type, prompts['text'])
+
     def _get_client(self):
         """懒加载客户端（按 provider 选择 zhipuai / openai 兼容客户端）"""
         if self._client is None:
@@ -252,7 +376,12 @@ class ZhipuTranslationService:
         return self._cache_service
 
     def translate(
-        self, text: str, source_lang: str = 'en', target_lang: str = 'zh', field_type: str = 'text'
+        self,
+        text: str,
+        source_lang: str = 'en',
+        target_lang: str = 'zh',
+        field_type: str = 'text',
+        context: dict[str, Any] | Any | None = None,
     ) -> str | None:
         """
         翻译文本
@@ -262,6 +391,7 @@ class ZhipuTranslationService:
             source_lang: 源语言代码（目前只支持en）
             target_lang: 目标语言代码（目前只支持zh）
             field_type: 字段类型（'title'/'description'/'details'/'text'），用于后处理
+            context: 作者、类别、简介、系列与术语表等图书上下文
 
         Returns:
             翻译后的文本，失败返回None
@@ -287,6 +417,21 @@ class ZhipuTranslationService:
             reraise=True,
         )
         def _call_api():
+            if self.provider == 'siliconflow':
+                return client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            'role': 'user',
+                            'content': self._build_hunyuan_prompt(text, target_lang, field_type, context),
+                        }
+                    ],
+                    temperature=0.7,
+                    top_p=0.6,
+                    frequency_penalty=0,
+                    max_tokens=4096,
+                    extra_body={'top_k': 20, 'repetition_penalty': 1.05},
+                )
             return client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -397,6 +542,7 @@ class ZhipuTranslationService:
         details: str = '',
         source_lang: str = 'en',
         target_lang: str = 'zh',
+        context: dict[str, Any] | None = None,
     ) -> dict[str, str | None]:
         """
         合并翻译一本书的多个字段（单次API调用）
@@ -410,6 +556,7 @@ class ZhipuTranslationService:
             details: 详情（英文）
             source_lang: 源语言
             target_lang: 目标语言
+            context: 作者、类别、系列、出版社和术语表等图书上下文
 
         Returns:
             包含 title_zh / description_zh / details_zh 的字典
@@ -417,6 +564,9 @@ class ZhipuTranslationService:
         from ..utils.api_helpers import clean_translation_text
 
         cache_service = self._get_cache_service()
+        book_context = dict(context or {})
+        book_context.setdefault('title', title)
+        book_context.setdefault('description', description)
 
         result: dict[str, str | None] = {
             'title_zh': None,
@@ -432,7 +582,15 @@ class ZhipuTranslationService:
             ]:
                 if field and field.strip():
                     try:
-                        cached = cache_service.get(field, source_lang, target_lang, model_name=self.model)
+                        cache_context = (
+                            self.build_cache_context(field_type, book_context)
+                            if self.provider == 'siliconflow'
+                            else None
+                        )
+                        cache_kwargs = {'model_name': self.model}
+                        if cache_context:
+                            cache_kwargs['cache_context'] = cache_context
+                        cached = cache_service.get(field, source_lang, target_lang, **cache_kwargs)
                         if cached:
                             result[key] = clean_translation_text(cached.translated_text, field_type=field_type)
                     except Exception as e:
@@ -454,7 +612,10 @@ class ZhipuTranslationService:
         client = self._get_client() if self.use_merged_json else None
         if not client:
             for field_type, text in uncached_fields:
-                single = self.translate(text, source_lang, target_lang, field_type=field_type)
+                translate_kwargs: dict[str, Any] = {'field_type': field_type}
+                if self.provider == 'siliconflow':
+                    translate_kwargs['context'] = book_context
+                single = self.translate(text, source_lang, target_lang, **translate_kwargs)
                 key = f'{field_type}_zh'
                 if single:
                     result[key] = single
@@ -570,7 +731,10 @@ class ZhipuTranslationService:
             logger.warning(f'合并翻译失败，回退到逐字段翻译: {e}')
 
         for field_type, text in uncached_fields:
-            single = self.translate(text, source_lang, target_lang, field_type=field_type)
+            translate_kwargs = {'field_type': field_type}
+            if self.provider == 'siliconflow':
+                translate_kwargs['context'] = book_context
+            single = self.translate(text, source_lang, target_lang, **translate_kwargs)
             key = f'{field_type}_zh'
             if single:
                 result[key] = single
@@ -676,17 +840,28 @@ class HybridTranslationService:
         return self._fallback
 
     def translate(
-        self, text: str, source_lang: str = 'en', target_lang: str = 'zh', field_type: str = 'text'
+        self,
+        text: str,
+        source_lang: str = 'en',
+        target_lang: str = 'zh',
+        field_type: str = 'text',
+        context: dict[str, Any] | Any | None = None,
     ) -> str | None:
         if not text or not text.strip():
             return text
 
         cache_service = self._get_cache_service()
+        cache_context = (
+            self.zhipu.build_cache_context(field_type, context) if self.zhipu.provider == 'siliconflow' else None
+        )
         if cache_service:
             try:
+                cache_kwargs = {'model_name': self.zhipu.model}
+                if cache_context:
+                    cache_kwargs['cache_context'] = cache_context
                 cached = run_with_app_context(
                     self._app,
-                    lambda: cache_service.get(text, source_lang, target_lang, model_name=self.zhipu.model),
+                    lambda: cache_service.get(text, source_lang, target_lang, **cache_kwargs),
                 )
                 if cached:
                     from ..utils.api_helpers import clean_translation_text
@@ -701,7 +876,10 @@ class HybridTranslationService:
 
         if self.zhipu.is_available():
             logger.info('使用智谱AI翻译...')
-            translated = self.zhipu.translate(text, source_lang, target_lang, field_type=field_type)
+            translate_kwargs = {'field_type': field_type}
+            if self.zhipu.provider == 'siliconflow':
+                translate_kwargs['context'] = context
+            translated = self.zhipu.translate(text, source_lang, target_lang, **translate_kwargs)
 
         if not translated:
             fallback = self._get_fallback()
@@ -714,6 +892,13 @@ class HybridTranslationService:
                 from .translation_cache_service import TranslationCacheService
 
                 cache_version = str(TranslationCacheService.CACHE_VERSION)
+
+                cache_set_kwargs = {
+                    'model_name': self.zhipu.model,
+                    'model_version': cache_version,
+                }
+                if cache_context:
+                    cache_set_kwargs['cache_context'] = cache_context
                 run_with_app_context(
                     self._app,
                     lambda: cache_service.set(
@@ -721,8 +906,7 @@ class HybridTranslationService:
                         translated,
                         source_lang,
                         target_lang,
-                        model_name=self.zhipu.model,
-                        model_version=cache_version,
+                        **cache_set_kwargs,
                     ),
                 )
                 logger.info('翻译结果已缓存')
@@ -816,10 +1000,20 @@ class HybridTranslationService:
         details: str = '',
         source_lang: str = 'en',
         target_lang: str = 'zh',
+        context: dict[str, Any] | None = None,
     ) -> dict[str, str | None]:
         """合并翻译一本书的多个字段（委托给智谱AI，单次API调用）"""
+        kwargs: dict[str, Any] = {
+            'title': title,
+            'description': description,
+            'details': details,
+            'source_lang': source_lang,
+            'target_lang': target_lang,
+        }
+        if context is not None:
+            kwargs['context'] = context
         return self.zhipu.translate_book_fields(
-            title=title, description=description, details=details, source_lang=source_lang, target_lang=target_lang
+            **kwargs,
         )
 
     def translate_author_name(self, author: str) -> str | None:

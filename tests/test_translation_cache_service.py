@@ -58,6 +58,14 @@ class TestComputeSourceHash:
         assert len(h) == 64
         assert all(c in '0123456789abcdef' for c in h)
 
+    def test_context_hash_is_stable_and_context_sensitive(self):
+        first = TranslationCacheService._compute_cache_hash('Home', 'prompt-v1:book-a:title')
+        repeated = TranslationCacheService._compute_cache_hash('Home', 'prompt-v1:book-a:title')
+        other_context = TranslationCacheService._compute_cache_hash('Home', 'prompt-v1:book-b:title')
+
+        assert first == repeated
+        assert first != other_context
+
 
 class TestGet:
     """测试 get 方法"""
@@ -104,6 +112,31 @@ class TestGet:
         )
 
         assert result is None
+
+    def test_get_does_not_reuse_same_text_from_another_book_context(self, db):
+        service = TranslationCacheService()
+        service.set(
+            'Home',
+            '归途',
+            model_name='tencent/Hunyuan-MT-7B',
+            model_version=str(TranslationCacheService.CACHE_VERSION),
+            cache_context='prompt-v1:book-a:title',
+        )
+
+        matching = service.get(
+            'Home',
+            model_name='tencent/Hunyuan-MT-7B',
+            cache_context='prompt-v1:book-a:title',
+        )
+        different = service.get(
+            'Home',
+            model_name='tencent/Hunyuan-MT-7B',
+            cache_context='prompt-v1:book-b:title',
+        )
+
+        assert matching is not None
+        assert matching.translated_text == '归途'
+        assert different is None
 
     def test_get_returns_none_for_expired_version(self, db):
         """版本过期的缓存应被删除并返回 None"""

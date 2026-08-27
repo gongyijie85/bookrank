@@ -429,7 +429,9 @@ class TestTranslateBookInfoHelper:
         result = _translate_book_info(mock_translator, book_data)
         assert result['title_zh'] == '已翻译标题'
         assert mock_translator.translate.call_count == 1
-        mock_translator.translate.assert_called_with('English Desc', target_lang='zh', field_type='description')
+        mock_translator.translate.assert_called_with(
+            'English Desc', target_lang='zh', field_type='description', context=book_data
+        )
 
     def test_skips_empty_source_fields(self):
         mock_translator = Mock()
@@ -452,7 +454,9 @@ class TestTranslateBookInfoHelper:
         mock_translator.translate.return_value = '翻訳'
         book_data = {'title': 'Book'}
         _translate_book_info(mock_translator, book_data, target_lang='ja')
-        mock_translator.translate.assert_called_once_with('Book', target_lang='ja', field_type='title')
+        mock_translator.translate.assert_called_once_with(
+            'Book', target_lang='ja', field_type='title', context=book_data
+        )
 
 
 class TestZhipuTranslationServiceTranslate:
@@ -578,3 +582,75 @@ class TestFieldPrompts:
         text_prompt = service._get_prompt_for_field('text')
         unknown_prompt = service._get_prompt_for_field('nonexistent')
         assert unknown_prompt == text_prompt
+
+
+class TestHunyuanPublishingPrompts:
+    def test_title_prompt_generalizes_semantic_adaptation_with_context(self):
+        prompt = ZhipuTranslationService._build_hunyuan_prompt(
+            'VERITY',
+            'zh',
+            'title',
+            {
+                'author': 'Colleen Hoover',
+                'category': 'Psychological thriller',
+                'description': 'A manuscript exposes a horrifying truth.',
+            },
+        )
+
+        assert '意译' in prompt
+        assert '有限创译' in prompt
+        assert '人名标题不必机械音译' in prompt
+        assert '避免生硬逐字翻译' in prompt
+        assert 'Colleen Hoover' in prompt
+        assert 'Psychological thriller' in prompt
+        assert prompt.endswith('VERITY')
+
+    def test_description_prompt_uses_confirmed_title_and_glossary(self):
+        prompt = ZhipuTranslationService._build_hunyuan_prompt(
+            'Lowen discovers a manuscript.',
+            'zh',
+            'description',
+            {
+                'title': 'Verity',
+                'title_zh': '真相',
+                'glossary': {'Lowen Ashleigh': '洛温·阿什利'},
+            },
+        )
+
+        assert '已确定中文书名：真相' in prompt
+        assert 'Lowen Ashleigh' in prompt
+        assert '洛温·阿什利' in prompt
+        assert '不改变人物关系和情节' in prompt
+
+    def test_hunyuan_request_uses_single_user_message_and_recommended_parameters(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='siliconflow',
+            TRANSLATION_MODEL='tencent/Hunyuan-MT-7B',
+            TRANSLATION_USE_MERGED_JSON=None,
+        )
+        service, mock_client = _make_zhipu_service(app=app)
+        mock_client.chat.completions.create.return_value = _make_api_response('真相')
+
+        result = service.translate(
+            'VERITY',
+            field_type='title',
+            context={'author': 'Colleen Hoover', 'description': 'A horrifying truth is uncovered.'},
+        )
+
+        assert result == '真相'
+        request = mock_client.chat.completions.create.call_args.kwargs
+        assert [message['role'] for message in request['messages']] == ['user']
+        assert 'Colleen Hoover' in request['messages'][0]['content']
+        assert request['temperature'] == 0.7
+        assert request['top_p'] == 0.6
+        assert request['frequency_penalty'] == 0
+        assert request['extra_body'] == {'top_k': 20, 'repetition_penalty': 1.05}
+
+    def test_cache_context_changes_by_field_and_book_context(self):
+        title_context = ZhipuTranslationService.build_cache_context('title', {'author': 'Author A'})
+        other_book = ZhipuTranslationService.build_cache_context('title', {'author': 'Author B'})
+        description_context = ZhipuTranslationService.build_cache_context('description', {'author': 'Author A'})
+
+        assert title_context != other_book
+        assert title_context != description_context
+        assert ZhipuTranslationService.PROMPT_VERSION in title_context
