@@ -271,7 +271,10 @@ class TestCollectWeeklyDataEdgeCases:
             assert mock_bs.get_books_by_category.call_count == len(expected_category_ids)
             called_category_ids = {call.args[0] for call in mock_bs.get_books_by_category.call_args_list}
             assert called_category_ids == expected_category_ids
-            assert all(call.kwargs == {'force_refresh': True} for call in mock_bs.get_books_by_category.call_args_list)
+            assert all(
+                call.kwargs == {'force_refresh': True, 'allow_stale_fallback': False}
+                for call in mock_bs.get_books_by_category.call_args_list
+            )
 
     def test_weekly_report_categories_match_config_when_config_changes(self, app, db):
         with app.app_context():
@@ -326,7 +329,8 @@ class TestCollectWeeklyDataEdgeCases:
             mock_bs.get_books_by_category.return_value = [book]
             data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
             assert len(data['books']) >= 1
-            assert data['books'][0]['is_new'] is True
+            assert data['books'][0]['is_new'] is False
+            assert data['books'][0]['is_returning'] is False
 
     def test_rank_last_week_empty_string(self, app, db):
         with app.app_context():
@@ -339,7 +343,8 @@ class TestCollectWeeklyDataEdgeCases:
 
             mock_bs.get_books_by_category.return_value = [book]
             data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
-            assert data['books'][0]['is_new'] is True
+            assert data['books'][0]['is_new'] is False
+            assert data['books'][0]['is_returning'] is True
 
     def test_rank_last_week_invalid_value(self, app, db):
         with app.app_context():
@@ -369,7 +374,7 @@ class TestCollectWeeklyDataEdgeCases:
             assert data['books'][0]['rank_change'] == 2
             assert data['books'][0]['is_new'] is False
 
-    def test_weeks_on_list_zero_becomes_one(self, app, db):
+    def test_weeks_on_list_zero_is_preserved_as_unknown(self, app, db):
         with app.app_context():
             mock_bs = MagicMock()
             service = WeeklyReportService(mock_bs)
@@ -379,7 +384,43 @@ class TestCollectWeeklyDataEdgeCases:
 
             mock_bs.get_books_by_category.return_value = [book]
             data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
-            assert data['books'][0]['weeks_on_list'] == 1
+            assert data['books'][0]['weeks_on_list'] == 0
+
+    def test_returning_weekly_book_is_not_counted_as_new(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            book = _make_mock_books(1)[0]
+            book.rank_last_week = '0'
+            book.weeks_on_list = 12
+            mock_bs.get_books_by_category.return_value = [book]
+
+            data = WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+
+            assert data['books'][0]['is_new'] is False
+            assert data['books'][0]['is_returning'] is True
+
+    def test_monthly_first_appearance_is_not_counted_as_this_weeks_new_book(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            book = _make_mock_books(1)[0]
+            book.rank_last_week = '0'
+            book.weeks_on_list = 1
+            mock_bs.get_books_by_category.return_value = [book]
+
+            original_categories = app.config['CATEGORIES']
+            original_freqs = app.config['NYT_CATEGORY_UPDATE_FREQUENCIES']
+            app.config['CATEGORIES'] = {'paperback-nonfiction-monthly': '平装非虚构'}
+            app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = {'paperback-nonfiction-monthly': 'monthly'}
+            try:
+                service = WeeklyReportService(mock_bs)
+                data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+                analysis = service._analyze_changes(data)
+
+                assert data['books'][0]['is_new'] is False
+                assert analysis['total_new'] == 0
+            finally:
+                app.config['CATEGORIES'] = original_categories
+                app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = original_freqs
 
     def test_book_carries_update_frequency_for_weekly_category(self, app, db):
         with app.app_context():

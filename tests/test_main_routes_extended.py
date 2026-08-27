@@ -4,6 +4,8 @@ import json
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+from bs4 import BeautifulSoup
+
 from app.models.book import Book
 
 
@@ -1316,6 +1318,56 @@ class TestIndexRoute:
         try:
             response = client.get('/?sort=weeks_desc')
             assert response.status_code == 200
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_sort_preserves_nyt_rank_and_original_detail_target(self, client, app):
+        books = [
+            _make_book(rank=1, title='Current Number One', weeks_on_list=1, rank_last_week='0'),
+            _make_book(
+                id='9780062796200',
+                isbn13='9780062796200',
+                rank=8,
+                title='Long Runner',
+                weeks_on_list=80,
+                rank_last_week='10',
+            ),
+        ]
+        mock_svc = _mock_book_service(books)
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/?sort=weeks_desc')
+            soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+            first_card = soup.select_one('.list-item')
+            item_list = next(
+                json.loads(script.string)
+                for script in soup.select('script[type="application/ld+json"]')
+                if 'ItemList' in script.string
+            )
+
+            assert first_card.select_one('.list-item-title').get_text(strip=True) == 'Long Runner'
+            assert first_card.select_one('.list-item-rank').get_text(strip=True) == '8'
+            assert first_card.select_one('a')['href'].startswith('/book/7?')
+            assert item_list['itemListElement'][0]['item']['url'].endswith(
+                '/book/7?category=hardcover-fiction'
+            )
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_returning_book_is_not_labeled_new(self, client, app):
+        book = _make_book(rank=4, weeks_on_list=12, rank_last_week='0')
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/')
+            soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+            badge = soup.select_one('.rank-change-badge')
+
+            assert badge.get_text(strip=True) == 'RETURN'
         finally:
             with app.app_context():
                 app.extensions.pop('book_service', None)

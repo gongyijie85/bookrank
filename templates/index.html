@@ -120,11 +120,13 @@
 {% if view_mode == 'list' %}
 <section class="books-list active" id="books-list" aria-label="{{ _('图书列表视图') }}" data-i18n-aria-label="books_list_view">
     {% for book in books %}
-    {% set detail_url = url_for('main.book_detail', book_index=loop.index - 1, category=current_category) %}
+    {% set current_rank = book.rank or loop.index %}
+    {% set source_index = current_rank - 1 %}
+    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=current_category) %}
     <article class="list-item card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
-             data-index="{{ loop.index - 1 }}"
-             aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ loop.index }}{{ _('名') }}">
+             data-index="{{ source_index }}"
+             aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ current_rank }}{{ _('名') }}">
         <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}">
             <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
                  alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
@@ -135,19 +137,21 @@
         </a>
         <div class="list-item-content">
             <div class="list-item-header">
-                <span class="list-item-rank {% if loop.index == 1 %}rank-gold{% elif loop.index == 2 %}rank-silver{% elif loop.index == 3 %}rank-bronze{% endif %}"
-                      aria-label="{{ _('第') }}{{ loop.index }}{{ _('名') }}">
-                    {{ loop.index }}
+                <span class="list-item-rank {% if current_rank == 1 %}rank-gold{% elif current_rank == 2 %}rank-silver{% elif current_rank == 3 %}rank-bronze{% endif %}"
+                      aria-label="{{ _('第') }}{{ current_rank }}{{ _('名') }}">
+                    {{ current_rank }}
                 </span>
-                {% if book.rank_last_week and book.rank_last_week != '0' %}
-                    {% set rank_change = book.rank_last_week|int - loop.index %}
+                {% if book.previous_rank and book.previous_rank > 0 %}
+                    {% set rank_change = book.previous_rank - current_rank %}
                     {% if rank_change > 0 %}
                     <span class="rank-change-badge up" aria-label="{{ _('上升') }}{{ rank_change }}{{ _('名') }}">+{{ rank_change }}</span>
                     {% elif rank_change < 0 %}
                     <span class="rank-change-badge down" aria-label="{{ _('下降') }}{{ rank_change|abs }}{{ _('名') }}">-{{ rank_change|abs }}</span>
                     {% endif %}
-                {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+                {% elif book.is_new %}
                     <span class="rank-change-badge new" aria-label="{{ _('新书上榜') }}">NEW</span>
+                {% elif book.is_returning %}
+                    <span class="rank-change-badge new" aria-label="{% if _locale == 'zh' %}重返榜单{% else %}Returning to the list{% endif %}">{% if _locale == 'zh' %}重返{% else %}RETURN{% endif %}</span>
                 {% endif %}
                 {% if _locale == 'zh' %}
                 <h3 class="list-item-title"><a href="{{ detail_url }}">{{ book.title_zh or book.title }}</a></h3>
@@ -187,11 +191,13 @@
 {% else %}
 <section class="books-grid active" id="books-grid" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
     {% for book in books %}
-    {% set detail_url = url_for('main.book_detail', book_index=loop.index - 1, category=current_category) %}
+    {% set current_rank = book.rank or loop.index %}
+    {% set source_index = current_rank - 1 %}
+    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=current_category) %}
     <article class="card card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
-             data-index="{{ loop.index - 1 }}"
-             aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ loop.index }}{{ _('名') }}">
+             data-index="{{ source_index }}"
+             aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ current_rank }}{{ _('名') }}">
         <a href="{{ detail_url }}" class="card-link">
         <div class="card-image">
             <div class="cover-frame">
@@ -207,24 +213,26 @@
             {% else %}
             <span class="card-category-tag">{{ book.list_name if book.list_name else 'Fiction' }}</span>
             {% endif %}
-            <span class="card-badge {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% else %}other{% endif %}"
-                  aria-label="{{ _('排名: 第') }}{{ loop.index }}{{ _('名') }}">
-                {{ loop.index }}
+            <span class="card-badge {% if current_rank == 1 %}gold{% elif current_rank == 2 %}silver{% elif current_rank == 3 %}bronze{% else %}other{% endif %}"
+                  aria-label="{{ _('排名: 第') }}{{ current_rank }}{{ _('名') }}">
+                {{ current_rank }}
             </span>
-            {% if book.rank_last_week and book.rank_last_week != '0' %}
-                {% set rank_change = book.rank_last_week|int - loop.index %}
+            {% if book.previous_rank and book.previous_rank > 0 %}
+                {% set rank_change = book.previous_rank - current_rank %}
                 {% if rank_change > 0 %}
                 <span class="rank-change up" aria-label="{{ _('排名上升') }}{{ rank_change }}{{ _('名') }}">+{{ rank_change }}</span>
                 {% elif rank_change < 0 %}
                 <span class="rank-change down" aria-label="{{ _('排名下降') }}{{ rank_change|abs }}{{ _('名') }}">-{{ rank_change|abs }}</span>
                 {% endif %}
-            {% elif book.rank_last_week == '0' or not book.rank_last_week %}
+            {% elif book.is_new %}
                 <span class="rank-change new" aria-label="{{ _('新书上榜') }}">NEW</span>
+            {% elif book.is_returning %}
+                <span class="rank-change new" aria-label="{% if _locale == 'zh' %}重返榜单{% else %}Returning to the list{% endif %}">{% if _locale == 'zh' %}重返{% else %}RETURN{% endif %}</span>
             {% endif %}
         </div>
         <div class="card-content">
             <div class="card-rank-row">
-                <span class="card-rank-badge">{{ _('第') }}{{ loop.index }}{{ _('名') }}</span>
+                <span class="card-rank-badge">{{ _('第') }}{{ current_rank }}{{ _('名') }}</span>
                 {% if book.weeks_on_list %}
                 <span class="card-weeks">
                     <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}
@@ -301,6 +309,7 @@
     "@type": "ItemList",
     "itemListElement": [
         {% for book in books %}
+        {% set source_index = (book.rank or loop.index) - 1 %}
         {
             "@type": "ListItem",
             "position": {{ loop.index }},
@@ -311,7 +320,7 @@
                     "@type": "Person",
                     "name": {{ (book.author or _('未知作者')) | tojson }}
                 },
-                "url": {{ url_for('main.book_detail', book_index=loop.index - 1, category=current_category, _external=True) | tojson }}{% if book.isbn13 %},
+                "url": {{ url_for('main.book_detail', book_index=source_index, category=current_category, _external=True) | tojson }}{% if book.isbn13 %},
                 "isbn": {{ book.isbn13 | tojson }}{% endif %}{% if book.cover %},
                 "image": {{ book.cover | tojson }}{% endif %}
             }

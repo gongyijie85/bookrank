@@ -1,5 +1,7 @@
 from flask import current_app
 
+from .ranking import classify_listing
+
 
 def get_category_update_frequency(category_id: str) -> str:
     return current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category_id, 'weekly')
@@ -29,7 +31,11 @@ def filter_books_by_weeks(books_data: list, weeks_filter: str) -> list:
         return books_data
 
     if weeks_filter == 'new':
-        return [b for b in books_data if b.get('weeks_on_list', 0) <= 1]
+        return [
+            b
+            for b in books_data
+            if classify_listing(b.get('rank_last_week'), b.get('weeks_on_list')).is_new
+        ]
     elif weeks_filter == 'trending':
         return [b for b in books_data if 2 <= b.get('weeks_on_list', 0) <= 4]
     elif weeks_filter == 'classic':

@@ -8,6 +8,7 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
+from flask import has_app_context
 
 from app.models.book import Book
 from app.models.schemas import BookMetadata, SystemConfig, TranslationCache
@@ -99,6 +100,25 @@ class TestBookService:
         book_service.get_books_by_category('hardcover-fiction', force_refresh=True, auto_translate=False)
 
         book_service._nyt_client.fetch_books.assert_called_once_with('hardcover-fiction', force_refresh=True)
+
+    def test_batch_get_supplements_keeps_app_context_in_workers(self, book_service, app):
+        """Google Books 并发请求应在 Flask 应用上下文中执行。"""
+        book_service._app = app
+
+        def fetch_details(isbn):
+            assert has_app_context()
+            return {'isbn_13': isbn}
+
+        book_service._google_client.fetch_book_details.side_effect = fetch_details
+
+        with patch('app.services.book_service.log_error') as log_error:
+            supplements = book_service._batch_get_supplements(['9780000000001', '9780000000002'])
+
+        assert supplements == {
+            '9780000000001': {'isbn_13': '9780000000001'},
+            '9780000000002': {'isbn_13': '9780000000002'},
+        }
+        log_error.assert_not_called()
 
     def test_get_books_by_category_with_cache(self, book_service):
         """测试从缓存获取图书列表"""
@@ -362,6 +382,31 @@ class TestBookService:
 
         assert len(books) == 1
         assert books[0].title == 'Cached Book'
+
+    def test_strict_refresh_does_not_treat_stale_cache_as_success(self, book_service):
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = [{'title': 'Stale Book'}]
+        book_service._nyt_client.fetch_books.side_effect = APIException('NYT unavailable')
+
+        with pytest.raises(APIException, match='NYT unavailable'):
+            book_service.get_books_by_category(
+                'hardcover-fiction',
+                force_refresh=True,
+                allow_stale_fallback=False,
+            )
+
+    def test_strict_refresh_rejects_empty_api_result(self, book_service):
+        book_service._cache.get.return_value = None
+        book_service._nyt_client.fetch_books.return_value = {
+            'results': {'books': [], 'list_name': 'Hardcover Fiction', 'published_date': '2026-09-06'}
+        }
+
+        with pytest.raises(APIException, match='no books'):
+            book_service.get_books_by_category(
+                'hardcover-fiction',
+                force_refresh=True,
+                allow_stale_fallback=False,
+            )
 
     def test_get_books_by_category_treats_error_payload_as_failure(self, book_service):
         """测试NYT错误缓存不会被当成空榜单写入缓存"""

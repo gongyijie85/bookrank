@@ -298,22 +298,21 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     translation_status = '含翻译' if translation_service else '不含翻译'
     app.logger.info(f'📅 新书速递自动同步已安排（每天，首次{initial_delay * 2}秒后，{translation_status}）')
 
-    # 3. NYT排行榜自动同步（每周一次）：刷新榜单、补充资料、翻译并写入语言包
+    # 3. NYT排行榜自动同步：每天检查，完整成功后按配置的周期间隔跳过
     if book_service:
         from datetime import timedelta
 
-        interval_days = app.config.get('NYT_RANKING_SYNC_DAYS', 7)
         _scheduler.add_job(
             func=_scheduler_wrapper(app, _nyt_ranking_sync_task),
             trigger=IntervalTrigger(
-                days=interval_days,
+                days=1,
                 start_date=now + timedelta(seconds=initial_delay * 3),
                 timezone=UTC,
             ),
             id='nyt_ranking_sync',
             name='NYT排行榜语言包同步',
         )
-        app.logger.info(f'📅 NYT排行榜语言包同步已安排（每{interval_days}天，首次{initial_delay * 3}秒后）')
+        app.logger.info(f'📅 NYT排行榜语言包同步已安排（每日检查，首次{initial_delay * 3}秒后）')
 
     # 4. 获奖书籍封面同步（每天一次，延迟执行）
     if google_client:
@@ -692,7 +691,7 @@ def _nyt_ranking_sync_task(app):
         translated_fields = sum(result.get('language_pack', {}).get('fields_translated', 0) for result in successful)
         failures = [result for result in results if not result.get('success')]
 
-        if successful:
+        if successful and not failures:
             from .models import db
 
             SystemConfig.set_value('last_nyt_ranking_sync_time', datetime.now(UTC).isoformat())

@@ -181,6 +181,7 @@ class BookService:
         force_refresh: bool = False,
         auto_translate: bool = True,
         notify_refresh: bool = True,
+        allow_stale_fallback: bool = True,
     ) -> list[Book]:
         """
         获取指定分类的图书列表
@@ -190,6 +191,7 @@ class BookService:
             force_refresh: 是否强制刷新缓存
             auto_translate: 是否启动后台预翻译
             notify_refresh: 是否通知数据刷新回调
+            allow_stale_fallback: API失败时是否允许返回过期缓存
 
         Returns:
             图书列表
@@ -211,9 +213,12 @@ class BookService:
 
             books = self._process_api_response(api_data, category_id)
             if not books:
-                stale_books = self._get_stale_cached_books(cache_key, category_id)
-                if stale_books:
-                    return stale_books
+                if allow_stale_fallback:
+                    stale_books = self._get_stale_cached_books(cache_key, category_id)
+                    if stale_books:
+                        return stale_books
+                else:
+                    raise APIException(f'NYT API returned no books for {category_id}')
                 logger.warning(f'NYT API returned no books for {category_id}')
                 return []
 
@@ -239,16 +244,20 @@ class BookService:
 
         except APIRateLimitException:
             # 限流时返回缓存数据（即使已过期）
-            stale_books = self._get_stale_cached_books(cache_key, category_id)
-            if stale_books:
-                return stale_books
+            if allow_stale_fallback:
+                stale_books = self._get_stale_cached_books(cache_key, category_id)
+                if stale_books:
+                    return stale_books
             raise
         except APIException as e:
             logger.error(f'Failed to fetch books for {category_id}: {e}')
             # 返回缓存数据作为降级
-            stale_books = self._get_stale_cached_books(cache_key, category_id)
-            if stale_books:
-                return stale_books
+            if allow_stale_fallback:
+                stale_books = self._get_stale_cached_books(cache_key, category_id)
+                if stale_books:
+                    return stale_books
+            if not allow_stale_fallback:
+                raise
             return []
 
     def _process_api_response(self, api_data: dict[str, Any], category_id: str) -> list[Book]:
@@ -309,7 +318,8 @@ class BookService:
 
             def _fetch_one(isbn: str) -> tuple[str, dict]:
                 try:
-                    return isbn, self._google_client.fetch_book_details(isbn)
+                    details = run_with_app_context(self._app, self._google_client.fetch_book_details, isbn)
+                    return isbn, details
                 except (requests.RequestException, requests.Timeout, ValueError, KeyError):
                     return isbn, {}
 
@@ -321,7 +331,9 @@ class BookService:
             log_error(ErrorCategory.API_CALL, f'并发获取补充信息失败，降级为串行: {e}', level='warning')
             for isbn in valid_isbns:
                 try:
-                    supplements[isbn] = self._google_client.fetch_book_details(isbn)
+                    supplements[isbn] = run_with_app_context(
+                        self._app, self._google_client.fetch_book_details, isbn
+                    )
                 except (requests.RequestException, requests.Timeout, ValueError, KeyError):
                     supplements[isbn] = {}
 
@@ -592,6 +604,7 @@ class BookService:
                     force_refresh=force_refresh,
                     auto_translate=False,
                     notify_refresh=False,
+                    allow_stale_fallback=False,
                 )
                 metadata_saved = self.save_book_metadata_batch(books)
                 language_pack_stats = (

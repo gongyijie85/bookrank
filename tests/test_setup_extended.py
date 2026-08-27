@@ -251,6 +251,8 @@ class TestStartBackgroundTasks:
             assert 'weekly_report_init' in job_ids
             assert 'nyt_ranking_sync' in job_ids
             assert 'auto_sync' in job_ids
+            nyt_call = next(call for call in mock_scheduler.add_job.call_args_list if call.kwargs.get('id') == 'nyt_ranking_sync')
+            assert nyt_call.kwargs['trigger'].interval == timedelta(days=1)
 
     @patch('app.setup._scheduler', None)
     @patch('app.setup.BackgroundScheduler')
@@ -583,6 +585,10 @@ class TestNytRankingSyncTask:
                 side_effect=lambda name: mock_book_svc if name == 'book_service' else MagicMock(),
             ):
                 _nyt_ranking_sync_task(app)
+                success_writes = [
+                    call for call in mock_config.set_value.call_args_list if call.args[0] == 'last_nyt_ranking_sync_time'
+                ]
+                assert success_writes == []
 
     @patch('app.setup.SystemConfig')
     @patch('app.setup.log_error')

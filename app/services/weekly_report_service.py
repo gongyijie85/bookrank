@@ -14,6 +14,7 @@ from ..models.schemas import WeeklyReport, db
 from ..utils.book_filters import get_category_update_frequency
 from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
+from ..utils.ranking import classify_listing
 from .book_service import BookService
 
 logger = logging.getLogger(__name__)
@@ -207,35 +208,37 @@ class WeeklyReportService:
             # 从每个分类获取书籍数据
             for category_id, category_name in nyt_categories.items():
                 try:
-                    books = self._book_service.get_books_by_category(category_id, force_refresh=True)
+                    books = self._book_service.get_books_by_category(
+                        category_id,
+                        force_refresh=True,
+                        allow_stale_fallback=False,
+                    )
                     for _i, book in enumerate(books):
                         # 从NYT API真实数据中获取排名信息
                         # rank_last_week: 上周排名（数字或"无"/"0"表示新上榜）
                         # weeks_on_list: 累计上榜周数（NYT API直接提供）
 
-                        # 解析上周排名
-                        last_week_rank_str = str(book.rank_last_week).strip()
+                        update_frequency = get_category_update_frequency(category_id)
+                        listing_status = classify_listing(book.rank_last_week, book.weeks_on_list)
                         current_rank = book.rank
 
                         # 计算排名变化
-                        if last_week_rank_str in ['无', '0', '', 'None']:
-                            # 新上榜书籍（上周不在榜单上）
+                        if listing_status.previous_rank == 0:
                             rank_change = 0  # 新书不计算变化
-                            is_new = True
+                            is_new = listing_status.is_new and update_frequency == 'weekly'
                         else:
-                            try:
-                                last_week_rank = int(last_week_rank_str)
+                            if listing_status.previous_rank is not None:
                                 # 排名变化 = 上周排名 - 当前排名
                                 # 正数表示上升（排名数字变小），负数表示下降
-                                rank_change = last_week_rank - current_rank
+                                rank_change = listing_status.previous_rank - current_rank
                                 is_new = False
-                            except (ValueError, TypeError):
+                            else:
                                 # 无法解析时，保守处理为非新书
                                 rank_change = 0
                                 is_new = False
 
-                        # 使用NYT API提供的真实上榜周数
-                        weeks_on_list = book.weeks_on_list if book.weeks_on_list > 0 else 1
+                        # 保留NYT API提供的累计周数；0 表示未知，不擅自改写为 1。
+                        weeks_on_list = max(0, book.weeks_on_list)
 
                         weekly_data['books'].append(
                             {
@@ -243,11 +246,12 @@ class WeeklyReportService:
                                 'title': book.title_zh or book.title,
                                 'author': book.author,
                                 'category': category_name,
-                                'update_frequency': get_category_update_frequency(category_id),
+                                'update_frequency': update_frequency,
                                 'rank': current_rank,
                                 'rank_change': rank_change,
                                 'weeks_on_list': weeks_on_list,
                                 'is_new': is_new,
+                                'is_returning': listing_status.is_returning,
                                 'cover': book.cover,
                                 'original_cover': getattr(book, '_original_cover', '') or '',
                             }
@@ -307,7 +311,7 @@ class WeeklyReportService:
                 reverse=True,
             )[:10]
 
-            # 持续上榜最久
+            # 累计上榜周数最多
             longest_running = sorted(books, key=lambda x: x.get('weeks_on_list', 0), reverse=True)[:10]
 
             # 推荐书籍（综合考虑各项指标，生成有意义的推荐理由）
@@ -380,9 +384,9 @@ class WeeklyReportService:
         if rank_change > 0:
             reasons.append(f'排名上升{rank_change}位')
         if weeks_on_list >= 10:
-            reasons.append(f'持续上榜{weeks_on_list}周，读者口碑稳定')
+            reasons.append(f'累计上榜{weeks_on_list}周，读者口碑稳定')
         elif weeks_on_list >= 5:
-            reasons.append(f'连续{weeks_on_list}周在榜')
+            reasons.append(f'累计上榜{weeks_on_list}周')
 
         if not reasons:
             if rank <= 10:
@@ -439,7 +443,7 @@ class WeeklyReportService:
                     prompt += f'{_format_book_title(book["title"])}({book["author"]})上升{book["rank_change"]}位；'
 
             if analysis.get('longest_running'):
-                prompt += '\n【持续上榜最久】：'
+                prompt += '\n【累计上榜周数最多】：'
                 for book in analysis['longest_running'][:3]:
                     prompt += f'{_format_book_title(book["title"])}({book["author"]})已上榜{book["weeks_on_list"]}周；'
 
@@ -524,10 +528,10 @@ class WeeklyReportService:
 
         summary += '。'
 
-        # 持续上榜
+        # 累计上榜
         longest = analysis.get('longest_running', [])
         if longest and longest[0].get('weeks_on_list', 0) >= 5:
-            summary += f'{_format_book_title(longest[0]["title"])}已连续上榜{longest[0]["weeks_on_list"]}周，表现稳定。'
+            summary += f'{_format_book_title(longest[0]["title"])}已累计上榜{longest[0]["weeks_on_list"]}周，表现稳定。'
 
         # 趋势判断
         if total_rising > total_falling * 1.5:

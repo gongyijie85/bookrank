@@ -29,6 +29,7 @@ from ..utils.book_filters import (
 )
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
+from ..utils.ranking import classify_listing
 from ..utils.security import is_safe_redirect_url
 from ..utils.template_resolver import render_adaptive
 
@@ -122,6 +123,12 @@ def index():
 
     if sort_by:
         books_data = sort_books(books_data, sort_by)
+
+    for book in books_data:
+        listing_status = classify_listing(book.get('rank_last_week'), book.get('weeks_on_list'))
+        book['previous_rank'] = listing_status.previous_rank
+        book['is_new'] = listing_status.is_new
+        book['is_returning'] = listing_status.is_returning
 
     publishers = sorted(
         set(
