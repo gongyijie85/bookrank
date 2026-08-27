@@ -59,6 +59,7 @@ class BookLanguagePack:
         books: Iterable[Any],
         translator: Any | None = None,
         save_metadata: Callable[..., bool] | None = None,
+        force: bool = False,
     ) -> dict[str, int]:
         """Translate missing zh fields and persist them into the static language pack."""
         books = list(books)
@@ -103,7 +104,7 @@ class BookLanguagePack:
                     object_value = self._get_value(book, target_attr)
                     pack_value = pack_entry.get(target_attr)
 
-                    if object_value:
+                    if object_value and not force:
                         cleaned = clean_translation_text(object_value, field_type)
                         self._set_value(book, target_attr, cleaned)
                         if not pack_value:
@@ -112,7 +113,7 @@ class BookLanguagePack:
                             stats['fields_stored'] += 1
                         continue
 
-                    if pack_value:
+                    if pack_value and not force:
                         cleaned = clean_translation_text(pack_value, field_type)
                         self._set_value(book, target_attr, cleaned)
                         stats['fields_from_pack'] += 1

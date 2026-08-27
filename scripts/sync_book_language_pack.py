@@ -132,6 +132,11 @@ def main() -> int:
     )
     parser.add_argument('--skip-db-new-books', action='store_true', help='Do not translate new_books rows from the DB')
     parser.add_argument('--limit', type=int, default=0, help='Limit translated books for debugging')
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Ignore existing Chinese fields and cache, then translate every source field',
+    )
     args = parser.parse_args()
 
     load_dotenv(ROOT / '.env')
@@ -176,10 +181,23 @@ def main() -> int:
         if args.limit > 0:
             books = books[: args.limit]
 
+        if args.force:
+            # Force mode is an explicit model migration: old language-pack values and
+            # translation-cache entries must not short-circuit the new provider.
+            for book in books:
+                for field in ('title_zh', 'description_zh', 'details_zh'):
+                    book.pop(field, None)
+            from app.models.database import db
+            from app.models.schemas import TranslationCache
+
+            deleted = TranslationCache.query.delete(synchronize_session=False)
+            db.session.commit()
+            print(f'force_mode=true cache_entries_deleted={deleted}')
+
         language_pack = BookLanguagePack(pack_path)
         before = _missing_field_count(language_pack, books)
         translator = get_translation_service(app=app)
-        stats = language_pack.translate_and_store_books(books, translator=translator)
+        stats = language_pack.translate_and_store_books(books, translator=translator, force=args.force)
         after = _missing_field_count(language_pack, books)
 
     print(f'books_seen={stats["books_seen"]}')
