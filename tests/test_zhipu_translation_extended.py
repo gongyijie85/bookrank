@@ -460,7 +460,8 @@ class TestTranslateBookFields:
         mock_cached_title = Mock()
         mock_cached_title.translated_text = '已有书名'
 
-        def cache_get_side_effect(text, sl, tl):
+        def cache_get_side_effect(text, sl, tl, model_name=None):
+            assert model_name == service.model
             if text == 'Title':
                 return mock_cached_title
             return None

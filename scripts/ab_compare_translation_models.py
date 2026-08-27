@@ -197,7 +197,7 @@ def call_chat(client: object, model: str, prompt: str, text: str) -> dict:
             'completion_tokens': getattr(usage, 'completion_tokens', None),
             'error': None,
         }
-    except Exception as e:  # noqa: BLE001 - 统一收集 provider 错误，不中断整批
+    except Exception as e:  # 统一收集 provider 错误，不中断整批
         return {
             'ok': False,
             'content': None,
@@ -230,15 +230,22 @@ def run_sample(
     for provider, client in clients.items():
         entry: dict = {}
         if title_en:
-            entry['title'] = call_chat(client, GLM_MODEL if provider == 'glm' else HUNYUAN_MODEL,
-                                       prompts.get('title', prompts['text']), title_en)
+            entry['title'] = call_chat(
+                client,
+                GLM_MODEL if provider == 'glm' else HUNYUAN_MODEL,
+                prompts.get('title', prompts['text']),
+                title_en,
+            )
         if desc_en:
-            entry['description'] = call_chat(client, GLM_MODEL if provider == 'glm' else HUNYUAN_MODEL,
-                                             prompts.get('description', prompts['text']), desc_en)
+            entry['description'] = call_chat(
+                client,
+                GLM_MODEL if provider == 'glm' else HUNYUAN_MODEL,
+                prompts.get('description', prompts['text']),
+                desc_en,
+            )
         if check_merged and title_en and desc_en:
             merged_text = f'Title: {title_en}\nDescription: {desc_en}'
-            call = call_chat(client, GLM_MODEL if provider == 'glm' else HUNYUAN_MODEL,
-                             MERGED_JSON_PROMPT, merged_text)
+            call = call_chat(client, GLM_MODEL if provider == 'glm' else HUNYUAN_MODEL, MERGED_JSON_PROMPT, merged_text)
             parsed_ok = False
             if call['ok'] and call['content']:
                 txt = call['content']
@@ -304,17 +311,13 @@ def write_outputs(
     blinded: bool,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / 'ab_report.json').write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8'
-    )
+    (out_dir / 'ab_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     with (out_dir / 'ab_scoring.csv').open('w', newline='', encoding='utf-8-sig') as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
     if blinded:
-        (out_dir / 'ab_blinding_key.json').write_text(
-            json.dumps(key, ensure_ascii=False, indent=2), encoding='utf-8'
-        )
+        (out_dir / 'ab_blinding_key.json').write_text(json.dumps(key, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
 def print_summary(report: list[dict], clients: dict[str, object], markers: tuple[str, ...]) -> str:
@@ -338,7 +341,7 @@ def print_summary(report: list[dict], clients: dict[str, object], markers: tuple
                     a['fail'] += 1
             mj = entry.get('merged_json')
             if mj is not None:
-                lines.append(f"[merged-json] {provider}: 可解析={mj['ok']}  原文头: {mj['raw_head']!r}")
+                lines.append(f'[merged-json] {provider}: 可解析={mj["ok"]}  原文头: {mj["raw_head"]!r}')
     for provider, a in agg.items():
         avg_lat = (sum(a['lat_ms']) / len(a['lat_ms'])) if a['lat_ms'] else 0.0
         avg_tok = (sum(a['tok']) / len(a['tok'])) if a['tok'] else 0.0
@@ -369,10 +372,7 @@ def main() -> int:
     clients = build_clients()
     print(f'[info] 样本 {len(samples)} 条, provider: {", ".join(clients)}')
 
-    report = [
-        run_sample(s, clients, prompts, markers, args.check_merged)
-        for s in samples
-    ]
+    report = [run_sample(s, clients, prompts, markers, args.check_merged) for s in samples]
     rows, key = build_scoring_rows(report, args.blinded)
     write_outputs(report, rows, key, args.out_dir, args.blinded)
     text = print_summary(report, clients, markers)

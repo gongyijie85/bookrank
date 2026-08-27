@@ -117,6 +117,43 @@ class TestZhipuTranslationServiceInit:
         service = ZhipuTranslationService(api_key='k', app=app)
         assert service.model == 'config-model'
 
+    def test_zhipu_rollback_ignores_siliconflow_model(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='zhipu',
+            TRANSLATION_MODEL='tencent/Hunyuan-MT-7B',
+            ZHIPU_TRANSLATION_MODEL='glm-4.7-flash',
+            TRANSLATION_USE_MERGED_JSON=None,
+        )
+
+        service = ZhipuTranslationService(api_key='k', app=app)
+
+        assert service.provider == 'zhipu'
+        assert service.model == 'glm-4.7-flash'
+        assert service.use_merged_json is True
+
+    def test_siliconflow_uses_configured_model_and_field_mode(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='siliconflow',
+            TRANSLATION_MODEL='tencent/Hunyuan-MT-7B',
+            TRANSLATION_USE_MERGED_JSON=None,
+        )
+
+        service = ZhipuTranslationService(api_key='k', app=app)
+
+        assert service.provider == 'siliconflow'
+        assert service.model == 'tencent/Hunyuan-MT-7B'
+        assert service.use_merged_json is False
+
+    def test_merged_json_config_overrides_provider_default(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='siliconflow',
+            TRANSLATION_USE_MERGED_JSON=True,
+        )
+
+        service = ZhipuTranslationService(api_key='k', app=app)
+
+        assert service.use_merged_json is True
+
     def test_model_default_fallback(self):
         service = ZhipuTranslationService(api_key='k')
         assert service.model == 'glm-4.7-flash'

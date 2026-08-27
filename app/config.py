@@ -116,10 +116,10 @@ class Config:
     # provider: 'zhipu'（智谱 GLM，免费）| 'siliconflow'（硅基流动 Hunyuan-MT-7B，付费）
     # 线上实测期默认走 siliconflow/Hunyuan；回退智谱只需设 TRANSLATION_PROVIDER=zhipu。
     TRANSLATION_PROVIDER: str = os.environ.get('TRANSLATION_PROVIDER', 'siliconflow')
-    # 显式模型名（render.yaml/线上设置）；缺省时由服务按 provider 决定
-    # （zhipu→ZHIPU_TRANSLATION_MODEL，siliconflow→tencent/Hunyuan-MT-7B）
+    # SiliconFlow 模型名（render.yaml/线上设置）；缺省为 tencent/Hunyuan-MT-7B。
+    # zhipu 始终读取 ZHIPU_TRANSLATION_MODEL，保证只改 provider 即可回退。
     TRANSLATION_MODEL: str | None = os.environ.get('TRANSLATION_MODEL')
-    # 兼容旧配置名；新代码优先读 TRANSLATION_MODEL
+    # zhipu 专用模型名，保留旧配置键以兼容现有部署。
     ZHIPU_TRANSLATION_MODEL: str = os.environ.get('ZHIPU_TRANSLATION_MODEL', 'glm-4.7-flash')
     SILICONFLOW_API_KEY: str | None = os.environ.get('SILICONFLOW_API_KEY')
     SILICONFLOW_BASE_URL: str = os.environ.get('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1')

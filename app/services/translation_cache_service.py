@@ -39,7 +39,13 @@ class TranslationCacheService:
         """
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
-    def get(self, source_text: str, source_lang: str = 'en', target_lang: str = 'zh') -> TranslationCache | None:
+    def get(
+        self,
+        source_text: str,
+        source_lang: str = 'en',
+        target_lang: str = 'zh',
+        model_name: str | None = None,
+    ) -> TranslationCache | None:
         """
         从缓存中获取翻译结果
 
@@ -47,6 +53,7 @@ class TranslationCacheService:
             source_text: 源文本
             source_lang: 源语言
             target_lang: 目标语言
+            model_name: 期望的模型名；指定后不会复用其他模型的缓存
 
         Returns:
             TranslationCache对象或None
@@ -62,6 +69,10 @@ class TranslationCacheService:
         ).first()
 
         if cache:
+            if model_name is not None and cache.model_name != model_name:
+                logger.info(f'缓存模型不匹配({cache.model_name!r} != {model_name!r})，视为未命中')
+                return None
+
             # 版本检查：版本不匹配的缓存视为无效
             if hasattr(cache, 'model_version') and cache.model_version:
                 try:

@@ -88,6 +88,23 @@ class TestGet:
         assert result is not None
         assert result.translated_text == '你好'
 
+    def test_get_does_not_reuse_another_models_cache(self, db):
+        """切换翻译 provider/model 后不应复用旧模型结果。"""
+        service = TranslationCacheService()
+        _insert_cache(
+            db,
+            source_text='Model-specific text',
+            translated_text='旧模型结果',
+            model_name='glm-4.7-flash',
+        )
+
+        result = service.get(
+            'Model-specific text',
+            model_name='tencent/Hunyuan-MT-7B',
+        )
+
+        assert result is None
+
     def test_get_returns_none_for_expired_version(self, db):
         """版本过期的缓存应被删除并返回 None"""
         service = TranslationCacheService()

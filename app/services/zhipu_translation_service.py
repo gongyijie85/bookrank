@@ -98,11 +98,12 @@ class ZhipuTranslationService:
         if app is not None:
             self.base_url = app.config.get('SILICONFLOW_BASE_URL')
 
-        # 模型名：显式 model > 显式 TRANSLATION_MODEL > 按 provider 取默认
-        # （zhipu→旧键 ZHIPU_TRANSLATION_MODEL 向后兼容；siliconflow→Hunyuan-MT-7B）
+        # 模型名：显式构造参数始终优先；配置模型按 provider 分开读取。
+        # TRANSLATION_MODEL 属于 siliconflow，避免 Render 固定的 Hunyuan 模型破坏
+        # TRANSLATION_PROVIDER=zhipu 的单变量回退；zhipu 继续使用旧配置键。
         if model is not None:
             self.model = model
-        elif app is not None and app.config.get('TRANSLATION_MODEL'):
+        elif app is not None and self.provider == 'siliconflow' and app.config.get('TRANSLATION_MODEL'):
             self.model = app.config['TRANSLATION_MODEL']
         elif app is not None and self.provider == 'siliconflow':
             self.model = 'tencent/Hunyuan-MT-7B'
@@ -354,7 +355,7 @@ class ZhipuTranslationService:
 
             if cache_service:
                 try:
-                    cached = cache_service.get(text, source_lang, target_lang)
+                    cached = cache_service.get(text, source_lang, target_lang, model_name=self.model)
                     if cached:
                         results[i] = clean_translation_text(cached.translated_text)
                         cache_hits += 1
@@ -431,7 +432,7 @@ class ZhipuTranslationService:
             ]:
                 if field and field.strip():
                     try:
-                        cached = cache_service.get(field, source_lang, target_lang)
+                        cached = cache_service.get(field, source_lang, target_lang, model_name=self.model)
                         if cached:
                             result[key] = clean_translation_text(cached.translated_text, field_type=field_type)
                     except Exception as e:
@@ -683,7 +684,10 @@ class HybridTranslationService:
         cache_service = self._get_cache_service()
         if cache_service:
             try:
-                cached = run_with_app_context(self._app, lambda: cache_service.get(text, source_lang, target_lang))
+                cached = run_with_app_context(
+                    self._app,
+                    lambda: cache_service.get(text, source_lang, target_lang, model_name=self.zhipu.model),
+                )
                 if cached:
                     from ..utils.api_helpers import clean_translation_text
 
@@ -768,7 +772,8 @@ class HybridTranslationService:
             if cache_service:
                 try:
                     cached = run_with_app_context(
-                        self._app, lambda t=text: cache_service.get(t, source_lang, target_lang)
+                        self._app,
+                        lambda t=text: cache_service.get(t, source_lang, target_lang, model_name=self.zhipu.model),
                     )
                     if cached:
                         results[i] = clean_translation_text(cached.translated_text)
