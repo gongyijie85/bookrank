@@ -8,8 +8,11 @@
 [![Flask 3.1](https://img.shields.io/badge/flask-3.1-black.svg)](https://flask.palletsprojects.com/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/gongyijie85/bookrank)](https://github.com/gongyijie85/bookrank/releases)
+[![Live Demo](https://img.shields.io/badge/demo-online-blue)](https://bookrank-ckml.onrender.com)
 
 A New York Times bestseller ranking application that tracks the latest publications from major international publishers and showcases book awards.
+
+Live demo: [bookrank-ckml.onrender.com](https://bookrank-ckml.onrender.com)
 
 ## About
 
@@ -28,6 +31,12 @@ BookRank aggregates quality book information from around the world, providing re
 - 🌍 **Smart translation**: Chinese translations for titles and descriptions to lower the language barrier
 - 🚀 **Real-time updates**: automatic list synchronization plus a weekly-report self-healing mechanism (triple redundancy) so runs are never missed
 - 🔓 **Open API**: public API for third-party integrations
+
+### Ranking data semantics
+
+- **This week** and **Last week** ranks come directly from the New York Times lists; filtering and sorting never change the source rank.
+- **Weeks on list** preserves the cumulative value supplied by NYT; `0` means the source did not provide it.
+- **NEW** means a true debut (no prior rank and one cumulative week); **RETURN** means a re-entry after appearing before (no prior rank and more than one cumulative week).
 
 ## Tech Stack
 
@@ -105,7 +114,7 @@ BookRank aggregates quality book information from around the world, providing re
    python run.py
    ```
 
-   The app runs at `http://localhost:5000`.
+   The app runs at `http://localhost:8000` (override with the `PORT` environment variable).
 
 ## Project Structure
 

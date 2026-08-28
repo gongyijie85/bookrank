@@ -8,8 +8,11 @@
 [![Flask 3.1](https://img.shields.io/badge/flask-3.1-black.svg)](https://flask.palletsprojects.com/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/gongyijie85/bookrank)](https://github.com/gongyijie85/bookrank/releases)
+[![Live Demo](https://img.shields.io/badge/demo-online-blue)](https://bookrank-ckml.onrender.com)
 
 纽约时报畅销书排行榜应用，追踪国际大型出版社最新出版物，展示各类图书奖项。
+
+在线体验：[bookrank-ckml.onrender.com](https://bookrank-ckml.onrender.com)
 
 ## 项目简介
 
@@ -28,6 +31,12 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
 - 🌍 **智能翻译**：提供书名、简介的中文翻译，降低语言门槛
 - 🚀 **实时更新**：自动同步最新榜单数据，确保信息时效性；周报自愈机制（三重保险）避免漏跑
 - 🔓 **开放API**：提供公开API，支持第三方系统集成
+
+### 榜单数据口径
+
+- **本周排名**和**上周排名**直接对应纽约时报榜单数据，筛选或排序不会改变原始榜次。
+- **累计上榜周数**保留 NYT 提供的累计值；`0` 表示来源未提供该数据。
+- **NEW** 仅表示首次上榜（上周无排名且累计 1 周）；**重返**表示曾上榜后重新出现（上周无排名且累计超过 1 周）。
 
 ## 技术栈
 
@@ -105,7 +114,7 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
    python run.py
    ```
 
-   应用将在 `http://localhost:5000` 运行。
+   应用将在 `http://localhost:8000` 运行（可通过 `PORT` 环境变量修改）。
 
 ## 项目结构
 
