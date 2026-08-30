@@ -32,6 +32,11 @@
 **验证**：本地 HTTP 直连生产 import 接口返回 200（2 条记录
 pending_review）；相关测试 27 passed；GHA workflow 全链路重跑通过。
 
+**密钥轮换（2026-08-31）**：因密钥值曾在诊断会话中出现，验证通过后
+对 `BATCH_IMPORT_SECRET` / `ADMIN_SECRET` 执行双端（GitHub Secrets +
+Render 环境变量）轮换；新密钥直连验证 admin 接口与 import 接口均
+返回 200（import 重放同批次显示幂等行为）。
+
 ## v0.9.99 - 2026-08-19
 
 ### perf+chore: 评审清单低优先级项清理（冷却竞态 / 封面筛选与提交 / 运维脚本）
