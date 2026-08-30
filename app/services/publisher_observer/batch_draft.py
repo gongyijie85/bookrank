@@ -29,12 +29,12 @@ def export_batch_draft(
         raise TypeError('produced_at must be a datetime')
 
     records = [_book_to_record(book) for book in report.records]
+    # digest 字段集必须与服务端 compute_content_sha256 严格一致（source_id/schema_version/records），
+    # 多算或漏算任何字段都会导致 import 请求 409 DIGEST_MISMATCH
     body_for_digest = {
         'source_id': report.source,
         'schema_version': report.schema_version,
         'records': records,
-        'candidate_urls': list(report.candidate_urls),
-        'manifest_sha256': report.manifest_sha256,
     }
     content_sha256 = sha256(
         json.dumps(body_for_digest, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')

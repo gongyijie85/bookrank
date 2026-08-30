@@ -48,6 +48,30 @@ def test_export_batch_draft_from_observation_report_is_import_shaped_and_no_writ
         assert 'field_provenance' in record
 
 
+def test_draft_digest_matches_import_service_contract():
+    """端到端契约：export 侧 digest 必须与 import 服务端 compute_content_sha256 一致。
+
+    回归背景：客户端曾多算 candidate_urls/manifest_sha256 两个字段，
+    导致 import 请求永远 409 DIGEST_MISMATCH（#122 链路从未走通过）。
+    """
+    report = observe_fixture_manifest(FIXTURES / 'manifest.json')
+    draft = export_batch_draft(
+        report,
+        produced_at=datetime(2026, 8, 12, 8, 0, 0, tzinfo=UTC),
+        run_date='2026-08-12',
+        producer='gha_run_test',
+    )
+
+    from app.services.batch_import_service import compute_content_sha256
+
+    expected = compute_content_sha256(
+        draft['source_id'],
+        draft['schema_version'],
+        draft['records'],
+    )
+    assert draft['content_sha256'] == expected
+
+
 def test_observe_as_batch_draft_rejects_non_harper_before_export(tmp_path: Path):
     bad = tmp_path / 'manifest.json'
     bad.write_text(

@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.9.100 - 2026-08-31
+
+### fix(pipeline): 修复批次导入 digest 算法不一致导致 import 永远 409 的问题
+
+**背景**：Site Crawl Pipeline（#122/#138）的 import job 自上线以来
+从未成功。逐层诊断发现三处问题：
+1. GitHub 仓库缺失 `BATCH_IMPORT_SECRET`（import 请求发送空 Bearer
+   token，服务端 401）——已在 GitHub Secrets 与 Render 环境变量双端
+   补齐（连带补齐同样缺失的 `ADMIN_SECRET`）。
+2. **代码 bug**：客户端 `export_batch_draft` 计算 `content_sha256`
+   时多算了 `candidate_urls`、`manifest_sha256` 两个字段，而服务端
+   `compute_content_sha256` 只按 `source_id/schema_version/records`
+   三字段计算——两边 digest 永远不一致，import 必然 409
+   DIGEST_MISMATCH。此前被 401 掩盖从未暴露；服务端单测均用
+   `compute_content_sha256` 自产 digest 自测，缺少生成方→验证方的
+   端到端契约测试，故 CI 无法发现。
+3. `site_import_enabled` 闸门默认关闭（有意设计）——已通过管理端点
+   打开 harpercollins 的 import 闸门，fixture 数据以 pending_review
+   状态安全入库。
+
+**改动**
+
+- `app/services/publisher_observer/batch_draft.py`：digest 计算字段集
+  对齐服务端契约（仅 source_id/schema_version/records），并加注释
+  说明两侧必须严格一致。
+- `tests/test_batch_draft_export.py`：新增
+  `test_draft_digest_matches_import_service_contract` 端到端契约
+  回归测试（生成方 digest == 验证方 digest），防止再次漂移。
+
+**验证**：本地 HTTP 直连生产 import 接口返回 200（2 条记录
+pending_review）；相关测试 27 passed；GHA workflow 全链路重跑通过。
+
 ## v0.9.99 - 2026-08-19
 
 ### perf+chore: 评审清单低优先级项清理（冷却竞态 / 封面筛选与提交 / 运维脚本）
