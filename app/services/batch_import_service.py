@@ -586,7 +586,10 @@ def _is_print_format(fmt: str) -> bool:
 
 
 def _is_within_recency(value: date) -> bool:
-    today = date.today()
+    # 与 produced_at 过期检查保持同一时区基准（UTC）。
+    # 原用 date.today()（本地时区），与测试/调用方的 datetime.now(UTC) 存在
+    # ±1 天偏移，跨时区部署下可能造成 recency 边界漂移（issue #167）。
+    today = datetime.now(UTC).date()
     delta = (today - value).days
     return 0 <= delta <= RECENCY_WINDOW_DAYS
 
