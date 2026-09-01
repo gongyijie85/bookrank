@@ -27,3 +27,10 @@ BookRank 使用 GitHub Private Vulnerability Reporting 接收安全漏洞报告�
 - 生产环境务必设置强随机 `SECRET_KEY` 与 `ADMIN_SECRET`。
 - 使用外部 PostgreSQL 时，避免在日志中打印数据库连接字符串。
 - 定期关注 Dependabot 安全更新并及时合并。
+
+## 速率限制与 Worker 数量（重要）
+
+- 当前 API 限流器为**进程内存实现**（`app/utils/rate_limiter.py` 的 `IPRateLimiter`），各 Gunicorn worker 进程独立计数。
+- 因此**生产环境必须将 `WEB_CONCURRENCY` 固定为 `1`**（已在 `render.yaml` 与 `gunicorn.conf.py` 中固定）。若 `WEB_CONCURRENCY > 1`，攻击者可通过请求分发绕过限流，应用启动时会打印告警日志。
+- 如需运行多 worker，必须先接入 Redis / Memcached 等共享后端做分布式限流，否则不要提高 `WEB_CONCURRENCY`。
+- 管理员接口除限流外还受 `X-Admin-Secret` 鉴权与 CSRF 令牌双重保护。
