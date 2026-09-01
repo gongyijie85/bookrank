@@ -48,6 +48,8 @@ services:
       - key: CACHE_TTL
         value: "3600"
       # 并发配置：Render 免费层 512MB 内存，单 worker 避免 OOM
+      # 安全约束：API 限流器为进程内存实现，多 worker 下计数不共享、限流可被绕过，
+      # 因此生产环境必须保持 WEB_CONCURRENCY=1（见安全审计报告 High #2）。
       - key: WEB_CONCURRENCY
         value: "1"
       - key: MAX_WORKERS

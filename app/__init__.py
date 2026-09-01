@@ -58,6 +58,22 @@ def create_app(config_name: str | None = None) -> Flask:
             ' 并设置为 SECRET_KEY 环境变量'
         )
 
+    # 限流跨进程安全警告：当前 API 限流器为进程内存实现（dict + threading.Lock），
+    # 多 Gunicorn worker 下各进程独立计数，攻击者可借请求分发绕过限流（安全审计 High #2）。
+    # 生产部署应保持 WEB_CONCURRENCY=1（render.yaml 已固定），多 worker 需改用 Redis/Memcached 共享限流。
+    if config_name == 'production':
+        try:
+            _web_concurrency = int(os.environ.get('WEB_CONCURRENCY', '1') or '1')
+        except (ValueError, TypeError):
+            _web_concurrency = 1
+        if _web_concurrency > 1:
+            app.logger.warning(
+                '⚠️ WEB_CONCURRENCY=%s (>1)：API 限流器为进程内存实现，多 worker 下计数不共享，'
+                '限流可被绕过。生产环境请保持 WEB_CONCURRENCY=1（render.yaml 已固定）；'
+                '如需多 worker，请改用 Redis/Memcached 共享限流。',
+                _web_concurrency,
+            )
+
     _init_extensions(app, config_name)
     _register_blueprints(app)
     _register_error_handlers(app)
