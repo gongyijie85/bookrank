@@ -53,7 +53,10 @@ def _valid_batch(**overrides):
             'author': 'Test Author',
             'isbn13': '9780063417113',
             'source_url': 'https://www.harpercollins.com/products/import-test-book',
-            'publication_date': '2026-08-01',
+            # 使用相对“今天”的近期日期，避免命中 30 天 recency 窗口外被降级为
+            # pending_review（原硬编码 '2026-08-01' 随时间推移会过期，导致
+            # accepted 计数为 0 的偶发失败）。
+            'publication_date': (datetime.now(UTC) - timedelta(days=5)).strftime('%Y-%m-%d'),
             'missing_fields': [],
             'editions': [{'format': 'Hardcover', 'isbn13': '9780063417113', 'is_main': True}],
             'field_provenance': [],
