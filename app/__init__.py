@@ -58,19 +58,23 @@ def create_app(config_name: str | None = None) -> Flask:
             ' 并设置为 SECRET_KEY 环境变量'
         )
 
-    # 限流跨进程安全警告：当前 API 限流器为进程内存实现（dict + threading.Lock），
-    # 多 Gunicorn worker 下各进程独立计数，攻击者可借请求分发绕过限流（安全审计 High #2）。
-    # 生产部署应保持 WEB_CONCURRENCY=1（render.yaml 已固定），多 worker 需改用 Redis/Memcached 共享限流。
+    # 限流跨进程安全警告（安全审计 High #2）：
+    # - 未配置 RATE_LIMIT_REDIS_URL：限流器为进程内存实现（dict + threading.Lock），
+    #   多 Gunicorn worker 下各进程独立计数，攻击者可借请求分发绕过限流。
+    #   生产部署必须保持 WEB_CONCURRENCY=1（render.yaml 已固定）。
+    # - 已配置 RATE_LIMIT_REDIS_URL：限流计数经 Redis 跨 worker 共享（Lua 原子判定），
+    #   此时多 worker 是安全的，不再告警；Redis 不可达时会自动降级为进程内限流并告警。
     if config_name == 'production':
         try:
             _web_concurrency = int(os.environ.get('WEB_CONCURRENCY', '1') or '1')
         except (ValueError, TypeError):
             _web_concurrency = 1
-        if _web_concurrency > 1:
+        if _web_concurrency > 1 and not os.environ.get('RATE_LIMIT_REDIS_URL'):
             app.logger.warning(
-                '⚠️ WEB_CONCURRENCY=%s (>1)：API 限流器为进程内存实现，多 worker 下计数不共享，'
-                '限流可被绕过。生产环境请保持 WEB_CONCURRENCY=1（render.yaml 已固定）；'
-                '如需多 worker，请改用 Redis/Memcached 共享限流。',
+                '⚠️ WEB_CONCURRENCY=%s (>1) 且未配置 RATE_LIMIT_REDIS_URL：'
+                'API 限流器为进程内存实现，多 worker 下计数不共享，限流可被绕过。'
+                '生产环境请保持 WEB_CONCURRENCY=1（render.yaml 已固定）；'
+                '如需多 worker，请先配置 RATE_LIMIT_REDIS_URL 启用 Redis 共享限流。',
                 _web_concurrency,
             )
 

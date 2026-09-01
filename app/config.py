@@ -77,6 +77,12 @@ class Config:
     CRON_RATE_LIMIT: int = int(os.environ.get('CRON_RATE_LIMIT', 20))
     CRON_RATE_LIMIT_WINDOW: int = int(os.environ.get('CRON_RATE_LIMIT_WINDOW', 60))
 
+    # 共享限流后端（安全审计 High #2 根因修复）：
+    # 留空 = 进程内限流（当前 Render 免费版无 Redis，行为与改造前一致，
+    # 因此必须保持 WEB_CONCURRENCY=1，见 SECURITY.md）。
+    # 配置后（如 redis://... ）限流计数跨 worker 共享，多 worker 才安全。
+    RATE_LIMIT_REDIS_URL: str = os.environ.get('RATE_LIMIT_REDIS_URL', '')
+
     MAX_WORKERS: int = int(os.environ.get('MAX_WORKERS', 4))
 
     API_TIMEOUT: int = int(os.environ.get('API_TIMEOUT', 15))
