@@ -45,12 +45,7 @@ def app():
 
 @pytest.fixture(scope='session')
 def client(app):
-    """
-    创建测试客户端
-
-    Returns:
-        Flask 测试客户端
-    """
+    """创建测试客户端"""
     return app.test_client()
 
 
@@ -75,6 +70,10 @@ def db(app):
 
         yield _db
 
+        # teardown 必须保持在 app context 内：SQLite 内存库基于线程级
+        # SingletonThreadPool 共享同一连接，drop_all/session.remove 需要在
+        # 应用上下文中执行，否则触发
+        # "RuntimeError: Working outside of application context"。
         _db.session.remove()
         _db.drop_all()
 
