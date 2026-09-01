@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
 
 import pytest
 
 from app.models.new_book import NewBook, Publisher
+from app.services.batch_import_service import RECENCY_WINDOW_DAYS
 
 
 @pytest.fixture
@@ -47,13 +48,24 @@ def _canonical_sha(source_id: str, schema_version: str, records: list) -> str:
 
 
 def _valid_batch(**overrides):
+    # 使用相对“今天”的近期日期，避免命中 30 天 recency 窗口外被降级为
+    # pending_review（原硬编码 '2026-08-01' 随时间推移会过期，导致
+    # accepted 计数为 0 的偶发失败，见 issue #167）。
+    publication_date = (datetime.now(UTC) - timedelta(days=5)).strftime('%Y-%m-%d')
+    # 回归防护（issue #167）：显式断言构造日期必落在服务端 recency 窗口内。
+    # 若未来有人改回硬编码或调大偏移，这里会立刻、明确地失败，
+    # 而不是像从前那样以 accepted=0 的间接形式偶发失败。
+    delta = (datetime.now(UTC).date() - date.fromisoformat(publication_date)).days
+    assert 0 <= delta <= RECENCY_WINDOW_DAYS, (
+        f'test fixture publication_date drifted out of recency window: delta={delta}d'
+    )
     records = [
         {
             'title': 'Import Test Book',
             'author': 'Test Author',
             'isbn13': '9780063417113',
             'source_url': 'https://www.harpercollins.com/products/import-test-book',
-            'publication_date': '2026-08-01',
+            'publication_date': publication_date,
             'missing_fields': [],
             'editions': [{'format': 'Hardcover', 'isbn13': '9780063417113', 'is_main': True}],
             'field_provenance': [],
