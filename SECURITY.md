@@ -46,3 +46,29 @@ BookRank 使用 GitHub Private Vulnerability Reporting 接收安全漏洞报告�
 - 相关测试见 `tests/test_rate_limiter_redis.py`（本地内存版 Redis 替身，无网络依赖）。
 
 - 管理员接口除限流外还受 `X-Admin-Secret` 鉴权与 CSRF 令牌双重保护。
+
+## CSRF 令牌：当前行为与已接受风险
+
+**签发与校验**
+
+- 令牌由 `GET /api/csrf-token` 签发（该端点按 IP 限流 10 次/分钟），管理员 POST 端点经 `@csrf_protect` 校验。
+- **一次性**：`@csrf_protect` 在校验通过后立即删除该令牌记录（`app/utils/api_helpers.py:214-222`），
+  因此同一令牌无法用于第二次变更请求。前端 `templates/base.html` 亦在每次变更后清空本地缓存以匹配此语义。
+- **有效期**：`_CSRF_TOKEN_TTL = 3600` 秒，过期令牌在校验时即被删除。
+
+**残余风险（已接受）**
+
+令牌**未绑定到会话/用户**：理论上，某会话签发的令牌若在**被使用前**泄露，可被其他客户端使用。
+
+经评估按**低风险接受**，理由：
+
+1. 攻击者要拿到令牌，需能读取 `/api/csrf-token` 的响应；同源策略（SOP）已阻止跨站读取，
+   这正是该模式在端点无需鉴权的前提下仍然成立的原因。
+2. 一次性语义使令牌在被合法使用后即失效，无法重放。
+3. 1 小时 TTL 为未使用令牌的暴露窗口封顶。
+
+**若要进一步收紧（会话绑定）**
+
+需要在 `CSRFToken` 增加 `session_id` 列并做生产迁移，且**会打断不携带 cookie 的调用方**——
+`CHANGELOG.md` v0.9.90 记录的运维流程即用 `curl` 直接取令牌后 POST（无 cookie jar）。
+方案、风险与开关设计见 issue #170；在确认所有管理员调用方都会携带会话 cookie 之前，不实施。

@@ -21,17 +21,64 @@
     });
 
     // ===== 2. CSRF token 缓存 =====
+    // 服务端令牌是**一次性**的：@csrf_protect 校验通过后会立即删除该令牌记录
+    // （app/utils/api_helpers.py:214-222）。因此客户端在每次变更请求后必须清空
+    // 缓存，否则同一页面上的第二次变更会因令牌已失效而收到 403。
+    // 典型故障：移动端「我的收藏」页删第一个收藏成功，之后的都失败。
     let cachedCsrfToken = null;
 
-    function getCsrfToken() {
-        if (cachedCsrfToken) return Promise.resolve(cachedCsrfToken);
-        return fetch('/api/csrf-token')
+    function getCsrfToken(forceRefresh) {
+        if (cachedCsrfToken && !forceRefresh) return Promise.resolve(cachedCsrfToken);
+        cachedCsrfToken = null;
+        return fetch('/api/csrf-token', { cache: 'no-store' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 cachedCsrfToken = (data && data.data && data.data.csrf_token) || '';
                 return cachedCsrfToken;
             })
             .catch(function () { return ''; });
+    }
+
+    /**
+     * 携带 CSRF 令牌发起请求（变更类请求请使用本方法，而非手动拼接 token）。
+     * - 令牌一次性：请求结束后清空缓存，下次自动重新获取。
+     * - 容错：若因令牌失效被拒（403 且响应含 csrf），强制刷新令牌重试一次，
+     *   用于覆盖并发变更请求共用同一令牌的场景。
+     */
+    function csrfFetch(url, options) {
+        var opts = options || {};
+        var method = (opts.method || 'GET').toUpperCase();
+        var isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].indexOf(method) !== -1;
+
+        function withToken(token) {
+            var headers = {};
+            if (opts.headers) {
+                Object.keys(opts.headers).forEach(function (k) { headers[k] = opts.headers[k]; });
+            }
+            if (token) headers['X-CSRF-Token'] = token;
+            return fetch(url, Object.assign({}, opts, { headers: headers }));
+        }
+
+        return getCsrfToken().then(withToken).then(function (response) {
+            if (!isMutation) return response;
+            cachedCsrfToken = null;
+
+            if (response.status === 403) {
+                return response.clone().text().then(function (body) {
+                    if (body && body.toLowerCase().indexOf('csrf') !== -1) {
+                        return getCsrfToken(true).then(withToken).then(function (retried) {
+                            cachedCsrfToken = null;
+                            return retried;
+                        });
+                    }
+                    return response;
+                });
+            }
+            return response;
+        }, function (err) {
+            if (isMutation) cachedCsrfToken = null;
+            throw err;
+        });
     }
 
     // ===== 3. Toast 通知 =====
@@ -220,6 +267,7 @@
     // ===== 暴露 API =====
     window.MobileApp = {
         getCsrfToken: getCsrfToken,
+        csrfFetch: csrfFetch,
         toast: toast,
         startPolling: startPolling,
         getSessionId: function () {

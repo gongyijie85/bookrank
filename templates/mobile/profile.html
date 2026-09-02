@@ -119,18 +119,15 @@
             e.stopPropagation();
             var isbn = btn.getAttribute('data-isbn');
             if (!isbn) return;
-            MobileApp.getCsrfToken().then(function (token) {
-                fetch('/api/favorites/' + encodeURIComponent(isbn), {
-                    method: 'DELETE',
-                    headers: { 'X-CSRF-Token': token }
-                }).then(function (r) { return r.json(); })
-                  .then(function (data) {
-                      if (data && data.success) {
-                          var card = btn.closest('.m-book-card');
-                          if (card) card.remove();
-                      }
-                  });
-            });
+            // 令牌一次性：用 csrfFetch（内部会在请求后清空缓存并在令牌失效时重试）
+            MobileApp.csrfFetch('/api/favorites/' + encodeURIComponent(isbn), { method: 'DELETE' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        var card = btn.closest('.m-book-card');
+                        if (card) card.remove();
+                    }
+                });
         });
     });
 })();
