@@ -56,7 +56,7 @@ class NYTApiClient:
                 self._key_is_valid = True
                 logger.info('NYT API Key 验证通过')
             elif resp.status_code == 401:
-                logger.warning('NYT API Key 无效 (401 Unauthorized)，请检查 .env 中的 NYT_API_KEY')
+                logger.warning('NYT API Key 无效 (401 Unauthorized)，请更新服务配置中的凭据')
                 self._key_is_valid = False
             else:
                 logger.warning('NYT API Key 验证异常 (状态码:%s)', resp.status_code)
@@ -78,7 +78,9 @@ class NYTApiClient:
             self._validate_api_key()
 
         if not self._key_is_valid:
-            raise APIException('NYT API key is invalid, please check your NYT_API_KEY in .env', status_code=401)
+            logger.warning('拒绝请求：NYT API Key 无效，请更新服务配置中的凭据')
+            # 对外不暴露密钥名称与存储位置（.env），仅给可操作的通用提示（安全审计 Medium #5）
+            raise APIException('上游数据源凭据无效，请稍后重试或联系管理员', status_code=401)
 
         cache_service = self._get_cache_service()
 
@@ -114,7 +116,7 @@ class NYTApiClient:
             if response.status_code == 401:
                 self._key_is_valid = False
                 self._key_validated = True
-                logger.error('NYT API Key 认证失败 (401)，请检查 .env 中的 NYT_API_KEY')
+                logger.error('NYT API Key 认证失败 (401)，请更新服务配置中的凭据')
                 raise APIException('NYT API key authentication failed', status_code=401)
 
             if response.status_code == 429:

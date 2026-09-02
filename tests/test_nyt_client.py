@@ -1,5 +1,6 @@
 """NYT API 客户端测试"""
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -81,9 +82,10 @@ class TestFetchBooks:
             nyt_client_no_key.fetch_books('hardcover-fiction')
 
     def test_invalid_key(self, nyt_client):
+        """无效凭据返回 401；消息为对客通用文案，不再暴露密钥名/存储位置（审计 Medium #5）。"""
         nyt_client._key_validated = True
         nyt_client._key_is_valid = False
-        with pytest.raises(APIException, match='invalid'):
+        with pytest.raises(APIException, match='凭据无效'):
             nyt_client.fetch_books('hardcover-fiction')
 
     def test_cache_hit(self, nyt_client):
@@ -207,3 +209,53 @@ class TestFetchBooks:
 
         with pytest.raises(APIException, match='failed'):
             nyt_client.fetch_books('hardcover-fiction')
+
+
+class TestCredentialMessagesDoNotLeak:
+    """回归：安全审计 Medium #5 —— 日志与异常不得泄露密钥名称/存储位置（.env）。
+
+    异常消息会随 API 错误响应返回给调用方，泄露面比日志更大，故单独覆盖。
+    """
+
+    _LEAKY_TOKENS = ('.env', 'NYT_API_KEY')
+
+    def _assert_no_leak(self, text: str) -> None:
+        for token in self._LEAKY_TOKENS:
+            assert token not in text, f'输出泄露了敏感配置线索 {token!r}: {text!r}'
+
+    def test_exception_message_is_client_safe(self, nyt_client):
+        nyt_client._key_validated = True
+        nyt_client._key_is_valid = False
+
+        with pytest.raises(APIException) as exc_info:
+            nyt_client.fetch_books('hardcover-fiction')
+
+        assert exc_info.value.status_code == 401
+        self._assert_no_leak(str(exc_info.value))
+
+    def test_validation_warning_log_has_no_env_hint(self, nyt_client, caplog):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        nyt_client._session.get.return_value = mock_resp
+
+        with caplog.at_level(logging.WARNING):
+            assert nyt_client._validate_api_key() is False
+
+        self._assert_no_leak(caplog.text)
+
+    def test_fetch_401_log_has_no_env_hint(self, nyt_client, caplog):
+        nyt_client._key_validated = True
+        nyt_client._key_is_valid = True
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+        nyt_client._api_cache = mock_cache
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        nyt_client._session.get.return_value = mock_resp
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(APIException):
+                nyt_client.fetch_books('hardcover-fiction')
+
+        self._assert_no_leak(caplog.text)

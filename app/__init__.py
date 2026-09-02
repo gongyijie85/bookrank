@@ -277,6 +277,8 @@ def _setup_db_event_listeners(app: Flask) -> None:
             cursor = None
             try:
                 cursor = dbapi_connection.cursor()
+                # 静态常量字符串，不含任何外部输入，不存在注入风险（安全审计 Low #6）。
+                # 保持字面量写法；切勿将其改为 f-string/拼接，否则会引入真实注入面。
                 cursor.execute("SET TIME ZONE 'UTC'")
             except Exception as e:
                 log_error(ErrorCategory.DB_QUERY, f'设置时区失败: {e}', level='warning')
