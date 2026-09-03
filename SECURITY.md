@@ -72,3 +72,30 @@ BookRank 使用 GitHub Private Vulnerability Reporting 接收安全漏洞报告�
 需要在 `CSRFToken` 增加 `session_id` 列并做生产迁移，且**会打断不携带 cookie 的调用方**——
 `CHANGELOG.md` v0.9.90 记录的运维流程即用 `curl` 直接取令牌后 POST（无 cookie jar）。
 方案、风险与开关设计见 issue #170；在确认所有管理员调用方都会携带会话 cookie 之前，不实施。
+
+## 依赖漏洞现状（pip-audit）
+
+CI 已接入 `pip-audit`（`Dependency Vulnerability Audit` job），当前为**非阻塞**。
+
+**基线**：初次扫描 3 个包 / 12 条漏洞；升级 mistune 后为 **2 个包 / 11 条**。
+
+### ✅ 已修复
+
+| 包 | 问题 | 处理 |
+|---|---|---|
+| mistune 3.3.0 | CVE-2026-76098 | 升级至 **3.3.4**（修复在 3.3.3，同 minor 线）。该包用于 Jinja `markdown` 过滤器，输出还会再经 bleach 消毒（纵深防御） |
+
+### ⚠️ 已知但当前无升级路径（已接受，需持续跟踪）
+
+| 包 | 问题 | 为何无法修复 | 评估 |
+|---|---|---|---|
+| pyjwt 2.8.0（传递依赖） | 9 条：PYSEC-2026-120 / 175 / 177 / 178 / 179、PYSEC-2025-183 | 由 `zhipuai==2.1.5.20250825` 锁定 `pyjwt>=2.8.0,<2.9.0`，而 zhipuai **已是 PyPI 最新版**；修复需 2.12+/2.13，与上游约束冲突 | 应用代码**未直接 import jwt**（仅 zhipuai 内部用于 API 鉴权），暴露面有限；待 zhipuai 放宽上限后升级 |
+| deep-translator 1.11.4 | PYSEC-2022-252 | **无修复版本**，且 1.11.4 已是最新版 | 仅作为翻译服务的**备用回退**（主力为智谱）；若不需要该回退，可直接移除依赖以消除风险 |
+
+**跟踪动作**：
+
+- 关注 zhipuai 新版本是否放宽 `pyjwt` 上限，放宽后立即升级。
+- 评估是否移除 `deep-translator`（若备用翻译链路已无用）。
+- 基线收敛后：移除 CI 中 `dependency-audit` 的 `continue-on-error`，并将其加入 branch protection 的必需检查。
+
+> 漏洞详情以公开库为准：<https://osv.dev>（如 `https://osv.dev/vulnerability/PYSEC-2026-120`）。

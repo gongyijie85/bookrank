@@ -48,7 +48,8 @@ fpdf2==2.7.9
 openpyxl==3.1.2
 
 # Markdown 渲染
-mistune==3.3.0
+# 3.3.3 起修复 CVE-2026-76098；该过滤器输出仍会经 bleach 消毒（纵深防御）
+mistune==3.3.4
 
 # HTML 净化（生产环境必须，避免 XSS 净化降级）
 bleach==6.4.0

@@ -1,5 +1,6 @@
 """admin_auth 工具函数测试，覆盖 _cleanup_auth_failures 和持久化"""
 
+import json
 import time
 from unittest.mock import patch
 
@@ -95,3 +96,68 @@ class TestLoadPersistedFailures:
             assert '1.1.1.1' in _auth_failures
             # 3.3.3.3 也应该被加载（count > 0）
             assert '3.3.3.3' in _auth_failures
+
+
+class TestPersistSubThresholdFailures:
+    """安全审计 Low #9：未达封禁阈值的失败计数必须能跨重启存活。
+
+    原实现只在达到 5 次阈值时才落盘，且仅写 blocked_until > now 的条目，
+    于是 1~4 次的中间计数在重启/重新部署后清零，5 次封禁阈值永远无法触发
+    ——攻击者只需要在被封禁前让应用重启一次即可。
+    """
+
+    def _read_persisted(self, app) -> dict:
+        with app.app_context():
+            from app.models.schemas import SystemConfig
+
+            raw = SystemConfig.get_value('admin_auth_failures')
+            return json.loads(raw) if raw else {}
+
+    def test_persists_failures_below_block_threshold(self, app, db):
+        _auth_failures['9.9.9.9'] = {'count': 2, 'blocked_until': 0, 'last_failure': time.time()}
+
+        with app.app_context():
+            admin_auth._persist_failures()
+
+        saved = self._read_persisted(app)
+        assert '9.9.9.9' in saved, '未达阈值的失败计数也必须落盘'
+        assert saved['9.9.9.9']['count'] == 2
+
+    def test_drops_stale_failures_past_retention(self, app, db):
+        stale = time.time() - (admin_auth._AUTH_FAILURE_RETENTION_SECONDS + 60)
+        _auth_failures['8.8.8.8'] = {'count': 2, 'blocked_until': 0, 'last_failure': stale}
+
+        with app.app_context():
+            admin_auth._persist_failures()
+
+        assert '8.8.8.8' not in self._read_persisted(app), '超过保留时长的历史失败不应复活'
+
+    def test_restart_restores_sub_threshold_counts(self, app, db):
+        """模拟重启：count=4（未封禁）必须能恢复，否则阈值永远无法达成。"""
+        _auth_failures['7.7.7.7'] = {'count': 4, 'blocked_until': 0, 'last_failure': time.time()}
+
+        with app.app_context():
+            admin_auth._persist_failures()
+
+            # 模拟进程重启：内存状态清零、持久化标记复位
+            _auth_failures.clear()
+            admin_auth._persist_loaded = False
+            admin_auth._load_persisted_failures()
+
+        assert _auth_failures['7.7.7.7']['count'] == 4
+        assert _auth_failures['7.7.7.7']['blocked_until'] == 0
+
+    def test_legacy_snapshot_without_last_failure_still_loads(self, app, db):
+        """改造前写入的快照没有 last_failure 字段，升级后必须仍能加载。"""
+        with app.app_context():
+            from app.models import db as _db
+            from app.models.schemas import SystemConfig
+
+            SystemConfig.set_value('admin_auth_failures', json.dumps({'6.6.6.6': {'count': 1, 'blocked_until': 0}}))
+            _db.session.commit()
+
+            _auth_failures.clear()
+            admin_auth._persist_loaded = False
+            admin_auth._load_persisted_failures()
+
+        assert _auth_failures['6.6.6.6']['count'] == 1
