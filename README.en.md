@@ -45,7 +45,9 @@ BookRank aggregates quality book information from around the world, providing re
 - **Frontend**: Jinja2 + vanilla JS (ES2020+)
 - **Deployment**: Render + Gunicorn 23.0
 - **API integrations**: NYT Books API, Google Books API, Open Library API, Wikidata SPARQL
-- **Translation**: Zhipu AI GLM API (primary), deep-translator (fallback)
+- **Translation**: SiliconFlow Hunyuan-MT-7B (production default, OpenAI-compatible endpoint), Zhipu GLM (fallback, default in tests)
+  - The previous Google Translate fallback (`deep-translator`) was **removed**: its PyPI account was taken over via a phishing attack and later releases ran malware at install time (PYSEC-2022-252). See [`SECURITY.md`](./SECURITY.md)
+- **Rate limiting**: in-process sliding window (default); optional **Redis shared backend** for multi-worker deployments (see [`SECURITY.md`](./SECURITY.md))
 - **Code quality**: Ruff (lint + format), mypy (type checks), Pydantic (validation), pytest-cov
 - **Scheduling**: APScheduler (in-memory queue)
 
@@ -235,6 +237,9 @@ Technical documentation is maintained in two forms:
 4. **Auto-deploy is disabled**: `render.yaml` sets `autoDeploy: false`. Production deploys are triggered via the Render Public API only by successful CI runs on the current HEAD of `main`; older CI runs skip cleanly so they never overwrite newer commits.
 5. Configure the least-privilege secret `RENDER_API_KEY` plus the non-secret repository variables `RENDER_SERVICE_ID` and `RENDER_BASE_URL` on GitHub. CI uses these to call the Render Public API; never commit secrets. In an emergency, use Manual Deploy in the Render Dashboard.
 6. The Render free tier is limited to 512 MB; `WEB_CONCURRENCY=1` / `MAX_WORKERS=1` are enforced to avoid OOM with multiple workers.
+   > **To raise `WEB_CONCURRENCY`**: you must first set `RATE_LIMIT_REDIS_URL` to enable shared rate limiting —
+   > otherwise each worker counts independently, multiplying the effective limit and allowing bypass
+   > (see [`SECURITY.md`](./SECURITY.md)).
 7. Wait for the build to finish and grab the access URL.
 
 > **Note**: Render's free PostgreSQL service is no longer offered — use an external PostgreSQL (e.g. Supabase). Migration guide: [`docs/supabase-migration.md`](./docs/supabase-migration.md).
@@ -249,6 +254,23 @@ docker build -t bookrank .
 docker run -p 5000:5000 --env-file .env bookrank
 ```
 
+## Security
+
+- Security policy, vulnerability reporting and the **known-risk register**: [`SECURITY.md`](./SECURITY.md)
+  (GitHub Private Vulnerability Reporting is enabled).
+
+  | Area | Measure |
+  |---|---|
+  | CSRF | Admin mutation endpoints enforce `@csrf_protect`; tokens are **single-use** (deleted after validation) |
+  | XSS | Output sanitized with bleach allow-lists; CSP uses a **per-request nonce** (no `unsafe-inline`), locked by tests |
+  | Rate limiting | Per-IP sliding window; optional **Redis shared backend** for multi-worker |
+  | Admin auth | `X-Admin-Secret` + failure counting + IP blocking; failure state **persists across restarts** |
+  | Secret leakage | Logs and exceptions never expose secret names or storage locations |
+  | Supply chain | `pip-audit` gate in CI; the compromised `deep-translator` package removed |
+
+- ⚠️ Keep `WEB_CONCURRENCY=1` **unless** you set `RATE_LIMIT_REDIS_URL` to enable shared rate limiting
+  (in-process counters are per-worker, so the effective limit is multiplied). See [`SECURITY.md`](./SECURITY.md).
+
 ## Development Guide
 
 ### Code style
@@ -262,7 +284,21 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 - Test directory: `tests/`
 - Config file: `pytest.ini`
-- Run: `pytest`
+- Run: `pytest -m "not slow" --timeout=30`
+- Current scale: **2237 passed / 0 failed**
+
+**Merge gate**: `main` has branch protection enabled — all 4 checks below must pass:
+
+| Check | Description |
+|---|---|
+| `Unit Tests` | pytest suite |
+| `Type Check (mypy)` | `mypy app/ --ignore-missing-imports` |
+| `Code Quality (Ruff)` | `ruff check` + `ruff format --check` |
+| `Dependency Vulnerability Audit` | `pip-audit` scan (exception-register gate, see below) |
+
+> The dependency scan uses an **exception register**: advisory IDs that have been reviewed are allow-listed
+> (still printed as `N ignored`, never silently swallowed); **any unregistered vulnerability blocks the merge**.
+> Rationale and maintenance rules live in [`SECURITY.md`](./SECURITY.md).
 
 ### Data updates
 
@@ -302,6 +338,29 @@ Full API docs: [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md).
 
 ## Recent Updates
 
+- **v0.9.101 - Security & CI hardening (2026-09-03)**:
+  - **Rate limiter now supports a Redis shared backend** (root-cause fix for audit High #2): counters were per-process,
+    so the effective limit was multiplied across workers; set `RATE_LIMIT_REDIS_URL` to enable cross-worker counting
+    (Redis ZSET sliding window + **atomic Lua**). Default behavior is unchanged; failures degrade gracefully
+  - **Fixed mobile CSRF token reuse**: tokens are single-use but the mobile client cached one forever, so deleting
+    favorites worked once and then failed with 403. Added `csrfFetch()` (clears cache after use, retries on invalidation)
+  - **Fixed admin lockout bypass**: failure counters were only persisted on the 5th attempt, so a restart/redeploy
+    reset them and the threshold could never be reached. Every failure is now persisted (24h retention window)
+  - **Removed the compromised `deep-translator` dependency** (PYSEC-2022-252 supply-chain attack), see `SECURITY.md`
+  - Logs/exceptions no longer leak secret names or storage locations; `mistune` upgrade cleared
+    **2 GitHub HIGH advisories** (Dependabot open alerts now zero)
+  - CI gained a **dependency vulnerability gate** (`pip-audit`, exception-register) as a required status check
+  - Quality: ruff / mypy (99 files) pass, **2237 passed / 0 failed**. See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.100 - Fix batch import digest mismatch causing permanent 409 (2026-08-31). See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.99 - Low-priority review cleanups (2026-08-19): cooldown race / cover selection & commit / ops scripts. See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.98 - Source-downgrade alerts dispatched in background (2026-08-19): imports no longer wait on the GitHub API. See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.97 - Batch preloaded index for ingest dedup (2026-08-19): removes the ingestor N+1 query. See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.96 - Sync endpoint moved to a background task (2026-08-19): removes up to 600s/Publisher request-thread blocking. See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.95 - Cover batch sync as background task + module-level lock fix (2026-08-19). See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.94 - Extracted shared translation-override helper (2026-08-19): removes model-layer duplication and back-references. See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.93 - Wired the `fallback_google_enabled` flag (2026-08-19): #137 spec gap. See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.92 - Removed direct interpolation of secrets/inputs in GitHub Actions scripts (2026-08-19). See [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.91 - Perf & cover sync fixes (2026-08-19): removed O(N×M) full-table scans in batch import; fixed cover sync not detecting "cache file missing". See [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.90 - Fix production cover sync (2026-08-14): detect the "path in DB but local cache file missing" case and re-download; two regression tests added. See [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.89 - Award cover fallback + 2026 winners (2026-08-14): multi-level cover fallback (local cache → original URL → default cover); synced 2020-2026 winners (4 Pulitzer titles, International Booker: *Taiwan Travelogue*, Edgar: *The Big Empty*). See [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.88 - Extract the NewBookIngestor deep module (2026-08-14): ingest rules consolidated behind two stable interfaces (`save_book` / `update_book_fields`), SyncEngine slimmed down; TranslationPipeline gains public seams; 2381 passed. See [CHANGELOG.md](./CHANGELOG.md)
