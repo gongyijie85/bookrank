@@ -75,7 +75,12 @@ BookRank 使用 GitHub Private Vulnerability Reporting 接收安全漏洞报告�
 
 ## 依赖漏洞现状（pip-audit）
 
-CI 已接入 `pip-audit`（`Dependency Vulnerability Audit` job），当前为**非阻塞**。
+CI 已接入 `pip-audit`（`Dependency Vulnerability Audit` job），**已是 branch protection 的必需检查**。
+
+门禁语义为 **triage gate（例外登记）**：漏洞按公告 ID 逐一登记，
+**未登记的漏洞 → job 失败 → 阻塞合并**；已登记的说明已评估，仅在日志中输出
+`N ignored` 保持可见，**不会被静默吞掉**。例外清单维护在
+`.github/workflows/ci.yml` 的 `dependency-audit` job 中（与理由放在一起，便于评审）。
 
 **基线**：初次扫描 3 个包 / 12 条 → 升级 mistune 后 2 个包 / 11 条 → 移除 deep-translator 后
 **1 个包 / 10 条记录（pyjwt，对应 6 个不同公告 ID，pip-audit 存在重复计数；均不可达，见下）**。
@@ -132,6 +137,6 @@ zhipuai 放宽 pyjwt 上限（应立即升级）、或引入任何 **JWT 校验/
 
 **跟踪动作**：
 
-- 关注 zhipuai 新版本是否放宽 `pyjwt` 上限，放宽后立即升级。
-- 未来若引入 JWT 验签（如对接第三方 SSO），**先升级 pyjwt 再落地**，否则上述 HIGH 项将变为可达。
-- 基线收敛后：移除 CI 中 `dependency-audit` 的 `continue-on-error`，并将其加入 branch protection 的必需检查。
+- 关注 zhipuai 新版本是否放宽 `pyjwt` 上限，放宽后立即升级，并**把相应 ID 从 CI 的例外表中移除**。
+- **新增例外必须同时在本文件写明理由与重新评估触发条件**，否则不得加入 CI 例外表。
+- 未来若引入 JWT **校验/解码**场景，上述 4 条 HIGH 将由"不可达"变为可达，必须先升级 pyjwt 再落地。
