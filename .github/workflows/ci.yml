@@ -86,6 +86,38 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=70
 
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # 非阻塞（安全审计 Low #8）：
+    # 基线尚有 2 个无升级路径的问题——pyjwt 被上游 zhipuai 锁定在 <2.9.0、
+    # deep-translator 无修复版本（详见 SECURITY.md「依赖漏洞现状」）。
+    # 若设为必需检查，这些已知项会直接堵死所有合并。
+    # 待基线收敛后：移除 continue-on-error，并把本 job 加入 branch protection 必需检查。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: |
+          echo "=== requirements.txt（CI/开发） ==="
+          pip-audit -r requirements.txt --progress-spinner off --desc
+          echo "=== requirements-prod.txt（Render 部署集） ==="
+          pip-audit -r requirements-prod.txt --progress-spinner off --desc
+
   deploy:
     name: Deploy to Render & HuggingFace
     runs-on: ubuntu-latest
