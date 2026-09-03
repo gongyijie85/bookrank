@@ -35,9 +35,12 @@ beautifulsoup4==4.13.0
 # HTML 白名单净化（用于安全展示用户/外部 HTML 内容）
 bleach==6.4.0
 
-# AI 翻译（智谱AI主用，deep-translator备用回退；硅基流动 Hunyuan 走 openai 兼容端点）
+# AI 翻译（智谱AI主用；硅基流动 Hunyuan 走 openai 兼容端点）
 zhipuai==2.1.5.20250825
-deep-translator==1.11.4
+# ⚠️ 不再安装 deep-translator：该项目 PyPI 账号被钓鱼接管后发布的版本含
+# 「安装期读取环境变量并下载运行恶意代码」的投毒代码（PYSEC-2022-252），
+# 1.8.5 及之后全部受影响且无修复版本。它是可选回退，缺失时服务优雅降级。
+# 详见 SECURITY.md「依赖漏洞现状」——在出现可信发布之前请勿重新加入。
 openai>=1.40.0,<3
 
 # 工具库（去掉 cachetools 未使用，保留 tenacity 重试）
