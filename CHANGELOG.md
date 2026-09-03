@@ -1,5 +1,69 @@
 # Changelog
 
+## v0.9.101 - 2026-09-03
+
+### fix(security): 限流器支持 Redis 共享后端（安全审计 High #2 根因修复）
+
+原 `IPRateLimiter` 基于进程内 `dict` + `threading.Lock`，Gunicorn 多 worker 下每个进程
+独立计数，实际生效限额 = 配置限额 × worker 数，可被请求分发绕过（PR #165 只是把
+`WEB_CONCURRENCY` 固定为 1 的部署形态兜底，未修根因）。
+
+- 新增 `RedisRateLimitBackend`：Redis ZSET 滑动窗口，**判定与写入合并为一段 Lua 脚本**
+  原子执行，避免多进程并发下"检查再写入"被同时通过。
+- 相同 `(max_requests, window_seconds)` 共享命名空间，不同 worker 对同一 client_id 累计计数。
+- 通过 `RATE_LIMIT_REDIS_URL` 启用；未配置（默认，含 Render 免费版）时行为**完全一致**。
+- 优雅降级：`redis` 未安装 / 不可达 / 调用异常 → 降级为进程内限流并告警，不阻断请求
+  （降级 = 回到改造前行为，**不是完全放行**）。
+- 公开 API 零改动，调用方无需修改。
+
+### fix(csrf): 移动端令牌复用导致连续删除 403（PR #171）
+
+服务端 `@csrf_protect` 校验通过后即删除令牌（一次性），但 `static/mobile/js/mobile.js`
+的 `cachedCsrfToken` 永不失效，导致移动端「我的收藏」删第一个成功、之后全被 403 拒绝。
+测试发现不了——`csrf_protect` 在 `TESTING` 下被短路。
+
+- 新增 `csrfFetch(url, options)`：自动附带令牌、请求后清缓存，403 且响应含 csrf 时强制刷新重试一次。
+- `templates/mobile/profile.html` 改用 `csrfFetch`；`templates/base.html` 补并发重试。
+- 新增 `tests/test_csrf_token_single_use.py` 锁定一次性语义。
+
+### fix(security): 管理员失败计数跨重启存活（PR #173，审计 Low #9）
+
+`_persist_failures()` 只在达到第 5 次阈值时才被调用，且仅写 `blocked_until > now` 的条目，
+于是 1~4 次的中间计数既不落盘也不保留——攻击者失败 4 次后只要重启/重新部署一次，计数即清零，
+5 次封禁阈值永远无法触发（对 Render 这类频繁部署的环境等于限流失效）。
+
+- state 增加 `last_failure`；持久化同时保留「仍在封禁」与「近期但未达阈值」（24h、上限 1000）；
+- `admin_required` 每次失败都落盘；加载端兼容缺 `last_failure` 的旧快照。
+- 新增 4 个测试，含模拟重启后 `count=4` 能恢复。
+
+### security: 移除被投毒的 deep-translator（PYSEC-2022-252）
+
+OSV 原文：该项目 PyPI 账号被钓鱼接管后发布的版本含「**安装期**读取环境变量并下载运行
+恶意代码」的代码，受影响范围为 **1.8.5 及之后全部版本**（含最新 1.11.4）——即被接管后
+再无可信发布。对本项目尤其危险：Render 构建机安装依赖时环境变量里存放凭据。
+
+- 从 `requirements.txt` / `requirements-prod.txt` 移除并写明原因，防止被重新加回。
+- 该依赖为可选回退（缺失即优雅降级），移除后仅失去 Google 翻译回退，主力不受影响。
+- 实测：卸载后全套测试 2237 passed / 0 failed。
+
+### security: 依赖漏洞治理与门禁（PR #173 / #175）
+
+- `mistune` 3.3.0 → **3.3.4**（修复 CVE-2026-76098），消除 GitHub Dependabot 上
+  **2 个 open/high 告警**；合并后 open 告警归零。
+- 日志与异常不再泄露密钥名称与存储位置（`nyt_client` 三处，其中一处是会对客返回的
+  `APIException` 消息，泄露面比审计描述的更大）。
+- CI 新增 `dependency-audit` job（`pip-audit`），并改造为**例外登记式门禁**：
+  已评估放行的公告 ID 记入例外（日志仍显示 `N ignored`），**未登记的漏洞阻塞合并**；
+  已纳入 branch protection 必需检查。
+- 基线：3 包/12 条 → 2 包/11 条 → **1 包/10 条（pyjwt，均已验证不可达）**。
+  pyjwt 无升级路径（zhipuai 锁 `<2.9.0` 且已是最新版），可达性分析见 `SECURITY.md`。
+
+**质量验证**：ruff / mypy（99 文件）通过；全套 pytest = **2237 passed / 0 failed**。
+**改动文件**：`app/utils/rate_limiter.py`、`app/config.py`、`app/__init__.py`、
+`app/services/nyt_client.py`、`app/utils/admin_auth.py`、`app/services/free_translation_service.py`、
+`static/mobile/js/mobile.js`、`templates/base.html`、`templates/mobile/profile.html`、
+`requirements.txt`、`requirements-prod.txt`、`.github/workflows/ci.yml`、`SECURITY.md`、测试若干。
+
 ## v0.9.100 - 2026-08-31
 
 ### fix(pipeline): 修复批次导入 digest 算法不一致导致 import 永远 409 的问题
