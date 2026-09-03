@@ -77,25 +77,61 @@ BookRank 使用 GitHub Private Vulnerability Reporting 接收安全漏洞报告�
 
 CI 已接入 `pip-audit`（`Dependency Vulnerability Audit` job），当前为**非阻塞**。
 
-**基线**：初次扫描 3 个包 / 12 条漏洞；升级 mistune 后为 **2 个包 / 11 条**。
+**基线**：初次扫描 3 个包 / 12 条 → 升级 mistune 后 2 个包 / 11 条 → 移除 deep-translator 后
+**1 个包 / 10 条记录（pyjwt，对应 6 个不同公告 ID，pip-audit 存在重复计数；均不可达，见下）**。
 
-### ✅ 已修复
+### ✅ 已处理
 
 | 包 | 问题 | 处理 |
 |---|---|---|
-| mistune 3.3.0 | CVE-2026-76098 | 升级至 **3.3.4**（修复在 3.3.3，同 minor 线）。该包用于 Jinja `markdown` 过滤器，输出还会再经 bleach 消毒（纵深防御） |
+| mistune 3.3.0 | CVE-2026-76098（GitHub 评级 **high**，Mistune DoS RecursionError） | 升级至 **3.3.4**（修复在 3.3.3）。用于 Jinja `markdown` 过滤器，输出还经 bleach 消毒（纵深防御）。升级后 Dependabot open 告警归零 |
+| deep-translator 1.11.4 | **PYSEC-2022-252（供应链投毒）** | **已从 requirements 中移除** |
 
-### ⚠️ 已知但当前无升级路径（已接受，需持续跟踪）
+### 🔴 关于 deep-translator：不是普通漏洞，是被投毒的包
 
-| 包 | 问题 | 为何无法修复 | 评估 |
-|---|---|---|---|
-| pyjwt 2.8.0（传递依赖） | 9 条：PYSEC-2026-120 / 175 / 177 / 178 / 179、PYSEC-2025-183 | 由 `zhipuai==2.1.5.20250825` 锁定 `pyjwt>=2.8.0,<2.9.0`，而 zhipuai **已是 PyPI 最新版**；修复需 2.12+/2.13，与上游约束冲突 | 应用代码**未直接 import jwt**（仅 zhipuai 内部用于 API 鉴权），暴露面有限；待 zhipuai 放宽上限后升级 |
-| deep-translator 1.11.4 | PYSEC-2022-252 | **无修复版本**，且 1.11.4 已是最新版 | 仅作为翻译服务的**备用回退**（主力为智谱）；若不需要该回退，可直接移除依赖以消除风险 |
+OSV 原文（`https://osv.dev/vulnerability/PYSEC-2022-252`）：
+
+> The deep-translator project on PyPI was taken over via user account compromise via a
+> phishing attack and a new malicious release made which contained code which
+> ... environment variables and downloaded and ran malware **at install time**
+
+关键点：
+
+- 受影响范围是 **1.8.5 及之后的所有版本**（含"最新"的 1.11.4）——所谓"无修复版本"，
+  实质是项目被接管后**再无可信发布**。
+- 危害是**安装期**读取环境变量并下载运行恶意代码。对我们尤其危险：
+  Render 构建机上安装依赖时，环境变量里存放着各类凭据。
+- 它是**可选回退**（`free_translation_service.py` 在 try/except 中导入，缺失即优雅降级），
+  移除后仅失去 Google 翻译回退，主力（智谱）不受影响。
+
+**结论**：已移除，并在 `requirements*.txt` 与模块 docstring 中写明原因，**在出现可信发布之前不要重新加入**。
+
+### ⚠️ pyjwt 2.8.0（10 条记录 / 6 个公告 ID）：无升级路径，且已验证**不可达**
+
+- **为何修不了**：由 `zhipuai==2.1.5.20250825` 锁定 `pyjwt>=2.8.0,<2.9.0`，
+  而 zhipuai 已是 PyPI 最新版；修复版本需 2.12+/2.13，与上游约束冲突。
+- **可达性分析（关键）**：本仓库代码**完全没有 import jwt**。
+  zhipuai 内部仅在 `zhipuai/core/_jwt_token.py:26` 调用 `jwt.encode(...)`
+  （生成调用智谱 API 的鉴权令牌），**从不执行 decode / 验签、不使用
+  `PyJWKClient`、不处理 `algorithms` 白名单**。
+- 而 OSV 上这些公告（含 4 条 HIGH）**全部位于解码/验签侧**：
+
+  | 公告 | 等级 | 触发前提 | 本项目是否满足 |
+  |---|---|---|---|
+  | CVE-2026-32597（crit 头扩展） | HIGH | 解码并校验 token | ❌ 仅 encode |
+  | CVE-2017-11424 / CVE-2022-29217（密钥混淆） | HIGH | 验签时公钥格式处理 | ❌ 仅 encode |
+  | CVE-2026-48526（JWK 当 HMAC 密钥伪造 HS256） | HIGH | 解码时混用密钥族 | ❌ 仅 encode |
+  | CVE-2026-48522（PyJWKClient SSRF/file） | MODERATE | 使用 JWKS 客户端拉取密钥 | ❌ 未使用 |
+  | CVE-2026-48523（算法白名单绕过） | MODERATE | 用 PyJWK/PyJWKClient 解码 | ❌ 未使用 |
+  | CVE-2026-48524/48525、CVE-2025-45768 | MODERATE/LOW | 解码侧 DoS | ❌ 仅 encode |
+
+  📎 出处：<https://osv.dev/vulnerability/PYSEC-2026-120> 等（OSV / GHSA 记录）
+
+**结论**：当前评级为**不可达**（accepted risk）。一旦出现下列任一变化需重新评估：
+zhipuai 放宽 pyjwt 上限（应立即升级）、或引入任何 **JWT 校验/解码** 场景（届时必须先升级）。
 
 **跟踪动作**：
 
 - 关注 zhipuai 新版本是否放宽 `pyjwt` 上限，放宽后立即升级。
-- 评估是否移除 `deep-translator`（若备用翻译链路已无用）。
+- 未来若引入 JWT 验签（如对接第三方 SSO），**先升级 pyjwt 再落地**，否则上述 HIGH 项将变为可达。
 - 基线收敛后：移除 CI 中 `dependency-audit` 的 `continue-on-error`，并将其加入 branch protection 的必需检查。
-
-> 漏洞详情以公开库为准：<https://osv.dev>（如 `https://osv.dev/vulnerability/PYSEC-2026-120`）。
