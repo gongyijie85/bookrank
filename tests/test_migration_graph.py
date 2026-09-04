@@ -11,4 +11,4 @@ def test_alembic_has_exactly_one_head():
 
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == ['merge_20260813_heads']
+    assert script.get_heads() == ['add_perf_indexes']

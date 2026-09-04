@@ -1,7 +1,9 @@
 import csv
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from io import StringIO
+from typing import Any
 from urllib.parse import quote
 
 from flask import current_app, request
@@ -19,6 +21,40 @@ from ...utils.service_helpers import get_service
 from . import api_bp, get_session_id, validate_category
 
 _user_service = UserService()
+
+
+def self_category_books_parallel(book_service: Any, category_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+    """并行拉取全部分类书籍，缓存命中短路；单类失败降级为空列表。
+
+    ThreadPool 按分类并行，修复 `category=all` 串行 8×NYT 最长 ~120s 的阻塞；
+    book_service 内部已有 run_with_app_context 会为子线程补 app context。
+    """
+    result: dict[str, list[dict[str, Any]]] = {}
+    if not category_ids:
+        return result
+
+    def _fetch(cat_id: str) -> tuple[str, list[dict[str, Any]]]:
+        try:
+            books = book_service.get_books_by_category(cat_id)
+            return cat_id, [book.to_dict() for book in books]
+        except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'category=all 并行获取分类 {cat_id} 失败: {e}', level='warning')
+            return cat_id, []
+
+    max_workers = min(4, max(1, len(category_ids)))
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='books-all') as pool:
+            futures = {pool.submit(_fetch, cat_id): cat_id for cat_id in category_ids}
+            for future in as_completed(futures):
+                cat_id, data = future.result()
+                result[cat_id] = data
+    except Exception as e:
+        # 执灭绝：降级串行，保证接口可用
+        log_error(ErrorCategory.API_CALL, f'category=all 并行拉取执灭绝，降级串行: {e}', level='warning')
+        for cat_id in category_ids:
+            result[cat_id] = _fetch(cat_id)[1]
+
+    return result
 
 # UTF-8 BOM,确保 Excel 正确识别 CSV 中的中文
 _UTF8_BOM = '﻿'.encode()
@@ -43,9 +79,7 @@ def get_books(category: str):
             return APIResponse.error('Service unavailable', 503)
 
         if category == 'all':
-            all_books = {}
-            for cat_id in current_app.config['CATEGORIES']:
-                all_books[cat_id] = [book.to_dict() for book in book_service.get_books_by_category(cat_id)]
+            all_books = self_category_books_parallel(book_service, list(current_app.config['CATEGORIES']))
             _user_service.save_user_categories(session_id, list(current_app.config['CATEGORIES'].keys()))
             return APIResponse.success(
                 data={
