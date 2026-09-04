@@ -62,9 +62,13 @@
    - 建立翻译结果采样机制，定期评估智谱 AI 与备选翻译质量
    - 验收标准：每月至少完成一次人工采样评估
 
-7. **Wiki 同步机制**
+7. **Wiki 同步机制** ✅（2026-09-04 完成，commit 735e6cf）
    - 建立 Code Wiki 与 GitHub Wiki 的同步流程
-   - 验收标准：仓库 Code Wiki/ 更新后，GitHub Wiki 能在一次手动或自动流程后同步
+   - 实现：`scripts/sync_wiki.py`（clone public wiki → diff/mirror →
+     dry-run 默认 / --push 推送；本地索引.md ↔ wiki Home.md 映射）
+     + Makefile `sync-wiki`
+   - 验收标准：仓库 Code Wiki/ 更新后，GitHub Wiki 能在一次手动或自动
+     流程后同步（dry-run 验证仅 1 文件差异，其余已在镜像状态）
 
 8. **Render 资源阈值告警**
    - 增加内存、响应时间等关键指标监控与告警
