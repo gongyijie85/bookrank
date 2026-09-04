@@ -22,4 +22,8 @@ translations:
 build-frontend:
 	node scripts/build_frontend.mjs
 
+# 同步 Code Wiki/ -> GitHub wiki（默认 dry-run；--push 实际推送）
+sync-wiki:
+	python scripts/sync_wiki.py
+
 check: lint typecheck test translations
