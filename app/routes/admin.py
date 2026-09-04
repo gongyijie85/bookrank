@@ -263,6 +263,20 @@ def get_new_books_last_sync():
         return APIResponse.error('读取失败', 500)
 
 
+@admin_bp.route('/crawler/drift')
+@rate_limit(max_requests=60, window=60)
+@admin_required
+def crawler_drift_report():
+    """爬虫选择器漂移报告（ROADMAP #2）：依据 last_auto_sync_result 识别疑似漂移出版社。"""
+    try:
+        from ..services.crawler_drift_detector import drift_report
+
+        return APIResponse.success(data=drift_report())
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'爬虫漂移报告失败: {e}', exc_info=True)
+        return APIResponse.error('读取漂移报告失败', 500)
+
+
 @admin_bp.route('/weekly-report/regenerate', methods=['POST'])
 @csrf_protect
 @admin_required

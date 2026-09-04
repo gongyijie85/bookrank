@@ -361,6 +361,15 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info('📅 畅销书封面热度预取已安排（每天一次）')
 
+    # 5d. 爬虫选择器漂移告警（每日一次，ROADMAP #2）
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _crawler_drift_alert_task),
+        trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay * 3), timezone=UTC),
+        id='crawler_drift_alert',
+        name='爬虫选择器漂移告警',
+    )
+    app.logger.info('📅 爬虫选择器漂移告警已安排（每天一次）')
+
     # 6. 翻译数据清理和预置获奖图书补种（一次性，延迟到后台执行，减轻冷启动负担）
     from datetime import timedelta
 
@@ -504,6 +513,45 @@ def _api_cache_expired_cleanup_task(app):
             app.logger.info('API 缓存过期记录已清理: %d 条', deleted)
     except Exception as e:
         log_error(ErrorCategory.CACHE, f'API 缓存过期清理跳过: {e}', level='warning')
+
+
+def _crawler_drift_alert_task(app):
+    """爬虫选择器漂移告警（每日一次，ROADMAP #2）。
+
+    读 last_auto_sync_result 识别疑似漂移出版社；有候选时推 webhook
+    （复用 ALERT_WEBHOOK_URL），无 webhook 时仅日志留痕。
+    """
+    try:
+        with app.app_context():
+            from .services.crawler_drift_detector import drift_report
+
+            report = drift_report()
+            drifted = report.get('drifted', [])
+            if not drifted:
+                app.logger.info('爬虫漂移检查通过（%d 家出版社无异常）', report.get('total_publishers', 0))
+                return
+
+            payload = {
+                'task': 'crawler_drift',
+                'level': 'warning',
+                'drifted': [
+                    {'publisher': d['publisher'], 'reasons': d['reasons']} for d in drifted
+                ],
+                'observed_at': report.get('observed_at'),
+            }
+            webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
+            if webhook_url:
+                try:
+                    import requests
+
+                    requests.post(webhook_url, json=payload, timeout=10)
+                    app.logger.warning('⚠️ 爬虫漂移告警已发送: %s', [d['publisher'] for d in drifted])
+                except Exception as exc:
+                    app.logger.warning('爬虫漂移告警 webhook 发送失败: %s', exc)
+            else:
+                app.logger.warning('⚠️ 爬虫漂移候选（无 webhook，仅日志）: %s', payload['drifted'])
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'爬虫漂移检查跳过: {e}', level='warning')
 
 
 def _cover_prefetch_task(app):
