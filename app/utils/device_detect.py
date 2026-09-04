@@ -8,9 +8,9 @@ import re
 
 from flask import has_request_context, request
 
-# 移动端 UA 关键词（覆盖主流手机浏览器与平板）
+# 移动端 UA 关键词（覆盖主流手机浏览器与平板，iPadOS 13+ 识别为 Mobile）
 _MOBILE_PATTERN = re.compile(
-    r'android|iphone|ipod|windows phone|mobile|blackberry|opera mini|mobile safari',
+    r'android|iphone|ipod|ipad|windows phone|mobile|blackberry|opera mini|mobile safari|tablet|kindle|silk|playbook',
     re.IGNORECASE,
 )
 

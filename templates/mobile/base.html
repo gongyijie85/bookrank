@@ -2,12 +2,12 @@
 <html lang="{{ 'en' if get_locale() == 'en' else 'zh-CN' }}" data-lang="{{ get_locale() }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#2C5F2D">
     <meta name="description" content="书榜 BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单">
     <title>{% block title %}书榜 BookRank{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
-    <link rel="canonical" href="{{ request.host_url }}{{ request.path[1:] if request.path != '/' else '' }}">
+    <link rel="canonical" href="{{ request.url_root.rstrip('/') + request.path }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
 
     {# Open Graph / Twitter Card / JSON-LD SEO #}

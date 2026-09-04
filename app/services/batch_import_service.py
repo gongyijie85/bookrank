@@ -209,6 +209,10 @@ def import_batch(payload: dict[str, Any]) -> BatchImportResult:
         pilot_gate_service.record_evidence_run(source_id, success=True, batch_id=batch_id)
         return BatchImportResult(status='applied', receipt=receipt, http_status=200)
     except BatchImportError as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         if source_id_for_health:
             source_health_service.record_plan_failure(
                 source_id_for_health,

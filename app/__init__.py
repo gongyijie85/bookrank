@@ -335,6 +335,8 @@ def _apply_security_headers(app: Flask) -> None:
             'Referrer-Policy': 'strict-origin-when-cross-origin',
             'Content-Security-Policy': (
                 "default-src 'self'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
                 f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
                 f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
                 "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
@@ -344,7 +346,8 @@ def _apply_security_headers(app: Flask) -> None:
                 "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; "
                 "connect-src 'self' https://cdn.jsdelivr.net; "
                 "frame-src 'none'; "
-                "object-src 'none';"
+                "object-src 'none'; "
+                "upgrade-insecure-requests;"
             ),
             'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
         }
@@ -392,74 +395,60 @@ def _register_jinja_filters(app: Flask) -> None:
 
     try:
         import bleach as _bleach
+    except ImportError as e:
+        raise ImportError(
+            'bleach 未安装，HTML 消毒无法安全执行。请执行 pip install -r requirements.txt 安装 bleach==6.4.0'
+        ) from e
 
-        _ALLOWED_TAGS = [
-            'p',
-            'br',
-            'strong',
-            'em',
-            'b',
-            'i',
-            'u',
-            'h1',
-            'h2',
-            'h3',
-            'h4',
-            'h5',
-            'h6',
-            'ul',
-            'ol',
-            'li',
-            'a',
-            'blockquote',
-            'code',
-            'pre',
-            'span',
-            'div',
-            'table',
-            'thead',
-            'tbody',
-            'tr',
-            'th',
-            'td',
-            'img',
-            'hr',
-            'sub',
-            'sup',
-        ]
-        _ALLOWED_ATTRS = {
-            'a': ['href', 'title'],
-            'img': ['src', 'alt', 'title', 'width', 'height'],
-            'span': ['class'],
-            'div': ['class'],
-            'code': ['class'],
-            'pre': ['class'],
-            'td': ['colspan', 'rowspan'],
-            'th': ['colspan', 'rowspan'],
-        }
+    _ALLOWED_TAGS = [
+        'p',
+        'br',
+        'strong',
+        'em',
+        'b',
+        'i',
+        'u',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'ul',
+        'ol',
+        'li',
+        'a',
+        'blockquote',
+        'code',
+        'pre',
+        'span',
+        'div',
+        'table',
+        'thead',
+        'tbody',
+        'tr',
+        'th',
+        'td',
+        'img',
+        'hr',
+        'sub',
+        'sup',
+    ]
+    _ALLOWED_ATTRS = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'title', 'width', 'height'],
+        'span': ['class'],
+        'div': ['class'],
+        'code': ['class'],
+        'pre': ['class'],
+        'td': ['colspan', 'rowspan'],
+        'th': ['colspan', 'rowspan'],
+    }
 
-        def _sanitize_with_bleach(text: str) -> str:
-            return str(_bleach.clean(text, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True))
+    def _sanitize_with_bleach(text: str) -> str:
+        return str(_bleach.clean(text, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True))
 
-        _sanitize_fn = _sanitize_with_bleach
-    except ImportError:
-        # Fallback: regex-based sanitizer when bleach is not installed
-        _UNSAFE_TAGS_RE = re.compile(
-            r'<\s*/?\s*(?:script|iframe|object|embed|form|input|textarea|button|link|meta|base|applet)\b[^>]*>',
-            re.IGNORECASE,
-        )
-        _EVENT_HANDLER_RE = re.compile(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)', re.IGNORECASE)
-        _JS_URL_RE = re.compile(
-            r'(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|\'javascript:[^\']*\'|javascript:\S+)', re.IGNORECASE
-        )
-
-        def _sanitize_with_regex(text: str) -> str:
-            text = _UNSAFE_TAGS_RE.sub('', text)
-            text = _EVENT_HANDLER_RE.sub('', text)
-            text = _JS_URL_RE.sub('', text)
-            return text
-
-        _sanitize_fn = _sanitize_with_regex
+    _sanitize_fn = _sanitize_with_bleach
 
     @app.template_filter('sanitize_html')
     def sanitize_html_filter(text: str | None) -> str:

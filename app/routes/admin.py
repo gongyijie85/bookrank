@@ -15,7 +15,7 @@ from ..services.admin_service import (
     update_translation_cache_records,
 )
 from ..utils.admin_auth import admin_required
-from ..utils.api_helpers import APIResponse, csrf_protect
+from ..utils.api_helpers import APIResponse, csrf_protect, rate_limit
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.error_tracker import error_tracker
 from ..utils.service_helpers import get_new_book_modules, get_service
@@ -875,6 +875,7 @@ def system_status():
 
 
 @admin_bp.route('/backup/export')
+@rate_limit(max_requests=5, window=60)
 @admin_required
 def backup_export():
     try:

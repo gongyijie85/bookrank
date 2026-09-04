@@ -1,0 +1,104 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('新书速递') }} - BookRank{% endblock %}
+{% block og_title %}{{ _('新书速递') }} - BookRank{% endblock %}
+
+{% block content %}
+{% set _l = get_locale() %}
+<div class="m-status-bar"></div>
+
+<nav class="m-top-nav">
+    <div class="m-top-nav-copy">
+        <span class="m-top-nav-kicker">{{ _('新书速递') }}</span>
+        <span class="m-top-nav-title">New Books</span>
+        <span class="m-top-nav-subtitle">{{ _('追踪国际大型出版社最新出版物') }}</span>
+    </div>
+</nav>
+
+<!-- 统计条 -->
+{% if stats %}
+<div class="m-list-info">
+    <span>{{ _('共') }} {{ stats.total_books or total }} {{ _('本新书') }}</span> · {{ stats.active_publishers or publishers|length }} {{ _('家出版社') }}
+</div>
+{% endif %}
+
+<!-- 简化筛选：出版社 / 分类 / 时间 -->
+<form method="get" action="/new-books" class="m-filter-bar" style="padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;">
+    <div style="display:flex;gap:0.5rem;">
+        <select name="publisher" class="m-filter-select" style="flex:1;" aria-label="{{ _('出版社') }}">
+            <option value="">{{ _('全部出版社') }}</option>
+            {% for pub in publishers %}
+            <option value="{{ pub.id }}" {% if selected_publisher == pub.id %}selected{% endif %}>{{ pub.name_en if _l=='en' and pub.name_en else pub.name }}</option>
+            {% endfor %}
+        </select>
+        <select name="days" class="m-filter-select" aria-label="{{ _('时间') }}">
+            <option value="7" {% if selected_days==7 %}selected{% endif %}>{{ _('最近7天') }}</option>
+            <option value="30" {% if selected_days==30 %}selected{% endif %}>{{ _('最近30天') }}</option>
+            <option value="90" {% if selected_days==90 %}selected{% endif %}>{{ _('最近90天') }}</option>
+            <option value="180" {% if selected_days==180 %}selected{% endif %}>{{ _('最近半年') }}</option>
+            <option value="365" {% if selected_days==365 %}selected{% endif %}>{{ _('最近一年') }}</option>
+        </select>
+    </div>
+    <div style="display:flex;gap:0.5rem;">
+        <input type="search" name="search" value="{{ search_query }}" placeholder="{{ _('搜索书名、作者') }}" class="m-filter-input" style="flex:1;" aria-label="{{ _('搜索') }}">
+        <button type="submit" class="m-btn m-btn-primary m-btn-sm">{{ _('筛选') }}</button>
+        <a href="/new-books" class="m-btn m-btn-outline m-btn-sm">{{ _('重置') }}</a>
+    </div>
+    {% if categories %}
+    <div class="m-cat-tabs-scroll no-scrollbar" style="display:flex;gap:0.5rem;overflow-x:auto;">
+        <a href="/new-books?days={{ selected_days }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部分类') }}</a>
+        {% for cat in categories %}
+        <a href="/new-books?category={{ cat }}&days={{ selected_days }}" class="m-cat-tab {% if selected_category==cat %}active{% endif %}">{{ cat }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</form>
+
+<div class="m-list-info">
+    {{ _('当前结果') }} <strong>{{ total }}</strong> {{ _('本') }} · {{ _('按出版日期筛选最近') }} {{ selected_days }} {{ _('天已出版图书') }}
+</div>
+
+{% if books %}
+<div class="m-book-list">
+    {% for book in books %}
+    <a href="/new-book/{{ book.id }}" class="m-card m-book-card">
+        <div class="m-book-cover">
+            <img src="{{ book.cover_url or url_for('static', filename='default-cover.png') }}"
+                 alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知') }}"
+                 loading="lazy" width="60" height="80"
+                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        </div>
+        <div class="m-book-info">
+            <h3 class="m-book-title">{{ book.title_zh or book.title }}</h3>
+            <p class="m-book-author">{{ book.author or _('未知') }}</p>
+            <p class="m-book-card-meta">
+                {% if book.publisher %}{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }} · {% endif %}
+                {% if book.publication_date %}{{ book.publication_date }}{% endif %}
+                {% if book.category %} · {{ book.category }}{% endif %}
+            </p>
+            {% set desc = book.description_zh or book.description %}
+            {% if desc %}<p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length>80 %}…{% endif %}</p>{% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<div class="m-pagination" style="display:flex;justify-content:center;gap:0.5rem;padding:1rem;">
+    {% if page > 1 %}<a href="/new-books?page={{ page-1 }}&days={{ selected_days }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>{% endif %}
+    <span class="m-page-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}<a href="/new-books?page={{ page+1 }}&days={{ selected_days }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>{% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="m-empty">
+    <div class="m-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+    <p class="m-empty-title">{{ _('暂无新书数据') }}</p>
+    <p class="m-empty-sub">{{ _('当前出版时间范围暂无新书，可放宽时间范围或稍后刷新') }}</p>
+    <a href="/new-books" class="m-btn m-btn-outline m-btn-sm">{{ _('刷新') }}</a>
+</div>
+{% endif %}
+
+<a href="/publishers" class="m-btn m-btn-outline" style="margin:1rem;display:block;text-align:center;">{{ _('查看全部出版社') }}</a>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "mobile/base.html" %}
+{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block content %}
+{% set _l = get_locale() %}
+<div class="m-status-bar"></div>
+<a href="{{ back_url or '/new-books' }}" class="m-back-link" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.75rem;font-size:0.875rem;color:var(--muted-foreground);text-decoration:none;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {{ _('返回') }}
+</a>
+
+<article class="m-book-detail" style="padding:0 1rem 2rem;">
+    <div style="display:flex;gap:1rem;align-items:flex-start;">
+        <img src="{{ book.cover_url or url_for('static', filename='default-cover.png') }}"
+             alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}"
+             style="width:120px;height:180px;object-fit:cover;border-radius:8px;flex-shrink:0;"
+             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+        <div style="flex:1;min-width:0;">
+            <h1 style="font-size:1.15rem;font-weight:600;line-height:1.35;margin:0 0 0.35rem;">{{ book.title_zh or book.title }}</h1>
+            {% if book.title and book.title_zh and book.title != book.title_zh %}<p style="font-size:0.85rem;color:var(--muted-foreground);margin:0 0 0.5rem;">{{ book.title }}</p>{% endif %}
+            <p style="font-size:0.9rem;color:var(--muted-foreground);margin:0;">{{ book.author or _('未知作者') }}</p>
+            {% if book.publisher %}<p style="font-size:0.85rem;color:var(--muted-foreground);margin:0.25rem 0 0;">{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }}</p>{% endif %}
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:1rem 0;padding:0.75rem;background:var(--surface);border-radius:8px;font-size:0.85rem;">
+        {% if book.isbn13 %}<div><span style="color:var(--muted-foreground);">{{ _('ISBN') }}:</span> {{ book.isbn13 }}</div>{% endif %}
+        {% if book.publication_date %}<div><span style="color:var(--muted-foreground);">{{ _('出版日期') }}:</span> {{ book.publication_date }}</div>{% endif %}
+        {% if book.category %}<div><span style="color:var(--muted-foreground);">{{ _('分类') }}:</span> {{ book.category }}</div>{% endif %}
+        {% if book.page_count %}<div><span style="color:var(--muted-foreground);">{{ _('页数') }}:</span> {{ book.page_count }}</div>{% endif %}
+        {% if book.language %}<div><span style="color:var(--muted-foreground);">{{ _('语言') }}:</span> {{ book.language }}</div>{% endif %}
+        {% if book.price %}<div><span style="color:var(--muted-foreground);">{{ _('价格') }}:</span> {{ book.price }}</div>{% endif %}
+    </div>
+
+    {% if book.buy_links %}
+    <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;margin-bottom:1rem;" class="no-scrollbar">
+        {% for link in book.buy_links %}
+        {% if link.url %}
+        <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="m-btn m-btn-outline m-btn-sm" style="white-space:nowrap;">{{ link.name or _('购买') }}</a>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <section>
+        <h2 style="font-size:1rem;font-weight:600;margin:0 0 0.5rem;">{{ _('图书简介') }}</h2>
+        <div style="font-size:0.92rem;line-height:1.65;color:var(--foreground);">
+            {% if _l=='zh' and book.description_zh %}{{ book.description_zh|sanitize_html|safe }}
+            {% elif book.description %}{{ book.description|sanitize_html|safe }}
+            {% else %}<p style="color:var(--muted-foreground);">{{ _('暂无简介') }}</p>{% endif %}
+        </div>
+    </section>
+</article>
+{% endblock %}

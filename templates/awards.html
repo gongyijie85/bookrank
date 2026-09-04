@@ -109,9 +109,9 @@
 <!-- Filter Bar -->
 <section class="filter-bar" aria-label="{{ _('筛选选项') }}">
     <div class="filter-group">
-        <label class="filter-label" for="award-select">奖项</label>
-        <select class="filter-select" id="award-select">
-            <option value="">全部奖项</option>
+        <label class="filter-label" for="award-select" data-i18n="filter_award_label">{{ _('奖项') }}</label>
+        <select class="filter-select" id="award-select" aria-label="{{ _('奖项') }}">
+            <option value="" data-i18n="filter_award_all">{{ _('全部奖项') }}</option>
             {% for award in awards %}
             <option value="{{ award.name }}" {% if selected_award == award.name %}selected{% endif %}>
                 {{ award.name }}
@@ -121,21 +121,21 @@
     </div>
 
     <div class="filter-group">
-        <label class="filter-label" for="year-select">年份</label>
-        <select class="filter-select" id="year-select">
-            <option value="">全部年份</option>
+        <label class="filter-label" for="year-select" data-i18n="filter_year_label">{{ _('年份') }}</label>
+        <select class="filter-select" id="year-select" aria-label="{{ _('年份') }}">
+            <option value="" data-i18n="filter_year_all">{{ _('全部年份') }}</option>
             {% for year in years %}
             <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>
-                {{ year }}年
+                {{ year }}{{ _('年') }}
             </option>
             {% endfor %}
         </select>
     </div>
 
     <div class="filter-group">
-        <label class="filter-label" for="category-select">类别</label>
-        <select class="filter-select" id="category-select">
-            <option value="">全部类别</option>
+        <label class="filter-label" for="category-select" data-i18n="filter_category_label">{{ _('类别') }}</label>
+        <select class="filter-select" id="category-select" aria-label="{{ _('类别') }}">
+            <option value="" data-i18n="filter_category_all">{{ _('全部分类') }}</option>
             {% for category in categories %}
             <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>
                 {{ category }}
@@ -145,26 +145,28 @@
     </div>
 
     <div class="filter-group search-box">
-        <label class="filter-label" for="search-input">搜索</label>
+        <label class="filter-label" for="search-input" data-i18n="filter_search_label">{{ _('搜索') }}</label>
         <div class="search-input-wrapper">
             <input type="search"
                    class="filter-input"
                    id="search-input"
-                   placeholder="搜索书名或作者..."
+                   placeholder="{{ _('搜索书名或作者...') }}"
+                   data-i18n-placeholder="search_placeholder_award"
                    value="{{ search_query if search_query else '' }}"
-                   aria-label="搜索书名或作者">
+                   aria-label="{{ _('搜索书名或作者') }}"
+                   data-i18n-aria-label="search_book_author">
             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
         </div>
     </div>
 
     <div class="filter-actions">
-        <button class="btn btn-primary" id="btn-apply" aria-label="应用筛选">
+        <button class="btn btn-primary" id="btn-apply" aria-label="{{ _('应用筛选') }}" data-i18n-aria-label="btn_filter">
             <svg class="icon" width="16" height="16"><use href="#icon-filter"/></svg>
-            筛选
+            <span data-i18n="btn_filter">{{ _('筛选') }}</span>
         </button>
-        <button class="btn btn-secondary" id="btn-clear" aria-label="重置筛选">
+        <button class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置筛选') }}" data-i18n-aria-label="btn_reset">
             <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
-            重置
+            <span data-i18n="btn_reset">{{ _('重置') }}</span>
         </button>
     </div>
 

@@ -135,6 +135,18 @@ const TRANSLATIONS = {
         // 图书网格/列表视图
         'books_grid_view': '图书网格视图',
         'books_list_view': '图书列表视图',
+        // 筛选通用
+        'filter_award_label': '奖项',
+        'filter_award_all': '全部奖项',
+        'filter_year_label': '年份',
+        'filter_year_all': '全部年份',
+        'filter_category_label': '类别',
+        'filter_category_all': '全部分类',
+        'filter_search_label': '搜索',
+        'search_placeholder_award': '搜索书名或作者...',
+        'search_book_author': '搜索书名或作者',
+        'btn_filter': '筛选',
+        'btn_reset': '重置',
         // 新书推介页
         'nb_header_subtitle': '追踪国际大型出版社最新出版物',
         'nb_total_pre': '共',
@@ -181,6 +193,18 @@ const TRANSLATIONS = {
         'nb_detail_no_description': '暂无简介',
     },
     en: {
+        // Filters
+        'filter_award_label': 'Award',
+        'filter_award_all': 'All awards',
+        'filter_year_label': 'Year',
+        'filter_year_all': 'All years',
+        'filter_category_label': 'Category',
+        'filter_category_all': 'All categories',
+        'filter_search_label': 'Search',
+        'search_placeholder_award': 'Search title or author...',
+        'search_book_author': 'Search title or author',
+        'btn_filter': 'Filter',
+        'btn_reset': 'Reset',
         // Navigation
         'nav_home': 'Home',
         'nav_awards': 'Awards',

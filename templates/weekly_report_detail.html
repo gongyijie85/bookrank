@@ -1349,6 +1349,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // XSS 防护：转义所有外部/DB 来源的文本后再拼 innerHTML
+    function escHtml(str) {
+        if (str === undefined || str === null) return '';
+        const d = document.createElement('div');
+        d.textContent = String(str);
+        return d.innerHTML;
+    }
     bookDetailBtns.forEach(btn => {
         btn.addEventListener('click', function() {
             const parent = this.closest('.book-item, .change-item, .recommendation-card');
@@ -1359,14 +1366,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (book) {
                 const changeHtml = book.rank_change && book.rank_change !== 0
-                    ? `<p><strong>{{ _('排名变化') }}：</strong>${book.rank_change > 0 ? '↑' : '↓'} ${Math.abs(book.rank_change)} {{ _('位') }}</p>` : '';
-                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('累计上榜周数') }}：</strong>${book.weeks_on_list} {{ _('周') }}</p>` : '';
-                const rankHtml = book.rank ? `<p><strong>{{ _('当前排名') }}：</strong>{{ _('第') }} ${book.rank} {{ _('名') }}</p>` : '';
-                const categoryHtml = book.category ? `<p><strong>{{ _('类别') }}：</strong>${book.category}</p>` : '';
-                const reasonHtml = book.reason ? `<p><strong>{{ _('推荐理由') }}：</strong>${book.reason}</p>` : '';
-                modalBody.innerHTML = `<h4>${bookTitle}</h4><p><strong>{{ _('作者') }}：</strong>${bookAuthor}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
+                    ? `<p><strong>{{ _('排名变化') }}：</strong>${escHtml(book.rank_change > 0 ? '↑' : '↓')} ${Math.abs(Number(book.rank_change)||0)} {{ _('位') }}</p>` : '';
+                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('累计上榜周数') }}：</strong>${escHtml(book.weeks_on_list)} {{ _('周') }}</p>` : '';
+                const rankHtml = book.rank ? `<p><strong>{{ _('当前排名') }}：</strong>{{ _('第') }} ${escHtml(book.rank)} {{ _('名') }}</p>` : '';
+                const categoryHtml = book.category ? `<p><strong>{{ _('类别') }}：</strong>${escHtml(book.category)}</p>` : '';
+                const reasonHtml = book.reason ? `<p><strong>{{ _('推荐理由') }}：</strong>${escHtml(book.reason)}</p>` : '';
+                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>{{ _('作者') }}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
             } else {
-                modalBody.innerHTML = `<h4>${bookTitle}</h4><p><strong>{{ _('作者') }}：</strong>${bookAuthor}</p><p>{{ _('暂无更多详情数据') }}</p>`;
+                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>{{ _('作者') }}：</strong>${escHtml(bookAuthor)}</p><p>{{ _('暂无更多详情数据') }}</p>`;
             }
             modalOverlay.classList.add('active');
         });

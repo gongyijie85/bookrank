@@ -368,7 +368,7 @@ def new_books():
     params = _parse_new_books_params(request.args)
     modules = get_new_book_modules()
     context = _load_new_books_data(modules, params)
-    return render_template('new_books.html', **context)
+    return render_adaptive('new_books.html', **context)
 
 
 def _parse_new_books_params(args) -> dict:
@@ -580,7 +580,7 @@ def new_book_detail(book_id):
 
             submit_background_task(translate_book_async)
 
-    return render_template('new_book_detail.html', book=book, back_url=request.referrer or '/new-books')
+    return render_adaptive('new_book_detail.html', book=book, back_url=request.referrer or '/new-books')
 
 
 @main_bp.route('/award-book/<int:book_id>')
