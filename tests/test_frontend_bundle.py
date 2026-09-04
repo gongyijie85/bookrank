@@ -11,12 +11,12 @@ from pathlib import Path
 DIST = Path(__file__).resolve().parent.parent / 'static' / 'dist' / 'app.min.css'
 
 REQUIRED_SELECTORS = (
-    '.books-grid',      # index.css only
-    '.filter-bar',      # components.css (index/new-books variants)
-    '.view-toggle',     # index.css only
-    '.card-badge',      # index.css only
-    '.card',            # base/components shared
-    '.top-nav',         # base.css global
+    '.books-grid',  # index.css only
+    '.filter-bar',  # components.css (index/new-books variants)
+    '.view-toggle',  # index.css only
+    '.card-badge',  # index.css only
+    '.card',  # base/components shared
+    '.top-nav',  # base.css global
 )
 
 
