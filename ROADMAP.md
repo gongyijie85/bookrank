@@ -29,10 +29,14 @@
    - 使用 Pydantic 模型统一请求/响应验证
    - 验收标准：`/openapi.json` 可访问且通过校验
 
-2. **出版社爬虫选择器漂移监控**
+2. **出版社爬虫选择器漂移监控** ✅（2026-09-04 完成，commit 400c21f）
    - 增加选择器健康检查与告警
    - 记录漂移历史，便于快速定位
-   - 验收标准：爬虫选择器失败时能在 24 小时内通过 CI 或告警感知
+   - 实现：`crawler_drift_detector`（读 `last_auto_sync_result` 识别
+     empty/partial_failure/timeout/request_failed 重复异常）→ `GET /crawler/drift`
+     报告端点 + 每日 APScheduler webhook 告警
+   - 验收标准：爬虫选择器失败时能在 24 小时内通过 CI 或告警感知（每日
+     job + webhook，异常候选 24h 内告警）
 
 3. **mypy override 债务清理** ✅（2026-09-04 完成，commit ddccb23/869def4）
    - 逐步移除 `pyproject.toml` 中不必要的 `disable_error_code`
