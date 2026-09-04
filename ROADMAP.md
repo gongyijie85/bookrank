@@ -24,10 +24,11 @@
 
 **关键方向**：
 
-1. **OpenAPI 规范与文档**
+1. **OpenAPI 规范与文档** ✅（2026-09-04 完成，commit 9b5bd31）
    - 为公开 API 生成并发布 OpenAPI 3.x 文档
-   - 使用 Pydantic 模型统一请求/响应验证
-   - 验收标准：`/openapi.json` 可访问且通过校验
+   - 使用 Pydantic 模型统一请求/响应验证（已有 schemas/validators.py）
+   - 实现：`static/openapi.json`（3.1.0，14 路径）+ `GET /openapi.json`
+   - 验收标准：`/openapi.json` 可访问且通过校验（JSON 有效 + 路径覆盖测试）
 
 2. **出版社爬虫选择器漂移监控** ✅（2026-09-04 完成，commit 400c21f）
    - 增加选择器健康检查与告警
