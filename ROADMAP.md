@@ -66,9 +66,9 @@
    - JS defer + 按需加载；模板引用迁移 + 回归快照
    - 验收标准：production 页面 CSS ≤2 请求 / JS ≤2 请求且 defer，`immutable` 缓存与 hash 匹配
 
-10. **封面下载异步化与后台预取**（GitHub #178，待实施）
+10. **封面下载异步化与后台预取** ✅（2026-09-04 完成，commit e7934f6，GitHub #178）
     - `get_cached_image_url` MISS 时立即返回占位 + 后台预取（同 URL 去重）
-    - APScheduler 每日预取 job；默认封面压缩 <50KB
+    - APScheduler 每日预取 job；默认封面压缩 <50KB（实际 93KB，-78%）
     - 验收标准：请求线程无阻塞下载，首屏 TTFB 不含图片网络等待
 
 ## 长期方向
