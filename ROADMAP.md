@@ -34,10 +34,11 @@
    - 记录漂移历史，便于快速定位
    - 验收标准：爬虫选择器失败时能在 24 小时内通过 CI 或告警感知
 
-3. **mypy override 债务清理**
+3. **mypy override 债务清理** ✅（2026-09-04 完成，commit ddccb23/869def4）
    - 逐步移除 `pyproject.toml` 中不必要的 `disable_error_code`
    - 提升核心模块类型覆盖率
    - 验收标准：mypy 无 override 的模块数量明显增加
+   - 现状：25+ 模块零 override；`mypy app/` 0 errors / 99 files；仅 8 个 ORM 密集文件豁免 SQLAlchemy 2.0 py.typed 噪音。GitHub #10 已关闭。
 
 4. **低覆盖率模块测试补齐**
    - 识别并优先覆盖核心业务流程中的低覆盖模块
@@ -58,6 +59,17 @@
 8. **Render 资源阈值告警**
    - 增加内存、响应时间等关键指标监控与告警
    - 验收标准：达到阈值时能通过 webhook 或 Sentry 通知维护者
+
+9. **前端资源打包与指纹化**（GitHub #177，待实施）
+   - esbuild/Vite 打包 CSS+JS，产物内容 hash 文件名
+   - 合并设计 token（tokens.css）消除重复选择器，purgecss 清未用样式
+   - JS defer + 按需加载；模板引用迁移 + 回归快照
+   - 验收标准：production 页面 CSS ≤2 请求 / JS ≤2 请求且 defer，`immutable` 缓存与 hash 匹配
+
+10. **封面下载异步化与后台预取**（GitHub #178，待实施）
+    - `get_cached_image_url` MISS 时立即返回占位 + 后台预取（同 URL 去重）
+    - APScheduler 每日预取 job；默认封面压缩 <50KB
+    - 验收标准：请求线程无阻塞下载，首屏 TTFB 不含图片网络等待
 
 ## 长期方向
 
