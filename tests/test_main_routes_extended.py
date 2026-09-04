@@ -1338,7 +1338,7 @@ class TestIndexRoute:
         with app.app_context():
             app.extensions['book_service'] = mock_svc
         try:
-            response = client.get('/?sort=weeks_desc')
+            response = client.get('/?sort=weeks_desc&view=list')
             soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
             first_card = soup.select_one('.list-item')
             item_list = next(
@@ -1361,7 +1361,7 @@ class TestIndexRoute:
         with app.app_context():
             app.extensions['book_service'] = mock_svc
         try:
-            response = client.get('/')
+            response = client.get('/?view=list')
             soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
             badge = soup.select_one('.rank-change-badge')
 

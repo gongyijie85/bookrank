@@ -97,9 +97,10 @@ def index():
         category = default_category
 
     search_query = request.args.get('search', '').strip()[:100]
-    view_mode = request.args.get('view', 'list')
+    # 默认网格视图：15 本 4-5 列 × 3 行（用户期望；list 视图仍可切换）
+    view_mode = request.args.get('view', 'grid')
     if view_mode not in ['grid', 'list']:
-        view_mode = 'list'
+        view_mode = 'grid'
 
     publisher_filter = request.args.get('publisher', '').strip()
     weeks_filter = request.args.get('weeks', '')
