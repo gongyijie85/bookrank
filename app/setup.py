@@ -342,6 +342,15 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
         )
         app.logger.info('📅 翻译缓存自动清理已安排（每30分钟，首次600秒后）')
 
+    # 5b. API 缓存过期记录清理（每 24 小时一次，防表膨胀）
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _api_cache_expired_cleanup_task),
+        trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay), timezone=UTC),
+        id='api_cache_cleanup',
+        name='API缓存过期记录清理',
+    )
+    app.logger.info('📅 API缓存过期记录清理已安排（每24小时）')
+
     # 6. 翻译数据清理和预置获奖图书补种（一次性，延迟到后台执行，减轻冷启动负担）
     from datetime import timedelta
 
@@ -472,6 +481,19 @@ def _translation_cache_cleanup_task(app):
                 app.logger.info('翻译缓存自动清理完成')
     except Exception as e:
         log_error(ErrorCategory.CACHE, f'翻译缓存自动清理跳过: {e}', level='warning')
+
+
+def _api_cache_expired_cleanup_task(app):
+    """API 缓存表过期记录清理（每日一次，防 APICache 表无界膨胀）"""
+    try:
+        with app.app_context():
+            from .services.api_cache_service import get_api_cache_service
+
+            cache_svc = get_api_cache_service()
+            deleted = cache_svc.clear_expired()
+            app.logger.info('API 缓存过期记录已清理: %d 条', deleted)
+    except Exception as e:
+        log_error(ErrorCategory.CACHE, f'API 缓存过期清理跳过: {e}', level='warning')
 
 
 def _deferred_init_task(app):

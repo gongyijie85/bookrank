@@ -879,33 +879,56 @@ def system_status():
 @admin_required
 def backup_export():
     try:
+        from flask import current_app as _current_app
+
+        app_obj = _current_app._get_current_object()
+
         from ..models.schemas import Award, AwardBook, BookMetadata, SearchHistory, TranslationCache, WeeklyReport
 
-        tables_to_export = {
-            'awards': Award.query.all(),
-            'award_books': AwardBook.query.all(),
-            'weekly_reports': WeeklyReport.query.all(),
-            'translation_caches': TranslationCache.query.all(),
-            'book_metadata': BookMetadata.query.all(),
-            'search_histories': SearchHistory.query.all(),
+        table_models: dict[str, Any] = {
+            'awards': Award,
+            'award_books': AwardBook,
+            'weekly_reports': WeeklyReport,
+            'translation_caches': TranslationCache,
+            'book_metadata': BookMetadata,
+            'search_histories': SearchHistory,
         }
 
-        export_data: dict[str, Any] = {
-            'exported_at': datetime.now(UTC).isoformat(),
-            'tables': {},
-        }
+        def generate():
+            # 逐表流式输出，避免全量 query.all() 内存峰值（5表×千行 to_dict）
+            # 生成器在响应消费时才执行，需手动进入 app context
+            with app_obj.app_context():
+                yield f'{{"exported_at": {json_lib.dumps(datetime.now(UTC).isoformat())}, "tables": {{'
+                first_table = True
+                for table_name, model in table_models.items():
+                    if not first_table:
+                        yield ','
+                    first_table = False
+                    yield json_lib.dumps(table_name)
+                    yield ': {"count": '
+                    # count 先行（独立小查询），内容流式
+                    count = model.query.count()
+                    yield str(count)
+                    yield ', "records": ['
+                    first_row = True
+                    # yield_per 分批取，单批响应缓冲有界
+                    for record in model.query.yield_per(200):
+                        if not first_row:
+                            yield ','
+                        first_row = False
+                        yield json_lib.dumps(record.to_dict(), ensure_ascii=False)
+                    yield ']}'
+                yield '}}'
 
-        for table_name, records in tables_to_export.items():
-            export_data['tables'][table_name] = {
-                'count': len(records),
-                'records': [r.to_dict() for r in records],
-            }
-
-        return Response(
-            json_lib.dumps(export_data, ensure_ascii=False, indent=2),
+        response = Response(
+            generate(),
             mimetype='application/json',
-            headers={'Content-Disposition': 'attachment; filename=bookrank_backup.json'},
+            headers={
+                'Content-Disposition': 'attachment; filename=bookrank_backup.json',
+                'Cache-Control': 'no-store',
+            },
         )
+        return response
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'数据导出失败: {e}', exc_info=True)
         return APIResponse.error('数据导出失败', 500)

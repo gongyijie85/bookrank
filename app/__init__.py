@@ -144,7 +144,7 @@ def _init_extensions(app: Flask, config_name: str) -> None:
                 '例如: CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com'
             )
             cors_origins = []
-        cors_methods = ['GET', 'POST', 'OPTIONS']
+        cors_methods = ['GET', 'POST', 'DELETE', 'OPTIONS']
     elif config_name == 'testing':
         cors_origins = '*'
         cors_methods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
