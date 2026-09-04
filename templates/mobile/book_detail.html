@@ -23,7 +23,7 @@
 <!-- 书籍封面 -->
 <section class="m-detail-cover-wrap">
     <div class="m-detail-cover">
-        <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
+        <img src="{{ book.cover if book.cover else (book._original_cover or url_for('static', filename='default-cover.png')) }}"
              alt="{{ display_title }}"
              width="120" height="160"
              onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">

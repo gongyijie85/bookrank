@@ -39,6 +39,10 @@ class Book:
         data['title_zh'] = quick_clean_translation(self.title_zh, 'title')
         data['description_zh'] = quick_clean_translation(self.description_zh, 'description')
         data['details_zh'] = quick_clean_translation(self.details_zh, 'details')
+        # dataclass `_original_cover`（下划线前缀）不被 asdict 收集；显式暴露
+        # 供模板做「缓存未就绪时显示原始封面」回退（封面异步化 #178 后由
+        # cover 字段承载本地缓存路径，原始 URL 需独立保留）。
+        data['_original_cover'] = self._original_cover or ''
 
         # 应用翻译覆盖（共享助手，见 utils/translation_overrides）
         from ..utils.translation_overrides import apply_translation_overrides
