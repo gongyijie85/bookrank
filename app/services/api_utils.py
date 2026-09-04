@@ -191,24 +191,37 @@ class ImageCacheService:
             return self._default_cover
 
     def _download_to_cache(self, original_url: str, ttl: int = 3600) -> str:
-        """同步下载图片到缓存；失败抛异常（由调用方兜底返回占位）。"""
+        """同步下载图片到缓存；失败抛异常（由调用方兜底返回占位）。
+
+        NYT CDN 偶发 SSL 手部失败（SSLEOFError）——做 2 次短退避重试，
+        降低瞬断导致的默认封面占位（#178 follow-up 实测 15 本中 3 本瞬断）。
+        """
         filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'  # type: ignore[arg-type]
         cache_path = self._cache_dir / filename
         relative_path = f'/cache/images/{filename}'
 
-        response = self._session.get(original_url, timeout=10, stream=True)
-        response.raise_for_status()
-        ctype = response.headers.get('Content-Type', '')
-        if ctype and not ctype.startswith('image/'):
-            logger.warning(f'Blocked non-image Content-Type {ctype} for {original_url}')
-            raise ValueError(f'non-image content: {ctype}')
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = self._session.get(original_url, timeout=10, stream=True)
+                response.raise_for_status()
+                ctype = response.headers.get('Content-Type', '')
+                if ctype and not ctype.startswith('image/'):
+                    logger.warning(f'Blocked non-image Content-Type {ctype} for {original_url}')
+                    raise ValueError(f'non-image content: {ctype}')
 
-        with open(cache_path, 'wb') as f:
-            for chunk in response.iter_content(1024):
-                f.write(chunk)
+                with open(cache_path, 'wb') as f:
+                    for chunk in response.iter_content(1024):
+                        f.write(chunk)
 
-        self._update_memory_cache(original_url, relative_path, time.time())
-        return relative_path
+                self._update_memory_cache(original_url, relative_path, time.time())
+                return relative_path
+            except (requests.RequestException, ValueError) as e:
+                last_exc = e
+                if attempt < 2:
+                    time.sleep(0.4 * (attempt + 1))
+                    continue
+        raise last_exc if last_exc else RuntimeError(f'download failed: {original_url}')
 
     def _enqueue_prefetch(self, original_url: str) -> None:
         """MISS 时提交后台下载（同 URL 去重，下载成功回填内存/文件缓存）。"""

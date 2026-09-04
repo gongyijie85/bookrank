@@ -189,3 +189,28 @@ class TestImageCachePrefetch:
             result = service.get_cached_image_url('http://169.254.169.254/meta', block=False)
             assert result == '/static/default-cover.png'
             assert not mock_submit.called
+
+    def test_download_retries_transient_ssl_error(self, service):
+        """NYT CDN 偶发 SSL EOF：首次失败、重试成功应回填缓存（#178 follow-up）。"""
+        import requests as _requests
+
+        session = MagicMock()
+        session.get.side_effect = [
+            _requests.exceptions.SSLError('unexpected EOF'),
+            _FakeOKResp(),
+        ]
+        service._session = session
+        result = service._download_to_cache('https://static01.nyt.com/fake.jpg')
+        assert result.startswith('/cache/images/')
+        assert session.get.call_count == 2
+
+
+class _FakeOKResp:
+    def __init__(self):
+        self.headers = {'Content-Type': 'image/jpeg'}
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, size):
+        yield b'fake-jpeg-bytes'
