@@ -1810,3 +1810,39 @@ msgstr "Past 7 days:"
 #~ msgid "已上榜"
 #~ msgstr ""
 
+
+#: templates/awards.html:112
+msgid "年份"
+msgstr "Year"
+
+#: templates/awards.html:112
+msgid "应用筛选"
+msgstr "Apply filters"
+
+#: templates/awards.html:112
+msgid "重置筛选"
+msgstr "Reset filters"
+
+#: templates/awards.html:112
+msgid "筛选"
+msgstr "Filter"
+
+#: templates/awards.html:112
+msgid "查看纽约时报畅销书榜"
+msgstr "View NYT Bestsellers"
+
+#: templates/awards.html:112
+msgid "实时更新的畅销图书排行榜"
+msgstr "Updated bestseller ranking in real time"
+
+#: templates/awards.html:112
+msgid "请尝试切换筛选条件或稍后重试"
+msgstr "Try changing filters or retry later"
+
+#: templates/awards.html:112
+msgid "购买"
+msgstr "Buy"
+
+#: templates/awards.html:112
+msgid "查看全部出版社"
+msgstr "View all publishers"

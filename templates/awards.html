@@ -360,20 +360,20 @@
 
 <!-- Empty State -->
 {% if not books %}
-<section class="empty-state" aria-label="暂无数据">
+<section class="empty-state" aria-label="{{ _('暂无数据') }}">
     <svg class="icon" width="48" height="48"><use href="#icon-inbox"/></svg>
-    <h2>暂无数据</h2>
-    <p>请尝试切换筛选条件或稍后重试</p>
+    <h2 data-i18n="no_data">{{ _('暂无数据') }}</h2>
+    <p data-i18n="empty_retry_hint">{{ _('请尝试切换筛选条件或稍后重试') }}</p>
 </section>
 {% endif %}
 
 <!-- Quick Link to Bestsellers -->
-<nav class="quick-link-section" aria-label="快速链接">
+<nav class="quick-link-section" aria-label="{{ _('快速链接') }}">
     <a href="{{ url_for('main.index') }}" class="quick-link-card">
         <svg class="icon" width="32" height="32"><use href="#icon-fire"/></svg>
         <div>
-            <h3>查看纽约时报畅销书榜</h3>
-            <p>实时更新的畅销图书排行榜</p>
+            <h3 data-i18n="quick_nyt_link">{{ _('查看纽约时报畅销书榜') }}</h3>
+            <p data-i18n="quick_nyt_desc">{{ _('实时更新的畅销图书排行榜') }}</p>
         </div>
         <svg class="icon" width="20" height="20"><use href="#icon-arrow-right"/></svg>
     </a>

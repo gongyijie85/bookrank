@@ -76,6 +76,7 @@ jobs:
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
         run: |
+          pybabel compile -d translations
           python -m pytest tests/ \
             -m "not slow" \
             --timeout=30 \

@@ -1,0 +1,2442 @@
+# Translations template for PROJECT.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-09-04 10:35+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: bookrank-full/templates/_breadcrumbs.html:4 templates/_breadcrumbs.html:4
+msgid "面包屑导航"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:12
+#: bookrank-full/templates/awards.html:224
+#: bookrank-full/templates/awards.html:226
+#: bookrank-full/templates/awards.html:298
+#: bookrank-full/templates/awards.html:300
+#: bookrank-full/templates/index.html:128
+#: bookrank-full/templates/index.html:130
+#: bookrank-full/templates/index.html:199
+#: bookrank-full/templates/new_book_detail.html:55 templates/_macros.html:12
+#: templates/awards.html:226 templates/awards.html:228
+#: templates/awards.html:300 templates/awards.html:302 templates/index.html:130
+#: templates/index.html:132 templates/index.html:205
+#: templates/mobile/new_book_detail.html:14 templates/mobile/new_books.html:67
+#: templates/new_book_detail.html:55
+msgid "《"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:12
+#: bookrank-full/templates/awards.html:226
+#: bookrank-full/templates/awards.html:300
+#: bookrank-full/templates/index.html:130
+#: bookrank-full/templates/index.html:199 templates/_macros.html:12
+#: templates/awards.html:228 templates/awards.html:302 templates/index.html:132
+#: templates/index.html:205 templates/mobile/new_books.html:67
+msgid "》封面，作者 "
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:12
+#: bookrank-full/templates/_macros.html:38
+#: bookrank-full/templates/awards.html:221
+#: bookrank-full/templates/awards.html:226
+#: bookrank-full/templates/awards.html:297
+#: bookrank-full/templates/awards.html:300
+#: bookrank-full/templates/index.html:130
+#: bookrank-full/templates/index.html:158
+#: bookrank-full/templates/index.html:199
+#: bookrank-full/templates/index.html:239
+#: bookrank-full/templates/index.html:312
+#: bookrank-full/templates/new_books.html:419 templates/_macros.html:12
+#: templates/_macros.html:38 templates/awards.html:223
+#: templates/awards.html:228 templates/awards.html:299
+#: templates/awards.html:302 templates/index.html:132 templates/index.html:162
+#: templates/index.html:205 templates/index.html:247 templates/index.html:321
+#: templates/mobile/new_book_detail.html:20 templates/new_books.html:419
+msgid "未知作者"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:27
+#: bookrank-full/templates/new_books.html:418 templates/_macros.html:27
+#: templates/new_books.html:418
+msgid "未知书名"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:35
+#: bookrank-full/templates/new_books.html:418 templates/_macros.html:35
+#: templates/new_books.html:418
+msgid "Unknown Title"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:41
+#: bookrank-full/templates/_macros.html:43
+#: bookrank-full/templates/_macros.html:44
+#: bookrank-full/templates/index.html:177
+#: bookrank-full/templates/index.html:252
+#: bookrank-full/templates/new_books.html:421 templates/_macros.html:41
+#: templates/_macros.html:43 templates/_macros.html:44 templates/index.html:181
+#: templates/index.html:260 templates/mobile/new_books.html:67
+#: templates/mobile/new_books.html:73 templates/new_books.html:421
+msgid "未知"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:41
+#: bookrank-full/templates/index.html:177
+#: bookrank-full/templates/index.html:252 templates/_macros.html:41
+#: templates/index.html:181 templates/index.html:260
+msgid "未知出版社"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:57
+#: bookrank-full/templates/new_books.html:428 templates/_macros.html:57
+#: templates/new_books.html:428
+msgid "刚上市"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:63
+#: bookrank-full/templates/new_books.html:433 templates/_macros.html:63
+#: templates/new_books.html:433
+msgid "分类未公开"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:67
+#: bookrank-full/templates/book_detail.html:109
+#: bookrank-full/templates/mobile/book_detail.html:42
+#: bookrank-full/templates/mobile/book_detail.html:91
+#: bookrank-full/templates/new_book_detail.html:104
+#: bookrank-full/templates/new_books.html:437 templates/_macros.html:67
+#: templates/book_detail.html:109 templates/mobile/book_detail.html:42
+#: templates/mobile/book_detail.html:91
+#: templates/mobile/new_book_detail.html:27 templates/new_book_detail.html:104
+#: templates/new_books.html:437
+msgid "出版日期"
+msgstr ""
+
+#: bookrank-full/templates/_macros.html:74
+#: bookrank-full/templates/new_books.html:441 templates/_macros.html:74
+#: templates/new_books.html:441
+msgid "日期未公开"
+msgstr ""
+
+#: bookrank-full/templates/about.html:3 bookrank-full/templates/about.html:4
+#: bookrank-full/templates/about.html:6 bookrank-full/templates/about.html:12
+#: bookrank-full/templates/base.html:199 bookrank-full/templates/base.html:239
+#: bookrank-full/templates/mobile/about.html:3
+#: bookrank-full/templates/mobile/about.html:4
+#: bookrank-full/templates/mobile/about.html:5
+#: bookrank-full/templates/mobile/about.html:12
+#: bookrank-full/templates/mobile/profile.html:43 templates/about.html:3
+#: templates/about.html:4 templates/about.html:6 templates/about.html:12
+#: templates/base.html:199 templates/base.html:239
+#: templates/mobile/about.html:3 templates/mobile/about.html:4
+#: templates/mobile/about.html:5 templates/mobile/about.html:12
+#: templates/mobile/profile.html:43
+msgid "关于我们"
+msgstr ""
+
+#: bookrank-full/templates/about.html:11
+#: bookrank-full/templates/award_book_detail.html:11
+#: bookrank-full/templates/awards.html:10 bookrank-full/templates/base.html:89
+#: bookrank-full/templates/book_detail.html:13
+#: bookrank-full/templates/error.html:20
+#: bookrank-full/templates/mobile/base.html:65
+#: bookrank-full/templates/mobile/error.html:9
+#: bookrank-full/templates/mobile/error.html:28
+#: bookrank-full/templates/new_book_detail.html:12
+#: bookrank-full/templates/new_books.html:11
+#: bookrank-full/templates/profile.html:11
+#: bookrank-full/templates/publishers.html:10
+#: bookrank-full/templates/weekly_report_detail.html:17
+#: bookrank-full/templates/weekly_reports.html:10 templates/about.html:11
+#: templates/award_book_detail.html:11 templates/awards.html:10
+#: templates/base.html:89 templates/book_detail.html:13 templates/error.html:20
+#: templates/mobile/base.html:65 templates/mobile/error.html:9
+#: templates/mobile/error.html:28 templates/new_book_detail.html:12
+#: templates/new_books.html:11 templates/profile.html:11
+#: templates/publishers.html:10 templates/weekly_report_detail.html:17
+#: templates/weekly_reports.html:10
+msgid "首页"
+msgstr ""
+
+#: bookrank-full/templates/about.html:33 bookrank-full/templates/base.html:192
+#: bookrank-full/templates/mobile/about.html:21 templates/about.html:33
+#: templates/base.html:192 templates/mobile/about.html:21
+msgid "关于"
+msgstr ""
+
+#: bookrank-full/templates/about.html:35
+#: bookrank-full/templates/mobile/about.html:22
+#: bookrank-full/templates/mobile/index.html:16 templates/about.html:35
+#: templates/mobile/about.html:22 templates/mobile/index.html:16
+msgid "汇集全球畅销书榜与图书奖项"
+msgstr ""
+
+#: bookrank-full/templates/about.html:35
+#: bookrank-full/templates/mobile/about.html:22 templates/about.html:35
+#: templates/mobile/about.html:22
+msgid "为读者提供权威的图书参考"
+msgstr ""
+
+#: bookrank-full/templates/about.html:39
+#: bookrank-full/templates/mobile/about.html:27 templates/about.html:39
+#: templates/mobile/about.html:27
+msgid "项目介绍"
+msgstr ""
+
+#: bookrank-full/templates/about.html:41
+#: bookrank-full/templates/mobile/about.html:29 templates/about.html:41
+#: templates/mobile/about.html:29
+msgid "是一个专注于图书排行榜数据聚合与展示的网站。我们实时追踪"
+msgstr ""
+
+#: bookrank-full/templates/about.html:42 bookrank-full/templates/index.html:17
+#: bookrank-full/templates/mobile/about.html:30
+#: bookrank-full/templates/mobile/index.html:3
+#: bookrank-full/templates/mobile/index.html:14 templates/about.html:42
+#: templates/index.html:17 templates/mobile/about.html:30
+#: templates/mobile/index.html:3 templates/mobile/index.html:14
+msgid "纽约时报畅销书排行榜"
+msgstr ""
+
+#: bookrank-full/templates/about.html:42
+#: bookrank-full/templates/mobile/about.html:30 templates/about.html:42
+#: templates/mobile/about.html:30
+msgid "收录"
+msgstr ""
+
+#: bookrank-full/templates/about.html:42
+#: bookrank-full/templates/mobile/about.html:30 templates/about.html:42
+#: templates/mobile/about.html:30
+msgid "国际重要图书奖项"
+msgstr ""
+
+#: bookrank-full/templates/about.html:42
+#: bookrank-full/templates/mobile/about.html:30 templates/about.html:42
+#: templates/mobile/about.html:30
+msgid "获奖作品"
+msgstr ""
+
+#: bookrank-full/templates/about.html:43
+#: bookrank-full/templates/mobile/about.html:31 templates/about.html:43
+#: templates/mobile/about.html:31
+msgid "并提供"
+msgstr ""
+
+#: bookrank-full/templates/about.html:43
+#: bookrank-full/templates/mobile/about.html:31 templates/about.html:43
+#: templates/mobile/about.html:31
+msgid "出版社新书速递"
+msgstr ""
+
+#: bookrank-full/templates/about.html:43
+#: bookrank-full/templates/mobile/about.html:31 templates/about.html:43
+#: templates/mobile/about.html:31
+msgid "与"
+msgstr ""
+
+#: bookrank-full/templates/about.html:43
+#: bookrank-full/templates/mobile/about.html:31 templates/about.html:43
+#: templates/mobile/about.html:31
+msgid "每周榜单分析"
+msgstr ""
+
+#: bookrank-full/templates/about.html:43
+#: bookrank-full/templates/mobile/about.html:31 templates/about.html:43
+#: templates/mobile/about.html:31
+msgid "帮助读者快速发现优质图书。"
+msgstr ""
+
+#: bookrank-full/templates/about.html:48
+#: bookrank-full/templates/mobile/about.html:37 templates/about.html:48
+#: templates/mobile/about.html:37
+msgid "数据来源"
+msgstr ""
+
+#: bookrank-full/templates/about.html:54
+#: bookrank-full/templates/mobile/about.html:43 templates/about.html:54
+#: templates/mobile/about.html:43
+msgid "纽约时报畅销书榜"
+msgstr ""
+
+#: bookrank-full/templates/about.html:55
+#: bookrank-full/templates/mobile/about.html:44 templates/about.html:55
+#: templates/mobile/about.html:44
+msgid "实时同步"
+msgstr ""
+
+#: bookrank-full/templates/about.html:55
+#: bookrank-full/templates/mobile/about.html:44 templates/about.html:55
+#: templates/mobile/about.html:44
+msgid "覆盖精装小说、非虚构、漫画等"
+msgstr ""
+
+#: bookrank-full/templates/about.html:55
+#: bookrank-full/templates/mobile/about.html:44 templates/about.html:55
+#: templates/mobile/about.html:44
+msgid "大分类"
+msgstr ""
+
+#: bookrank-full/templates/about.html:61
+#: bookrank-full/templates/mobile/about.html:50 templates/about.html:61
+#: templates/mobile/about.html:50
+msgid "国际图书奖项"
+msgstr ""
+
+#: bookrank-full/templates/about.html:62
+#: bookrank-full/templates/mobile/about.html:51 templates/about.html:62
+#: templates/mobile/about.html:51
+msgid "收录诺贝尔文学奖、布克奖、普利策奖等权威奖项历年获奖书单"
+msgstr ""
+
+#: bookrank-full/templates/about.html:68
+#: bookrank-full/templates/mobile/about.html:57 templates/about.html:68
+#: templates/mobile/about.html:57
+msgid "出版社数据"
+msgstr ""
+
+#: bookrank-full/templates/about.html:69
+#: bookrank-full/templates/mobile/about.html:58 templates/about.html:69
+#: templates/mobile/about.html:58
+msgid "聚合"
+msgstr ""
+
+#: bookrank-full/templates/about.html:69
+#: bookrank-full/templates/mobile/about.html:58 templates/about.html:69
+#: templates/mobile/about.html:58
+msgid "、"
+msgstr ""
+
+#: bookrank-full/templates/about.html:69
+#: bookrank-full/templates/mobile/about.html:58 templates/about.html:69
+#: templates/mobile/about.html:58
+msgid "等六大出版社新书信息"
+msgstr ""
+
+#: bookrank-full/templates/about.html:75
+#: bookrank-full/templates/mobile/about.html:72 templates/about.html:75
+#: templates/mobile/about.html:72
+msgid "技术栈"
+msgstr ""
+
+#: bookrank-full/templates/about.html:82
+#: bookrank-full/templates/mobile/about.html:79 templates/about.html:82
+#: templates/mobile/about.html:79
+msgid "原生"
+msgstr ""
+
+#: bookrank-full/templates/about.html:87
+#: bookrank-full/templates/mobile/about.html:85 templates/about.html:87
+#: templates/mobile/about.html:85
+msgid "联系我们"
+msgstr ""
+
+#: bookrank-full/templates/about.html:89
+#: bookrank-full/templates/mobile/about.html:86 templates/about.html:89
+#: templates/mobile/about.html:86
+msgid "如有问题或建议"
+msgstr ""
+
+#: bookrank-full/templates/about.html:89
+#: bookrank-full/templates/mobile/about.html:86 templates/about.html:89
+#: templates/mobile/about.html:86
+msgid "欢迎通过以下方式联系"
+msgstr ""
+
+#: bookrank-full/templates/about.html:98
+#: bookrank-full/templates/mobile/about.html:94 templates/about.html:98
+#: templates/mobile/about.html:94
+msgid "仓库"
+msgstr ""
+
+#: bookrank-full/templates/about.html:104
+#: bookrank-full/templates/mobile/about.html:101 templates/about.html:104
+#: templates/mobile/about.html:101
+msgid "免责声明"
+msgstr ""
+
+#: bookrank-full/templates/about.html:106
+#: bookrank-full/templates/mobile/about.html:103 templates/about.html:106
+#: templates/mobile/about.html:103
+msgid "本网站展示的书籍封面、简介等信息版权归原出版商与作者所有。"
+msgstr ""
+
+#: bookrank-full/templates/about.html:107
+#: bookrank-full/templates/mobile/about.html:104 templates/about.html:107
+#: templates/mobile/about.html:104
+msgid "榜单数据来源于纽约时报官方"
+msgstr ""
+
+#: bookrank-full/templates/about.html:107
+#: bookrank-full/templates/mobile/about.html:104 templates/about.html:107
+#: templates/mobile/about.html:104
+msgid "仅供参考。"
+msgstr ""
+
+#: bookrank-full/templates/about.html:108
+#: bookrank-full/templates/mobile/about.html:105 templates/about.html:108
+#: templates/mobile/about.html:105
+msgid "如有版权问题"
+msgstr ""
+
+#: bookrank-full/templates/about.html:108
+#: bookrank-full/templates/mobile/about.html:105 templates/about.html:108
+#: templates/mobile/about.html:105
+msgid "请联系我们及时处理。"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:11
+#: bookrank-full/templates/awards.html:10 bookrank-full/templates/base.html:97
+#: bookrank-full/templates/base.html:168
+#: bookrank-full/templates/mobile/base.html:73
+#: templates/award_book_detail.html:11 templates/awards.html:10
+#: templates/base.html:97 templates/base.html:168 templates/mobile/base.html:73
+msgid "获奖书单"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:42
+#: bookrank-full/templates/error.html:16
+#: bookrank-full/templates/mobile/about.html:9
+#: bookrank-full/templates/mobile/award_book_detail.html:9
+#: bookrank-full/templates/mobile/awards.html:7
+#: bookrank-full/templates/mobile/book_detail.html:9
+#: bookrank-full/templates/mobile/error.html:26
+#: bookrank-full/templates/mobile/publishers.html:9
+#: bookrank-full/templates/mobile/search.html:7
+#: bookrank-full/templates/mobile/weekly_report_detail.html:9
+#: bookrank-full/templates/mobile/weekly_reports.html:7
+#: bookrank-full/templates/new_book_detail.html:45
+#: templates/award_book_detail.html:42 templates/error.html:16
+#: templates/mobile/about.html:9 templates/mobile/award_book_detail.html:9
+#: templates/mobile/awards.html:7 templates/mobile/book_detail.html:9
+#: templates/mobile/error.html:26 templates/mobile/new_book_detail.html:8
+#: templates/mobile/publishers.html:9 templates/mobile/search.html:7
+#: templates/mobile/weekly_report_detail.html:9
+#: templates/mobile/weekly_reports.html:7 templates/new_book_detail.html:45
+msgid "返回"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:58
+#: bookrank-full/templates/award_book_detail.html:365
+#: bookrank-full/templates/book_detail.html:57
+#: templates/award_book_detail.html:58 templates/award_book_detail.html:365
+#: templates/book_detail.html:57
+msgid "封面"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:65
+#: bookrank-full/templates/award_book_detail.html:365
+#: bookrank-full/templates/book_detail.html:69
+#: templates/award_book_detail.html:65 templates/award_book_detail.html:365
+#: templates/book_detail.html:69
+msgid "购买链接"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:91
+#: bookrank-full/templates/mobile/award_book_detail.html:99
+#: templates/award_book_detail.html:91 templates/awards.html:112
+#: templates/awards.html:113 templates/mobile/award_book_detail.html:99
+msgid "奖项"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:97
+#: bookrank-full/templates/mobile/award_book_detail.html:102
+#: templates/award_book_detail.html:97
+#: templates/mobile/award_book_detail.html:102
+msgid "获奖年份"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:103
+#: bookrank-full/templates/mobile/award_book_detail.html:50
+#: bookrank-full/templates/mobile/award_book_detail.html:105
+#: bookrank-full/templates/weekly_report_detail.html:1365
+#: templates/award_book_detail.html:103 templates/awards.html:136
+#: templates/awards.html:137 templates/mobile/award_book_detail.html:50
+#: templates/mobile/award_book_detail.html:105
+#: templates/weekly_report_detail.html:1372
+msgid "类别"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:109
+#: bookrank-full/templates/base.html:105
+#: bookrank-full/templates/book_detail.html:99
+#: bookrank-full/templates/mobile/award_book_detail.html:90
+#: bookrank-full/templates/mobile/base.html:81
+#: bookrank-full/templates/mobile/book_detail.html:85
+#: bookrank-full/templates/new_book_detail.html:95
+#: bookrank-full/templates/new_books.html:22
+#: bookrank-full/templates/new_books.html:64
+#: templates/award_book_detail.html:109 templates/base.html:105
+#: templates/book_detail.html:99 templates/mobile/award_book_detail.html:90
+#: templates/mobile/base.html:81 templates/mobile/book_detail.html:85
+#: templates/mobile/new_books.html:28 templates/new_book_detail.html:95
+#: templates/new_books.html:22 templates/new_books.html:64
+msgid "出版社"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:115
+#: bookrank-full/templates/mobile/award_book_detail.html:47
+#: bookrank-full/templates/mobile/award_book_detail.html:93
+#: templates/award_book_detail.html:115
+#: templates/mobile/award_book_detail.html:47
+#: templates/mobile/award_book_detail.html:93
+msgid "出版年份"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:135
+#: bookrank-full/templates/book_detail.html:174
+#: bookrank-full/templates/mobile/award_book_detail.html:64
+#: bookrank-full/templates/mobile/book_detail.html:60
+#: bookrank-full/templates/new_book_detail.html:149
+#: templates/award_book_detail.html:135 templates/book_detail.html:174
+#: templates/mobile/award_book_detail.html:64
+#: templates/mobile/book_detail.html:60
+#: templates/mobile/new_book_detail.html:45 templates/new_book_detail.html:149
+msgid "图书简介"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:138
+#: bookrank-full/templates/book_detail.html:179
+#: bookrank-full/templates/mobile/award_book_detail.html:67
+#: bookrank-full/templates/mobile/book_detail.html:63
+#: templates/award_book_detail.html:138 templates/book_detail.html:179
+#: templates/mobile/award_book_detail.html:67
+#: templates/mobile/book_detail.html:63
+msgid "详细信息"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:153
+#: templates/award_book_detail.html:153
+msgid "正在获取详细介绍"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:161
+#: bookrank-full/templates/award_book_detail.html:162
+#: bookrank-full/templates/award_book_detail.html:308
+#: bookrank-full/templates/mobile/award_book_detail.html:123
+#: bookrank-full/templates/mobile/award_book_detail.html:124
+#: templates/award_book_detail.html:161 templates/award_book_detail.html:162
+#: templates/award_book_detail.html:308
+#: templates/mobile/award_book_detail.html:123
+#: templates/mobile/award_book_detail.html:124
+msgid "相关获奖图书"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:178
+#: bookrank-full/templates/awards.html:12
+#: bookrank-full/templates/awards.html:63
+#: bookrank-full/templates/awards.html:104
+#: bookrank-full/templates/mobile/award_book_detail.html:39
+#: templates/award_book_detail.html:178 templates/awards.html:12
+#: templates/awards.html:63 templates/awards.html:104 templates/awards.html:129
+#: templates/mobile/award_book_detail.html:39
+msgid "年"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:186
+#: templates/award_book_detail.html:186
+msgid "标签页切换"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:188
+#: templates/award_book_detail.html:188
+msgid "更新标签按钮"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:194
+#: templates/award_book_detail.html:194
+msgid "更新内容面板"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:200
+#: templates/award_book_detail.html:200
+msgid "如果切换到详细信息标签"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:200
+#: templates/award_book_detail.html:200
+msgid "尝试获取详细信息"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:206
+#: templates/award_book_detail.html:206
+msgid "获取详细信息"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:262
+#: templates/award_book_detail.html:262
+msgid "页面头部"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:301
+#: templates/award_book_detail.html:301
+msgid "内容区域"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:301
+#: templates/award_book_detail.html:301
+msgid "左右分栏"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:365
+#: templates/award_book_detail.html:365
+msgid "左侧"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:432
+#: templates/award_book_detail.html:432
+msgid "右侧"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:432
+#: templates/award_book_detail.html:432
+msgid "书籍信息"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:458
+#: templates/award_book_detail.html:458
+msgid "元信息"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:488
+#: bookrank-full/templates/weekly_report_detail.html:587
+#: templates/award_book_detail.html:488 templates/weekly_report_detail.html:587
+msgid "标签页"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:516
+#: templates/award_book_detail.html:516
+msgid "标签页内容"
+msgstr ""
+
+#: bookrank-full/templates/award_book_detail.html:537
+#: bookrank-full/templates/new_book_detail.html:463
+#: bookrank-full/templates/weekly_report_detail.html:1047
+#: bookrank-full/templates/weekly_reports.html:617
+#: templates/award_book_detail.html:537 templates/new_book_detail.html:463
+#: templates/weekly_report_detail.html:1047 templates/weekly_reports.html:617
+msgid "响应式设计"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:3 bookrank-full/templates/awards.html:4
+#: bookrank-full/templates/awards.html:6 templates/awards.html:3
+#: templates/awards.html:4 templates/awards.html:6
+msgid "国际图书奖项榜单 - BookRank"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:17
+#: bookrank-full/templates/awards.html:19 templates/awards.html:17
+#: templates/awards.html:19
+msgid "奖项分类"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:27 templates/awards.html:27
+#: templates/awards.html:114
+msgid "全部奖项"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:45 templates/awards.html:45
+msgid "年份筛选"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:53 templates/awards.html:53
+#: templates/awards.html:126
+msgid "全部年份"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:71 templates/awards.html:71
+msgid "统计信息"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:72 templates/awards.html:72
+msgid "统计数据"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:75
+#: bookrank-full/templates/index.html:110
+#: bookrank-full/templates/weekly_reports.html:121
+#: bookrank-full/templates/weekly_reports.html:127 templates/awards.html:75
+#: templates/index.html:110 templates/weekly_reports.html:121
+#: templates/weekly_reports.html:127
+msgid "本图书"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:79 templates/awards.html:79
+msgid "个奖项"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:94 templates/awards.html:94
+msgid "国际图书奖项榜单"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:99 templates/awards.html:99
+msgid "获奖图书展示"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:101 templates/awards.html:101
+msgid "汇集全球最具影响力的图书奖项"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:110 templates/awards.html:110
+msgid "筛选选项"
+msgstr ""
+
+#: bookrank-full/templates/awards.html:224
+#: bookrank-full/templates/awards.html:298
+#: bookrank-full/templates/index.html:128
+#: bookrank-full/templates/new_book_detail.html:55 templates/awards.html:226
+#: templates/awards.html:300 templates/index.html:130
+#: templates/mobile/new_book_detail.html:14 templates/new_book_detail.html:55
+msgid "》封面"
+msgstr ""
+
+#: bookrank-full/templates/base.html:6 templates/base.html:6
+msgid "BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息"
+msgstr ""
+
+#: bookrank-full/templates/base.html:7 templates/base.html:7
+msgid "图书排行榜, 纽约时报, 畅销书, 图书奖项, 诺贝尔文学奖, 布克奖, 普利策奖"
+msgstr ""
+
+#: bookrank-full/templates/base.html:12 bookrank-full/templates/base.html:21
+#: bookrank-full/templates/base.html:28 templates/base.html:12
+#: templates/base.html:21 templates/base.html:28
+msgid "BookRank - 图书排行榜"
+msgstr ""
+
+#: bookrank-full/templates/base.html:13 bookrank-full/templates/base.html:22
+#: bookrank-full/templates/base.html:54 templates/base.html:13
+#: templates/base.html:22 templates/base.html:54
+msgid "汇集纽约时报畅销书排行榜与国际图书奖项榜单"
+msgstr ""
+
+#: bookrank-full/templates/base.html:74 templates/base.html:74
+msgid "跳转到主要内容"
+msgstr ""
+
+#: bookrank-full/templates/base.html:77 templates/base.html:77
+msgid "主导航"
+msgstr ""
+
+#: bookrank-full/templates/base.html:78 bookrank-full/templates/base.html:234
+#: templates/base.html:78 templates/base.html:234
+msgid "BookRank 首页"
+msgstr ""
+
+#: bookrank-full/templates/base.html:113 bookrank-full/templates/base.html:180
+#: bookrank-full/templates/new_book_detail.html:13
+#: bookrank-full/templates/new_books.html:4
+#: bookrank-full/templates/new_books.html:5
+#: bookrank-full/templates/new_books.html:6
+#: bookrank-full/templates/new_books.html:12
+#: bookrank-full/templates/new_books.html:43
+#: bookrank-full/templates/publishers.html:308 templates/base.html:113
+#: templates/base.html:180 templates/mobile/new_books.html:3
+#: templates/mobile/new_books.html:4 templates/mobile/new_books.html:12
+#: templates/new_book_detail.html:13 templates/new_books.html:4
+#: templates/new_books.html:5 templates/new_books.html:6
+#: templates/new_books.html:12 templates/new_books.html:43
+#: templates/publishers.html:308
+msgid "新书速递"
+msgstr ""
+
+#: bookrank-full/templates/base.html:121 bookrank-full/templates/base.html:186
+#: bookrank-full/templates/weekly_report_detail.html:18
+#: bookrank-full/templates/weekly_reports.html:3
+#: bookrank-full/templates/weekly_reports.html:4
+#: bookrank-full/templates/weekly_reports.html:5
+#: bookrank-full/templates/weekly_reports.html:11
+#: bookrank-full/templates/weekly_reports.html:20
+#: bookrank-full/templates/weekly_reports.html:248 templates/base.html:121
+#: templates/base.html:186 templates/weekly_report_detail.html:18
+#: templates/weekly_reports.html:3 templates/weekly_reports.html:4
+#: templates/weekly_reports.html:5 templates/weekly_reports.html:11
+#: templates/weekly_reports.html:20 templates/weekly_reports.html:248
+msgid "畅销书周报"
+msgstr ""
+
+#: bookrank-full/templates/base.html:128
+#: bookrank-full/templates/mobile/base.html:48 templates/base.html:128
+#: templates/mobile/base.html:48
+msgid "切换语言"
+msgstr ""
+
+#: bookrank-full/templates/base.html:132
+#: bookrank-full/templates/mobile/base.html:51 templates/base.html:132
+#: templates/mobile/base.html:51
+msgid "语言选择"
+msgstr ""
+
+#: bookrank-full/templates/base.html:135
+#: bookrank-full/templates/mobile/base.html:52 templates/base.html:135
+#: templates/mobile/base.html:52
+msgid "简体中文"
+msgstr ""
+
+#: bookrank-full/templates/base.html:144 templates/base.html:144
+msgid "更多语言即将支持"
+msgstr ""
+
+#: bookrank-full/templates/base.html:147 templates/base.html:147
+msgid "切换主题"
+msgstr ""
+
+#: bookrank-full/templates/base.html:147 templates/base.html:147
+msgid "切换明暗主题"
+msgstr ""
+
+#: bookrank-full/templates/base.html:154 templates/base.html:154
+msgid "侧边导航"
+msgstr ""
+
+#: bookrank-full/templates/base.html:157
+#: bookrank-full/templates/new_book_detail.html:246
+#: bookrank-full/templates/weekly_report_detail.html:362
+#: bookrank-full/templates/weekly_report_detail.html:983
+#: templates/base.html:157 templates/new_book_detail.html:246
+#: templates/weekly_report_detail.html:362
+#: templates/weekly_report_detail.html:983
+msgid "导航"
+msgstr ""
+
+#: bookrank-full/templates/base.html:162 templates/base.html:162
+msgid "畅销书榜"
+msgstr ""
+
+#: bookrank-full/templates/base.html:174
+#: bookrank-full/templates/mobile/publishers.html:3
+#: bookrank-full/templates/mobile/publishers.html:4
+#: bookrank-full/templates/mobile/publishers.html:5
+#: bookrank-full/templates/mobile/publishers.html:12
+#: bookrank-full/templates/mobile/publishers.html:20
+#: bookrank-full/templates/mobile/publishers.html:24
+#: bookrank-full/templates/publishers.html:3
+#: bookrank-full/templates/publishers.html:4
+#: bookrank-full/templates/publishers.html:5
+#: bookrank-full/templates/publishers.html:11
+#: bookrank-full/templates/publishers.html:278 templates/base.html:174
+#: templates/mobile/publishers.html:3 templates/mobile/publishers.html:4
+#: templates/mobile/publishers.html:5 templates/mobile/publishers.html:12
+#: templates/mobile/publishers.html:20 templates/mobile/publishers.html:24
+#: templates/publishers.html:3 templates/publishers.html:4
+#: templates/publishers.html:5 templates/publishers.html:11
+#: templates/publishers.html:278
+msgid "出版社导航"
+msgstr ""
+
+#: bookrank-full/templates/base.html:206 bookrank-full/templates/base.html:240
+#: templates/base.html:206 templates/base.html:240
+msgid "站点地图"
+msgstr ""
+
+#: bookrank-full/templates/base.html:215 templates/base.html:215
+msgid "切换侧边栏"
+msgstr ""
+
+#: bookrank-full/templates/base.html:228 templates/base.html:228
+msgid "通知提示"
+msgstr ""
+
+#: bookrank-full/templates/base.html:238 templates/base.html:238
+msgid "页脚链接"
+msgstr ""
+
+#: bookrank-full/templates/base.html:241 templates/base.html:241
+msgid "数据来源：NYT Books API"
+msgstr ""
+
+#: bookrank-full/templates/base.html:245 templates/base.html:245
+msgid "数据仅供学习交流，版权归原作者及出版社所有。"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:47 templates/book_detail.html:47
+msgid "返回榜单"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:119
+#: bookrank-full/templates/mobile/book_detail.html:45
+#: bookrank-full/templates/mobile/book_detail.html:94
+#: bookrank-full/templates/new_book_detail.html:113
+#: templates/book_detail.html:119 templates/mobile/book_detail.html:45
+#: templates/mobile/book_detail.html:94
+#: templates/mobile/new_book_detail.html:29 templates/new_book_detail.html:113
+msgid "页数"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:120
+#: bookrank-full/templates/index.html:261
+#: bookrank-full/templates/mobile/index.html:103
+#: bookrank-full/templates/new_book_detail.html:114
+#: templates/book_detail.html:120 templates/index.html:269
+#: templates/mobile/index.html:106 templates/new_book_detail.html:114
+msgid "页"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:130
+#: bookrank-full/templates/mobile/award_book_detail.html:44
+#: bookrank-full/templates/mobile/award_book_detail.html:96
+#: bookrank-full/templates/mobile/book_detail.html:39
+#: bookrank-full/templates/mobile/book_detail.html:88
+#: templates/book_detail.html:130 templates/mobile/award_book_detail.html:44
+#: templates/mobile/award_book_detail.html:96
+#: templates/mobile/book_detail.html:39 templates/mobile/book_detail.html:88
+#: templates/mobile/new_book_detail.html:26
+msgid "ISBN"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:140
+#: bookrank-full/templates/new_book_detail.html:131
+#: bookrank-full/templates/new_books.html:77 templates/book_detail.html:140
+#: templates/mobile/new_book_detail.html:28 templates/new_book_detail.html:131
+#: templates/new_books.html:77
+msgid "分类"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:152
+#: bookrank-full/templates/weekly_report_detail.html:1363
+#: templates/book_detail.html:152 templates/weekly_report_detail.html:284
+#: templates/weekly_report_detail.html:1370
+msgid "累计上榜周数"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:153
+#: bookrank-full/templates/index.html:174
+#: bookrank-full/templates/index.html:230
+#: bookrank-full/templates/mobile/book_detail.html:100
+#: bookrank-full/templates/mobile/index.html:65
+#: bookrank-full/templates/mobile/weekly_report_detail.html:21
+#: bookrank-full/templates/weekly_report_detail.html:298
+#: bookrank-full/templates/weekly_report_detail.html:1363
+#: templates/book_detail.html:153 templates/index.html:178
+#: templates/index.html:238 templates/mobile/book_detail.html:100
+#: templates/mobile/index.html:66 templates/mobile/weekly_report_detail.html:21
+#: templates/weekly_report_detail.html:298
+#: templates/weekly_report_detail.html:1370
+msgid "周"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:162
+#: bookrank-full/templates/mobile/book_detail.html:48
+#: bookrank-full/templates/mobile/book_detail.html:103
+#: templates/book_detail.html:162 templates/mobile/book_detail.html:48
+#: templates/mobile/book_detail.html:103
+#: templates/mobile/new_book_detail.html:30
+msgid "语言"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:192
+#: bookrank-full/templates/book_detail.html:210 templates/book_detail.html:192
+#: templates/book_detail.html:210
+msgid "查看英文原文"
+msgstr ""
+
+#: bookrank-full/templates/book_detail.html:199
+#: bookrank-full/templates/mobile/award_book_detail.html:82
+#: bookrank-full/templates/mobile/book_detail.html:77
+#: bookrank-full/templates/new_book_detail.html:154
+#: bookrank-full/templates/new_book_detail.html:155
+#: templates/book_detail.html:199 templates/mobile/award_book_detail.html:82
+#: templates/mobile/book_detail.html:77
+#: templates/mobile/new_book_detail.html:49 templates/new_book_detail.html:154
+#: templates/new_book_detail.html:155
+msgid "暂无简介"
+msgstr ""
+
+#: bookrank-full/templates/error.html:3
+#: bookrank-full/templates/mobile/error.html:3
+#: bookrank-full/templates/mobile/error.html:4
+#: bookrank-full/templates/mobile/error.html:5 templates/error.html:3
+#: templates/mobile/error.html:3 templates/mobile/error.html:4
+#: templates/mobile/error.html:5
+msgid "出错"
+msgstr ""
+
+#: bookrank-full/templates/error.html:11
+#: bookrank-full/templates/mobile/error.html:12
+#: bookrank-full/templates/mobile/error.html:22 templates/error.html:11
+#: templates/mobile/error.html:12 templates/mobile/error.html:22
+msgid "出错了"
+msgstr ""
+
+#: bookrank-full/templates/index.html:3 bookrank-full/templates/index.html:4
+#: bookrank-full/templates/index.html:6 templates/index.html:3
+#: templates/index.html:4 templates/index.html:6
+msgid "纽约时报畅销书排行榜 - BookRank"
+msgstr ""
+
+#: bookrank-full/templates/index.html:21 templates/index.html:21
+msgid "更新于:"
+msgstr ""
+
+#: bookrank-full/templates/index.html:21 templates/index.html:21
+msgid "刚刚"
+msgstr ""
+
+#: bookrank-full/templates/index.html:34 templates/index.html:34
+msgid "缓存数据"
+msgstr ""
+
+#: bookrank-full/templates/index.html:40
+#: bookrank-full/templates/new_books.html:62 templates/index.html:40
+#: templates/new_books.html:62
+msgid "搜索与筛选"
+msgstr ""
+
+#: bookrank-full/templates/index.html:42
+#: bookrank-full/templates/mobile/book_detail.html:97 templates/index.html:42
+#: templates/mobile/book_detail.html:97
+msgid "图书分类"
+msgstr ""
+
+#: bookrank-full/templates/index.html:53 bookrank-full/templates/index.html:76
+#: bookrank-full/templates/index.html:78
+#: bookrank-full/templates/mobile/search.html:3
+#: bookrank-full/templates/mobile/search.html:25
+#: bookrank-full/templates/new_books.html:103
+#: bookrank-full/templates/new_books.html:105
+#: bookrank-full/templates/weekly_reports.html:70 templates/awards.html:148
+#: templates/index.html:53 templates/index.html:76 templates/index.html:78
+#: templates/mobile/new_books.html:43 templates/mobile/search.html:3
+#: templates/mobile/search.html:25 templates/new_books.html:103
+#: templates/new_books.html:105 templates/weekly_reports.html:70
+msgid "搜索"
+msgstr ""
+
+#: bookrank-full/templates/index.html:59 templates/awards.html:153
+#: templates/index.html:59
+msgid "搜索书名或作者..."
+msgstr ""
+
+#: bookrank-full/templates/index.html:62 templates/awards.html:156
+#: templates/index.html:62
+msgid "搜索书名或作者"
+msgstr ""
+
+#: bookrank-full/templates/index.html:65 templates/index.html:65
+msgid "清除搜索"
+msgstr ""
+
+#: bookrank-full/templates/index.html:70
+#: bookrank-full/templates/mobile/profile.html:88
+#: bookrank-full/templates/profile.html:44 templates/index.html:70
+#: templates/mobile/profile.html:88 templates/profile.html:44
+msgid "搜索历史"
+msgstr ""
+
+#: bookrank-full/templates/index.html:80 bookrank-full/templates/index.html:82
+#: bookrank-full/templates/new_books.html:107
+#: bookrank-full/templates/new_books.html:109 templates/awards.html:169
+#: templates/index.html:80 templates/index.html:82
+#: templates/mobile/new_books.html:45 templates/new_books.html:107
+#: templates/new_books.html:109
+msgid "重置"
+msgstr ""
+
+#: bookrank-full/templates/index.html:86 templates/index.html:86
+msgid "视图切换"
+msgstr ""
+
+#: bookrank-full/templates/index.html:89 templates/index.html:89
+msgid "网格视图"
+msgstr ""
+
+#: bookrank-full/templates/index.html:91 templates/index.html:91
+msgid "切换到网格视图"
+msgstr ""
+
+#: bookrank-full/templates/index.html:98 templates/index.html:98
+msgid "列表视图"
+msgstr ""
+
+#: bookrank-full/templates/index.html:100 templates/index.html:100
+msgid "切换到列表视图"
+msgstr ""
+
+#: bookrank-full/templates/index.html:110
+#: bookrank-full/templates/new_books.html:49
+#: bookrank-full/templates/publishers.html:284 templates/index.html:110
+#: templates/mobile/new_books.html:21 templates/new_books.html:49
+#: templates/publishers.html:284
+msgid "共"
+msgstr ""
+
+#: bookrank-full/templates/index.html:112
+#: bookrank-full/templates/index.html:114 templates/index.html:112
+#: templates/index.html:114
+msgid "导出全部"
+msgstr ""
+
+#: bookrank-full/templates/index.html:121 templates/index.html:121
+msgid "图书列表视图"
+msgstr ""
+
+#: bookrank-full/templates/index.html:127
+#: bookrank-full/templates/index.html:139
+#: bookrank-full/templates/index.html:194
+#: bookrank-full/templates/index.html:227
+#: bookrank-full/templates/mobile/index.html:65
+#: bookrank-full/templates/mobile/weekly_report_detail.html:21
+#: bookrank-full/templates/weekly_report_detail.html:1364
+#: templates/index.html:129 templates/index.html:141 templates/index.html:200
+#: templates/index.html:235 templates/mobile/index.html:66
+#: templates/mobile/weekly_report_detail.html:21
+#: templates/weekly_report_detail.html:1371
+msgid "第"
+msgstr ""
+
+#: bookrank-full/templates/index.html:127
+#: bookrank-full/templates/index.html:139
+#: bookrank-full/templates/index.html:145
+#: bookrank-full/templates/index.html:147
+#: bookrank-full/templates/index.html:194
+#: bookrank-full/templates/index.html:211
+#: bookrank-full/templates/index.html:217
+#: bookrank-full/templates/index.html:219
+#: bookrank-full/templates/index.html:227
+#: bookrank-full/templates/mobile/index.html:65
+#: bookrank-full/templates/mobile/index.html:90
+#: bookrank-full/templates/mobile/index.html:92
+#: bookrank-full/templates/weekly_report_detail.html:1364
+#: templates/index.html:129 templates/index.html:141 templates/index.html:147
+#: templates/index.html:149 templates/index.html:200 templates/index.html:217
+#: templates/index.html:223 templates/index.html:225 templates/index.html:235
+#: templates/mobile/index.html:66 templates/mobile/index.html:91
+#: templates/mobile/index.html:93 templates/weekly_report_detail.html:1371
+msgid "名"
+msgstr ""
+
+#: bookrank-full/templates/index.html:145
+#: bookrank-full/templates/mobile/index.html:90
+#: bookrank-full/templates/mobile/weekly_report_detail.html:35
+#: templates/index.html:147 templates/mobile/index.html:91
+#: templates/mobile/weekly_report_detail.html:35
+msgid "上升"
+msgstr ""
+
+#: bookrank-full/templates/index.html:147
+#: bookrank-full/templates/mobile/index.html:92
+#: bookrank-full/templates/mobile/weekly_report_detail.html:39
+#: templates/index.html:149 templates/mobile/index.html:93
+#: templates/mobile/weekly_report_detail.html:39
+msgid "下降"
+msgstr ""
+
+#: bookrank-full/templates/index.html:150
+#: bookrank-full/templates/index.html:222 templates/index.html:152
+#: templates/index.html:228
+msgid "新书上榜"
+msgstr ""
+
+#: bookrank-full/templates/index.html:168
+#: bookrank-full/templates/index.html:206 templates/index.html:172
+#: templates/index.html:212
+msgid "虚构类"
+msgstr ""
+
+#: bookrank-full/templates/index.html:174
+#: bookrank-full/templates/index.html:230 templates/index.html:178
+#: templates/index.html:238
+msgid "累计"
+msgstr ""
+
+#: bookrank-full/templates/index.html:188 templates/index.html:192
+msgid "图书网格视图"
+msgstr ""
+
+#: bookrank-full/templates/index.html:211 templates/index.html:217
+msgid "排名: 第"
+msgstr ""
+
+#: bookrank-full/templates/index.html:217 templates/index.html:223
+msgid "排名上升"
+msgstr ""
+
+#: bookrank-full/templates/index.html:219 templates/index.html:225
+msgid "排名下降"
+msgstr ""
+
+#: bookrank-full/templates/index.html:253 templates/index.html:261
+msgid "出版社:"
+msgstr ""
+
+#: bookrank-full/templates/index.html:259 templates/index.html:267
+msgid "页数:"
+msgstr ""
+
+#: bookrank-full/templates/index.html:265 templates/index.html:273
+msgid "语言:"
+msgstr ""
+
+#: bookrank-full/templates/index.html:286
+#: bookrank-full/templates/index.html:288 templates/awards.html:363
+#: templates/awards.html:365 templates/index.html:294 templates/index.html:296
+msgid "暂无数据"
+msgstr ""
+
+#: bookrank-full/templates/index.html:289 templates/index.html:297
+msgid "请尝试切换分类或稍后重试"
+msgstr ""
+
+#: bookrank-full/templates/index.html:291 templates/index.html:299
+msgid "当前展示为缓存数据，"
+msgstr ""
+
+#: bookrank-full/templates/index.html:291 templates/index.html:299
+msgid "点击刷新"
+msgstr ""
+
+#: bookrank-full/templates/index.html:291 templates/index.html:299
+msgid "获取最新榜单"
+msgstr ""
+
+#: bookrank-full/templates/index.html:325
+#: bookrank-full/templates/publishers.html:262 templates/awards.html:371
+#: templates/index.html:334 templates/publishers.html:262
+msgid "快速链接"
+msgstr ""
+
+#: bookrank-full/templates/index.html:329 templates/index.html:338
+msgid "查看国际图书奖项榜单"
+msgstr ""
+
+#: bookrank-full/templates/index.html:330 templates/index.html:339
+msgid "诺贝尔文学奖、布克奖、普利策奖等"
+msgstr ""
+
+#: bookrank-full/templates/index.html:342 templates/index.html:351
+msgid "正在翻译... (0/0)"
+msgstr ""
+
+#: bookrank-full/templates/mobile/book_detail.html:106
+#: bookrank-full/templates/new_book_detail.html:140
+#: templates/mobile/book_detail.html:106
+#: templates/mobile/new_book_detail.html:31 templates/new_book_detail.html:140
+msgid "价格"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:155
+#: templates/new_book_detail.html:155
+msgid "No description available"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:243
+#: templates/new_book_detail.html:243
+msgid "新书详情页样式"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:243
+#: bookrank-full/templates/weekly_report_detail.html:401
+#: templates/new_book_detail.html:243 templates/weekly_report_detail.html:401
+msgid "设计系统"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:271
+#: templates/new_book_detail.html:271
+msgid "主容器"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:278
+#: templates/new_book_detail.html:278
+msgid "左侧封面区域"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:310
+#: templates/new_book_detail.html:310
+msgid "购买按钮"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:338
+#: templates/new_book_detail.html:338
+msgid "右侧信息区域"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:347
+#: templates/new_book_detail.html:347
+msgid "标题区"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:389
+#: templates/new_book_detail.html:389
+msgid "元信息网格"
+msgstr ""
+
+#: bookrank-full/templates/new_book_detail.html:439
+#: templates/new_book_detail.html:439
+msgid "简介区域"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:44 templates/mobile/new_books.html:14
+#: templates/new_books.html:44
+msgid "追踪国际大型出版社最新出版物"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_reports.html:35
+#: bookrank-full/templates/new_books.html:49 templates/mobile/new_books.html:21
+#: templates/mobile/weekly_reports.html:35 templates/new_books.html:49
+msgid "本新书"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:53 templates/mobile/new_books.html:21
+#: templates/new_books.html:53
+msgid "家出版社"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:57 templates/new_books.html:57
+msgid "近30天出版"
+msgstr ""
+
+#: bookrank-full/templates/mobile/awards.html:61
+#: bookrank-full/templates/mobile/index.html:35
+#: bookrank-full/templates/mobile/profile.html:13
+#: bookrank-full/templates/new_books.html:57
+#: bookrank-full/templates/new_books.html:128
+#: bookrank-full/templates/new_books.html:539
+#: bookrank-full/templates/profile.html:23
+#: bookrank-full/templates/weekly_report_detail.html:1420
+#: bookrank-full/templates/weekly_reports.html:133
+#: templates/mobile/awards.html:61 templates/mobile/index.html:35
+#: templates/mobile/new_books.html:58 templates/mobile/profile.html:13
+#: templates/new_books.html:57 templates/new_books.html:128
+#: templates/new_books.html:565 templates/profile.html:23
+#: templates/weekly_report_detail.html:1427 templates/weekly_reports.html:133
+msgid "本"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:65 templates/new_books.html:65
+msgid "选择出版社"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:66 templates/mobile/new_books.html:29
+#: templates/new_books.html:66
+msgid "全部出版社"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:78 templates/new_books.html:78
+msgid "选择分类"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:79 templates/awards.html:138
+#: templates/mobile/new_books.html:49 templates/new_books.html:79
+msgid "全部分类"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:87 templates/mobile/new_books.html:34
+#: templates/new_books.html:87
+msgid "时间"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:88 templates/new_books.html:88
+msgid "选择时间范围"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:89 templates/new_books.html:89
+msgid "最近7天出版"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:90 templates/new_books.html:90
+msgid "最近30天出版"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:91 templates/new_books.html:91
+msgid "最近90天出版"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:92 templates/new_books.html:92
+msgid "最近半年出版"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:93 templates/new_books.html:93
+msgid "最近一年出版"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:99 templates/new_books.html:99
+msgid "搜索新书"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:99 templates/new_books.html:99
+msgid "搜索书名、作者、"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:114
+#: bookrank-full/templates/new_books.html:116
+#: bookrank-full/templates/weekly_report_detail.html:386
+#: bookrank-full/templates/weekly_report_detail.html:390
+#: templates/new_books.html:114 templates/new_books.html:116
+#: templates/weekly_report_detail.html:386
+#: templates/weekly_report_detail.html:390
+msgid "导出"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:121
+#: bookrank-full/templates/new_books.html:551 templates/new_books.html:121
+#: templates/new_books.html:537 templates/new_books.html:568
+msgid "同步新书"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:128
+#: templates/mobile/new_books.html:58 templates/new_books.html:128
+msgid "当前结果"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:129
+#: templates/mobile/new_books.html:58 templates/new_books.html:129
+msgid "按出版日期筛选最近"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:129
+#: templates/mobile/new_books.html:58 templates/new_books.html:129
+msgid "天已出版图书"
+msgstr ""
+
+#: bookrank-full/templates/mobile/awards.html:95
+#: bookrank-full/templates/new_books.html:146
+#: bookrank-full/templates/new_books.html:149
+#: bookrank-full/templates/new_books.html:469
+#: bookrank-full/templates/new_books.html:471 templates/mobile/awards.html:95
+#: templates/mobile/new_books.html:88 templates/new_books.html:146
+#: templates/new_books.html:149 templates/new_books.html:469
+#: templates/new_books.html:471
+msgid "上一页"
+msgstr ""
+
+#: bookrank-full/templates/mobile/awards.html:99
+#: bookrank-full/templates/new_books.html:164
+#: bookrank-full/templates/new_books.html:167
+#: bookrank-full/templates/new_books.html:485
+#: bookrank-full/templates/new_books.html:487 templates/mobile/awards.html:99
+#: templates/mobile/new_books.html:90 templates/new_books.html:164
+#: templates/new_books.html:167 templates/new_books.html:485
+#: templates/new_books.html:487
+msgid "下一页"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:175
+#: templates/mobile/new_books.html:97 templates/new_books.html:175
+msgid "暂无新书数据"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:176
+#: templates/mobile/new_books.html:98 templates/new_books.html:176
+msgid "当前出版时间范围暂无新书，可放宽时间范围或稍后刷新"
+msgstr ""
+
+#: bookrank-full/templates/mobile/index.html:124
+#: bookrank-full/templates/new_books.html:178
+#: bookrank-full/templates/weekly_reports.html:162
+#: templates/mobile/index.html:127 templates/mobile/new_books.html:99
+#: templates/new_books.html:178 templates/weekly_reports.html:162
+msgid "刷新"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:359
+#: bookrank-full/templates/new_books.html:368 templates/new_books.html:359
+#: templates/new_books.html:368
+msgid "加载失败"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:369 templates/new_books.html:369
+msgid "重试"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:384 templates/new_books.html:384
+msgid "暂无匹配结果"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:384 templates/new_books.html:384
+msgid "尝试放宽出版时间范围或搜索其他关键词"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:524 templates/new_books.html:527
+msgid "同步中"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:528 templates/new_books.html:531
+msgid "正在从出版社获取新书数据"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:539 templates/new_books.html:565
+msgid "同步完成"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:539 templates/new_books.html:565
+msgid "新增"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:539 templates/new_books.html:565
+msgid "更新"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:542
+#: bookrank-full/templates/new_books.html:547 templates/new_books.html:535
+#: templates/new_books.html:546 templates/new_books.html:570
+msgid "同步失败"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:556 templates/new_books.html:584
+msgid "筛选器事件绑定"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:561 templates/new_books.html:589
+msgid "搜索输入框事件绑定"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:564 templates/new_books.html:592
+msgid "工具栏按钮事件绑定"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:569 templates/new_books.html:597
+msgid "表单回车提交与重置"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:578 templates/new_books.html:606
+msgid "侧边栏出版社筛选事件委托"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:584 templates/new_books.html:612
+msgid "同步更新下拉框"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:587 templates/new_books.html:615
+msgid "更新侧边栏"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:587 templates/new_books.html:615
+msgid "状态"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:593 templates/new_books.html:621
+msgid "图书卡片点击事件委托"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:601 templates/new_books.html:629
+msgid "分页事件委托"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:610 templates/new_books.html:638
+msgid "重试按钮事件委托"
+msgstr ""
+
+#: bookrank-full/templates/new_books.html:617 templates/new_books.html:645
+msgid "首次加载时根据 currentLanguage 立即应用 publisher 名称切换"
+msgstr ""
+
+#: bookrank-full/templates/profile.html:3
+#: bookrank-full/templates/profile.html:4
+#: bookrank-full/templates/profile.html:6
+#: bookrank-full/templates/profile.html:12
+#: bookrank-full/templates/profile.html:21 templates/profile.html:3
+#: templates/profile.html:4 templates/profile.html:6 templates/profile.html:12
+#: templates/profile.html:21
+msgid "个人中心"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:13
+#: bookrank-full/templates/profile.html:23 templates/mobile/profile.html:13
+#: templates/profile.html:23
+msgid "已收藏"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:22
+#: bookrank-full/templates/mobile/profile.html:50
+#: bookrank-full/templates/profile.html:27 templates/mobile/profile.html:22
+#: templates/mobile/profile.html:50 templates/profile.html:27
+msgid "我的收藏"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:80
+#: bookrank-full/templates/profile.html:38 templates/mobile/profile.html:80
+#: templates/profile.html:38
+msgid "暂无收藏"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:81
+#: bookrank-full/templates/profile.html:39 templates/mobile/profile.html:81
+#: templates/profile.html:39
+msgid "浏览书籍时点击收藏按钮即可添加"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:105
+#: bookrank-full/templates/profile.html:55 templates/mobile/profile.html:105
+#: templates/profile.html:55
+msgid "暂无搜索历史"
+msgstr ""
+
+#: bookrank-full/templates/mobile/publishers.html:21
+#: bookrank-full/templates/publishers.html:279
+#: templates/mobile/publishers.html:21 templates/publishers.html:279
+msgid "汇集全球知名出版社与图书行业网站，点击即可访问"
+msgstr ""
+
+#: bookrank-full/templates/mobile/publishers.html:19
+#: bookrank-full/templates/publishers.html:284
+#: templates/mobile/publishers.html:19 templates/publishers.html:284
+msgid "个网站"
+msgstr ""
+
+#: bookrank-full/templates/mobile/publishers.html:19
+#: bookrank-full/templates/publishers.html:288
+#: templates/mobile/publishers.html:19 templates/publishers.html:288
+msgid "个分类"
+msgstr ""
+
+#: bookrank-full/templates/publishers.html:294 templates/publishers.html:294
+msgid "搜索出版社"
+msgstr ""
+
+#: bookrank-full/templates/publishers.html:294 templates/publishers.html:294
+msgid "搜索出版社名称..."
+msgstr ""
+
+#: bookrank-full/templates/publishers.html:305 templates/publishers.html:305
+msgid "中文名称"
+msgstr ""
+
+#: bookrank-full/templates/publishers.html:306 templates/publishers.html:306
+msgid "英文名称"
+msgstr ""
+
+#: bookrank-full/templates/publishers.html:307 templates/publishers.html:307
+msgid "核心定位"
+msgstr ""
+
+#: bookrank-full/templates/mobile/publishers.html:50
+#: bookrank-full/templates/publishers.html:330
+#: templates/mobile/publishers.html:50 templates/publishers.html:330
+msgid "查看新书"
+msgstr ""
+
+#: bookrank-full/templates/publishers.html:345 templates/publishers.html:345
+msgid "没有找到匹配的出版社"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:66
+#: bookrank-full/templates/weekly_report_detail.html:1362
+#: bookrank-full/templates/weekly_report_detail.html:1398
+#: bookrank-full/templates/weekly_report_detail.html:1401
+#: bookrank-full/templates/weekly_report_detail.html:1429
+#: bookrank-full/templates/weekly_reports.html:121
+#: templates/weekly_report_detail.html:66
+#: templates/weekly_report_detail.html:1369
+#: templates/weekly_report_detail.html:1405
+#: templates/weekly_report_detail.html:1408
+#: templates/weekly_report_detail.html:1436 templates/weekly_reports.html:121
+msgid "排名变化"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:77
+#: bookrank-full/templates/weekly_reports.html:127
+#: templates/weekly_report_detail.html:77 templates/weekly_reports.html:127
+msgid "新上榜"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:88
+#: bookrank-full/templates/weekly_report_detail.html:127
+#: bookrank-full/templates/weekly_report_detail.html:320
+#: bookrank-full/templates/weekly_reports.html:133
+#: templates/weekly_report_detail.html:88
+#: templates/weekly_report_detail.html:127
+#: templates/weekly_report_detail.html:320 templates/weekly_reports.html:133
+msgid "推荐书籍"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:99
+msgid "持续上榜"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:47
+#: bookrank-full/templates/weekly_report_detail.html:115
+#: bookrank-full/templates/weekly_report_detail.html:138
+#: templates/mobile/weekly_report_detail.html:47
+#: templates/weekly_report_detail.html:115
+#: templates/weekly_report_detail.html:138
+msgid "本周概览"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:119
+#: bookrank-full/templates/weekly_report_detail.html:151
+#: bookrank-full/templates/weekly_report_detail.html:852
+#: templates/weekly_report_detail.html:119
+#: templates/weekly_report_detail.html:151
+#: templates/weekly_report_detail.html:852
+msgid "数据可视化"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:123
+#: templates/weekly_report_detail.html:123
+msgid "详细分析"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:159
+#: templates/weekly_report_detail.html:159
+msgid "书籍类别分布"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:166
+#: bookrank-full/templates/weekly_report_detail.html:1428
+#: templates/weekly_report_detail.html:166
+#: templates/weekly_report_detail.html:1435
+msgid "排名变化趋势"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:173
+#: templates/weekly_report_detail.html:173
+msgid "周榜对比"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:180
+#: templates/weekly_report_detail.html:180
+msgid "排名稳定性分析"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:192
+#: templates/weekly_report_detail.html:192
+msgid "重要变化"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:199
+#: bookrank-full/templates/weekly_report_detail.html:235
+#: bookrank-full/templates/weekly_report_detail.html:263
+#: bookrank-full/templates/weekly_report_detail.html:291
+#: bookrank-full/templates/weekly_report_detail.html:327
+#: bookrank-full/templates/weekly_report_detail.html:1343
+#: templates/weekly_report_detail.html:199
+#: templates/weekly_report_detail.html:235
+#: templates/weekly_report_detail.html:263
+#: templates/weekly_report_detail.html:291
+#: templates/weekly_report_detail.html:327
+#: templates/weekly_report_detail.html:1343
+msgid "暂无封面"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:209
+#: bookrank-full/templates/weekly_report_detail.html:211
+#: bookrank-full/templates/weekly_report_detail.html:271
+#: bookrank-full/templates/weekly_report_detail.html:1362
+#: bookrank-full/templates/weekly_report_detail.html:1401
+#: bookrank-full/templates/weekly_report_detail.html:1402
+#: bookrank-full/templates/weekly_report_detail.html:1429
+#: templates/weekly_report_detail.html:209
+#: templates/weekly_report_detail.html:211
+#: templates/weekly_report_detail.html:271
+#: templates/weekly_report_detail.html:1369
+#: templates/weekly_report_detail.html:1408
+#: templates/weekly_report_detail.html:1409
+#: templates/weekly_report_detail.html:1436
+msgid "位"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:213
+#: bookrank-full/templates/weekly_report_detail.html:1402
+#: templates/weekly_report_detail.html:213
+#: templates/weekly_report_detail.html:1409
+msgid "无变化"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:218
+#: bookrank-full/templates/weekly_report_detail.html:246
+#: bookrank-full/templates/weekly_report_detail.html:274
+#: bookrank-full/templates/weekly_report_detail.html:302
+#: templates/weekly_report_detail.html:218
+#: templates/weekly_report_detail.html:246
+#: templates/weekly_report_detail.html:274
+#: templates/weekly_report_detail.html:302
+msgid "详情"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:228
+#: templates/weekly_report_detail.html:228
+msgid "新上榜书籍"
+msgstr ""
+
+#: bookrank-full/templates/mobile/award_book_detail.html:53
+#: bookrank-full/templates/mobile/award_book_detail.html:108
+#: bookrank-full/templates/weekly_report_detail.html:243
+#: bookrank-full/templates/weekly_report_detail.html:1444
+#: templates/mobile/award_book_detail.html:53
+#: templates/mobile/award_book_detail.html:108
+#: templates/weekly_report_detail.html:243
+#: templates/weekly_report_detail.html:1451
+msgid "排名"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:256
+#: templates/weekly_report_detail.html:256
+msgid "排名上升最快"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:284
+msgid "持续上榜最久"
+msgstr ""
+
+#: bookrank-full/templates/mobile/book_detail.html:100
+#: bookrank-full/templates/mobile/index.html:65
+#: bookrank-full/templates/weekly_report_detail.html:298
+#: templates/mobile/book_detail.html:100 templates/mobile/index.html:66
+#: templates/weekly_report_detail.html:99
+#: templates/weekly_report_detail.html:298
+msgid "累计上榜"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:299
+#: bookrank-full/templates/weekly_report_detail.html:1364
+#: templates/weekly_report_detail.html:299
+#: templates/weekly_report_detail.html:1371
+msgid "当前排名"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:311
+#: templates/weekly_report_detail.html:311
+msgid "暂无详细分析数据"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:340
+#: bookrank-full/templates/weekly_reports.html:144
+#: templates/weekly_report_detail.html:340 templates/weekly_reports.html:144
+msgid "查看详情"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:348
+#: templates/weekly_report_detail.html:348
+msgid "暂无推荐书籍"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:367
+#: templates/weekly_report_detail.html:367
+msgid "返回周报列表"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:371
+#: templates/weekly_report_detail.html:371
+msgid "返回首页"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:381
+#: templates/weekly_report_detail.html:381
+msgid "导出周报"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:401
+#: templates/weekly_report_detail.html:401
+msgid "周报详情页样式"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:404
+#: templates/weekly_report_detail.html:404
+msgid "颜色变量"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:404
+#: templates/weekly_report_detail.html:404
+msgid "暖色中性调"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:427
+#: templates/weekly_report_detail.html:427
+msgid "新闻风格头部"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:547
+#: templates/weekly_report_detail.html:547
+msgid "内容区"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:639
+#: templates/weekly_report_detail.html:639
+msgid "分析区"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:656
+#: templates/weekly_report_detail.html:656
+msgid "书籍列表"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:751
+#: templates/weekly_report_detail.html:751
+msgid "推荐书籍网格"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:827
+#: templates/weekly_report_detail.html:827
+msgid "详情按钮"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:867
+#: templates/weekly_report_detail.html:867
+msgid "弹窗"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:867
+#: templates/weekly_report_detail.html:867
+msgid "居中"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:867
+#: templates/weekly_report_detail.html:867
+msgid "移动端优化"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:983
+#: templates/weekly_report_detail.html:983
+msgid "导出卡片"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1038
+#: bookrank-full/templates/weekly_reports.html:420
+#: templates/weekly_report_detail.html:1038 templates/weekly_reports.html:420
+msgid "空状态"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1047
+#: templates/weekly_report_detail.html:1047
+msgid "断点"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1050
+#: bookrank-full/templates/weekly_report_detail.html:1128
+#: templates/weekly_report_detail.html:1050
+#: templates/weekly_report_detail.html:1128
+msgid "以下"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1239
+#: templates/weekly_report_detail.html:1239
+msgid "书籍详情弹窗"
+msgstr ""
+
+#: bookrank-full/templates/mobile/book_detail.html:12
+#: bookrank-full/templates/weekly_report_detail.html:1246
+#: templates/mobile/book_detail.html:12
+#: templates/weekly_report_detail.html:1246
+msgid "书籍详情"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1249
+#: templates/weekly_report_detail.html:1249
+msgid "加载中"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1329
+#: templates/weekly_report_detail.html:1329
+msgid "封面图加载失败兜底"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1366
+#: templates/weekly_report_detail.html:1373
+msgid "推荐理由"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1367
+#: bookrank-full/templates/weekly_report_detail.html:1369
+#: templates/weekly_report_detail.html:1374
+#: templates/weekly_report_detail.html:1376
+msgid "作者"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1369
+#: templates/weekly_report_detail.html:1376
+msgid "暂无更多详情数据"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1378
+#: templates/weekly_report_detail.html:1385
+msgid "图表渲染"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1390
+#: templates/weekly_report_detail.html:1397
+msgid "排名变化柱状图"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1407
+#: templates/weekly_report_detail.html:1414
+msgid "类别分布饼图"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1415
+#: templates/weekly_report_detail.html:1422
+msgid "其他"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1424
+#: templates/weekly_report_detail.html:1431
+msgid "排名变化趋势折线图"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1433
+#: templates/weekly_report_detail.html:1440
+msgid "周榜对比图"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1440
+#: templates/weekly_report_detail.html:1447
+msgid "本周排名"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1441
+#: templates/weekly_report_detail.html:1448
+msgid "上周排名"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1448
+#: templates/weekly_report_detail.html:1455
+msgid "排名稳定性雷达图"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1453
+#: templates/weekly_report_detail.html:1460
+msgid "排名稳定性评分"
+msgstr ""
+
+#: bookrank-full/templates/weekly_report_detail.html:1454
+#: templates/weekly_report_detail.html:1461
+msgid "稳定性评分"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:22
+#: templates/weekly_reports.html:22
+msgid "每周更新"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:22
+#: templates/weekly_reports.html:22
+msgid "总结纽约时报畅销书榜单的变化趋势"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:31
+#: templates/weekly_reports.html:31
+msgid "本周周报正在生成中（调用纽约时报 API），约 1-2 分钟后请刷新页面。"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:61
+#: templates/weekly_reports.html:61
+msgid "日期筛选"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:63
+#: templates/weekly_reports.html:63
+msgid "全部"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:64
+#: templates/weekly_reports.html:64
+msgid "本月"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:65
+#: templates/weekly_reports.html:65
+msgid "上月"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:66
+#: templates/weekly_reports.html:66
+msgid "今年"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:72
+#: templates/weekly_reports.html:72
+msgid "搜索周报"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:72
+#: templates/weekly_reports.html:72
+msgid "搜索周报标题或内容"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:148
+#: templates/weekly_reports.html:148
+msgid "分享"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:158
+#: templates/weekly_reports.html:158
+msgid "暂无周报"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:159
+#: templates/weekly_reports.html:159
+msgid "周报正在生成中"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:159
+#: templates/weekly_reports.html:159
+msgid "请稍后再试"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:172
+#: templates/weekly_reports.html:172
+msgid "关于周报"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:175
+#: templates/weekly_reports.html:175
+msgid "畅销书周报每周自动生成"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:175
+#: templates/weekly_reports.html:175
+msgid "总结纽约时报畅销书榜单的变化趋势、亮点书籍和值得关注的变动。"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:177
+#: templates/weekly_reports.html:177
+msgid "每周一更新上周周报"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:178
+#: templates/weekly_reports.html:178
+msgid "包含榜单变化分析"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:179
+#: templates/weekly_reports.html:179
+msgid "推荐值得关注的书籍"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:180
+#: templates/weekly_reports.html:180
+msgid "提供趋势分析和洞察"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:238
+#: templates/weekly_reports.html:238
+msgid "刷新中"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:262
+#: templates/weekly_reports.html:262
+msgid "链接已复制到剪贴板"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:262
+#: templates/weekly_reports.html:262
+msgid "可以分享给朋友"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:264
+#: templates/weekly_reports.html:264
+msgid "请复制以下链接"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:273
+#: templates/weekly_reports.html:273
+msgid "周报列表样式"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:280
+#: templates/weekly_reports.html:280
+msgid "新闻卡片样式"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:309
+#: templates/weekly_reports.html:309
+msgid "日期徽章"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:336
+#: templates/weekly_reports.html:336
+msgid "新闻卡片内容"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:376
+#: templates/weekly_reports.html:376
+msgid "新闻摘要"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:384
+#: templates/weekly_reports.html:384
+msgid "新闻亮点"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:414
+#: templates/weekly_reports.html:414
+msgid "操作按钮"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:443
+#: templates/weekly_reports.html:443
+msgid "关于部分"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:478
+#: templates/weekly_reports.html:478
+msgid "筛选和搜索样式"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:562
+#: templates/weekly_reports.html:562
+msgid "分享按钮样式"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:569
+#: templates/weekly_reports.html:569
+msgid "刷新按钮样式"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:577
+#: templates/weekly_reports.html:577
+msgid "动画效果"
+msgstr ""
+
+#: bookrank-full/templates/weekly_reports.html:667
+#: templates/weekly_reports.html:667
+msgid "自定义滚动条"
+msgstr ""
+
+#: bookrank-full/templates/mobile/about.html:64 templates/mobile/about.html:64
+msgid "周报分析"
+msgstr ""
+
+#: bookrank-full/templates/mobile/about.html:65 templates/mobile/about.html:65
+msgid "每周自动汇总榜单变化，包含新书、上升书籍和编辑推荐"
+msgstr ""
+
+#: bookrank-full/templates/mobile/award_book_detail.html:12
+#: templates/mobile/award_book_detail.html:12
+msgid "获奖图书"
+msgstr ""
+
+#: bookrank-full/templates/mobile/awards.html:3 templates/mobile/awards.html:3
+msgid "图书奖项榜单"
+msgstr ""
+
+#: bookrank-full/templates/mobile/awards.html:10
+#: templates/mobile/awards.html:10
+msgid "奖项榜单"
+msgstr ""
+
+#: bookrank-full/templates/mobile/awards.html:109
+#: templates/mobile/awards.html:109
+msgid "暂无获奖图书数据"
+msgstr ""
+
+#: bookrank-full/templates/mobile/awards.html:110
+#: templates/mobile/awards.html:110
+msgid "请稍后再试或切换其他奖项"
+msgstr ""
+
+#: bookrank-full/templates/mobile/base.html:89
+#: bookrank-full/templates/mobile/profile.html:3 templates/mobile/base.html:89
+#: templates/mobile/profile.html:3
+msgid "我的"
+msgstr ""
+
+#: bookrank-full/templates/mobile/index.html:35 templates/mobile/index.html:35
+msgid "更新于"
+msgstr ""
+
+#: bookrank-full/templates/mobile/index.html:36 templates/mobile/index.html:36
+msgid "缓存"
+msgstr ""
+
+#: bookrank-full/templates/mobile/index.html:49 templates/mobile/index.html:49
+msgid "榜单阅读提示"
+msgstr ""
+
+#: bookrank-full/templates/mobile/index.html:80 templates/mobile/index.html:81
+msgid "排名数据"
+msgstr ""
+
+#: bookrank-full/templates/mobile/index.html:122
+#: templates/mobile/index.html:125
+msgid "暂无图书数据"
+msgstr ""
+
+#: bookrank-full/templates/mobile/index.html:123
+#: templates/mobile/index.html:126
+msgid "请稍后再试或切换其他分类"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:12
+#: templates/mobile/profile.html:12
+msgid "读书小达人"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:29
+#: templates/mobile/profile.html:29
+msgid "阅读记录"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:36
+#: bookrank-full/templates/mobile/weekly_report_detail.html:3
+#: bookrank-full/templates/mobile/weekly_report_detail.html:4
+#: bookrank-full/templates/mobile/weekly_report_detail.html:5
+#: bookrank-full/templates/mobile/weekly_report_detail.html:22
+#: bookrank-full/templates/mobile/weekly_report_detail.html:136
+#: bookrank-full/templates/mobile/weekly_reports.html:3
+#: bookrank-full/templates/mobile/weekly_reports.html:10
+#: bookrank-full/templates/mobile/weekly_reports.html:30
+#: templates/mobile/profile.html:36
+#: templates/mobile/weekly_report_detail.html:3
+#: templates/mobile/weekly_report_detail.html:4
+#: templates/mobile/weekly_report_detail.html:5
+#: templates/mobile/weekly_report_detail.html:22
+#: templates/mobile/weekly_report_detail.html:136
+#: templates/mobile/weekly_reports.html:3
+#: templates/mobile/weekly_reports.html:10
+#: templates/mobile/weekly_reports.html:30
+msgid "周报"
+msgstr ""
+
+#: bookrank-full/templates/mobile/profile.html:69
+#: templates/mobile/profile.html:69
+msgid "取消收藏"
+msgstr ""
+
+#: bookrank-full/templates/mobile/search.html:10
+#: templates/mobile/search.html:10
+msgid "搜索书籍"
+msgstr ""
+
+#: bookrank-full/templates/mobile/search.html:21
+#: templates/mobile/search.html:21
+msgid "输入书名、作者..."
+msgstr ""
+
+#: bookrank-full/templates/mobile/search.html:23
+#: templates/mobile/search.html:23
+msgid "搜索关键词"
+msgstr ""
+
+#: bookrank-full/templates/mobile/search.html:30
+#: templates/mobile/search.html:30
+msgid "热门搜索"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:12
+#: templates/mobile/weekly_report_detail.html:12
+msgid "周报详情"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:27
+#: templates/mobile/weekly_report_detail.html:27
+msgid "总书数"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:31
+#: templates/mobile/weekly_report_detail.html:31
+msgid "新书"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:55
+#: templates/mobile/weekly_report_detail.html:55
+msgid "Top 5 排名变化"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:78
+#: templates/mobile/weekly_report_detail.html:78
+msgid "本周新书"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:102
+#: templates/mobile/weekly_report_detail.html:102
+msgid "编辑推荐"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:125
+#: templates/mobile/weekly_report_detail.html:125
+msgid "生成"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_report_detail.html:126
+#: templates/mobile/weekly_report_detail.html:126
+msgid "返回列表"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_reports.html:19
+#: templates/mobile/weekly_reports.html:19
+msgid "本期周报正在生成中，请稍后刷新查看"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_reports.html:50
+#: templates/mobile/weekly_reports.html:50
+msgid "暂无周报数据"
+msgstr ""
+
+#: bookrank-full/templates/mobile/weekly_reports.html:51
+#: templates/mobile/weekly_reports.html:51
+msgid "系统会自动生成本周周报"
+msgstr ""
+
+#: templates/awards.html:124 templates/awards.html:125
+msgid "年份"
+msgstr ""
+
+#: templates/awards.html:163
+msgid "应用筛选"
+msgstr ""
+
+#: templates/awards.html:165 templates/mobile/new_books.html:44
+msgid "筛选"
+msgstr ""
+
+#: templates/awards.html:167
+msgid "重置筛选"
+msgstr ""
+
+#: templates/awards.html:366
+msgid "请尝试切换筛选条件或稍后重试"
+msgstr ""
+
+#: templates/awards.html:375
+msgid "查看纽约时报畅销书榜"
+msgstr ""
+
+#: templates/awards.html:376
+msgid "实时更新的畅销图书排行榜"
+msgstr ""
+
+#: templates/new_books.html:552
+msgid "同步仍在后台执行，请稍后刷新页面查看结果"
+msgstr ""
+
+#: templates/new_books.html:558
+msgid "查询状态失败"
+msgstr ""
+
+#: templates/new_books.html:573
+msgid "同步任务状态已丢失，请稍后刷新页面查看结果"
+msgstr ""
+
+#: templates/mobile/new_book_detail.html:38
+msgid "购买"
+msgstr ""
+
+#: templates/mobile/new_books.html:35
+msgid "最近7天"
+msgstr ""
+
+#: templates/mobile/new_books.html:36
+msgid "最近30天"
+msgstr ""
+
+#: templates/mobile/new_books.html:37
+msgid "最近90天"
+msgstr ""
+
+#: templates/mobile/new_books.html:38
+msgid "最近半年"
+msgstr ""
+
+#: templates/mobile/new_books.html:39
+msgid "最近一年"
+msgstr ""
+
+#: templates/mobile/new_books.html:43
+msgid "搜索书名、作者"
+msgstr ""
+
+#: templates/mobile/new_books.html:103
+msgid "查看全部出版社"
+msgstr ""
+

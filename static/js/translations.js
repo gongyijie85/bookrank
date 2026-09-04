@@ -147,6 +147,10 @@ const TRANSLATIONS = {
         'search_book_author': '搜索书名或作者',
         'btn_filter': '筛选',
         'btn_reset': '重置',
+        'empty_retry_hint': '请尝试切换筛选条件或稍后重试',
+        'quick_nyt_link': '查看纽约时报畅销书榜',
+        'quick_nyt_desc': '实时更新的畅销图书排行榜',
+        'quick_links': '快速链接',
         // 新书推介页
         'nb_header_subtitle': '追踪国际大型出版社最新出版物',
         'nb_total_pre': '共',
@@ -205,6 +209,10 @@ const TRANSLATIONS = {
         'search_book_author': 'Search title or author',
         'btn_filter': 'Filter',
         'btn_reset': 'Reset',
+        'empty_retry_hint': 'Try changing filters or retry later',
+        'quick_nyt_link': 'View NYT Bestsellers',
+        'quick_nyt_desc': 'Updated bestseller ranking in real time',
+        'quick_links': 'Quick Links',
         // Navigation
         'nav_home': 'Home',
         'nav_awards': 'Awards',
