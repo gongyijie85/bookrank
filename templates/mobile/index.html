@@ -2,6 +2,35 @@
 
 {% block title %}{{ _('纽约时报畅销书排行榜') }} - 书榜{% endblock %}
 
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "itemListElement": [
+        {% for book in books %}
+        {% set source_index = (book.rank or loop.index) - 1 %}
+        {
+            "@type": "ListItem",
+            "position": {{ loop.index }},
+            "item": {
+                "@type": "Book",
+                "name": {{ (book.title_zh or book.title) | tojson }},
+                "author": {
+                    "@type": "Person",
+                    "name": {{ (book.author or _('未知作者')) | tojson }}
+                },
+                "url": {{ url_for('main.book_detail', book_index=source_index, category=current_category, _external=True) | tojson }}{% if book.isbn13 %},
+                "isbn": {{ book.isbn13 | tojson }}{% endif %}{% if book.cover %},
+                "image": {{ book.cover | tojson }}{% endif %}
+            }
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+}
+</script>
+{% endblock %}
+
 {% block content %}
 {% set _locale = get_locale() %}
 
@@ -67,7 +96,7 @@
         <span class="m-rank-badge {% if current_rank > 3 %}small{% endif %}">{{ current_rank }}</span>
         <div class="m-book-cover">
             <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
-                 alt="{{ book.title }}"
+                 alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="60" height="80"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">

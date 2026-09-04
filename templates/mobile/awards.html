@@ -69,7 +69,7 @@
     <a href="/award-book/{{ book.id }}" class="m-card m-book-card">
         <div class="m-book-cover">
             <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
-                 alt="{{ book.title }}"
+                 alt="{{ _('《') }}{{ book.title_zh or book.title_en or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="60" height="80"
                  onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
