@@ -355,9 +355,7 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     if book_service:
         _scheduler.add_job(
             func=_scheduler_wrapper(app, _cover_prefetch_task),
-            trigger=IntervalTrigger(
-                days=1, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC
-            ),
+            trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC),
             id='cover_prefetch',
             name='畅销书封面热度预取',
         )
