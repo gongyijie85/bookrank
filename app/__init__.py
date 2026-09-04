@@ -419,6 +419,7 @@ def _apply_security_headers(app: Flask) -> None:
 
         if (
             'gzip' in request.headers.get('Accept-Encoding', '')
+            and not response.headers.get('Content-Encoding')  # 防上游代理已压缩导致双重 gzip（P-MEDIUM-07）
             and response.content_type
             and any(
                 t in response.content_type for t in ('text/', 'application/json', 'application/javascript', 'image/svg')
