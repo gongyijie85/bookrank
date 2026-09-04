@@ -190,7 +190,7 @@ class NewBook(db.Model):
             'price': self.price,
             'page_count': self.page_count,
             'language': self.language,
-            'buy_links': json.loads(self.buy_links) if self.buy_links else [],
+            'buy_links': self.get_buy_links(),
             'source_url': self.source_url,
             'canonical_source_url': self.canonical_source_url,
             'editions': self.get_editions(),
@@ -219,18 +219,27 @@ class NewBook(db.Model):
         self.buy_links = json.dumps(links, ensure_ascii=False)
 
     def get_buy_links(self) -> list[dict[str, str]]:
-        """获取购买链接"""
-        return json.loads(self.buy_links) if self.buy_links else []
+        """获取购买链接；脏数据（非 list / 解析失败）返回空列表。"""
+        if not self.buy_links:
+            return []
+        try:
+            raw = json.loads(self.buy_links)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return raw if isinstance(raw, list) else []
 
     def set_editions(self, editions: list[dict[str, Any]]) -> None:
         """设置关联版本列表（元素含 format / isbn13 / is_main）。"""
         self.editions_json = json.dumps(editions, ensure_ascii=False)
 
     def get_editions(self) -> list[dict[str, Any]]:
-        """读取关联版本；无数据时返回空列表。"""
+        """读取关联版本；无数据/脏数据时返回空列表。"""
         if not self.editions_json:
             return []
-        raw = json.loads(self.editions_json)
+        try:
+            raw = json.loads(self.editions_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
         return raw if isinstance(raw, list) else []
 
     def set_field_provenance(self, provenance: list[dict[str, Any]]) -> None:
@@ -238,10 +247,13 @@ class NewBook(db.Model):
         self.field_provenance_json = json.dumps(provenance, ensure_ascii=False)
 
     def get_field_provenance(self) -> list[dict[str, Any]]:
-        """读取字段出处；无数据时返回空列表。"""
+        """读取字段出处；无数据/脏数据时返回空列表。"""
         if not self.field_provenance_json:
             return []
-        raw = json.loads(self.field_provenance_json)
+        try:
+            raw = json.loads(self.field_provenance_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
         return raw if isinstance(raw, list) else []
 
     def __repr__(self) -> str:
