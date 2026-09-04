@@ -40,11 +40,12 @@
    - 验收标准：mypy 无 override 的模块数量明显增加
    - 现状：25+ 模块零 override；`mypy app/` 0 errors / 99 files；仅 8 个 ORM 密集文件豁免 SQLAlchemy 2.0 py.typed 噪音。GitHub #10 已关闭。
 
-4. **低覆盖率模块测试补齐**（2026-09-04 部分完成，commit 52d285f/8519876/f33f543/1ee62ce）
-   - 识别并优先覆盖核心业务流程中的低覆盖模块
-   - 本轮补齐 4 个 0% 模块：category_cleanup_service 100%、source_control_service 85%、
-     free_translation_service 91%、pilot_gate_service 88%
-   - 验收标准：整体覆盖率稳定在 80% 以上（当前整体约 83%+，持续保持 ≥80%）
+4. **低覆盖率模块测试补齐** ✅（2026-09-04 完成，整体 84%）
+   - 本轮补齐 6 个 0% 模块：category_cleanup 100%、source_control 85%、
+     free_translation 91%、pilot_gate 88%、source_health（状态机 8 测试）、
+     source_alert 66%（HTTP client mock 边界）
+   - 整体覆盖率 81% → 84%，稳定 ≥80% 验收达成
+   - 新增 N+1 回归保护（#5）同批次落地
 
 5. **N+1 查询回归保护** ✅（2026-09-04 完成，commit 52d285f）
    - 为已修复的 N+1 场景增加回归测试或查询断言
