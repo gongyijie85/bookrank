@@ -220,6 +220,8 @@
     {% set display_title = book.title_zh or book.title %}
     <article class="card card-animate"
              data-award-book-id="{{ book.id }}"
+             tabindex="0"
+             role="button"
              aria-label="{{ display_title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}">
         <div class="card-image">
             <div class="cover-frame">
@@ -296,6 +298,8 @@
     {% set display_title = book.title_zh or book.title %}
     <article class="list-item card-animate"
              data-award-book-id="{{ book.id }}"
+             tabindex="0"
+             role="button"
              aria-label="{{ display_title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}">
         <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ display_title }}{{ _('》封面') }}">
             <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
