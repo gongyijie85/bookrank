@@ -4,7 +4,7 @@ import secrets
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from functools import wraps
-from typing import Any
+from typing import Any, overload
 
 from flask import current_app, jsonify, request
 from werkzeug.wrappers import Response
@@ -369,7 +369,15 @@ def _strip_markdown(text: str) -> str:
     return text.strip()
 
 
-def clean_translation_text(text: str, field_type: str = 'text') -> str:
+@overload
+def clean_translation_text(text: None, field_type: str = 'text') -> None: ...
+
+
+@overload
+def clean_translation_text(text: str, field_type: str = 'text') -> str: ...
+
+
+def clean_translation_text(text: str | None, field_type: str = 'text') -> str | None:
     """权威翻译文本后处理函数：去AI污染标记、清除Markdown、字段提取、统一引号、书名号"""
     if not text:
         return text
@@ -399,7 +407,15 @@ def clean_translation_text(text: str, field_type: str = 'text') -> str:
     return text
 
 
-def quick_clean_translation(text: str, field_type: str = 'text') -> str:
+@overload
+def quick_clean_translation(text: None, field_type: str = 'text') -> None: ...
+
+
+@overload
+def quick_clean_translation(text: str, field_type: str = 'text') -> str: ...
+
+
+def quick_clean_translation(text: str | None, field_type: str = 'text') -> str | None:
     """快速清理翻译文本（带脏数据检测，干净文本直接返回）"""
     if not text:
         return text

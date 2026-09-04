@@ -16,7 +16,6 @@ API文档: https://developers.google.com/books/docs/v1/getting_started
 import logging
 import time
 from datetime import date, datetime, timedelta
-from typing import Any
 
 import requests
 
@@ -99,9 +98,10 @@ class GoogleBooksCrawler(BaseCrawler):
             return False
 
         try:
+            params: dict[str, str | int] = {'q': 'test', 'maxResults': 1, 'key': self._api_key}
             resp = self._session.get(
                 self.BASE_URL,
-                params={'q': 'test', 'maxResults': 1, 'key': self._api_key},
+                params=params,
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -128,7 +128,7 @@ class GoogleBooksCrawler(BaseCrawler):
         subject: str,
         max_results: int,
         start_index: int = 0,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str | int]:
         """构建查询参数"""
         query_parts = []
         if subject and subject != 'general':
@@ -137,7 +137,7 @@ class GoogleBooksCrawler(BaseCrawler):
         if not query_parts:
             query_parts.append('books')
 
-        params = {
+        params: dict[str, str | int] = {
             'q': ' '.join(query_parts),
             'maxResults': min(max_results, 40),
             'startIndex': start_index,

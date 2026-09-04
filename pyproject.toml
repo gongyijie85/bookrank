@@ -75,7 +75,6 @@ ignore_missing_imports = true
 module = [
     "app.models.schemas",
     "app.models.new_book",
-    "app.models.book",
 ]
 disable_error_code = [
     "attr-defined",
@@ -90,20 +89,40 @@ disable_error_code = [
 [[tool.mypy.overrides]]
 module = [
     "app.services.award_book_service",
+    "app.services.book_service",
+    "app.services.google_books_client",
+    "app.services.free_translation_service",
+    "app.services.book_language_pack",
+    "app.services.new_book.query_service",
+    "app.services.publisher_crawler.macmillan",
+    "app.services.zhipu_translation_service",
+]
+disable_error_code = [
+    "attr-defined",
+    "union-attr",
+    "no-any-return",
+    "misc",
+]
+
+# 2026-09-04 mypy 债务收窄：以下模块已通过 strict 业务码检查
+# （operator/arg-type/assignment/name-defined/var-annotated/has-type/call-* /
+#   return 全部解除禁用），剩余仅 Flask-SQLAlchemy stub 噪音类豁免。
+[[tool.mypy.overrides]]
+module = [
+    "app.models.book",
     "app.services.award_cover_sync_service",
     "app.services.translation_cache_service",
     "app.services.weekly_report_service",
-    "app.services.book_service",
     "app.services.api_cache_service",
-    "app.services.google_books_client",
-    "app.services.zhipu_translation_service",
     "app.services.nyt_client",
     "app.services.open_library_client",
     "app.services.recommendation_service",
-    "app.services.free_translation_service",
-    "app.services.book_language_pack",
     "app.services.api_utils",
-    "app.services.publisher_crawler.*",
+    "app.services.publisher_crawler.google_books",
+    "app.services.publisher_crawler.google_books_publisher",
+    "app.services.publisher_crawler.prh_api",
+    "app.services.publisher_crawler.open_library",
+    "app.services.publisher_crawler.base_crawler",
     "app.routes.admin",
     "app.routes.main",
     "app.routes.api.*",
@@ -116,7 +135,11 @@ module = [
     "app.utils.security",
     "app.utils.service_helpers",
     "app.utils.api_helpers",
-    "app.services.new_book.*",
+    "app.services.new_book.ingestor",
+    "app.services.new_book.translation_pipeline",
+    "app.services.new_book.sync_engine",
+    "app.services.new_book.publisher_manager",
+    "app.services.new_book",
     "app.services.book_detail_service",
     "app.utils.book_filters",
     "app.utils.date_helpers",
@@ -125,16 +148,7 @@ disable_error_code = [
     "attr-defined",
     "union-attr",
     "no-any-return",
-    "arg-type",
-    "operator",
-    "assignment",
-    "name-defined",
-    "var-annotated",
-    "has-type",
-    "call-overload",
     "misc",
-    "call-arg",
-    "return",
 ]
 
 [[tool.mypy.overrides]]

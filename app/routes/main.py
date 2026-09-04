@@ -1,6 +1,7 @@
 import ipaddress
 import re
 from pathlib import Path
+from typing import Any
 
 from flask import (
     Blueprint,
@@ -104,7 +105,8 @@ def index():
     weeks_filter = request.args.get('weeks', '')
     sort_by = request.args.get('sort', '')
 
-    books_data, update_time = [], None
+    books_data: list[dict[str, Any]] = []
+    update_time: str | None = None
     try:
         books_data, update_time = _get_books_for_category(category)
     except ExternalAPIError as e:
@@ -913,7 +915,7 @@ def export_weekly_report(date):
         if format_type not in ['pdf', 'excel']:
             return render_adaptive('error.html', message='不支持的导出格式', back_url=f'/reports/weekly/{date}')
 
-        export_config = {
+        export_config: dict[str, dict[str, Any]] = {
             'pdf': {
                 'export_method': export_service.export_weekly_report_pdf,
                 'error_message': 'PDF导出失败',

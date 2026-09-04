@@ -60,7 +60,7 @@ class OpenLibraryClient:
         clean_isbn = isbn.replace('-', '').replace(' ', '')
 
         url = f'{self._base_url}/api/books'
-        params = {'bibkeys': f'ISBN:{clean_isbn}', 'format': 'json', 'jscmd': 'data'}
+        params: dict[str, str] = {'bibkeys': f'ISBN:{clean_isbn}', 'format': 'json', 'jscmd': 'data'}
 
         try:
             response = self._session.get(url, params=params, timeout=self._timeout)
@@ -211,7 +211,7 @@ class OpenLibraryClient:
     def search_books(self, query: str, limit: int = 10) -> list:
         """搜索图书"""
         url = f'{self._base_url}/search.json'
-        params = {'q': query, 'limit': limit}
+        params: dict[str, str | int] = {'q': query, 'limit': limit}
 
         try:
             response = self._session.get(url, params=params, timeout=self._timeout)

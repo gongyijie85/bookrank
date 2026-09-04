@@ -31,16 +31,21 @@ def _is_safe_image_url(url: str) -> bool:
         # IP 字面量直接判定
         try:
             ip = ipaddress.ip_address(hostname)
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
+            ):
                 return False
         except ValueError:
             # 非 IP：阻断内网后缀
             if hostname.endswith('.internal') or hostname.endswith('.local') or hostname == '169.254.169.254':
                 return False
         # 非标准端口阻断（仅允许默认 443）
-        if parsed.port not in (None, 443):
-            return False
-        return True
+        return parsed.port in (None, 443)
     except Exception:
         return False
 
@@ -125,7 +130,7 @@ class ImageCacheService:
         self._cache_dir = cache_dir
         self._default_cover = default_cover
         self._cache_dir.mkdir(parents=True, exist_ok=True)
-        self._memory_cache = OrderedDict()
+        self._memory_cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
         self._memory_cache_ttl = 3600
         self._memory_cache_max_size = 1000
         self._session = create_session_with_retry(max_retries=2)

@@ -18,7 +18,6 @@ def _reset_admin_failures():
     admin_auth._auth_failures.clear()
 
 
-
 @pytest.fixture
 def admin_headers(app):
     app.config['ADMIN_SECRET'] = 'test-admin-secret'

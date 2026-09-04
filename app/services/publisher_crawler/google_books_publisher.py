@@ -75,7 +75,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     break
 
                 remaining = max_books - collected
-                params = {
+                params: dict[str, str | int] = {
                     'q': search_query,
                     'maxResults': min(remaining, 40),
                     'startIndex': start_index,

@@ -51,7 +51,7 @@ class AwardCoverSyncService:
             logger.warning('封面同步已在运行中，跳过')
             return {'status': 'already_running'}
 
-        result: dict[str, str | int | list[str]] = {
+        result: dict[str, Any] = {
             'total_checked': 0,
             'updated': 0,
             'failed': 0,

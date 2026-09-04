@@ -94,7 +94,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
             if collected >= max_results:
                 break
 
-            params = {
+            params: dict[str, str | int] = {
                 'q': f'inpublisher:"{imprint}"',
                 'maxResults': min(max_results - collected, 40),
                 'startIndex': start_index,
@@ -217,7 +217,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
             BookInfo 或 None
         """
         url = 'https://www.googleapis.com/books/v1/volumes'
-        params = {'q': f'isbn:{isbn}'}
+        params: dict[str, str] = {'q': f'isbn:{isbn}'}
         if self._key_is_valid and self._api_key:
             params['key'] = self._api_key
 

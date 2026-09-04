@@ -138,10 +138,10 @@ class ZhipuTranslationService:
         merged_override = app.config.get('TRANSLATION_USE_MERGED_JSON') if app is not None else None
         self.use_merged_json = merged_override if merged_override is not None else (self.provider == 'zhipu')
 
-        self._client = None
-        self._last_request_time = 0
-        self._request_interval = 0.1
-        self._cache_service = None
+        self._client: Any = None
+        self._last_request_time: float = 0
+        self._request_interval: float = 0.1
+        self._cache_service: Any = None
 
         self._field_prompts: dict[str, str] = {
             'title': (
@@ -815,8 +815,8 @@ class HybridTranslationService:
             app: Flask应用实例，用于提供应用上下文
         """
         self.zhipu = ZhipuTranslationService(api_key=zhipu_api_key, app=app)
-        self._fallback = None
-        self._cache_service = None
+        self._fallback: Any = None
+        self._cache_service: Any = None
         self._app = app
 
     def _get_cache_service(self):

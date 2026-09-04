@@ -77,7 +77,7 @@ class WeeklyReportService:
             book_service: 图书服务实例
         """
         self._book_service = book_service
-        self._translation_service = None
+        self._translation_service: Any = None
 
     def _get_translation_service(self):
         """获取翻译服务"""
@@ -285,18 +285,20 @@ class WeeklyReportService:
             books = weekly_data.get('books', [])
 
             # 分类统计
-            category_stats = {}
+            category_stats: dict[str, dict[str, Any]] = {}
             for book in books:
                 cat = book.get('category', '其他')
                 if cat not in category_stats:
-                    category_stats[cat] = {'count': 0, 'new_count': 0, 'avg_weeks': 0, 'total_weeks': 0}
+                    category_stats[cat] = {'count': 0, 'new_count': 0, 'avg_weeks': 0.0, 'total_weeks': 0}
                 category_stats[cat]['count'] += 1
                 if book.get('is_new', False):
                     category_stats[cat]['new_count'] += 1
                 category_stats[cat]['total_weeks'] += book.get('weeks_on_list', 0)
             for cat in category_stats:
                 cnt = category_stats[cat]['count']
-                category_stats[cat]['avg_weeks'] = round(category_stats[cat]['total_weeks'] / cnt, 1) if cnt > 0 else 0
+                category_stats[cat]['avg_weeks'] = (
+                    round(category_stats[cat]['total_weeks'] / cnt, 1) if cnt > 0 else 0.0
+                )
 
             # 重要变化（排名变化较大的书籍）
             top_changes = sorted(books, key=lambda x: abs(x.get('rank_change', 0)), reverse=True)[:10]

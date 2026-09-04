@@ -40,9 +40,10 @@ class GoogleBooksClient:
             return False
 
         try:
+            params: dict[str, str | int] = {'q': 'test', 'maxResults': 1, 'key': self._api_key}
             resp = self._session.get(
                 self._base_url,
-                params={'q': 'test', 'maxResults': 1, 'key': self._api_key},
+                params=params,
                 timeout=10,
             )
             if resp.status_code == 200:

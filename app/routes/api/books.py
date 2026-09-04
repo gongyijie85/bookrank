@@ -56,6 +56,7 @@ def self_category_books_parallel(book_service: Any, category_ids: list[str]) -> 
 
     return result
 
+
 # UTF-8 BOM,确保 Excel 正确识别 CSV 中的中文
 _UTF8_BOM = '﻿'.encode()
 

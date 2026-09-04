@@ -347,7 +347,7 @@ def _apply_security_headers(app: Flask) -> None:
                 "connect-src 'self' https://cdn.jsdelivr.net; "
                 "frame-src 'none'; "
                 "object-src 'none'; "
-                "upgrade-insecure-requests;"
+                'upgrade-insecure-requests;'
             ),
             'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
         }
