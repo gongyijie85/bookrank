@@ -543,9 +543,7 @@ def _crawler_drift_alert_task(app):
             payload = {
                 'task': 'crawler_drift',
                 'level': 'warning',
-                'drifted': [
-                    {'publisher': d['publisher'], 'reasons': d['reasons']} for d in drifted
-                ],
+                'drifted': [{'publisher': d['publisher'], 'reasons': d['reasons']} for d in drifted],
                 'observed_at': report.get('observed_at'),
             }
             webhook_url = os.environ.get('ALERT_WEBHOOK_URL')

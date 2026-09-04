@@ -137,30 +137,28 @@ class NewBookQueryService:
         # 注解解释：publication_date 模型中声明为 date | None（Column nullable），
         # SQLAlchemy 编译期将 NULL 比较暴露为 SQL 语义；mypy 对 date|None 的列
         # 操作符报告假阳性（type: ignore[operator]），运行时无影响。
-        row = (
-            db.session.query(
-                func.count(NewBook.id).label('total_books'),
-                func.count(NewBook.id).filter(
-                    NewBook.is_displayable.is_(True),
-                    NewBook.publication_date >= week_ago,  # type: ignore[operator]
-                    NewBook.publication_date <= today,  # type: ignore[operator]
-                ).label('recent_7d'),
-                func.count(NewBook.id).filter(
-                    NewBook.is_displayable.is_(True),
-                    NewBook.publication_date >= month_ago,  # type: ignore[operator]
-                    NewBook.publication_date <= today,  # type: ignore[operator]
-                ).label('recent_30d'),
+        row = db.session.query(
+            func.count(NewBook.id).label('total_books'),
+            func.count(NewBook.id)
+            .filter(
+                NewBook.is_displayable.is_(True),
+                NewBook.publication_date >= week_ago,  # type: ignore[operator]
+                NewBook.publication_date <= today,  # type: ignore[operator]
             )
-            .one()
-        )
+            .label('recent_7d'),
+            func.count(NewBook.id)
+            .filter(
+                NewBook.is_displayable.is_(True),
+                NewBook.publication_date >= month_ago,  # type: ignore[operator]
+                NewBook.publication_date <= today,  # type: ignore[operator]
+            )
+            .label('recent_30d'),
+        ).one()
 
-        publisher_row = (
-            db.session.query(
-                func.count(Publisher.id).label('total'),
-                func.count(Publisher.id).filter(Publisher.is_active.is_(True)).label('active'),
-            )
-            .one()
-        )
+        publisher_row = db.session.query(
+            func.count(Publisher.id).label('total'),
+            func.count(Publisher.id).filter(Publisher.is_active.is_(True)).label('active'),
+        ).one()
 
         category_stats = (
             db.session.query(NewBook.category, func.count(NewBook.id).label('count'))

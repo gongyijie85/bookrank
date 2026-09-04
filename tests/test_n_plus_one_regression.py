@@ -34,9 +34,7 @@ class _QueryCounter:
 @pytest.fixture
 def sample_data(app, db):
     with app.app_context():
-        awards = [
-            Award(name=f'测试奖-{i}', description='desc', country='US') for i in range(3)
-        ]
+        awards = [Award(name=f'测试奖-{i}', description='desc', country='US') for i in range(3)]
         db.session.add_all(awards)
         db.session.commit()
         for idx, award in enumerate(awards):

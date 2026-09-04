@@ -1,5 +1,14 @@
-"""Free translation service tests (was 0% coverage)."""
+"""Free translation service tests (was 0% coverage, fixed for removed dep).
 
+deep-translator was intentionally removed (PYSEC-2022-252 supply-chain
+poisoning, see SECURITY.md). Tests inject a fake module via sys.modules to
+simulate "installed" for the translation paths, and test the real degraded
+path (module missing -> None) directly.
+"""
+
+import builtins
+import sys
+import types
 from unittest.mock import patch
 
 from app.services.free_translation_service import FreeTranslationService, GoogleTranslationService
@@ -12,32 +21,59 @@ class TestGoogleTranslationService:
         assert svc.translate('   ') == '   '
 
     def test_missing_client_returns_none(self):
-        svc = GoogleTranslationService()
-        with patch('deep_translator.GoogleTranslator', side_effect=ImportError('missing')):
-            # 直接触发 _get_client 的 ImportError 分支
-            svc._client = None
+        # 模拟 deep-translator 未安装（供应链投毒后刻意移除：生产/CI 环境即如此）
+        sys.modules.pop('deep_translator', None)
+        real_import = builtins.__import__
+
+        def _fake_import(name, *args, **kwargs):
+            if name.startswith('deep_translator'):
+                raise ImportError('模拟 deep-translator 缺失')
+            return real_import(name, *args, **kwargs)
+
+        with patch('builtins.__import__', side_effect=_fake_import):
+            svc = GoogleTranslationService()
+            assert svc._get_client() is None
+            assert svc.translate('hello') is None
+
+    def test_translate_success_with_fake_module(self):
+        # 模拟 deep-translator 已安装（sys.modules 注入）
+        fake_mod = types.ModuleType('deep_translator')
+
+        class _FakeTranslator:
+            def __init__(self, source='', target=''):
+                self._source = source
+                self._target = target
+
+            def translate(self, text):
+                return '你好'
+
+        fake_mod.GoogleTranslator = _FakeTranslator
+        sys.modules['deep_translator'] = fake_mod
+        try:
+            svc = GoogleTranslationService(delay=0)
+            result = svc.translate('hello', 'en', 'zh')
+            assert result == '你好'
+        finally:
+            sys.modules.pop('deep_translator', None)
+
+    def test_translate_exhausts_retries_with_fake_module(self):
+        fake_mod = types.ModuleType('deep_translator')
+
+        class _BoomTranslator:
+            def __init__(self, source='', target=''):
+                pass
+
+            def translate(self, text):
+                raise Exception('boom')
+
+        fake_mod.GoogleTranslator = _BoomTranslator
+        sys.modules['deep_translator'] = fake_mod
+        try:
+            svc = GoogleTranslationService(delay=0)
             result = svc.translate('hello')
             assert result is None
-
-    @patch('deep_translator.GoogleTranslator')
-    def test_translate_success(self, mock_gt):
-        # from deep_translator import GoogleTranslator -> mock_gt (the class)
-        # client_class(source=.., target=..) -> mock_gt.return_value
-        # .translate(text) -> mock_gt.return_value.translate
-        mock_gt.return_value.translate.return_value = '你好'
-
-        svc = GoogleTranslationService(delay=0)
-        result = svc.translate('hello', 'en', 'zh')
-        assert result == '你好'
-        mock_gt.assert_called_once_with(source='en', target='zh-CN')
-
-    @patch('deep_translator.GoogleTranslator')
-    def test_translate_exhausts_retries(self, mock_gt):
-        mock_gt.return_value.translate.side_effect = Exception('boom')
-
-        svc = GoogleTranslationService(delay=0)
-        result = svc.translate('hello')
-        assert result is None
+        finally:
+            sys.modules.pop('deep_translator', None)
 
 
 class TestFreeTranslationService:
