@@ -60,11 +60,11 @@
    - 增加内存、响应时间等关键指标监控与告警
    - 验收标准：达到阈值时能通过 webhook 或 Sentry 通知维护者
 
-9. **前端资源打包与指纹化**（GitHub #177，待实施）
-   - esbuild/Vite 打包 CSS+JS，产物内容 hash 文件名
-   - 合并设计 token（tokens.css）消除重复选择器，purgecss 清未用样式
-   - JS defer + 按需加载；模板引用迁移 + 回归快照
-   - 验收标准：production 页面 CSS ≤2 请求 / JS ≤2 请求且 defer，`immutable` 缓存与 hash 匹配
+9. **前端资源打包与指纹化**（GitHub #177）— **核心完成**（commit 6a6180c）
+   - esbuild 打包 CSS（5→1，119KB→15.7KB）+ JS 逐文件 minify（93KB→51KB），产物提交 `static/dist/`（Render 生产无 node 构建步骤）
+   - `dist_url()` Jinja 辅助：读 manifest.json 返回指纹文件名；无产物时回退源文件
+   - 模板全量迁移 dist 引用；CI 前置 `node scripts/build_frontend.mjs`
+   - 待实施：CSS 选择器去重（tokens.css 合并、purgecss）、CSP CDN 白名单复核
 
 10. **封面下载异步化与后台预取** ✅（2026-09-04 完成，commit e7934f6，GitHub #178）
     - `get_cached_image_url` MISS 时立即返回占位 + 后台预取（同 URL 去重）
