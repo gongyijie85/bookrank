@@ -227,6 +227,7 @@ class TestGetCoverUrlByTitle:
         mock_search.return_value = [{'title': 'Book', 'author': 'Author', 'cover_id': 12345}]
         mock_resp = MagicMock()
         mock_resp.status_code = 200
+        mock_resp.headers = {'Content-Type': 'image/jpeg'}
         ol_client._session.head.return_value = mock_resp
 
         result = ol_client.get_cover_url_by_title('Book', author='Author')

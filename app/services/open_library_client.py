@@ -142,6 +142,10 @@ class OpenLibraryClient:
             response = self._session.head(cover_url, timeout=5)
             if response.status_code == 200:
                 content_length = response.headers.get('Content-Length')
+                ctype = response.headers.get('Content-Type', '')
+                if ctype and 'image/' not in ctype:
+                    logger.warning(f'Open Library 封面响应非图片类型: {ctype}')
+                    return None
                 if content_length and int(content_length) > 100:
                     return cover_url
         except requests.RequestException:
@@ -169,6 +173,11 @@ class OpenLibraryClient:
             cover_url = f'{self._covers_url}/b/id/{cover_id}-{size}.jpg?default=false'
             response = self._session.head(cover_url, timeout=5, allow_redirects=True)
             if response.status_code == 200:
+                # 校验重定向链最终 Content-Type，防中间人/伪装页（SSRF 加固 P1-4）
+                ctype = response.headers.get('Content-Type', '')
+                if ctype and 'image/' not in ctype:
+                    logger.warning(f'Open Library 封面响应非图片类型: {ctype}')
+                    return None
                 return cover_url
         except requests.RequestException as e:
             log_error(ErrorCategory.API_CALL, f'Open Library封面搜索失败 ({title}): {e}', level='warning')

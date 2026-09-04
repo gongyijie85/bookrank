@@ -128,28 +128,39 @@ class NewBookQueryService:
     def get_statistics(self) -> dict[str, Any]:
         from sqlalchemy import func
 
-        total_books = NewBook.query.count()
-        total_publishers = Publisher.query.count()
-        active_publishers = Publisher.query.filter_by(is_active=True).count()
-
         today = datetime.now(UTC).date()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
 
+        # 单条聚合查询替代 5 次往返（P-LOW-10）：
+        # COUNT(*) FILTER 一次性算出全部窗口计数
         # 注解解释：publication_date 模型中声明为 date | None（Column nullable），
         # SQLAlchemy 编译期将 NULL 比较暴露为 SQL 语义；mypy 对 date|None 的列
         # 操作符报告假阳性（type: ignore[operator]），运行时无影响。
-        recent_books_7d = NewBook.query.filter(
-            NewBook.is_displayable.is_(True),
-            NewBook.publication_date >= week_ago,  # type: ignore[operator]
-            NewBook.publication_date <= today,  # type: ignore[operator]
-        ).count()
+        row = (
+            db.session.query(
+                func.count(NewBook.id).label('total_books'),
+                func.count(NewBook.id).filter(
+                    NewBook.is_displayable.is_(True),
+                    NewBook.publication_date >= week_ago,  # type: ignore[operator]
+                    NewBook.publication_date <= today,  # type: ignore[operator]
+                ).label('recent_7d'),
+                func.count(NewBook.id).filter(
+                    NewBook.is_displayable.is_(True),
+                    NewBook.publication_date >= month_ago,  # type: ignore[operator]
+                    NewBook.publication_date <= today,  # type: ignore[operator]
+                ).label('recent_30d'),
+            )
+            .one()
+        )
 
-        recent_books_30d = NewBook.query.filter(
-            NewBook.is_displayable.is_(True),
-            NewBook.publication_date >= month_ago,  # type: ignore[operator]
-            NewBook.publication_date <= today,  # type: ignore[operator]
-        ).count()
+        publisher_row = (
+            db.session.query(
+                func.count(Publisher.id).label('total'),
+                func.count(Publisher.id).filter(Publisher.is_active.is_(True)).label('active'),
+            )
+            .one()
+        )
 
         category_stats = (
             db.session.query(NewBook.category, func.count(NewBook.id).label('count'))
@@ -161,11 +172,11 @@ class NewBookQueryService:
         )
 
         return {
-            'total_books': total_books,
-            'total_publishers': total_publishers,
-            'active_publishers': active_publishers,
-            'recent_books_7d': recent_books_7d,
-            'recent_books_30d': recent_books_30d,
+            'total_books': row.total_books,
+            'total_publishers': publisher_row.total,
+            'active_publishers': publisher_row.active,
+            'recent_books_7d': row.recent_7d,
+            'recent_books_30d': row.recent_30d,
             'top_categories': [{'category': c.category, 'count': c.count} for c in category_stats],
         }
 
