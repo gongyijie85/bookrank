@@ -61,6 +61,8 @@ class AwardBookService:
         self.app = app
         self.wikidata_client = WikidataClient(timeout=30)
         self.openlib_client = OpenLibraryClient(timeout=10)
+        self.google_books_client: GoogleBooksClient | None = None
+        self.image_cache: ImageCacheService | None = None
 
         # Google Books 客户端需要 api_key 和 base_url
         if app:
@@ -123,7 +125,7 @@ class AwardBookService:
         logger.info('✅ 已更新刷新时间')
 
     def refresh_award_books(
-        self, award_keys: list[str] = None, start_year: int = 2020, end_year: int = 2026, force: bool = False
+        self, award_keys: list[str] | None = None, start_year: int = 2020, end_year: int = 2026, force: bool = False
     ) -> dict[str, Any]:
         """
         刷新获奖图书数据
@@ -145,7 +147,7 @@ class AwardBookService:
 
         logger.info(f'🚀 开始刷新 {len(award_keys)} 个奖项的图书数据 ({start_year}-{end_year})...')
 
-        stats = {
+        stats: dict[str, Any] = {
             'total_awards': len(award_keys),
             'processed_awards': 0,
             'successful_awards': [],

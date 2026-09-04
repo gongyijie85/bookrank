@@ -243,9 +243,9 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 elif ident.get('type') == 'ISBN_10':
                     isbn10 = ident.get('identifier', '')
 
-            buy_links = {}
+            buy_links: list[dict[str, str]] = []
             if sale.get('buyLink'):
-                buy_links['Google Play'] = sale['buyLink']
+                buy_links.append({'name': 'Google Play', 'url': sale['buyLink']})
 
             # 将 publishedDate 字符串转为 date 对象（与 BookInfo 类型一致）
             pub_date = self._parse_date_string(info.get('publishedDate', ''))
@@ -358,26 +358,26 @@ class MacmillanCrawler(GoogleBooksCrawler):
                     continue
 
                 checked += 1
-                book = self._lookup_isbn(isbn)
+                found_book = self._lookup_isbn(isbn)
                 if self._google_rate_limited:
                     break
-                if not book:
+                if not found_book:
                     continue
 
-                if not self._is_book_recent(book, cutoff_date):
+                if not self._is_book_recent(found_book, cutoff_date):
                     # 工单 #83：sitemap 补充路径同样计入日期过滤拒绝分类
                     # （此路径拿到的是已解析日期，只可能是缺失或窗口外）
                     self._record_date_filter(
-                        'rejected_no_date' if not book.publication_date else 'rejected_out_of_window'
+                        'rejected_no_date' if not found_book.publication_date else 'rejected_out_of_window'
                     )
                     continue
 
-                isbn_key = book.isbn13 or isbn
+                isbn_key = found_book.isbn13 or isbn
                 if isbn_key not in seen_isbns:
                     seen_isbns.add(isbn_key)
                     count += 1
                     added += 1
-                    yield book
+                    yield found_book
 
                 import time
 

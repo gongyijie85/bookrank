@@ -136,16 +136,19 @@ class NewBookQueryService:
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
 
+        # 注解解释：publication_date 模型中声明为 date | None（Column nullable），
+        # SQLAlchemy 编译期将 NULL 比较暴露为 SQL 语义；mypy 对 date|None 的列
+        # 操作符报告假阳性（type: ignore[operator]），运行时无影响。
         recent_books_7d = NewBook.query.filter(
             NewBook.is_displayable.is_(True),
-            NewBook.publication_date >= week_ago,
-            NewBook.publication_date <= today,
+            NewBook.publication_date >= week_ago,  # type: ignore[operator]
+            NewBook.publication_date <= today,  # type: ignore[operator]
         ).count()
 
         recent_books_30d = NewBook.query.filter(
             NewBook.is_displayable.is_(True),
-            NewBook.publication_date >= month_ago,
-            NewBook.publication_date <= today,
+            NewBook.publication_date >= month_ago,  # type: ignore[operator]
+            NewBook.publication_date <= today,  # type: ignore[operator]
         ).count()
 
         category_stats = (

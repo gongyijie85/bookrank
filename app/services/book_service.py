@@ -1,7 +1,7 @@
 import logging
 import threading
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC
 from pathlib import Path
@@ -305,7 +305,7 @@ class BookService:
 
     def _batch_get_supplements(self, isbns: list[str]) -> dict[str, dict]:
         """并发获取Google Books补充信息，提升批量查询效率"""
-        supplements = {}
+        supplements: dict[str, dict[str, Any]] = {}
         if not isbns:
             return supplements
 
@@ -462,7 +462,7 @@ class BookService:
                 pass
             return False
 
-    def save_book_metadata_batch(self, books: list[Book | dict[str, Any]]) -> int:
+    def save_book_metadata_batch(self, books: Sequence[Book | dict[str, Any]]) -> int:
         """批量保存NYT图书英文资料，通过一次 IN 查询避免 N+1"""
         if not books:
             return 0

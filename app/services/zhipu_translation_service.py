@@ -879,7 +879,7 @@ class HybridTranslationService:
 
         if self.zhipu.is_available():
             logger.info('使用智谱AI翻译...')
-            translate_kwargs = {'field_type': field_type}
+            translate_kwargs: dict[str, Any] = {'field_type': field_type}
             if self.zhipu.provider == 'siliconflow':
                 translate_kwargs['context'] = context
             translated = self.zhipu.translate(text, source_lang, target_lang, **translate_kwargs)

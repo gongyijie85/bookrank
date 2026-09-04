@@ -30,7 +30,7 @@ class GoogleTranslationService:
     def __init__(self, delay: float = 0.5):
         self.delay = delay
         self._client = None
-        self._last_request_time = 0
+        self._last_request_time: float = 0
         self._deep_translator_warned = False
 
     def _get_client(self):

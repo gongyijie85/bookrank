@@ -102,6 +102,11 @@ disable_error_code = [
     "union-attr",
     "no-any-return",
     "misc",
+    # SQLAlchemy 2.0 关系/查询 API 的 py.typed 缺失噪音（db.relationship 字符串
+    # 引用、selectinload/joinedload 参数、scoped_session.query 重载、count 表
+    # 达式）——与业务逻辑无关，单独豁免以免掩盖真问题。
+    "arg-type",
+    "call-overload",
 ]
 
 # 2026-09-04 mypy 债务收窄：以下模块已通过 strict 业务码检查

@@ -117,7 +117,7 @@ class GoogleBooksClient:
             return {}
 
     @api_retry(max_attempts=2, backoff_factor=1.5)
-    def search_book_by_title(self, title: str, author: str = None) -> dict[str, Any]:
+    def search_book_by_title(self, title: str, author: str | None = None) -> dict[str, Any]:
         """根据书名搜索图书"""
         if not title:
             return {}
@@ -214,7 +214,7 @@ class GoogleBooksClient:
                 return identifier.get('identifier')
         return None
 
-    def get_cover_url(self, isbn: str = None, title: str = None, author: str = None) -> str | None:
+    def get_cover_url(self, isbn: str | None = None, title: str | None = None, author: str | None = None) -> str | None:
         """获取图书封面URL"""
         if isbn:
             details = self.fetch_book_details(isbn)

@@ -38,7 +38,7 @@ class BookLanguagePack:
     def __init__(self, pack_path: str | Path | None = None):
         self._pack_path = Path(pack_path) if pack_path else None
         self._pack_mtime: float | None = None
-        self._pack_books: dict[str, dict[str, str]] = {}
+        self._pack_books: dict[str, dict[str, str | None]] = {}
         self._table_columns_cache: dict[str, set[str]] = {}
 
     def hydrate_books(self, books: Iterable[Any]) -> None:
@@ -253,7 +253,7 @@ class BookLanguagePack:
             )
             return {}
 
-    def _load_static_pack(self) -> dict[str, dict[str, str]]:
+    def _load_static_pack(self) -> dict[str, dict[str, str | None]]:
         if not self._pack_path or not self._pack_path.exists():
             return {}
 
@@ -267,7 +267,7 @@ class BookLanguagePack:
             if not isinstance(books, dict):
                 books = {}
 
-            normalized: dict[str, dict[str, str]] = {}
+            normalized: dict[str, dict[str, str | None]] = {}
             for isbn, values in books.items():
                 if isinstance(values, dict):
                     normalized[str(isbn)] = {
