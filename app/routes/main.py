@@ -505,6 +505,16 @@ def favicon():
     )
 
 
+@main_bp.route('/openapi.json')
+def openapi_spec():
+    """机器可读 OpenAPI 3.1 规范（ROADMAP #1）"""
+    return send_from_directory(
+        current_app.static_folder or current_app.root_path + '/static',
+        'openapi.json',
+        mimetype='application/json',
+    )
+
+
 @main_bp.route('/about')
 def about():
     """关于我们页面"""

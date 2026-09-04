@@ -415,6 +415,7 @@ def api_info():
             ],
             'rate_limit': '60 requests per minute per IP',
             'documentation': 'https://github.com/gongyijie85/bookrank#api-documentation',
+            'openapi': '/openapi.json',
         },
         include_timestamp=True,
     )
