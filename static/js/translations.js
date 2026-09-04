@@ -488,8 +488,8 @@ function setGlobalLanguage(lang) {
 
     // 设置语言 cookie，服务端后续请求保持同一语言
     const host = window.location.hostname;
-    const cookieDomain = host.includes('.') ? host : '';
-    document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
+    const cookieDomain = (host && host !== 'localhost' && host.includes('.')) ? host : '';
+    document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax;' + (cookieDomain ? ' domain=' + cookieDomain : '');
 
     if (typeof updateLangDropdown === 'function') {
         try { updateLangDropdown(lang); } catch(e) { console.warn('updateLangDropdown error:', e); }

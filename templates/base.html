@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#171717">
     <meta name="description" content="{{ _('BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息') }}">
     <meta name="keywords" content="{{ _('图书排行榜, 纽约时报, 畅销书, 图书奖项, 诺贝尔文学奖, 布克奖, 普利策奖') }}">
     <meta name="author" content="BookRank">
@@ -438,10 +439,10 @@
             var userLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
 
             var host = window.location.hostname;
-            var cookieDomain = host.includes('.') ? host : '';
+            var cookieDomain = (host && host !== 'localhost' && host.includes('.')) ? host : '';
 
             if (userLang && userLang !== serverLang) {
-                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
+                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax;' + (cookieDomain ? ' domain=' + cookieDomain : '');
             }
 
             var finalLang = userLang || serverLang;

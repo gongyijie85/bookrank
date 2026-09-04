@@ -22,8 +22,8 @@ let currentCategory = '';
     }
 })();
 
-// 语言控制变量
-let currentLanguage = localStorage.getItem('bookrank_language') || 'en';
+// 语言控制变量（统一读取：app_language 优先，兼容旧 bookrank_language 键）
+let currentLanguage = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'en';
 
 function updateLanguageButtons(lang) {
     const zhBtn = document.getElementById('lang-zh');

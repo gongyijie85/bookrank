@@ -117,6 +117,10 @@
     const APP_LANG_STORAGE_KEY = 'app_language';
 
     function getSavedLanguage() {
+        try {
+            const saved = localStorage.getItem(APP_LANG_STORAGE_KEY) || localStorage.getItem(LANG_STORAGE_KEY);
+            if (saved === 'en' || saved === 'zh') return saved;
+        } catch (e) { /* 忽略 localStorage 不可用 */ }
         return SERVER_LANGUAGE === 'en' ? 'en' : 'zh';
     }
 
