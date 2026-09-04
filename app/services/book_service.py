@@ -378,7 +378,8 @@ class BookService:
         # 保存 NYT 原始图片 URL 作为兜底（缓存失效时使用）
         original_image_url = book_data.get('book_image', '') or ''
         book._original_cover = original_image_url
-        book.cover = self._image_cache.get_cached_image_url(original_image_url)
+        # 异步预取：MISS 立即返回占位并在后台下载，不阻塞请求线程（#178）
+        book.cover = self._image_cache.get_cached_image_url(original_image_url, block=False)
 
         if isbn in translations:
             trans = translations[isbn]

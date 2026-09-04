@@ -351,6 +351,18 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     )
     app.logger.info('📅 API缓存过期记录清理已安排（每24小时）')
 
+    # 5c. 畅销书封面热度预取（每日一次，次冷启动后从缓存收集 URL 后台下载）
+    if book_service:
+        _scheduler.add_job(
+            func=_scheduler_wrapper(app, _cover_prefetch_task),
+            trigger=IntervalTrigger(
+                days=1, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC
+            ),
+            id='cover_prefetch',
+            name='畅销书封面热度预取',
+        )
+        app.logger.info('📅 畅销书封面热度预取已安排（每天一次）')
+
     # 6. 翻译数据清理和预置获奖图书补种（一次性，延迟到后台执行，减轻冷启动负担）
     from datetime import timedelta
 
@@ -494,6 +506,47 @@ def _api_cache_expired_cleanup_task(app):
             app.logger.info('API 缓存过期记录已清理: %d 条', deleted)
     except Exception as e:
         log_error(ErrorCategory.CACHE, f'API 缓存过期清理跳过: {e}', level='warning')
+
+
+def _cover_prefetch_task(app):
+    """畅销书封面热度预取（每日一次）：从缓存收集原始封面 URL 后台预取。
+
+    预取与请求热路径解耦：book_service 的 block=False 已在请求线程序列化
+    提交预取；本任务兜底整批预热（例如冷启动后缓存键全部 MISS）。
+    遍历各分类 get_books_by_category（缓存命中时零网络），收集 Book 的
+    _original_cover 字段后批量 prefetch_many 后台下载。
+    """
+    try:
+        with app.app_context():
+            from .services.api_utils import _is_safe_image_url
+            from .utils.service_helpers import get_service
+
+            image_cache = get_service('image_cache_service')
+            if not image_cache:
+                app.logger.info('封面预取跳过：无 image_cache_service')
+                return
+
+            book_service = get_service('book_service')
+            if not book_service:
+                return
+
+            urls: list[str] = []
+            for category in app.config.get('CATEGORIES', {}):
+                try:
+                    books = book_service.get_books_by_category(category, auto_translate=False, notify_refresh=False)
+                except Exception as e:
+                    log_error(ErrorCategory.API_CALL, f'封面预取分类 {category} 失败: {e}', level='warning')
+                    continue
+                for book in books:
+                    cover = getattr(book, '_original_cover', '') or getattr(book, 'cover', '')
+                    if cover and _is_safe_image_url(cover):
+                        urls.append(cover)
+
+            if urls:
+                image_cache.prefetch_many(urls)
+                app.logger.info(f'畅销书封面预取已提交: {len(urls)} 个 URL（去重后）')
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'畅销书封面预取跳过: {e}', level='warning')
 
 
 def _deferred_init_task(app):

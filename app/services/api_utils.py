@@ -1,8 +1,10 @@
 import hashlib
 import ipaddress
 import logging
+import threading
 import time
 from collections import OrderedDict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -134,9 +136,20 @@ class ImageCacheService:
         self._memory_cache_ttl = 3600
         self._memory_cache_max_size = 1000
         self._session = create_session_with_retry(max_retries=2)
+        # 异步预取去重锁（同 URL 并发仅一次下载）
+        self._prefetch_lock = threading.Lock()
+        self._prefetch_pending: set[str] = set()
 
-    def get_cached_image_url(self, original_url: str, ttl: int = 3600) -> str:
-        """获取缓存的图片URL"""
+    def get_cached_image_url(self, original_url: str, ttl: int = 3600, block: bool = True) -> str:
+        """获取缓存的图片URL。
+
+        Args:
+            original_url: 原始图片 URL
+            ttl: 文件缓存有效期（秒）
+            block: True=同步下载（MISS 时阻塞直到文件就绪或失败）；
+                   False=异步预取（MISS 时立即提交后台下载并返回占位，供
+                   请求热路径使用，避免阻塞请求线程）
+        """
         if not original_url:
             return self._default_cover
 
@@ -167,24 +180,68 @@ class ImageCacheService:
             logger.warning(f'Blocked unsafe image URL (SSRF guard): {original_url}')
             return self._default_cover
 
+        if not block:
+            self._enqueue_prefetch(original_url)
+            return self._default_cover
+
         try:
-            response = self._session.get(original_url, timeout=10, stream=True)
-            response.raise_for_status()
-            ctype = response.headers.get('Content-Type', '')
-            if ctype and not ctype.startswith('image/'):
-                logger.warning(f'Blocked non-image Content-Type {ctype} for {original_url}')
-                return self._default_cover
-
-            with open(cache_path, 'wb') as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
-
-            self._update_memory_cache(original_url, relative_path, current_time)
-            return relative_path
-
+            return self._download_to_cache(original_url)
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'Failed to cache image from {original_url}: {e}', level='warning')
             return self._default_cover
+
+    def _download_to_cache(self, original_url: str, ttl: int = 3600) -> str:
+        """同步下载图片到缓存；失败抛异常（由调用方兜底返回占位）。"""
+        filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'  # type: ignore[arg-type]
+        cache_path = self._cache_dir / filename
+        relative_path = f'/cache/images/{filename}'
+
+        response = self._session.get(original_url, timeout=10, stream=True)
+        response.raise_for_status()
+        ctype = response.headers.get('Content-Type', '')
+        if ctype and not ctype.startswith('image/'):
+            logger.warning(f'Blocked non-image Content-Type {ctype} for {original_url}')
+            raise ValueError(f'non-image content: {ctype}')
+
+        with open(cache_path, 'wb') as f:
+            for chunk in response.iter_content(1024):
+                f.write(chunk)
+
+        self._update_memory_cache(original_url, relative_path, time.time())
+        return relative_path
+
+    def _enqueue_prefetch(self, original_url: str) -> None:
+        """MISS 时提交后台下载（同 URL 去重，下载成功回填内存/文件缓存）。"""
+        if not original_url:
+            return
+        with self._prefetch_lock:
+            if original_url in self._prefetch_pending:
+                return
+            self._prefetch_pending.add(original_url)
+
+        from ..utils.service_helpers import submit_background_task
+
+        def _worker() -> None:
+            try:
+                self._download_to_cache(original_url)
+            except Exception as e:
+                log_error(ErrorCategory.API_CALL, f'后台图片预取失败 {original_url}: {e}', level='warning')
+            finally:
+                with self._prefetch_lock:
+                    self._prefetch_pending.discard(original_url)
+
+        try:
+            submit_background_task(_worker)
+        except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'后台图片预取提交失败 {original_url}: {e}', level='warning')
+            with self._prefetch_lock:
+                self._prefetch_pending.discard(original_url)
+
+    def prefetch_many(self, urls: Iterable[str]) -> None:
+        """批量提交后台预取（供列表页整体预热，全部去重）。"""
+        for url in urls:
+            if url:
+                self._enqueue_prefetch(url)
 
     def is_cached_file_present(self, local_path: str) -> bool:
         """判断缓存图片文件是否仍存在（生产临时文件系统重启后可能丢失）。

@@ -119,3 +119,69 @@ class TestImageCacheService:
         image_service._update_memory_cache('k2', 'v2', time.time())
         image_service._update_memory_cache('k3', 'v3', time.time())
         assert len(image_service._memory_cache) <= 2
+
+
+class TestImageCachePrefetch:
+    """Async prefetch (#178): block=False fast placeholder + dedupe + backfill."""
+
+    @pytest.fixture
+    def service(self, tmp_path):
+        import threading as _threading
+
+        svc = ImageCacheService.__new__(ImageCacheService)
+        svc._default_cover = '/static/default-cover.png'
+        svc._memory_cache = OrderedDict()
+        svc._memory_cache_ttl = 3600
+        svc._memory_cache_max_size = 1000
+        svc._cache_dir = tmp_path / 'cache'
+        svc._cache_dir.mkdir()
+        svc._prefetch_lock = _threading.Lock()
+        svc._prefetch_pending = set()
+        return svc
+
+    def test_block_false_returns_placeholder_immediately(self, service):
+        with patch('app.services.api_utils._is_safe_image_url', return_value=True), patch(
+            'app.utils.service_helpers.submit_background_task'
+        ) as mock_submit:
+            result = service.get_cached_image_url('https://cdn.example.com/x.jpg', block=False)
+            assert result == '/static/default-cover.png'
+            assert mock_submit.called
+
+    def test_prefetch_dedupes_same_url(self, service):
+        with patch('app.services.api_utils._is_safe_image_url', return_value=True), patch(
+            'app.utils.service_helpers.submit_background_task'
+        ) as mock_submit:
+            service._enqueue_prefetch('https://cdn.example.com/x.jpg')
+            service._enqueue_prefetch('https://cdn.example.com/x.jpg')
+            assert mock_submit.call_count == 1
+
+    def test_prefetch_worker_download_and_backfills(self, service):
+        class Resp:
+            def __init__(self):
+                self.headers = {'Content-Type': 'image/jpeg'}
+
+            def raise_for_status(self):
+                pass
+
+            def iter_content(self, size):
+                yield b'fake-jpeg-bytes'
+
+        session = MagicMock()
+        session.get.return_value = Resp()
+        service._session = session
+        with patch('app.services.api_utils._is_safe_image_url', return_value=True), patch(
+            'app.utils.service_helpers.submit_background_task', side_effect=lambda fn: fn()
+        ):
+            result = service.get_cached_image_url('https://cdn.example.com/y.jpg', block=False)
+            assert result == '/static/default-cover.png'
+            cached = service._memory_cache.get('https://cdn.example.com/y.jpg')
+            assert cached is not None
+            assert cached[0].startswith('/cache/images/')
+
+    def test_unsafe_url_not_prefetched(self, service):
+        with patch('app.services.api_utils._is_safe_image_url', return_value=False), patch(
+            'app.utils.service_helpers.submit_background_task'
+        ) as mock_submit:
+            result = service.get_cached_image_url('http://169.254.169.254/meta', block=False)
+            assert result == '/static/default-cover.png'
+            assert not mock_submit.called
