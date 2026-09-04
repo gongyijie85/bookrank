@@ -53,7 +53,7 @@
         <!-- 左侧：封面 -->
         <div class="detail-cover-section">
             <div class="detail-cover">
-                <img src="{{ book.cover if book.cover else (book._original_cover or url_for('static', filename='default-cover.png')) }}"
+                <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
                      alt="{{ book.title }} {{ _('封面') }}"
                      width="280" height="420"
                      loading="lazy"

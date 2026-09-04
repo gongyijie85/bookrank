@@ -128,7 +128,7 @@
              data-index="{{ source_index }}"
              aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ current_rank }}{{ _('名') }}">
         <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}">
-            <img src="{{ book.cover if book.cover else (book._original_cover or url_for('static', filename='default-cover.png')) }}"
+            <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
                  alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  {% if loop.index <= 3 %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
                  width="100"
@@ -202,7 +202,7 @@
         <a href="{{ detail_url }}" class="card-link">
         <div class="card-image">
             <div class="cover-frame">
-                <img src="{{ book.cover if book.cover else (book._original_cover or url_for('static', filename='default-cover.png')) }}"
+                <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
                      alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                      {% if loop.index <= 3 %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
                      width="280"
