@@ -26,6 +26,12 @@
     <!-- Canonical URL (不含查询串，避免重复收录) -->
     <link rel="canonical" href="{{ request.url_root.rstrip('/') + request.path }}">
 
+    <!-- Alternates：中/英语言版本显式互指（SEO I-5） -->
+    {% set _canonical_path = request.url_root.rstrip('/') + request.path %}
+    <link rel="alternate" hreflang="zh-CN" href="{{ _canonical_path }}?lang=zh">
+    <link rel="alternate" hreflang="en" href="{{ _canonical_path }}?lang=en">
+    <link rel="alternate" hreflang="x-default" href="{{ _canonical_path }}">
+
     <title>{% block title %}{{ _('BookRank - 图书排行榜') }}{% endblock %}</title>
 
     <!-- Preconnect to external resources -->
@@ -360,6 +366,19 @@
             font-weight: 500;
         }
     </style>
+
+    <!-- Early lang sync：在 <html lang> 首次被读取前应用 localStorage 偏好
+         修正 SSR lang 与用户偏好不一致时的屏幕阅读器误读（I-5） -->
+    <script nonce="{{ csp_nonce() }}">
+        (function() {
+            try {
+                var saved = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+                if (saved === 'zh' || saved === 'en') {
+                    document.documentElement.lang = saved === 'zh' ? 'zh-CN' : 'en';
+                }
+            } catch (e) { /* localStorage 不可用时忽略 */ }
+        })();
+    </script>
 
     <!-- CSRF Token for API requests -->
     <script nonce="{{ csp_nonce() }}">

@@ -66,36 +66,61 @@ return {1, count + 1, '0'}
 """
 
 
-class RateLimiter:
-    """滑动窗口限流器（单进程，无 client 维度）"""
+class _SlidingWindowLimit:
+    """滑动窗口限流共享核心（RateLimiter / IPRateLimiter 复用）。
+
+    子类只需提供 _times 容器（list 或 dict[str, list]）与 _lock。
+    """
+
+    max_calls: int
+    window_seconds: int
+    _lock: Lock
 
     def __init__(self, max_calls: int, window_seconds: int):
         self.max_calls = max_calls
         self.window_seconds = window_seconds
-        self.call_times: list[float] = []
         self._lock = Lock()
+
+    def _prune(self, times: list[float]) -> list[float]:
+        now = time.time()
+        return [t for t in times if now - t < self.window_seconds]
+
+    def _is_allowed_times(self, times: list[float]) -> list[float] | None:
+        now = time.time()
+        pruned = self._prune(times)
+        if len(pruned) >= self.max_calls:
+            logger.warning(f'Rate limit exceeded: {len(pruned)} calls in {self.window_seconds}s')
+            return None
+        pruned.append(now)
+        return pruned
+
+    def _retry_after_times(self, times: list[float]) -> int:
+        now = time.time()
+        if len(times) < self.max_calls:
+            return 0
+        oldest_call = min(times)
+        wait_time = int(self.window_seconds - (now - oldest_call)) + 1
+        return max(0, wait_time)
+
+
+class RateLimiter(_SlidingWindowLimit):
+    """滑动窗口限流器（单客户端）"""
+
+    def __init__(self, max_calls: int, window_seconds: int):
+        super().__init__(max_calls, window_seconds)
+        self.call_times: list[float] = []
 
     def is_allowed(self) -> bool:
         with self._lock:
-            now = time.time()
-            self.call_times = [t for t in self.call_times if now - t < self.window_seconds]
-
-            if len(self.call_times) >= self.max_calls:
-                logger.warning(f'Rate limit exceeded: {len(self.call_times)} calls in {self.window_seconds}s')
+            pruned = self._is_allowed_times(self.call_times)
+            if pruned is None:
                 return False
-
-            self.call_times.append(now)
+            self.call_times = pruned
             return True
 
     def get_retry_after(self) -> int:
         with self._lock:
-            if len(self.call_times) < self.max_calls:
-                return 0
-
-            now = time.time()
-            oldest_call = min(self.call_times)
-            wait_time = int(self.window_seconds - (now - oldest_call)) + 1
-            return max(0, wait_time)
+            return self._retry_after_times(self.call_times)
 
     def reset(self):
         with self._lock:
@@ -214,7 +239,7 @@ def _reset_shared_state() -> None:
     _redis_unavailable_until = 0.0
 
 
-class IPRateLimiter:
+class IPRateLimiter(_SlidingWindowLimit):
     """
     基于 IP 的限流器
 
@@ -225,10 +250,10 @@ class IPRateLimiter:
     """
 
     def __init__(self, max_requests: int = 60, window_seconds: int = 60, backend: Any | None = None):
+        super().__init__(max_requests, window_seconds)
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._requests: dict[str, list[float]] = defaultdict(list)
-        self._lock = Lock()
         self._last_cleanup: float = 0.0
         # 后端为鸭子类型（is_allowed/retry_after/reset），测试可注入替身，故标注 Any
         self._backend: Any = backend if backend is not None else _resolve_backend(max_requests, window_seconds)
@@ -260,13 +285,11 @@ class IPRateLimiter:
         with self._lock:
             now = time.time()
 
-            self._requests[client_id] = [t for t in self._requests[client_id] if now - t < self.window_seconds]
-
-            if len(self._requests[client_id]) >= self.max_requests:
+            pruned = self._is_allowed_times(self._requests[client_id])
+            if pruned is None:
                 logger.warning(f'Rate limit exceeded for {client_id}')
                 return False
-
-            self._requests[client_id].append(now)
+            self._requests[client_id] = pruned
 
             # 每 60 秒清理一次过期条目，避免 O(n*m) 的实时清理
             if now - self._last_cleanup > 60:
@@ -289,15 +312,7 @@ class IPRateLimiter:
         with self._lock:
             if client_id not in self._requests:
                 return 0
-
-            requests = self._requests[client_id]
-            if len(requests) < self.max_requests:
-                return 0
-
-            now = time.time()
-            oldest = min(requests)
-            wait_time = int(self.window_seconds - (now - oldest)) + 1
-            return max(0, wait_time)
+            return self._retry_after_times(self._requests[client_id])
 
     def cleanup_expired(self, max_age: int = 3600):
         """清理过期的客户端记录

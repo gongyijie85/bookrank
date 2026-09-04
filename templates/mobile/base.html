@@ -8,6 +8,10 @@
     <title>{% block title %}书榜 BookRank{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
     <link rel="canonical" href="{{ request.url_root.rstrip('/') + request.path }}">
+    {% set _canonical_path = request.url_root.rstrip('/') + request.path %}
+    <link rel="alternate" hreflang="zh-CN" href="{{ _canonical_path }}?lang=zh">
+    <link rel="alternate" hreflang="en" href="{{ _canonical_path }}?lang=en">
+    <link rel="alternate" hreflang="x-default" href="{{ _canonical_path }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
 
     {# Open Graph / Twitter Card / JSON-LD SEO #}
