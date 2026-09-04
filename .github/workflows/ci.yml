@@ -71,6 +71,12 @@ jobs:
           pip install -r requirements.txt
           pip install pytest-timeout
 
+      - name: Check Node & build frontend (#177)
+        run: |
+          node --version
+          npm ci --ignore-scripts || npm install
+          node scripts/build_frontend.mjs
+
       - name: Run unit tests with coverage
         env:
           FLASK_ENV: testing

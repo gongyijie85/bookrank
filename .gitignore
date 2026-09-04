@@ -7,6 +7,8 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+# #177 前端构建产物：static/dist/ 必须提交（Render 生产无 node 构建步骤）
+!static/dist/
 downloads/
 eggs/
 .eggs/

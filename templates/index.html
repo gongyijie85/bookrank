@@ -352,9 +352,7 @@
 </div>
 {% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}" nonce="{{ csp_nonce() }}">
-{% endblock %}
+{% block extra_css %}{% endblock %}
 
 {% block extra_js %}
 <script nonce="{{ csp_nonce() }}">
@@ -371,5 +369,5 @@
 <script type="application/json" id="initial-books-data">
 {{ books|tojson }}
 </script>
-<script type="module" src="{{ url_for('static', filename='js/index.js') }}" nonce="{{ csp_nonce() }}"></script>
+<script type="module" src="{{ url_for('static', filename=dist_url('index.js')) }}" nonce="{{ csp_nonce() }}"></script>
 {% endblock %}

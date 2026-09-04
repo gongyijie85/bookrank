@@ -1,4 +1,4 @@
-.PHONY: lint format typecheck test check translations
+.PHONY: lint format typecheck test check translations build-frontend
 
 lint:
 	ruff check app/ tests/
@@ -17,5 +17,9 @@ translations:
 	pybabel extract -F babel.cfg -o translations/messages.pot .
 	pybabel update -D messages -i translations/messages.pot -d translations
 	pybabel compile -d translations
+
+# 前端打包（#177）：CSS/JS 合并+minify+指纹 -> static/dist/
+build-frontend:
+	node scripts/build_frontend.mjs
 
 check: lint typecheck test translations

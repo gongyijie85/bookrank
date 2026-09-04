@@ -13,10 +13,6 @@
 ], csp_nonce()) }}
 {% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/new-books.css') }}">
-{% endblock %}
-
 {% block sidebar %}
 <div class="sidebar-section">
     <h3 class="sidebar-title" data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</h3>

@@ -104,11 +104,60 @@ def create_app(config_name: str | None = None) -> Flask:
     # 注入当前时间函数，供模板显示动态年份等场景
     app.jinja_env.globals['now'] = datetime.now
 
+    # dist_url: 前端构建产物（static/dist/）的指纹化文件名解析
+    # （scripts/build_frontend.mjs 生成 manifest.json；dev 无 manifest 时
+    # fallback 到源文件路径，保证本地无构建步骤仍可运行）
+    app.jinja_env.globals['dist_url'] = _make_dist_url(app)
+
     import atexit
 
     atexit.register(lambda: shutdown_scheduler(app))
 
     return app
+
+
+def _make_dist_url(app: Flask):
+    """构造基于 manifest.json 的指纹资源 URL 解析器。
+
+    manifest 读取缓存于 app.extensions['dist_manifest']；manifest 缺失或
+    key 不在其中时回退到原始 static 路径（开发环境直接引源文件）。
+    """
+
+    def dist_url(asset_name: str) -> str:
+        manifest = app.extensions.get('dist_manifest')
+        if manifest is None:
+            manifest_path = PROJECT_ROOT / 'static' / 'dist' / 'manifest.json'
+            try:
+                import json as _json
+
+                manifest = _json.loads(manifest_path.read_text(encoding='utf-8'))
+            except Exception:
+                manifest = {}
+            app.extensions['dist_manifest'] = manifest
+
+        filename = manifest.get(asset_name, '')
+        if filename and (PROJECT_ROOT / 'static' / 'dist' / filename).exists():
+            return f'dist/{filename}'
+
+        # fallback #1：稳定名 dev 产物存在时使用
+        base = asset_name[:-3] if asset_name.endswith('.js') else asset_name
+        if asset_name == 'app.css':
+            stable = 'dist/app.min.css'
+        elif asset_name.endswith('.js'):
+            stable = f'dist/{base}.min.js'
+        else:
+            stable = ''
+        if stable and (PROJECT_ROOT / 'static' / stable).exists():
+            return stable
+
+        # fallback #2：源文件路径（本地开发无构建步骤时保持可用）
+        if asset_name == 'app.css':
+            return 'css/base.css'
+        if asset_name.endswith('.js'):
+            return f'js/{asset_name}'
+        return f'css/{asset_name}'
+
+    return dist_url
 
 
 def _get_locale() -> str:

@@ -34,7 +34,7 @@
     </script>
     {% block extra_css %}{% endblock %}
     {# 复用电脑端 i18n 库，支持中英切换 #}
-    <script src="{{ url_for('static', filename='js/book-i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('book-i18n.js')) }}"></script>
     {% block structured_data %}{% endblock %}
 </head>
 <body>

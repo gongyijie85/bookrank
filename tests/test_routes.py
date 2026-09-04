@@ -50,13 +50,16 @@ class TestLanguageRedirect:
 
 @pytest.mark.routes
 class TestStylesheets:
-    def test_base_template_uses_source_css(self, app):
+    def test_base_template_uses_bundled_css(self, app):
         with app.test_request_context('/'):
             html = render_template('base.html')
 
-        assert '/static/css/base.css' in html
-        assert '/static/css/components.css' in html
-        assert '/static/css/animations.css' in html
+        # #177：CSS 已打包进 static/dist（app.*.min.css）指纹文件
+        assert '/static/dist/app.' in html or '/static/dist/app.min.css' in html
+        # 旧的 3 个源 CSS 引用已移除
+        assert '/static/css/base.css' not in html
+        assert '/static/css/components.css' not in html
+        assert '/static/css/animations.css' not in html
         assert '/static/css/all.min.css' not in html
 
 

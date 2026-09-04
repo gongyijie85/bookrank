@@ -36,10 +36,8 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Main Stylesheets -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+    <!-- Main Stylesheets (bundled + fingerprinted by scripts/build_frontend.mjs) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename=dist_url('app.css')) }}">
 
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
@@ -421,14 +419,14 @@
 
     <!-- Translation System -->
     <!-- 注意：categories.js 必须在 translations.js / book-i18n.js 之前加载（共享 CATEGORIES 映射） -->
-    <script src="{{ url_for('static', filename='js/categories.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('categories.js')) }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('translations.js')) }}"></script>
 
     <!-- Book Content Language Pack -->
-    <script src="{{ url_for('static', filename='js/book-i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('book-i18n.js')) }}"></script>
 
     <!-- Base JavaScript -->
-    <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('base.js')) }}"></script>
 
     {% block extra_js %}{% endblock %}
 
