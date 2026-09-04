@@ -370,6 +370,15 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     )
     app.logger.info('📅 爬虫选择器漂移告警已安排（每天一次）')
 
+    # 5e. Render 资源阈值告警（每日一次，ROADMAP #8）
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _resource_threshold_alert_task),
+        trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay * 4), timezone=UTC),
+        id='resource_threshold_alert',
+        name='资源阈值告警',
+    )
+    app.logger.info('📅 资源阈值告警已安排（每天一次）')
+
     # 6. 翻译数据清理和预置获奖图书补种（一次性，延迟到后台执行，减轻冷启动负担）
     from datetime import timedelta
 
@@ -552,6 +561,55 @@ def _crawler_drift_alert_task(app):
                 app.logger.warning('⚠️ 爬虫漂移候选（无 webhook，仅日志）: %s', payload['drifted'])
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'爬虫漂移检查跳过: {e}', level='warning')
+
+
+def _resource_threshold_alert_task(app):
+    """Render 资源阈值告警（每日一次，ROADMAP #8）。
+
+    检查进程内存 RSS 与百分比；超过阈值时推 webhook（复用
+    ALERT_WEBHOOK_URL），无 webhook 时仅日志。
+    """
+    try:
+        import psutil
+
+        mem_mb_limit = float(os.environ.get('MEMORY_ALERT_MB', '400'))
+        mem_pct_limit = float(os.environ.get('MEMORY_ALERT_PERCENT', '80'))
+
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        rss_mb = round(memory_info.rss / (1024 * 1024), 2)
+        mem_pct = round(process.memory_percent(), 2)
+
+        exceeded: list[str] = []
+        if rss_mb > mem_mb_limit:
+            exceeded.append(f'rss={rss_mb}MB > {mem_mb_limit}MB')
+        if mem_pct > mem_pct_limit:
+            exceeded.append(f'mem_pct={mem_pct}% > {mem_pct_limit}%')
+        if not exceeded:
+            app.logger.info('资源阈值检查通过（rss=%sMB, pct=%s%%）', rss_mb, mem_pct)
+            return
+
+        payload = {
+            'task': 'resource_threshold',
+            'level': 'alert',
+            'thresholds': {'mem_mb_limit': mem_mb_limit, 'mem_pct_limit': mem_pct_limit},
+            'current': {'rss_mb': rss_mb, 'memory_percent': mem_pct},
+            'exceeded': exceeded,
+            'timestamp': datetime.now(UTC).isoformat(),
+        }
+        webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
+        if webhook_url:
+            try:
+                import requests
+
+                requests.post(webhook_url, json=payload, timeout=10)
+                app.logger.warning('⚠️ 资源阈值告警已发送: %s', exceeded)
+            except Exception as exc:
+                app.logger.warning('资源阈值告警 webhook 发送失败: %s', exc)
+        else:
+            app.logger.warning('⚠️ 资源超阈值（无 webhook，仅日志）: %s', exceeded)
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'资源阈值检查跳过: {e}', level='warning')
 
 
 def _cover_prefetch_task(app):
