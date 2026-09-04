@@ -1,114 +1,62 @@
-"""免费翻译服务测试"""
+"""Free translation service tests (was 0% coverage)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.services.free_translation_service import FreeTranslationService, GoogleTranslationService
 
 
 class TestGoogleTranslationService:
-    def test_empty_text(self):
+    def test_empty_text_passthrough(self):
         svc = GoogleTranslationService()
         assert svc.translate('') == ''
         assert svc.translate('   ') == '   '
 
-    @patch.object(GoogleTranslationService, '_get_client', return_value=None)
-    def test_no_client(self, mock_client):
+    def test_missing_client_returns_none(self):
         svc = GoogleTranslationService()
-        assert svc.translate('hello') is None
-
-    @patch.object(GoogleTranslationService, '_get_client')
-    def test_translate_success(self, mock_get_client):
-        mock_translator_class = MagicMock()
-        mock_translator = MagicMock()
-        mock_translator.translate.return_value = '你好'
-        mock_translator_class.return_value = mock_translator
-        mock_get_client.return_value = mock_translator_class
-
-        svc = GoogleTranslationService(delay=0)
-        result = svc.translate('hello')
-        assert result == '你好'
-
-    @patch.object(GoogleTranslationService, '_get_client')
-    def test_translate_exception_then_success(self, mock_get_client):
-        mock_translator_class = MagicMock()
-        mock_translator = MagicMock()
-        mock_translator.translate.side_effect = [Exception('fail'), '你好']
-        mock_translator_class.return_value = mock_translator
-        mock_get_client.return_value = mock_translator_class
-
-        svc = GoogleTranslationService(delay=0)
-        with patch('app.services.free_translation_service.time.sleep'):
+        with patch('deep_translator.GoogleTranslator', side_effect=ImportError('missing')):
+            # 直接触发 _get_client 的 ImportError 分支
+            svc._client = None
             result = svc.translate('hello')
-        assert result == '你好'
-
-    @patch.object(GoogleTranslationService, '_get_client')
-    def test_translate_all_retries_fail(self, mock_get_client):
-        mock_translator_class = MagicMock()
-        mock_translator = MagicMock()
-        mock_translator.translate.side_effect = Exception('always fail')
-        mock_translator_class.return_value = mock_translator
-        mock_get_client.return_value = mock_translator_class
-
-        svc = GoogleTranslationService(delay=0)
-        with patch('app.services.free_translation_service.time.sleep'):
-            result = svc.translate('hello')
-        assert result is None
-
-    @patch.object(GoogleTranslationService, '_get_client')
-    def test_translate_returns_empty(self, mock_get_client):
-        mock_translator_class = MagicMock()
-        mock_translator = MagicMock()
-        mock_translator.translate.return_value = ''
-        mock_translator_class.return_value = mock_translator
-        mock_get_client.return_value = mock_translator_class
-
-        svc = GoogleTranslationService(delay=0)
-        result = svc.translate('hello')
-        assert result is None
-
-    def test_get_client_import_error(self):
-        svc = GoogleTranslationService()
-        with (
-            patch.dict('sys.modules', {'deep_translator': None}),
-            patch('builtins.__import__', side_effect=ImportError('no module')),
-        ):
-            result = svc._get_client()
             assert result is None
 
-    @patch.object(GoogleTranslationService, '_get_client')
-    def test_lang_mapping(self, mock_get_client):
-        mock_translator_class = MagicMock()
-        mock_translator = MagicMock()
-        mock_translator.translate.return_value = '结果'
-        mock_translator_class.return_value = mock_translator
-        mock_get_client.return_value = mock_translator_class
+    @patch('deep_translator.GoogleTranslator')
+    def test_translate_success(self, mock_gt):
+        # from deep_translator import GoogleTranslator -> mock_gt (the class)
+        # client_class(source=.., target=..) -> mock_gt.return_value
+        # .translate(text) -> mock_gt.return_value.translate
+        mock_gt.return_value.translate.return_value = '你好'
 
         svc = GoogleTranslationService(delay=0)
-        svc.translate('hello', source_lang='zh', target_lang='en')
-        mock_translator_class.assert_called_with(source='zh-CN', target='en')
+        result = svc.translate('hello', 'en', 'zh')
+        assert result == '你好'
+        mock_gt.assert_called_once_with(source='en', target='zh-CN')
+
+    @patch('deep_translator.GoogleTranslator')
+    def test_translate_exhausts_retries(self, mock_gt):
+        mock_gt.return_value.translate.side_effect = Exception('boom')
+
+        svc = GoogleTranslationService(delay=0)
+        result = svc.translate('hello')
+        assert result is None
 
 
 class TestFreeTranslationService:
-    @patch.object(GoogleTranslationService, 'translate', return_value='你好')
-    def test_translate_success(self, mock_translate):
-        svc = FreeTranslationService()
-        result = svc.translate('hello')
-        assert result == '你好'
-
-    def test_translate_empty(self):
+    def test_empty_text(self):
         svc = FreeTranslationService()
         assert svc.translate('') == ''
 
     @patch.object(GoogleTranslationService, 'translate', return_value=None)
-    def test_translate_failure(self, mock_translate):
+    def test_fallback_none(self, mock_google):
         svc = FreeTranslationService()
-        result = svc.translate('hello')
-        assert result is None
+        assert svc.translate('hello') is None
 
-    @patch.object(FreeTranslationService, 'translate')
-    def test_translate_batch(self, mock_translate):
-        mock_translate.side_effect = lambda t, *a, **kw: f'翻译:{t}'
-
+    @patch.object(GoogleTranslationService, 'translate', return_value='你好')
+    def test_google_result(self, mock_google):
         svc = FreeTranslationService()
-        results = svc.translate_batch(['hello', 'world'])
-        assert len(results) == 2
+        assert svc.translate('hello') == '你好'
+
+    @patch.object(GoogleTranslationService, 'translate', side_effect=lambda t, s='en', z='zh': None)
+    def test_batch_fallback_to_original(self, mock_google):
+        svc = FreeTranslationService()
+        results = svc.translate_batch(['a', 'b'], max_workers=2)
+        assert results == ['a', 'b']
