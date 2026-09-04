@@ -1,6 +1,6 @@
 # BookRank 版本信息
 
-**当前版本**：v0.10.0
+**当前版本**：v0.10.1
 **发布日期**：2026-09-04
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
@@ -31,6 +31,15 @@
 **已知风险**：pyjwt 2.8.0（10 条记录 / 6 个公告 ID，含 4 条 HIGH）因 zhipuai 锁定 `<2.9.0`
 而**无升级路径**；已验证**不可达**（本仓库不 import jwt，zhipuai 仅调 `jwt.encode()`，
 公告全在解码/验签侧）。详见 `SECURITY.md`。
+### v0.10.1 (2026-09-04) — ROADMAP 推进 + 安全快修 + 覆盖 84%
+
+- **ROADMAP**：#1 OpenAPI 3.1（/openapi.json）、#2 爬虫漂移监控（检测+告警）、
+  #4 覆盖 81%→84%（6 个 0% 模块点亮）、#5 N+1 回归保护、#8 Render 资源告警
+- **安全**：Chart.js SRI、OpenLibrary Content-Type 校验、admin GET 限流、gzip 防双压
+- **性能**：get_statistics 单查询化
+- **i18n/SEO/a11y**：hreflang、移动端 JSON-LD、封面 alt 统一、卡片键盘可达
+- **健壮性**：JSON getter 容错、限流器去重、测试隔离全局化
+
 ### v0.10.0 (2026-09-04) — 全维度审计整改：安全/性能/mypy/i18n/前端打包
 
 **背景**：2026-09-04 全维度审计（性能/安全/架构/前端/i18n/DX 六路并行）后

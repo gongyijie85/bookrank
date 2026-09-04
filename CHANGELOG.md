@@ -63,6 +63,41 @@ OSV 原文：该项目 PyPI 账号被钓鱼接管后发布的版本含「**安�
 `app/services/nyt_client.py`、`app/utils/admin_auth.py`、`app/services/free_translation_service.py`、
 `static/mobile/js/mobile.js`、`templates/base.html`、`templates/mobile/profile.html`、
 `requirements.txt`、`requirements-prod.txt`、`.github/workflows/ci.yml`、`SECURITY.md`、测试若干。
+## v0.10.1 - 2026-09-04
+
+### feats+fixes: v0.10.0 后续增量（ROADMAP 推进 / 安全快修 / 覆盖补强）
+
+**背景**：v0.10.0 审计整改后的一轮增量——完成 ROADMAP #1/#2/#8，
+补齐安全/健壮性/可访问性快修，测试覆盖提升至 84%。
+
+**ROADMAP 推进**
+- #1 OpenAPI：`static/openapi.json`（3.1.0，14 路径）+ `GET /openapi.json` 端点
+- #2 爬虫选择器漂移监控：`crawler_drift_detector`（读 `last_auto_sync_result`
+  识别 empty/partial_failure/timeout/request_failed 重复异常）+ `GET /crawler/drift`
+  报告端点 + 每日 webhook 告警 job
+- #4 低覆盖补齐：6 个 0% 模块点亮（category_cleanup 100% / source_control 85% /
+  free_translation 91% / pilot_gate 88% / source_health 状态机 / source_alert 66%），
+  整体 81% → 84%
+- #5 N+1 回归保护：`test_n_plus_one_regression.py`（SQLAlchemy SELECT 计数断言）
+- #8 Render 资源告警：`_resource_threshold_alert_task`（RSS/内存% 阈值 + webhook）
+
+**安全/性能快修**
+- Chart.js SRI 固定 @4.5.1（清除浮动版本供应链风险）
+- OpenLibrary 封面 HEAD Content-Type 图片校验（重定向链后防伪装）
+- admin 8 个信息型 GET 加 `@rate_limit(60,60)`（认证后枚举缓解）
+- 应用内 gzip 跳过已有 Content-Encoding（防代理 double-gzip）
+- `get_statistics` 5 次往返 → 2 次聚合（COUNT(*) FILTER）
+- 备份导出流式化已在上版；本版补 `clear_expired` 每日调度（上版）
+
+**i18n/SEO/a11y/健壮性**
+- hreflang zh-CN/en/x-default（桌面+移动 base）+ head 早期 lang 同步（屏幕阅读器）
+- 移动端首页 ItemList JSON-LD；封面 alt 全站统一《书名》封面，作者 X
+- awards 卡片 tabindex+role 键盘可达（F-7）
+- `machine-readable` JSON 字段 getter 容错脏数据（Q-MEDIUM-05）
+- 限流器 `_SlidingWindowLimit` mixin 去重（Q-MEDIUM-03）
+- admin_auth 失败计数清理提升为全局 autouse（测试隔离）
+
+**验证**：2262 passed；ruff clean；mypy app/ 0 errors；覆盖率 84%。
 
 ## v0.10.0 - 2026-09-04
 

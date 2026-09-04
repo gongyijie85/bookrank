@@ -357,6 +357,7 @@ docker run -p 5000:5000 --env-file .env bookrank
 - v0.9.93 - 接线 `fallback_google_enabled` 开关（2026-08-19）：#137 规格缺口修复。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.92 - 消除 GitHub Actions 脚本内的 secrets/输入直接内插（2026-08-19）。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.91 - 性能优化与封面同步修复（2026-08-19）：批量导入消除 O(N×M) 全表扫描；修复生产环境封面同步无法识别"缓存文件丢失"。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.10.1 - ROADMAP 推进（2026-09-04）：OpenAPI 3.1 `/openapi.json`、爬虫漂移监控+告警、覆盖率 81%→84%（6 个 0% 模块）、N+1 回归保护、Render 资源告警；安全快修（Chart.js SRI、OpenLibrary Content-Type、admin 限流、gzip 防双压）。2262 passed。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.10.0 - 全维度审计整改（2026-09-04）：安全（XSS/SSRF/CSP/备份流式化）、性能（books/all 并行、封面异步化、索引迁移、缓存调度）、mypy 债务清零（28+ 模块解除 override，修复 7 个被掩盖缺陷）、i18n（awards EN 模式修复、翻译流水线 CI 化、语言键统一）、前端打包（esbuild CSS 119KB→15.7KB / JS 93KB→51KB + 指纹化）。2224 passed。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.100 - 批次导入 digest 契约修复 + BATCH_IMPORT/ADMIN secret 轮换（2026-08-31）
 - v0.9.99 - 评审清单低优先级项清理（2026-08-19）
