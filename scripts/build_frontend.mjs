@@ -10,11 +10,7 @@ const WATCH = process.argv.includes('--watch');
 mkdirSync(DIST, { recursive: true });
 
 const cssEntries = [
-  'static/css/base.css',
-  'static/css/components.css',
-  'static/css/animations.css',
-  'static/css/index.css',
-  'static/css/new-books.css',
+  'static/css/app.entry.css',
 ];
 
 // Global-script entries (NOT bundled - they rely on window globals; esbuild
