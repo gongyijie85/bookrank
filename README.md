@@ -357,6 +357,9 @@ docker run -p 5000:5000 --env-file .env bookrank
 - v0.9.93 - 接线 `fallback_google_enabled` 开关（2026-08-19）：#137 规格缺口修复。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.92 - 消除 GitHub Actions 脚本内的 secrets/输入直接内插（2026-08-19）。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.91 - 性能优化与封面同步修复（2026-08-19）：批量导入消除 O(N×M) 全表扫描；修复生产环境封面同步无法识别"缓存文件丢失"。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.10.0 - 全维度审计整改（2026-09-04）：安全（XSS/SSRF/CSP/备份流式化）、性能（books/all 并行、封面异步化、索引迁移、缓存调度）、mypy 债务清零（28+ 模块解除 override，修复 7 个被掩盖缺陷）、i18n（awards EN 模式修复、翻译流水线 CI 化、语言键统一）、前端打包（esbuild CSS 119KB→15.7KB / JS 93KB→51KB + 指纹化）。2224 passed。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.100 - 批次导入 digest 契约修复 + BATCH_IMPORT/ADMIN secret 轮换（2026-08-31）
+- v0.9.99 - 评审清单低优先级项清理（2026-08-19）
 - v0.9.90 - 修复生产环境封面同步（2026-08-14）：识别「数据库有路径但本地缓存文件丢失」场景并重新下载；新增两个回归测试。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.89 - 获奖书单封面回退 + 2026 最新获奖书单（2026-08-14）：多级封面回退（本地缓存 → 原始 URL → 默认封面）；同步 2020-2026 最新获奖书单（普利策 4 本、国际布克奖 Taiwan Travelogue、爱伦·坡奖 The Big Empty）。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.88 - 提取 NewBookIngestor 深模块（2026-08-14）：入库规则集中到 `NewBookIngestor`（对外只暴露 `save_book` / `update_book_fields` 稳定接口），瘦身 SyncEngine；TranslationPipeline 增加公共接缝；2381 passed。详见 [CHANGELOG.md](./CHANGELOG.md)

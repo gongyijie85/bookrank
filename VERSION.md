@@ -1,7 +1,7 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.101
-**发布日期**：2026-09-03
+**当前版本**：v0.10.0
+**发布日期**：2026-09-04
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
@@ -31,6 +31,49 @@
 **已知风险**：pyjwt 2.8.0（10 条记录 / 6 个公告 ID，含 4 条 HIGH）因 zhipuai 锁定 `<2.9.0`
 而**无升级路径**；已验证**不可达**（本仓库不 import jwt，zhipuai 仅调 `jwt.encode()`，
 公告全在解码/验签侧）。详见 `SECURITY.md`。
+### v0.10.0 (2026-09-04) — 全维度审计整改：安全/性能/mypy/i18n/前端打包
+
+**背景**：2026-09-04 全维度审计（性能/安全/架构/前端/i18n/DX 六路并行）后
+按优先级分四轮迭代完成 P0/P1/P2 全部项 + mypy 债务清零。
+
+**安全**
+- XSS：周报详情模态 `innerHTML` 全字段 `escHtml()`（`weekly_report_detail.html`）
+- bleach 缺失 fail-closed（`raise ImportError`），删除弱正则回退
+- SSRF 防护：`_is_safe_image_url`（仅 https + 私网/回环/link-local/非443阻断 + `image/*` 校验）
+- 备份导出流式化（逐表 `yield_per(200)`）+ `@rate_limit(5,60)`
+- CSP 补 `base-uri`/`form-action`/`upgrade-insecure-requests`；canonical 去查询串
+- CORS 生产加 DELETE（favorites 删除端点）
+
+**性能**
+- `/api/books/all` 8 分类并行拉取（`ThreadPoolExecutor` + 失败隔离 + 串行降级）
+- 迁移 `add_perf_indexes`：复合索引 + pg_trgm GIN（postgres-guarded）
+- 封面异步化：`get_cached_image_url(block=False)` 立即返回占位 + 后台预取
+  （去重锁）；每日 `_cover_prefetch_task` 预热；default-cover 430KB→93KB
+- 备份导出流式化 + `clear_expired` 每日调度
+
+**类型质量（mypy 清零）**
+- `pyproject.toml` 从 22 模块/13 错误码全禁收紧为仅 8 个 ORM 文件豁免
+  SQLAlchemy 2.0 py.typed 噪音；25+ 模块零 override；`mypy app/` 0 errors
+- 修复 7 个被 disable 掩盖的真实缺陷（macmillan buy_links 形状、book 变量
+  遮蔽、zhipu translate_kwargs、award stats 联合类型、implicit Optional 等）
+
+**i18n**
+- awards 页筛选栏/空状态/快速链接 19 处硬编码中文化 + `data-i18n`
+- translations.js 补 zh/en 键；po 同步 + 兼容键；`Makefile translations` +
+  CI 前置 `pybabel compile`（防 stale .mo）
+- 语言键统一（app_language 优先，mobile 尊重 localStorage，cookie domain 守卫）
+
+**前端打包（#177 核心）**
+- esbuild：CSS 5→1（119KB→15.7KB），JS 逐文件 minify（93KB→51KB）
+- `dist_url()` Jinja 辅助读 manifest 指纹；模板全量迁移 dist
+- 产物提交 `static/dist/`（Render 生产无 node）；CI 前置构建
+
+**工程效能**
+- CI 前置 `pybabel compile` + `npm ci` + `node scripts/build_frontend.mjs`
+- 死代码删除（api.js/utils.js/config.js/all.min.css 未引用）
+- 4 个 GitHub Issue 建档/关闭（#10/#177/#178）
+
+**验证**：全量测试 2224 passed；ruff clean；mypy app/ 0 errors。
 
 ### v0.9.99 (2026-08-19) — 评审清单低优先级项清理
 

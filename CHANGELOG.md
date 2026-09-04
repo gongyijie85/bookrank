@@ -64,6 +64,56 @@ OSV 原文：该项目 PyPI 账号被钓鱼接管后发布的版本含「**安�
 `static/mobile/js/mobile.js`、`templates/base.html`、`templates/mobile/profile.html`、
 `requirements.txt`、`requirements-prod.txt`、`.github/workflows/ci.yml`、`SECURITY.md`、测试若干。
 
+## v0.10.0 - 2026-09-04
+
+### feat+fix+perf: 全维度审计整改（安全/性能/mypy/i18n/前端打包）
+
+**背景**：2026-09-04 六路并行审计（性能/安全/架构/前端/i18n/DX）后，按
+P0→P1→P2 优先级四轮迭代完成全部可执行项，mypy 债务清零。
+
+**安全**
+- XSS：周报详情模态 `innerHTML` 全字段 `escHtml()`（`weekly_report_detail.html:1352`）
+- bleach 缺失 fail-closed（缺库直接 `raise ImportError`），删除弱正则回退
+- SSRF：`_is_safe_image_url`（仅 https + 私网/回环/link-local/非443端口阻断 + `image/*` Content-Type 校验）
+- 备份导出流式化（逐表 `yield_per(200)` 生成器）+ `@rate_limit(5,60)` + `no-store`
+- CSP 补 `base-uri 'self'; form-action 'self'; upgrade-insecure-requests`
+- canonical 去查询串（`request.url_root.rstrip('/') + request.path`）
+- CORS 生产 methods 加 DELETE（favorites 删除端点 preflight 修复）
+
+**性能**
+- `/api/books/all` 8 分类并行拉取（`ThreadPoolExecutor(4)` + 单类失败隔离 + 串行降级），消灭 ~120s 串行阻塞；`self_category_books_parallel` 可测 helper
+- 迁移 `add_perf_indexes`：`idx_new_books_display_date/display_created/canonical` + `award_books_year`；postgres-guarded `pg_trgm` GIN（`IF NOT EXISTS` 优雅降级）
+- 封面异步化（#178）：`get_cached_image_url(block=False)` MISS 立即占位 + 后台下载（threading 去重）；`prefetch_many` 批量；每日 `_cover_prefetch_task` 预热；`default-cover.png` 430KB→93KB（-78%）
+- `APICache.clear_expired` 每日 APScheduler 调度（防表膨胀）
+- 备份导出内存峰值消除（6 表全量 to_dict → 流式 yield）
+
+**mypy 债务清零**
+- `pyproject.toml`：22 模块/13 错误码全禁 → 仅 8 个 ORM 密集文件豁免 SQLAlchemy 2.0 py.typed 噪音（attr-defined/union-attr/no-any-return/misc/arg-type/call-overload）；其余 25+ 模块零 override 严格检查
+- `mypy app/`：0 errors / 99 files（此前 217 masked）
+- 修复被 disable 掩盖的真实缺陷：macmillan `buy_links` dict vs list 形状 + sitemap `book` 变量遮蔽（yield 路径引用错误书籍）、zhipu `translate_kwargs` 类型、award_book_service `stats` 联合类型运算符、weekly_report_service `avg_weeks` int/float、implicit Optional（2 方法 3 参数）、`quick_clean_translation` overload（None→None/str→str）
+- 爬虫客户端 params 全量标注 `dict[str, str | int]` 消 requests-stub arg-type 噪音
+
+**i18n**
+- awards 筛选栏/空状态/快速链接 19 处硬编码包 `_()` + `data-i18n`（EN 模式零中文泄漏验证）
+- translations.js +15 键（filter_*/btn_*/quick_*/empty_retry）；po 追加缺失 msgid + 兼容 `近7天出版`
+- `Makefile translations` target + CI 前置 `pybabel compile`（防 stale .mo 导致回退 msgid）
+- 语言键统一：`app_language` 优先 + mobile 尊重 localStorage + cookie domain 守卫（localhost 不再写 `domain=`）
+- 移动端新增 `mobile/new_books.html` + `mobile/new_book_detail.html`（render_adaptive 接线）
+- `device_detect` 补 iPad/tablet/kindle/silk；mobile viewport 允许缩放（WCAG 1.4.4）
+
+**前端打包（#177 核心）**
+- esbuild：CSS 5 文件 → `app.<hash>.min.css`（119KB→15.7KB，-87%）；全局脚本 JS 逐文件 minify（93KB→51KB，-45%，window 全局语义保留）
+- `dist_url()` Jinja 全局：读 `manifest.json` → hash 文件名；缺失时回退稳定名/源文件（dev 无 node 可运行）
+- 模板全量迁移 dist 引用；删除重复加载（analytics base.js、index/new-books 重复 CSS）
+- `.gitignore` `!static/dist/`（Render 生产 pip-only）；CI 前置 `npm ci + node scripts/build_frontend.mjs`
+- 死代码删除：api.js/utils.js/config.js/all.min.css（0 引用）
+
+**工程效能**
+- CI：pybabel compile + npm ci + build 前置；test_routes.py 样式断言更新为 dist 契约
+- 新书速递移动端筛选（出版社/时间/分类）、统计条、分页、购买链接、JSON-LD
+
+**验证**：2224 passed；ruff clean；mypy app/ 0 errors；dist 页面 dist_ok（css_old/js_old False）
+
 ## v0.9.100 - 2026-08-31
 
 ### fix(pipeline): 修复批次导入 digest 算法不一致导致 import 永远 409 的问题
