@@ -73,6 +73,7 @@ def sync_award_covers():
 
 
 @admin_bp.route('/award-covers/status')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_award_covers_status():
     """获取获奖书籍封面同步状态"""
@@ -93,6 +94,7 @@ def get_award_covers_status():
 
 
 @admin_bp.route('/new-books/source-health')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_new_books_source_health():
     """按来源返回官网采集健康状态与降级计数（#136）。"""
@@ -134,6 +136,7 @@ def manage_new_books_source_control(source_id: str):
 
 
 @admin_bp.route('/new-books/source-control-audit')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_source_control_audit():
     """来源开关变更审计日志。"""
@@ -235,6 +238,7 @@ def post_sync_source_alert(source_id: str):
 
 
 @admin_bp.route('/new-books/last-sync')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_new_books_last_sync():
     """读取最近一次新书自动同步结果（工单 #83 观测通道）
@@ -704,6 +708,7 @@ def cleanup_translations():
 
 
 @admin_bp.route('/errors')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def view_errors():
     """查看内存中记录的错误（最近50条）"""
@@ -787,6 +792,7 @@ def run_crawler(publisher_name: str):
 
 
 @admin_bp.route('/crawler/status')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def crawler_status():
     try:
@@ -818,6 +824,7 @@ def crawler_status():
 
 
 @admin_bp.route('/system/status')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def system_status():
     try:
