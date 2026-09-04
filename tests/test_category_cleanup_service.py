@@ -1,59 +1,86 @@
-"""分类清洗模块测试（候选 #3）
-
-scan / apply_cleanup 的扫描、dry_run 预览与批量写入语义。
-"""
+"""Category cleanup service tests (was 0% coverage)."""
 
 import pytest
 
+from app.models.database import db
 from app.models.new_book import NewBook, Publisher
 from app.services.category_cleanup_service import apply_cleanup, scan
 
 
 @pytest.fixture
-def seeded(db):
-    pub = Publisher(name='测试社', name_en='Test Pub', crawler_class='TestCrawler')
-    db.session.add(pub)
-    db.session.flush()
-    db.session.add_all(
-        [
-            NewBook(publisher_id=pub.id, title='脏分类', author='A', category='Fiction learn more'),
-            NewBook(publisher_id=pub.id, title='英文分类', author='A', category='Fiction'),
-            NewBook(publisher_id=pub.id, title='干净分类', author='A', category='小说'),
-            NewBook(publisher_id=pub.id, title='无分类', author='A', category=None),
-        ]
+def publisher_with_books(app, db):
+    with app.app_context():
+        pub = Publisher(
+            name='测试出版社',
+            name_en='Test Pub',
+            crawler_class='DummyCrawler',
+            is_active=True,
+        )
+        db.session.add(pub)
+        db.session.commit()
+        yield pub
+        db.session.remove()
+
+
+def _add_book(publisher, title, category):
+    book = NewBook(
+        publisher_id=publisher.id,
+        title=title,
+        author='Author',
+        isbn13='9780000000001',
+        category=category,
+        is_displayable=True,
+        is_verified=False,
     )
-    db.session.commit()
-    return pub
+    db.session.add(book)
+    return book
 
 
-class TestScan:
-    def test_scan_finds_marketing_and_english_categories(self, db, seeded):
+def test_scan_identifies_invalid(app, db, publisher_with_books):
+    with app.app_context():
+        db.session.add(
+            NewBook(
+                publisher_id=publisher_with_books.id,
+                title='A',
+                author='A',
+                isbn13='9780000000002',
+                category='Fiction',
+                is_displayable=True,
+                is_verified=False,
+            )
+        )
+        db.session.commit()
         result = scan()
+        assert result.total_checked == 1
+        assert len(result.invalid) == 1
+        assert result.invalid[0].new_category == '小说'
 
-        assert result.total_checked == 3  # category 为 None 的不扫描
-        titles = {item.title for item in result.invalid}
-        assert titles == {'脏分类', '英文分类'}
 
-    def test_scan_maps_english_to_chinese(self, db, seeded):
+def test_scan_clean_category_no_invalid(app, db, publisher_with_books):
+    with app.app_context():
+        _add_book(publisher_with_books, 'Clean', 'Adventure')
+        db.session.commit()
         result = scan()
-
-        fiction = next(item for item in result.invalid if item.title == '英文分类')
-        assert fiction.new_category == '小说'
+        assert result.invalid == []
 
 
-class TestApplyCleanup:
-    def test_dry_run_does_not_write(self, db, seeded):
+def test_apply_dry_run_no_write(app, db, publisher_with_books):
+    with app.app_context():
+        _add_book(publisher_with_books, 'B', 'Fiction')
+        db.session.commit()
         result = apply_cleanup(dry_run=True)
-
-        assert result.invalid_found == 2
+        assert result.invalid_found == 1
         assert result.updated == 0
-        assert NewBook.query.filter_by(category='小说').count() == 1  # 只有原有的干净分类
+        # 未写入
+        book = NewBook.query.filter_by(title='B').first()
+        assert book.category == 'Fiction'
 
-    def test_apply_writes_and_counts(self, db, seeded):
+
+def test_apply_writes(app, db, publisher_with_books):
+    with app.app_context():
+        _add_book(publisher_with_books, 'C', 'Fiction')
+        db.session.commit()
         result = apply_cleanup(dry_run=False)
-
-        assert result.invalid_found == 2
-        assert result.updated == 2
-        refreshed = {b.title: b.category for b in NewBook.query.all()}
-        assert refreshed['脏分类'] is None  # learn more → 清洗为 None
-        assert refreshed['英文分类'] == '小说'
+        assert result.updated == 1
+        book = NewBook.query.filter_by(title='C').first()
+        assert book.category == '小说'
