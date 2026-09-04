@@ -7,17 +7,6 @@ import pytest
 from app.models.schemas import APICache
 
 
-@pytest.fixture(autouse=True)
-def _reset_admin_failures():
-    """全量测试串行共享 IP 计数：清空 admin_auth 失败态，避免前序 403 测试把本套件打成 429。"""
-    from app.utils import admin_auth
-
-    admin_auth._auth_failures.clear()
-    yield
-    # 保持本套件内的失败计数不污染后续测试（备份导出必须带 secret 成功通过）
-    admin_auth._auth_failures.clear()
-
-
 @pytest.fixture
 def admin_headers(app):
     app.config['ADMIN_SECRET'] = 'test-admin-secret'

@@ -344,9 +344,9 @@ def _no_scheduler_leak_at_session_end():
     )
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def clear_auth_failures():
-    """清理 admin_auth 的失败计数，避免测试间污染。
+    """清理 admin_auth 的失败计数，避免测试间污染（全局 autouse）。
 
     注意：_auth_failures 是 admin_auth 模块级全局 dict，需要清理以避免
     跨测试用例状态污染。_persist_loaded 故意**不**重置，因为它是

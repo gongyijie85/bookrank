@@ -4,22 +4,8 @@ import json
 import time
 from unittest.mock import patch
 
-import pytest
-
 from app.utils import admin_auth
 from app.utils.admin_auth import _AUTH_MAX_ENTRIES, _auth_failures, _cleanup_auth_failures
-
-
-@pytest.fixture(autouse=True)
-def _clear_auth_failures(clear_auth_failures):
-    """将 conftest 的 clear_auth_failures 设为 autouse（仅本文件生效）。
-
-    _auth_failures / _persist_loaded 是 admin_auth 模块级全局状态，
-    本文件的测试用例之间需要互不污染，所以用 autouse 包装一层。
-    实际清理逻辑统一来自 conftest.clear_auth_failures（单一来源）。
-
-    注意：_persist_loaded 故意**不**重置，参见 conftest.clear_auth_failures 注释。
-    """
 
 
 class TestCleanupAuthFailures:
