@@ -40,7 +40,7 @@ zhipuai==2.1.5.20250825
 openai>=1.40.0,<3
 
 # 工具库
-tenacity==9.0.0
+tenacity==9.1.4
 
 # 任务调度
 APScheduler==3.11.0
