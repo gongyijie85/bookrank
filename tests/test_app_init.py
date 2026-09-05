@@ -139,6 +139,11 @@ class TestErrorHandlers:
 class TestSecurityHeaders:
     """测试安全响应头"""
 
+    def test_nyt_cover_cdn_allowed(self, client):
+        csp = client.get('/health').headers['Content-Security-Policy']
+        img_src = next(rule.strip() for rule in csp.split(';') if rule.strip().startswith('img-src '))
+        assert 'https://static01.nyt.com' in img_src.split()
+
     def test_security_headers_present(self, client):
         response = client.get('/health')
         assert 'X-Frame-Options' in response.headers

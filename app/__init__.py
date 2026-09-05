@@ -388,7 +388,7 @@ def _apply_security_headers(app: Flask) -> None:
                 "form-action 'self'; "
                 f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
                 f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
-                "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
+                "img-src 'self' data: https://static01.nyt.com https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
                 'https://covers.openlibrary.org https://openlibrary.org https://archive.org https://*.archive.org '
                 'https://*.penguinrandomhouse.com https://*.harpercollins.com '
                 'https://*.macmillan.com https://*.simonandschuster.com https://*.hachettebookgroup.com; '

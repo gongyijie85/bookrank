@@ -190,7 +190,7 @@
     {% endfor %}
 </section>
 {% else %}
-<section class="books-grid active" id="books-grid" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
+<section class="books-grid bestseller-grid active" id="books-grid" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
     {% for book in books %}
     {% set current_rank = book.rank or loop.index %}
     {% set source_index = current_rank - 1 %}
