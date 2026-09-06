@@ -32,3 +32,9 @@ def test_bundle_not_only_base_size():
     outputFiles[0]-only regression (only base.css shipped before)."""
     css = DIST.read_text(encoding='utf-8')
     assert len(css) > 40000, f'bundle suspiciously small ({len(css)} bytes) - likely single-entry'
+
+
+def test_home_rerender_uses_original_cover_when_cache_is_pending():
+    """The client-side re-render must retain the server-provided NYT cover URL."""
+    source = (Path(__file__).resolve().parent.parent / 'static' / 'js' / 'index.js').read_text(encoding='utf-8')
+    assert source.count('book.cover || book._original_cover || defaultCover') == 2

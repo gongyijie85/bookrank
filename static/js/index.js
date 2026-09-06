@@ -607,11 +607,12 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                      aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="card-image">
                     <div class="cover-frame">
-                        <img src="${book.cover || defaultCover}"
+                        <img src="${book.cover || book._original_cover || defaultCover}"
                              alt="${esc(t('card_cover_alt', lang, { title }))}"
                              loading="lazy"
                              width="280"
                              height="240"
+                             data-original="${book._original_cover || ''}"
                              data-fallback="${defaultCover}">
                     </div>
                     <span class="card-category-tag">${esc(catLabel)}</span>
@@ -657,11 +658,12 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                      tabindex="0"
                      aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="list-item-image">
-                    <img src="${book.cover || defaultCover}"
+                    <img src="${book.cover || book._original_cover || defaultCover}"
                          alt="${esc(t('card_cover_alt', lang, { title }))}"
                          loading="lazy"
                          width="100"
                          height="150"
+                         data-original="${book._original_cover || ''}"
                          data-fallback="${defaultCover}">
                 </div>
                 <div class="list-item-content">
