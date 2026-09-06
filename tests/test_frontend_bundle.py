@@ -35,6 +35,7 @@ def test_bundle_not_only_base_size():
 
 
 def test_home_rerender_uses_original_cover_when_cache_is_pending():
-    """The client-side re-render must retain the server-provided NYT cover URL."""
+    """A placeholder cache path must yield to the server-provided NYT URL."""
     source = (Path(__file__).resolve().parent.parent / 'static' / 'js' / 'index.js').read_text(encoding='utf-8')
-    assert source.count('book.cover || book._original_cover || defaultCover') == 2
+    assert source.count('book.cover && book.cover !== defaultCover') == 2
+    assert source.count("book._original_cover || defaultCover") == 2

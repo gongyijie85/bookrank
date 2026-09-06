@@ -594,6 +594,9 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
     const gridEl = document.getElementById('books-grid');
     if (gridEl) {
         gridEl.innerHTML = books.map((book, index) => {
+            const cover = book.cover && book.cover !== defaultCover
+                ? book.cover
+                : (book._original_cover || defaultCover);
             const title = isZh ? (book.title_zh || book.title) : book.title;
             const desc = isZh ? (book.description_zh || book.description || '') : (book.description || '');
             // 分类标签：优先双语映射表 → book 数据 → 默认
@@ -607,7 +610,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                      aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="card-image">
                     <div class="cover-frame">
-                        <img src="${book.cover || book._original_cover || defaultCover}"
+                        <img src="${cover}"
                              alt="${esc(t('card_cover_alt', lang, { title }))}"
                              loading="lazy"
                              width="280"
@@ -647,6 +650,9 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
     const listEl = document.getElementById('books-list');
     if (listEl) {
         listEl.innerHTML = books.map((book, index) => {
+            const cover = book.cover && book.cover !== defaultCover
+                ? book.cover
+                : (book._original_cover || defaultCover);
             const title = isZh ? (book.title_zh || book.title) : book.title;
             const desc = isZh ? (book.description_zh || book.description || '') : (book.description || '');
             const catLabel = resolveCategoryLabel(book, category, lang);
@@ -658,7 +664,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                      tabindex="0"
                      aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
                 <div class="list-item-image">
-                    <img src="${book.cover || book._original_cover || defaultCover}"
+                    <img src="${cover}"
                          alt="${esc(t('card_cover_alt', lang, { title }))}"
                          loading="lazy"
                          width="100"
