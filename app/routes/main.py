@@ -165,6 +165,7 @@ def index():
     return render_adaptive(
         'index.html',
         categories=categories,
+        category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
         category_groups=current_app.config.get('CATEGORY_GROUPS', {}),
         group_labels={
             'fiction': '小说',

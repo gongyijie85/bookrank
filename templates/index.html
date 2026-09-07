@@ -47,7 +47,7 @@
                 {% for key in group_cats %}
                 {% if key in categories %}
                 <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
-                    {{ categories[key] }}{% if key in monthly_categories %} ({{ _('每月') }}){% endif %}
+                    {% if _locale == 'zh' %}{{ categories[key] }}{% else %}{{ category_names_en.get(key, categories[key]) }}{% endif %}{% if key in monthly_categories %} ({{ _('每月') }}){% endif %}
                 </option>
                 {% endif %}
                 {% endfor %}
