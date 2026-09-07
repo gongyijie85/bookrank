@@ -74,10 +74,13 @@ class TestCategoryConfig:
             'picture-books',
             'series-books',
             'business-books',
-            'childrens-middle-grade-paperback',
-            'young-adult-paperback',
+            'middle-grade-paperback-monthly',
+            'young-adult-paperback-monthly',
         ):
             assert freqs[key] == 'monthly'
+
+    def test_english_names_parity(self):
+        assert set(Config.CATEGORY_NAMES_EN.keys()) == set(Config.CATEGORIES.keys())
 
 
 class TestCrossCategorySearch:
@@ -129,6 +132,16 @@ class TestCrossCategorySearch:
         assert '<optgroup' in html
         assert '儿童与青少年' in html
         assert '(每月)' in html
+
+    @patch('app.routes.main.get_service')
+    def test_desktop_category_select_english_labels(self, mock_get_svc, client):
+        """英文 locale 下拉框显示英文分类名."""
+        mock_get_svc.return_value = _mock_book_service({'hardcover-fiction': [_make_book()]})
+        resp = client.get('/?lang=en', headers={'User-Agent': DESKTOP_UA})
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert 'Middle Grade Paperback' in html
+        assert 'Business Books' in html
 
 
 class TestMobileSearchEntry:

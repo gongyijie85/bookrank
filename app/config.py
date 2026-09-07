@@ -100,8 +100,8 @@ class Config:
         'picture-books': '儿童绘本',
         'series-books': '儿童与青少年系列',
         'business-books': '商业',
-        'childrens-middle-grade-paperback': '儿童中级平装本',
-        'young-adult-paperback': '青少年平装本',
+        'middle-grade-paperback-monthly': '儿童中级平装本',
+        'young-adult-paperback-monthly': '青少年平装本',
     }
 
     NYT_CATEGORY_UPDATE_FREQUENCIES: dict[str, str] = {
@@ -116,8 +116,8 @@ class Config:
         'picture-books': 'monthly',
         'series-books': 'monthly',
         'business-books': 'monthly',
-        'childrens-middle-grade-paperback': 'monthly',
-        'young-adult-paperback': 'monthly',
+        'middle-grade-paperback-monthly': 'monthly',
+        'young-adult-paperback-monthly': 'monthly',
     }
 
     # 首页分类体裁分组（#66）：每个分类恰属一组，模板按组展示
@@ -129,12 +129,29 @@ class Config:
             'young-adult-hardcover',
             'picture-books',
             'series-books',
-            'childrens-middle-grade-paperback',
-            'young-adult-paperback',
+            'middle-grade-paperback-monthly',
+            'young-adult-paperback-monthly',
         ],
         'business': ['business-books'],
         'lifestyle': ['advice-how-to-and-miscellaneous'],
         'comics': ['graphic-books-and-manga'],
+    }
+
+    # 分类英文名（NYT 官方 display name；英文 locale 下拉框用）
+    CATEGORY_NAMES_EN: dict[str, str] = {
+        'hardcover-fiction': 'Hardcover Fiction',
+        'trade-fiction-paperback': 'Trade Fiction Paperback',
+        'hardcover-nonfiction': 'Hardcover Nonfiction',
+        'paperback-nonfiction-monthly': 'Paperback Nonfiction',
+        'advice-how-to-and-miscellaneous': 'Advice, How-To & Miscellaneous',
+        'graphic-books-and-manga': 'Graphic Books and Manga',
+        'childrens-middle-grade-hardcover': "Children's Middle Grade Hardcover",
+        'young-adult-hardcover': 'Young Adult Hardcover',
+        'picture-books': 'Picture Books',
+        'series-books': 'Series Books',
+        'business-books': 'Business Books',
+        'middle-grade-paperback-monthly': 'Middle Grade Paperback',
+        'young-adult-paperback-monthly': 'Young Adult Paperback',
     }
 
     NYT_API_BASE_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/current'
