@@ -1,3 +1,5 @@
+from typing import cast
+
 from flask import session
 
 from ...services.user_service import UserService
@@ -6,7 +8,7 @@ from ...utils.error_handler import ErrorCategory, log_error
 
 
 def _get_session_id() -> str:
-    return session.get('session_id', '')
+    return cast('str', session.get('session_id', ''))
 
 
 def register_favorite_routes(bp):

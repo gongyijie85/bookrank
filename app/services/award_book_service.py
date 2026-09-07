@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import selectinload
 
@@ -234,7 +234,9 @@ class AwardBookService:
         # 批量预加载该奖项全部 AwardBook，避免循环内单条查询（N+1）
         existing_books = {
             book.isbn13: book
-            for book in AwardBook.query.filter_by(award_id=award.id).options(selectinload(AwardBook.award)).all()
+            for book in AwardBook.query.filter_by(award_id=award.id)
+            .options(selectinload(cast('Any', AwardBook.award)))
+            .all()
             if book.isbn13
         }
 
@@ -323,7 +325,7 @@ class AwardBookService:
         book_details = self.openlib_client.fetch_book_by_isbn(isbn)
 
         # 获取 Google Books 数据（详细信息和购买链接）
-        google_books_data = self.google_books_client.fetch_book_details(isbn)
+        google_books_data = self.google_books_client.fetch_book_details(isbn) if self.google_books_client else {}
 
         # 获取封面（优先 Open Library，后补 Google Books）
         cover_url = self._get_cover_url(isbn)
@@ -416,9 +418,9 @@ class AwardBookService:
     # ==================== 查询方法（供路由层使用） ====================
 
     def get_all_awards(self) -> list[Award]:
-        """获取所有奖项列表"""
+        """获取所有奖项列�?"""
         try:
-            return Award.query.all()
+            return cast('list[Award]', Award.query.all())
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取奖项列表失败: {e}')
             return []
@@ -434,7 +436,7 @@ class AwardBookService:
     def get_award_by_name(self, name: str) -> Award | None:
         """根据名称获取奖项"""
         try:
-            return Award.query.filter_by(name=name).first()
+            return cast('Award | None', Award.query.filter_by(name=name).first())
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取奖项失败: {e}')
             return None
@@ -477,7 +479,7 @@ class AwardBookService:
 
             total = query.count()
             books = (
-                query.options(selectinload(AwardBook.award))
+                query.options(selectinload(cast('Any', AwardBook.award)))
                 .order_by(AwardBook.year.desc(), AwardBook.rank.asc())
                 .offset((page - 1) * limit)
                 .limit(limit)
@@ -501,7 +503,10 @@ class AwardBookService:
         if not isbn:
             return None
         try:
-            return AwardBook.query.filter(db.or_(AwardBook.isbn13 == isbn, AwardBook.isbn10 == isbn)).first()
+            return cast(
+                'AwardBook | None',
+                AwardBook.query.filter(db.or_(AwardBook.isbn13 == isbn, AwardBook.isbn10 == isbn)).first(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'按ISBN获取获奖图书失败 {isbn}: {e}')
             return None
@@ -547,7 +552,7 @@ class AwardBookService:
             )
             total = query.count()
             books = (
-                query.options(selectinload(AwardBook.award))
+                query.options(selectinload(cast('Any', AwardBook.award)))
                 .order_by(AwardBook.year.desc())
                 .offset((page - 1) * limit)
                 .limit(limit)
@@ -598,17 +603,14 @@ class AwardBookService:
     def find_award_book_by_isbn(self, isbn: str) -> AwardBook | None:
         """根据 ISBN 查找获奖图书"""
         try:
-            return AwardBook.query.filter_by(isbn13=isbn).first()
+            return cast('AwardBook | None', AwardBook.query.filter_by(isbn13=isbn).first())
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据 ISBN 查找获奖图书失败: {e}')
             return None
 
     def fix_award_book_titles(self) -> dict[str, Any]:
         """修复历史脏数据：把 title 字段为 ISBN 的 AwardBook 记录用种子数据修正"""
-        from ..initialization.sample_award_books import (
-            SAMPLE_AWARD_BOOKS,
-            _looks_like_isbn,
-        )
+        from ..initialization.sample_award_books import SAMPLE_AWARD_BOOKS
 
         try:
             fixed_entries: list[dict] = []
@@ -648,7 +650,7 @@ class AwardBookService:
                 seed_title_zh = book_data.get('title_zh') or ''
 
                 if seed_title and (
-                    not existing.title or existing.title == target_isbn or _looks_like_isbn(existing.title)
+                    not existing.title or existing.title == target_isbn or AwardBook._looks_like_isbn(existing.title)
                 ):
                     old_title = existing.title
                     existing.title = seed_title
@@ -668,7 +670,7 @@ class AwardBookService:
                     not existing.title_zh
                     or existing.title_zh == target_isbn
                     or existing.title_zh == existing.title
-                    or _looks_like_isbn(existing.title_zh)
+                    or AwardBook._looks_like_isbn(existing.title_zh)
                 ):
                     old_title_zh = existing.title_zh
                     existing.title_zh = seed_title_zh

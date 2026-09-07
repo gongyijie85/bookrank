@@ -9,7 +9,7 @@ from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from flask import current_app
 
@@ -308,7 +308,7 @@ class SyncEngine:
         不会阻塞主流程继续同步下一家；其残留请求最终会因各自的
         请求级超时而自行终结。
         """
-        app_obj = current_app._get_current_object()
+        app_obj = cast('Any', current_app)._get_current_object()
 
         def _worker() -> dict[str, Any]:
             with app_obj.app_context():
@@ -430,7 +430,7 @@ class SyncEngine:
         return result
 
     def ensure_static_data_seeded(self) -> dict[str, Any] | None:
-        existing_books = NewBook.query.filter(NewBook.is_displayable.is_(True)).count()
+        existing_books = NewBook.query.filter(cast('Any', NewBook.is_displayable).is_(True)).count()
         if existing_books > 0:
             return None
         return self.seed_from_static_data()

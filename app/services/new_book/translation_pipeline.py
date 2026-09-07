@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 from ...models.database import db
 from ...models.new_book import NewBook
@@ -105,7 +105,7 @@ class TranslationPipeline:
                 stats.get('fields_translated', 0),
                 stats.get('pack_writes', 0),
             )
-            return stats
+            return cast('dict[str, int]', stats)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'新书语言包同步失败: {e}', level='warning')
             return {

@@ -1,4 +1,5 @@
 import secrets
+from typing import cast
 
 from flask import Blueprint, current_app, request, session
 
@@ -9,7 +10,7 @@ def get_session_id() -> str:
     """获取或生成安全的会话ID"""
     if 'session_id' not in session:
         session['session_id'] = secrets.token_hex(16)
-    return session['session_id']
+    return cast('str', session['session_id'])
 
 
 def validate_category(category: str) -> bool:

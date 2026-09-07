@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from enum import Enum
 from threading import local as threading_local
+from typing import cast
 
 from ...models.database import db
 from ...models.new_book import NewBook, Publisher
@@ -167,16 +168,17 @@ class NewBookIngestor:
         if book_info.isbn13:
             existing = NewBook.query.filter_by(publisher_id=publisher.id, isbn13=book_info.isbn13).first()
             if existing:
-                return existing
+                return cast('NewBook | None', existing)
 
         if book_info.isbn10:
             existing = NewBook.query.filter_by(publisher_id=publisher.id, isbn10=book_info.isbn10).first()
             if existing:
-                return existing
+                return cast('NewBook | None', existing)
 
-        return NewBook.query.filter_by(
-            publisher_id=publisher.id, title=book_info.title, author=book_info.author
-        ).first()
+        return cast(
+            'NewBook | None',
+            NewBook.query.filter_by(publisher_id=publisher.id, title=book_info.title, author=book_info.author).first(),
+        )
 
     def _merge_existing(
         self,

@@ -2,7 +2,7 @@ import json as json_lib
 import re
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import psutil
 from flask import Blueprint, Response, current_app, request
@@ -47,7 +47,7 @@ def sync_award_covers():
         data = request.get_json(silent=True) or {}
         batch_size = min(max(1, data.get('batch_size', 10)), 50)
 
-        app_obj = current_app._get_current_object()
+        app_obj = cast('Any', current_app)._get_current_object()
 
         def _run_sync() -> None:
             with app_obj.app_context():
@@ -902,7 +902,7 @@ def backup_export():
     try:
         from flask import current_app as _current_app
 
-        app_obj = _current_app._get_current_object()
+        app_obj = cast('Any', _current_app)._get_current_object()
 
         from ..models.schemas import Award, AwardBook, BookMetadata, SearchHistory, TranslationCache, WeeklyReport
 
@@ -995,7 +995,7 @@ def seed_award_books():
     try:
         from ..initialization.sample_award_books import init_sample_award_books
 
-        init_sample_award_books(current_app._get_current_object())  # type: ignore[attr-defined]
+        init_sample_award_books(cast('Any', current_app)._get_current_object())
 
         from ..models.schemas import AwardBook
 

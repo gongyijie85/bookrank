@@ -49,7 +49,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run mypy
-        run: mypy app/ --ignore-missing-imports
+        run: mypy app/
 
   test:
     name: Unit Tests

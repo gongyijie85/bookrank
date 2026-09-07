@@ -12,7 +12,7 @@ import os
 import re
 import time
 from functools import lru_cache
-from typing import Any
+from typing import Any, cast
 
 from ..utils.api_helpers import clean_translation_text
 from ..utils.error_handler import ErrorCategory, log_error
@@ -453,7 +453,7 @@ class ZhipuTranslationService:
                         logger.warning(f'翻译质量校验失败(含污染标记)，将尝试后处理: {result[:100]}')
                     result = clean_translation_text(result, field_type=field_type)
                     logger.info(f'智谱AI翻译成功: {text[:50]}... -> {result[:50]}...')
-                    return result
+                    return cast('str | None', result)
 
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'智谱AI翻译失败(重试耗尽): {e}', level='warning')
@@ -750,7 +750,7 @@ class ZhipuTranslationService:
         brace_end = text.rfind('}')
         if brace_start != -1 and brace_end > brace_start:
             try:
-                return _json.loads(text[brace_start : brace_end + 1])
+                return cast('dict[str, Any] | None', _json.loads(text[brace_start : brace_end + 1]))
             except _json.JSONDecodeError:
                 pass
         return None
@@ -782,13 +782,13 @@ class ZhipuTranslationService:
         if not author or not author.strip():
             return None
         result = self._translate_author_name_cached(author)
-        return None if result is _AUTHOR_TRANSLATION_MISS else result
+        return None if result is _AUTHOR_TRANSLATION_MISS else cast('str | None', result)
 
     def get_cache_stats(self) -> dict[str, Any]:
         """获取缓存统计信息"""
         cache_service = self._get_cache_service()
         if cache_service:
-            return cache_service.get_stats()
+            return cast('dict[str, Any]', cache_service.get_stats())
         return {'total_count': 0, 'message': '缓存服务不可用'}
 
     def is_available(self) -> bool:
@@ -870,7 +870,7 @@ class HybridTranslationService:
 
                     result = clean_translation_text(cached.translated_text, field_type=field_type)
                     logger.debug('缓存命中，返回翻译结果（已后处理）')
-                    return result
+                    return cast('str | None', result)
             except Exception as e:
                 log_error(ErrorCategory.TRANSLATION, f'缓存读取失败: {e}', level='warning')
 
@@ -1032,7 +1032,7 @@ class HybridTranslationService:
         """获取缓存统计信息"""
         cache_service = self._get_cache_service()
         if cache_service:
-            return cache_service.get_stats()
+            return cast('dict[str, Any]', cache_service.get_stats())
         return {'total_count': 0, 'message': '缓存服务不可用'}
 
 

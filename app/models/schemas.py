@@ -1,10 +1,11 @@
 from datetime import UTC, datetime
+from typing import cast
 
 from .book import Book
 from .database import db
 
 
-class CSRFToken(db.Model):
+class CSRFToken(db.Model):  # type: ignore[name-defined]
     __tablename__ = 'csrf_tokens'
 
     token = db.Column(db.String(64), primary_key=True)
@@ -16,7 +17,7 @@ class CSRFToken(db.Model):
     __mapper_args__ = {'confirm_deleted_rows': False}
 
 
-class UserPreference(db.Model):
+class UserPreference(db.Model):  # type: ignore[name-defined]
     """用户偏好设置"""
 
     __tablename__ = 'user_preferences'
@@ -42,7 +43,7 @@ class UserPreference(db.Model):
         }
 
 
-class UserCategory(db.Model):
+class UserCategory(db.Model):  # type: ignore[name-defined]
     """用户关注的分类"""
 
     __tablename__ = 'user_categories'
@@ -56,7 +57,7 @@ class UserCategory(db.Model):
     __table_args__ = (db.UniqueConstraint('session_id', 'category_id', name='uix_user_category'),)
 
 
-class UserViewedBook(db.Model):
+class UserViewedBook(db.Model):  # type: ignore[name-defined]
     """用户浏览过的书籍"""
 
     __tablename__ = 'user_viewed_books'
@@ -71,7 +72,7 @@ class UserViewedBook(db.Model):
     __table_args__ = (db.UniqueConstraint('session_id', 'isbn', name='uix_user_book'),)
 
 
-class UserFavorite(db.Model):
+class UserFavorite(db.Model):  # type: ignore[name-defined]
     """用户收藏的书籍"""
 
     __tablename__ = 'user_favorites'
@@ -97,7 +98,7 @@ class UserFavorite(db.Model):
         }
 
 
-class BookMetadata(db.Model):
+class BookMetadata(db.Model):  # type: ignore[name-defined]
     """书籍元数据缓存"""
 
     __tablename__ = 'book_metadata'
@@ -139,7 +140,7 @@ class BookMetadata(db.Model):
         }
 
 
-class SearchHistory(db.Model):
+class SearchHistory(db.Model):  # type: ignore[name-defined]
     """搜索历史"""
 
     __tablename__ = 'search_history'
@@ -161,7 +162,7 @@ class SearchHistory(db.Model):
         }
 
 
-class Award(db.Model):
+class Award(db.Model):  # type: ignore[name-defined]
     """国际图书奖项"""
 
     __tablename__ = 'awards'
@@ -196,7 +197,7 @@ class Award(db.Model):
         }
 
 
-class AwardBook(db.Model):
+class AwardBook(db.Model):  # type: ignore[name-defined]
     """获奖图书"""
 
     __tablename__ = 'award_books'
@@ -260,10 +261,10 @@ class AwardBook(db.Model):
         - 最后回退到原 title（兜底，避免空字符串）
         """
         if self.title and not self._looks_like_isbn(self.title):
-            return self.title
+            return cast('str', self.title)
         if self.title_zh and not self._looks_like_isbn(self.title_zh):
-            return self.title_zh
-        return self.title or self.title_zh or ''
+            return cast('str', self.title_zh)
+        return cast('str', self.title or self.title_zh or '')
 
     def to_dict(self, include_zh: bool = True) -> dict:
         data = {
@@ -304,7 +305,7 @@ class AwardBook(db.Model):
         return data
 
 
-class TranslationCache(db.Model):
+class TranslationCache(db.Model):  # type: ignore[name-defined]
     """翻译内容缓存表"""
 
     __tablename__ = 'translation_cache'
@@ -358,7 +359,7 @@ class TranslationCache(db.Model):
         }
 
 
-class APICache(db.Model):
+class APICache(db.Model):  # type: ignore[name-defined]
     """外部API缓存表 - 用于缓存NYT、Google Books等API调用结果"""
 
     __tablename__ = 'api_cache'
@@ -389,8 +390,8 @@ class APICache(db.Model):
         if self.expires_at.tzinfo is None:
             # 将无时区信息的时间转换为UTC时区
             expires_at_utc = self.expires_at.replace(tzinfo=UTC)
-            return now > expires_at_utc
-        return now > self.expires_at
+            return cast('bool', now > expires_at_utc)
+        return cast('bool', now > self.expires_at)
 
     def to_dict(self) -> dict:
         return {
@@ -407,7 +408,7 @@ class APICache(db.Model):
         }
 
 
-class SystemConfig(db.Model):
+class SystemConfig(db.Model):  # type: ignore[name-defined]
     """系统配置表"""
 
     __tablename__ = 'system_config'
@@ -435,7 +436,7 @@ class SystemConfig(db.Model):
         return config
 
 
-class WeeklyReport(db.Model):
+class WeeklyReport(db.Model):  # type: ignore[name-defined]
     """每周畅销书报告"""
 
     __tablename__ = 'weekly_reports'
@@ -479,7 +480,7 @@ class WeeklyReport(db.Model):
         }
 
 
-class ReportView(db.Model):
+class ReportView(db.Model):  # type: ignore[name-defined]
     """周报阅读记录"""
 
     __tablename__ = 'report_views'
@@ -500,7 +501,7 @@ class ReportView(db.Model):
     )
 
 
-class UserBehavior(db.Model):
+class UserBehavior(db.Model):  # type: ignore[name-defined]
     """用户行为数据"""
 
     __tablename__ = 'user_behaviors'

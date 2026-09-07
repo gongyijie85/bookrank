@@ -6,12 +6,12 @@
 
 import json
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, cast
 
 from .database import db
 
 
-class Publisher(db.Model):
+class Publisher(db.Model):  # type: ignore[name-defined]
     """
     出版社模型
 
@@ -86,7 +86,7 @@ class Publisher(db.Model):
         return f'<Publisher {self.name_en}>'
 
 
-class NewBook(db.Model):
+class NewBook(db.Model):  # type: ignore[name-defined]
     """
     新书模型
 
@@ -273,4 +273,4 @@ class BatchImportReceipt(db.Model):  # type: ignore[name-defined]
     created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(self.receipt_json)
+        return cast('dict[str, Any]', json.loads(self.receipt_json))
