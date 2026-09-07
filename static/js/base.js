@@ -15,21 +15,6 @@
     // ===== Utilities =====
 
     /**
-     * Debounce function for performance optimization
-     */
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    /**
      * Escape HTML to prevent XSS
      */
     function esc(text) {
@@ -403,13 +388,6 @@
         const query = params.toString();
         window.location.href = window.location.pathname + (query ? '?' + query : '');
     }
-
-    /**
-     * Handle search input with debounce
-     */
-    const handleSearch = debounce(() => {
-        applyFilters();
-    }, 500);
 
     // ===== Keyboard Navigation =====
 
