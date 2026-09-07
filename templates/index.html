@@ -41,11 +41,25 @@
     <div class="filter-group">
         <label class="filter-label" for="category-select" data-i18n="filter_category">{{ _('图书分类') }}</label>
         <select class="filter-select" id="category-select" name="category">
+            {% if category_groups %}
+            {% for group_key, group_cats in category_groups.items() %}
+            <optgroup label="{% if group_key == 'fiction' %}{{ _('小说') }}{% elif group_key == 'nonfiction' %}{{ _('非虚构') }}{% elif group_key == 'children-ya' %}{{ _('儿童与青少年') }}{% elif group_key == 'business' %}{{ _('商业') }}{% elif group_key == 'lifestyle' %}{{ _('生活方式与杂项') }}{% elif group_key == 'comics' %}{{ _('漫画与绘本') }}{% else %}{{ group_labels.get(group_key, group_key) }}{% endif %}">
+                {% for key in group_cats %}
+                {% if key in categories %}
+                <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
+                    {{ categories[key] }}{% if key in monthly_categories %} ({{ _('每月') }}){% endif %}
+                </option>
+                {% endif %}
+                {% endfor %}
+            </optgroup>
+            {% endfor %}
+            {% else %}
             {% for key, label in categories.items() %}
             <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
                 {{ label }}
             </option>
             {% endfor %}
+            {% endif %}
         </select>
     </div>
 
@@ -121,8 +135,9 @@
 <section class="books-list active" id="books-list" aria-label="{{ _('图书列表视图') }}" data-i18n-aria-label="books_list_view">
     {% for book in books %}
     {% set current_rank = book.rank or loop.index %}
-    {% set source_index = current_rank - 1 %}
-    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=current_category) %}
+    {% set source_index = book.source_index if book.source_index is defined else current_rank - 1 %}
+    {% set detail_category = book.source_category if book.source_category is defined else current_category %}
+    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=detail_category) %}
     <article class="list-item card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
              data-index="{{ source_index }}"
@@ -193,8 +208,9 @@
 <section class="books-grid bestseller-grid active" id="books-grid" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
     {% for book in books %}
     {% set current_rank = book.rank or loop.index %}
-    {% set source_index = current_rank - 1 %}
-    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=current_category) %}
+    {% set source_index = book.source_index if book.source_index is defined else current_rank - 1 %}
+    {% set detail_category = book.source_category if book.source_category is defined else current_category %}
+    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=detail_category) %}
     <article class="card card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
              data-index="{{ source_index }}"

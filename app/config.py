@@ -97,6 +97,11 @@ class Config:
         'graphic-books-and-manga': '漫画与绘本',
         'childrens-middle-grade-hardcover': '儿童中级精装本',
         'young-adult-hardcover': '青少年精装本',
+        'picture-books': '儿童绘本',
+        'series-books': '儿童与青少年系列',
+        'business-books': '商业',
+        'childrens-middle-grade-paperback': '儿童中级平装本',
+        'young-adult-paperback': '青少年平装本',
     }
 
     NYT_CATEGORY_UPDATE_FREQUENCIES: dict[str, str] = {
@@ -108,6 +113,28 @@ class Config:
         'graphic-books-and-manga': 'monthly',
         'childrens-middle-grade-hardcover': 'weekly',
         'young-adult-hardcover': 'weekly',
+        'picture-books': 'monthly',
+        'series-books': 'monthly',
+        'business-books': 'monthly',
+        'childrens-middle-grade-paperback': 'monthly',
+        'young-adult-paperback': 'monthly',
+    }
+
+    # 首页分类体裁分组（#66）：每个分类恰属一组，模板按组展示
+    CATEGORY_GROUPS: dict[str, list[str]] = {
+        'fiction': ['hardcover-fiction', 'trade-fiction-paperback'],
+        'nonfiction': ['hardcover-nonfiction', 'paperback-nonfiction-monthly'],
+        'children-ya': [
+            'childrens-middle-grade-hardcover',
+            'young-adult-hardcover',
+            'picture-books',
+            'series-books',
+            'childrens-middle-grade-paperback',
+            'young-adult-paperback',
+        ],
+        'business': ['business-books'],
+        'lifestyle': ['advice-how-to-and-miscellaneous'],
+        'comics': ['graphic-books-and-manga'],
     }
 
     NYT_API_BASE_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/current'

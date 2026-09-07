@@ -2049,3 +2049,49 @@ html { scroll-behavior: smooth; }
     align-items: flex-start;
     line-height: 1.5;
 }
+
+/* ===== 首页搜索入口（#66：图标展开复用桌面端跨分类搜索）===== */
+.m-search-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--touch-min);
+    height: var(--touch-min);
+    border: none;
+    background: none;
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.m-search-toggle svg { width: 20px; height: 20px; }
+
+#m-search-bar[hidden] { display: none; }
+
+#m-search-bar form {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-3) var(--space-4) 0;
+}
+
+.m-search-input {
+    flex: 1;
+    height: var(--input-height);
+    padding: 0 var(--space-3);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    color: var(--color-text-primary);
+}
+
+.m-search-submit {
+    height: var(--input-height);
+    padding: 0 var(--space-4);
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
+    color: #fff;
+    font-size: var(--text-base);
+    cursor: pointer;
+}

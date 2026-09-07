@@ -45,7 +45,20 @@
         <span class="m-top-nav-subtitle">{{ _('汇集全球畅销书榜与图书奖项') }}</span>
     </div>
     <span class="m-top-nav-mark" aria-hidden="true">BR</span>
+    <button type="button" class="m-search-toggle" id="m-search-toggle" aria-label="{{ _('搜索') }}" aria-expanded="false">
+        <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
+    </button>
 </nav>
+
+<!-- 移动端搜索入口（点击展开，与桌面端同一套跨分类搜索） -->
+<div class="m-search-bar" id="m-search-bar" hidden>
+    <form action="{{ url_for('main.index') }}" method="get" role="search">
+        <input type="search" name="search" class="m-search-input" id="m-search-input"
+               placeholder="{{ _('搜索书名或作者...') }}"
+               value="{{ search_query if search_query else '' }}" autocomplete="off">
+        <button type="submit" class="m-search-submit">{{ _('搜索') }}</button>
+    </form>
+</div>
 
 <!-- 分类 Tab 横向滑动 -->
 <section class="m-cat-tabs" aria-label="图书分类">
@@ -87,11 +100,12 @@
 <div class="m-book-list">
     {% for book in books %}
     {% set current_rank = book.rank or loop.index %}
-    {% set source_index = current_rank - 1 %}
+    {% set source_index = book.source_index if book.source_index is defined else current_rank - 1 %}
+    {% set detail_category = book.source_category if book.source_category is defined else current_category %}
     {% set previous_rank = book.previous_rank or 0 %}
     {% set rank_change = previous_rank - current_rank if previous_rank else 0 %}
-    <a href="/book/{{ source_index }}?category={{ current_category }}"
-       class="m-card m-book-card" data-href="/book/{{ source_index }}?category={{ current_category }}"
+    <a href="/book/{{ source_index }}?category={{ detail_category }}"
+       class="m-card m-book-card" data-href="/book/{{ source_index }}?category={{ detail_category }}"
        aria-label="{% if _locale == 'zh' %}{{ _('第') }}{{ current_rank }}{{ _('名') }}，{{ book.title_zh or book.title }}{% if book.weeks_on_list %}，{{ _('累计上榜') }}{{ book.weeks_on_list }}{{ _('周') }}{% endif %}{% else %}Rank {{ current_rank }}, {{ book.title }}{% if book.weeks_on_list %}, {{ book.weeks_on_list }} weeks on list{% endif %}{% endif %}">
         <span class="m-rank-badge {% if current_rank > 3 %}small{% endif %}">{{ current_rank }}</span>
         <div class="m-book-cover">

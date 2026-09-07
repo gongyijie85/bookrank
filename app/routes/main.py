@@ -56,7 +56,7 @@ def _get_list_published_date(books_data: list[dict]) -> str | None:
     return None
 
 
-def _get_books_for_category(category: str) -> tuple[list, str | None]:
+def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | None]:
     """获取指定分类的书籍数据（统一入口）"""
     categories = current_app.config['CATEGORIES']
     default_category = next(iter(categories.keys()))
@@ -70,7 +70,7 @@ def _get_books_for_category(category: str) -> tuple[list, str | None]:
     books_data, update_time = [], None
 
     try:
-        books = book_service.get_books_by_category(category) or []
+        books = book_service.get_books_by_category(category, **kwargs) or []
         books_data = [book.to_dict() for book in books]
     except Exception as e:
         raise ExternalAPIError(
@@ -84,6 +84,22 @@ def _get_books_for_category(category: str) -> tuple[list, str | None]:
         update_time = None
 
     return books_data, update_time
+
+
+def _search_all_categories(search_query: str, categories: dict[str, str]) -> list[dict[str, Any]]:
+    """跨全部分类抓取并标注来源分类（#66）；过滤由调用方的 filter_books_by_search 完成"""
+    merged: list[dict[str, Any]] = []
+    for key in categories:
+        try:
+            books_data, _ = _get_books_for_category(key, auto_translate=False, notify_refresh=False)
+        except ExternalAPIError as e:
+            e.log()
+            continue
+        for idx, book in enumerate(books_data):
+            book['source_category'] = key
+            book['source_index'] = (book.get('rank') or (idx + 1)) - 1
+            merged.append(book)
+    return merged
 
 
 @main_bp.route('/')
@@ -108,11 +124,16 @@ def index():
 
     books_data: list[dict[str, Any]] = []
     update_time: str | None = None
-    try:
-        books_data, update_time = _get_books_for_category(category)
-    except ExternalAPIError as e:
-        e.log()
-        # 降级：用空列表渲染页面，不崩溃
+    if search_query:
+        # 跨全部分类搜索（#66）：不再受当前选中分类限制，结果标注来源分类
+        books_data = _search_all_categories(search_query, categories)
+        update_time = None
+    else:
+        try:
+            books_data, update_time = _get_books_for_category(category)
+        except ExternalAPIError as e:
+            e.log()
+            # 降级：用空列表渲染页面，不崩溃
 
     update_frequency = get_category_update_frequency(category)
     list_published_date = _get_list_published_date(books_data)
@@ -144,6 +165,15 @@ def index():
     return render_adaptive(
         'index.html',
         categories=categories,
+        category_groups=current_app.config.get('CATEGORY_GROUPS', {}),
+        group_labels={
+            'fiction': '小说',
+            'nonfiction': '非虚构',
+            'children-ya': '儿童与青少年',
+            'business': '商业',
+            'lifestyle': '生活方式与杂项',
+            'comics': '漫画与绘本',
+        },
         books=books_data,
         current_category=category,
         search_query=search_query,
