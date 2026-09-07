@@ -166,7 +166,7 @@ jobs:
       # Runs serialize, but only the current main SHA is allowed to deploy.
       group: render-production-current-main-bookrank
       cancel-in-progress: false
-    needs: [lint, typecheck, test]
+    needs: [lint, lint-frontend, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Deploy and verify Render revision
