@@ -1847,3 +1847,31 @@ msgstr "购买"
 #: templates/awards.html:112
 msgid "查看全部出版社"
 msgstr "查看全部出版社"
+
+#: templates/index.html:47
+msgid "每月"
+msgstr "每月"
+
+#: templates/index.html:47
+msgid "小说"
+msgstr "小说"
+
+#: templates/index.html:47
+msgid "非虚构"
+msgstr "非虚构"
+
+#: templates/index.html:47
+msgid "儿童与青少年"
+msgstr "儿童与青少年"
+
+#: templates/index.html:47
+msgid "商业"
+msgstr "商业"
+
+#: templates/index.html:47
+msgid "生活方式与杂项"
+msgstr "生活方式与杂项"
+
+#: templates/index.html:47
+msgid "漫画与绘本"
+msgstr "漫画与绘本"

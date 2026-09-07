@@ -656,19 +656,16 @@ class TestMobileV978:
         assert b'm-related-books' in resp.data
         assert '相关图书'.encode() in resp.data
 
-    # ----- 首页无搜索图标 -----
+    # ----- 首页搜索入口（#66 有意加回，替代历史无图标约定）-----
 
     @patch('app.routes.main.get_service')
-    def test_index_no_search_icon(self, mock_get_svc, client) -> None:
-        """首页顶部 nav 不应包含搜索放大镜图标"""
+    def test_index_has_search_icon_intentional(self, mock_get_svc, client) -> None:
+        """#66 产品决策：移动端首页顶部 nav 恢复搜索图标（同页展开）。
+        此断言证明是故意加回而非误操作。"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
         resp = client.get('/', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
-        # 顶部 nav 区域不含 search/magnifier 关键字
         top_nav_start = resp.data.find(b'm-top-nav')
         top_nav_end = resp.data.find(b'</nav>', top_nav_start)
         top_nav_block = resp.data[top_nav_start:top_nav_end]
-        assert b'magnifier' not in top_nav_block
-        assert b'm-search' not in top_nav_block
-        # 旧版搜索图标 SVG（M11 19 Q14 14 19 14 或类似圆+柄）应不存在
-        assert b'M21 21l-4.35-4.35' not in top_nav_block
+        assert b'm-search-toggle' in top_nav_block

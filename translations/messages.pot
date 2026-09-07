@@ -2440,3 +2440,30 @@ msgstr ""
 msgid "查看全部出版社"
 msgstr ""
 
+#: templates/index.html:47
+msgid "每月"
+msgstr ""
+
+#: templates/index.html:47
+msgid "小说"
+msgstr ""
+
+#: templates/index.html:47
+msgid "非虚构"
+msgstr ""
+
+#: templates/index.html:47
+msgid "儿童与青少年"
+msgstr ""
+
+#: templates/index.html:47
+msgid "商业"
+msgstr ""
+
+#: templates/index.html:47
+msgid "生活方式与杂项"
+msgstr ""
+
+#: templates/index.html:47
+msgid "漫画与绘本"
+msgstr ""

@@ -112,6 +112,30 @@
         }, intervalMs || 30000);
     }
 
+    // ===== 4b. 首页搜索入口展开/收起（#66）=====
+    function initMobileSearchToggle() {
+        const toggle = document.getElementById('m-search-toggle');
+        const bar = document.getElementById('m-search-bar');
+        if (!toggle || !bar) return;
+        toggle.addEventListener('click', function () {
+            const expanded = toggle.getAttribute('aria-expanded') === 'true';
+            toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+            if (expanded) {
+                bar.setAttribute('hidden', '');
+            } else {
+                bar.removeAttribute('hidden');
+                const input = document.getElementById('m-search-input');
+                if (input) input.focus();
+            }
+        });
+        // 带搜索词进来时保持展开
+        const input = document.getElementById('m-search-input');
+        if (input && input.value) {
+            bar.removeAttribute('hidden');
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
     // ===== 5. v0.9.78 语言切换 =====
     const LANG_STORAGE_KEY = 'bookrank_language';
     const APP_LANG_STORAGE_KEY = 'app_language';
@@ -294,5 +318,6 @@
     ready(function () {
         initLangSwitcher();
         initDetailTabs();
+        initMobileSearchToggle();
     });
 })();
