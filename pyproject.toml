@@ -68,6 +68,7 @@ module = [
     "flask_babel.*",
     "psutil.*",
     "bleach.*",
+    "redis",
 ]
 ignore_missing_imports = true
 
