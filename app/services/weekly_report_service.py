@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import date
 from html import escape
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from flask import current_app
@@ -108,8 +108,8 @@ class WeeklyReportService:
             ).first()
 
             if existing_report and not force_regenerate:
-                logger.info(f'周报已存在: {week_start} 至 {week_end}')
-                return existing_report
+                logger.info(f'周报已存�? {week_start} �?{week_end}')
+                return cast('WeeklyReport | None', existing_report)
 
             # 如果是强制重新生成且旧报告存在，先删除
             if existing_report and force_regenerate:
@@ -183,7 +183,7 @@ class WeeklyReportService:
                 WeeklyReport.week_start == week_start, WeeklyReport.week_end == week_end
             ).first()
             if existing_report:
-                return existing_report
+                return cast('WeeklyReport | None', existing_report)
             return None
 
     def _collect_weekly_data(self, week_start: date, week_end: date) -> dict[str, Any]:
@@ -473,7 +473,7 @@ class WeeklyReportService:
                 is_prompt_like = any(marker in ai_result for marker in prompt_markers)
 
                 if not is_prompt_like:
-                    return ai_result.strip()
+                    return cast('str', ai_result.strip())
 
             # AI 结果无效时使用格式化的默认摘要
             logger.info('AI摘要无效或包含prompt文本，使用格式化默认摘要')
@@ -569,7 +569,10 @@ class WeeklyReportService:
             List[WeeklyReport]: 周报列表
         """
         try:
-            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all()
+            return cast(
+                'list[WeeklyReport]',
+                WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取周报列表时出错: {e!s}')
             return []
@@ -584,7 +587,10 @@ class WeeklyReportService:
             WeeklyReport: 周报
         """
         try:
-            return WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first()
+            return cast(
+                'WeeklyReport | None',
+                WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据日期获取周报时出错: {e!s}')
             return None
@@ -599,7 +605,10 @@ class WeeklyReportService:
             WeeklyReport: 周报
         """
         try:
-            return WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first()
+            return cast(
+                'WeeklyReport | None',
+                WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据周结束日期获取周报时出错: {e!s}')
             return None
@@ -611,7 +620,10 @@ class WeeklyReportService:
             WeeklyReport: 最新周报
         """
         try:
-            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first()
+            return cast(
+                'WeeklyReport | None',
+                WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取最新周报时出错: {e!s}')
             return None

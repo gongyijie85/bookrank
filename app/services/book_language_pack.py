@@ -5,7 +5,7 @@ import threading
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
@@ -386,12 +386,15 @@ class BookLanguagePack:
         if not translator or not hasattr(translator, 'translate'):
             return None
         try:
-            return translator.translate(text, 'en', 'zh', field_type=field_type, context=context)
+            return cast('str | None', translator.translate(text, 'en', 'zh', field_type=field_type, context=context))
         except TypeError:
             try:
-                return translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type)
+                return cast(
+                    'str | None',
+                    translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type),
+                )
             except TypeError:
-                return translator.translate(text, 'en', 'zh', field_type=field_type)
+                return cast('str | None', translator.translate(text, 'en', 'zh', field_type=field_type))
         except Exception as e:
             log_error(
                 ErrorCategory.TRANSLATION, f'Language-pack translation failed for {field_type}: {e}', level='warning'

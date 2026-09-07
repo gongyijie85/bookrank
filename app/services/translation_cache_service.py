@@ -6,7 +6,7 @@ import hashlib
 import logging
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -110,7 +110,7 @@ class TranslationCacheService:
                 return None
 
             logger.debug(f'缓存命中: {source_lang}->{target_lang}, 已使用{cache.usage_count}次')
-            return cache
+            return cast('TranslationCache | None', cache)
 
         logger.debug(f'缓存未命中: {source_lang}->{target_lang}')
         return None
@@ -179,7 +179,7 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.info(f'翻译缓存已保存: {source_lang}->{target_lang}')
-            return existing
+            return cast('TranslationCache', existing)
         except IntegrityError:
             db.session.rollback()
             existing = TranslationCache.query.filter_by(
@@ -194,7 +194,7 @@ class TranslationCacheService:
                 existing.usage_count += 1
                 db.session.commit()
                 logger.info(f'翻译缓存已更新(并发冲突): {source_lang}->{target_lang}')
-                return existing
+                return cast('TranslationCache', existing)
             raise
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'保存翻译缓存失败: {e}')
@@ -257,7 +257,7 @@ class TranslationCacheService:
         if target_lang:
             query = query.filter_by(target_lang=target_lang)
 
-        return query.order_by(TranslationCache.last_used_at.desc()).limit(limit).all()
+        return cast('list[TranslationCache]', query.order_by(TranslationCache.last_used_at.desc()).limit(limit).all())
 
     def auto_cleanup(self, max_items: int = 10000, keep_recent_days: int = 30) -> int:
         """
@@ -307,7 +307,7 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.info(f'自动清理完成，删除了 {deleted} 条缓存记录')
-            return deleted
+            return cast('int', deleted)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'自动清理缓存失败: {e}')
             db.session.rollback()
@@ -343,7 +343,7 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.info(f'已删除 {deleted_count} 条翻译缓存')
-            return deleted_count
+            return cast('int', deleted_count)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'删除翻译缓存失败: {e}')
             db.session.rollback()
@@ -360,7 +360,7 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.warning(f'已清空所有翻译缓存（{count}条）')
-            return count
+            return cast('int', count)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'清空翻译缓存失败: {e}')
             db.session.rollback()

@@ -10,6 +10,7 @@ Render 部署启动入口（免费版优化版）
 import logging
 import os
 import threading
+from typing import Any, cast
 
 from sqlalchemy import inspect
 
@@ -53,7 +54,7 @@ def _cleanup_dirty_translations():
         from app.models.new_book import NewBook
 
         try:
-            records = NewBook.query.filter(NewBook.title_zh.isnot(None)).all()
+            records = NewBook.query.filter(cast('Any', NewBook.title_zh).is_not(None)).all()
             for record in records:
                 original = record.title_zh
                 cleaned = clean_translation_text(original, 'title')

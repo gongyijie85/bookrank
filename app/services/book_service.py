@@ -5,7 +5,7 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import requests
 from flask import Flask
@@ -108,7 +108,7 @@ class BookService:
                         self._isbn_index[isbn10] = book_data
                         cat_isbns.add(isbn10)
                     if isbn13 == isbn or isbn10 == isbn:
-                        return book_data
+                        return cast('dict[str, Any] | None', book_data)
 
         metadata = db.session.get(BookMetadata, isbn)
         if metadata:
@@ -454,7 +454,7 @@ class BookService:
             return True
 
         try:
-            return run_with_app_context(self._app, _save)
+            return cast('bool', run_with_app_context(self._app, _save))
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存图书元数据失败: {e}')
             try:
@@ -497,7 +497,7 @@ class BookService:
             return saved
 
         try:
-            return run_with_app_context(self._app, _save)
+            return cast('int', run_with_app_context(self._app, _save))
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'批量保存图书元数据失败: {e}')
             try:
@@ -537,7 +537,7 @@ class BookService:
             return True
 
         try:
-            return run_with_app_context(self._app, _save)
+            return cast('bool', run_with_app_context(self._app, _save))
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存翻译失败: {e}')
             try:

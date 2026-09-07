@@ -3,7 +3,7 @@ import logging
 import threading
 from datetime import UTC, datetime
 from io import StringIO
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import quote
 
 from flask import Blueprint, current_app, make_response, request
@@ -307,7 +307,7 @@ def sync_all_publishers():
 
     try:
         max_books = min(max(1, request.args.get('max_books', 30, type=int)), 100)
-        app_obj = current_app._get_current_object()
+        app_obj = cast('Any', current_app)._get_current_object()
 
         def _run_sync_all() -> None:
             with app_obj.app_context():
@@ -359,7 +359,7 @@ def sync_publisher(publisher_id: int):
         if err is not None:
             return err
         assert sync_q is not None
-        app_obj = current_app._get_current_object()
+        app_obj = cast('Any', current_app)._get_current_object()
 
         def _run_sync_publisher() -> None:
             with app_obj.app_context():

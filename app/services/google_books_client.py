@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -83,7 +83,7 @@ class GoogleBooksClient:
             cached = cache_service.get('google_books', cache_key)
             if cached:
                 logger.info('返回Google Books缓存数据: ISBN %s', isbn)
-                return cached
+                return cast('dict[str, Any]', cached)
 
         params = self._build_params({'q': f'isbn:{isbn}'})
 
@@ -131,7 +131,7 @@ class GoogleBooksClient:
             cached = cache_service.get('google_books', cache_key)
             if cached:
                 logger.info("返回Google Books缓存搜索结果: '%s'", title)
-                return cached
+                return cast('dict[str, Any]', cached)
 
         query = f'intitle:{title}'
         if author:
@@ -211,7 +211,7 @@ class GoogleBooksClient:
         identifiers = volume_info.get('industryIdentifiers', [])
         for identifier in identifiers:
             if identifier.get('type') == isbn_type:
-                return identifier.get('identifier')
+                return cast('str | None', identifier.get('identifier'))
         return None
 
     def get_cover_url(self, isbn: str | None = None, title: str | None = None, author: str | None = None) -> str | None:
@@ -219,11 +219,11 @@ class GoogleBooksClient:
         if isbn:
             details = self.fetch_book_details(isbn)
             if details and details.get('cover_url'):
-                return details['cover_url']
+                return cast('str | None', details['cover_url'])
 
         if title:
             details = self.search_book_by_title(title, author)
             if details and details.get('cover_url'):
-                return details['cover_url']
+                return cast('str | None', details['cover_url'])
 
         return None

@@ -3,7 +3,7 @@
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, cast
 
 from ..models.schemas import AwardBook, db
 from ..utils.error_handler import ErrorCategory, log_error
@@ -138,7 +138,10 @@ class AwardCoverSyncService:
 
         if not candidate_ids:
             return []
-        return AwardBook.query.filter(AwardBook.id.in_(candidate_ids)).order_by(AwardBook.id).all()
+        return cast(
+            'list[AwardBook]',
+            AwardBook.query.filter(AwardBook.id.in_(candidate_ids)).order_by(AwardBook.id).all(),
+        )
 
     def get_sync_status(self) -> dict:
         """获取同步状态"""

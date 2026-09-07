@@ -8,7 +8,7 @@ AI 推荐服务
 """
 
 from collections import Counter
-from typing import Any
+from typing import Any, cast
 
 from ..models.schemas import AwardBook, BookMetadata, UserCategory, UserViewedBook, db
 from ..utils.error_handler import ErrorCategory, log_error
@@ -68,12 +68,15 @@ class RecommendationService:
             return self._get_popular_recommendations(limit)
 
     def _get_viewed_books(self, session_id: str) -> list[UserViewedBook]:
-        """获取用户浏览的图书"""
-        return (
-            UserViewedBook.query.filter_by(session_id=session_id)
-            .order_by(UserViewedBook.viewed_at.desc())
-            .limit(20)
-            .all()
+        """获取用户浏览的图�?"""
+        return cast(
+            'list[UserViewedBook]',
+            (
+                UserViewedBook.query.filter_by(session_id=session_id)
+                .order_by(UserViewedBook.viewed_at.desc())
+                .limit(20)
+                .all()
+            ),
         )
 
     def _analyze_user_interests(self, session_id: str, viewed_books: list[UserViewedBook]) -> dict[str, Any]:

@@ -12,6 +12,7 @@
 
 import logging
 import time
+from typing import cast
 
 from ..utils.error_handler import ErrorCategory, log_error
 
@@ -80,7 +81,7 @@ class GoogleTranslationService:
 
                 if result:
                     logger.info(f'Google翻译成功: {text[:50]}... -> {result[:50]}...')
-                    return result
+                    return cast('str | None', result)
 
             except Exception as e:
                 if attempt < max_retries:

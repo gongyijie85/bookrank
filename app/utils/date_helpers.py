@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime
+from typing import cast
 
 
 def format_chinese_date(value: date) -> str:
@@ -32,4 +33,4 @@ def parse_report_content(report) -> dict | None:
         content = json.loads(report.content) if isinstance(report.content, str) else report.content
     except (json.JSONDecodeError, TypeError):
         return None
-    return content
+    return cast('dict | None', content)

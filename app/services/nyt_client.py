@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -91,7 +91,7 @@ class NYTApiClient:
                     logger.warning('忽略NYT错误缓存: %s', category_id)
                 else:
                     logger.info('返回NYT缓存数据: %s', category_id)
-                    return cached
+                    return cast('dict[str, Any]', cached)
 
         if not self._rate_limiter.is_allowed():
             retry_after = self._rate_limiter.get_retry_after()
@@ -128,7 +128,7 @@ class NYTApiClient:
 
             _safe_cache_set(cache_service, 'nyt', category_id, data, ttl_seconds=self._cache_ttl)
 
-            return data
+            return cast('dict[str, Any]', data)
 
         except requests.Timeout:
             raise APIException(f'Request timeout for {category_id}', status_code=504)

@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 import requests
 from flask import current_app
@@ -55,7 +55,7 @@ class OpenLibraryClient:
             cached = cache_service.get('open_library', cache_key)
             if cached:
                 logger.info(f'返回Open Library缓存数据: ISBN {isbn}')
-                return cached
+                return cast('dict[str, Any]', cached)
 
         clean_isbn = isbn.replace('-', '').replace(' ', '')
 

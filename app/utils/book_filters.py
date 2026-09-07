@@ -1,10 +1,12 @@
+from typing import cast
+
 from flask import current_app
 
 from .ranking import classify_listing
 
 
 def get_category_update_frequency(category_id: str) -> str:
-    return current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category_id, 'weekly')
+    return cast('str', current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category_id, 'weekly'))
 
 
 def filter_books_by_search(books_data: list, search_query: str) -> list:

@@ -3,6 +3,7 @@
 import datetime
 import logging
 import threading
+from typing import cast
 
 from ..models.schemas import WeeklyReport
 from ..services.weekly_report_service import WeeklyReportService
@@ -44,7 +45,7 @@ def generate_weekly_report(force_regenerate: bool = False) -> WeeklyReport | Non
 
         if existing_report and not force_regenerate:
             logger.info(f'周报已存在: {week_start} 至 {week_end}')
-            return existing_report
+            return cast('WeeklyReport | None', existing_report)
 
         if existing_report and force_regenerate:
             logger.info(f'强制重新生成周报: {week_start} 至 {week_end}')

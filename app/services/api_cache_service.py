@@ -8,7 +8,7 @@ import logging
 from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
 from threading import Lock
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import func
 
@@ -77,7 +77,7 @@ class APICacheService:
         # 1. 内存 LRU 快速路径
         mem_data = self._mem_get(cache_key)
         if mem_data is not None:
-            return mem_data
+            return cast('dict | None', mem_data)
 
         # 2. 数据库慢路径
         cache = APICache.query.filter_by(api_source=api_source, request_hash=request_hash).first()
@@ -103,7 +103,7 @@ class APICacheService:
             if remaining > 0:
                 self._mem_set(cache_key, data, remaining)
 
-            return data
+            return cast('dict | None', data)
 
         logger.debug(f'API缓存未命中: {api_source} - {request_key}')
         return None
@@ -166,7 +166,7 @@ class APICacheService:
                 self._mem_set(cache_key, response_data, ttl_seconds)
 
             logger.info(f'API缓存已保存: {api_source} - {request_key}')
-            return existing
+            return cast('APICache', existing)
         except Exception as e:
             log_error(ErrorCategory.CACHE, f'保存API缓存失败: {e}')
             db.session.rollback()
@@ -203,7 +203,7 @@ class APICacheService:
                     self._mem_cache.clear()
 
             logger.info(f'已删除 {deleted_count} 条API缓存')
-            return deleted_count
+            return cast('int', deleted_count)
         except Exception as e:
             log_error(ErrorCategory.CACHE, f'删除API缓存失败: {e}')
             db.session.rollback()
@@ -224,7 +224,7 @@ class APICacheService:
                     del self._mem_cache[k]
 
             logger.info(f'已清理 {deleted} 条过期API缓存')
-            return deleted
+            return cast('int', deleted)
         except Exception as e:
             log_error(ErrorCategory.CACHE, f'清理过期缓存失败: {e}')
             db.session.rollback()
@@ -285,7 +285,7 @@ class APICacheService:
             query = APICache.query
             if api_source:
                 query = query.filter_by(api_source=api_source)
-            return query.order_by(APICache.last_used_at.desc()).limit(limit).all()
+            return cast('list[APICache]', query.order_by(APICache.last_used_at.desc()).limit(limit).all())
         except Exception as e:
             log_error(ErrorCategory.CACHE, f'获取最近缓存记录失败: {e}')
             return []

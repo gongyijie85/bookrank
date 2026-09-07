@@ -1,6 +1,6 @@
 import hashlib
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ..services.new_book import NewBookModules
@@ -36,7 +36,7 @@ def require_service(name: str, display_name: str = '') -> Any:
 
 def get_new_book_modules() -> 'NewBookModules':
     """获取已注册的新书速递子模块持有对象（SyncEngine/Query/PublisherManager/TranslationPipeline）。"""
-    return require_service('new_book_modules')
+    return cast('NewBookModules', require_service('new_book_modules'))
 
 
 def get_sync_request_gate() -> Any:
@@ -83,7 +83,7 @@ def get_or_create_google_books_client() -> GoogleBooksClient:
 def get_google_books_client() -> GoogleBooksClient | None:
     book_service = get_service('book_service')
     if book_service and hasattr(book_service, '_google_client'):
-        return book_service._google_client
+        return cast('GoogleBooksClient | None', book_service._google_client)
     return None
 
 
