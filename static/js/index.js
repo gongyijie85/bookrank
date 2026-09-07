@@ -65,7 +65,9 @@ function renderSearchSuggestions() {
     let history = [];
     try {
         history = JSON.parse(localStorage.getItem('bookrank_search_history') || '[]');
-    } catch (e) {}
+    } catch (e) {
+        // 空历史或脏数据：视为无历史继续
+    }
 
     if (query) {
         const books = window.booksData || [];
