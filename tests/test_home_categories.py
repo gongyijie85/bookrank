@@ -82,6 +82,22 @@ class TestCategoryConfig:
     def test_english_names_parity(self):
         assert set(Config.CATEGORY_NAMES_EN.keys()) == set(Config.CATEGORIES.keys())
 
+    def test_js_labels_parity_with_config(self):
+        """static/js/categories.js 的 LABELS 必须与 CATEGORIES 对齐，
+        否则前端语言切换会把缺失项回退显示为 key 原文（#66 跟进教训）."""
+        import re
+        from pathlib import Path
+
+        src = (Path(__file__).resolve().parent.parent / 'static' / 'js' / 'categories.js').read_text(
+            encoding='utf-8'
+        )
+        labels_block = src.split('var LABELS = {', 1)[1].split('};', 1)[0]
+        js_keys = set(re.findall(r"'([a-z0-9-]+)':\s*\{", labels_block))
+        assert js_keys == set(Config.CATEGORIES.keys())
+        order_block = src.split('var ORDERED_IDS = [', 1)[1].split('];', 1)[0]
+        js_order = re.findall(r"'([a-z0-9-]+)'", order_block)
+        assert js_order == list(Config.CATEGORIES.keys())
+
 
 class TestCrossCategorySearch:
     @patch('app.routes.main.get_service')
