@@ -8,7 +8,7 @@
 (function (global) {
     'use strict';
 
-    // 8 个 NYT 分类的中英双语映射
+    // 13 个 NYT 分类的中英双语映射
     // 键名 = NYT API 分类 ID；值 = { zh, en }
     var LABELS = {
         'hardcover-fiction':                { zh: '精装小说',           en: 'Hardcover Fiction' },
@@ -18,10 +18,15 @@
         'advice-how-to-and-miscellaneous':  { zh: '建议、方法与杂项',   en: 'Advice, How-To & Miscellaneous' },
         'graphic-books-and-manga':          { zh: '漫画与绘本',         en: 'Graphic Books & Manga' },
         'childrens-middle-grade-hardcover': { zh: '儿童中级精装本',     en: "Children's Middle Grade Hardcover" },
-        'young-adult-hardcover':            { zh: '青少年精装本',       en: 'Young Adult Hardcover' }
+        'young-adult-hardcover':            { zh: '青少年精装本',       en: 'Young Adult Hardcover' },
+        'picture-books':                    { zh: '儿童绘本',           en: 'Picture Books' },
+        'series-books':                     { zh: '儿童与青少年系列',   en: 'Series Books' },
+        'business-books':                   { zh: '商业',               en: 'Business Books' },
+        'middle-grade-paperback-monthly':   { zh: '儿童中级平装本',     en: 'Middle Grade Paperback' },
+        'young-adult-paperback-monthly':    { zh: '青少年平装本',       en: 'Young Adult Paperback' }
     };
 
-    // 按显示顺序排列的分类 ID 列表（下拉框用）
+    // 按显示顺序排列的分类 ID 列表（下拉框用，与 CATEGORIES 顺序一致）
     var ORDERED_IDS = [
         'hardcover-fiction',
         'trade-fiction-paperback',
@@ -30,7 +35,12 @@
         'advice-how-to-and-miscellaneous',
         'graphic-books-and-manga',
         'childrens-middle-grade-hardcover',
-        'young-adult-hardcover'
+        'young-adult-hardcover',
+        'picture-books',
+        'series-books',
+        'business-books',
+        'middle-grade-paperback-monthly',
+        'young-adult-paperback-monthly'
     ];
 
     /**
