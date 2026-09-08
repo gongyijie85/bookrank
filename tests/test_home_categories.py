@@ -144,6 +144,29 @@ class TestCrossCategorySearch:
         assert 'Business Books' in html
 
 
+class TestOnDemandTranslationMarker:
+    @patch('app.routes.main.get_service')
+    def test_untranslated_books_marked(self, mock_get_svc, client):
+        """无 title_zh 的书打标 data-needs-translation，有的不打."""
+        mock_get_svc.return_value = _mock_book_service(
+            {
+                'hardcover-fiction': [
+                    _make_book(title_zh=None, isbn13='9780000000001', isbn10='0000000001', id='9780000000001'),
+                    _make_book(
+                        title_zh='中文标题',
+                        isbn13='9780000000002',
+                        isbn10='0000000002',
+                        id='9780000000002',
+                    ),
+                ]
+            }
+        )
+        resp = client.get('/?lang=zh', headers={'User-Agent': DESKTOP_UA})
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert html.count('data-needs-translation="1"') == 1  # 当前视图下一本未翻译
+
+
 class TestMobileSearchEntry:
     @patch('app.routes.main.get_service')
     def test_mobile_has_search_toggle(self, mock_get_svc, client):

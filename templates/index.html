@@ -141,6 +141,7 @@
     <article class="list-item card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
              data-index="{{ source_index }}"
+             {% if _locale == 'zh' and not book.title_zh %}data-needs-translation="1"{% endif %}
              aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ current_rank }}{{ _('名') }}">
         <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}">
             <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
@@ -214,6 +215,7 @@
     <article class="card card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
              data-index="{{ source_index }}"
+             {% if _locale == 'zh' and not book.title_zh %}data-needs-translation="1"{% endif %}
              aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ current_rank }}{{ _('名') }}">
         <a href="{{ detail_url }}" class="card-link">
         <div class="card-image">
