@@ -134,14 +134,14 @@ class TestCrossCategorySearch:
         assert '(每月)' in html
 
     @patch('app.routes.main.get_service')
-    def test_desktop_category_select_english_labels(self, mock_get_svc, client):
-        """英文 locale 下拉框显示英文分类名."""
+    def test_desktop_category_select_always_chinese(self, mock_get_svc, client):
+        """分类下拉恒为中文（即使英文 locale）."""
         mock_get_svc.return_value = _mock_book_service({'hardcover-fiction': [_make_book()]})
         resp = client.get('/?lang=en', headers={'User-Agent': DESKTOP_UA})
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')
-        assert 'Middle Grade Paperback' in html
-        assert 'Business Books' in html
+        assert '精装小说' in html
+        assert 'Middle Grade Paperback' not in html
 
 
 class TestOnDemandTranslationMarker:

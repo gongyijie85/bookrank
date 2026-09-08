@@ -66,7 +66,7 @@
         {% for key, label in categories.items() %}
         <a href="/?category={{ key }}"
            class="m-cat-tab {% if key == current_category %}active{% endif %}">
-            {% if _locale == 'zh' %}{{ label }}{% else %}{{ category_names_en.get(key, label) }}{% endif %}
+            {{ label }}
         </a>
         {% endfor %}
     </div>
