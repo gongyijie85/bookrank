@@ -371,7 +371,7 @@ class TestMobileIndexSimplified:
         assert resp.status_code == 200
         assert b'm-top-nav-copy' in resp.data
         assert b'm-top-nav-subtitle' in resp.data
-        assert b'm-top-nav-mark' in resp.data
+        assert b'<h1 class="m-top-nav-title">BookRank <span>Charts</span></h1>' in resp.data
 
 
 class TestMobileBookDetailV2:

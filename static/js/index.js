@@ -572,6 +572,37 @@ function updateMonthlyListHint(category, books, updateFrequency, listPublishedDa
     hintEl.hidden = false;
 }
 
+function renderRankChange(book, rank, lang, className) {
+    const previous = Number(book.previous_rank ?? book.rank_last_week ?? 0);
+    if (previous > 0) {
+        const change = previous - rank;
+        if (!change) return '';
+        const direction = change > 0 ? 'up' : 'down';
+        const label = t(change > 0 ? 'card_rank_up_aria' : 'card_rank_down_aria', lang, { n: Math.abs(change) });
+        return `<span class="${className} ${direction}" aria-label="${esc(label)}">${change > 0 ? '+' : ''}${change}</span>`;
+    }
+    const weeks = Number(book.weeks_on_list) || 0;
+    if (book.is_new ?? (previous === 0 && weeks === 1)) {
+        return `<span class="${className} new" aria-label="${esc(t('card_new_aria', lang))}">${esc(t('card_new_badge', lang))}</span>`;
+    }
+    if (book.is_returning ?? (previous === 0 && weeks > 1)) {
+        const label = lang === 'zh' ? '重返榜单' : 'Returning to the list';
+        return `<span class="${className} new" aria-label="${label}">${lang === 'zh' ? '重返' : 'RETURN'}</span>`;
+    }
+    return '';
+}
+
+function renderCoverWeeks(book, lang) {
+    const weeks = Number(book.weeks_on_list) || 0;
+    if (weeks <= 0) return '';
+    const label = t('weeks_on_list', lang);
+    const valueLabel = t('card_weeks_suffix', lang, { n: weeks });
+    const suffix = valueLabel.replace(String(weeks), '').trim();
+    return `<span class="cover-weeks" role="img" aria-label="${esc(label)}: ${weeks}${esc(suffix)}">
+                <span class="cover-weeks-value"><strong>${weeks}</strong><span>${esc(suffix)}</span></span>
+            </span>`;
+}
+
 function updateBooksOnPage(books, category, updateTime, updateFrequency, listPublishedDate) {
     const isZh = currentLanguage === 'zh';
     const defaultCover = window.APP_CONFIG.defaultCover;
@@ -596,6 +627,9 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
     const gridEl = document.getElementById('books-grid');
     if (gridEl) {
         gridEl.innerHTML = books.map((book, index) => {
+            const rank = Number(book.rank) || index + 1;
+            const sourceIndex = book.source_index ?? rank - 1;
+            const sourceCategory = book.source_category || category;
             const cover = book.cover && book.cover !== defaultCover
                 ? book.cover
                 : (book._original_cover || defaultCover);
@@ -606,10 +640,11 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             return `
             <article class="card card-animate"
                      data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
-                     data-index="${index}"
+                     data-index="${sourceIndex}"
+                     data-category="${esc(sourceCategory)}"
                      role="button"
                      tabindex="0"
-                     aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
+                     aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: rank }))}">
                 <div class="card-image">
                     <div class="cover-frame">
                         <img src="${cover}"
@@ -619,26 +654,14 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                              height="240"
                              data-original="${book._original_cover || ''}"
                              data-fallback="${defaultCover}">
+                        ${renderCoverWeeks(book, lang)}
                     </div>
                     <span class="card-category-tag">${esc(catLabel)}</span>
-                    <span class="card-badge ${index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : 'other'}"
-                          aria-label="${esc(t('card_badge_aria', lang, { n: index + 1 }))}">
-                        ${index + 1}
+                    <span class="card-badge ${rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'other'}"
+                          aria-label="${esc(t('card_badge_aria', lang, { n: rank }))}">
+                        ${rank}
                     </span>
-                    ${book.rank_last_week && book.rank_last_week !== '0' ?
-                        (() => {
-                            const change = parseInt(book.rank_last_week) - (index + 1);
-                            if (change > 0) return `<span class="rank-change up" aria-label="${esc(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
-                            if (change < 0) return `<span class="rank-change down" aria-label="${esc(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
-                            return '';
-                        })() :
-                        `<span class="rank-change new" aria-label="${esc(t('card_new_aria', lang))}">${esc(t('card_new_badge', lang))}</span>`
-                    }
-                </div>
-                <div class="card-content">
-                    <div class="card-rank-row">
-                        <span class="card-rank-badge">${esc(t('card_rank_aria', lang, { n: index + 1 }))}</span>
-                        ${book.weeks_on_list ? `<span class="card-weeks"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
+                    ${renderRankChange(book, rank, lang, 'rank-change')}
                     </div>
                     <h3 class="card-title" title="${esc(title)}">${esc(title)}</h3>
                     <p class="card-author">${esc(book.author)}</p>
@@ -652,6 +675,9 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
     const listEl = document.getElementById('books-list');
     if (listEl) {
         listEl.innerHTML = books.map((book, index) => {
+            const rank = Number(book.rank) || index + 1;
+            const sourceIndex = book.source_index ?? rank - 1;
+            const sourceCategory = book.source_category || category;
             const cover = book.cover && book.cover !== defaultCover
                 ? book.cover
                 : (book._original_cover || defaultCover);
@@ -661,34 +687,28 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             return `
             <article class="list-item card-animate"
                      data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
-                     data-index="${index}"
+                     data-index="${sourceIndex}"
+                     data-category="${esc(sourceCategory)}"
                      role="button"
                      tabindex="0"
-                     aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
+                     aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: rank }))}">
                 <div class="list-item-image">
-                    <img src="${cover}"
+                <img src="${cover}"
                          alt="${esc(t('card_cover_alt', lang, { title }))}"
                          loading="lazy"
                          width="100"
                          height="150"
                          data-original="${book._original_cover || ''}"
                          data-fallback="${defaultCover}">
+                    ${renderCoverWeeks(book, lang)}
                 </div>
                 <div class="list-item-content">
                     <div class="list-item-header">
-                        <span class="list-item-rank ${index === 0 ? 'rank-gold' : index === 1 ? 'rank-silver' : index === 2 ? 'rank-bronze' : ''}"
-                              aria-label="${esc(t('card_rank_aria', lang, { n: index + 1 }))}">
-                            ${index + 1}
+                        <span class="list-item-rank ${rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : ''}"
+                              aria-label="${esc(t('card_rank_aria', lang, { n: rank }))}">
+                            ${rank}
                         </span>
-                        ${book.rank_last_week && book.rank_last_week !== '0' ?
-                            (() => {
-                                const change = parseInt(book.rank_last_week) - (index + 1);
-                                if (change > 0) return `<span class="rank-change-badge up" aria-label="${esc(t('card_rank_up_aria', lang, { n: change }))}">+${change}</span>`;
-                                if (change < 0) return `<span class="rank-change-badge down" aria-label="${esc(t('card_rank_down_aria', lang, { n: Math.abs(change) }))}">-${Math.abs(change)}</span>`;
-                                return '';
-                            })() :
-                            `<span class="rank-change-badge new" aria-label="${esc(t('card_new_aria', lang))}">${esc(t('card_new_badge', lang))}</span>`
-                        }
+                        ${renderRankChange(book, rank, lang, 'rank-change-badge')}
                         <h3 class="list-item-title">${esc(title)}</h3>
                     </div>
                     <p class="list-item-author">${esc(book.author)}</p>
@@ -829,19 +849,20 @@ function handleCardClick(e) {
         if (typeof shareBook === 'function') shareBook(title, author);
         return;
     }
-    const amazonLink = e.target.closest('.btn-amazon');
-    if (amazonLink) return;
+    // Native links retain their source category and browser keyboard behavior.
+    if (e.target.closest('a[href]')) return;
     const card = e.target.closest('.card[data-index], .list-item[data-index]');
     if (!card) return;
     const index = card.getAttribute('data-index');
-    const category = window.currentCategory || window.APP_CONFIG.currentCategory;
-    window.location.href = `/book/${index}?category=${category}`;
+    const category = card.getAttribute('data-category') || window.currentCategory || window.APP_CONFIG.currentCategory;
+    window.location.href = `/book/${encodeURIComponent(index)}?category=${encodeURIComponent(category)}`;
 }
 
 if (booksGrid) booksGrid.addEventListener('click', handleCardClick);
 if (booksList) booksList.addEventListener('click', handleCardClick);
 
 function handleCardKeydown(e) {
+    if (e.target.closest('a[href]')) return;
     if (e.key === 'Enter' || e.key === ' ') {
         const card = e.target.closest('.card[data-index], .list-item[data-index]');
         if (card) {

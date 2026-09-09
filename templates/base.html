@@ -69,7 +69,7 @@
     }
     </script>
 </head>
-<body>
+<body{% if request.endpoint == 'main.index' %} class="charts-page"{% endif %}>
     <!-- SVG Icons Sprite (内联，避免 fetch/CSP/时序问题导致图标空白) -->
     <div id="svg-icons-sprite" style="display:none" aria-hidden="true">
         {% include 'icons.svg' %}
