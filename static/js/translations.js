@@ -46,6 +46,7 @@ const TRANSLATIONS = {
         'no_description': '暂无简介',
         // 首页
         'page_title_bestsellers': '纽约时报畅销书排行榜',
+        'page_title_awards': '国际图书奖项榜单',
         'filter_category': '图书分类',
         'filter_search': '搜索',
         'search_placeholder': '搜索书名或作者...',
@@ -245,6 +246,7 @@ const TRANSLATIONS = {
         'no_description': 'No description',
         // Home
         'page_title_bestsellers': 'NYT Bestsellers',
+        'page_title_awards': 'International Book Awards',
         'filter_category': 'Category',
         'filter_search': 'Search',
         'search_placeholder': 'Search title or author...',
