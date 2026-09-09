@@ -41,7 +41,7 @@
     <script src="{{ url_for('static', filename=dist_url('book-i18n.js')) }}"></script>
     {% block structured_data %}{% endblock %}
 </head>
-<body{% if request.endpoint == 'main.index' %} class="mobile-charts-page"{% endif %}>
+<body{% if request.endpoint == 'main.index' %} class="mobile-charts-page"{% elif request.endpoint == 'main.awards' %} class="mobile-charts-page mobile-awards-page"{% endif %}>
     {# Toast 通知容器 #}
     <div class="m-toast-container" id="m-toast-container" aria-live="polite"></div>
 

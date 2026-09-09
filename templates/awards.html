@@ -5,106 +5,134 @@
 
 {% block title %}{% if selected_award %}{{ selected_award }} - {% endif %}{{ _('国际图书奖项榜单 - BookRank') }}{% endblock %}
 
-{% block breadcrumbs %}
-{% from '_breadcrumbs.html' import breadcrumbs %}
-{% set crumb_items = [{'label': _('首页'), 'url': url_for('main.index')}, {'label': _('获奖书单'), 'url': url_for('main.awards')}] %}
-{% if selected_award %}{% set _ = crumb_items.append({'label': selected_award, 'url': url_for('main.awards', award=selected_award)}) %}{% endif %}
-{% if selected_year %}{% set _ = crumb_items.append({'label': selected_year ~ _('年'), 'url': url_for('main.awards', award=selected_award, year=selected_year)}) %}{% endif %}
-{{ breadcrumbs(crumb_items, csp_nonce()) }}
-{% endblock %}
-
-{% block sidebar %}
-<aside aria-label="{{ _('奖项分类') }}">
-<div class="sidebar-section">
-    <h3 class="sidebar-title">{{ _('奖项分类') }}</h3>
-    <ul class="sidebar-menu" >
-        <li class="sidebar-item" >
-            <a href="{{ url_for('main.awards') }}"
-               class="sidebar-link {% if not selected_award %}active{% endif %}"
-               
-               {% if not selected_award %}aria-current="page"{% endif %}>
-                <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
-                <span>{{ _('全部奖项') }}</span>
-            </a>
-        </li>
-        {% for award in awards %}
-        <li class="sidebar-item" >
-            <a href="{{ url_for('main.awards', award=award.name) }}"
-               class="sidebar-link {% if selected_award == award.name %}active{% endif %}"
-               
-               {% if selected_award == award.name %}aria-current="page"{% endif %}>
-                <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
-                <span>{{ award.name }}</span>
-            </a>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
-
-<div class="sidebar-section">
-    <h3 class="sidebar-title">{{ _('年份筛选') }}</h3>
-    <ul class="sidebar-menu" >
-        <li class="sidebar-item" >
-            <a href="{{ url_for('main.awards', award=selected_award) }}"
-               class="sidebar-link {% if not selected_year %}active{% endif %}"
-               
-               aria-current="{% if not selected_year %}page{% endif %}">
-                <svg class="icon" width="18" height="18"><use href="#icon-calendar"/></svg>
-                <span>{{ _('全部年份') }}</span>
-            </a>
-        </li>
-        {% for year in years %}
-        <li class="sidebar-item" >
-            <a href="{{ url_for('main.awards', award=selected_award, year=year) }}"
-               class="sidebar-link {% if selected_year == year %}active{% endif %}"
-               
-               {% if selected_year == year %}aria-current="page"{% endif %}>
-                <svg class="icon" width="18" height="18"><use href="#icon-calendar"/></svg>
-                <span>{{ year }}{{ _('年') }}</span>
-            </a>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
-
-<div class="sidebar-section">
-    <h3 class="sidebar-title">{{ _('统计信息') }}</h3>
-    <div class="sidebar-stats" aria-label="{{ _('统计数据') }}">
-        <div class="stat-item">
-            <span class="stat-value">{{ total_books }}</span>
-            <span class="stat-label">{{ _('本图书') }}</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value">{{ awards|length }}</span>
-            <span class="stat-label">{{ _('个奖项') }}</span>
-        </div>
-    </div>
-</div>
-</aside>
-{% endblock %}
+{# 奖项导航由目录磁贴与筛选栏承担，侧边栏留空并在 awards.css 中隐藏 #}
+{% block sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<header class="page-header">
-    <h1 class="page-title">
-        <svg class="icon text-gold" width="24" height="24"><use href="#icon-trophy"/></svg>
-        {% if selected_award %}
-            {{ selected_award }}
-        {% else %}
-            {{ _('国际图书奖项榜单') }}
+{% set _l = get_locale() %}
+{% set is_browsing = not (selected_award or selected_year or selected_category or search_query) %}
+
+{# 书卡：横向书列与主列表共用。书列不带 data-isbn，避免与主列表重复注册翻译 #}
+{% macro award_book_card(book, in_rail=false) %}
+{% set detail_url = url_for('main.award_book_detail', book_id=book.id) %}
+{% set shown_title = (book.title_zh or book.title_en or book.title) if _l == 'zh' else (book.title_en or book.title) %}
+<article class="card card-animate"
+         {% if not in_rail %}data-award-book-id="{{ book.id }}" tabindex="0" role="button"
+         aria-label="{{ book.title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}"{% endif %}>
+    <div class="card-image">
+        <div class="cover-frame">
+            <a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ shown_title }}{{ _('》封面') }}">
+                <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
+                     alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
+                     loading="lazy"
+                     width="280"
+                     height="420"
+                     data-original="{{ book.cover_original_url or '' }}"
+                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            </a>
+        </div>
+        {% if book.year %}
+        <span class="awards-cover-year">{{ book.year }}</span>
         {% endif %}
+        {% if not in_rail %}
+        <button class="card-favorite btn-favorite"
+                data-book-id="{{ book.id }}"
+                aria-label="{{ _('收藏') }} {{ book.title }}"
+                aria-pressed="false">
+            <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="card-content">
+        <span class="card-award-tag">{{ book.award_name }}</span>
+        {% if in_rail %}
+        <h3 class="card-title">{{ shown_title }}</h3>
+        {% else %}
+        <h3 class="card-title"
+            title="{{ book.title_en or book.title }}"
+            data-en="{{ book.title_en or book.title }}"
+            data-zh="{{ book.title_zh or book.title_en or book.title }}"
+            data-isbn="{{ book.isbn13 or '' }}">
+            <a href="{{ detail_url }}">{{ shown_title }}</a>
+        </h3>
+        {% endif %}
+        <p class="card-author">{{ book.author }}</p>
+
+        {% set shown_desc = (book.description_zh or book.description) if _l == 'zh' else book.description %}
+        {% if shown_desc %}
+        <p class="card-desc">{{ shown_desc[:100] }}{% if shown_desc|length > 100 %}...{% endif %}</p>
+        {% endif %}
+    </div>
+</article>
+{% endmacro %}
+
+<!-- Masthead -->
+<header class="page-header">
+    <p class="charts-kicker">AWARDS &amp; ACCOLADES</p>
+    <h1 class="page-title">
+        Award <span>Winners</span>
     </h1>
+    <p class="charts-source" data-i18n="page_title_awards">{{ _('国际图书奖项榜单') }}</p>
     <p class="page-subtitle">
         {% if selected_award %}
-            {{ selected_award }}{{ _('获奖图书展示') }}
+            {{ selected_award }} {{ _('获奖图书展示') }}{% if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
         {% else %}
-            {{ _('汇集全球最具影响力的图书奖项') }}
-        {% endif %}
-        {% if selected_year %}
-            · {{ selected_year }}{{ _('年') }}
+            {{ _('汇集全球最具影响力的图书奖项') }} · {{ total_books }} {{ _('本图书') }} · {{ awards|length }} {{ _('个奖项') }}
         {% endif %}
     </p>
 </header>
+
+<nav class="charts-sections" aria-label="{{ _('快速链接') }}">
+    <a href="{{ url_for('main.index') }}" data-i18n="page_title_bestsellers">{{ _('纽约时报畅销书排行榜') }}</a>
+    <a href="{{ url_for('main.awards') }}" aria-current="page" data-i18n="nav_awards">{{ _('获奖书单') }}</a>
+    <a href="{{ url_for('main.new_books') }}" data-i18n="nav_new_books">{{ _('新书速递') }}</a>
+</nav>
+
+<!-- Award seal strip -->
+{% if awards %}
+<nav class="awards-seal-strip" aria-label="{{ _('奖项速览') }}">
+    {% for award in awards %}
+    <a href="{{ url_for('main.awards', award=award.name) }}">{{ award.name_en or award.name }}</a>
+    {% endfor %}
+</nav>
+{% endif %}
+
+<!-- Browse by award -->
+{% if awards %}
+<section class="awards-directory" aria-label="{{ _('奖项分类') }}">
+    {% for award in awards %}
+    <a href="{{ url_for('main.awards', award=award.name) }}"
+       class="award-tile"
+       {% if selected_award == award.name %}aria-current="page"{% endif %}>
+        <span class="award-tile-name">{{ award.name }}</span>
+        {% set _tile_meta %}{{ award.country or '' }}{% if award.established_year %}{{ ' · ' if award.country else '' }}{{ award.established_year }}{% endif %}{% endset %}
+        {% if _tile_meta.strip() %}<span class="award-tile-meta">{{ _tile_meta }}</span>{% endif %}
+        <span class="award-tile-count">{{ award.book_count }} {{ _('本图书') }}</span>
+    </a>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- Per-award shelves -->
+{% for section in award_sections %}
+<section class="award-section" aria-label="{{ section.award.name }}">
+    <div class="award-section-head">
+        <h2 class="award-section-title">{{ section.award.name }}</h2>
+        <a class="award-section-more" href="{{ url_for('main.awards', award=section.award.name) }}">{{ _('查看更多') }} &rarr;</a>
+    </div>
+    <div class="award-rail-shell">
+        <button class="award-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+        <div class="award-rail">
+            {% for book in section.books %}
+            <div class="award-rail__item">{{ award_book_card(book, in_rail=true) }}</div>
+            {% endfor %}
+        </div>
+        <button class="award-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+    </div>
+</section>
+{% endfor %}
 
 <!-- Filter Bar -->
 <section class="filter-bar" aria-label="{{ _('筛选选项') }}">
@@ -170,140 +198,61 @@
         </button>
     </div>
 
-    <div class="view-toggle" role="group" aria-label="视图切换">
+    <div class="view-toggle" role="group" aria-label="{{ _('视图切换') }}">
         <button class="btn btn-icon {% if view_mode == 'grid' or not view_mode %}active{% endif %}"
                 id="view-grid"
-                title="网格视图"
-                aria-label="切换到网格视图"
+                title="{{ _('网格视图') }}"
+                aria-label="{{ _('切换到网格视图') }}"
                 aria-pressed="{% if view_mode == 'grid' or not view_mode %}true{% else %}false{% endif %}">
             <svg class="icon" width="18" height="18"><use href="#icon-grid"/></svg>
         </button>
         <button class="btn btn-icon {% if view_mode == 'list' %}active{% endif %}"
                 id="view-list"
-                title="列表视图"
-                aria-label="切换到列表视图"
+                title="{{ _('列表视图') }}"
+                aria-label="{{ _('切换到列表视图') }}"
                 aria-pressed="{% if view_mode == 'list' %}true{% else %}false{% endif %}">
             <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
         </button>
     </div>
 </section>
 
-<!-- Awards Info Cards -->
-{% if not selected_award %}
-<section class="awards-grid" aria-label="奖项列表">
-    {% for award in awards %}
-    <a href="{{ url_for('main.awards', award=award.name) }}"
-       class="award-card card-animate"
-
-       aria-label="{{ award.name }} - {{ award.book_count }}本图书">
-        <div class="award-icon" aria-hidden="true">
-            <svg class="icon" width="32" height="32"><use href="#icon-trophy"/></svg>
-        </div>
-        <div class="award-info">
-            <h3>{{ award.name }}</h3>
-            <p>{{ award.description[:60] }}{% if award.description|length > 60 %}...{% endif %}</p>
-            <div class="award-meta">
-                <span class="award-country">{{ award.country }}</span>
-                <span class="award-count">{{ award.book_count }}本图书</span>
-            </div>
-        </div>
-    </a>
-    {% endfor %}
-</section>
+<!-- Results -->
+{% if not is_browsing %}
+<div class="awards-active-filter">
+    <span>{{ _('当前筛选') }}：{{ selected_award or _('全部奖项') }}
+        {%- if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
+        {%- if selected_category %} · {{ selected_category }}{% endif %}
+        {%- if search_query %} · &ldquo;{{ search_query }}&rdquo;{% endif %}</span>
+    <a href="{{ url_for('main.awards') }}" aria-label="{{ _('清除筛选') }}">&times;</a>
+</div>
 {% endif %}
 
-{% set _l = get_locale() %}
+<div class="awards-results-head">
+    <h2 class="awards-results-title">{{ _('获奖图书') }}</h2>
+    <span class="awards-results-count">{{ total_books }} {{ _('本图书') }}</span>
+</div>
+
+{% set grid_active = view_mode != 'list' %}
 <!-- Books Grid View -->
-<section class="books-grid" id="books-grid" aria-label="图书网格视图">
+<section class="books-grid {% if grid_active %}active{% endif %}" id="books-grid" aria-label="{{ _('图书网格视图') }}">
     {% for book in books %}
-    {% set detail_url = url_for('main.award_book_detail', book_id=book.id) %}
-    {% set display_title = book.title_zh or book.title %}
-    <article class="card card-animate"
-             data-award-book-id="{{ book.id }}"
-             tabindex="0"
-             role="button"
-             aria-label="{{ display_title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}">
-        <div class="card-image">
-            <div class="cover-frame">
-                <a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ display_title }}{{ _('》封面') }}">
-                    <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
-                         alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
-                         loading="lazy"
-                         width="280"
-                         height="240"
-                         data-original="{{ book.cover_original_url or '' }}"
-                         data-fallback="{{ url_for('static', filename='default-cover.png') }}">
-                </a>
-            </div>
-
-            <!-- Award Badge -->
-            <span class="card-badge award" aria-label="获奖图书">
-                <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
-            </span>
-
-            <!-- Year Badge -->
-            <span class="card-badge year">{{ book.year }}</span>
-
-            <!-- Favorite Button -->
-            <button class="card-favorite btn-favorite"
-                    data-book-id="{{ book.id }}"
-                    aria-label="收藏 {{ book.title }}"
-                    aria-pressed="false">
-                <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
-            </button>
-        </div>
-
-        <div class="card-content">
-            <span class="card-award-tag">{{ book.award_name }}</span>
-            {% if _l == 'zh' %}
-            <h3 class="card-title"
-                title="{{ book.title_zh or book.title_en or book.title }}"
-                data-en="{{ book.title_en or book.title }}"
-                data-zh="{{ book.title_zh or book.title_en or book.title }}"
-                data-isbn="{{ book.isbn13 or '' }}">
-                <a href="{{ detail_url }}">{{ book.title_zh or book.title_en or book.title }}</a>
-            </h3>
-            {% else %}
-            <h3 class="card-title"
-                title="{{ book.title }}"
-                data-en="{{ book.title_en or book.title }}"
-                data-zh="{{ book.title_zh or book.title_en or book.title }}"
-                data-isbn="{{ book.isbn13 or '' }}">
-                <a href="{{ detail_url }}">{{ book.title }}</a>
-            </h3>
-            {% endif %}
-            <p class="card-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
-
-            <div class="card-meta">
-                <span class="card-tag">{{ book.category }}</span>
-                <span class="card-tag">{{ book.year }}年</span>
-            </div>
-
-            {% if book.description_zh or book.description %}
-            {% if _l == 'zh' %}
-            <p class="card-desc">{{ (book.description_zh or book.description)[:100] }}{% if (book.description_zh or book.description)|length > 100 %}...{% endif %}</p>
-            {% else %}
-            <p class="card-desc">{{ (book.description)[:100] }}{% if (book.description)|length > 100 %}...{% endif %}</p>
-            {% endif %}
-            {% endif %}
-        </div>
-    </article>
+    {{ award_book_card(book) }}
     {% endfor %}
 </section>
 
 <!-- Books List View -->
-<section class="books-list" id="books-list" aria-label="图书列表视图">
+<section class="books-list {% if not grid_active %}active{% endif %}" id="books-list" aria-label="{{ _('图书列表视图') }}">
     {% for book in books %}
     {% set detail_url = url_for('main.award_book_detail', book_id=book.id) %}
-    {% set display_title = book.title_zh or book.title %}
+    {% set shown_title = (book.title_zh or book.title_en or book.title) if _l == 'zh' else (book.title_en or book.title) %}
     <article class="list-item card-animate"
              data-award-book-id="{{ book.id }}"
              tabindex="0"
              role="button"
-             aria-label="{{ display_title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}">
-        <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ display_title }}{{ _('》封面') }}">
+             aria-label="{{ shown_title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}">
+        <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ shown_title }}{{ _('》封面') }}">
             <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
-                 alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
+                 alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="100"
                  height="150"
@@ -314,36 +263,25 @@
         <div class="list-item-content">
             <div class="list-item-header">
                 <span class="list-item-award">{{ book.award_name }}</span>
-                {% if _l == 'zh' %}
                 <h3 class="list-item-title"
+                    title="{{ book.title_en or book.title }}"
                     data-en="{{ book.title_en or book.title }}"
                     data-zh="{{ book.title_zh or book.title_en or book.title }}"
                     data-isbn="{{ book.isbn13 or '' }}">
-                    <a href="{{ detail_url }}">{{ book.title_zh or book.title_en or book.title }}</a>
+                    <a href="{{ detail_url }}">{{ shown_title }}</a>
                 </h3>
-                {% else %}
-                <h3 class="list-item-title"
-                    data-en="{{ book.title_en or book.title }}"
-                    data-zh="{{ book.title_zh or book.title_en or book.title }}"
-                    data-isbn="{{ book.isbn13 or '' }}">
-                    <a href="{{ detail_url }}">{{ book.title }}</a>
-                </h3>
-                {% endif %}
             </div>
 
-            <p class="list-item-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
+            <p class="list-item-author">{{ book.author }}</p>
 
-            {% if book.description_zh or book.description %}
-            {% if _l == 'zh' %}
-            <p class="list-item-desc">{{ book.description_zh or book.description }}</p>
-            {% else %}
-            <p class="list-item-desc">{{ book.description }}</p>
-            {% endif %}
+            {% set shown_desc = (book.description_zh or book.description) if _l == 'zh' else book.description %}
+            {% if shown_desc %}
+            <p class="list-item-desc">{{ shown_desc }}</p>
             {% endif %}
 
             <div class="list-item-meta">
                 <span class="card-tag">{{ book.category }}</span>
-                <span class="card-tag">{{ book.year }}年</span>
+                <span class="card-tag">{{ book.year }}{{ _('年') }}</span>
                 {% if book.isbn13 %}
                 <span class="card-tag">ISBN: {{ book.isbn13 }}</span>
                 {% endif %}
@@ -353,7 +291,7 @@
         <div class="list-item-actions">
             <button class="btn btn-icon btn-outline btn-favorite"
                     data-book-id="{{ book.id }}"
-                    aria-label="收藏 {{ book.title }}"
+                    aria-label="{{ _('收藏') }} {{ book.title }}"
                     aria-pressed="false">
                 <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
             </button>
@@ -369,6 +307,37 @@
     <h2 data-i18n="no_data">{{ _('暂无数据') }}</h2>
     <p data-i18n="empty_retry_hint">{{ _('请尝试切换筛选条件或稍后重试') }}</p>
 </section>
+{% endif %}
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+{% set _page = page %}
+{% set _filters = {'award': selected_award, 'year': selected_year, 'category': selected_category, 'search': search_query, 'view': view_mode} %}
+{% set _base = {} %}
+{% for key, val in _filters.items() if val %}{% set _ = _base.update({key: val}) %}{% endfor %}
+{% set _from = [1, _page - 2]|max %}
+{% set _to = ([total_pages, _page + 2]|min) + 1 %}
+<nav class="awards-pagination" aria-label="{{ _('分页导航') }}">
+    {% if has_prev %}
+    <a href="{{ url_for('main.awards', page=_page - 1, **_base) }}" rel="prev" aria-label="{{ _('上一页') }}">&lsaquo;</a>
+    {% else %}
+    <span class="is-disabled" aria-hidden="true">&lsaquo;</span>
+    {% endif %}
+
+    {% for p in range(_from, _to) %}
+        {% if p == _page %}
+        <span class="is-current" aria-current="page">{{ p }}</span>
+        {% else %}
+        <a href="{{ url_for('main.awards', page=p, **_base) }}">{{ p }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if has_next %}
+    <a href="{{ url_for('main.awards', page=_page + 1, **_base) }}" rel="next" aria-label="{{ _('下一页') }}">&rsaquo;</a>
+    {% else %}
+    <span class="is-disabled" aria-hidden="true">&rsaquo;</span>
+    {% endif %}
+</nav>
 {% endif %}
 
 <!-- Quick Link to Bestsellers -->
@@ -475,9 +444,10 @@
     async function translateSingleBookByIsbn(isbn) {
         if (!isbn) return;
         // 精确定位标题元素，避免匹配到其他 data-isbn 元素
-        var titleEl = document.querySelector('.card-title[data-isbn="' + isbn + '"], .list-item-title[data-isbn="' + isbn + '"]');
-        if (!titleEl) return;
-        await translateSingleBook(0, titleEl, isbn);
+        var titleEls = document.querySelectorAll('.card-title[data-isbn="' + isbn + '"], .list-item-title[data-isbn="' + isbn + '"]');
+        for (var i = 0; i < titleEls.length; i++) {
+            await translateSingleBook(0, titleEls[i], isbn);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -485,7 +455,7 @@
 
         if (typeof BookI18n !== 'undefined') {
             var awardBooks = [];
-            var titleEls = document.querySelectorAll('.card-title, .list-item-title');
+            var titleEls = document.querySelectorAll('.card-title[data-isbn], .list-item-title[data-isbn]');
             for (var i = 0; i < titleEls.length; i++) {
                 var el = titleEls[i];
                 var isbn = el.dataset.isbn || '';
@@ -579,6 +549,18 @@
 
         if (booksGrid) booksGrid.addEventListener('keydown', handleCardKeydown);
         if (booksList) booksList.addEventListener('keydown', handleCardKeydown);
+
+        // 奖项书列：左右箭头按一屏滚动
+        document.querySelectorAll('.award-rail-shell').forEach(function(shell) {
+            const rail = shell.querySelector('.award-rail');
+            if (!rail) return;
+            shell.querySelectorAll('.award-rail-nav').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const dir = btn.classList.contains('prev') ? -1 : 1;
+                    rail.scrollBy({ left: dir * Math.max(rail.clientWidth - 80, 200), behavior: 'smooth' });
+                });
+            });
+        });
     });
 
     // Change award filter
