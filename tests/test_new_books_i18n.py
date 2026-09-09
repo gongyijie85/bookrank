@@ -33,7 +33,6 @@ NB_KEYS = [
     'nb_header_subtitle',
     'nb_total_new_books_suffix',
     'nb_publishers_suffix',
-    'nb_recent_7d_label',
     'nb_filter_publisher_label',
     'nb_filter_publisher_all',
     'nb_filter_category_label',
@@ -107,7 +106,6 @@ class TestNewBookPoFiles:
     """msgid 完整性。"""
 
     REQUIRED_MSGIDS = [
-        '近7天出版',
         '最近7天出版',
         '最近30天出版',
         '最近90天出版',
