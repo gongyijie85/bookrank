@@ -78,24 +78,24 @@ async function buildOnce() {
 
 function cleanup() {
   if (!existsSync(DIST)) return;
+  // ponytail: manifest is source of truth; old hashed bundles not in manifest get purged
+  let keep = new Set([
+    'manifest.json',
+    'app.min.css',
+    'categories.min.js',
+    'translations.min.js',
+    'book-i18n.min.js',
+    'base.min.js',
+    'index.min.js',
+  ]);
+  try {
+    const manifest = JSON.parse(readFileSync(join(DIST, 'manifest.json'), 'utf-8'));
+    for (const name of Object.values(manifest)) keep.add(name);
+  } catch {
+    // no manifest yet: fall back to keeping current prefix files (first build)
+  }
   for (const f of readdirSync(DIST)) {
-    if (
-      f === 'manifest.json' ||
-      f === 'app.min.css' ||
-      f === 'categories.min.js' ||
-      f === 'translations.min.js' ||
-      f === 'book-i18n.min.js' ||
-      f === 'base.min.js' ||
-      f === 'index.min.js' ||
-      f.startsWith('app.') ||
-      f.startsWith('categories.') ||
-      f.startsWith('translations.') ||
-      f.startsWith('book-i18n.') ||
-      f.startsWith('base.') ||
-      f.startsWith('index.')
-    ) {
-      continue;
-    }
+    if (keep.has(f)) continue;
     rmSync(join(DIST, f), { force: true });
   }
 }
