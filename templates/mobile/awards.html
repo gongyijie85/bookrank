@@ -3,13 +3,13 @@
 {% block title %}{{ _('图书奖项榜单') }} - 书榜{% endblock %}
 
 {% block header %}
-<header class="m-header">
-    <a href="/" class="m-header-btn" aria-label="{{ _('返回') }}">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </a>
-    <span class="m-header-title">{{ _('奖项榜单') }}</span>
-    <div class="m-header-placeholder"></div>
-</header>
+<nav class="m-top-nav">
+    <div class="m-top-nav-copy">
+        <span class="m-top-nav-kicker">{{ _('国际图书奖项榜单') }}</span>
+        <h1 class="m-top-nav-title">Award <span>Winners</span></h1>
+        <span class="m-top-nav-subtitle">{{ total_books }} {{ _('本图书') }} · {{ awards|length }} {{ _('个奖项') }}</span>
+    </div>
+</nav>
 {% endblock %}
 
 {% macro awards_filter_url(award=none, year=none, category=none) %}

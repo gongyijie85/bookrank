@@ -282,6 +282,65 @@ def _parse_awards_params(args) -> dict:
     }
 
 
+def _shape_award_book(book) -> dict:
+    """将 AwardBook ORM 对象塑形为 awards 模板所需的 dict。
+
+    title_en 取原始 DB title 供前端 data-en 使用；若原始 title 是 ISBN 脏数据
+    则退回 display_title。title_zh 同理，ISBN 脏数据直接清空。
+    """
+    from ..models.schemas import AwardBook
+
+    raw_title = (book.title or '').strip()
+    title_en = (
+        book.display_title or '' if AwardBook._looks_like_isbn(raw_title) else (raw_title or book.display_title or '')
+    )
+
+    raw_zh = quick_clean_translation(book.title_zh, 'title')
+    title_zh = '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or '')
+
+    return {
+        'id': book.id,
+        'title': book.display_title,
+        'title_en': title_en,
+        'title_zh': title_zh,
+        'description': book.description,
+        'description_zh': quick_clean_translation(book.description_zh, 'description'),
+        'details': book.details,
+        'cover_local_path': book.cover_local_path,
+        'cover_original_url': book.cover_original_url,
+        'isbn13': book.isbn13,
+        'isbn10': book.isbn10,
+        'publisher': book.publisher,
+        'publication_year': book.publication_year,
+        'year': book.year,
+        'category': book.category,
+        'award_name': book.award.name if book.award else '未知奖项',
+        'buy_links': book.buy_links,
+    }
+
+
+def _build_award_sections(award_service, awards_list: list, limit: int = 12) -> list:
+    """按奖项分组的精选书列（亚马逊获奖图书页的横向书列区块）。
+
+    仅在无任何筛选条件时调用；每个奖项一次带 limit 的查询，次数受奖项数约束。
+    """
+    sections: list = []
+    for award in awards_list:
+        try:
+            books, _total = award_service.get_award_books(
+                award_id=award.id,
+                include_displayable_only=True,
+                page=1,
+                limit=limit,
+            )
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'奖项书列查询失败 award={award.name}: {e}', level='warning')
+            continue
+        if books:
+            sections.append({'award': award, 'books': [_shape_award_book(b) for b in books]})
+    return sections
+
+
 def _load_awards_data(award_service, params: dict) -> dict:
     """加载 awards() 渲染所需的所有数据，返回模板上下文 dict（含分页元信息）"""
     awards_list: list = []
@@ -326,43 +385,8 @@ def _load_awards_data(award_service, params: dict) -> dict:
             limit=params['per_page'],
         )
 
-        from ..models.schemas import AwardBook
-
         for book in books:
-            # title_en: 原始 DB title 供前端 data-en 使用；
-            # 若原始 title 是 ISBN 脏数据则退回 display_title
-            raw_title = (book.title or '').strip()
-            title_en = (
-                book.display_title or ''
-                if AwardBook._looks_like_isbn(raw_title)
-                else (raw_title or book.display_title or '')
-            )
-
-            # title_zh: 清理后的中文标题；ISBN 脏数据直接清空
-            raw_zh = quick_clean_translation(book.title_zh, 'title')
-            title_zh = '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or '')
-
-            books_data.append(
-                {
-                    'id': book.id,
-                    'title': book.display_title,
-                    'title_en': title_en,
-                    'title_zh': title_zh,
-                    'description': book.description,
-                    'description_zh': quick_clean_translation(book.description_zh, 'description'),
-                    'details': book.details,
-                    'cover_local_path': book.cover_local_path,
-                    'cover_original_url': book.cover_original_url,
-                    'isbn13': book.isbn13,
-                    'isbn10': book.isbn10,
-                    'publisher': book.publisher,
-                    'publication_year': book.publication_year,
-                    'year': book.year,
-                    'category': book.category,
-                    'award_name': book.award.name if book.award else '未知奖项',
-                    'buy_links': book.buy_links,
-                }
-            )
+            books_data.append(_shape_award_book(book))
 
         book_counts = award_service.get_book_counts_by_award(displayable_only=True)
         for award_item in awards_list:
@@ -377,9 +401,15 @@ def _load_awards_data(award_service, params: dict) -> dict:
     page = params['page']
     total_pages = max(1, (total_books + per_page - 1) // per_page) if total_books else 1
 
+    is_browsing = not (
+        params['selected_award'] or params['selected_year'] or params['selected_category'] or params['search_query']
+    )
+    award_sections = _build_award_sections(award_service, awards_list) if is_browsing else []
+
     return {
         'awards': awards_list,
         'books': books_data,
+        'award_sections': award_sections,
         'years': years,
         'categories': categories,
         'selected_award': params['selected_award'],

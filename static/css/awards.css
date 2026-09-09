@@ -1,0 +1,363 @@
+/* Awards: Amazon-style award-winners structure in the Charts editorial tone.
+   Layered on top of .charts-page (shared masthead/filter/card tone), so this
+   file only carries what is specific to the awards listing. */
+
+/* Directory tiles and the filter bar replace the sidebar nav on this page. */
+.awards-page .sidebar,
+.awards-page .sidebar-toggle {
+    display: none !important;
+}
+
+/* --- Masthead: award seal strip, the monochrome take on Amazon's logo wall --- */
+.awards-seal-strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 880px;
+    margin: 0 auto 40px;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.awards-seal-strip a {
+    padding: 11px 18px;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.awards-seal-strip a:last-child { border-right: 0; }
+.awards-seal-strip a:hover,
+.awards-seal-strip a[aria-current="page"] { color: var(--text-primary); background: var(--bg-card); }
+
+/* --- Award directory: bordered tiles, Amazon's browse-by-award grid --- */
+.awards-directory {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+    margin-bottom: 56px;
+}
+
+.award-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 132px;
+    padding: 24px 18px;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+    text-align: center;
+    text-decoration: none;
+    transition: background 180ms ease;
+}
+
+.award-tile:hover { background: var(--bg-secondary); }
+.award-tile[aria-current="page"] { background: var(--text-primary); }
+.award-tile[aria-current="page"] .award-tile-name,
+.award-tile[aria-current="page"] .award-tile-meta { color: var(--text-white); }
+.award-tile:focus-visible { outline: 2px solid var(--link-blue); outline-offset: -3px; }
+.award-tile-name {
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.award-tile-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+}
+
+.award-tile-count {
+    display: inline-block;
+    margin-top: 2px;
+    padding: 3px 9px;
+    border-radius: var(--radius-full);
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* --- Per-award rails: Amazon's "[award] winners" horizontal shelves --- */
+.award-section { margin-bottom: 48px; }
+.award-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 12px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.award-section-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 27px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+.award-section-more {
+    color: var(--link-blue);
+    font-size: 13px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.award-section-more:hover { text-decoration: underline; }
+.award-rail-shell { position: relative; }
+.award-rail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 200px;
+    gap: 20px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scroll-behavior: smooth;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+}
+
+.award-rail::-webkit-scrollbar { display: none; }
+.award-rail__item { scroll-snap-align: start; }
+.award-rail__item .card { height: 100%; }
+.award-rail-nav {
+    position: absolute;
+    top: 40%;
+    z-index: 2;
+    display: none;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    box-shadow: var(--shadow-subtle);
+}
+
+.award-rail-nav.prev { left: -14px; }
+.award-rail-nav.next { right: -14px; }
+.award-rail-nav:hover { border-color: var(--text-muted); }
+.award-rail-shell:hover .award-rail-nav,
+.award-rail-nav:focus-visible { display: flex; }
+
+/* Covers: bounded height like Charts, with a 2:3 portrait frame inside. */
+.awards-page .card-image {
+    height: 290px;
+    aspect-ratio: auto;
+    padding: 18px 18px 12px;
+    overflow: visible;
+    background: transparent;
+}
+
+.awards-page .card-image .cover-frame {
+    position: relative;
+    width: auto;
+    max-width: 100%;
+    height: 100%;
+    aspect-ratio: 2 / 3;
+    background: transparent;
+    box-shadow: none;
+}
+
+.awards-page .award-rail .card-image { height: 252px; padding: 14px 14px 10px; }
+.awards-page .award-rail .card-content { padding: 14px 16px 18px; }
+.awards-page .award-rail .card-title { font-size: 15px; }
+.awards-page .award-rail .card-author { font-size: 12px; }
+.awards-page .award-rail .card-desc { display: none; }
+
+/* --- Year chip on the cover, echoing the Charts "weeks on list" marker --- */
+.awards-cover-year {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    padding: 4px 9px 5px;
+    border-left: 1px solid var(--border-color);
+    color: var(--link-blue);
+    font: 700 15px/1 Georgia, 'Times New Roman', serif;
+    pointer-events: none;
+}
+
+[data-theme="dark"] .awards-cover-year { color: #9dc7ff; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .awards-cover-year { color: #9dc7ff; }
+}
+
+/* --- Dual-view DOM: only the active view is shown --- */
+.awards-page .books-grid:not(.active),
+.awards-page .books-list:not(.active) { display: none; }
+
+.awards-results-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 0 14px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 24px;
+}
+
+.awards-results-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 27px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.awards-results-count { color: var(--text-secondary); font-size: 13px; }
+.awards-active-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 22px;
+    padding: 6px 8px 6px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.awards-active-filter a { color: var(--text-muted); text-decoration: none; }
+.awards-active-filter a:hover { color: var(--text-primary); }
+
+/* --- Main grid: uniform 3-up, unlike Charts' ranked 3 + full-width rows --- */
+.awards-page .books-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.awards-page .card-content { padding: 16px 20px 22px; }
+
+.awards-page .books-grid .card:nth-child(n+4) {
+    grid-column: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.awards-page .books-grid .card:nth-child(n+4) .card-content { padding: 16px 20px 22px; }
+.awards-page .books-grid .card:nth-child(n+4) .card-image { height: 290px; padding: 18px 18px 12px; }
+.awards-page .books-grid .card:nth-child(n+4) .cover-frame { height: 100%; }
+.awards-page .books-grid .card .card-desc {
+    display: -webkit-box;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+.awards-page .card-award-tag {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    line-height: 1.4;
+    text-transform: uppercase;
+}
+
+.awards-page .card-title { font-size: 18px; text-align: left; }
+.awards-page .card-author { text-align: left; }
+.awards-page .card-desc { -webkit-line-clamp: 3; }
+.awards-page .empty-state {
+    padding: 64px 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+}
+
+/* --- Pagination: the listing is paginated server-side but had no controls --- */
+.awards-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.awards-pagination a,
+.awards-pagination span {
+    min-width: 38px;
+    padding: 9px 12px;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.awards-pagination .is-current { border-color: var(--text-primary); background: var(--text-primary); color: var(--text-white); }
+.awards-pagination a:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.awards-pagination .is-disabled { opacity: 0.4; }
+
+@media (max-width: 1200px) {
+    .awards-directory { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .awards-page .books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+    .awards-seal-strip { margin-bottom: 32px; }
+    .awards-seal-strip a { padding: 9px 12px; letter-spacing: 0.1em; }
+    .awards-directory { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 40px; }
+    .award-tile { min-height: 112px; padding: 18px 12px; }
+    .award-section { margin-bottom: 36px; }
+    .award-section-head { flex-wrap: wrap; gap: 6px; }
+    .award-rail { grid-auto-columns: 152px; gap: 14px; }
+    .award-rail-nav { display: none !important; }
+    .awards-page .books-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .awards-page .award-rail { scroll-behavior: auto; }
+    .awards-page .card,
+    .awards-page .card-animate { animation: none; transition: none; opacity: 1; transform: none; }
+}
+
+/* --- Adaptive mobile: same editorial eyebrow treatment as the desktop rails --- */
+.mobile-awards-page .m-badge-primary {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: #8a8a8e;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.mobile-awards-page .m-badge-accent {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: #0066cc;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 13px;
+    font-weight: 700;
+}
