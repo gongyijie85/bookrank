@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-28 21:25+0800\n"
+"POT-Creation-Date: 2026-09-09 14:25+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: zh\n"
@@ -22,171 +22,75 @@ msgstr ""
 msgid "面包屑导航"
 msgstr ""
 
-#: templates/_macros.html:14 templates/_macros.html:35
-#: templates/_macros.html:54 templates/_macros.html:94
-#: templates/_macros.html:106 templates/index.html:127 templates/index.html:139
-#: templates/index.html:194 templates/index.html:227
-#: templates/mobile/index.html:65 templates/mobile/weekly_report_detail.html:21
-#: templates/weekly_report_detail.html:1342
-msgid "第"
-msgstr "第"
-
-#: templates/_macros.html:14 templates/_macros.html:35
-#: templates/_macros.html:43 templates/_macros.html:45
-#: templates/_macros.html:54 templates/_macros.html:94
-#: templates/_macros.html:106 templates/_macros.html:112
-#: templates/_macros.html:114 templates/index.html:127 templates/index.html:139
-#: templates/index.html:145 templates/index.html:147 templates/index.html:194
-#: templates/index.html:211 templates/index.html:217 templates/index.html:219
-#: templates/index.html:227 templates/mobile/index.html:65
-#: templates/mobile/index.html:90 templates/mobile/index.html:92
-#: templates/weekly_report_detail.html:1342
-msgid "名"
-msgstr "名"
-
-#: templates/_macros.html:19 templates/_macros.html:95
-#: templates/_macros.html:97 templates/_macros.html:180
-#: templates/awards.html:248 templates/awards.html:250
-#: templates/awards.html:321 templates/awards.html:323 templates/index.html:128
-#: templates/index.html:130 templates/index.html:199
-#: templates/new_book_detail.html:55
+#: templates/_macros.html:12 templates/awards.html:228
+#: templates/awards.html:230 templates/awards.html:304
+#: templates/awards.html:306 templates/index.html:153 templates/index.html:155
+#: templates/index.html:231 templates/mobile/awards.html:72
+#: templates/mobile/index.html:116 templates/mobile/new_book_detail.html:14
+#: templates/mobile/new_books.html:67 templates/new_book_detail.html:55
 msgid "《"
 msgstr ""
 
-#: templates/_macros.html:19 templates/_macros.html:97
-#: templates/_macros.html:180 templates/awards.html:250
-#: templates/awards.html:323 templates/index.html:130 templates/index.html:199
+#: templates/_macros.html:12 templates/awards.html:230
+#: templates/awards.html:306 templates/index.html:155 templates/index.html:231
+#: templates/mobile/awards.html:72 templates/mobile/index.html:116
+#: templates/mobile/new_books.html:67
 msgid "》封面，作者 "
 msgstr ""
 
-#: templates/_macros.html:19 templates/_macros.html:66
-#: templates/_macros.html:97 templates/_macros.html:125
-#: templates/_macros.html:180 templates/_macros.html:206
-#: templates/awards.html:245 templates/awards.html:250
-#: templates/awards.html:320 templates/awards.html:323 templates/index.html:130
-#: templates/index.html:158 templates/index.html:199 templates/index.html:239
-#: templates/index.html:312 templates/new_books.html:470
+#: templates/_macros.html:12 templates/_macros.html:38
+#: templates/awards.html:225 templates/awards.html:230
+#: templates/awards.html:303 templates/awards.html:306 templates/index.html:155
+#: templates/index.html:186 templates/index.html:231 templates/index.html:274
+#: templates/index.html:348 templates/mobile/awards.html:72
+#: templates/mobile/index.html:25 templates/mobile/index.html:116
+#: templates/mobile/new_book_detail.html:20 templates/new_books.html:415
 #, fuzzy
 msgid "未知作者"
 msgstr "未知"
 
-#: templates/_macros.html:35 templates/mobile/award_book_detail.html:53
-#: templates/mobile/award_book_detail.html:108
-#: templates/weekly_report_detail.html:234
-#: templates/weekly_report_detail.html:1422
-msgid "排名"
-msgstr "排名"
-
-#: templates/_macros.html:43 templates/index.html:217
-msgid "排名上升"
-msgstr "排名上升"
-
-#: templates/_macros.html:45 templates/index.html:219
-msgid "排名下降"
-msgstr "排名下降"
-
-#: templates/_macros.html:48 templates/_macros.html:117
-#: templates/index.html:150 templates/index.html:222
-msgid "新书上榜"
-msgstr "新书上榜"
-
-#: templates/_macros.html:57 templates/_macros.html:140
-#: templates/index.html:174 templates/index.html:230
-msgid "累计"
-msgstr ""
-
-#: templates/_macros.html:57 templates/_macros.html:140
-#: templates/book_detail.html:153 templates/index.html:174
-#: templates/index.html:230 templates/mobile/book_detail.html:100
-#: templates/mobile/index.html:65 templates/mobile/weekly_report_detail.html:21
-#: templates/weekly_report_detail.html:287
-#: templates/weekly_report_detail.html:1341
-msgid "周"
-msgstr "周"
-
-#: templates/_macros.html:95 templates/awards.html:248
-#: templates/awards.html:321 templates/index.html:128
-#: templates/new_book_detail.html:55
-#, fuzzy
-msgid "》封面"
-msgstr "封面"
-
-#: templates/_macros.html:112 templates/index.html:145
-#: templates/mobile/index.html:90 templates/mobile/weekly_report_detail.html:35
-msgid "上升"
-msgstr "上升"
-
-#: templates/_macros.html:114 templates/index.html:147
-#: templates/mobile/index.html:92 templates/mobile/weekly_report_detail.html:39
-msgid "下降"
-msgstr "下降"
-
-#: templates/_macros.html:142 templates/_macros.html:209
-#: templates/_macros.html:211 templates/_macros.html:212
-#: templates/index.html:177 templates/index.html:252
-#: templates/new_books.html:472
-msgid "未知"
-msgstr "未知"
-
-#: templates/_macros.html:142 templates/_macros.html:209
-#: templates/index.html:177 templates/index.html:252
-#, fuzzy
-msgid "未知出版社"
-msgstr "出版社"
-
-#: templates/_macros.html:150
-msgid "收藏"
-msgstr "收藏"
-
-#: templates/_macros.html:157 templates/weekly_reports.html:148
-msgid "分享"
-msgstr "分享"
-
-#: templates/_macros.html:165
-msgid "在亚马逊购买"
-msgstr "在亚马逊购买"
-
-#: templates/_macros.html:195 templates/new_books.html:469
+#: templates/_macros.html:27 templates/new_books.html:414
 #, fuzzy
 msgid "未知书名"
 msgstr "未知"
 
-#: templates/_macros.html:203 templates/new_books.html:469
+#: templates/_macros.html:35 templates/new_books.html:414
 msgid "Unknown Title"
 msgstr ""
 
-#: templates/_macros.html:228 templates/book_detail.html:109
+#: templates/_macros.html:41 templates/_macros.html:43
+#: templates/_macros.html:44 templates/index.html:205 templates/index.html:287
+#: templates/mobile/new_books.html:67 templates/mobile/new_books.html:73
+#: templates/new_books.html:417
+msgid "未知"
+msgstr "未知"
+
+#: templates/_macros.html:41 templates/index.html:205 templates/index.html:287
+#, fuzzy
+msgid "未知出版社"
+msgstr "出版社"
+
+#: templates/_macros.html:57 templates/new_books.html:424
+msgid "刚上市"
+msgstr ""
+
+#: templates/_macros.html:63 templates/new_books.html:429
+msgid "分类未公开"
+msgstr ""
+
+#: templates/_macros.html:67 templates/book_detail.html:110
 #: templates/mobile/book_detail.html:42 templates/mobile/book_detail.html:91
-#: templates/new_book_detail.html:104 templates/new_books.html:484
+#: templates/mobile/new_book_detail.html:27 templates/new_book_detail.html:104
+#: templates/new_books.html:433
 msgid "出版日期"
 msgstr "出版日期"
 
-#: templates/_macros.html:247
-msgid "分页导航"
-msgstr "分页导航"
-
-#: templates/_macros.html:256 templates/mobile/awards.html:69
-#: templates/new_books.html:182 templates/new_books.html:185
-#: templates/new_books.html:516 templates/new_books.html:518
-msgid "上一页"
-msgstr "上一页"
-
-#: templates/_macros.html:260
-msgid "上一页不可用"
-msgstr "上一页不可用"
-
-#: templates/_macros.html:278 templates/mobile/awards.html:73
-#: templates/new_books.html:200 templates/new_books.html:203
-#: templates/new_books.html:532 templates/new_books.html:534
-msgid "下一页"
-msgstr "下一页"
-
-#: templates/_macros.html:282
-msgid "下一页不可用"
-msgstr "下一页不可用"
+#: templates/_macros.html:74 templates/new_books.html:437
+msgid "日期未公开"
+msgstr ""
 
 #: templates/about.html:3 templates/about.html:4 templates/about.html:6
-#: templates/about.html:12 templates/base.html:164 templates/base.html:204
+#: templates/about.html:12 templates/base.html:204 templates/base.html:244
 #: templates/mobile/about.html:3 templates/mobile/about.html:4
 #: templates/mobile/about.html:5 templates/mobile/about.html:12
 #: templates/mobile/profile.html:43
@@ -194,23 +98,23 @@ msgid "关于我们"
 msgstr "关于我们"
 
 #: templates/about.html:11 templates/award_book_detail.html:11
-#: templates/awards.html:10 templates/base.html:89
+#: templates/awards.html:10 templates/base.html:94
 #: templates/book_detail.html:13 templates/error.html:20
-#: templates/mobile/base.html:65 templates/mobile/error.html:9
+#: templates/mobile/base.html:69 templates/mobile/error.html:9
 #: templates/mobile/error.html:28 templates/new_book_detail.html:12
 #: templates/new_books.html:11 templates/profile.html:11
-#: templates/publishers.html:10 templates/weekly_report_detail.html:10
+#: templates/publishers.html:10 templates/weekly_report_detail.html:17
 #: templates/weekly_reports.html:10
 msgid "首页"
 msgstr "首页"
 
-#: templates/about.html:33 templates/base.html:157
+#: templates/about.html:33 templates/base.html:197
 #: templates/mobile/about.html:21
 msgid "关于"
 msgstr "关于"
 
 #: templates/about.html:35 templates/mobile/about.html:22
-#: templates/mobile/index.html:16
+#: templates/mobile/index.html:49
 msgid "汇集全球畅销书榜与图书奖项"
 msgstr "汇集全球畅销书榜与图书奖项"
 
@@ -226,9 +130,9 @@ msgstr "项目介绍"
 msgid "是一个专注于图书排行榜数据聚合与展示的网站。我们实时追踪"
 msgstr "是一个专注于图书排行榜数据聚合与展示的网站。我们实时追踪"
 
-#: templates/about.html:42 templates/index.html:17
+#: templates/about.html:42 templates/index.html:19 templates/index.html:41
 #: templates/mobile/about.html:30 templates/mobile/index.html:3
-#: templates/mobile/index.html:14
+#: templates/mobile/index.html:47
 msgid "纽约时报畅销书排行榜"
 msgstr "纽约时报畅销书排行榜"
 
@@ -357,33 +261,33 @@ msgid "请联系我们及时处理。"
 msgstr "请联系我们及时处理。"
 
 #: templates/award_book_detail.html:11 templates/awards.html:10
-#: templates/awards.html:30 templates/base.html:97
-#: templates/mobile/base.html:73 templates/new_books.html:33
-#: templates/publishers.html:251
+#: templates/base.html:102 templates/base.html:173 templates/index.html:42
+#: templates/mobile/base.html:77
 msgid "获奖书单"
 msgstr "获奖书单"
 
 #: templates/award_book_detail.html:42 templates/error.html:16
 #: templates/mobile/about.html:9 templates/mobile/award_book_detail.html:9
 #: templates/mobile/awards.html:7 templates/mobile/book_detail.html:9
-#: templates/mobile/error.html:26 templates/mobile/publishers.html:9
-#: templates/mobile/search.html:7 templates/mobile/weekly_report_detail.html:9
+#: templates/mobile/error.html:26 templates/mobile/new_book_detail.html:8
+#: templates/mobile/publishers.html:9 templates/mobile/search.html:7
+#: templates/mobile/weekly_report_detail.html:9
 #: templates/mobile/weekly_reports.html:7 templates/new_book_detail.html:45
 msgid "返回"
 msgstr "返回"
 
-#: templates/award_book_detail.html:58 templates/award_book_detail.html:283
+#: templates/award_book_detail.html:58 templates/award_book_detail.html:365
 #: templates/book_detail.html:57
 msgid "封面"
 msgstr "封面"
 
-#: templates/award_book_detail.html:65 templates/award_book_detail.html:283
-#: templates/book_detail.html:69
+#: templates/award_book_detail.html:65 templates/award_book_detail.html:365
+#: templates/book_detail.html:70
 msgid "购买链接"
 msgstr "购买链接"
 
-#: templates/award_book_detail.html:91
-#: templates/mobile/award_book_detail.html:99
+#: templates/award_book_detail.html:91 templates/awards.html:112
+#: templates/awards.html:113 templates/mobile/award_book_detail.html:99
 msgid "奖项"
 msgstr "奖项"
 
@@ -392,18 +296,18 @@ msgstr "奖项"
 msgid "获奖年份"
 msgstr "获奖年份"
 
-#: templates/award_book_detail.html:103
-#: templates/mobile/award_book_detail.html:50
+#: templates/award_book_detail.html:103 templates/awards.html:136
+#: templates/awards.html:137 templates/mobile/award_book_detail.html:50
 #: templates/mobile/award_book_detail.html:105
-#: templates/weekly_report_detail.html:1343
+#: templates/weekly_report_detail.html:1372
 msgid "类别"
 msgstr "类别"
 
-#: templates/award_book_detail.html:109 templates/base.html:105
-#: templates/book_detail.html:99 templates/mobile/award_book_detail.html:90
-#: templates/mobile/base.html:81 templates/mobile/book_detail.html:85
-#: templates/new_book_detail.html:95 templates/new_books.html:58
-#: templates/new_books.html:100
+#: templates/award_book_detail.html:109 templates/base.html:110
+#: templates/book_detail.html:100 templates/mobile/award_book_detail.html:90
+#: templates/mobile/base.html:85 templates/mobile/book_detail.html:85
+#: templates/mobile/new_books.html:28 templates/new_book_detail.html:95
+#: templates/new_books.html:18 templates/new_books.html:60
 msgid "出版社"
 msgstr "出版社"
 
@@ -413,13 +317,14 @@ msgstr "出版社"
 msgid "出版年份"
 msgstr "出版年份"
 
-#: templates/award_book_detail.html:135 templates/book_detail.html:174
+#: templates/award_book_detail.html:135 templates/book_detail.html:175
 #: templates/mobile/award_book_detail.html:64
-#: templates/mobile/book_detail.html:60 templates/new_book_detail.html:149
+#: templates/mobile/book_detail.html:60
+#: templates/mobile/new_book_detail.html:45 templates/new_book_detail.html:149
 msgid "图书简介"
 msgstr "图书简介"
 
-#: templates/award_book_detail.html:138 templates/book_detail.html:179
+#: templates/award_book_detail.html:138 templates/book_detail.html:180
 #: templates/mobile/award_book_detail.html:67
 #: templates/mobile/book_detail.html:63
 msgid "详细信息"
@@ -429,68 +334,82 @@ msgstr "详细信息"
 msgid "正在获取详细介绍"
 msgstr "正在获取详细介绍"
 
-#: templates/award_book_detail.html:161
+#: templates/award_book_detail.html:161 templates/award_book_detail.html:162
+#: templates/award_book_detail.html:308
+#: templates/mobile/award_book_detail.html:123
+#: templates/mobile/award_book_detail.html:124
+#, fuzzy
+msgid "相关获奖图书"
+msgstr "获奖图书展示"
+
+#: templates/award_book_detail.html:178 templates/awards.html:12
+#: templates/awards.html:63 templates/awards.html:104 templates/awards.html:129
+#: templates/mobile/award_book_detail.html:39
+msgid "年"
+msgstr "年"
+
+#: templates/award_book_detail.html:186
 msgid "标签页切换"
 msgstr "标签页切换"
 
-#: templates/award_book_detail.html:163
+#: templates/award_book_detail.html:188
 msgid "更新标签按钮"
 msgstr "更新标签按钮"
 
-#: templates/award_book_detail.html:169
+#: templates/award_book_detail.html:194
 msgid "更新内容面板"
 msgstr "更新内容面板"
 
-#: templates/award_book_detail.html:175
+#: templates/award_book_detail.html:200
 msgid "如果切换到详细信息标签"
 msgstr "如果切换到详细信息标签"
 
-#: templates/award_book_detail.html:175
+#: templates/award_book_detail.html:200
 msgid "尝试获取详细信息"
 msgstr "尝试获取详细信息"
 
-#: templates/award_book_detail.html:181
+#: templates/award_book_detail.html:206
 msgid "获取详细信息"
 msgstr "获取详细信息"
 
-#: templates/award_book_detail.html:237
+#: templates/award_book_detail.html:262
 msgid "页面头部"
 msgstr "页面头部"
 
-#: templates/award_book_detail.html:276
+#: templates/award_book_detail.html:301
 msgid "内容区域"
 msgstr "内容区域"
 
-#: templates/award_book_detail.html:276
+#: templates/award_book_detail.html:301
 msgid "左右分栏"
 msgstr "左右分栏"
 
-#: templates/award_book_detail.html:283
+#: templates/award_book_detail.html:365
 msgid "左侧"
 msgstr "左侧"
 
-#: templates/award_book_detail.html:350
+#: templates/award_book_detail.html:432
 msgid "右侧"
 msgstr "右侧"
 
-#: templates/award_book_detail.html:350
+#: templates/award_book_detail.html:432
 msgid "书籍信息"
 msgstr "书籍信息"
 
-#: templates/award_book_detail.html:376
+#: templates/award_book_detail.html:458
 msgid "元信息"
 msgstr "元信息"
 
-#: templates/award_book_detail.html:406 templates/weekly_report_detail.html:576
+#: templates/award_book_detail.html:488 templates/weekly_report_detail.html:587
 msgid "标签页"
 msgstr "标签页"
 
-#: templates/award_book_detail.html:434
+#: templates/award_book_detail.html:516
 msgid "标签页内容"
 msgstr "标签页内容"
 
-#: templates/award_book_detail.html:455 templates/new_book_detail.html:463
-#: templates/weekly_report_detail.html:1025 templates/weekly_reports.html:617
+#: templates/award_book_detail.html:537 templates/new_book_detail.html:463
+#: templates/weekly_report_detail.html:1047 templates/weekly_reports.html:617
 msgid "响应式设计"
 msgstr "响应式设计"
 
@@ -498,175 +417,241 @@ msgstr "响应式设计"
 msgid "国际图书奖项榜单 - BookRank"
 msgstr "国际图书奖项榜单 - BookRank"
 
-#: templates/awards.html:12 templates/awards.html:99 templates/awards.html:140
-#: templates/mobile/award_book_detail.html:39
-msgid "年"
-msgstr "年"
-
-#: templates/awards.html:17 templates/awards.html:55
+#: templates/awards.html:17 templates/awards.html:19
 msgid "奖项分类"
 msgstr "奖项分类"
 
-#: templates/awards.html:19 templates/new_book_detail.html:246
-#: templates/new_books.html:22 templates/publishers.html:240
-#: templates/weekly_report_detail.html:351
-#: templates/weekly_report_detail.html:961
-msgid "导航"
-msgstr "导航"
-
-#: templates/awards.html:24 templates/new_books.html:27
-#: templates/publishers.html:245
-msgid "畅销书榜"
-msgstr "畅销书榜"
-
-#: templates/awards.html:36 templates/mobile/publishers.html:3
-#: templates/mobile/publishers.html:4 templates/mobile/publishers.html:5
-#: templates/mobile/publishers.html:12 templates/mobile/publishers.html:20
-#: templates/mobile/publishers.html:24 templates/new_books.html:39
-#: templates/publishers.html:3 templates/publishers.html:4
-#: templates/publishers.html:5 templates/publishers.html:11
-#: templates/publishers.html:257 templates/publishers.html:292
-msgid "出版社导航"
-msgstr "出版社导航"
-
-#: templates/awards.html:42 templates/base.html:113
-#: templates/new_book_detail.html:13 templates/new_books.html:4
-#: templates/new_books.html:5 templates/new_books.html:6
-#: templates/new_books.html:12 templates/new_books.html:45
-#: templates/new_books.html:79 templates/publishers.html:263
-msgid "新书速递"
-msgstr "新书速递"
-
-#: templates/awards.html:48 templates/base.html:121 templates/new_books.html:51
-#: templates/publishers.html:269 templates/weekly_report_detail.html:11
-#: templates/weekly_reports.html:3 templates/weekly_reports.html:4
-#: templates/weekly_reports.html:5 templates/weekly_reports.html:11
-#: templates/weekly_reports.html:20 templates/weekly_reports.html:248
-msgid "畅销书周报"
-msgstr "畅销书周报"
-
-#: templates/awards.html:63
+#: templates/awards.html:27 templates/awards.html:114
 msgid "全部奖项"
 msgstr "全部奖项"
 
-#: templates/awards.html:81
+#: templates/awards.html:45
 msgid "年份筛选"
 msgstr "年份筛选"
 
-#: templates/awards.html:89
+#: templates/awards.html:53 templates/awards.html:126
 msgid "全部年份"
 msgstr "全部年份"
 
-#: templates/awards.html:107
+#: templates/awards.html:71
 msgid "统计信息"
 msgstr "统计信息"
 
-#: templates/awards.html:108
+#: templates/awards.html:72
 msgid "统计数据"
 msgstr "统计数据"
 
-#: templates/awards.html:111 templates/index.html:110
+#: templates/awards.html:75 templates/index.html:131
 #: templates/weekly_reports.html:121 templates/weekly_reports.html:127
 msgid "本图书"
 msgstr "本图书"
 
-#: templates/awards.html:115
+#: templates/awards.html:79
 msgid "个奖项"
 msgstr "个奖项"
 
-#: templates/awards.html:130
+#: templates/awards.html:94
 msgid "国际图书奖项榜单"
 msgstr "国际图书奖项榜单"
 
-#: templates/awards.html:135
+#: templates/awards.html:99
 msgid "获奖图书展示"
 msgstr "获奖图书展示"
 
-#: templates/awards.html:137
+#: templates/awards.html:101
 msgid "汇集全球最具影响力的图书奖项"
 msgstr "汇集全球最具影响力的图书奖项"
 
-#: templates/awards.html:146
+#: templates/awards.html:110
 msgid "筛选选项"
 msgstr "筛选选项"
 
-#: templates/base.html:6
+#: templates/awards.html:124 templates/awards.html:125
+msgid "年份"
+msgstr "年份"
+
+#: templates/awards.html:138 templates/mobile/new_books.html:49
+#: templates/new_books.html:75
+msgid "全部分类"
+msgstr "全部分类"
+
+#: templates/awards.html:148 templates/index.html:74 templates/index.html:97
+#: templates/index.html:99 templates/mobile/index.html:51
+#: templates/mobile/index.html:62 templates/mobile/new_books.html:43
+#: templates/mobile/search.html:3 templates/mobile/search.html:25
+#: templates/new_books.html:99 templates/new_books.html:101
+#: templates/weekly_reports.html:70
+msgid "搜索"
+msgstr "搜索"
+
+#: templates/awards.html:153 templates/index.html:80
+#: templates/mobile/index.html:60
+msgid "搜索书名或作者..."
+msgstr "搜索书名或作者..."
+
+#: templates/awards.html:156 templates/index.html:83
+msgid "搜索书名或作者"
+msgstr "搜索书名或作者"
+
+#: templates/awards.html:163
+msgid "应用筛选"
+msgstr "应用筛选"
+
+#: templates/awards.html:165 templates/mobile/new_books.html:44
+msgid "筛选"
+msgstr "筛选"
+
+#: templates/awards.html:167
+msgid "重置筛选"
+msgstr "重置筛选"
+
+#: templates/awards.html:169 templates/index.html:101 templates/index.html:103
+#: templates/mobile/new_books.html:45 templates/new_books.html:103
+#: templates/new_books.html:105
+msgid "重置"
+msgstr "重置"
+
+#: templates/awards.html:228 templates/awards.html:304 templates/index.html:153
+#: templates/mobile/new_book_detail.html:14 templates/new_book_detail.html:55
+#, fuzzy
+msgid "》封面"
+msgstr "封面"
+
+#: templates/awards.html:367 templates/awards.html:369 templates/index.html:321
+#: templates/index.html:323
+msgid "暂无数据"
+msgstr "暂无数据"
+
+#: templates/awards.html:370
+msgid "请尝试切换筛选条件或稍后重试"
+msgstr "请尝试切换筛选条件或稍后重试"
+
+#: templates/awards.html:375 templates/index.html:40 templates/index.html:361
+#: templates/publishers.html:262
+msgid "快速链接"
+msgstr "快速链接"
+
+#: templates/awards.html:379
+msgid "查看纽约时报畅销书榜"
+msgstr "查看纽约时报畅销书榜"
+
+#: templates/awards.html:380
+msgid "实时更新的畅销图书排行榜"
+msgstr "实时更新的畅销图书排行榜"
+
+#: templates/base.html:7
 msgid "BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息"
 msgstr "BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息"
 
-#: templates/base.html:7
+#: templates/base.html:8
 msgid "图书排行榜, 纽约时报, 畅销书, 图书奖项, 诺贝尔文学奖, 布克奖, 普利策奖"
 msgstr "图书排行榜, 纽约时报, 畅销书, 图书奖项, 诺贝尔文学奖, 布克奖, 普利策奖"
 
-#: templates/base.html:12 templates/base.html:21 templates/base.html:28
+#: templates/base.html:13 templates/base.html:22 templates/base.html:35
 msgid "BookRank - 图书排行榜"
 msgstr "BookRank - 图书排行榜"
 
-#: templates/base.html:13 templates/base.html:22 templates/base.html:54
+#: templates/base.html:14 templates/base.html:23 templates/base.html:59
 msgid "汇集纽约时报畅销书排行榜与国际图书奖项榜单"
 msgstr "汇集纽约时报畅销书排行榜与国际图书奖项榜单"
 
-#: templates/base.html:74
+#: templates/base.html:79
 msgid "跳转到主要内容"
 msgstr "跳转到主要内容"
 
-#: templates/base.html:77
+#: templates/base.html:82
 msgid "主导航"
 msgstr "主导航"
 
-#: templates/base.html:78 templates/base.html:199
+#: templates/base.html:83 templates/base.html:239
 msgid "BookRank 首页"
 msgstr "BookRank 首页"
 
-#: templates/base.html:128 templates/mobile/base.html:48
+#: templates/base.html:118 templates/base.html:185 templates/index.html:43
+#: templates/mobile/new_books.html:3 templates/mobile/new_books.html:4
+#: templates/mobile/new_books.html:12 templates/new_book_detail.html:13
+#: templates/new_books.html:4 templates/new_books.html:5
+#: templates/new_books.html:6 templates/new_books.html:12
+#: templates/new_books.html:39 templates/publishers.html:308
+msgid "新书速递"
+msgstr "新书速递"
+
+#: templates/base.html:126 templates/base.html:191
+#: templates/weekly_report_detail.html:18 templates/weekly_reports.html:3
+#: templates/weekly_reports.html:4 templates/weekly_reports.html:5
+#: templates/weekly_reports.html:11 templates/weekly_reports.html:20
+#: templates/weekly_reports.html:248
+msgid "畅销书周报"
+msgstr "畅销书周报"
+
+#: templates/base.html:133 templates/mobile/base.html:52
 msgid "切换语言"
 msgstr "切换语言"
 
-#: templates/base.html:132 templates/mobile/base.html:51
+#: templates/base.html:137 templates/mobile/base.html:55
 msgid "语言选择"
 msgstr "语言选择"
 
-#: templates/base.html:135 templates/mobile/base.html:52
+#: templates/base.html:140 templates/mobile/base.html:56
 msgid "简体中文"
 msgstr "简体中文"
 
-#: templates/base.html:144
+#: templates/base.html:149
 msgid "更多语言即将支持"
 msgstr "更多语言即将支持"
 
-#: templates/base.html:147
+#: templates/base.html:152
 msgid "切换主题"
 msgstr "切换主题"
 
-#: templates/base.html:147
+#: templates/base.html:152
 msgid "切换明暗主题"
 msgstr "切换明暗主题"
 
-#: templates/base.html:154
+#: templates/base.html:159
 msgid "侧边导航"
 msgstr "侧边导航"
 
-#: templates/base.html:171 templates/base.html:205
+#: templates/base.html:162 templates/new_book_detail.html:246
+#: templates/weekly_report_detail.html:362
+#: templates/weekly_report_detail.html:983
+msgid "导航"
+msgstr "导航"
+
+#: templates/base.html:167
+msgid "畅销书榜"
+msgstr "畅销书榜"
+
+#: templates/base.html:179 templates/mobile/publishers.html:3
+#: templates/mobile/publishers.html:4 templates/mobile/publishers.html:5
+#: templates/mobile/publishers.html:12 templates/mobile/publishers.html:20
+#: templates/mobile/publishers.html:24 templates/publishers.html:3
+#: templates/publishers.html:4 templates/publishers.html:5
+#: templates/publishers.html:11 templates/publishers.html:278
+msgid "出版社导航"
+msgstr "出版社导航"
+
+#: templates/base.html:211 templates/base.html:245
 msgid "站点地图"
 msgstr ""
 
-#: templates/base.html:180
+#: templates/base.html:220
 msgid "切换侧边栏"
 msgstr "切换侧边栏"
 
-#: templates/base.html:193
+#: templates/base.html:233
 msgid "通知提示"
 msgstr "通知提示"
 
-#: templates/base.html:203
+#: templates/base.html:243
 msgid "页脚链接"
 msgstr ""
 
-#: templates/base.html:206
+#: templates/base.html:246
 msgid "数据来源：NYT Books API"
 msgstr ""
 
-#: templates/base.html:210
+#: templates/base.html:250
 msgid "数据仅供学习交流，版权归原作者及出版社所有。"
 msgstr ""
 
@@ -674,43 +659,57 @@ msgstr ""
 msgid "返回榜单"
 msgstr "返回榜单"
 
-#: templates/book_detail.html:119 templates/mobile/book_detail.html:45
-#: templates/mobile/book_detail.html:94 templates/new_book_detail.html:113
+#: templates/book_detail.html:120 templates/mobile/book_detail.html:45
+#: templates/mobile/book_detail.html:94
+#: templates/mobile/new_book_detail.html:29 templates/new_book_detail.html:113
 msgid "页数"
 msgstr "页数"
 
-#: templates/book_detail.html:120 templates/index.html:261
-#: templates/mobile/index.html:103 templates/new_book_detail.html:114
+#: templates/book_detail.html:121 templates/index.html:296
+#: templates/mobile/index.html:152 templates/new_book_detail.html:114
 msgid "页"
 msgstr "页"
 
-#: templates/book_detail.html:130 templates/mobile/award_book_detail.html:44
+#: templates/book_detail.html:131 templates/mobile/award_book_detail.html:44
 #: templates/mobile/award_book_detail.html:96
 #: templates/mobile/book_detail.html:39 templates/mobile/book_detail.html:88
+#: templates/mobile/new_book_detail.html:26
 msgid "ISBN"
 msgstr "ISBN"
 
-#: templates/book_detail.html:140 templates/new_book_detail.html:131
-#: templates/new_books.html:113
+#: templates/book_detail.html:141 templates/mobile/new_book_detail.html:28
+#: templates/new_book_detail.html:131 templates/new_books.html:73
 msgid "分类"
 msgstr "分类"
 
-#: templates/book_detail.html:152 templates/weekly_report_detail.html:1341
+#: templates/book_detail.html:153 templates/weekly_report_detail.html:284
+#: templates/weekly_report_detail.html:1370
 #, fuzzy
 msgid "累计上榜周数"
 msgstr "累计上榜周数"
 
-#: templates/book_detail.html:162 templates/mobile/book_detail.html:48
+#: templates/book_detail.html:154 templates/index.html:202
+#: templates/index.html:265 templates/mobile/book_detail.html:100
+#: templates/mobile/index.html:112
+#: templates/mobile/weekly_report_detail.html:21
+#: templates/weekly_report_detail.html:298
+#: templates/weekly_report_detail.html:1370
+msgid "周"
+msgstr "周"
+
+#: templates/book_detail.html:163 templates/mobile/book_detail.html:48
 #: templates/mobile/book_detail.html:103
+#: templates/mobile/new_book_detail.html:30
 msgid "语言"
 msgstr "语言"
 
-#: templates/book_detail.html:192 templates/book_detail.html:210
+#: templates/book_detail.html:193 templates/book_detail.html:211
 msgid "查看英文原文"
 msgstr "查看英文原文"
 
-#: templates/book_detail.html:199 templates/mobile/award_book_detail.html:82
-#: templates/mobile/book_detail.html:77 templates/new_book_detail.html:154
+#: templates/book_detail.html:200 templates/mobile/award_book_detail.html:82
+#: templates/mobile/book_detail.html:77
+#: templates/mobile/new_book_detail.html:49 templates/new_book_detail.html:154
 #: templates/new_book_detail.html:155
 msgid "暂无简介"
 msgstr "暂无简介"
@@ -729,149 +728,191 @@ msgstr "出错了"
 msgid "纽约时报畅销书排行榜 - BookRank"
 msgstr "纽约时报畅销书排行榜 - BookRank"
 
-#: templates/index.html:21
+#: templates/index.html:22
 msgid "更新于:"
 msgstr "更新于:"
 
-#: templates/index.html:21
+#: templates/index.html:22
 msgid "刚刚"
 msgstr "刚刚"
 
-#: templates/index.html:34
+#: templates/index.html:35
 msgid "缓存数据"
 msgstr "缓存数据"
 
-#: templates/index.html:40 templates/new_books.html:98
+#: templates/index.html:47 templates/new_books.html:58
 msgid "搜索与筛选"
 msgstr ""
 
-#: templates/index.html:42 templates/mobile/book_detail.html:97
+#: templates/index.html:49 templates/mobile/book_detail.html:97
 msgid "图书分类"
 msgstr "图书分类"
 
-#: templates/index.html:53 templates/index.html:76 templates/index.html:78
-#: templates/mobile/search.html:3 templates/mobile/search.html:25
-#: templates/new_books.html:139 templates/new_books.html:141
-#: templates/weekly_reports.html:70
-msgid "搜索"
-msgstr "搜索"
+#: templates/index.html:53
+msgid "小说"
+msgstr "小说"
 
-#: templates/index.html:59
-msgid "搜索书名或作者..."
-msgstr "搜索书名或作者..."
+#: templates/index.html:53
+msgid "非虚构"
+msgstr "非虚构"
 
-#: templates/index.html:62
-msgid "搜索书名或作者"
-msgstr "搜索书名或作者"
+#: templates/index.html:53
+msgid "儿童与青少年"
+msgstr "儿童与青少年"
 
-#: templates/index.html:65
+#: templates/index.html:53
+msgid "商业"
+msgstr "商业"
+
+#: templates/index.html:53
+msgid "生活方式与杂项"
+msgstr "生活方式与杂项"
+
+#: templates/index.html:53
+msgid "漫画与绘本"
+msgstr "漫画与绘本"
+
+#: templates/index.html:57
+msgid "每月"
+msgstr "每月"
+
+#: templates/index.html:86
 msgid "清除搜索"
 msgstr "清除搜索"
 
-#: templates/index.html:70 templates/mobile/profile.html:88
+#: templates/index.html:91 templates/mobile/profile.html:88
 #: templates/profile.html:44
 msgid "搜索历史"
 msgstr "搜索历史"
 
-#: templates/index.html:80 templates/index.html:82 templates/new_books.html:143
-#: templates/new_books.html:145
-msgid "重置"
-msgstr "重置"
-
-#: templates/index.html:86
+#: templates/index.html:107
 msgid "视图切换"
 msgstr "视图切换"
 
-#: templates/index.html:89
+#: templates/index.html:110
 msgid "网格视图"
 msgstr "网格视图"
 
-#: templates/index.html:91
+#: templates/index.html:112
 msgid "切换到网格视图"
 msgstr "切换到网格视图"
 
-#: templates/index.html:98
+#: templates/index.html:119
 msgid "列表视图"
 msgstr "列表视图"
 
-#: templates/index.html:100
+#: templates/index.html:121
 msgid "切换到列表视图"
 msgstr "切换到列表视图"
 
-#: templates/index.html:110 templates/new_books.html:85
-#: templates/publishers.html:298
+#: templates/index.html:131 templates/mobile/new_books.html:21
+#: templates/new_books.html:45 templates/publishers.html:284
 msgid "共"
 msgstr "共"
 
-#: templates/index.html:112 templates/index.html:114
+#: templates/index.html:133 templates/index.html:135
 msgid "导出全部"
 msgstr "导出全部"
 
-#: templates/index.html:121
+#: templates/index.html:142
 msgid "图书列表视图"
 msgstr "图书列表视图"
 
-#: templates/index.html:168 templates/index.html:206
+#: templates/index.html:152 templates/index.html:165 templates/index.html:226
+#: templates/index.html:262 templates/mobile/index.html:112
+#: templates/mobile/weekly_report_detail.html:21
+#: templates/weekly_report_detail.html:1371
+msgid "第"
+msgstr "第"
+
+#: templates/index.html:152 templates/index.html:165 templates/index.html:171
+#: templates/index.html:173 templates/index.html:226 templates/index.html:244
+#: templates/index.html:250 templates/index.html:252 templates/index.html:262
+#: templates/mobile/index.html:112 templates/mobile/index.html:137
+#: templates/mobile/index.html:139 templates/weekly_report_detail.html:1371
+msgid "名"
+msgstr "名"
+
+#: templates/index.html:171 templates/mobile/index.html:137
+#: templates/mobile/weekly_report_detail.html:35
+msgid "上升"
+msgstr "上升"
+
+#: templates/index.html:173 templates/mobile/index.html:139
+#: templates/mobile/weekly_report_detail.html:39
+msgid "下降"
+msgstr "下降"
+
+#: templates/index.html:176 templates/index.html:255
+msgid "新书上榜"
+msgstr "新书上榜"
+
+#: templates/index.html:196 templates/index.html:239
 msgid "虚构类"
 msgstr "虚构类"
 
-#: templates/index.html:188
+#: templates/index.html:202 templates/index.html:265
+msgid "累计"
+msgstr ""
+
+#: templates/index.html:216
 msgid "图书网格视图"
 msgstr "图书网格视图"
 
-#: templates/index.html:211
+#: templates/index.html:244
 msgid "排名: 第"
 msgstr "排名: 第"
 
-#: templates/index.html:253
+#: templates/index.html:250
+msgid "排名上升"
+msgstr "排名上升"
+
+#: templates/index.html:252
+msgid "排名下降"
+msgstr "排名下降"
+
+#: templates/index.html:288
 msgid "出版社:"
 msgstr "出版社:"
 
-#: templates/index.html:259
+#: templates/index.html:294
 msgid "页数:"
 msgstr "页数:"
 
-#: templates/index.html:265
+#: templates/index.html:300
 msgid "语言:"
 msgstr "语言:"
 
-#: templates/index.html:286 templates/index.html:288
-msgid "暂无数据"
-msgstr "暂无数据"
-
-#: templates/index.html:289
+#: templates/index.html:324
 msgid "请尝试切换分类或稍后重试"
 msgstr "请尝试切换分类或稍后重试"
 
-#: templates/index.html:291
+#: templates/index.html:326
 msgid "当前展示为缓存数据，"
 msgstr "当前展示为缓存数据，"
 
-#: templates/index.html:291
+#: templates/index.html:326
 msgid "点击刷新"
 msgstr "点击刷新"
 
-#: templates/index.html:291
+#: templates/index.html:326
 msgid "获取最新榜单"
 msgstr "获取最新榜单"
 
-#: templates/index.html:325 templates/publishers.html:276
-msgid "快速链接"
-msgstr "快速链接"
-
-#: templates/index.html:329
+#: templates/index.html:365
 msgid "查看国际图书奖项榜单"
 msgstr "查看国际图书奖项榜单"
 
-#: templates/index.html:330
+#: templates/index.html:366
 msgid "诺贝尔文学奖、布克奖、普利策奖等"
 msgstr "诺贝尔文学奖、布克奖、普利策奖等"
 
-#: templates/index.html:342
+#: templates/index.html:378
 msgid "正在翻译... (0/0)"
 msgstr "正在翻译... (0/0)"
 
-#: templates/mobile/book_detail.html:106 templates/new_book_detail.html:140
+#: templates/mobile/book_detail.html:106
+#: templates/mobile/new_book_detail.html:31 templates/new_book_detail.html:140
 msgid "价格"
 msgstr "价格"
 
@@ -883,7 +924,7 @@ msgstr ""
 msgid "新书详情页样式"
 msgstr "新书详情页样式"
 
-#: templates/new_book_detail.html:243 templates/weekly_report_detail.html:390
+#: templates/new_book_detail.html:243 templates/weekly_report_detail.html:401
 msgid "设计系统"
 msgstr "设计系统"
 
@@ -915,215 +956,226 @@ msgstr "元信息网格"
 msgid "简介区域"
 msgstr "简介区域"
 
-#: templates/new_books.html:80
+#: templates/mobile/new_books.html:14 templates/new_books.html:40
 msgid "追踪国际大型出版社最新出版物"
 msgstr "追踪国际大型出版社最新出版物"
 
-#: templates/mobile/weekly_reports.html:35 templates/new_books.html:85
+#: templates/mobile/new_books.html:21 templates/mobile/weekly_reports.html:35
+#: templates/new_books.html:45
 msgid "本新书"
 msgstr "本新书"
 
-#: templates/new_books.html:89
+#: templates/mobile/new_books.html:21 templates/new_books.html:49
 msgid "家出版社"
 msgstr "家出版社"
 
-#: templates/new_books.html:93
+#: templates/new_books.html:53
 #, fuzzy
 msgid "近30天出版"
 msgstr "最近30天出版"
 
-#: templates/mobile/awards.html:35 templates/mobile/index.html:35
-#: templates/mobile/profile.html:13 templates/new_books.html:93
-#: templates/new_books.html:164 templates/new_books.html:671
-#: templates/profile.html:23 templates/weekly_report_detail.html:1398
-#: templates/weekly_reports.html:133
+#: templates/mobile/awards.html:61 templates/mobile/index.html:80
+#: templates/mobile/new_books.html:58 templates/mobile/profile.html:13
+#: templates/new_books.html:53 templates/new_books.html:124
+#: templates/new_books.html:561 templates/profile.html:23
+#: templates/weekly_report_detail.html:1427 templates/weekly_reports.html:133
 msgid "本"
 msgstr "本"
 
-#: templates/new_books.html:101
+#: templates/new_books.html:61
 msgid "选择出版社"
 msgstr "选择出版社"
 
-#: templates/new_books.html:102
+#: templates/mobile/new_books.html:29 templates/new_books.html:62
 msgid "全部出版社"
 msgstr "全部出版社"
 
-#: templates/new_books.html:114
+#: templates/new_books.html:74
 msgid "选择分类"
 msgstr "选择分类"
 
-#: templates/new_books.html:115
-msgid "全部分类"
-msgstr "全部分类"
-
-#: templates/new_books.html:123
+#: templates/mobile/new_books.html:34 templates/new_books.html:83
 msgid "时间"
 msgstr "时间"
 
-#: templates/new_books.html:124
+#: templates/new_books.html:84
 msgid "选择时间范围"
 msgstr "选择时间范围"
 
-#: templates/new_books.html:125
+#: templates/new_books.html:85
 msgid "最近7天出版"
 msgstr "最近7天出版"
 
-#: templates/new_books.html:126
+#: templates/new_books.html:86
 msgid "最近30天出版"
 msgstr "最近30天出版"
 
-#: templates/new_books.html:127
+#: templates/new_books.html:87
 msgid "最近90天出版"
 msgstr "最近90天出版"
 
-#: templates/new_books.html:128
+#: templates/new_books.html:88
 msgid "最近半年出版"
 msgstr "最近半年出版"
 
-#: templates/new_books.html:129
+#: templates/new_books.html:89
 msgid "最近一年出版"
 msgstr "最近一年出版"
 
-#: templates/new_books.html:135
+#: templates/new_books.html:95
 msgid "搜索新书"
 msgstr "搜索新书"
 
-#: templates/new_books.html:135
+#: templates/new_books.html:95
 msgid "搜索书名、作者、"
 msgstr "搜索书名、作者、"
 
-#: templates/new_books.html:150 templates/new_books.html:152
-#: templates/weekly_report_detail.html:375
-#: templates/weekly_report_detail.html:379
+#: templates/new_books.html:110 templates/new_books.html:112
+#: templates/weekly_report_detail.html:386
+#: templates/weekly_report_detail.html:390
 msgid "导出"
 msgstr "导出"
 
-#: templates/new_books.html:157 templates/new_books.html:683
+#: templates/new_books.html:117 templates/new_books.html:533
+#: templates/new_books.html:564
 msgid "同步新书"
 msgstr "同步新书"
 
-#: templates/new_books.html:164
+#: templates/mobile/new_books.html:58 templates/new_books.html:124
 msgid "当前结果"
 msgstr "当前结果"
 
-#: templates/new_books.html:165
+#: templates/mobile/new_books.html:58 templates/new_books.html:125
 msgid "按出版日期筛选最近"
 msgstr "按出版日期筛选最近"
 
-#: templates/new_books.html:165
+#: templates/mobile/new_books.html:58 templates/new_books.html:125
 msgid "天已出版图书"
 msgstr "天已出版图书"
 
-#: templates/new_books.html:211
+#: templates/mobile/awards.html:95 templates/mobile/new_books.html:88
+#: templates/new_books.html:142 templates/new_books.html:145
+#: templates/new_books.html:465 templates/new_books.html:467
+msgid "上一页"
+msgstr "上一页"
+
+#: templates/mobile/awards.html:99 templates/mobile/new_books.html:90
+#: templates/new_books.html:160 templates/new_books.html:163
+#: templates/new_books.html:481 templates/new_books.html:483
+msgid "下一页"
+msgstr "下一页"
+
+#: templates/mobile/new_books.html:97 templates/new_books.html:171
 msgid "暂无新书数据"
 msgstr "暂无新书数据"
 
-#: templates/new_books.html:212
+#: templates/mobile/new_books.html:98 templates/new_books.html:172
 msgid "当前出版时间范围暂无新书，可放宽时间范围或稍后刷新"
 msgstr "当前出版时间范围暂无新书，可放宽时间范围或稍后刷新"
 
-#: templates/mobile/index.html:124 templates/new_books.html:214
-#: templates/weekly_reports.html:162
+#: templates/mobile/index.html:173 templates/mobile/new_books.html:99
+#: templates/new_books.html:174 templates/weekly_reports.html:162
 msgid "刷新"
 msgstr "刷新"
 
-#: templates/new_books.html:410 templates/new_books.html:419
+#: templates/new_books.html:355 templates/new_books.html:364
 msgid "加载失败"
 msgstr "加载失败"
 
-#: templates/new_books.html:420
+#: templates/new_books.html:365
 msgid "重试"
 msgstr "重试"
 
-#: templates/new_books.html:435
+#: templates/new_books.html:380
 msgid "暂无匹配结果"
 msgstr "暂无匹配结果"
 
-#: templates/new_books.html:435
+#: templates/new_books.html:380
 msgid "尝试放宽出版时间范围或搜索其他关键词"
 msgstr "尝试放宽出版时间范围或搜索其他关键词"
 
-#: templates/new_books.html:480
-msgid "分类未公开"
-msgstr ""
-
-#: templates/new_books.html:488
-msgid "日期未公开"
-msgstr ""
-
-#: templates/new_books.html:625
-msgid "翻译失败"
-msgstr "翻译失败"
-
-#: templates/new_books.html:656
+#: templates/new_books.html:523
 msgid "同步中"
 msgstr "同步中"
 
-#: templates/new_books.html:660
+#: templates/new_books.html:527
 msgid "正在从出版社获取新书数据"
 msgstr "正在从出版社获取新书数据"
 
-#: templates/new_books.html:671
-msgid "同步完成"
-msgstr "同步完成"
-
-#: templates/new_books.html:671
-msgid "新增"
-msgstr "新增"
-
-#: templates/new_books.html:671
-msgid "更新"
-msgstr "更新"
-
-#: templates/new_books.html:674 templates/new_books.html:679
+#: templates/new_books.html:531 templates/new_books.html:542
+#: templates/new_books.html:566
 msgid "同步失败"
 msgstr "同步失败"
 
-#: templates/new_books.html:688
+#: templates/new_books.html:548
+msgid "同步仍在后台执行，请稍后刷新页面查看结果"
+msgstr ""
+
+#: templates/new_books.html:554
+msgid "查询状态失败"
+msgstr ""
+
+#: templates/new_books.html:561
+msgid "同步完成"
+msgstr "同步完成"
+
+#: templates/new_books.html:561
+msgid "新增"
+msgstr "新增"
+
+#: templates/new_books.html:561
+msgid "更新"
+msgstr "更新"
+
+#: templates/new_books.html:569
+msgid "同步任务状态已丢失，请稍后刷新页面查看结果"
+msgstr ""
+
+#: templates/new_books.html:580
 msgid "筛选器事件绑定"
 msgstr "筛选器事件绑定"
 
-#: templates/new_books.html:693
+#: templates/new_books.html:585
 msgid "搜索输入框事件绑定"
 msgstr "搜索输入框事件绑定"
 
-#: templates/new_books.html:696
+#: templates/new_books.html:588
 msgid "工具栏按钮事件绑定"
 msgstr "工具栏按钮事件绑定"
 
-#: templates/new_books.html:701
+#: templates/new_books.html:593
 msgid "表单回车提交与重置"
 msgstr ""
 
-#: templates/new_books.html:710
+#: templates/new_books.html:602
 msgid "侧边栏出版社筛选事件委托"
 msgstr "侧边栏出版社筛选事件委托"
 
-#: templates/new_books.html:716
+#: templates/new_books.html:608
 msgid "同步更新下拉框"
 msgstr "同步更新下拉框"
 
-#: templates/new_books.html:719
+#: templates/new_books.html:611
 msgid "更新侧边栏"
 msgstr "更新侧边栏"
 
-#: templates/new_books.html:719
+#: templates/new_books.html:611
 msgid "状态"
 msgstr "状态"
 
-#: templates/new_books.html:725
+#: templates/new_books.html:617
 msgid "图书卡片点击事件委托"
 msgstr "图书卡片点击事件委托"
 
-#: templates/new_books.html:733
+#: templates/new_books.html:625
 msgid "分页事件委托"
 msgstr "分页事件委托"
 
-#: templates/new_books.html:742
+#: templates/new_books.html:634
 msgid "重试按钮事件委托"
 msgstr "重试按钮事件委托"
 
-#: templates/new_books.html:749
+#: templates/new_books.html:641
 msgid "首次加载时根据 currentLanguage 立即应用 publisher 名称切换"
 msgstr ""
 
@@ -1156,314 +1208,319 @@ msgstr "浏览书籍时点击收藏按钮即可添加"
 msgid "暂无搜索历史"
 msgstr "搜索历史"
 
-#: templates/mobile/publishers.html:21 templates/publishers.html:293
+#: templates/mobile/publishers.html:21 templates/publishers.html:279
 msgid "汇集全球知名出版社与图书行业网站，点击即可访问"
 msgstr "汇集全球知名出版社与图书行业网站，点击即可访问"
 
-#: templates/mobile/publishers.html:19 templates/publishers.html:298
+#: templates/mobile/publishers.html:19 templates/publishers.html:284
 msgid "个网站"
 msgstr "个网站"
 
-#: templates/mobile/publishers.html:19 templates/publishers.html:302
+#: templates/mobile/publishers.html:19 templates/publishers.html:288
 msgid "个分类"
 msgstr "个分类"
 
-#: templates/publishers.html:308
+#: templates/publishers.html:294
 msgid "搜索出版社"
 msgstr "搜索出版社"
 
-#: templates/publishers.html:308
+#: templates/publishers.html:294
 msgid "搜索出版社名称..."
 msgstr "搜索出版社名称..."
 
-#: templates/publishers.html:319
+#: templates/publishers.html:305
 msgid "中文名称"
 msgstr "中文名称"
 
-#: templates/publishers.html:320
+#: templates/publishers.html:306
 msgid "英文名称"
 msgstr "英文名称"
 
-#: templates/publishers.html:321
+#: templates/publishers.html:307
 msgid "核心定位"
 msgstr "核心定位"
 
-#: templates/publishers.html:349
+#: templates/mobile/publishers.html:50 templates/publishers.html:330
+#, fuzzy
+msgid "查看新书"
+msgstr "本新书"
+
+#: templates/publishers.html:345
 msgid "没有找到匹配的出版社"
 msgstr "没有找到匹配的出版社"
 
-#: templates/weekly_report_detail.html:59
-#: templates/weekly_report_detail.html:1340
-#: templates/weekly_report_detail.html:1376
-#: templates/weekly_report_detail.html:1379
-#: templates/weekly_report_detail.html:1407 templates/weekly_reports.html:121
+#: templates/weekly_report_detail.html:66
+#: templates/weekly_report_detail.html:1369
+#: templates/weekly_report_detail.html:1405
+#: templates/weekly_report_detail.html:1408
+#: templates/weekly_report_detail.html:1436 templates/weekly_reports.html:121
 msgid "排名变化"
 msgstr "排名变化"
 
-#: templates/weekly_report_detail.html:70 templates/weekly_reports.html:127
+#: templates/weekly_report_detail.html:77 templates/weekly_reports.html:127
 msgid "新上榜"
 msgstr "新上榜"
 
-#: templates/weekly_report_detail.html:81
-#: templates/weekly_report_detail.html:120
-#: templates/weekly_report_detail.html:309 templates/weekly_reports.html:133
+#: templates/weekly_report_detail.html:88
+#: templates/weekly_report_detail.html:127
+#: templates/weekly_report_detail.html:320 templates/weekly_reports.html:133
 msgid "推荐书籍"
 msgstr "推荐书籍"
 
-#: templates/weekly_report_detail.html:92
-msgid "持续上榜"
-msgstr "持续上榜"
-
-#: templates/mobile/weekly_report_detail.html:47
-#: templates/weekly_report_detail.html:108
-#: templates/weekly_report_detail.html:131
-msgid "本周概览"
-msgstr "本周概览"
-
-#: templates/weekly_report_detail.html:112
-#: templates/weekly_report_detail.html:144
-#: templates/weekly_report_detail.html:830
-msgid "数据可视化"
-msgstr "数据可视化"
-
-#: templates/weekly_report_detail.html:116
-msgid "详细分析"
-msgstr "详细分析"
-
-#: templates/weekly_report_detail.html:152
-msgid "书籍类别分布"
-msgstr "书籍类别分布"
-
-#: templates/weekly_report_detail.html:159
-#: templates/weekly_report_detail.html:1406
-msgid "排名变化趋势"
-msgstr "排名变化趋势"
-
-#: templates/weekly_report_detail.html:166
-msgid "周榜对比"
-msgstr "周榜对比"
-
-#: templates/weekly_report_detail.html:173
-msgid "排名稳定性分析"
-msgstr "排名稳定性分析"
-
-#: templates/weekly_report_detail.html:185
-msgid "重要变化"
-msgstr "重要变化"
-
-#: templates/weekly_report_detail.html:192
-#: templates/weekly_report_detail.html:227
-#: templates/weekly_report_detail.html:254
-#: templates/weekly_report_detail.html:281
-#: templates/weekly_report_detail.html:316
-#: templates/weekly_report_detail.html:1321
-msgid "暂无封面"
-msgstr "暂无封面"
-
-#: templates/weekly_report_detail.html:201
-#: templates/weekly_report_detail.html:203
-#: templates/weekly_report_detail.html:261
-#: templates/weekly_report_detail.html:1340
-#: templates/weekly_report_detail.html:1379
-#: templates/weekly_report_detail.html:1380
-#: templates/weekly_report_detail.html:1407
-msgid "位"
-msgstr "位"
-
-#: templates/weekly_report_detail.html:205
-#: templates/weekly_report_detail.html:1380
-msgid "无变化"
-msgstr "无变化"
-
-#: templates/weekly_report_detail.html:210
-#: templates/weekly_report_detail.html:237
-#: templates/weekly_report_detail.html:264
-#: templates/weekly_report_detail.html:291
-msgid "详情"
-msgstr "详情"
-
-#: templates/weekly_report_detail.html:220
-msgid "新上榜书籍"
-msgstr "新上榜书籍"
-
-#: templates/weekly_report_detail.html:247
-msgid "排名上升最快"
-msgstr "排名上升最快"
-
-#: templates/weekly_report_detail.html:274
-msgid "持续上榜最久"
-msgstr "持续上榜最久"
-
-#: templates/mobile/book_detail.html:100 templates/mobile/index.html:65
-#: templates/weekly_report_detail.html:287
+#: templates/mobile/book_detail.html:100 templates/mobile/index.html:112
+#: templates/weekly_report_detail.html:99
+#: templates/weekly_report_detail.html:298
 msgid "累计上榜"
 msgstr ""
 
-#: templates/weekly_report_detail.html:288
-#: templates/weekly_report_detail.html:1342
+#: templates/mobile/weekly_report_detail.html:47
+#: templates/weekly_report_detail.html:115
+#: templates/weekly_report_detail.html:138
+msgid "本周概览"
+msgstr "本周概览"
+
+#: templates/weekly_report_detail.html:119
+#: templates/weekly_report_detail.html:151
+#: templates/weekly_report_detail.html:852
+msgid "数据可视化"
+msgstr "数据可视化"
+
+#: templates/weekly_report_detail.html:123
+msgid "详细分析"
+msgstr "详细分析"
+
+#: templates/weekly_report_detail.html:159
+msgid "书籍类别分布"
+msgstr "书籍类别分布"
+
+#: templates/weekly_report_detail.html:166
+#: templates/weekly_report_detail.html:1435
+msgid "排名变化趋势"
+msgstr "排名变化趋势"
+
+#: templates/weekly_report_detail.html:173
+msgid "周榜对比"
+msgstr "周榜对比"
+
+#: templates/weekly_report_detail.html:180
+msgid "排名稳定性分析"
+msgstr "排名稳定性分析"
+
+#: templates/weekly_report_detail.html:192
+msgid "重要变化"
+msgstr "重要变化"
+
+#: templates/weekly_report_detail.html:199
+#: templates/weekly_report_detail.html:235
+#: templates/weekly_report_detail.html:263
+#: templates/weekly_report_detail.html:291
+#: templates/weekly_report_detail.html:327
+#: templates/weekly_report_detail.html:1343
+msgid "暂无封面"
+msgstr "暂无封面"
+
+#: templates/weekly_report_detail.html:209
+#: templates/weekly_report_detail.html:211
+#: templates/weekly_report_detail.html:271
+#: templates/weekly_report_detail.html:1369
+#: templates/weekly_report_detail.html:1408
+#: templates/weekly_report_detail.html:1409
+#: templates/weekly_report_detail.html:1436
+msgid "位"
+msgstr "位"
+
+#: templates/weekly_report_detail.html:213
+#: templates/weekly_report_detail.html:1409
+msgid "无变化"
+msgstr "无变化"
+
+#: templates/weekly_report_detail.html:218
+#: templates/weekly_report_detail.html:246
+#: templates/weekly_report_detail.html:274
+#: templates/weekly_report_detail.html:302
+msgid "详情"
+msgstr "详情"
+
+#: templates/weekly_report_detail.html:228
+msgid "新上榜书籍"
+msgstr "新上榜书籍"
+
+#: templates/mobile/award_book_detail.html:53
+#: templates/mobile/award_book_detail.html:108
+#: templates/weekly_report_detail.html:243
+#: templates/weekly_report_detail.html:1451
+msgid "排名"
+msgstr "排名"
+
+#: templates/weekly_report_detail.html:256
+msgid "排名上升最快"
+msgstr "排名上升最快"
+
+#: templates/weekly_report_detail.html:299
+#: templates/weekly_report_detail.html:1371
 msgid "当前排名"
 msgstr "当前排名"
 
-#: templates/weekly_report_detail.html:300
+#: templates/weekly_report_detail.html:311
 msgid "暂无详细分析数据"
 msgstr "暂无详细分析数据"
 
-#: templates/weekly_report_detail.html:329 templates/weekly_reports.html:144
+#: templates/weekly_report_detail.html:340 templates/weekly_reports.html:144
 msgid "查看详情"
 msgstr "查看详情"
 
-#: templates/weekly_report_detail.html:337
+#: templates/weekly_report_detail.html:348
 msgid "暂无推荐书籍"
 msgstr "暂无推荐书籍"
 
-#: templates/weekly_report_detail.html:356
+#: templates/weekly_report_detail.html:367
 msgid "返回周报列表"
 msgstr "返回周报列表"
 
-#: templates/weekly_report_detail.html:360
+#: templates/weekly_report_detail.html:371
 msgid "返回首页"
 msgstr "返回首页"
 
-#: templates/weekly_report_detail.html:370
+#: templates/weekly_report_detail.html:381
 msgid "导出周报"
 msgstr "导出周报"
 
-#: templates/weekly_report_detail.html:390
+#: templates/weekly_report_detail.html:401
 msgid "周报详情页样式"
 msgstr "周报详情页样式"
 
-#: templates/weekly_report_detail.html:393
+#: templates/weekly_report_detail.html:404
 msgid "颜色变量"
 msgstr "颜色变量"
 
-#: templates/weekly_report_detail.html:393
+#: templates/weekly_report_detail.html:404
 msgid "暖色中性调"
 msgstr "暖色中性调"
 
-#: templates/weekly_report_detail.html:416
+#: templates/weekly_report_detail.html:427
 msgid "新闻风格头部"
 msgstr "新闻风格头部"
 
-#: templates/weekly_report_detail.html:536
+#: templates/weekly_report_detail.html:547
 msgid "内容区"
 msgstr "内容区"
 
-#: templates/weekly_report_detail.html:628
+#: templates/weekly_report_detail.html:639
 msgid "分析区"
 msgstr "分析区"
 
-#: templates/weekly_report_detail.html:645
+#: templates/weekly_report_detail.html:656
 msgid "书籍列表"
 msgstr "书籍列表"
 
-#: templates/weekly_report_detail.html:729
+#: templates/weekly_report_detail.html:751
 msgid "推荐书籍网格"
 msgstr "推荐书籍网格"
 
-#: templates/weekly_report_detail.html:805
+#: templates/weekly_report_detail.html:827
 msgid "详情按钮"
 msgstr "详情按钮"
 
-#: templates/weekly_report_detail.html:845
+#: templates/weekly_report_detail.html:867
 msgid "弹窗"
 msgstr "弹窗"
 
-#: templates/weekly_report_detail.html:845
+#: templates/weekly_report_detail.html:867
 msgid "居中"
 msgstr "居中"
 
-#: templates/weekly_report_detail.html:845
+#: templates/weekly_report_detail.html:867
 msgid "移动端优化"
 msgstr "移动端优化"
 
-#: templates/weekly_report_detail.html:961
+#: templates/weekly_report_detail.html:983
 msgid "导出卡片"
 msgstr "导出卡片"
 
-#: templates/weekly_report_detail.html:1016 templates/weekly_reports.html:420
+#: templates/weekly_report_detail.html:1038 templates/weekly_reports.html:420
 msgid "空状态"
 msgstr "空状态"
 
-#: templates/weekly_report_detail.html:1025
+#: templates/weekly_report_detail.html:1047
 msgid "断点"
 msgstr "断点"
 
-#: templates/weekly_report_detail.html:1028
-#: templates/weekly_report_detail.html:1106
+#: templates/weekly_report_detail.html:1050
+#: templates/weekly_report_detail.html:1128
 msgid "以下"
 msgstr "以下"
 
-#: templates/weekly_report_detail.html:1217
+#: templates/weekly_report_detail.html:1239
 msgid "书籍详情弹窗"
 msgstr "书籍详情弹窗"
 
 #: templates/mobile/book_detail.html:12
-#: templates/weekly_report_detail.html:1224
+#: templates/weekly_report_detail.html:1246
 msgid "书籍详情"
 msgstr "书籍详情"
 
-#: templates/weekly_report_detail.html:1227
+#: templates/weekly_report_detail.html:1249
 msgid "加载中"
 msgstr "加载中"
 
-#: templates/weekly_report_detail.html:1307
+#: templates/weekly_report_detail.html:1329
 msgid "封面图加载失败兜底"
 msgstr "封面图加载失败兜底"
 
-#: templates/weekly_report_detail.html:1344
+#: templates/weekly_report_detail.html:1373
 msgid "推荐理由"
 msgstr "推荐理由"
 
-#: templates/weekly_report_detail.html:1345
-#: templates/weekly_report_detail.html:1347
+#: templates/weekly_report_detail.html:1374
+#: templates/weekly_report_detail.html:1376
 msgid "作者"
 msgstr "作者"
 
-#: templates/weekly_report_detail.html:1347
+#: templates/weekly_report_detail.html:1376
 msgid "暂无更多详情数据"
 msgstr "暂无更多详情数据"
 
-#: templates/weekly_report_detail.html:1356
+#: templates/weekly_report_detail.html:1385
 msgid "图表渲染"
 msgstr "图表渲染"
 
-#: templates/weekly_report_detail.html:1368
+#: templates/weekly_report_detail.html:1397
 msgid "排名变化柱状图"
 msgstr "排名变化柱状图"
 
-#: templates/weekly_report_detail.html:1385
+#: templates/weekly_report_detail.html:1414
 msgid "类别分布饼图"
 msgstr "类别分布饼图"
 
-#: templates/weekly_report_detail.html:1393
+#: templates/weekly_report_detail.html:1422
 msgid "其他"
 msgstr "其他"
 
-#: templates/weekly_report_detail.html:1402
+#: templates/weekly_report_detail.html:1431
 msgid "排名变化趋势折线图"
 msgstr "排名变化趋势折线图"
 
-#: templates/weekly_report_detail.html:1411
+#: templates/weekly_report_detail.html:1440
 msgid "周榜对比图"
 msgstr "周榜对比图"
 
-#: templates/weekly_report_detail.html:1418
+#: templates/weekly_report_detail.html:1447
 msgid "本周排名"
 msgstr "本周排名"
 
-#: templates/weekly_report_detail.html:1419
+#: templates/weekly_report_detail.html:1448
 msgid "上周排名"
 msgstr "上周排名"
 
-#: templates/weekly_report_detail.html:1426
+#: templates/weekly_report_detail.html:1455
 msgid "排名稳定性雷达图"
 msgstr "排名稳定性雷达图"
 
-#: templates/weekly_report_detail.html:1431
+#: templates/weekly_report_detail.html:1460
 msgid "排名稳定性评分"
 msgstr "排名稳定性评分"
 
-#: templates/weekly_report_detail.html:1432
+#: templates/weekly_report_detail.html:1461
 msgid "稳定性评分"
 msgstr "稳定性评分"
 
@@ -1506,6 +1563,10 @@ msgstr "搜索周报"
 #: templates/weekly_reports.html:72
 msgid "搜索周报标题或内容"
 msgstr "搜索周报标题或内容"
+
+#: templates/weekly_reports.html:148
+msgid "分享"
+msgstr "分享"
 
 #: templates/weekly_reports.html:158
 msgid "暂无周报"
@@ -1639,46 +1700,84 @@ msgstr "国际图书奖项榜单"
 msgid "奖项榜单"
 msgstr "奖项"
 
-#: templates/mobile/awards.html:83
+#: templates/mobile/awards.html:109
 #, fuzzy
 msgid "暂无获奖图书数据"
 msgstr "暂无新书数据"
 
-#: templates/mobile/awards.html:84
+#: templates/mobile/awards.html:110
 msgid "请稍后再试或切换其他奖项"
 msgstr ""
 
-#: templates/mobile/base.html:89 templates/mobile/profile.html:3
+#: templates/mobile/base.html:93 templates/mobile/profile.html:3
 msgid "我的"
-msgstr ""
-
-#: templates/mobile/index.html:35
-#, fuzzy
-msgid "更新于"
-msgstr "更新于:"
-
-#: templates/mobile/index.html:36
-#, fuzzy
-msgid "缓存"
-msgstr "缓存数据"
-
-#: templates/mobile/index.html:49
-msgid "榜单阅读提示"
 msgstr ""
 
 #: templates/mobile/index.html:80
 #, fuzzy
+msgid "更新于"
+msgstr "更新于:"
+
+#: templates/mobile/index.html:81
+#, fuzzy
+msgid "缓存"
+msgstr "缓存数据"
+
+#: templates/mobile/index.html:94
+msgid "榜单阅读提示"
+msgstr ""
+
+#: templates/mobile/index.html:127
+#, fuzzy
 msgid "排名数据"
 msgstr "排名"
 
-#: templates/mobile/index.html:122
+#: templates/mobile/index.html:171
 #, fuzzy
 msgid "暂无图书数据"
 msgstr "暂无新书数据"
 
-#: templates/mobile/index.html:123
+#: templates/mobile/index.html:172
 msgid "请稍后再试或切换其他分类"
 msgstr ""
+
+#: templates/mobile/new_book_detail.html:38
+msgid "购买"
+msgstr "购买"
+
+#: templates/mobile/new_books.html:35
+#, fuzzy
+msgid "最近7天"
+msgstr "最近7天出版"
+
+#: templates/mobile/new_books.html:36
+#, fuzzy
+msgid "最近30天"
+msgstr "最近30天出版"
+
+#: templates/mobile/new_books.html:37
+#, fuzzy
+msgid "最近90天"
+msgstr "最近90天出版"
+
+#: templates/mobile/new_books.html:38
+#, fuzzy
+msgid "最近半年"
+msgstr "最近半年出版"
+
+#: templates/mobile/new_books.html:39
+#, fuzzy
+msgid "最近一年"
+msgstr "最近一年出版"
+
+#: templates/mobile/new_books.html:43
+#, fuzzy
+msgid "搜索书名、作者"
+msgstr "搜索书名、作者、"
+
+#: templates/mobile/new_books.html:103
+msgid "查看全部出版社"
+msgstr "查看全部出版社"
 
 #: templates/mobile/profile.html:12
 msgid "读书小达人"
@@ -1774,9 +1873,42 @@ msgstr "暂无数据"
 msgid "系统会自动生成本周周报"
 msgstr ""
 
+#: templates/_macros.html:150
+msgid "收藏"
+msgstr "收藏"
+
+#: templates/_macros.html:165
+msgid "在亚马逊购买"
+msgstr "在亚马逊购买"
+
+#: templates/_macros.html:247
+msgid "分页导航"
+msgstr "分页导航"
+
+#: templates/_macros.html:260
+msgid "上一页不可用"
+msgstr "上一页不可用"
+
+#: templates/_macros.html:282
+msgid "下一页不可用"
+msgstr "下一页不可用"
+
+#: templates/new_books.html:625
+msgid "翻译失败"
+msgstr "翻译失败"
+
+#: templates/weekly_report_detail.html:92
+msgid "持续上榜"
+msgstr "持续上榜"
+
+#: templates/weekly_report_detail.html:274
+msgid "持续上榜最久"
+msgstr "持续上榜最久"
+
 #. no longer emitted via Jinja _() in templates/new_books.html (superseded by
 #. "最近7天出版"), but still required by tests/test_new_books_i18n.py and
-#. mirrored as a literal value in static/js/translations.js (nb_recent_7d_label);
+#. mirrored as a literal value in static/js/translations.js
+#. (nb_recent_7d_label);
 #. kept live here manually so pybabel update does not obsolete it again.
 msgid "近7天出版"
 msgstr "近7天出版"
@@ -1810,68 +1942,3 @@ msgstr "近7天出版"
 
 #~ msgid "已上榜"
 #~ msgstr "已上榜"
-
-
-#: templates/awards.html:112
-msgid "年份"
-msgstr "年份"
-
-#: templates/awards.html:112
-msgid "应用筛选"
-msgstr "应用筛选"
-
-#: templates/awards.html:112
-msgid "重置筛选"
-msgstr "重置筛选"
-
-#: templates/awards.html:112
-msgid "筛选"
-msgstr "筛选"
-
-#: templates/awards.html:112
-msgid "查看纽约时报畅销书榜"
-msgstr "查看纽约时报畅销书榜"
-
-#: templates/awards.html:112
-msgid "实时更新的畅销图书排行榜"
-msgstr "实时更新的畅销图书排行榜"
-
-#: templates/awards.html:112
-msgid "请尝试切换筛选条件或稍后重试"
-msgstr "请尝试切换筛选条件或稍后重试"
-
-#: templates/awards.html:112
-msgid "购买"
-msgstr "购买"
-
-#: templates/awards.html:112
-msgid "查看全部出版社"
-msgstr "查看全部出版社"
-
-#: templates/index.html:47
-msgid "每月"
-msgstr "每月"
-
-#: templates/index.html:47
-msgid "小说"
-msgstr "小说"
-
-#: templates/index.html:47
-msgid "非虚构"
-msgstr "非虚构"
-
-#: templates/index.html:47
-msgid "儿童与青少年"
-msgstr "儿童与青少年"
-
-#: templates/index.html:47
-msgid "商业"
-msgstr "商业"
-
-#: templates/index.html:47
-msgid "生活方式与杂项"
-msgstr "生活方式与杂项"
-
-#: templates/index.html:47
-msgid "漫画与绘本"
-msgstr "漫画与绘本"

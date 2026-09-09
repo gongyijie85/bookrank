@@ -5,6 +5,7 @@
   "description": "前端静态资产质量检查+构建（dev 工具链，无运行时依赖）",
   "scripts": {
     "lint:js": "eslint static/js static/mobile/js --max-warnings 0",
+    "test:frontend": "node --test tests/test_frontend_ranking.mjs",
     "build": "node scripts/build_frontend.mjs"
   },
   "devDependencies": {

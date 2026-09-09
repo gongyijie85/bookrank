@@ -1,0 +1,358 @@
+/* Charts: a quiet masthead, three featured books, then a scannable ranking.
+   Scoped to the bestseller pages; shared by desktop and adaptive mobile. */
+.charts-page {
+    background: var(--bg-secondary);
+}
+
+/* Do not rely on inline display attributes under the site's CSP. */
+.charts-page #svg-icons-sprite,
+.charts-page [hidden] { display: none !important; }
+.charts-page .search-suggestions,
+.charts-page .search-clear-btn { display: none; }
+
+.charts-page .main-content {
+    width: min(1160px, 100%);
+    margin: 0 auto;
+    padding: 104px 32px 48px;
+    background: transparent;
+}
+
+@media (min-width: 1200px) {
+    .charts-page .sidebar,
+    .charts-page .sidebar-toggle { display: none; }
+}
+
+.charts-page .page-header {
+    padding: 20px 0 32px;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: center;
+}
+
+.charts-page .page-header::before { display: none; }
+.charts-kicker {
+    margin: 0 0 16px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+}
+
+.charts-page .page-title {
+    display: block;
+    margin: 0 0 14px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(40px, 5.4vw, 72px);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.055em;
+}
+
+.charts-page .page-title span { font-style: italic; font-weight: 400; }
+.charts-source { margin: 0 0 14px; font-size: 15px; color: var(--text-secondary); }
+.charts-page .page-subtitle { justify-content: center; flex-wrap: wrap; font-size: 12px; }
+.charts-sections {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.charts-sections a {
+    padding: 16px 4px;
+    color: var(--text-secondary);
+    border-bottom: 3px solid transparent;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.charts-sections a[aria-current],
+.charts-sections a:hover { color: var(--text-primary); border-bottom-color: var(--text-primary); }
+.charts-page a:focus-visible,
+.charts-page button:focus-visible {
+    outline: 2px solid var(--link-blue);
+    outline-offset: 4px;
+}
+
+.charts-page .filter-bar {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.charts-page .filter-select,
+.charts-page .filter-input { background: var(--bg-card); min-height: 44px; border-radius: 4px; }
+.charts-page .filter-select { max-width: 100%; }
+.charts-page .filter-group { min-width: 0; }
+.charts-page .filter-group.search-box { align-items: stretch; text-align: left; }
+.charts-page .search-input-wrapper,
+.charts-page .filter-input { width: 100%; max-width: none; }
+.charts-page .filter-actions .btn { min-height: 44px; border-radius: 4px; }
+.charts-page .export-actions-bar {
+    padding: 14px 0;
+    border: 0;
+    border-top: 1px solid var(--border-color);
+    border-radius: 0;
+    background: transparent;
+    margin-bottom: 8px;
+}
+
+.charts-page .export-buttons .btn { background: transparent; color: var(--text-secondary); border-color: var(--border-color); }
+.charts-page .books-grid.bestseller-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.charts-page .books-grid .card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: none;
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.charts-page .books-grid .card:hover {
+    transform: none;
+    border-color: var(--text-muted);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 5%);
+}
+
+.charts-page .card-link { display: contents; }
+.charts-page .card:has(.card-link:focus-visible) { outline: 2px solid var(--link-blue); outline-offset: 3px; }
+.charts-page .card-image {
+    height: 258px;
+    aspect-ratio: auto;
+    background: transparent;
+    padding: 28px 64px 12px;
+    overflow: visible;
+}
+.charts-page .card-image::before { display: none; }
+
+.charts-page .card-image .cover-frame {
+    position: relative;
+    width: 100%;
+    height: 218px;
+    max-width: none;
+    aspect-ratio: auto;
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+}
+
+.charts-page .cover-weeks {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    display: inline-flex;
+    align-items: baseline;
+    min-width: 0;
+    padding: 4px 0 5px 9px;
+    color: var(--link-blue);
+    background: transparent;
+    border-left: 1px solid var(--border-color);
+    line-height: 1;
+    pointer-events: none;
+}
+
+.charts-page .cover-weeks-value {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    white-space: nowrap;
+}
+
+.charts-page .cover-weeks-value strong {
+    font: 700 19px/1 Georgia, 'Times New Roman', serif;
+}
+
+.charts-page .cover-weeks-value > span {
+    color: inherit;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+@media (min-width: 761px) {
+    .charts-page .books-grid .card:nth-child(-n+3) .cover-weeks {
+        top: 6px;
+        right: auto;
+        left: calc(100% + 10px);
+    }
+
+    .charts-page .books-grid .card:nth-child(n+4) .cover-weeks {
+        right: -38px;
+    }
+}
+
+.charts-page .card-image .cover-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 0;
+    filter: drop-shadow(2px 4px 3px rgb(0 0 0 / 14%));
+}
+
+/* Legacy badges use !important; keep the override local to Charts. */
+.charts-page .books-grid .card .card-image .card-badge {
+    top: 20px !important;
+    left: 16px !important;
+    right: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    background: none !important;
+    color: var(--text-primary) !important;
+    font: 400 52px/1 Georgia, serif !important;
+    letter-spacing: -0.06em;
+}
+
+.charts-page .books-grid .card .card-image .rank-change {
+    top: 84px !important;
+    left: 14px !important;
+    right: auto !important;
+    padding: 4px !important;
+    min-width: 30px !important;
+    border-radius: 2px !important;
+}
+
+.charts-page .books-grid .card .card-image .rank-change.up { background: #e8f4ed !important; color: #216140 !important; }
+.charts-page .books-grid .card .card-image .rank-change.down { background: #faede6 !important; color: #974120 !important; }
+.charts-page .books-grid .card .card-image .rank-change.new { background: #eaf2fc !important; color: #245b99 !important; }
+.charts-page .card-category-tag { display: none; }
+.charts-page .card-content { padding: 16px 28px 24px; flex: 1; min-width: 0; }
+.charts-page .card-rank-row { justify-content: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap; }
+.charts-page .card-rank-badge { background: none; padding: 0; color: var(--text-secondary); font-weight: 400; }
+.charts-page .card-weeks { color: var(--link-blue); }
+[data-theme="dark"] .charts-page .card-weeks { color: #9dc7ff; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .charts-page .card-weeks { color: #9dc7ff; }
+}
+.charts-page .card-title {
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 23px;
+    line-height: 1.35;
+    font-weight: 500;
+    text-align: center;
+    min-height: 0;
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+}
+
+.charts-page .card-author { text-align: center; font-size: 13px; line-height: 1.5; }
+.charts-page .card-meta-grid,
+.charts-page .card-isbn { display: none; }
+.charts-page .card-desc {
+    margin: 16px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+    -webkit-line-clamp: 2;
+}
+
+.charts-page .books-grid .card:nth-child(n+4) {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    align-items: center;
+}
+
+.charts-page .card:nth-child(n+4) .card-image { height: 180px; padding: 20px 20px 20px 72px; }
+.charts-page .card:nth-child(n+4) .cover-frame { height: 140px; }
+.charts-page .card:nth-child(n+4) .card-content { padding: 22px 32px 22px 16px; }
+.charts-page .card:nth-child(n+4) .card-title,
+.charts-page .card:nth-child(n+4) .card-author { text-align: left; }
+.charts-page .card:nth-child(n+4) .card-rank-row { justify-content: flex-start; }
+.charts-page .card:nth-child(n+4) .card-desc { border: 0; padding: 0; margin-top: 10px; }
+.charts-page .list-item { border-radius: 4px; box-shadow: none; padding: 24px; gap: 24px; }
+.charts-page .list-item:hover { transform: none; }
+.charts-page .list-item-image { position: relative; }
+.charts-page .list-item-image img { object-fit: contain; border-radius: 0; }
+.charts-page .list-item-image .cover-weeks { top: 0; right: 0; }
+.charts-page .list-item-rank { background: transparent; color: var(--text-primary); font: 400 36px/1 Georgia, serif; }
+.charts-page .list-item-title { font-family: Georgia, 'Songti SC', SimSun, serif; font-size: 22px; }
+.charts-page .quick-link-card { border-radius: 4px; background: var(--bg-card); }
+
+@media (max-width: 760px) {
+    .charts-page .main-content { padding: 88px 16px 32px; }
+    .charts-sections { gap: 16px; }
+    .charts-sections a { font-size: 12px; text-align: center; }
+    .charts-page .filter-group:first-child { width: 100%; }
+    .charts-page .books-grid.bestseller-grid { grid-template-columns: 1fr; gap: 12px; }
+    .charts-page .books-grid .card,
+    .charts-page .books-grid .card:nth-child(n+4) { display: grid; grid-template-columns: 130px minmax(0, 1fr); align-items: center; }
+    .charts-page .card .card-image,
+    .charts-page .card:nth-child(n+4) .card-image { height: 174px; padding: 26px 8px 20px 42px; }
+    .charts-page .card .card-image .cover-frame { height: 128px; }
+    .charts-page .card .card-content,
+    .charts-page .card:nth-child(n+4) .card-content { padding: 18px 16px 18px 8px; }
+    .charts-page .card .card-title { font-size: 18px; text-align: left; }
+    .charts-page .card .card-author { text-align: left; }
+    .charts-page .card .card-rank-row { justify-content: flex-start; gap: 8px; }
+    .charts-page .card .card-desc { border: 0; padding: 0; font-size: 12px; margin-top: 8px; }
+    .charts-page .books-grid .card .card-image .card-badge { left: 10px !important; font-size: 32px !important; }
+    .charts-page .books-grid .card .card-image .rank-change { left: 6px !important; top: 62px !important; min-width: 24px !important; font-size: 9px !important; }
+    .charts-page .card .cover-weeks { padding: 4px 0 5px 7px; }
+    .charts-page .card .cover-weeks-value strong { font-size: 16px; }
+    .charts-page .card .cover-weeks-value > span { font-size: 9px; }
+    .charts-page .list-item { flex-direction: row; padding: 16px; gap: 16px; }
+    .charts-page .list-item-header { flex-direction: row; flex-wrap: wrap; }
+    .charts-page .list-item-title { font-size: 18px; }
+}
+
+/* Adaptive mobile template keeps its search, category rail and ranking data. */
+.mobile-charts-page { --color-primary: #1d1d1f; --color-primary-tint: #f0f0f2; background: #f7f7f8; }
+.mobile-charts-page .m-top-nav {
+    position: relative;
+    background: transparent;
+    color: #1d1d1f;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 24px 20px 28px;
+    margin: 0;
+    text-align: center;
+    justify-content: center;
+}
+
+.mobile-charts-page .m-top-nav-copy { align-items: center; min-width: 0; width: 100%; }
+.mobile-charts-page .m-top-nav-kicker { color: #666; font-size: 11px; }
+.mobile-charts-page .m-top-nav-title { color: #1d1d1f; font: 700 36px/1.15 Georgia, serif; letter-spacing: -0.05em; margin: 8px 0; }
+.mobile-charts-page .m-top-nav-title span { font-weight: 400; font-style: italic; }
+.mobile-charts-page .m-top-nav-subtitle { color: #666; font-size: 12px; }
+.mobile-charts-page .m-search-toggle { position: absolute; top: 0; right: 66px; width: 44px; height: 44px; color: #1d1d1f; background: #fff; border: 1px solid #dedee1; }
+.mobile-charts-page .m-cat-tab { border-radius: 3px; min-height: 44px; display: flex; align-items: center; }
+.mobile-charts-page .m-list-info { flex-wrap: wrap; font-size: 11px; }
+.mobile-charts-page .m-ranking-guide-dot { background: #0071e3; box-shadow: none; }
+.mobile-charts-page .m-book-list { gap: 12px; }
+.mobile-charts-page .m-book-card { border-radius: 3px; box-shadow: none; padding: 20px 14px; gap: 12px; }
+.mobile-charts-page .m-rank-badge,
+.mobile-charts-page .m-rank-badge.small { background: transparent; color: #1d1d1f; border: 0; box-shadow: none; font: 400 32px/1 Georgia, serif; width: 28px; flex-shrink: 0; }
+.mobile-charts-page .m-book-cover { width: 72px; height: 108px; border-radius: 0; background: transparent; box-shadow: none; }
+.mobile-charts-page .m-book-cover img { width: 100%; height: 100%; object-fit: contain; border-radius: 0; }
+.mobile-charts-page .m-book-title { font-family: Georgia, 'Songti SC', SimSun, serif; font-size: 17px; }
+.mobile-charts-page .m-book-card-desc { -webkit-line-clamp: 2; }
+.mobile-charts-page .m-book-insights { flex-wrap: wrap; }
+.mobile-charts-page .m-book-insight strong { color: #0066cc; }
+.mobile-charts-page .m-book-info { min-width: 0; }
+.mobile-charts-page .m-book-card:first-child { border-top: 3px solid #1d1d1f; }
+
+@media (max-width: 380px) {
+    .mobile-charts-page .m-top-nav-title { font-size: 32px; }
+    .mobile-charts-page .m-book-card { padding: 16px 10px; gap: 8px; }
+    .mobile-charts-page .m-book-cover { width: 60px; height: 90px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .charts-page .card,
+    .charts-page .card-animate,
+    .mobile-charts-page .m-book-card { animation: none; transition: none; opacity: 1; transform: none; }
+}
