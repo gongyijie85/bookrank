@@ -407,8 +407,19 @@ jobs:
             cp -a "${SPACE_CLONE}/.huggingface" "${RUNNER_TEMP}/space-hf-config"
           fi
 
+          # 只同步运行时代码。仓库里的 docs/preview、deliverables、bookrank-draft 全是
+          # 截图产物，HF 的 Xet pre-receive hook 会以「contains binary files」拒绝普通
+          # git push，把整个 deploy 拖红。
+          STAGE="${RUNNER_TEMP}/stage"
+          mkdir -p "$STAGE"
+          cp -a app templates static translations migrations \
+            run.py gunicorn.conf.py requirements-prod.txt Dockerfile Procfile .dockerignore \
+            "${STAGE}/"
+
           # 其余内容整体换成 main，让它不再是手工补丁的硬分叉。
-          rsync -a --delete --exclude '.git/' "${GITHUB_WORKSPACE}/" "${SPACE_CLONE}/"
+          # *.mo 不同步：由 Space 镜像构建时从 .po 现编，避免译文一改就撞上二进制拒绝。
+          rsync -a --delete --exclude '.git/' --exclude '*.mo' \
+            "$STAGE/" "$SPACE_CLONE/"
 
           cp "${RUNNER_TEMP}/space-README.md" "${SPACE_CLONE}/README.md"
           if [ -d "${RUNNER_TEMP}/space-hf-config" ]; then
