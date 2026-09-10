@@ -291,6 +291,23 @@ def _parse_awards_params(args) -> dict:
     }
 
 
+def _available_local_cover(local_path: str | None) -> str:
+    """仅在本地缓存文件确实存在时返回其路径，否则返回空串。
+
+    生产（Render 免费层）的临时文件系统会在重启后清空 cache/，而 DB 里的
+    cover_local_path 仍指向已消失的文件。模板按 `cover_local_path or
+    cover_original_url` 取值，不做这层探测就会让每张封面先白跑一个 404，
+    再靠前端回退链救回来。
+    """
+    path = (local_path or '').strip()
+    if not path:
+        return ''
+    image_cache = get_service('image_cache_service')
+    if image_cache and not image_cache.is_cached_file_present(path):
+        return ''
+    return path
+
+
 def _shape_award_book(book) -> dict:
     """将 AwardBook ORM 对象塑形为 awards 模板所需的 dict。
 
@@ -315,7 +332,7 @@ def _shape_award_book(book) -> dict:
         'description': book.description,
         'description_zh': quick_clean_translation(book.description_zh, 'description'),
         'details': book.details,
-        'cover_local_path': book.cover_local_path,
+        'cover_local_path': _available_local_cover(book.cover_local_path),
         'cover_original_url': book.cover_original_url,
         'isbn13': book.isbn13,
         'isbn10': book.isbn10,
@@ -471,7 +488,7 @@ def _load_recent_award_books(award_service, years: list[int]) -> list[dict]:
                     'isbn13': book.isbn13,
                     'year': book.year,
                     'category': book.category,
-                    'cover_local_path': book.cover_local_path,
+                    'cover_local_path': _available_local_cover(book.cover_local_path),
                     'cover_original_url': book.cover_original_url,
                     'award_name': book.award.name if book.award else '',
                     'award_name_en': book.award.name_en if book.award else '',
