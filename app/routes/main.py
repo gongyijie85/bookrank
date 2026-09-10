@@ -87,15 +87,23 @@ def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | N
     return books_data, update_time
 
 
-def _search_all_categories(search_query: str, categories: dict[str, str]) -> list[dict[str, Any]]:
-    """跨全部分类抓取并标注来源分类（#66）；过滤由调用方的 filter_books_by_search 完成"""
-    merged: list[dict[str, Any]] = []
+def _fetch_all_category_books(categories: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
+    """抓取全部分类的当前榜；单个分类失败时跳过该分类，不影响其余数据。"""
+    result: dict[str, list[dict[str, Any]]] = {}
     for key in categories:
         try:
             books_data, _ = _get_books_for_category(key, auto_translate=False, notify_refresh=False)
         except ExternalAPIError as e:
             e.log()
             continue
+        result[key] = books_data
+    return result
+
+
+def _search_all_categories(search_query: str, categories: dict[str, str]) -> list[dict[str, Any]]:
+    """跨全部分类抓取并标注来源分类（#66）；过滤由调用方的 filter_books_by_search 完成"""
+    merged: list[dict[str, Any]] = []
+    for key, books_data in _fetch_all_category_books(categories).items():
         for idx, book in enumerate(books_data):
             book['source_category'] = key
             book['source_index'] = (book.get('rank') or (idx + 1)) - 1
@@ -425,6 +433,100 @@ def _load_awards_data(award_service, params: dict) -> dict:
         'has_prev': page > 1,
         'has_next': page < total_pages,
     }
+
+
+RANKING_TABS = ('cross', 'longevity', 'overlooked', 'publishers')
+# 遗珠榜只看最近若干个年度的获奖记录：更早的获奖书早已离开畅销榜是常态，不构成"遗珠"
+OVERLOOKED_YEAR_SPAN = 3
+OVERLOOKED_AWARD_BOOKS_PER_YEAR = 300
+PUBLISHER_LEADERBOARD_LIMIT = 30
+LONGEVITY_LIMIT = 20
+
+
+def _load_recent_award_books(award_service, years: list[int]) -> list[dict]:
+    """逐年取可展示的获奖图书；不改 AwardBookService，避免影响其查询数回归测试。"""
+    from ..models.schemas import AwardBook
+
+    records: list[dict] = []
+    for year in years:
+        try:
+            books, _total = award_service.get_award_books(
+                year=year,
+                include_displayable_only=True,
+                page=1,
+                limit=OVERLOOKED_AWARD_BOOKS_PER_YEAR,
+            )
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'遗珠榜获奖数据加载失败 year={year}: {e}', level='warning')
+            continue
+        for book in books:
+            raw_zh = quick_clean_translation(book.title_zh, 'title')
+            records.append(
+                {
+                    'id': book.id,
+                    'title': book.display_title,
+                    'title_zh': '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or ''),
+                    'author': book.author,
+                    'publisher': book.publisher,
+                    'isbn13': book.isbn13,
+                    'year': book.year,
+                    'category': book.category,
+                    'cover_local_path': book.cover_local_path,
+                    'cover_original_url': book.cover_original_url,
+                    'award_name': book.award.name if book.award else '',
+                    'award_name_en': book.award.name_en if book.award else '',
+                }
+            )
+    return records
+
+
+@main_bp.route('/rankings')
+def rankings():
+    """派生榜单：跨榜现象级 / 长销常青榜 / 遗珠榜 / 厂牌榜，全部由现有数据二次加工"""
+    from datetime import UTC, datetime
+
+    from ..services.award_book_service import AwardBookService
+    from ..services.derived_lists_service import (
+        build_cross_list_entries,
+        build_longevity_entries,
+        build_overlooked_entries,
+        build_publisher_entries,
+    )
+
+    tab = request.args.get('tab', 'cross')
+    if tab not in RANKING_TABS:
+        tab = 'cross'
+
+    categories = current_app.config['CATEGORIES']
+    books_by_category = _fetch_all_category_books(categories)
+
+    cross_entries = [entry.to_dict() for entry in build_cross_list_entries(books_by_category)]
+    longevity_entries = [entry.to_dict() for entry in build_longevity_entries(books_by_category, limit=LONGEVITY_LIMIT)]
+    publisher_entries = [
+        entry.to_dict() for entry in build_publisher_entries(books_by_category, limit=PUBLISHER_LEADERBOARD_LIMIT)
+    ]
+
+    current_year = datetime.now(UTC).year
+    award_years = list(range(current_year, current_year - OVERLOOKED_YEAR_SPAN, -1))
+    award_books = _load_recent_award_books(AwardBookService(), award_years)
+    overlooked_entries = [entry.to_dict() for entry in build_overlooked_entries(award_books, books_by_category)]
+
+    book_service = get_service('book_service')
+    update_time = book_service.get_latest_cache_time() if book_service else None
+
+    return render_adaptive(
+        'rankings.html',
+        tab=tab,
+        cross_entries=cross_entries,
+        longevity_entries=longevity_entries,
+        overlooked_entries=overlooked_entries,
+        publisher_entries=publisher_entries,
+        award_years=award_years,
+        category_count=len(categories),
+        category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
+        update_time=update_time,
+        active_tab='rankings',
+    )
 
 
 @main_bp.route('/new-books')

@@ -2095,3 +2095,45 @@ html { scroll-behavior: smooth; }
     font-size: var(--text-base);
     cursor: pointer;
 }
+
+/* ===== 更多榜单（派生榜单） ===== */
+.m-rankings-note {
+    margin: var(--space-3) var(--space-4) 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+}
+
+.m-cross-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.m-cross-chips a {
+    padding: 2px var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+}
+
+.m-rank-card {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.m-rank-index {
+    min-width: 24px;
+    color: var(--color-text-tertiary);
+    font-size: var(--text-lg, 16px);
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}

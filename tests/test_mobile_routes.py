@@ -669,3 +669,32 @@ class TestMobileV978:
         top_nav_end = resp.data.find(b'</nav>', top_nav_start)
         top_nav_block = resp.data[top_nav_start:top_nav_end]
         assert b'm-search-toggle' in top_nav_block
+
+
+class TestMobileRankingsRoute:
+    """更多榜单页（派生榜单）移动端渲染"""
+
+    @staticmethod
+    def _mocks(mock_get_svc, mock_award_svc):
+        mock_get_svc.return_value = _mock_book_service([_make_book(title='My Friends', author='Fredrik Backman')])
+        mock_award_svc.return_value.get_award_books.return_value = ([], 0)
+
+    @patch('app.routes.main.get_service')
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_mobile_ua_renders_mobile_template(self, mock_award_svc, mock_get_svc, client) -> None:
+        self._mocks(mock_get_svc, mock_award_svc)
+        resp = client.get('/rankings?lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' in resp.data
+        assert '跨榜现象级'.encode() in resp.data
+        assert b'My Friends' in resp.data
+
+    @patch('app.routes.main.get_service')
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_desktop_ua_renders_desktop_template(self, mock_award_svc, mock_get_svc, client) -> None:
+        self._mocks(mock_get_svc, mock_award_svc)
+        resp = client.get('/rankings?lang=zh', headers={'User-Agent': DESKTOP_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' not in resp.data
+        assert '跨榜现象级'.encode() in resp.data
+        assert b'class="cross-list"' in resp.data

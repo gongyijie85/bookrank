@@ -1,0 +1,141 @@
+{% extends "mobile/base.html" %}
+
+{% block title %}{{ _('更多榜单') }} - BookRank{% endblock %}
+
+{% block header %}
+<nav class="m-top-nav">
+    <div class="m-top-nav-copy">
+        <span class="m-top-nav-kicker">{{ _('榜单横向再加工') }}</span>
+        <h1 class="m-top-nav-title">More <span>Charts</span></h1>
+        <span class="m-top-nav-subtitle">{{ _('把纽约时报的 %(n)s 个分类榜横向切开再看一遍', n=category_count) }}</span>
+    </div>
+</nav>
+{% endblock %}
+
+{# 跨榜现象级与长销常青榜共用条目行；宏不继承模板变量，故显式传参 #}
+{% macro entry_rows(entries, category_names_en, _locale, empty_title, empty_text) %}
+    {% if entries %}
+    <div class="m-book-list">
+        {% for entry in entries %}
+        <div class="m-card m-book-card">
+            <div class="m-book-cover">
+                <img src="{{ entry.cover or url_for('static', filename='default-cover.png') }}"
+                     alt="" loading="lazy" width="60" height="80">
+            </div>
+            <div class="m-book-info">
+                <h3 class="m-book-title">{{ entry.title_zh or entry.title }}</h3>
+                <p class="m-book-author">{{ entry.author }}</p>
+                <div class="m-badge-row">
+                    <span class="m-badge m-badge-primary">{{ _('%(n)s 个分类', n=entry.category_count) }}</span>
+                    <span class="m-badge m-badge-accent">{{ _('最高 #%(rank)s', rank=entry.best_rank) }}</span>
+                    {% if entry.total_weeks %}<span class="m-badge">{{ _('累计 %(n)s 周', n=entry.total_weeks) }}</span>{% endif %}
+                </div>
+                <ul class="m-cross-chips">
+                    {% for listing in entry.listings %}
+                    <li>
+                        <a href="{{ url_for('main.index', category=listing.category_id) }}">
+                            {% if _locale == 'zh' %}{{ listing.category_name }}{% else %}{{ category_names_en.get(listing.category_id, listing.category_name) }}{% endif %}
+                            #{{ listing.rank }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="m-empty">
+        <p class="m-empty-title">{{ empty_title }}</p>
+        <p class="m-empty-sub">{{ empty_text }}</p>
+    </div>
+    {% endif %}
+{% endmacro %}
+
+{% block content %}
+{% set _locale = get_locale() %}
+
+<section class="m-cat-tabs" aria-label="{{ _('榜单切换') }}">
+    <div class="m-cat-tabs-scroll no-scrollbar">
+        <a href="{{ url_for('main.rankings', tab='cross') }}" class="m-cat-tab {% if tab == 'cross' %}active{% endif %}">
+            {{ _('跨榜现象级') }}<span class="m-cat-tab-count">{{ cross_entries | length }}</span>
+        </a>
+        <a href="{{ url_for('main.rankings', tab='longevity') }}" class="m-cat-tab {% if tab == 'longevity' %}active{% endif %}">
+            {{ _('长销常青榜') }}<span class="m-cat-tab-count">{{ longevity_entries | length }}</span>
+        </a>
+        <a href="{{ url_for('main.rankings', tab='overlooked') }}" class="m-cat-tab {% if tab == 'overlooked' %}active{% endif %}">
+            {{ _('遗珠榜') }}<span class="m-cat-tab-count">{{ overlooked_entries | length }}</span>
+        </a>
+        <a href="{{ url_for('main.rankings', tab='publishers') }}" class="m-cat-tab {% if tab == 'publishers' %}active{% endif %}">
+            {{ _('厂牌榜') }}<span class="m-cat-tab-count">{{ publisher_entries | length }}</span>
+        </a>
+    </div>
+</section>
+
+{% if tab == 'cross' %}
+<p class="m-rankings-note">{{ _('同一本书在不同分类榜上常用不同 ISBN，这里按归一化书名与作者匹配，统计它同时进入了几个分类榜。') }}</p>
+{{ entry_rows(cross_entries, category_names_en, _locale, _('本周没有跨榜的书'), _('当前各分类榜之间没有重叠书目，或榜单数据尚未同步。')) }}
+
+{% elif tab == 'longevity' %}
+<p class="m-rankings-note">{{ _('按同一部作品在各分类榜的合计在榜周数排序。口径是当前在榜的累计周数，不是本年度累计。') }}</p>
+{{ entry_rows(longevity_entries, category_names_en, _locale, _('暂无长销书'), _('榜单数据尚未同步，或本次未取到在榜周数。')) }}
+
+{% elif tab == 'overlooked' %}
+<p class="m-rankings-note">{{ _('近年拿过国际图书大奖、却没有出现在任何纽约时报畅销榜上的书。') }}</p>
+{% if overlooked_entries %}
+<div class="m-book-list">
+    {% for entry in overlooked_entries %}
+    <a href="{{ url_for('main.award_book_detail', book_id=entry.id) }}" class="m-card m-book-card">
+        <div class="m-book-cover">
+            <img src="{{ entry.cover_local_path or entry.cover_original_url or url_for('static', filename='default-cover.png') }}"
+                 alt="{{ _('《') }}{{ entry.title_zh or entry.title }}{{ _('》封面，作者 ') }}{{ entry.author }}" loading="lazy" width="60" height="80">
+        </div>
+        <div class="m-book-info">
+            <h3 class="m-book-title">{{ entry.title_zh or entry.title }}</h3>
+            <p class="m-book-author">{{ entry.author }}</p>
+            <div class="m-badge-row">
+                {% for award in entry.awards %}
+                <span class="m-badge m-badge-primary">
+                    {% if _locale == 'zh' %}{{ award.award_name or award.award_name_en }}{% else %}{{ award.award_name_en or award.award_name }}{% endif %}
+                    {{ award.year }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="m-empty">
+    <p class="m-empty-title">{{ _('暂无遗珠') }}</p>
+    <p class="m-empty-sub">{{ _('近年获奖图书都已在畅销榜上，或奖项数据尚未同步。') }}</p>
+</div>
+{% endif %}
+
+{% else %}
+<p class="m-rankings-note">{{ _('按上榜本数排序。出版社名取自榜单原始署名，仅合并五大集团本名，子品牌仍各自计列。') }}</p>
+{% if publisher_entries %}
+<div class="m-publisher-list">
+    {% for entry in publisher_entries %}
+    <div class="m-card m-publisher-card m-rank-card">
+        <span class="m-rank-index">{{ loop.index }}</span>
+        <span class="m-publisher-main">
+            <strong class="m-publisher-name">{{ entry.name }}</strong>
+            <span class="m-publisher-name-en">
+                {{ _('上榜 %(n)s 本 · 覆盖 %(c)s 个分类 · 最高 #%(r)s', n=entry.book_count, c=entry.category_count, r=entry.best_rank) }}
+            </span>
+            <span class="m-publisher-desc">
+                {% for book in entry.books[:2] %}{{ book.title_zh or book.title }}{% if not loop.last %} · {% endif %}{% endfor %}
+            </span>
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="m-empty">
+    <p class="m-empty-title">{{ _('暂无数据') }}</p>
+    <p class="m-empty-sub">{{ _('榜单数据尚未同步，或本次未取到出版社信息。') }}</p>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
