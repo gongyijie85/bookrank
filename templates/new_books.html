@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from '_macros.html' import new_book_card %}
+{% from '_macros.html' import browse_book_card, new_book_card %}
 
 {% block title %}{{ _('新书速递') }} - BookRank{% endblock %}
 {% block og_title %}{{ _('新书速递') }} - BookRank{% endblock %}
@@ -35,25 +35,55 @@
 {% endblock %}
 
 {% block content %}
-<div class="new-books-header">
-    <h1><svg class="icon text-gold" width="24" height="24"><use href="#icon-star"/></svg> {{ _('新书速递') }}</h1>
-    <p data-i18n="nb_header_subtitle" style="color: var(--text-secondary);">{{ _('追踪国际大型出版社最新出版物') }}</p>
+<header class="page-header">
+    <p class="charts-kicker">NEW ARRIVALS</p>
+    <h1 class="page-title">
+        New <span>Releases</span>
+    </h1>
+    <p class="charts-source" data-i18n="nb_header_subtitle">{{ _('追踪国际大型出版社最新出版物') }}</p>
+    <p class="page-subtitle">
+        {{ stats.total_books }} {{ _('本新书') }} · {{ stats.active_publishers }} {{ _('家出版社') }} · {{ _('近 %(days)s 天', days=selected_days) }}
+    </p>
+</header>
 
-    <div class="stats-bar">
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-book"/></svg>
-            <span><span data-i18n="nb_total_pre">{{ _('共') }}</span> <strong>{{ stats.total_books }}</strong> <span data-i18n="nb_total_new_books_suffix">{{ _('本新书') }}</span></span>
-        </div>
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-building"/></svg>
-            <span><strong>{{ stats.active_publishers }}</strong> <span data-i18n="nb_publishers_suffix">{{ _('家出版社') }}</span></span>
-        </div>
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-calendar"/></svg>
-            <span><span data-i18n="nb_recent_30d_label">{{ _('近30天出版') }}</span> <strong>{{ stats.recent_books_30d }}</strong> <span>{{ _('本') }}</span></span>
-        </div>
+{% if categories %}
+<nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
+    <a href="{{ url_for('main.new_books', days=selected_days) }}">{% if selected_category %}{{ _('清除分类筛选') }}{% else %}{{ _('全部分类') }}{% endif %}</a>
+    {% for cat in categories %}
+    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}">{{ cat.name }}</a>
+    {% endfor %}
+</nav>
+
+<section class="browse-directory" aria-label="{{ _('图书分类') }}">
+    {% for cat in categories %}
+    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}"
+       class="browse-tile"
+       {% if selected_category == cat.name %}aria-current="page"{% endif %}>
+        <span class="browse-tile-name">{{ cat.name }}</span>
+        <span class="browse-tile-count">{{ cat.count }} {{ _('本') }}</span>
+    </a>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% for section in publisher_sections %}
+<section class="browse-section" aria-label="{{ section.publisher.name }}">
+    <div class="browse-section-head">
+        <h2 class="browse-section-title">{{ section.publisher.name }}</h2>
+        <a class="browse-section-more"
+           href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看全部') }} &rarr;</a>
     </div>
-</div>
+    <div class="browse-rail-shell">
+        <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+        <div class="browse-rail">
+            {% for book in section.books %}
+            <div class="browse-rail__item">{{ browse_book_card(book) }}</div>
+            {% endfor %}
+        </div>
+        <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+    </div>
+</section>
+{% endfor %}
 
 <form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
     <div class="filter-group">
@@ -125,7 +155,7 @@
     <span class="summary-muted" data-i18n="nb_filtered_by_date" data-i18n-params-days="{{ selected_days }}">{{ _('按出版日期筛选最近') }} <strong id="result-summary-days">{{ selected_days }}</strong> {{ _('天已出版图书') }}</span>
 </div>
 
-<div id="sync-status" class="sync-status" style="display: none;"></div>
+<div id="sync-status" class="sync-status" hidden></div>
 
 <div id="books-container">
 {% if books %}
@@ -522,6 +552,7 @@ function syncNewBooks() {
     btn.disabled = true;
     btn.innerHTML = '<svg class="icon icon-spin" width="18" height="18"><use href="#icon-spinner"/></svg> {{ _('同步中') }}...';
 
+    statusDiv.hidden = false;
     statusDiv.style.display = 'flex';
     statusDiv.className = 'sync-status syncing';
     statusDiv.innerHTML = '<svg class="icon icon-spin" width="18" height="18"><use href="#icon-spinner"/></svg> {{ _('正在从出版社获取新书数据') }}...';
@@ -643,6 +674,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentLanguage && currentLanguage !== 'zh') {
         applyNewBooksLanguage(currentLanguage);
     }
+
+    document.querySelectorAll('.browse-rail-shell').forEach(function(shell) {
+        const rail = shell.querySelector('.browse-rail');
+        if (!rail) return;
+        shell.querySelectorAll('.browse-rail-nav').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const dir = btn.classList.contains('prev') ? -1 : 1;
+                rail.scrollBy({ left: dir * Math.max(rail.clientWidth - 80, 200), behavior: 'smooth' });
+            });
+        });
+    });
 });
 </script>
 {% endblock %}

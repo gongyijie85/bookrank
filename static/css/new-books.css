@@ -25,73 +25,6 @@
     --new-books-accent-red-text-bright: #f87171;
 }
 
-/* 页面头部 */
-.new-books-header {
-    background: var(--card-bg, #ffffff);
-    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 8px;
-    padding: 2rem 2.5rem;
-    margin-bottom: 1.5rem;
-    position: relative;
-    overflow: hidden;
-}
-
-.new-books-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(to right, var(--new-books-accent-blue, #0075de), var(--new-books-accent-teal, #2a9d99));
-}
-
-.new-books-header h1 {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--text-primary, rgba(0, 0, 0, 0.95));
-    margin: 0 0 0.5rem 0;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    letter-spacing: 0;
-}
-
-.new-books-header h1 .text-gold {
-    color: var(--new-books-accent-gold, #dd5b00);
-}
-
-.new-books-header > p {
-    color: var(--text-secondary, #615d59);
-    margin: 0;
-    font-size: 0.875rem;
-}
-
-/* 统计栏 */
-.stats-bar {
-    display: flex;
-    gap: 2rem;
-    margin-top: 1rem;
-    flex-wrap: wrap;
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--text-secondary, #615d59);
-    font-size: 0.8125rem;
-}
-
-.stat-item .icon {
-    color: var(--new-books-accent-blue, #0075de);
-}
-
-.stat-item strong {
-    color: var(--text-primary, rgba(0, 0, 0, 0.95));
-    font-weight: 600;
-}
-
 /* 筛选栏 */
 .filter-bar {
     display: flex;
@@ -793,4 +726,125 @@
     .book-tags {
         display: none;
     }
+}
+
+/* ============================================================
+   Charts tone (new-books page)
+   Layered on the shared .charts-page base; new-books.css loads
+   before charts.css, so these use a compound class to outrank it.
+   ============================================================ */
+
+/* Category tiles and the filter bar replace the sidebar quick links. */
+.charts-page.new-books-page .sidebar,
+.charts-page.new-books-page .sidebar-toggle {
+    display: none !important;
+}
+
+.charts-page.new-books-page .books-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.new-books-page .book-card {
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+    transition: border-color 180ms ease;
+}
+
+.new-books-page .book-card:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: var(--text-muted);
+}
+
+.new-books-page .book-card:hover .book-cover {
+    transform: none;
+}
+
+.new-books-page .book-cover-wrapper {
+    padding: 16px 16px 8px;
+    background: transparent;
+}
+
+.new-books-page .book-cover {
+    border-radius: 0;
+    box-shadow: none;
+    filter: drop-shadow(2px 4px 3px rgb(0 0 0 / 14%));
+}
+
+.new-books-page .book-title {
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.new-books-page .book-info {
+    padding: 14px 18px 18px;
+}
+
+.new-books-page .book-publisher {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.new-books-page .book-tag {
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.new-books-page .book-tag.tag-new {
+    border-color: transparent;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+}
+
+.new-books-page .result-summary {
+    padding: 14px 0;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+    background: transparent;
+}
+
+.new-books-page .pagination a,
+.new-books-page .pagination span {
+    min-width: 38px;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.new-books-page .pagination a:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+
+.new-books-page .pagination .active {
+    border-color: var(--text-primary);
+    background: var(--text-primary);
+    color: var(--text-white);
+}
+
+.new-books-page .sync-status[hidden] { display: none; }
+
+@media (max-width: 1200px) {
+    .charts-page.new-books-page .books-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+    .charts-page.new-books-page .books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .new-books-page .book-card { animation: none; transition: none; transform: none; }
 }

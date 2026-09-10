@@ -540,9 +540,20 @@ def _load_new_books_data(modules, params: dict) -> dict:
 
     total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
 
+    publisher_sections: list = []
+    is_browsing = not (selected_publisher or selected_category or search_query)
+    if is_browsing:
+        try:
+            publisher_sections = _build_new_book_publisher_sections(
+                modules, publishers, publisher_book_counts, selected_days
+            )
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'新书出版社书列加载失败: {e}', level='warning')
+
     return {
         'publishers': publishers,
         'publisher_book_counts': publisher_book_counts,
+        'publisher_sections': publisher_sections,
         'categories': categories,
         'books': books,
         'stats': stats,
@@ -631,6 +642,33 @@ def _build_publisher_sections(publishers_data: list, publisher_ids: dict, module
         for i, cat in enumerate(publishers_data)
         if buckets.get(i)
     ]
+
+
+def _build_new_book_publisher_sections(
+    modules, publishers: list, publisher_book_counts: dict, days: int, limit: int = 8, max_sections: int = 6
+) -> list:
+    """按出版社聚合的新书书列。
+
+    沿用页面当前时间窗口，一次 get_new_books 查询 + Python 侧按 publisher_id 分桶，
+    避免逐出版社发查询；按各出版社新书数降序取前若干栏，窗口内无新书的出版社不出栏。
+    """
+    ranked = sorted(
+        (p for p in publishers if publisher_book_counts.get(p.id)),
+        key=lambda p: publisher_book_counts.get(p.id, 0),
+        reverse=True,
+    )[:max_sections]
+    wanted = {p.id: p for p in ranked}
+    if not wanted:
+        return []
+
+    books, _total = modules.query_service.get_new_books(days=days, page=1, per_page=300)
+
+    buckets: dict[int, list] = defaultdict(list)
+    for book in books:
+        if book.publisher_id in wanted and len(buckets[book.publisher_id]) < limit:
+            buckets[book.publisher_id].append(book)
+
+    return [{'publisher': wanted[pid], 'books': buckets[pid]} for pid in wanted if buckets.get(pid)]
 
 
 @main_bp.route('/publishers')

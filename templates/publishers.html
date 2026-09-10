@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import browse_book_card %}
 
 {% block title %}{{ _('出版社导航') }} - BookRank{% endblock %}
 {% block og_title %}{{ _('出版社导航') }} - BookRank{% endblock %}
@@ -9,40 +10,6 @@
 {% block breadcrumbs %}{% endblock %}
 
 {% block content %}
-{% set _l = get_locale() %}
-
-{# 书列卡片：NewBook ORM 对象，字段与 _macros.new_book_card 对齐 #}
-{% macro publisher_book_card(book) %}
-{% set display_title = (book.title_zh or book.title) if _l == 'zh' else (book.title or book.title_zh) %}
-{% set pub_name = ((book.publisher.name_en or book.publisher.name) if _l == 'en' else book.publisher.name) if book.publisher else '' %}
-<article class="browse-card">
-    <div class="browse-card-media">
-        {% if book.cover_url %}
-        <img src="{{ book.cover_url }}"
-             alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
-             loading="lazy"
-             width="160"
-             height="240"
-             data-fallback="{{ url_for('static', filename='default-cover.png') }}">
-        {% else %}
-        <img src="{{ url_for('static', filename='default-cover.png') }}" alt="{{ _('暂无封面') }}" width="160" height="240">
-        {% endif %}
-        {% if book.publication_date %}
-        {% set pub_date = book.publication_date.strftime('%Y-%m-%d') if book.publication_date is not string else book.publication_date[:10] %}
-        <span class="browse-cover-flag">{{ pub_date[5:] }}</span>
-        {% endif %}
-    </div>
-    <div class="browse-card-body">
-        {% if pub_name and pub_name not in ('Unknown', 'Unknown Publisher', 'N/A', _('未知'), _('未知出版社')) %}
-        <span class="browse-card-eyebrow">{{ pub_name }}</span>
-        {% endif %}
-        <h3 class="browse-card-title" title="{{ display_title }}">
-            <a href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ display_title or _('未知书名') }}</a>
-        </h3>
-        <p class="browse-card-author">{{ book.author or _('未知作者') }}</p>
-    </div>
-</article>
-{% endmacro %}
 
 <!-- Masthead -->
 <header class="page-header">
@@ -84,7 +51,7 @@
         <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
         <div class="browse-rail">
             {% for book in section.books %}
-            <div class="browse-rail__item">{{ publisher_book_card(book) }}</div>
+            <div class="browse-rail__item">{{ browse_book_card(book) }}</div>
             {% endfor %}
         </div>
         <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
