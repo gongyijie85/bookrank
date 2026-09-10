@@ -4,301 +4,112 @@
 {% block og_title %}{{ _('出版社导航') }} - BookRank{% endblock %}
 {% block twitter_title %}{{ _('出版社导航') }} - BookRank{% endblock %}
 
-{% block breadcrumbs %}
-{% from '_breadcrumbs.html' import breadcrumbs %}
-{{ breadcrumbs([
-    {'label': _('首页'), 'url': url_for('main.index')},
-    {'label': _('出版社导航'), 'url': url_for('main.publishers')}
-], csp_nonce()) }}
-{% endblock %}
-
-{% block extra_css %}
-<style nonce="{{ csp_nonce() }}">
-    .publishers-header {
-        padding: var(--spacing-xl);
-        background: var(--bg-card);
-        border-bottom: 1px solid var(--border-color);
-        margin-bottom: var(--spacing-lg);
-    }
-
-    .publishers-header h1 {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin-bottom: var(--spacing-sm);
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-    }
-
-    .publishers-header h1 i {
-        color: var(--accent-color);
-    }
-
-    .publishers-header p {
-        color: var(--text-secondary);
-    }
-
-    .stats-bar {
-        display: flex;
-        gap: var(--spacing-xl);
-        margin-top: var(--spacing-md);
-        flex-wrap: wrap;
-    }
-
-    .stat-item {
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-    }
-
-    .stat-item i {
-        color: var(--accent-color);
-    }
-
-    .stat-item strong {
-        color: var(--text-primary);
-        font-weight: 600;
-    }
-
-    .search-box {
-        margin-top: var(--spacing-md);
-        max-width: 400px;
-        position: relative;
-    }
-
-    .search-box input {
-        width: 100%;
-        padding: 0.75rem 1rem 0.75rem 2.5rem;
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-md);
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        font-size: 0.9375rem;
-    }
-
-    .search-box input:focus {
-        outline: none;
-        border-color: var(--accent-color);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    .search-box i {
-        position: absolute;
-        left: 0.875rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-light);
-    }
-
-    .publisher-category {
-        background: var(--bg-card);
-        border-radius: var(--radius-lg);
-        padding: var(--spacing-lg);
-        margin-bottom: var(--spacing-lg);
-        border: 1px solid var(--border-color);
-    }
-
-    .publisher-category h2 {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: var(--spacing-md);
-        padding-bottom: var(--spacing-sm);
-        border-bottom: 2px solid var(--accent-color);
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-    }
-
-    .publisher-category h2 i {
-        color: var(--accent-color);
-    }
-
-    .publishers-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .publishers-table th {
-        padding: var(--spacing-sm) var(--spacing-md);
-        background: var(--bg-secondary);
-        border-bottom: 2px solid var(--border-color);
-        text-align: left;
-        font-weight: 600;
-        font-size: 0.8125rem;
-        color: var(--text-secondary);
-    }
-
-    .publishers-table th:first-child {
-        width: 20%;
-    }
-
-    .publishers-table th:nth-child(2) {
-        width: 25%;
-    }
-
-    .publishers-table th:last-child {
-        width: 55%;
-    }
-
-    .publishers-table td {
-        padding: var(--spacing-sm) var(--spacing-md);
-        border-bottom: 1px solid var(--border-color);
-        vertical-align: top;
-        font-size: 0.9375rem;
-    }
-
-    .publishers-table tr:hover {
-        background: var(--bg-secondary);
-    }
-
-    .publishers-table tr:last-child td {
-        border-bottom: none;
-    }
-
-    .publisher-name {
-        font-weight: 600;
-        color: var(--text-primary);
-    }
-
-    .publisher-name-en {
-        font-size: 0.8125rem;
-        color: var(--text-secondary);
-        margin-top: 2px;
-    }
-
-    .publisher-link {
-        color: var(--accent-color);
-        text-decoration: none;
-        font-weight: 500;
-        transition: color var(--transition-fast);
-    }
-
-    .publisher-link:hover {
-        color: #1d4ed8;
-        text-decoration: underline;
-    }
-
-    .publisher-newbooks-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 2px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 0.8125rem;
-        font-weight: 500;
-        white-space: nowrap;
-        transition: color var(--transition-fast);
-    }
-
-    .publisher-newbooks-link:hover {
-        color: var(--accent-color);
-        text-decoration: underline;
-    }
-
-    .publisher-description {
-        color: var(--text-secondary);
-        line-height: 1.5;
-        font-size: 0.875rem;
-    }
-
-    .external-link-icon {
-        font-size: 0.75rem;
-        margin-left: 4px;
-        opacity: 0.7;
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: var(--spacing-2xl);
-        color: var(--text-secondary);
-    }
-
-    .empty-state i {
-        font-size: 4rem;
-        margin-bottom: var(--spacing-lg);
-        color: var(--text-light);
-    }
-
-    .no-results {
-        text-align: center;
-        padding: var(--spacing-xl);
-        color: var(--text-secondary);
-    }
-
-    @media (max-width: 768px) {
-        .publishers-table th:first-child,
-        .publishers-table td:first-child {
-            width: 30%;
-        }
-
-        .publishers-table th:nth-child(2),
-        .publishers-table td:nth-child(2) {
-            display: none;
-        }
-
-        .publishers-table th:nth-child(3),
-        .publishers-table td:nth-child(3) {
-            width: 70%;
-        }
-
-        .publishers-table th:nth-child(4),
-        .publishers-table td:nth-child(4) {
-            display: none;
-        }
-
-        .stats-bar {
-            flex-direction: column;
-            gap: var(--spacing-sm);
-        }
-    }
-</style>
-{% endblock %}
-
-{% block sidebar %}
-<div class="sidebar-section">
-    <h3 class="sidebar-title">{{ _('快速链接') }}</h3>
-    <ul class="sidebar-menu" role="menu">
-        {% for cat in publishers_data %}
-        <li class="sidebar-item" role="none">
-            <a href="#cat-{{ loop.index }}" class="sidebar-link" role="menuitem">
-                <svg class="icon" width="18" height="18"><use href="#icon-chevron-right"/></svg>
-                <span>{{ cat.category }}</span>
-            </a>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
-{% endblock %}
+{# 分类导航由速览条与磁贴承担，侧边栏留空并在 publishers.css 中隐藏 #}
+{% block sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 
 {% block content %}
-<div class="publishers-header">
-    <h1><svg class="icon text-primary" width="24" height="24"><use href="#icon-building"/></svg> {{ _('出版社导航') }}</h1>
-    <p>{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</p>
+{% set _l = get_locale() %}
 
-    <div class="stats-bar">
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-globe"/></svg>
-            <span>{{ _('共') }} <strong>{{ total_publishers }}</strong> {{ _('个网站') }}</span>
-        </div>
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-folder"/></svg>
-            <span><strong>{{ publishers_data|length }}</strong> {{ _('个分类') }}</span>
-        </div>
+{# 书列卡片：NewBook ORM 对象，字段与 _macros.new_book_card 对齐 #}
+{% macro publisher_book_card(book) %}
+{% set display_title = (book.title_zh or book.title) if _l == 'zh' else (book.title or book.title_zh) %}
+{% set pub_name = ((book.publisher.name_en or book.publisher.name) if _l == 'en' else book.publisher.name) if book.publisher else '' %}
+<article class="browse-card">
+    <div class="browse-card-media">
+        {% if book.cover_url %}
+        <img src="{{ book.cover_url }}"
+             alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
+             loading="lazy"
+             width="160"
+             height="240"
+             data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+        {% else %}
+        <img src="{{ url_for('static', filename='default-cover.png') }}" alt="{{ _('暂无封面') }}" width="160" height="240">
+        {% endif %}
+        {% if book.publication_date %}
+        {% set pub_date = book.publication_date.strftime('%Y-%m-%d') if book.publication_date is not string else book.publication_date[:10] %}
+        <span class="browse-cover-flag">{{ pub_date[5:] }}</span>
+        {% endif %}
     </div>
+    <div class="browse-card-body">
+        {% if pub_name and pub_name not in ('Unknown', 'Unknown Publisher', 'N/A', _('未知'), _('未知出版社')) %}
+        <span class="browse-card-eyebrow">{{ pub_name }}</span>
+        {% endif %}
+        <h3 class="browse-card-title" title="{{ display_title }}">
+            <a href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ display_title or _('未知书名') }}</a>
+        </h3>
+        <p class="browse-card-author">{{ book.author or _('未知作者') }}</p>
+    </div>
+</article>
+{% endmacro %}
 
-    <div class="search-box">
-        <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
-        <input type="text" id="search-input" aria-label="{{ _('搜索出版社') }}" placeholder="{{ _('搜索出版社名称...') }}" onkeyup="filterPublishers()">
+<!-- Masthead -->
+<header class="page-header">
+    <p class="charts-kicker">PUBLISHER DIRECTORY</p>
+    <h1 class="page-title">
+        Publisher <span>Directory</span>
+    </h1>
+    <p class="charts-source" data-i18n="publishers_subtitle">{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</p>
+    <p class="page-subtitle">
+        {{ total_publishers }} {{ _('个网站') }} · {{ publishers_data|length }} {{ _('个分类') }}
+    </p>
+</header>
+
+<!-- Category seal strip -->
+<nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
+    {% for cat in publishers_data %}
+    <a href="#cat-{{ loop.index }}">{{ cat.category }}</a>
+    {% endfor %}
+</nav>
+
+<!-- Browse by category -->
+<section class="browse-directory" aria-label="{{ _('出版社分类') }}">
+    {% for cat in publishers_data %}
+    <a href="#cat-{{ loop.index }}" class="browse-tile">
+        <span class="browse-tile-name">{{ cat.category }}</span>
+        <span class="browse-tile-count">{{ cat.publishers|length }} {{ _('个网站') }}</span>
+    </a>
+    {% endfor %}
+</section>
+
+<!-- Per-category new arrivals shelves -->
+{% for section in publisher_sections %}
+<section class="browse-section" aria-label="{{ section.category }}">
+    <div class="browse-section-head">
+        <h2 class="browse-section-title">{{ section.category }}</h2>
+        <a class="browse-section-more" href="#cat-{{ section.index }}">{{ _('查看全部') }} &rarr;</a>
     </div>
+    <div class="browse-rail-shell">
+        <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+        <div class="browse-rail">
+            {% for book in section.books %}
+            <div class="browse-rail__item">{{ publisher_book_card(book) }}</div>
+            {% endfor %}
+        </div>
+        <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+    </div>
+</section>
+{% endfor %}
+
+<!-- Search -->
+<div class="publishers-search">
+    <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
+    <input type="search"
+           id="search-input"
+           aria-label="{{ _('搜索出版社') }}"
+           placeholder="{{ _('搜索出版社名称...') }}"
+           autocomplete="off">
 </div>
 
+<!-- Full listing -->
 <div id="publishers-container">
     {% for cat in publishers_data %}
-    <div class="publisher-category" id="cat-{{ loop.index }}" data-category="{{ cat.category }}">
-        <h2><svg class="icon" width="20" height="20"><use href="#icon-folder-open"/></svg> {{ cat.category }}</h2>
+    <section class="publisher-group" id="cat-{{ loop.index }}" data-category="{{ cat.category }}">
+        <div class="publisher-group-head">
+            <h2 class="publisher-group-title">{{ cat.category }}</h2>
+            <span class="publisher-group-count">{{ cat.publishers|length }} {{ _('个网站') }}</span>
+        </div>
         <table class="publishers-table">
             <thead>
                 <tr>
@@ -318,7 +129,7 @@
                     <td>
                         <a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer" class="publisher-link">
                             {{ pub.name_en }}
-                            <svg class="icon external-link-icon" width="14" height="14"><use href="#icon-external-link"/></svg>
+                            <svg class="icon" width="14" height="14"><use href="#icon-external-link"/></svg>
                         </a>
                     </td>
                     <td>
@@ -336,53 +147,58 @@
                 {% endfor %}
             </tbody>
         </table>
-    </div>
+    </section>
     {% endfor %}
 </div>
 
-<div id="no-results" class="no-results" style="display: none;">
+<div id="no-results" class="publishers-no-results" hidden>
     <svg class="icon" width="48" height="48"><use href="#icon-search"/></svg>
     <p>{{ _('没有找到匹配的出版社') }}</p>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script nonce="{{ csp_nonce() }}">
-    function filterPublishers() {
-        const searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
-        const categories = document.querySelectorAll('.publisher-category');
+    document.addEventListener('DOMContentLoaded', function() {
+        // 内联 on* 属性会被 CSP 拦截，统一改为事件绑定
+        const input = document.getElementById('search-input');
+        const groups = document.querySelectorAll('.publisher-group');
         const noResults = document.getElementById('no-results');
-        let hasResults = false;
 
-        categories.forEach(cat => {
-            const rows = cat.querySelectorAll('tbody tr');
-            let visibleRows = 0;
+        if (input) {
+            input.addEventListener('input', function() {
+                const term = input.value.toLowerCase().trim();
+                let hasResults = false;
 
-            rows.forEach(row => {
-                const name = row.dataset.name.toLowerCase();
-                const nameEn = row.dataset.nameEn.toLowerCase();
-                const description = row.dataset.description.toLowerCase();
+                groups.forEach(function(group) {
+                    let visible = 0;
+                    group.querySelectorAll('tbody tr').forEach(function(row) {
+                        const hit = term === ''
+                            || (row.dataset.name || '').toLowerCase().includes(term)
+                            || (row.dataset.nameEn || '').toLowerCase().includes(term)
+                            || (row.dataset.description || '').toLowerCase().includes(term);
+                        row.hidden = !hit;
+                        if (hit) visible++;
+                    });
+                    group.hidden = visible === 0;
+                    if (visible > 0) hasResults = true;
+                });
 
-                if (searchTerm === '' || 
-                    name.includes(searchTerm) || 
-                    nameEn.includes(searchTerm) || 
-                    description.includes(searchTerm)) {
-                    row.style.display = '';
-                    visibleRows++;
-                } else {
-                    row.style.display = 'none';
-                }
+                if (noResults) noResults.hidden = hasResults;
             });
+        }
 
-            if (visibleRows > 0) {
-                cat.style.display = '';
-                hasResults = true;
-            } else {
-                cat.style.display = 'none';
-            }
+        document.querySelectorAll('.browse-rail-shell').forEach(function(shell) {
+            const rail = shell.querySelector('.browse-rail');
+            if (!rail) return;
+            shell.querySelectorAll('.browse-rail-nav').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const dir = btn.classList.contains('prev') ? -1 : 1;
+                    rail.scrollBy({ left: dir * Math.max(rail.clientWidth - 80, 200), behavior: 'smooth' });
+                });
+            });
         });
-
-        noResults.style.display = hasResults ? 'none' : 'block';
-    }
+    });
 </script>
 {% endblock %}

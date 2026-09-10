@@ -1,0 +1,180 @@
+/* Publishers directory: Amazon's browse-by-category blocks in the Charts tone.
+   Shared shelf/tile primitives come from browse.css; this file carries only
+   what is specific to the publisher listing. */
+
+/* The category tiles and the seal strip replace the sidebar quick links. */
+.publishers-page .sidebar,
+.publishers-page .sidebar-toggle {
+    display: none !important;
+}
+
+.publishers-page .browse-directory {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* --- Search --- */
+.publishers-search {
+    position: relative;
+    max-width: 460px;
+    margin: 0 auto 48px;
+}
+
+.publishers-search input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 14px 0 42px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.publishers-search input:focus {
+    outline: none;
+    border-color: var(--link-blue);
+    box-shadow: 0 0 0 3px rgb(0 114 245 / 12%);
+}
+
+.publishers-search .icon {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    color: var(--text-muted);
+    transform: translateY(-50%);
+}
+
+/* --- Category blocks: bordered rows instead of floating rounded cards --- */
+.publisher-group {
+    padding: 0 0 8px;
+    margin-bottom: 48px;
+    border-top: 1px solid var(--border-color);
+}
+
+.publisher-group[hidden] { display: none; }
+.publisher-group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 22px 0 14px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.publisher-group-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 27px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.publisher-group-count { color: var(--text-secondary); font-size: 13px; }
+.publishers-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.publishers-table th {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.publishers-table th:first-child { width: 26%; }
+.publishers-table th:nth-child(2) { width: 24%; }
+.publishers-table th:last-child { width: 14%; }
+.publishers-table td {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.publishers-table tbody tr:last-child td { border-bottom: 0; }
+.publishers-table tbody tr:hover { background: var(--bg-card); }
+.publisher-name {
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.publisher-link {
+    color: var(--link-blue);
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.publisher-link:hover { text-decoration: underline; }
+.publisher-link .icon { opacity: 0.6; vertical-align: -1px; }
+.publisher-description { color: var(--text-secondary); font-size: 13px; }
+.publisher-newbooks-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.publisher-newbooks-link:hover { color: var(--link-blue); text-decoration: underline; }
+.publishers-no-results {
+    padding: 64px 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.publishers-no-results[hidden] { display: none; }
+.publishers-table tbody tr[hidden],
+.publisher-group[hidden] { display: none; }
+
+/* --- Adaptive mobile --- */
+.mobile-publishers-page .m-section-title {
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 21px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.mobile-publishers-page .m-publisher-name {
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-weight: 500;
+}
+
+.mobile-publishers-page .m-publisher-anchors {
+    border-top: 1px solid #e5e5ea;
+    border-bottom: 1px solid #e5e5ea;
+}
+
+@media (max-width: 1200px) {
+    .publishers-page .browse-directory { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+    .publishers-page .browse-directory { display: none; }
+    .publishers-search { margin-bottom: 36px; }
+    .publisher-group { margin-bottom: 36px; }
+    .publishers-table th:nth-child(2),
+    .publishers-table td:nth-child(2) { display: none; }
+    .publishers-table th:first-child { width: 40%; }
+    .publishers-table th:nth-child(3) { width: 46%; }
+    .publishers-table th:last-child,
+    .publishers-table td:last-child { width: 14%; }
+    .publishers-table td,
+    .publishers-table th { padding: 12px 10px; }
+    .publisher-name { font-size: 15px; }
+}

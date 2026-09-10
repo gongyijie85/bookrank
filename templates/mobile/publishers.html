@@ -5,22 +5,16 @@
 {% block tw_title %}{{ _('出版社导航') }} - 书榜{% endblock %}
 
 {% block header %}
-<header class="m-header">
-    <a href="/" class="m-header-btn" aria-label="{{ _('返回') }}">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </a>
-    <span class="m-header-title">{{ _('出版社导航') }}</span>
-    <div class="m-header-placeholder"></div>
-</header>
+<nav class="m-top-nav">
+    <div class="m-top-nav-copy">
+        <span class="m-top-nav-kicker">{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</span>
+        <h1 class="m-top-nav-title">Publisher <span>Directory</span></h1>
+        <span class="m-top-nav-subtitle">{{ total_publishers }} {{ _('个网站') }} · {{ publishers_data|length }} {{ _('个分类') }}</span>
+    </div>
+</nav>
 {% endblock %}
 
 {% block content %}
-<section class="m-publisher-hero">
-    <p class="m-publisher-kicker">{{ total_publishers }} {{ _('个网站') }} · {{ publishers_data|length }} {{ _('个分类') }}</p>
-    <h1>{{ _('出版社导航') }}</h1>
-    <p>{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</p>
-</section>
-
 <nav class="m-publisher-anchors no-scrollbar" aria-label="{{ _('出版社导航') }}">
     {% for cat in publishers_data %}
     <a href="#publisher-cat-{{ loop.index }}" class="m-publisher-anchor">{{ cat.category }}</a>
