@@ -1270,3 +1270,46 @@ class TestGetOrTriggerCurrentWeekReport:
                 latest, is_generating = service.get_or_trigger_current_week_report()
                 assert is_generating is False
                 assert latest is None  # DB 无数据时返回 None
+
+
+class TestCollectSnapshotRows:
+    """weekly_data 除周报摘要条目外，还要产出可落库的完整快照行"""
+
+    @staticmethod
+    def _collect(mock_bs, app, categories=None):
+        from datetime import date
+
+        original = app.config['CATEGORIES']
+        if categories:
+            app.config['CATEGORIES'] = categories
+        try:
+            return WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 9, 7), date(2026, 9, 13))
+        finally:
+            app.config['CATEGORIES'] = original
+
+    def test_snapshot_rows_align_with_report_books(self, app):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = _make_mock_books(2)
+
+            data = self._collect(mock_bs, app, {'hardcover-fiction': '精装小说'})
+
+            assert len(data['snapshot_rows']) == len(data['books']) == 2
+            row = data['snapshot_rows'][0]
+            # 摘要条目用中文书名、且不带 category_id；快照必须两者都有
+            assert data['books'][0]['title'] == '测试书籍1'
+            assert 'category_id' not in data['books'][0]
+            assert row['category_id'] == 'hardcover-fiction'
+            assert row['title'] == 'Test Book 1'
+            assert row['title_zh'] == '测试书籍1'
+            assert row['book_id'] == '9780000000001'
+
+    def test_failed_category_yields_empty_snapshot_rows(self, app):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.side_effect = Exception('NYT 不可用')
+
+            data = self._collect(mock_bs, app)
+
+            assert data['books'] == []
+            assert data['snapshot_rows'] == []

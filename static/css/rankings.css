@@ -1,0 +1,290 @@
+/* Derived charts: cross-list, overlooked award winners, publisher leaderboard.
+   Same editorial voice as charts.css — serif headings, hairline rules, no shadows. */
+.rankings-tabs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rankings-tab-count {
+    padding: 1px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.rankings-panel {
+    padding: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+}
+
+.rankings-title {
+    margin: 0 0 10px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.rankings-note {
+    max-width: 72ch;
+    margin: 0 0 28px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+/* Cross-list */
+.cross-list {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cross-item {
+    display: grid;
+    grid-template-columns: 44px 88px minmax(0, 1fr) auto;
+    gap: 20px;
+    align-items: center;
+    padding: 22px 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.cross-item:first-child { border-top: 0; }
+
+.cross-rank {
+    color: var(--text-secondary);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.cross-cover {
+    width: 88px;
+    height: 132px;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    object-fit: cover;
+}
+
+.cross-body { min-width: 0; }
+
+.cross-title {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.cross-original,
+.overlooked-original {
+    margin: 0 0 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-style: italic;
+}
+
+.cross-author {
+    margin: 0 0 10px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.cross-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cross-chips a {
+    display: inline-flex;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-decoration: none;
+}
+
+.cross-chips a:hover {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+}
+
+.cross-chips strong {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.cross-metrics {
+    display: flex;
+    gap: 28px;
+    margin: 0;
+    text-align: right;
+}
+
+.cross-metrics dt {
+    margin: 0 0 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+}
+
+.cross-metrics dd {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.cross-metrics dd strong {
+    font-size: 18px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Overlooked award winners */
+.overlooked-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
+    gap: 28px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.overlooked-card { display: flex; flex-direction: column; }
+
+.overlooked-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
+.overlooked-cover {
+    width: 100%;
+    max-width: 132px;
+    aspect-ratio: 2 / 3;
+    margin-bottom: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    object-fit: cover;
+}
+
+.overlooked-body { display: block; }
+
+.overlooked-title {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.overlooked-author {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.overlooked-awards {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 12px 0 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--border-color);
+    list-style: none;
+}
+
+.overlooked-awards li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.overlooked-awards .icon { color: var(--text-primary); }
+
+.overlooked-awards span { font-variant-numeric: tabular-nums; }
+
+.overlooked-awards em {
+    padding-left: 6px;
+    color: var(--text-secondary);
+    font-style: normal;
+}
+
+/* Publisher leaderboard */
+.rankings-table-wrap { overflow-x: auto; }
+
+.publisher-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.publisher-table th,
+.publisher-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: top;
+}
+
+.publisher-table thead th {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.publisher-table tbody th {
+    color: var(--text-secondary);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
+
+.publisher-table tbody tr:hover { background: var(--bg-secondary); }
+
+.publisher-name { font-weight: 600; white-space: nowrap; }
+
+.publisher-table td strong { font-variant-numeric: tabular-nums; }
+
+.publisher-books {
+    min-width: 240px;
+    max-width: 360px;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 720px) {
+    .rankings-panel { padding: 20px 16px; }
+    .charts-sections.rankings-tabs { gap: 16px; overflow-x: auto; }
+    .rankings-tabs a { white-space: nowrap; }
+
+    .cross-item {
+        grid-template-columns: 32px 72px minmax(0, 1fr);
+        align-items: start;
+        gap: 14px;
+    }
+
+    .cross-cover { width: 72px; height: 108px; }
+
+    .cross-metrics {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+        gap: 24px;
+        text-align: left;
+    }
+}

@@ -10,12 +10,14 @@ from urllib.parse import urlparse
 
 from flask import current_app
 
+from ..models.book import Book
 from ..models.schemas import WeeklyReport, db
 from ..utils.book_filters import get_category_update_frequency
 from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.ranking import classify_listing
 from .book_service import BookService
+from .list_snapshot_service import save_week_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,9 @@ class WeeklyReportService:
             # 收集本周数据
             weekly_data = self._collect_weekly_data(week_start, week_end)
 
+            # content 只留摘要，完整榜单另存快照表，供排名曲线/年度榜回溯
+            save_week_snapshot(weekly_data.get('snapshot_rows', []), week_start, week_end)
+
             has_books = bool(weekly_data.get('books'))
             if not has_books:
                 logger.warning(f'数据不足，生成暂无数据周报: {week_start} 至 {week_end}')
@@ -202,8 +207,8 @@ class WeeklyReportService:
             # 纽约时报书籍分类：与首页共用同一份配置，避免分类集脱节
             nyt_categories = current_app.config['CATEGORIES']
 
-            # 构建周报数据
-            weekly_data = {'books': [], 'categories': list(nyt_categories.values())}
+            # 构建周报数据；snapshot_rows 是给快照表的完整条目，books 是周报展示用的摘要
+            weekly_data = {'books': [], 'categories': list(nyt_categories.values()), 'snapshot_rows': []}
 
             # 从每个分类获取书籍数据
             for category_id, category_name in nyt_categories.items():
@@ -256,6 +261,17 @@ class WeeklyReportService:
                                 'original_cover': getattr(book, '_original_cover', '') or '',
                             }
                         )
+                        weekly_data['snapshot_rows'].append(
+                            self._build_snapshot_row(
+                                book,
+                                category_id=category_id,
+                                category_name=category_name,
+                                update_frequency=update_frequency,
+                                rank_change=rank_change,
+                                is_new=is_new,
+                                is_returning=listing_status.is_returning,
+                            )
+                        )
                 except Exception as e:
                     log_error(ErrorCategory.API_CALL, f'获取分类 {category_name} 数据时出错: {e!s}')
                     continue
@@ -263,14 +279,48 @@ class WeeklyReportService:
             # 如果没有数据，返回空数据
             if not weekly_data['books']:
                 logger.info('没有找到实际数据，返回空数据')
-                return {'books': [], 'categories': list(nyt_categories.values())}
+                return {'books': [], 'categories': list(nyt_categories.values()), 'snapshot_rows': []}
 
             return weekly_data
 
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'收集周报数据时出错: {e!s}')
             # 出错时返回空数据
-            return {'books': [], 'categories': list(current_app.config['CATEGORIES'].values())}
+            return {'books': [], 'categories': list(current_app.config['CATEGORIES'].values()), 'snapshot_rows': []}
+
+    @staticmethod
+    def _build_snapshot_row(
+        book: Book,
+        *,
+        category_id: str,
+        category_name: str,
+        update_frequency: str,
+        rank_change: int,
+        is_new: bool,
+        is_returning: bool,
+    ) -> dict[str, Any]:
+        """快照需要周报摘要刻意省略的字段：分类 ID、英文原名、出版社、上周名次。"""
+        return {
+            'category_id': category_id,
+            'category_name': category_name,
+            'book_id': book.id,
+            'isbn13': book.isbn13,
+            'isbn10': book.isbn10,
+            'title': book.title,
+            'title_zh': book.title_zh,
+            'author': book.author,
+            'publisher': book.publisher,
+            'cover': book.cover,
+            'original_cover': getattr(book, '_original_cover', '') or '',
+            'rank': book.rank,
+            'rank_last_week': book.rank_last_week,
+            'rank_change': rank_change,
+            'weeks_on_list': max(0, book.weeks_on_list),
+            'is_new': is_new,
+            'is_returning': is_returning,
+            'update_frequency': update_frequency,
+            'list_published_date': book.published_date,
+        }
 
     def _analyze_changes(self, weekly_data: dict[str, Any]) -> dict[str, Any]:
         """分析榜单变化

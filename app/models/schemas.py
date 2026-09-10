@@ -501,6 +501,75 @@ class ReportView(db.Model):  # type: ignore[name-defined]
     )
 
 
+class ListSnapshot(db.Model):  # type: ignore[name-defined]
+    """NYT 分类榜周度全量快照
+
+    weekly_reports.content 只存分析摘要，无法回溯；本表把每周 13 个分类榜的
+    全量条目落库，是排名曲线、年度榜等历史功能的唯一数据来源。
+    """
+
+    __tablename__ = 'list_snapshots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    week_start = db.Column(db.Date, nullable=False, index=True)
+    week_end = db.Column(db.Date, nullable=False)
+    category_id = db.Column(db.String(64), nullable=False)
+    category_name = db.Column(db.String(100))
+    # Book.id：ISBN13 优先，缺失时退化为 ISBN10，再缺失则为标题+作者哈希。
+    # 同一本书在不同分类榜的精装/平装版本 ISBN 不同，不能用 ISBN 做唯一键。
+    book_id = db.Column(db.String(64), nullable=False)
+    isbn13 = db.Column(db.String(13))
+    isbn10 = db.Column(db.String(10))
+    title = db.Column(db.String(500), nullable=False)
+    title_zh = db.Column(db.String(500))
+    author = db.Column(db.String(300))
+    publisher = db.Column(db.String(200))
+    cover = db.Column(db.String(500))
+    original_cover = db.Column(db.String(500))
+    rank = db.Column(db.Integer)
+    rank_last_week = db.Column(db.String(20))
+    rank_change = db.Column(db.Integer)
+    weeks_on_list = db.Column(db.Integer, default=0)
+    is_new = db.Column(db.Boolean, default=False)
+    is_returning = db.Column(db.Boolean, default=False)
+    update_frequency = db.Column(db.String(10))
+    list_published_date = db.Column(db.String(20))
+    captured_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        db.UniqueConstraint('week_start', 'category_id', 'book_id', name='uix_list_snapshot_week_category_book'),
+        db.Index('idx_list_snapshots_book_week', 'book_id', 'week_start'),
+        db.Index('idx_list_snapshots_category_week', 'category_id', 'week_start'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'week_start': self.week_start.isoformat() if self.week_start else None,
+            'week_end': self.week_end.isoformat() if self.week_end else None,
+            'category_id': self.category_id,
+            'category_name': self.category_name,
+            'book_id': self.book_id,
+            'isbn13': self.isbn13,
+            'isbn10': self.isbn10,
+            'title': self.title,
+            'title_zh': self.title_zh,
+            'author': self.author,
+            'publisher': self.publisher,
+            'cover': self.cover,
+            'original_cover': self.original_cover,
+            'rank': self.rank,
+            'rank_last_week': self.rank_last_week,
+            'rank_change': self.rank_change,
+            'weeks_on_list': self.weeks_on_list,
+            'is_new': self.is_new,
+            'is_returning': self.is_returning,
+            'update_frequency': self.update_frequency,
+            'list_published_date': self.list_published_date,
+            'captured_at': self.captured_at.isoformat() if self.captured_at else None,
+        }
+
+
 class UserBehavior(db.Model):  # type: ignore[name-defined]
     """用户行为数据"""
 

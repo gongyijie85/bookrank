@@ -1414,3 +1414,154 @@ class TestIndexRoute:
         finally:
             with app.app_context():
                 app.extensions.pop('book_service', None)
+
+
+def _make_award_book(**overrides):
+    """构造 _load_recent_award_books 会读取到的 AwardBook 替身"""
+    book = MagicMock()
+    book.id = 1
+    book.display_title = 'Satantango'
+    book.title_zh = '撒旦探戈'
+    book.author = 'László Krasznahorkai'
+    book.publisher = 'New Directions'
+    book.isbn13 = '9780811219297'
+    book.year = 2025
+    book.category = '文学'
+    book.cover_local_path = ''
+    book.cover_original_url = ''
+    book.award = MagicMock()
+    book.award.name = '诺贝尔文学奖'
+    book.award.name_en = 'Nobel Prize in Literature'
+    for key, value in overrides.items():
+        setattr(book, key, value)
+    return book
+
+
+class TestRankingsPage:
+    """派生榜单页 /rankings"""
+
+    @staticmethod
+    def _install_book_service(app, books):
+        mock_svc = _mock_book_service(books)
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        return mock_svc
+
+    @staticmethod
+    def _remove_book_service(app):
+        with app.app_context():
+            app.extensions.pop('book_service', None)
+
+    def test_detects_same_book_across_categories_with_different_isbn(self, client, app):
+        """同一本书在各分类榜使用不同 ISBN，仍应被识别为跨榜"""
+        category_ids = list(app.config['CATEGORIES'])
+
+        def books_for_category(category, **kwargs):
+            index = category_ids.index(category)
+            isbn = f'97810000000{index:02d}'
+            return [
+                _make_book(
+                    title='My Friends',
+                    author='Fredrik Backman',
+                    id=isbn,
+                    isbn13=isbn,
+                    category_id=category,
+                    rank=index + 1,
+                )
+            ]
+
+        mock_svc = _mock_book_service([])
+        mock_svc.get_books_by_category.side_effect = books_for_category
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/rankings?lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '跨榜现象级' in html
+            assert 'My Friends' in html
+            assert 'Fredrik Backman' in html
+        finally:
+            self._remove_book_service(app)
+
+    def test_invalid_tab_falls_back_to_cross(self, client, app):
+        self._install_book_service(app, [])
+        try:
+            response = client.get('/rankings?tab=nonsense&lang=zh')
+            assert response.status_code == 200
+            assert '跨榜现象级' in response.get_data(as_text=True)
+        finally:
+            self._remove_book_service(app)
+
+    def test_publishers_tab_lists_publisher(self, client, app):
+        books = [_make_book(title='Atlas', author='A Author', publisher='Penguin Random House (Hybrid)', rank=2)]
+        self._install_book_service(app, books)
+        try:
+            response = client.get('/rankings?tab=publishers&lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert 'Penguin Random House' in html
+            assert '厂牌榜' in html
+        finally:
+            self._remove_book_service(app)
+
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_overlooked_tab_lists_unlisted_award_winner(self, mock_service_cls, client, app):
+        self._install_book_service(app, [_make_book(title='Some Other Book', author='Someone')])
+        mock_service_cls.return_value.get_award_books.return_value = ([_make_award_book()], 1)
+        try:
+            response = client.get('/rankings?tab=overlooked&lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '撒旦探戈' in html
+            assert '诺贝尔文学奖' in html
+        finally:
+            self._remove_book_service(app)
+
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_overlooked_tab_hides_award_winner_currently_on_list(self, mock_service_cls, client, app):
+        self._install_book_service(app, [_make_book(title='Satantango', author='László Krasznahorkai')])
+        mock_service_cls.return_value.get_award_books.return_value = ([_make_award_book()], 1)
+        try:
+            response = client.get('/rankings?tab=overlooked&lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '撒旦探戈' not in html
+            assert '暂无遗珠' in html
+        finally:
+            self._remove_book_service(app)
+
+    def test_empty_data_renders_empty_state(self, client, app):
+        self._install_book_service(app, [])
+        try:
+            response = client.get('/rankings?lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '本周没有跨榜的书' in html
+        finally:
+            self._remove_book_service(app)
+
+    def test_longevity_tab_includes_single_list_long_runner(self, client, app):
+        """长销常青榜收录只守着一个分类榜的长销书；跨榜现象级则不收录它"""
+
+        def books_for_category(category, **kwargs):
+            if category != 'hardcover-fiction':
+                return []
+            return [_make_book(title='Atlas', author='A Author', weeks_on_list=120, rank=5)]
+
+        mock_svc = _mock_book_service([])
+        mock_svc.get_books_by_category.side_effect = books_for_category
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            longevity = client.get('/rankings?tab=longevity&lang=zh')
+            html = longevity.get_data(as_text=True)
+            assert longevity.status_code == 200
+            assert '长销常青榜' in html
+            assert 'Atlas' in html
+            assert '120' in html
+
+            cross = client.get('/rankings?tab=cross&lang=zh')
+            assert '本周没有跨榜的书' in cross.get_data(as_text=True)
+        finally:
+            self._remove_book_service(app)
