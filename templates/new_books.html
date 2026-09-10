@@ -71,7 +71,7 @@
     <div class="browse-section-head">
         <h2 class="browse-section-title">{{ section.publisher.name }}</h2>
         <a class="browse-section-more"
-           href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看更多') }} &rarr;</a>
+           href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看全部') }} &rarr;</a>
     </div>
     <div class="browse-rail-shell">
         <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
