@@ -19,13 +19,11 @@
     <span class="browse-report-period">{{ report.week_start.strftime('%m/%d') }} &ndash; {{ report.week_end.strftime('%m/%d') }}</span>
     <span class="browse-report-title">{{ report.title }}</span>
     {% set content = report.content_data %}
-    {% set stat_items = [] %}
-    {% if content.top_changes %}{% set _ = stat_items.append(content.top_changes | length ~ ' ' ~ _('项变化')) %}{% endif %}
-    {% if content.new_books %}{% set _ = stat_items.append(content.new_books | length ~ ' ' ~ _('新上榜')) %}{% endif %}
-    {% if content.featured_books %}{% set _ = stat_items.append(content.featured_books | length ~ ' ' ~ _('推荐')) %}{% endif %}
-    {% if stat_items %}
+    {% if content.top_changes or content.new_books or content.featured_books %}
     <span class="browse-report-stats">
-        {% for stat in stat_items %}<span>{{ stat }}</span>{% endfor %}
+        {% if content.top_changes %}<span>{{ content.top_changes | length }} {{ _('项变化') }}</span>{% endif %}
+        {% if content.new_books %}<span>{{ content.new_books | length }} {{ _('新上榜') }}</span>{% endif %}
+        {% if content.featured_books %}<span>{{ content.featured_books | length }} {{ _('推荐') }}</span>{% endif %}
     </span>
     {% endif %}
 </a>
