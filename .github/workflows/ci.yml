@@ -436,6 +436,19 @@ jobs:
             exit 0
           fi
 
+          # 兜底：白名单里仍含 static/，日后新增图片会再次被钩子拒收，而远端只报
+          # "contains binary files" 不点名文件。这里提前拦并列出清单。
+          # 只看新增（A）：已收录文件的修改照常同步；static/dist 的 minified 产物按
+          # 文本计数，不会误报。
+          new_binary=$(git diff --cached --numstat --diff-filter=A | awk '$1 == "-" && $2 == "-" { print $3 }')
+          if [ -n "$new_binary" ]; then
+            echo "::error::以下新增文件会被 HuggingFace 以「contains binary files」拒收。" \
+                 "请把图片等素材移出同步范围（app/templates/static/migrations 之外），" \
+                 "或改用 Git LFS 跟踪后再推送："
+            echo "$new_binary"
+            exit 1
+          fi
+
           git commit --quiet -m "sync: main@${GITHUB_SHA}"
           git -c http.extraHeader="$GIT_HEADER" push --quiet origin HEAD:refs/heads/main
           echo "Pushed main@${GITHUB_SHA} to the Space; HuggingFace rebuilds it on push."
