@@ -15,6 +15,7 @@ from ..models.book import Book
 from ..models.schemas import BookMetadata, db
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.exceptions import APIException, APIRateLimitException, ExternalAPIError
+from ..utils.space_runtime import is_space_runtime
 from .api_utils import ImageCacheService, run_with_app_context
 from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
@@ -198,6 +199,10 @@ class BookService:
         """
         cache_key = f'books_{category_id}'
 
+        if is_space_runtime():
+            auto_translate = False
+            notify_refresh = False
+
         # 尝试从缓存获取
         if not force_refresh:
             cached_data = self._cache.get(cache_key)
@@ -279,8 +284,11 @@ class BookService:
         category_name = self._categories.get(category_id, category_id)
 
         isbns = [b.get('primary_isbn13') or b.get('primary_isbn10', '') for b in raw_books]
-        translations = self._batch_get_translations(isbns)
-        supplements = self._batch_get_supplements(isbns)
+        translations: dict[str, dict] = {}
+        supplements: dict[str, dict] = {}
+        if not is_space_runtime():
+            translations = self._batch_get_translations(isbns)
+            supplements = self._batch_get_supplements(isbns)
 
         processed_books = []
         for book_data in raw_books:

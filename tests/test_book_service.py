@@ -347,6 +347,48 @@ class TestBookService:
         assert metadata.description_zh == '测试简介'
         assert metadata.details_zh == '测试详情'
 
+    def test_get_books_by_category_skips_side_effects_on_space(self, book_service, monkeypatch):
+        """Space 唯一 worker 不得被首屏的后台预翻译和刷新回调占用。"""
+        monkeypatch.setenv('SPACE_ID', 'Elvis85/bookrank')
+        notified = []
+
+        def callback():
+            notified.append(1)
+
+        book_service.on_data_refreshed(callback)
+
+        with patch.object(book_service, '_auto_translate_books') as auto_translate:
+            books = book_service.get_books_by_category('hardcover-fiction')
+
+        assert len(books) == 1
+        auto_translate.assert_not_called()
+        assert notified == []
+
+    def test_process_api_response_skips_batch_lookups_on_space(self, book_service, monkeypatch):
+        """Space 上批量翻译/增补改为按需补齐，避免请求期内串行等待上游。"""
+        monkeypatch.setenv('SPACE_ID', 'Elvis85/bookrank')
+
+        with (
+            patch.object(book_service, '_batch_get_translations') as translations,
+            patch.object(book_service, '_batch_get_supplements') as supplements,
+        ):
+            book_service.get_books_by_category('hardcover-fiction')
+
+        translations.assert_not_called()
+        supplements.assert_not_called()
+
+    def test_process_api_response_fetches_batch_lookups_off_space(self, book_service, monkeypatch):
+        monkeypatch.delenv('SPACE_ID', raising=False)
+
+        with (
+            patch.object(book_service, '_batch_get_translations', return_value={}) as translations,
+            patch.object(book_service, '_batch_get_supplements', return_value={}) as supplements,
+        ):
+            book_service.get_books_by_category('hardcover-fiction')
+
+        translations.assert_called_once()
+        supplements.assert_called_once()
+
     def test_get_books_by_category_returns_stale_cache_on_api_failure(self, book_service):
         """测试API失败时返回过期文件缓存"""
         cached_books = [
