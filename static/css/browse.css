@@ -1,0 +1,324 @@
+/* Browse primitives: the Amazon-style shelf patterns shared by the directory
+   pages (publishers, new books, weekly reports). Layered on the .charts-page
+   base, so only the browse-specific pieces live here. */
+
+/* --- Seal strip: monochrome strip of section names, the tone-matched take on
+   Amazon's logo wall --- */
+.browse-seal-strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 880px;
+    margin: 0 auto 40px;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.browse-seal-strip a {
+    padding: 11px 18px;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.browse-seal-strip a:last-child { border-right: 0; }
+.browse-seal-strip a:hover { color: var(--text-primary); background: var(--bg-card); }
+
+/* --- Directory tiles: bordered grid, Amazon's browse-by-X blocks --- */
+.browse-directory {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+    margin-bottom: 56px;
+}
+
+.browse-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 132px;
+    padding: 24px 18px;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+    text-align: center;
+    text-decoration: none;
+    transition: background 180ms ease;
+}
+
+.browse-tile:hover { background: var(--bg-secondary); }
+.browse-tile:focus-visible { outline: 2px solid var(--link-blue); outline-offset: -3px; }
+.browse-tile-name {
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.browse-tile-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+}
+
+.browse-tile-count {
+    display: inline-block;
+    margin-top: 2px;
+    padding: 3px 9px;
+    border-radius: var(--radius-full);
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* --- Shelves: section head + horizontal rail --- */
+.browse-section { margin-bottom: 48px; }
+.browse-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 12px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.browse-section-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 27px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.browse-section-more {
+    color: var(--link-blue);
+    font-size: 13px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.browse-section-more:hover { text-decoration: underline; }
+.browse-rail-shell { position: relative; }
+.browse-rail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 200px;
+    gap: 20px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scroll-behavior: smooth;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+}
+
+.browse-rail::-webkit-scrollbar { display: none; }
+.browse-rail__item { scroll-snap-align: start; }
+.browse-rail-nav {
+    position: absolute;
+    top: 40%;
+    z-index: 2;
+    display: none;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    box-shadow: var(--shadow-subtle);
+}
+
+.browse-rail-nav.prev { left: -14px; }
+.browse-rail-nav.next { right: -14px; }
+.browse-rail-nav:hover { border-color: var(--text-muted); }
+.browse-rail-shell:hover .browse-rail-nav,
+.browse-rail-nav:focus-visible { display: flex; }
+
+/* Rail card: portrait cover over a serif title, deliberately not the shared
+   .card so the ranked-bestseller rules in charts.css never apply to it. */
+.browse-card {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+    transition: border-color 180ms ease;
+}
+
+.browse-card:hover { border-color: var(--text-muted); }
+.browse-card:focus-within { outline: 2px solid var(--link-blue); outline-offset: 2px; }
+.browse-card-media {
+    position: relative;
+    display: flex;
+    height: 252px;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 14px;
+}
+
+.browse-card-media img {
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    filter: drop-shadow(2px 4px 3px rgb(0 0 0 / 14%));
+}
+
+.browse-card-body {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px 18px;
+    border-top: 1px solid var(--border-color);
+}
+
+.browse-card-eyebrow {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    line-height: 1.4;
+    text-transform: uppercase;
+}
+
+.browse-card-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.35;
+    overflow: hidden;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+}
+
+.browse-card-title a { color: inherit; text-decoration: none; }
+.browse-card-title a:hover { text-decoration: underline; }
+.browse-card-author {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* --- Year/date marker on the cover, echoing the Charts weeks-on-list badge --- */
+.browse-cover-flag {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    padding: 4px 9px 5px;
+    border-left: 1px solid var(--border-color);
+    color: var(--link-blue);
+    font: 700 15px/1 Georgia, 'Times New Roman', serif;
+    pointer-events: none;
+}
+
+[data-theme="dark"] .browse-cover-flag { color: #9dc7ff; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .browse-cover-flag { color: #9dc7ff; }
+}
+
+/* --- Results header + active filter chip --- */
+.browse-results-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 0 14px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 24px;
+}
+
+.browse-results-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+    font-size: 27px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.browse-results-count { color: var(--text-secondary); font-size: 13px; }
+.browse-active-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 22px;
+    padding: 6px 8px 6px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.browse-active-filter a { color: var(--text-muted); text-decoration: none; }
+.browse-active-filter a:hover { color: var(--text-primary); }
+
+/* --- Pagination --- */
+.browse-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.browse-pagination a,
+.browse-pagination span {
+    min-width: 38px;
+    padding: 9px 12px;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.browse-pagination .is-current { border-color: var(--text-primary); background: var(--text-primary); color: var(--text-white); }
+.browse-pagination a:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.browse-pagination .is-disabled { opacity: 0.4; }
+
+@media (max-width: 1200px) {
+    .browse-directory { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+    .browse-seal-strip { margin-bottom: 32px; }
+    .browse-seal-strip a { padding: 9px 12px; letter-spacing: 0.1em; }
+    .browse-directory { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 40px; }
+    .browse-tile { min-height: 112px; padding: 18px 12px; }
+    .browse-section { margin-bottom: 36px; }
+    .browse-section-head { flex-wrap: wrap; gap: 6px; }
+    .browse-rail { grid-auto-columns: 152px; gap: 14px; }
+    .browse-rail-nav { display: none !important; }
+    .browse-card-media { height: 196px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .browse-rail { scroll-behavior: auto; }
+    .browse-card,
+    .browse-tile { animation: none; transition: none; }
+}

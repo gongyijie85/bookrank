@@ -1,5 +1,6 @@
 import ipaddress
 import re
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -601,10 +602,42 @@ def _resolve_new_books_publisher_ids(publishers_data: list[dict], db_publishers:
     return result
 
 
+def _build_publisher_sections(publishers_data: list, publisher_ids: dict, modules, limit: int = 8) -> list:
+    """按出版社分类聚合的最近新书书列。
+
+    一次 get_new_books 查询 + Python 侧按 publisher_id 分桶，避免逐出版社发查询；
+    窗口沿用新书链路统一的 30 天口径，某分类 30 天内无新书则不出该栏。
+    """
+    category_index_by_id: dict[int, int] = {}
+    for idx, cat in enumerate(publishers_data):
+        for pub in cat['publishers']:
+            pid = publisher_ids.get(pub['name_en'])
+            if pid is not None:
+                category_index_by_id[pid] = idx
+    if not category_index_by_id:
+        return []
+
+    books, _total = modules.query_service.get_new_books(days=30, page=1, per_page=200)
+
+    buckets: dict[int, list] = defaultdict(list)
+    for book in books:
+        cat_idx = category_index_by_id.get(book.publisher_id)
+        if cat_idx is None or len(buckets[cat_idx]) >= limit:
+            continue
+        buckets[cat_idx].append(book)
+
+    return [
+        {'category': cat['category'], 'index': i + 1, 'books': buckets[i]}
+        for i, cat in enumerate(publishers_data)
+        if buckets.get(i)
+    ]
+
+
 @main_bp.route('/publishers')
 def publishers():
     """出版社导航页面"""
     total_publishers = sum(len(cat['publishers']) for cat in PUBLISHERS_DATA)
+    publisher_sections: list = []
 
     try:
         modules = get_new_book_modules()
@@ -614,10 +647,18 @@ def publishers():
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'出版社跳转链接匹配失败: {e}', level='warning')
         new_books_publisher_ids = {}
+        modules = None
+
+    if modules and new_books_publisher_ids:
+        try:
+            publisher_sections = _build_publisher_sections(PUBLISHERS_DATA, new_books_publisher_ids, modules)
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'出版社新书书列加载失败: {e}', level='warning')
 
     return render_adaptive(
         'publishers.html',
         publishers_data=PUBLISHERS_DATA,
+        publisher_sections=publisher_sections,
         total_publishers=total_publishers,
         new_books_publisher_ids=new_books_publisher_ids,
         active_tab='publisher',
