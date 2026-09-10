@@ -41,7 +41,6 @@
     "url": "{{ request.url }}"
 }
 </script>
-<main class="main-content">
     <!-- 新闻风格头部 -->
     <div class="news-hero-section">
         <div class="news-hero-content">
@@ -392,7 +391,6 @@
             </div>
         </div>
     </div>
-</main>
 {% endblock %}
 
 {% block extra_css %}
@@ -1213,6 +1211,125 @@
             font-size: 0.875rem;
         }
     }
+    /* ============================================
+       Charts tone alignment (appended last so equal-specificity rules win).
+       Re-pointing the --n-* palette recolours the whole page without touching
+       the ~120 rules below, which all read from these variables.
+       ============================================ */
+    :root {
+        --n-black: var(--text-primary);
+        --n-white: var(--bg-card);
+        --n-blue: var(--link-blue);
+        --n-blue-hover: #0060cf;
+        --n-warm-white: var(--bg-secondary);
+        --n-warm-dark: var(--text-primary);
+        --n-warm-gray-500: var(--text-secondary);
+        --n-warm-gray-300: var(--text-muted);
+        --n-teal: var(--link-blue);
+        --n-green: #216140;
+        --n-orange: #974120;
+        --n-badge-bg: var(--badge-bg);
+        --n-badge-text: var(--badge-text);
+        --n-focus: var(--link-blue);
+        --n-shadow-card: none;
+        --n-shadow-deep: var(--shadow-card-full);
+        --n-whisper-border: 1px solid var(--border-color);
+    }
+
+    /* Masthead: drop the boxed "news hero" for the Charts editorial header */
+    .news-hero-section {
+        padding: 20px 0 28px;
+        border: 0;
+        border-bottom: 1px solid var(--border-color);
+        border-radius: 0;
+        background: transparent;
+        overflow: visible;
+    }
+
+    .news-hero-section::before { display: none; }
+    .news-hero-title {
+        font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+        font-size: clamp(28px, 4vw, 42px);
+        font-weight: 500;
+        letter-spacing: -0.035em;
+        line-height: 1.18;
+    }
+
+    .news-hero-date,
+    .news-hero-period { font-size: 12px; letter-spacing: 0.02em; }
+
+    /* Cards: hairline borders instead of rounded floating panels */
+    .content-section,
+    .report-detail-card,
+    .highlight-item,
+    .analysis-section,
+    .book-item,
+    .change-item,
+    .recommendation-card,
+    .navigation-card,
+    .export-card {
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        box-shadow: none;
+    }
+
+    .highlight-item:hover,
+    .book-item:hover,
+    .recommendation-card:hover,
+    .change-item:hover {
+        transform: none;
+        border-color: var(--text-muted);
+        box-shadow: none;
+    }
+
+    .highlight-number {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+    }
+
+    /* Headings: serif, lighter weight, tighter tracking */
+    .section-heading,
+    .analysis-subheading,
+    .section-title {
+        font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+    }
+
+    /* Tabs: Charts-style underline selector, no filled pill */
+    .tab-navigation { padding-bottom: 0; }
+    .tab-btn {
+        padding: 14px 4px;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        border-radius: 0;
+        background: transparent;
+        color: var(--text-secondary);
+        font-weight: 400;
+        transition: color 180ms ease, border-color 180ms ease;
+    }
+
+    .tab-btn:hover { background: transparent; color: var(--text-primary); }
+    .tab-btn.active { background: transparent; color: var(--text-primary); border-bottom-color: var(--text-primary); }
+    .tab-btn + .tab-btn { margin-left: 24px; }
+
+    @media (max-width: 768px) {
+        .news-hero-section { padding: 16px 0 20px; }
+        .news-hero-title { font-size: 26px; }
+        .tab-btn { padding: 10px 2px; font-size: 13px; min-height: 40px; }
+        .tab-btn + .tab-btn { margin-left: 16px; }
+    }
+
+    @media (max-width: 480px) {
+        .news-hero-section { padding: 12px 0 16px; }
+        .news-hero-title { font-size: 22px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .tab-panel.active { animation: none; }
+    }
+
 </style>
 {% endblock %}
 
