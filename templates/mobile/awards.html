@@ -17,9 +17,9 @@
 {%- set _year = year if year is not none else selected_year -%}
 {%- set _category = category if category is not none else selected_category -%}
 {%- set parts = [] -%}
-{%- if _award %}{% set _ = parts.append('award=' ~ (_award | urlencode)) %}{% endif -%}
-{%- if _year %}{% set _ = parts.append('year=' ~ _year) %}{% endif -%}
-{%- if _category %}{% set _ = parts.append('category=' ~ (_category | urlencode)) %}{% endif -%}
+{%- if _award %}{% set _unused = parts.append('award=' ~ (_award | urlencode)) %}{% endif -%}
+{%- if _year %}{% set _unused = parts.append('year=' ~ _year) %}{% endif -%}
+{%- if _category %}{% set _unused = parts.append('category=' ~ (_category | urlencode)) %}{% endif -%}
 /awards{% if parts %}?{{ parts | join('&') }}{% endif %}
 {%- endmacro %}
 

@@ -314,7 +314,7 @@
 {% set _page = page %}
 {% set _filters = {'award': selected_award, 'year': selected_year, 'category': selected_category, 'search': search_query, 'view': view_mode} %}
 {% set _base = {} %}
-{% for key, val in _filters.items() if val %}{% set _ = _base.update({key: val}) %}{% endfor %}
+{% for key, val in _filters.items() if val %}{% set _unused = _base.update({key: val}) %}{% endfor %}
 {% set _from = [1, _page - 2]|max %}
 {% set _to = ([total_pages, _page + 2]|min) + 1 %}
 <nav class="awards-pagination" aria-label="{{ _('分页导航') }}">
