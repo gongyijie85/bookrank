@@ -182,3 +182,64 @@ class TestCronRateLimit:
 
             resp = client.get('/api/cron/trigger-weekly-report', headers=headers)
         assert resp.status_code == 429
+
+
+class TestSyncAwardCovers:
+    """测试 /api/cron/sync-award-covers 端点
+
+    生产临时文件系统重启会清空 cache/，封面需靠外部 cron 补同步；
+    应用内 APScheduler 在 gunicorn --preload 下不会在 worker 中运行。
+    """
+
+    def test_missing_cron_secret_returns_401(self, client):
+        response = client.get(
+            '/api/cron/sync-award-covers',
+            headers={'Authorization': 'Bearer any-token'},
+        )
+        assert response.status_code == 401
+        assert response.get_json()['success'] is False
+
+    def test_missing_authorization_returns_401(self, client, cron_secret):
+        response = client.get('/api/cron/sync-award-covers')
+        assert response.status_code == 401
+        assert response.get_json()['success'] is False
+
+    def test_valid_token_submits_background_sync(self, client, cron_secret):
+        with patch('app.utils.service_helpers.submit_background_task') as mock_submit:
+            response = client.get(
+                '/api/cron/sync-award-covers',
+                headers={'Authorization': f'Bearer {cron_secret}'},
+            )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['data']['status'] == 'submitted'
+        # 立即返回，不占住请求线程（Render 免费版网关约 100s 超时）
+        mock_submit.assert_called_once()
+
+    def test_submitted_callable_runs_sync_with_batch_limit(self, client, cron_secret):
+        """提交的后台任务确实调用同步服务，且批大小受控。"""
+        captured = {}
+
+        def _capture(fn):
+            captured['fn'] = fn
+
+        with (
+            patch('app.utils.service_helpers.submit_background_task', side_effect=_capture),
+            patch('app.services.award_cover_sync_service.AwardCoverSyncService') as mock_svc,
+            patch('app.utils.service_helpers.get_or_create_google_books_client'),
+        ):
+            client.get(
+                '/api/cron/sync-award-covers',
+                headers={'Authorization': f'Bearer {cron_secret}'},
+            )
+            mock_svc.return_value.sync_missing_covers.return_value = {
+                'status': 'success',
+                'updated': 3,
+                'skipped': 0,
+                'failed': 0,
+            }
+            assert 'fn' in captured
+            captured['fn']()
+
+        mock_svc.return_value.sync_missing_covers.assert_called_once_with(batch_size=50, delay=0.3)
