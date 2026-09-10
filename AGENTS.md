@@ -67,6 +67,12 @@ Notes:
   are single-use with 1h TTL; residual risk accepted and recorded in `SECURITY.md`.
 - Mobile templates (`templates/mobile/`, `static/mobile/js/`): parallel to desktop,
   keep feature parity (search entry, filters, badges).
+- HuggingFace Space (`elvis85-bookrank.hf.space`) is a read-only mirror of `main`. The
+  `deploy` job commits main's files into the Space repo and HuggingFace rebuilds on push
+  — restarting a Space never ships code. Space-only runtime behaviour goes behind
+  `app/utils/space_runtime.py` (HF injects `SPACE_ID`); never patch files inside the Space
+  repo, that is how it drifted into an unreproducible hard fork once already. The Space's
+  `README.md` front matter holds its SDK config and is deliberately preserved by the sync.
 
 ## Area map
 

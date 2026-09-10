@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from app import app, db
+from app.utils.space_runtime import is_space_runtime
 
 _db_init_lock = threading.Lock()
 _db_initialized = False
@@ -82,6 +83,9 @@ def _run_migrations():
     try:
         result = db.session.execute(db.text('SELECT version_num FROM alembic_version')).fetchone()
         if result:
+            if is_space_runtime():
+                logger.info(f'数据库已有迁移版本 {result[0]}，跳过 upgrade 以免独占 Space 唯一 worker')
+                return True
             from flask_migrate import upgrade as _upgrade
 
             _upgrade()

@@ -169,6 +169,8 @@ jobs:
     needs: [lint, lint-frontend, typecheck, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
+      - uses: actions/checkout@v4
+
       - name: Deploy and verify Render revision
         env:
           GH_TOKEN: ${{ github.token }}
@@ -377,31 +379,52 @@ jobs:
           echo "ERROR: Render deployment did not become ready after 12 checks."
           exit 1
 
-      - name: Restart HuggingFace Space (backup)
+      - name: Sync source to HuggingFace Space (backup)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'elvis85/bookrank' }}
+          HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
         run: |
           set -euo pipefail
 
           if [ -z "$HF_TOKEN" ]; then
-            echo "WARNING: HF_TOKEN not configured; skipping HuggingFace Space rebuild."
+            echo "ERROR: HF_TOKEN not configured; cannot keep the HuggingFace Space in sync."
+            exit 1
+          fi
+
+          SPACE_CLONE="${RUNNER_TEMP}/space"
+          # hf_user:<token> 是 huggingface_hub 自身写入 git credential 的凭据对；
+          # 用请求头带上可避免 token 出现在 remote URL 或失败日志里。
+          GIT_AUTH="Basic $(printf 'hf_user:%s' "$HF_TOKEN" | base64 -w0)"
+          GIT_HEADER="Authorization: ${GIT_AUTH}"
+
+          git -c http.extraHeader="$GIT_HEADER" clone --quiet \
+            "https://huggingface.co/spaces/${HF_SPACE_REPO}" "$SPACE_CLONE"
+
+          # README.md 的 front matter 是 Space 的 SDK / app_port 配置，删掉或换成仓库版
+          # 都会让 Space 起不来，所以先备份再还原；.huggingface/ 同理。
+          cp "${SPACE_CLONE}/README.md" "${RUNNER_TEMP}/space-README.md"
+          if [ -d "${SPACE_CLONE}/.huggingface" ]; then
+            cp -a "${SPACE_CLONE}/.huggingface" "${RUNNER_TEMP}/space-hf-config"
+          fi
+
+          # 其余内容整体换成 main，让它不再是手工补丁的硬分叉。
+          rsync -a --delete --exclude '.git/' "${GITHUB_WORKSPACE}/" "${SPACE_CLONE}/"
+
+          cp "${RUNNER_TEMP}/space-README.md" "${SPACE_CLONE}/README.md"
+          if [ -d "${RUNNER_TEMP}/space-hf-config" ]; then
+            cp -a "${RUNNER_TEMP}/space-hf-config" "${SPACE_CLONE}/.huggingface"
+          fi
+
+          cd "$SPACE_CLONE"
+          git config user.name 'bookrank-ci'
+          git config user.email 'bookrank-ci@users.noreply.github.com'
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "HuggingFace Space already matches ${GITHUB_SHA}."
             exit 0
           fi
 
-          echo "Triggering HuggingFace Space restart: ${HF_SPACE_REPO}"
-
-          HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 -L \
-            -X POST "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/restart" \
-            -H "Authorization: Bearer ${HF_TOKEN}" \
-            -w '%{http_code}' \
-            -o /dev/null)" || true
-
-          case "$HTTP_CODE" in
-            200)
-              echo "HuggingFace Space restart triggered successfully."
-              ;;
-            *)
-              echo "WARNING: HF Space restart returned HTTP ${HTTP_CODE}; check HF_TOKEN and repo permissions."
-              ;;
-          esac
+          git commit --quiet -m "sync: main@${GITHUB_SHA}"
+          git -c http.extraHeader="$GIT_HEADER" push --quiet origin HEAD:refs/heads/main
+          echo "Pushed main@${GITHUB_SHA} to the Space; HuggingFace rebuilds it on push."
