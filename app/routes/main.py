@@ -926,21 +926,6 @@ def api_category_books():
     )
 
 
-def _group_reports_by_month(reports: list) -> list:
-    """按月份倒序分组周报，供列表页的月度书列区块使用。
-
-    report_date 为空的脏记录直接跳过，避免分组时抛异常拖垮整页。
-    """
-    groups: dict[tuple[int, int], list] = {}
-    for report in reports:
-        report_date = getattr(report, 'report_date', None)
-        if not report_date:
-            continue
-        groups.setdefault((report_date.year, report_date.month), []).append(report)
-
-    return [{'year': y, 'month': m, 'reports': rs} for (y, m), rs in sorted(groups.items(), reverse=True)]
-
-
 @main_bp.route('/reports/weekly')
 def weekly_reports():
     """周报列表
@@ -965,7 +950,6 @@ def weekly_reports():
     return render_adaptive(
         'weekly_reports.html',
         reports=reports,
-        report_sections=_group_reports_by_month(reports),
         latest_report=latest_report,
         is_generating=is_generating,
         active_tab='weekly',
