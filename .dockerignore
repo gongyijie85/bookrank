@@ -18,8 +18,8 @@ venv
 *.db
 instance/
 static/css/all.min.css
-build/
-dist/
+/build/
+/dist/
 node_modules/
 .vscode
 .idea
