@@ -76,6 +76,24 @@ def _has_cjk(text: Any) -> bool:
     return any('\u4e00' <= ch <= '\u9fff' for ch in str(text or ''))
 
 
+# 语言标记类噪音：实测 details_zh 里出现 88 例（占 details 有值条的 31%），
+# 取值就是「原文语言名」本身，无任何信息量（如 details_zh='英文'）。
+_LANGUAGE_MARKER_NOISE = frozenset({'英文', '英语', '中文', '汉语', '- 英文', '-英文', '英文。', '英语。'})
+
+# 已知无信息量的占位值
+_PLACEHOLDER_NOISE = frozenset({'暂无详细描述', '暂无简介', '无', '-', '--', 'N/A', '小说'})
+
+
+def _is_noise_value(value: Any) -> bool:
+    """判断 details_zh 的值是否为无信息量的噪音。
+
+    只匹配明确的语言标记与占位符，不做长度启发式：
+    实测 ``>30`` 字的 details_zh 全部正常，而 ``<=5`` 字恰好全是噪音，
+    两者之间只有 2 例正常值，说明用显式集合比按长度裁剪更安全。
+    """
+    return str(value or '').strip() in (_LANGUAGE_MARKER_NOISE | _PLACEHOLDER_NOISE)
+
+
 def _book_isbn(book: Any) -> str:
     return str(getattr(book, 'isbn13', None) or getattr(book, 'isbn10', None) or '')
 
@@ -93,6 +111,19 @@ def _read_pack_document() -> dict[str, Any]:
     except (OSError, ValueError):
         return {}
     return raw if isinstance(raw, dict) else {}
+
+
+def _write_pack_document(doc: dict[str, Any]) -> None:
+    """把语言包写回磁盘（临时文件 + 原子替换，保留文档其它字段）。"""
+    import json
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    pack_path = Path('static/data/book_language_pack.zh.json')
+    doc['updated_at'] = datetime.now(UTC).isoformat()
+    tmp_path = pack_path.with_name(f'{pack_path.name}.tmp')
+    tmp_path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    tmp_path.replace(pack_path)
 
 
 def collect_missing(book_service: Any, categories: dict[str, str]) -> list[Any]:
@@ -207,6 +238,38 @@ def _translate_one_book(
     return last_stats
 
 
+def _apply_upstream_guards(book_service: Any, categories: dict[str, str]) -> int:
+    """扫描全部榜单，丢弃 details_zh 里的语言标记噪音，返回清理条数。
+
+    实测语言包里 88 条 details_zh 是「原文语言名」本身（'英文' / '- 英文' / '小说'），
+    占 details 有值条的 31%，其中 32 本当时正在榜上。这类值源于 details 源文本本身
+    即语言标记（模型忠实翻译所致），无任何信息量。
+
+    只清噪音值、**保留英文 details 原文**，页面因此不再渲染「详情: 英文」。
+    本函数幂等：可在缺书名时提前返回之前调用，从而只清数据而不触发任何翻译 API。
+    """
+    cleaned = 0
+    for category_id in categories:
+        try:
+            books = book_service.get_books_by_category(category_id, auto_translate=False, notify_refresh=False)
+        except Exception:
+            continue
+        for book in books or []:
+            noise = getattr(book, 'details_zh', None)
+            if not noise or not _is_noise_value(noise):
+                continue
+            isbn = _book_isbn(book)
+            book.details_zh = None
+            if isbn:
+                try:
+                    book_service.save_book_translation(isbn=isbn, details_zh=None)
+                except Exception:
+                    pass
+            emit(f'  🧹 清除噪音 details_zh: {isbn} {str(noise)!r}')
+            cleaned += 1
+    return cleaned
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='补齐缺失的中文书名')
     parser.add_argument('--dry-run', action='store_true', help='只列出待补书籍，不调用翻译 API')
@@ -226,6 +289,25 @@ def main() -> int:
         categories = app.config.get('CATEGORIES', {})
         translator = get_translation_service(app=app)
         pack = book_service._language_pack
+
+        emit('=' * 64)
+        emit('上游数据守卫：清除 details_zh 的语言标记噪音')
+        emit('=' * 64)
+        noise_count = _apply_upstream_guards(book_service, categories)
+
+        # 语言包是独立的一份数据：上面只清了内存里的 Book 对象与 book_metadata，
+        # 盘上的包仍需同步剔除噪音，否则线上渲染仍会读到坏值。
+        pack_doc = _read_pack_document()
+        pack_books = pack_doc.get('books', {}) if isinstance(pack_doc, dict) else {}
+        pack_noise = 0
+        for entry in pack_books.values():
+            if isinstance(entry, dict) and _is_noise_value(entry.get('details_zh')):
+                del entry['details_zh']
+                pack_noise += 1
+        if pack_noise:
+            _write_pack_document(pack_doc)
+
+        emit(f'共清除 {noise_count} 条噪音 details_zh（语言包内另剔除 {pack_noise} 条）。\n')
 
         emit('=' * 64)
         emit('扫描全部 NYT 分类榜，查找缺少中文书名的书')
@@ -289,12 +371,17 @@ def main() -> int:
         pack_doc = _read_pack_document()
         pack_books = pack_doc.get('books', {}) if isinstance(pack_doc, dict) else {}
         hit = sum(1 for b in missing if _book_isbn(b) in pack_books)
+        left_junk = sum(
+            1
+            for e in pack_books.values()
+            if isinstance(e, dict) and str(e.get('details_zh') or '').strip() in ('英文', '- 英文', '小说')
+        )
         emit(
-            f'\n语言包复核：磁盘 {len(pack_books)} 条；本次目标命中 {hit} / {len(missing)} 本'
-            f'（updated_at={pack_doc.get("updated_at", "?")}）'
+            f'\n语言包复核：磁盘 {len(pack_books)} 条；本次目标命中 {hit} / {len(missing)} 本；'
+            f'残留英文 details_zh {left_junk} 条（updated_at={pack_doc.get("updated_at", "?")}）'
         )
 
-        return 0 if not failed else 1
+        return 0 if not failed and not left_junk else 1
 
 
 if __name__ == '__main__':
