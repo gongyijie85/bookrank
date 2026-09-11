@@ -101,18 +101,50 @@
         }, 2500);
     }
 
-    // ===== 4. 周报生成轮询 =====
-    let pollingTimer = null;
-    function startPolling(intervalMs) {
-        if (pollingTimer) clearInterval(pollingTimer);
-        pollingTimer = setInterval(function () {
-            fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(function () { window.location.reload(); })
-                .catch(function () {});
-        }, intervalMs || 30000);
+    // ===== 4. 封面兜底（CSP 下内联 onerror 全部失效，改为事件委托） =====
+    function applyImageFallback(img) {
+        const fallback = img.getAttribute('data-fallback');
+        if (!fallback || img.dataset.fallbackApplied === '1') return;
+        img.dataset.fallbackApplied = '1';
+        img.src = fallback;
     }
 
-    // ===== 4b. 首页搜索入口展开/收起（#66）=====
+    function initImageFallback() {
+        // img 的 error 事件不冒泡，只能在捕获阶段监听
+        document.addEventListener(
+            'error',
+            function (e) {
+                if (e.target && e.target.tagName === 'IMG') applyImageFallback(e.target);
+            },
+            true
+        );
+        // mobile.js 在 body 末尾执行，此前已失败的图片不会再触发 error，需补扫
+        document.querySelectorAll('img[data-fallback]').forEach(function (img) {
+            if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
+        });
+    }
+
+    // ===== 4b. 周报生成轮询（模板只放 [data-report-poll] 标记） =====
+    function initReportPolling() {
+        if (!document.querySelector('[data-report-poll]')) return;
+        const timer = setInterval(function () {
+            fetch('/api/weekly-report/status', { cache: 'no-store' })
+                .then(function (r) {
+                    return r.json();
+                })
+                .then(function (d) {
+                    if (d && d.has_current_week) {
+                        clearInterval(timer);
+                        window.location.reload();
+                    }
+                })
+                .catch(function () {
+                    /* 状态接口暂不可用，下一轮再试 */
+                });
+        }, 30000);
+    }
+
+    // ===== 4c. 首页搜索入口展开/收起（#66）=====
     function initMobileSearchToggle() {
         const toggle = document.getElementById('m-search-toggle');
         const bar = document.getElementById('m-search-bar');
@@ -292,12 +324,44 @@
             .catch(function () { /* 静默失败，详情区已有元信息列表 */ });
     }
 
+    // ===== 4d. 分享（文案由模板以 data 属性传入：babel.cfg 不提取 JS） =====
+    function initShareButtons() {
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest ? e.target.closest('[data-share-url]') : null;
+            if (!btn) return;
+            e.preventDefault();
+            const url = btn.getAttribute('data-share-url');
+            const title = btn.getAttribute('data-share-title') || document.title;
+
+            function copyLink() {
+                const promptText = btn.getAttribute('data-share-prompt') || '';
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard
+                        .writeText(url)
+                        .then(function () {
+                            toast(btn.getAttribute('data-share-copied') || '');
+                        })
+                        .catch(function () {
+                            window.prompt(promptText, url);
+                        });
+                } else {
+                    window.prompt(promptText, url);
+                }
+            }
+
+            if (navigator.share) {
+                navigator.share({ title: title, url: url }).catch(copyLink);
+            } else {
+                copyLink();
+            }
+        });
+    }
+
     // ===== 暴露 API =====
     window.MobileApp = {
         getCsrfToken: getCsrfToken,
         csrfFetch: csrfFetch,
         toast: toast,
-        startPolling: startPolling,
         getSessionId: function () {
             const m = document.cookie.match(/(?:^|; )session_id=([^;]*)/);
             return m ? m[1] : 'anonymous';
@@ -319,5 +383,8 @@
         initLangSwitcher();
         initDetailTabs();
         initMobileSearchToggle();
+        initImageFallback();
+        initReportPolling();
+        initShareButtons();
     });
 })();

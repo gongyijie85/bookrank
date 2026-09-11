@@ -10,7 +10,13 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </a>
     <span class="m-header-title">{{ _('周报详情') }}</span>
-    <div class="m-header-placeholder"></div>
+    <button type="button" class="m-header-btn" data-share-url="{{ request.url }}"
+            data-share-title="{{ report.title or _('周报') }}"
+            data-share-copied="{{ _('链接已复制到剪贴板') }}"
+            data-share-prompt="{{ _('请复制以下链接') }}"
+            aria-label="{{ _('分享') }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </button>
 </header>
 {% endblock %}
 
@@ -54,8 +60,9 @@
 <section class="m-report-section">
     <h2 class="m-report-section-title">{{ _('Top 5 排名变化') }}</h2>
     {% for item in content.top_changes[:5] %}
+    {% set rc = item.rank_change or 0 %}
+    {% set rk = item.rank or 0 %}
     <div class="m-report-change-item">
-        {% set rc = item.rank_change or 0 %}
         {% if rc > 0 %}
         <span class="m-report-change-icon up">↑</span>
         {% elif rc < 0 %}
@@ -63,7 +70,12 @@
         {% else %}
         <span class="m-report-change-icon">·</span>
         {% endif %}
-        <span class="m-report-change-title">{{ item.title }}</span>
+        <span class="m-report-change-title">{{ (item.title_zh or item.title) | format_title }}</span>
+        {% if rk > 0 %}
+        <span class="m-report-change-rank">
+            {% if rc and (rk + rc) > 0 %}<span class="m-report-change-rank-prev">{{ rk + rc }}</span>{% endif %}{{ rk }}
+        </span>
+        {% endif %}
         {% if rc %}
         <span class="m-report-change-delta">{{ '+' if rc > 0 }}{{ rc }}</span>
         {% endif %}
@@ -81,12 +93,12 @@
         <div class="m-card m-book-card" data-href="/?search={{ (book.title or '') | urlencode }}">
             {% if book.cover %}
             <div class="m-book-cover">
-                <img src="{{ book.cover }}" alt="{{ book.title }}" loading="lazy" width="60" height="80"
-                     onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="60" height="80"
+                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
             </div>
             {% endif %}
             <div class="m-book-info">
-                <h3 class="m-book-title">{{ book.title }}</h3>
+                <h3 class="m-book-title">{{ (book.title_zh or book.title) | format_title }}</h3>
                 {% if book.author %}<p class="m-book-author">{{ book.author }}</p>{% endif %}
                 {% if book.category %}<p class="m-book-card-meta">{{ book.category }}</p>{% endif %}
             </div>
@@ -104,12 +116,12 @@
     <div class="m-report-rec-card">
         {% if book.cover %}
         <div class="m-report-rec-cover">
-            <img src="{{ book.cover }}" alt="{{ book.title }}" loading="lazy" width="50" height="70"
-                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+            <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="50" height="70"
+                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
         </div>
         {% endif %}
         <div class="m-report-rec-info">
-            <div class="m-report-rec-title">{{ book.title }}</div>
+            <div class="m-report-rec-title">{{ (book.title_zh or book.title) | format_title }}</div>
             {% if book.author %}<div class="m-report-rec-author">{{ book.author }}</div>{% endif %}
             {% if book.reason or book.description %}
             <div class="m-report-rec-reason">{{ book.reason or book.description }}</div>

@@ -698,3 +698,127 @@ class TestMobileRankingsRoute:
         assert b'm-tabbar' not in resp.data
         assert '跨榜现象级'.encode() in resp.data
         assert b'class="cross-list"' in resp.data
+
+
+class TestMobileWeeklyParityAndCsp:
+    """移动端周报：与桌面版信息对等 + CSP 下的脚本/兜底可用性"""
+
+    @staticmethod
+    def _report(week_end, top_changes=(), new_books=(), featured=(), total_books=12):
+        from datetime import datetime, timedelta
+
+        r = MagicMock()
+        r.id = 1
+        r.week_end = week_end
+        r.week_start = week_end - timedelta(days=6)
+        r.report_date = week_end
+        r.created_at = datetime(2024, 1, 14, 10, 0)
+        r.title = '测试周报'
+        r.summary = '测试摘要'
+        r.content_data = {
+            'total_books': total_books,
+            'top_changes': list(top_changes),
+            'new_books': list(new_books),
+            'featured_books': list(featured),
+        }
+        return r
+
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_service')
+    def test_list_groups_by_month_and_shows_stats(self, mock_get_svc, mock_report_svc, client) -> None:
+        """列表页应按月份分组并给出三项统计（与桌面版对齐）"""
+        from datetime import date
+
+        mock_get_svc.return_value = _mock_book_service([])
+        reports = [
+            self._report(
+                date(2024, 1, 14),
+                top_changes=[{'title': 'A', 'rank': 3, 'rank_change': 5}],
+                new_books=[{'title': 'B'}],
+                featured=[{'title': 'C'}],
+            ),
+            self._report(date(2023, 12, 31)),
+        ]
+        svc = MagicMock()
+        svc.get_or_trigger_current_week_report.return_value = (reports[0], False)
+        svc.get_reports.return_value = reports
+        mock_report_svc.return_value = svc
+
+        resp = client.get('/reports/weekly?lang=zh', headers=ZH_MOBILE_HEADERS)
+        assert resp.status_code == 200
+        assert b'm-report-group' in resp.data
+        assert b'm-report-chips' in resp.data
+        assert '项变化'.encode() in resp.data
+        assert '新上榜'.encode() in resp.data
+        assert b'W02' in resp.data
+
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_service')
+    def test_generating_banner_declares_poll_marker(self, mock_get_svc, mock_report_svc, client) -> None:
+        """生成中横幅须带 data-report-poll，且不得再出现裸内联 <script>
+
+        CSP 为 script-src 'self' 'nonce-…'，无 unsafe-inline，内联脚本会被静默拦截。
+        """
+        from datetime import date
+
+        mock_get_svc.return_value = _mock_book_service([])
+        report = self._report(date(2024, 1, 14))
+        svc = MagicMock()
+        svc.get_or_trigger_current_week_report.return_value = (report, True)
+        svc.get_reports.return_value = [report]
+        mock_report_svc.return_value = svc
+
+        resp = client.get('/reports/weekly?lang=zh', headers=ZH_MOBILE_HEADERS)
+        body = resp.data.decode('utf-8')
+        assert 'data-report-poll' in body
+        assert 'startPolling' not in body
+
+    @patch('app.routes.main.parse_report_content')
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_service')
+    def test_detail_prefers_translated_title_and_shares(
+        self, mock_get_svc, mock_report_svc, mock_parse, client
+    ) -> None:
+        """详情页书名走 title_zh，并提供分享入口"""
+        from datetime import date, datetime
+
+        mock_get_svc.return_value = _mock_book_service([])
+        report = MagicMock()
+        report.id = 1
+        report.week_end = date(2024, 1, 14)
+        report.week_start = date(2024, 1, 8)
+        report.created_at = datetime(2024, 1, 14, 10, 0)
+        report.title = '测试周报'
+        report.summary = '测试摘要'
+        svc = MagicMock()
+        svc.get_report_by_week_end.return_value = report
+        svc.record_report_view.return_value = None
+        mock_report_svc.return_value = svc
+        mock_parse.return_value = {
+            'total_books': 10,
+            'top_changes': [{'title': 'The Book', 'title_zh': '中文书名', 'rank': 3, 'rank_change': 5}],
+            'new_books': [{'title': 'New One', 'title_zh': '新书', 'category': '小说'}],
+        }
+
+        body = client.get('/reports/weekly/2024-01-14', headers=ZH_MOBILE_HEADERS).data.decode('utf-8')
+        assert '《中文书名》' in body
+        assert 'data-share-url' in body
+        assert 'm-report-hero' in body
+        assert '总书数' in body
+
+    def test_weekly_templates_have_no_csp_blocked_onerror(self) -> None:
+        """移动端周报模板不得再使用内联 onerror（CSP 下永不执行）"""
+        root = Path(__file__).resolve().parents[1] / 'templates' / 'mobile'
+        for name in ('weekly_reports.html', 'weekly_report_detail.html'):
+            src = (root / name).read_text(encoding='utf-8')
+            assert 'onerror=' not in src, f'{name} 仍含被 CSP 屏蔽的内联 onerror'
+            assert '<script>' not in src, f'{name} 仍含被 CSP 屏蔽的裸内联脚本'
+
+    def test_mobile_js_wires_fallback_and_polling(self) -> None:
+        """处理器必须在 DOM ready 队列里被真正调用（只定义不接线是本次要修的故障）"""
+        root = Path(__file__).resolve().parents[1] / 'static' / 'mobile' / 'js' / 'mobile.js'
+        src = root.read_text(encoding='utf-8')
+        ready_block = src[src.index('ready(function () {') :]
+        for fn in ('initImageFallback()', 'initReportPolling()', 'initShareButtons()'):
+            assert fn in ready_block, f'{fn} 未接入 DOM ready 初始化'
+        assert "'error'," in src and 'true' in src, '图片兜底须用捕获阶段监听（error 不冒泡）'
