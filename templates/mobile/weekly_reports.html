@@ -15,33 +15,67 @@
 {% block content %}
 
 {% if is_generating %}
-<div class="m-report-generating">
+{# data-report-poll 由 mobile.js 引导轮询：CSP 下内联脚本不会被执行 #}
+<div class="m-report-generating" role="status" aria-live="polite" data-report-poll>
     {{ _('本期周报正在生成中，请稍后刷新查看') }}
 </div>
 {% endif %}
 
-{% if reports %}
-<div class="m-book-list">
-    {% for report in reports %}
-    <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-report-card">
-        <div class="m-report-week">W{{ report.week_end.strftime('%V') }}</div>
-        <div class="m-report-main">
-            <h3 class="m-report-title">
-                {% if report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
-            </h3>
-            <p class="m-report-sub">
-                {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}
-                {% if report.content_data and report.content_data.total_books %}
-                · {{ report.content_data.total_books }}{{ _('本新书') }}
-                {% endif %}
-            </p>
-        </div>
-        <span class="m-report-chevron">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </span>
-    </a>
-    {% endfor %}
+<div class="m-report-intro">
+    <p class="m-report-intro-count">
+        {{ reports|length }} {{ _('期') }}
+        {% if latest_report and latest_report.week_start %}
+        · {{ _('更新至') }} {{ latest_report.week_start.strftime('%Y-%m-%d') }}
+        {% endif %}
+    </p>
 </div>
+
+{% if reports %}
+{# 月份分组沿用桌面列表页的 report_sections，路由已一并传入 #}
+{% for section in report_sections %}
+{% set month_label = _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) %}
+<section class="m-report-group" aria-label="{{ month_label }}">
+    <h2 class="m-report-group-title">{{ month_label }}</h2>
+    <div class="m-book-list">
+        {% for report in section.reports %}
+        {% set content = report.content_data or {} %}
+        <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-report-card">
+            <div class="m-report-week">W{{ report.week_end.strftime('%V') }}</div>
+            <div class="m-report-main">
+                <h3 class="m-report-title">
+                    {% if report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
+                </h3>
+                <p class="m-report-sub">
+                    {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}
+                    {% if content.total_books %}
+                    · {{ content.total_books }}{{ _('本新书') }}
+                    {% endif %}
+                </p>
+                {% if content.top_changes or content.new_books or content.featured_books %}
+                <div class="m-report-chips">
+                    {% if content.top_changes %}
+                    <span class="m-report-chip">{{ content.top_changes | length }} {{ _('项变化') }}</span>
+                    {% endif %}
+                    {% if content.new_books %}
+                    <span class="m-report-chip">{{ content.new_books | length }} {{ _('新上榜') }}</span>
+                    {% endif %}
+                    {% if content.featured_books %}
+                    <span class="m-report-chip">{{ content.featured_books | length }} {{ _('推荐') }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if report.summary %}
+                <p class="m-report-summary">{{ report.summary }}</p>
+                {% endif %}
+            </div>
+            <span class="m-report-chevron">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </span>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endfor %}
 {% else %}
 <div class="m-empty">
     <div class="m-empty-icon">
@@ -52,14 +86,4 @@
 </div>
 {% endif %}
 
-{% endblock %}
-
-{% block extra_js %}
-{% if is_generating %}
-<script>
-if (window.MobileApp && MobileApp.startPolling) {
-    MobileApp.startPolling(30000);
-}
-</script>
-{% endif %}
 {% endblock %}

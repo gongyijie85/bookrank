@@ -1288,6 +1288,88 @@ img { max-width: 100%; display: block; }
 
 .m-report-chevron svg { width: 18px; height: 18px; }
 
+/* 列表页头部：期数与更新日期 */
+.m-report-intro {
+    padding: var(--space-4) var(--space-4) var(--space-1);
+}
+
+.m-report-intro-count {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+/* 月份分组 */
+.m-report-group { margin-bottom: var(--space-5); }
+
+.m-report-group-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-4) var(--space-4) var(--space-3);
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.m-report-group-title::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+}
+
+/* 卡片内的统计与摘要 */
+.m-report-card { align-items: flex-start; }
+
+.m-report-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+}
+
+.m-report-chip {
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-primary-tint);
+    color: var(--color-primary-dark);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+}
+
+.m-report-summary {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* 排名变化的"上周 → 本周" */
+.m-report-change-rank {
+    flex-shrink: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.m-report-change-rank-prev {
+    font-weight: 400;
+    color: var(--color-text-tertiary);
+}
+
+.m-report-change-rank-prev::after {
+    content: '\2192';
+    margin: 0 2px;
+}
+
 /* 周报详情 */
 .m-report-hero {
     margin: var(--space-4);
