@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..models.database import db
 from ..models.schemas import BookMetadata, TranslationCache
-from ..utils.api_helpers import clean_translation_text
+from ..utils.api_helpers import clean_translation_text, is_non_substantive_details
 from ..utils.error_handler import ErrorCategory, log_error
 from .translation_cache_service import TranslationCacheService
 
@@ -105,6 +105,16 @@ class BookLanguagePack:
                     pack_value = pack_entry.get(target_attr)
 
                     if object_value and not force:
+                        # 拒收语言标记/占位符噪音：这类值写进权威语言包后会让页面
+                        # 显示「详情: 英文」（实测 88 条、其中 32 本在榜）。
+                        if target_attr == 'details_zh' and is_non_substantive_details(object_value):
+                            log_error(
+                                ErrorCategory.TRANSLATION,
+                                f'跳过非实质 details_zh 值: {isbn} {object_value!r}',
+                                level='warning',
+                            )
+                            stats['rejected_non_substantive'] = stats.get('rejected_non_substantive', 0) + 1
+                            continue
                         cleaned = clean_translation_text(object_value, field_type)
                         self._set_value(book, target_attr, cleaned)
                         if not pack_value:

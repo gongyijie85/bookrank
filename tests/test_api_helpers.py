@@ -7,6 +7,7 @@ from app.utils.api_helpers import (
     APIResponse,
     clean_translation_text,
     handle_api_errors,
+    is_non_substantive_details,
     validate_isbn,
     validate_pagination,
 )
@@ -225,3 +226,34 @@ class TestCleanTranslationText:
 
     def test_chinese_text_preserved(self):
         assert clean_translation_text('你好世界') == '你好世界'
+
+
+class TestIsNonSubstantiveDetails:
+    """details_zh 噪音判定：只匹配显式集合，不做长度裁剪。"""
+
+    @pytest.mark.parametrize(
+        'value',
+        ['英文', '英语', '中文', '汉语', '- 英文', '-英文', '小说', '非虚构', '暂无详细描述', 'N/A', '-'],
+    )
+    def test_language_markers_and_placeholders_rejected(self, value):
+        assert is_non_substantive_details(value) is True
+
+    def test_surrounding_whitespace_tolerated(self):
+        assert is_non_substantive_details('  英文  ') is True
+
+    @pytest.mark.parametrize('value', ['', None])
+    def test_empty_values_not_flagged(self, value):
+        assert is_non_substantive_details(value) is False
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            '最初由Viking Penguin于2014年出版。',
+            'Detailed book description',
+            'A sweeping history of the American West, told through the lives of four families.',
+            'English',
+        ],
+    )
+    def test_real_details_pass_through(self, value):
+        """短句正常详情与英文原文都不得被误判。"""
+        assert is_non_substantive_details(value) is False

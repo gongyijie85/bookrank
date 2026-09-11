@@ -25,6 +25,9 @@ def _book_key(book: dict[str, Any]) -> str:
 
 
 def _merge_book(target: dict[str, Any], source: dict[str, Any]) -> None:
+    # 迟到 import：本脚本要先修正 sys.path 才能引用 app 包。
+    from app.utils.api_helpers import is_non_substantive_details
+
     for key in (
         'id',
         'title',
@@ -37,8 +40,15 @@ def _merge_book(target: dict[str, Any], source: dict[str, Any]) -> None:
         'isbn13',
         'isbn10',
     ):
-        if not target.get(key) and source.get(key):
-            target[key] = source[key]
+        if target.get(key) or not source.get(key):
+            continue
+
+        # 上游 cache/static JSON 曾混入「英文」「小说」这类语言标记，直接合并
+        # 会把噪音固化进权威语言包（实测 88 条，其中 32 本当时在榜）。
+        if key == 'details_zh' and is_non_substantive_details(str(source[key])):
+            continue
+
+        target[key] = source[key]
 
 
 def _collect_cache_books(cache_dir: Path) -> list[dict[str, Any]]:
