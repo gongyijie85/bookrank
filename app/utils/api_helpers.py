@@ -424,3 +424,30 @@ def quick_clean_translation(text: str | None, field_type: str = 'text') -> str |
     if re.search(r'[\s]*(?:译|\[译\]|\(译\))\s*$', text):
         return clean_translation_text(text, field_type)
     return text
+
+
+def target_lang_expects_cjk(target_lang: str) -> bool:
+    """目标语言是否为中文（据此判断译文里是否应当出现汉字）。
+
+    接受 'zh'、'zh-CN'、'zh-Hans' 等写法，与 translate 的调用方保持一致。
+    """
+    return (target_lang or '').strip().lower().split('-')[0] == 'zh'
+
+
+def is_english_echo(source: str, translated: str, target_lang: str) -> bool:
+    """判断译文是否是模型把原文原样回显。
+
+    实测该模型会把个别短文本原样返回（SCION → "SCION"/"Scion"）。这类坏值若写入
+    translation_cache 会自我固化：后续请求命中缓存直接拿到英文，书名永远补不上。
+    只在「目标语言是中文、原文含拉丁字母、译文里一个汉字都没有」时判定为回显，
+    因此不会误伤品牌名/数字/纯符号等本身无需翻译的文本。
+    """
+    if not target_lang_expects_cjk(target_lang):
+        return False
+    src = (source or '').strip()
+    dst = (translated or '').strip()
+    if not src or not dst:
+        return False
+    if not any('a' <= ch.lower() <= 'z' for ch in src):
+        return False
+    return not any('\u4e00' <= ch <= '\u9fff' for ch in dst)

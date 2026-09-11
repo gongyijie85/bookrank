@@ -116,6 +116,11 @@ def update_book_from_google_books(book: dict, details: dict) -> None:
     if book.get('description') and not book.get('description_zh'):
         translate_field_async(book, 'description', 'description_zh')
 
+    # 书名同样需要补翻：此前只排了 description/details，导致中文简介有值而书名
+    # 一直是英文（页面回退显示原文）。见 #210 的回填取证。
+    if book.get('title') and not book.get('title_zh'):
+        translate_field_async(book, 'title', 'title_zh')
+
 
 def _apply_translation_overrides(book: dict, isbn: str) -> None:
     """应用翻译覆盖映射"""
