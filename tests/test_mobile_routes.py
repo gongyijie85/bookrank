@@ -4,6 +4,7 @@
 在桌面 UA 下回退桌面版模板。
 """
 
+import re
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -797,7 +798,18 @@ class TestMobileWeeklyParityAndCsp:
         mock_parse.return_value = {
             'total_books': 10,
             'top_changes': [{'title': 'The Book', 'title_zh': '中文书名', 'rank': 3, 'rank_change': 5}],
-            'new_books': [{'title': 'New One', 'title_zh': '新书', 'category': '小说'}],
+            'new_books': [
+                {'title': 'New One', 'title_zh': '新书', 'category': '小说', 'cover': '/cache/images/new-one.jpg'},
+            ],
+            'featured_books': [
+                {
+                    'title': 'Fav',
+                    'title_zh': '荐书',
+                    'author': 'A',
+                    'reason': '值得一读',
+                    'cover': '/cache/images/fav.jpg',
+                },
+            ],
         }
 
         body = client.get('/reports/weekly/2024-01-14', headers=ZH_MOBILE_HEADERS).data.decode('utf-8')
@@ -805,6 +817,10 @@ class TestMobileWeeklyParityAndCsp:
         assert 'data-share-url' in body
         assert 'm-report-hero' in body
         assert '总书数' in body
+        # mobile.js 只接受站内绝对路径作兜底，模板若发出别的形式会被静默忽略
+        fallbacks = re.findall(r'data-fallback="([^"]*)"', body)
+        assert fallbacks, '详情页应渲染 data-fallback'
+        assert all(v.startswith('/static/') for v in fallbacks), fallbacks
 
     def test_weekly_templates_have_no_csp_blocked_onerror(self) -> None:
         """移动端周报模板不得再使用内联 onerror（CSP 下永不执行）"""

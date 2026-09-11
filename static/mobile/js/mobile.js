@@ -102,9 +102,14 @@
     }
 
     // ===== 4. 封面兜底（CSP 下内联 onerror 全部失效，改为事件委托） =====
+    function isSameOriginPath(value) {
+        // 兜底地址只接受站内绝对路径：属性值可能被注入 javascript: 或 //外域
+        return value.charAt(0) === '/' && value.charAt(1) !== '/';
+    }
+
     function applyImageFallback(img) {
         const fallback = img.getAttribute('data-fallback');
-        if (!fallback || img.dataset.fallbackApplied === '1') return;
+        if (!isSameOriginPath(fallback || '') || img.dataset.fallbackApplied === '1') return;
         img.dataset.fallbackApplied = '1';
         img.src = fallback;
     }
