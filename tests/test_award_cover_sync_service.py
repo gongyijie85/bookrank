@@ -112,7 +112,7 @@ class TestIsCachedPathAvailable:
         from app.services.api_utils import ImageCacheService
 
         cache_file = tmp_path / 'cover.jpg'
-        cache_file.write_bytes(b'fake image')
+        cache_file.write_bytes(b'fake image' * 500)
         cache = ImageCacheService(cache_dir=tmp_path)
         service = AwardCoverSyncService(
             google_client=MagicMock(),
@@ -120,6 +120,24 @@ class TestIsCachedPathAvailable:
             image_cache=cache,
         )
         assert service._resolver.cached_path_available('/cache/images/cover.jpg') is True
+
+    def test_cache_path_placeholder_stub_returns_false(self, tmp_path):
+        """Open Library 的 1×1 占位文件虽"存在"，也必须判为不可用。
+
+        这是 #207 上线后的真实故障：16 本书的 cover_local_path 指向 43 字节
+        占位图，探测判为可用 → 渲染层不再回退、封面同步也不列为候选。
+        """
+        from app.services.api_utils import ImageCacheService
+
+        cache_file = tmp_path / 'stub.jpg'
+        cache_file.write_bytes(b'GIF89a' + b'\x00' * 37)  # 43 字节，与 OL 占位同尺寸
+        cache = ImageCacheService(cache_dir=tmp_path)
+        service = AwardCoverSyncService(
+            google_client=MagicMock(),
+            openlibrary_client=MagicMock(),
+            image_cache=cache,
+        )
+        assert service._resolver.cached_path_available('/cache/images/stub.jpg') is False
 
     def test_cache_path_file_not_exists(self, tmp_path):
         from app.services.api_utils import ImageCacheService
