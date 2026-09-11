@@ -102,16 +102,13 @@
     }
 
     // ===== 4. 封面兜底（CSP 下内联 onerror 全部失效，改为事件委托） =====
-    function isSameOriginPath(value) {
-        // 兜底地址只接受站内绝对路径：属性值可能被注入 javascript: 或 //外域
-        return value.charAt(0) === '/' && value.charAt(1) !== '/';
-    }
+    // 标记属性只作开关：目标地址取自常量，不从页面属性流入 src
+    const COVER_FALLBACK = '/static/default-cover.png';
 
     function applyImageFallback(img) {
-        const fallback = img.getAttribute('data-fallback');
-        if (!isSameOriginPath(fallback || '') || img.dataset.fallbackApplied === '1') return;
-        img.dataset.fallbackApplied = '1';
-        img.src = fallback;
+        if (img.dataset.coverFallbackApplied === '1') return;
+        img.dataset.coverFallbackApplied = '1';
+        img.src = COVER_FALLBACK;
     }
 
     function initImageFallback() {
@@ -119,12 +116,13 @@
         document.addEventListener(
             'error',
             function (e) {
-                if (e.target && e.target.tagName === 'IMG') applyImageFallback(e.target);
+                const el = e.target;
+                if (el && el.tagName === 'IMG' && el.hasAttribute('data-cover-fallback')) applyImageFallback(el);
             },
             true
         );
         // mobile.js 在 body 末尾执行，此前已失败的图片不会再触发 error，需补扫
-        document.querySelectorAll('img[data-fallback]').forEach(function (img) {
+        document.querySelectorAll('img[data-cover-fallback]').forEach(function (img) {
             if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
         });
     }

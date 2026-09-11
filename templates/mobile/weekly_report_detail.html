@@ -94,7 +94,7 @@
             {% if book.cover %}
             <div class="m-book-cover">
                 <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="60" height="80"
-                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                     data-cover-fallback="">
             </div>
             {% endif %}
             <div class="m-book-info">
@@ -117,7 +117,7 @@
         {% if book.cover %}
         <div class="m-report-rec-cover">
             <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="50" height="70"
-                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                 data-cover-fallback="">
         </div>
         {% endif %}
         <div class="m-report-rec-info">

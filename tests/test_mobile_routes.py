@@ -4,7 +4,6 @@
 在桌面 UA 下回退桌面版模板。
 """
 
-import re
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -817,10 +816,8 @@ class TestMobileWeeklyParityAndCsp:
         assert 'data-share-url' in body
         assert 'm-report-hero' in body
         assert '总书数' in body
-        # mobile.js 只接受站内绝对路径作兜底，模板若发出别的形式会被静默忽略
-        fallbacks = re.findall(r'data-fallback="([^"]*)"', body)
-        assert fallbacks, '详情页应渲染 data-fallback'
-        assert all(v.startswith('/static/') for v in fallbacks), fallbacks
+        # 兜底目标取自 mobile.js 常量，模板只负责开关标记；两张封面图都应带上
+        assert body.count('data-cover-fallback') == 2
 
     def test_weekly_templates_have_no_csp_blocked_onerror(self) -> None:
         """移动端周报模板不得再使用内联 onerror（CSP 下永不执行）"""
