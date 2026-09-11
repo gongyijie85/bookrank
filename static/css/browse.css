@@ -18,7 +18,8 @@
     padding: 11px 18px;
     border-right: 1px solid var(--border-color);
     color: var(--text-secondary);
-    font-size: 10px;
+    /* 10px → 12px：正文字号下限（与 awards-seal-strip 同型组件，此前只改了那一个） */
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -66,7 +67,8 @@
 
 .browse-tile-meta {
     color: var(--text-muted);
-    font-size: 11px;
+    /* 11px → 12px：正文字号下限（磁贴元信息，与 publishers 的 award-tile-meta 同型） */
+    font-size: 12px;
     letter-spacing: 0.04em;
 }
 
@@ -77,7 +79,8 @@
     border-radius: var(--radius-full);
     background: var(--badge-bg);
     color: var(--badge-text);
-    font-size: 11px;
+    /* 11px → 12px：正文字号下限（计数徽标） */
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -191,7 +194,8 @@
 
 .browse-card-eyebrow {
     color: var(--text-muted);
-    font-size: 10px;
+    /* 10px → 12px：正文字号下限（大写 + 0.1em 字距，10px 下几乎不可读） */
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.1em;
     line-height: 1.4;

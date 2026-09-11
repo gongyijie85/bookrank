@@ -81,7 +81,8 @@
     padding: 12px 16px;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-muted);
-    font-size: 10px;
+    /* 10px → 12px：正文字号下限（表头是大写 + 0.12em 字距，10px 下几乎不可读） */
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-align: left;
@@ -113,6 +114,11 @@
     color: var(--link-blue);
     font-size: 13px;
     text-decoration: none;
+    /* WCAG 2.5.8：实测命中区 35.02×16px，低于 24×24 下限。
+       inline-flex + min-height 只扩大热区，文字视觉不变。 */
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
 }
 
 .publisher-link:hover { text-decoration: underline; }
@@ -121,6 +127,8 @@
 .publisher-newbooks-link {
     display: inline-flex;
     align-items: center;
+    /* WCAG 2.5.8：窄屏实测命中区 62×19.19px，高度低于 24px 下限 */
+    min-height: 24px;
     gap: 2px;
     color: var(--text-secondary);
     font-size: 12px;

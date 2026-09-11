@@ -75,7 +75,7 @@
     padding-top: 10px;
     border-top: 1px solid var(--border-color);
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 /* --- Filter section --- */
@@ -102,7 +102,7 @@
 
 .weekly-page .filter-group > label {
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -186,7 +186,7 @@
     letter-spacing: -0.04em;
 }
 
-.weekly-page .news-month { color: var(--text-muted); font-size: 11px; letter-spacing: 0.08em; }
+.weekly-page .news-month { color: var(--text-muted); font-size: 12px; letter-spacing: 0.08em; }
 .weekly-page .news-card-content { min-width: 0; }
 .weekly-page .news-title {
     margin: 0 0 8px;
