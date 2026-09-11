@@ -65,6 +65,7 @@ archive/
 
 # Agent / IDE data
 .workbuddy/
+.design-audit/
 
 # Logs
 *.log

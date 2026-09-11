@@ -354,6 +354,16 @@
             }
         }
 
+        /* 修复（dsh-design-audit 实测）：new-books 页的面包屑是 <body> 的**直接子节点**（不在 main 内），
+           吃不到 main 的 padding-top（那是给固定顶栏留位的），整块落到 y 0–48 —— 被 0–64 的固定顶栏
+           完全盖住：既看不见、链接也点不到（元素中心命中测试全落到顶栏，而 display/opacity/rect 全部
+           "正常"，纯几何检查发现不了）。这里把顶栏高度补给它；--top-nav-height 已由 base.js 按实测
+           高度同步，故窄屏折行（实测 95px）也自动正确。
+           作用域限定 body 直接子节点，不影响已经放在 main 内的面包屑（那些已吃到 padding-top）。 */
+        body > .breadcrumbs {
+            margin-top: var(--top-nav-height);
+        }
+
         /* 面包屑导航：与主内容列（侧边栏偏移）左对齐，避免在页面中间悬浮 */
         .breadcrumbs {
             max-width: 1200px;

@@ -173,7 +173,7 @@
 
 .charts-page .cover-weeks-value > span {
     color: inherit;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -332,13 +332,13 @@
 }
 
 .mobile-charts-page .m-top-nav-copy { align-items: center; min-width: 0; width: 100%; }
-.mobile-charts-page .m-top-nav-kicker { color: #666; font-size: 11px; }
+.mobile-charts-page .m-top-nav-kicker { color: #666; font-size: 12px; }
 .mobile-charts-page .m-top-nav-title { color: #1d1d1f; font: 700 36px/1.15 Georgia, serif; letter-spacing: -0.05em; margin: 8px 0; }
 .mobile-charts-page .m-top-nav-title span { font-weight: 400; font-style: italic; }
 .mobile-charts-page .m-top-nav-subtitle { color: #666; font-size: 12px; }
 .mobile-charts-page .m-search-toggle { position: absolute; top: 0; right: 66px; width: 44px; height: 44px; color: #1d1d1f; background: #fff; border: 1px solid #dedee1; }
 .mobile-charts-page .m-cat-tab { border-radius: 3px; min-height: 44px; display: flex; align-items: center; }
-.mobile-charts-page .m-list-info { flex-wrap: wrap; font-size: 11px; }
+.mobile-charts-page .m-list-info { flex-wrap: wrap; font-size: 12px; }
 .mobile-charts-page .m-ranking-guide-dot { background: #0071e3; box-shadow: none; }
 .mobile-charts-page .m-book-list { gap: 12px; }
 .mobile-charts-page .m-book-card { border-radius: 3px; box-shadow: none; padding: 20px 14px; gap: 12px; }
@@ -441,7 +441,7 @@
 
 .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card-pub-isbn {
     justify-content: center;
-    font-size: 10px;
+    font-size: 12px;
 }
 
 .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .cover-weeks {
