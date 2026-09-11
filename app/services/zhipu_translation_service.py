@@ -14,7 +14,7 @@ import time
 from functools import lru_cache
 from typing import Any, cast
 
-from ..utils.api_helpers import clean_translation_text
+from ..utils.api_helpers import clean_translation_text, is_english_echo
 from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import run_with_app_context
 
@@ -687,22 +687,33 @@ class ZhipuTranslationService:
                         parsed = self._parse_json_from_text(content)
 
                     if parsed and isinstance(parsed, dict):
+                        src_map = {
+                            'title': title,
+                            'description': description,
+                            'details': details,
+                        }
                         for key, field_type in [
                             ('title_zh', 'title'),
                             ('description_zh', 'description'),
                             ('details_zh', 'details'),
                         ]:
                             val = parsed.get(key)
-                            if val and isinstance(val, str) and val.strip():
-                                cleaned = clean_translation_text(val.strip(), field_type=field_type)
-                                result[key] = cleaned
+                            if not (val and isinstance(val, str) and val.strip()):
+                                continue
+                            cleaned = clean_translation_text(val.strip(), field_type=field_type)
+                            # 回显不得进入 result：否则会回给调用方，也会被下面的
+                            # 缓存写入逻辑写库并自我固化（缓存层同样有兜底拦截）。
+                            if is_english_echo(src_map.get(field_type, ''), cleaned, target_lang):
+                                logger.warning(
+                                    '合并翻译的 %s 为原文回显，已丢弃: %r -> %r',
+                                    field_type,
+                                    str(src_map.get(field_type, ''))[:40],
+                                    cleaned[:40],
+                                )
+                                continue
+                            result[key] = cleaned
 
                         if cache_service:
-                            src_map = {
-                                'title': title,
-                                'description': description,
-                                'details': details,
-                            }
                             for src_key, dst_key in [
                                 ('title', 'title_zh'),
                                 ('description', 'description_zh'),
@@ -890,6 +901,12 @@ class HybridTranslationService:
                 logger.info('使用备用翻译服务...')
                 translated = fallback.translate(text, source_lang, target_lang)
                 used_fallback = bool(translated)
+
+        # 英文回显视为失败：既不能返回给调用方，更不能写进缓存（写进去会自我固化，
+        # 后续请求一直命中坏值，书名永远补不上 —— 见 #210 的取证）。
+        if translated and is_english_echo(text, translated, target_lang):
+            logger.warning('翻译结果为原文回显，已丢弃以避免污染缓存: %r -> %r', text[:40], translated[:40])
+            translated = None
 
         if translated and cache_service:
             try:

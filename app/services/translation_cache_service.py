@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..models.database import db
 from ..models.schemas import TranslationCache
+from ..utils.api_helpers import is_english_echo
 from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,14 @@ class TranslationCacheService:
         """
         if not source_text or not translated_text:
             raise ValueError('源文本和翻译结果不能为空')
+
+        # 回显兜底：坏值一旦落库就会自我固化（后续请求全部命中缓存拿到英文）。
+        # 调用方对此的既有处理是捕获异常后记录缓存写入失败，翻译结果照常返回。
+        if is_english_echo(source_text, translated_text, target_lang):
+            logger.warning(
+                '拒绝缓存原文回显: %r -> %r（%s->%s）', source_text[:40], translated_text[:40], source_lang, target_lang
+            )
+            raise ValueError(f'翻译结果为原文回显，拒绝写入缓存: {source_text[:40]!r}')
 
         source_hash = self._compute_cache_hash(source_text, cache_context)
 

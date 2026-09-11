@@ -141,6 +141,24 @@ class TestUpdateBookFromGoogleBooks:
         assert 'details' not in book
         mock_translate.assert_not_called()
 
+    def test_queues_title_translation_when_title_missing_zh(self, mock_translate):
+        """书名缺中文时也要排队翻译（此前只排了 description/details）。"""
+        book = {'title': 'The Great Gatsby'}
+        details = {'details': 'A detailed book description.'}
+
+        update_book_from_google_books(book, details)
+
+        assert ('title', 'title_zh') in [call.args[1:] for call in mock_translate.call_args_list]
+
+    def test_does_not_requeue_title_when_zh_present(self, mock_translate):
+        """已有中文书名时不应重复排队。"""
+        book = {'title': 'The Great Gatsby', 'title_zh': '了不起的盖茨比'}
+        details = {'details': 'A detailed book description.'}
+
+        update_book_from_google_books(book, details)
+
+        assert all(call.args[1] != 'title' for call in mock_translate.call_args_list)
+
     def test_updates_page_count(self, mock_translate):
         """更新 page_count"""
         book = {}

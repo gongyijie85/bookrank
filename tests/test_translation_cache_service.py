@@ -258,6 +258,24 @@ class TestSet:
         assert result.model_version == '3'
         assert result.quality_score == 0.95
 
+    def test_set_rejects_english_echo(self, db):
+        """英文回显不得落库：坏值一旦缓存会自我固化，书名永远补不上（#210）。"""
+        service = TranslationCacheService()
+
+        with pytest.raises(ValueError):
+            service.set('SCION', 'Scion')
+
+        assert service.get('SCION') is None
+
+    def test_set_accepts_chinese_translation(self, db):
+        """正常中文译文照常落库，防护不误伤。"""
+        service = TranslationCacheService()
+
+        result = service.set('SCION', '后裔')
+
+        assert result is not None
+        assert result.translated_text == '后裔'
+
     def test_set_raises_for_empty_source(self, db):
         """空源文本应抛出 ValueError"""
         service = TranslationCacheService()
