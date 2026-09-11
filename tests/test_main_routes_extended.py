@@ -1338,17 +1338,18 @@ class TestIndexRoute:
         with app.app_context():
             app.extensions['book_service'] = mock_svc
         try:
-            response = client.get('/?sort=weeks_desc&view=list')
+            # 列表视图已下线，只保留网格视图：断言改为网格卡片标记
+            response = client.get('/?sort=weeks_desc')
             soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
-            first_card = soup.select_one('.list-item')
+            first_card = soup.select_one('#books-grid .card')
             item_list = next(
                 json.loads(script.string)
                 for script in soup.select('script[type="application/ld+json"]')
                 if 'ItemList' in script.string
             )
 
-            assert first_card.select_one('.list-item-title').get_text(strip=True) == 'Long Runner'
-            assert first_card.select_one('.list-item-rank').get_text(strip=True) == '8'
+            assert first_card.select_one('.card-title').get_text(strip=True) == 'Long Runner'
+            assert first_card.select_one('.card-badge').get_text(strip=True) == '8'
             assert first_card.select_one('a')['href'].startswith('/book/7?')
             assert item_list['itemListElement'][0]['item']['url'].endswith('/book/7?category=hardcover-fiction')
         finally:
@@ -1361,9 +1362,9 @@ class TestIndexRoute:
         with app.app_context():
             app.extensions['book_service'] = mock_svc
         try:
-            response = client.get('/?view=list')
+            response = client.get('/')
             soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
-            badge = soup.select_one('.rank-change-badge')
+            badge = soup.select_one('#books-grid .rank-change')
 
             assert badge.get_text(strip=True) == 'RETURN'
         finally:

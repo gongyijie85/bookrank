@@ -3,7 +3,7 @@
 {% block title %}{{ _('出错') }} - BookRank{% endblock %}
 
 {% block content %}
-<main class="main-content error-page">
+<div class="error-page">
     <div class="error-container">
         <div class="error-icon">
             <svg class="icon" width="64" height="64"><use href="#icon-x-circle"/></svg>
@@ -21,7 +21,7 @@
             </a>
         </div>
     </div>
-</main>
+</div>
 
 <style nonce="{{ csp_nonce() }}">
 .error-page {

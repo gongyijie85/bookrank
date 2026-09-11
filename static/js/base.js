@@ -12,6 +12,47 @@
     const themeToggle = document.getElementById('theme-toggle');
     const searchInput = document.getElementById('search-input');
 
+    // ===== 顶部导航高度同步（--top-nav-height 跟随真实高度）=====
+
+    /**
+     * 把 --top-nav-height 同步为导航条的**实测高度**。
+     *
+     * 为什么需要这一步：窄屏（≤767px）导航会折行成两行，真实高度随视口变化
+     * （实测 390px 下为 95px），任何写死的值都只能适配一种宽度。
+     *
+     * 此前该变量在 ≤767px 被写成 `auto`，而它被用于 `calc(var(--top-nav-height) + …)`，
+     * 于是这些声明全部**非法并被浏览器丢弃**，后果有两处（均由 dsh-design-audit 实测发现）：
+     *   ① .sidebar-toggle 的 top 退回 auto，position:fixed 的按钮落到 y≈0 的导航条区域内，
+     *      被 z-index 1000 的 .top-nav 完全覆盖 —— 6 个采样点全部命中导航，侧栏开关点不到；
+     *   ② 主内容 padding-top 少了约 7px（88px < 导航实际 95px），正文压在导航条下缘。
+     *
+     * 窄屏下 .top-nav 的 height 是 auto（不是 var），因此实测回写不会自触发循环；
+     * 仍加一道相等判断以彻底避免 ResizeObserver 抖动。
+     */
+    function syncTopNavHeight() {
+        const nav = document.querySelector('.top-nav');
+        if (!nav) return;
+        const height = Math.round(nav.getBoundingClientRect().height);
+        if (height <= 0) return;
+        const current = document.documentElement.style.getPropertyValue('--top-nav-height').trim();
+        if (current === height + 'px') return;
+        document.documentElement.style.setProperty('--top-nav-height', height + 'px');
+    }
+
+    (function initTopNavHeightSync() {
+        // 注意：不要在这里用 `if (!nav) return;` 提前退出 —— base.js 若在导航条进入 DOM
+        // 之前执行，提前退出会把下面的 load 监听一并跳过，同步将永不发生（本次实测踩到）。
+        // 因此监听无条件注册，找不到导航时由 load 事件兜底。
+        syncTopNavHeight();
+        window.addEventListener('load', syncTopNavHeight);
+        window.addEventListener('resize', syncTopNavHeight);
+        document.addEventListener('DOMContentLoaded', syncTopNavHeight);
+        const nav = document.querySelector('.top-nav');
+        if (nav && typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncTopNavHeight).observe(nav);
+        }
+    })();
+
     // ===== Utilities =====
 
     /**
@@ -223,10 +264,11 @@
     function toggleTheme() {
         const currentTheme = getSavedTheme() || getSystemTheme();
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        const lang = getCurrentLang();
 
         applyTheme(newTheme);
         showToast(
-            newTheme === 'dark' ? '已切换到深色模式' : '已切换到浅色模式',
+            window.t(newTheme === 'dark' ? 'theme_switched_dark' : 'theme_switched_light', lang),
             'success'
         );
     }
@@ -244,78 +286,8 @@
         // Add click listener to theme toggle
         if (themeToggle) {
             themeToggle.addEventListener('click', toggleTheme);
-            themeToggle.setAttribute('aria-label', '切换主题');
+            themeToggle.setAttribute('aria-label', window.t('theme_toggle_label', getCurrentLang()));
         }
-    }
-
-    // ===== View Mode Functions =====
-
-    /**
-     * Build URL with updated view param while preserving other query params
-     * @param {string} view - View mode (grid, list)
-     * @returns {string} URL with view param set
-     */
-    function buildViewUrl(view) {
-        const params = new URLSearchParams(window.location.search);
-        params.set('view', view);
-        return window.location.pathname + '?' + params.toString();
-    }
-
-    /**
-     * Toggle between grid and list view
-     * @param {string} view - View mode (grid, list)
-     */
-    function toggleView(view) {
-        const grid = document.getElementById('books-grid');
-        const list = document.getElementById('books-list');
-        const gridBtn = document.getElementById('view-grid');
-        const listBtn = document.getElementById('view-list');
-
-        localStorage.setItem('bookrank_view', view);
-
-        if (grid && list) {
-            // Dual-view DOM: switch visible view via CSS classes
-            if (view === 'grid') {
-                grid.classList.add('active');
-                list.classList.remove('active');
-                gridBtn?.classList.add('active');
-                listBtn?.classList.remove('active');
-            } else {
-                list.classList.add('active');
-                grid.classList.remove('active');
-                gridBtn?.classList.remove('active');
-                listBtn?.classList.add('active');
-            }
-        } else {
-            // Single-view DOM: let the server render the requested view
-            window.location.href = buildViewUrl(view);
-        }
-    }
-
-    /**
-     * Initialize view mode from saved preference
-     */
-    function initViewMode() {
-        const grid = document.getElementById('books-grid');
-        const list = document.getElementById('books-list');
-        const savedView = localStorage.getItem('bookrank_view') || localStorage.getItem('viewMode');
-        const urlParams = new URLSearchParams(window.location.search);
-
-        if (!grid || !list) {
-            // Single-view DOM: redirect to saved preference when URL has no view param
-            if (!urlParams.has('view') && savedView) {
-                const currentView = grid ? 'grid' : (list ? 'list' : null);
-                if (currentView && currentView !== savedView) {
-                    window.location.href = buildViewUrl(savedView);
-                }
-            }
-            return;
-        }
-
-        // Dual-view DOM: apply saved preference or server-rendered active view
-        const serverView = grid.classList.contains('active') ? 'grid' : (list.classList.contains('active') ? 'list' : null);
-        const view = savedView || serverView || 'grid';
-        toggleView(view);
     }
 
     // ===== Favorite Functions =====
@@ -443,17 +415,6 @@
             });
         }
 
-        // View toggle buttons
-        const viewGridBtn = document.getElementById('view-grid');
-        const viewListBtn = document.getElementById('view-list');
-
-        if (viewGridBtn) {
-            viewGridBtn.addEventListener('click', () => toggleView('grid'));
-        }
-        if (viewListBtn) {
-            viewListBtn.addEventListener('click', () => toggleView('list'));
-        }
-
         const langGlobe = document.getElementById('lang-globe');
         const langOptZh = document.getElementById('lang-opt-zh');
         const langOptEn = document.getElementById('lang-opt-en');
@@ -496,7 +457,6 @@
     function init() {
         initEventListeners();
         initTheme();
-        initViewMode();
         initLanguage();
         initImageErrorHandler();
     }
@@ -561,13 +521,20 @@
     }
 
     /**
-     * Initialize language based on saved preference or browser detection
+     * Current UI language: saved preference, else browser detection
      */
-    function initLanguage() {
+    function getCurrentLang() {
         var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
         var browserLang = navigator.language || navigator.userLanguage || '';
         var defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
-        var currentLang = savedLang || defaultLang;
+        return savedLang || defaultLang;
+    }
+
+    /**
+     * Initialize language based on saved preference or browser detection
+     */
+    function initLanguage() {
+        var currentLang = getCurrentLang();
 
         updateLangDropdown(currentLang);
 
@@ -592,7 +559,6 @@
     window.showLoading = showLoading;
     window.hideLoading = hideLoading;
     window.showToast = showToast;
-    window.toggleView = toggleView;
     window.toggleFavorite = toggleFavorite;
     window.clearFilters = clearFilters;
     window.applyFilters = applyFilters;

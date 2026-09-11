@@ -7,8 +7,7 @@
 /* Do not rely on inline display attributes under the site's CSP. */
 .charts-page #svg-icons-sprite,
 .charts-page [hidden] { display: none !important; }
-.charts-page .search-suggestions,
-.charts-page .search-clear-btn { display: none; }
+/* 首页搜索历史下拉与清除按钮是有意保留的功能（由 JS 以内联 display 控制），此处不再用 CSS 隐藏。 */
 
 .charts-page .main-content {
     width: min(1160px, 100%);
@@ -35,7 +34,8 @@
 .charts-kicker {
     margin: 0 0 16px;
     color: var(--text-secondary);
-    font-size: 11px;
+    /* 11px → 12px：正文字号下限（微型字距标签在 11px 下可读性不足） */
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.2em;
 }
@@ -245,6 +245,14 @@
     overflow-wrap: anywhere;
 }
 
+/* 默认三列：标题预留两行（line-height 1.35），让同一行内作者/出版信息行对齐；
+   紧凑五列与通栏行（:nth-child(n+4)）不适用。 */
+@media (min-width: 761px) {
+    .charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(-n+3) .card-title {
+        min-height: calc(2 * 1.35em);
+    }
+}
+
 .charts-page .card-author { text-align: center; font-size: 13px; line-height: 1.5; }
 .charts-page .card-meta-grid,
 .charts-page .card-isbn { display: none; }
@@ -355,4 +363,257 @@
     .charts-page .card,
     .charts-page .card-animate,
     .mobile-charts-page .m-book-card { animation: none; transition: none; opacity: 1; transform: none; }
+}
+
+/* ---- 网格密度切换：精选三列（默认）/ 紧凑五列 ---- */
+.charts-page .view-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.charts-page .view-toggle .btn {
+    min-height: 34px;
+    padding: 4px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.charts-page .view-toggle .btn:hover {
+    background: transparent;
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+
+.charts-page .view-toggle button[aria-pressed="true"] {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+
+/* ---- 紧凑五列：15 张卡片统一为紧凑竖版，互不区分 nth-child ---- */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card,
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card:nth-child(n+4) {
+    grid-column: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image {
+    height: 168px;
+    padding: 16px 22px 8px;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-frame { height: 132px; }
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-content {
+    padding: 14px 16px 18px;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-title {
+    font-size: 15px;
+    text-align: left;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-author {
+    font-size: 12px;
+    text-align: left;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-desc {
+    border-top: 1px solid var(--border-color);
+    margin-top: 10px;
+    padding-top: 9px;
+    text-align: left;
+    -webkit-line-clamp: 2;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card-pub-isbn {
+    justify-content: center;
+    font-size: 10px;
+}
+
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .cover-weeks {
+    top: 4px;
+    right: 0;
+    left: auto;
+}
+
+@media (min-width: 761px) {
+    /* 命中 ≥761px 的外置周数胶囊规则（两档 nth-child 都要盖掉），紧凑模式一律收进卡片内 */
+    .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card:nth-child(-n+3) .cover-weeks,
+    .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card:nth-child(n+4) .cover-weeks {
+        top: 4px;
+        right: 0;
+        left: auto;
+    }
+}
+
+@media (max-width: 1199px) {
+    .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* ---- 排版收口：胶囊条带 ---- */
+/* 封面画框顶部留 20px 空带，周数胶囊落在这条带内，不压封面也不压标题 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-frame img {
+    height: calc(100% - 20px);
+    margin-top: 20px;
+}
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-frame {
+    height: 132px;
+}
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-weeks {
+    top: 1px;
+    right: 0;
+    left: auto;
+    border-left: 0;
+}
+/* 五列时卡片更窄，间距略放大，避免互相贴住 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] {
+    gap: 16px;
+}
+
+/* 精选三列：第 4 张起的通栏行，胶囊同样收进画框顶部条带（原来 right:-38px 会压住书名） */
+.charts-page .books-grid.bestseller-grid .card:nth-child(n+4) .cover-frame img {
+    height: calc(100% - 20px);
+    margin-top: 20px;
+}
+@media (min-width: 761px) {
+    .charts-page .books-grid.bestseller-grid .card:nth-child(n+4) .cover-weeks {
+        top: 1px;
+        right: 0;
+        left: auto;
+        border-left: 0;
+    }
+}
+/* 通栏行的 meta 行与左对齐文案保持一致 */
+.charts-page .books-grid.bestseller-grid .card:nth-child(n+4) .card-pub-isbn {
+    justify-content: flex-start;
+    margin-top: 6px;
+}
+
+/* ---- 最终排版收口 ---- */
+/* 封面图下移 20px，顶部空出一条带；胶囊落在这条带里 —— 全视图统一，互不遮挡 */
+.charts-page .books-grid.bestseller-grid .card .card-image .cover-frame img {
+    height: calc(100% - 20px);
+    margin-top: 20px;
+}
+/* 胶囊一律内置到画框右上（含原先漂在画框外的前三张），不再贴近隔壁卡片 */
+.charts-page .books-grid.bestseller-grid .card .card-image .cover-weeks {
+    top: 1px;
+    right: 0;
+    left: auto;
+    border-left: 0;
+}
+/* 紧凑五列：画框/容器加高，补偿预留带后的封面尺寸，观感与三列一致 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image {
+    height: 182px;
+    padding: 26px 20px 8px;
+}
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-frame {
+    height: 148px;
+}
+
+/* ---- 排版收口 v2 ---- */
+/* 紧凑五列 + 精选三列的通栏行：隐藏封面角上的胶囊，改用同行 chip */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image .cover-weeks,
+.charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(n+4) .card-image .cover-weeks {
+    display: none;
+}
+/* 同行 chip：与封面旁胶囊同色，读作书目信息的一部分 */
+.charts-page .books-grid.bestseller-grid .card-pub-isbn-item.weeks {
+    color: var(--link-blue);
+    font-weight: 600;
+}
+/* 精选三列的前三张仍用封面旁胶囊 → 隐藏 chip，避免一处两现 */
+.charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(-n+3) .card-pub-isbn-item.weeks {
+    display: none;
+}
+/* 不再需要预留带：紧凑列与通栏行恢复满高封面 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image .cover-frame img,
+.charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(n+4) .card-image .cover-frame img {
+    height: 100%;
+    margin-top: 0;
+}
+/* 紧凑五列：画框加高，五列封面也不显小 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image {
+    height: 194px;
+    padding: 16px 20px 8px;
+}
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-frame {
+    height: 170px;
+}
+
+/* ---- 排版收尾 v3 ---- */
+/* 紧凑五列：名次数字独占左侧栏位，封面与它保持稳定间距（1 位/2 位都不贴边） */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image {
+    padding-left: 46px;
+}
+/* 五列卡片更窄，名次数字略收小，仍保持视觉重量 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-badge {
+    font-size: 22px !important;
+    line-height: 1;
+}
+/* 描述与 meta 行统一左边距（与标题对齐），不再贴卡片边缘 */
+.charts-page .books-grid.bestseller-grid .card .card-content .card-desc,
+.charts-page .books-grid.bestseller-grid .card .card-content .card-pub-isbn {
+    margin-left: 0;
+    margin-right: 0;
+}
+/* 通栏行：描述与 meta 跟随左对齐的内容栏，不再跨到封面下方 */
+.charts-page .books-grid.bestseller-grid .card:nth-child(n+4) .card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+/* ---- 密度切换按钮收口 ---- */
+/* 容器不再是一条通栏灰带（.view-toggle 的底色/内距/圆角来自 index.css，这里复位） */
+.charts-page .view-toggle {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+/* 与其他控件同高（同页筛选按钮为 44px） */
+.charts-page .view-toggle .btn {
+    min-height: 44px;
+    border-radius: 4px;
+}
+/* 未选中态：描边可见（原来描边色 = 旧容器底色，等于看不见） */
+.charts-page .view-toggle .btn[aria-pressed="false"] {
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+}
+/* 选中态：略强描边 + 极浅底，保持极简编辑风 */
+.charts-page .view-toggle .btn[aria-pressed="true"] {
+    border: 1px solid var(--text-muted);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* 平板缺口档：上面的三列基准特异性高于 index.css 的两列阶梯，
+   761–1023px 之间补回两列，避免卡片被挤到约 230px 宽。 */
+@media (min-width: 761px) and (max-width: 1023px) {
+    .charts-page .books-grid.bestseller-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

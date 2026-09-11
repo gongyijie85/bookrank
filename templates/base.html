@@ -286,9 +286,9 @@
         .site-footer {
             margin-top: auto;
             padding: 1.5rem 1rem;
-            border-top: 1px solid var(--border, #e5e7eb);
-            background: var(--surface, #f9fafb);
-            color: var(--muted-foreground, #6b7280);
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
             font-size: 0.875rem;
         }
         .footer-inner {
@@ -310,11 +310,15 @@
             align-items: center;
             gap: 0.5rem;
             font-weight: 600;
-            color: var(--foreground, #171717);
+            color: var(--text-primary);
             text-decoration: none;
         }
         .footer-brand .icon {
-            color: var(--primary, #171717);
+            color: var(--primary-color);
+        }
+        /* WCAG 2.5.8：品牌字样链接命中区实测 93.61×21px，低于 24×24 下限 */
+        .footer-brand {
+            min-height: 24px;
         }
         .footer-links {
             display: flex;
@@ -322,13 +326,18 @@
             gap: 1rem;
         }
         .footer-links a {
-            color: var(--muted-foreground, #6b7280);
+            color: var(--text-secondary);
             text-decoration: none;
             transition: color 0.2s ease;
+            /* WCAG 2.5.8：实测命中区仅 41.55×21px，低于 24×24 下限。
+               inline-flex + min-height 只扩大热区，文字视觉不变。 */
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
         }
         .footer-links a:hover,
         .footer-links a:focus {
-            color: var(--primary, #171717);
+            color: var(--primary-color);
             text-decoration: underline;
         }
         .footer-copy {
@@ -353,7 +362,7 @@
             margin-right: auto;
             padding: 0.75rem 1rem;
             font-size: 0.875rem;
-            color: var(--muted-foreground, #6b7280);
+            color: var(--text-secondary);
         }
         /* 平板/手机端：主内容区无侧边栏偏移，面包屑同步左对齐 */
         @media (max-width: 1199px) {
@@ -373,19 +382,23 @@
         .breadcrumb-item:not(:last-child)::after {
             content: '/';
             margin-left: 0.5rem;
-            color: var(--border, #e5e7eb);
+            color: var(--border-color);
         }
         .breadcrumbs-list a {
-            color: var(--muted-foreground, #6b7280);
+            color: var(--text-secondary);
             text-decoration: none;
+            /* WCAG 2.5.8：实测命中区仅 40.8×18px，低于 24×24 下限 */
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
         }
         .breadcrumbs-list a:hover,
         .breadcrumbs-list a:focus {
-            color: var(--primary, #171717);
+            color: var(--primary-color);
             text-decoration: underline;
         }
         .breadcrumb-current {
-            color: var(--foreground, #171717);
+            color: var(--text-primary);
             font-weight: 500;
         }
     </style>
@@ -398,6 +411,19 @@
                 var saved = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
                 if (saved === 'zh' || saved === 'en') {
                     document.documentElement.lang = saved === 'zh' ? 'zh-CN' : 'en';
+                }
+            } catch (e) { /* localStorage 不可用时忽略 */ }
+        })();
+    </script>
+
+    <!-- Early theme sync：在首次绘制前应用已保存的主题选择，避免深色用户看到浅色闪屏（A10）
+         仅在存在显式偏好时设置 data-theme；未设置时交由 prefers-color-scheme 决定，不覆盖系统偏好 -->
+    <script nonce="{{ csp_nonce() }}">
+        (function() {
+            try {
+                var saved = localStorage.getItem('theme');
+                if (saved === 'dark' || saved === 'light') {
+                    document.documentElement.setAttribute('data-theme', saved);
                 }
             } catch (e) { /* localStorage 不可用时忽略 */ }
         })();
