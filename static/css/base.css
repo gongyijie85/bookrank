@@ -699,7 +699,13 @@ h4 { font-size: 1.125rem; }
  * ============================================ */
 @media (max-width: 767px) {
     :root {
-        --top-nav-height: auto;
+        /* 修复（dsh-design-audit 实测）：原值为 `auto`。而 --top-nav-height 被用于
+           `calc(var(--top-nav-height) + …)`（.sidebar-toggle 的 top、主内容 padding-top 等）——
+           把长度变量设成 auto 会让整个 calc() **非法**，声明被浏览器丢弃，于是
+           .sidebar-toggle 的 top 退回 auto，position:fixed 的按钮落到 y≈0 的导航条区域内，
+           被 z-index 1000 的 .top-nav 完全覆盖（实测 6 个采样点全部命中导航/品牌文字，
+           用户点不到侧栏开关）。取值与下方 .top-nav 的 min-height 保持一致。 */
+        --top-nav-height: 56px;
     }
 
     .top-nav {

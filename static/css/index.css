@@ -198,6 +198,13 @@
 }
 
 .search-suggestions {
+    /* 修复（dsh-design-audit 实测）：初始收起态必须落在**类**上。
+       原先只有模板里的内联 style="display: none;" —— i18n 改写过程会把这个内联样式清掉
+       （实测 DOM 上 el.style.display === ""），于是面板在页面加载后直接以 block 呈现：
+       它的 top:100% 正好压住下方的视图密度切换器（#grid-view-featured），
+       用户开局既看不到也点不到该切换器。
+       JS 用内联 style.display='block' 打开面板时仍会覆盖本声明，交互行为不变。 */
+    display: none;
     position: absolute;
     top: 100%;
     left: 0;
