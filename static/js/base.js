@@ -223,10 +223,11 @@
     function toggleTheme() {
         const currentTheme = getSavedTheme() || getSystemTheme();
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        const lang = getCurrentLang();
 
         applyTheme(newTheme);
         showToast(
-            newTheme === 'dark' ? '已切换到深色模式' : '已切换到浅色模式',
+            window.t(newTheme === 'dark' ? 'theme_switched_dark' : 'theme_switched_light', lang),
             'success'
         );
     }
@@ -244,78 +245,8 @@
         // Add click listener to theme toggle
         if (themeToggle) {
             themeToggle.addEventListener('click', toggleTheme);
-            themeToggle.setAttribute('aria-label', '切换主题');
+            themeToggle.setAttribute('aria-label', window.t('theme_toggle_label', getCurrentLang()));
         }
-    }
-
-    // ===== View Mode Functions =====
-
-    /**
-     * Build URL with updated view param while preserving other query params
-     * @param {string} view - View mode (grid, list)
-     * @returns {string} URL with view param set
-     */
-    function buildViewUrl(view) {
-        const params = new URLSearchParams(window.location.search);
-        params.set('view', view);
-        return window.location.pathname + '?' + params.toString();
-    }
-
-    /**
-     * Toggle between grid and list view
-     * @param {string} view - View mode (grid, list)
-     */
-    function toggleView(view) {
-        const grid = document.getElementById('books-grid');
-        const list = document.getElementById('books-list');
-        const gridBtn = document.getElementById('view-grid');
-        const listBtn = document.getElementById('view-list');
-
-        localStorage.setItem('bookrank_view', view);
-
-        if (grid && list) {
-            // Dual-view DOM: switch visible view via CSS classes
-            if (view === 'grid') {
-                grid.classList.add('active');
-                list.classList.remove('active');
-                gridBtn?.classList.add('active');
-                listBtn?.classList.remove('active');
-            } else {
-                list.classList.add('active');
-                grid.classList.remove('active');
-                gridBtn?.classList.remove('active');
-                listBtn?.classList.add('active');
-            }
-        } else {
-            // Single-view DOM: let the server render the requested view
-            window.location.href = buildViewUrl(view);
-        }
-    }
-
-    /**
-     * Initialize view mode from saved preference
-     */
-    function initViewMode() {
-        const grid = document.getElementById('books-grid');
-        const list = document.getElementById('books-list');
-        const savedView = localStorage.getItem('bookrank_view') || localStorage.getItem('viewMode');
-        const urlParams = new URLSearchParams(window.location.search);
-
-        if (!grid || !list) {
-            // Single-view DOM: redirect to saved preference when URL has no view param
-            if (!urlParams.has('view') && savedView) {
-                const currentView = grid ? 'grid' : (list ? 'list' : null);
-                if (currentView && currentView !== savedView) {
-                    window.location.href = buildViewUrl(savedView);
-                }
-            }
-            return;
-        }
-
-        // Dual-view DOM: apply saved preference or server-rendered active view
-        const serverView = grid.classList.contains('active') ? 'grid' : (list.classList.contains('active') ? 'list' : null);
-        const view = savedView || serverView || 'grid';
-        toggleView(view);
     }
 
     // ===== Favorite Functions =====
@@ -443,17 +374,6 @@
             });
         }
 
-        // View toggle buttons
-        const viewGridBtn = document.getElementById('view-grid');
-        const viewListBtn = document.getElementById('view-list');
-
-        if (viewGridBtn) {
-            viewGridBtn.addEventListener('click', () => toggleView('grid'));
-        }
-        if (viewListBtn) {
-            viewListBtn.addEventListener('click', () => toggleView('list'));
-        }
-
         const langGlobe = document.getElementById('lang-globe');
         const langOptZh = document.getElementById('lang-opt-zh');
         const langOptEn = document.getElementById('lang-opt-en');
@@ -496,7 +416,6 @@
     function init() {
         initEventListeners();
         initTheme();
-        initViewMode();
         initLanguage();
         initImageErrorHandler();
     }
@@ -561,13 +480,20 @@
     }
 
     /**
-     * Initialize language based on saved preference or browser detection
+     * Current UI language: saved preference, else browser detection
      */
-    function initLanguage() {
+    function getCurrentLang() {
         var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
         var browserLang = navigator.language || navigator.userLanguage || '';
         var defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
-        var currentLang = savedLang || defaultLang;
+        return savedLang || defaultLang;
+    }
+
+    /**
+     * Initialize language based on saved preference or browser detection
+     */
+    function initLanguage() {
+        var currentLang = getCurrentLang();
 
         updateLangDropdown(currentLang);
 
@@ -592,7 +518,6 @@
     window.showLoading = showLoading;
     window.hideLoading = hideLoading;
     window.showToast = showToast;
-    window.toggleView = toggleView;
     window.toggleFavorite = toggleFavorite;
     window.clearFilters = clearFilters;
     window.applyFilters = applyFilters;

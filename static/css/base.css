@@ -16,7 +16,11 @@
     --gray-400: #808080;
     --gray-500: #666666;
     --gray-600: #4d4d4d;
-    --link-blue: #0072f5;
+    /* WCAG AA 修正（第二轮实测）：#0072f5 作正文/链接色时白底 4.44:1、
+       --gray-50(#fafafa) 底 4.26:1，均低于 4.5:1。
+       #006ee8 是**刚好达标的最浅值**（白底 4.78:1、#fafafa 底 4.58:1），
+       色相与观感尽量贴近原色，把设计改动压到最小。 */
+    --link-blue: #006ee8;
     --focus-blue: hsl(212,100%,48%);
     --ship-red: #ff5b4f;
     --preview-pink: #de1d8d;
@@ -41,7 +45,13 @@
     --text-secondary: var(--gray-600);
     --text-light: var(--gray-500);
     --text-white: var(--white);
-    --text-muted: var(--gray-400);
+    /* WCAG AA 修正（dsh-design-audit 实测）：--gray-400(#808080) 作正文色时
+       白底仅 3.95:1、--gray-50(#fafafa) 底仅 3.78:1，均低于正文所需的 4.5:1。
+       这里改为专用文字色 #707070（白底 4.95:1、#fafafa 底 4.75:1）。
+       注意：不改 --gray-400 本身 —— 它还被 --accent-silver 渐变引用，
+       改调色板会连带动到非文字用途。 */
+    --text-muted: #707070;
+    --text-gold: #b8860b;
 
     /* Border Colors */
     --border-color: var(--gray-100);
@@ -105,36 +115,38 @@
         --primary-dark: #e55a2b;
         --primary-gradient: linear-gradient(135deg, #ff6b35 0%, #e55a2b 100%);
 
-        --white: #1e293b;
-        --badge-bg: rgba(255, 107, 53, 0.15);
-        --badge-text: #ff6b35;
+        --white: #1a1d22;
+        --badge-bg: #1b2531;
+        --badge-text: #7fb2ff;
 
-        /* 三层背景深度：页面最深 → 侧边栏中等 → 卡片最亮 */
-        --bg-primary: #0a0f1d;
-        --bg-secondary: #131c2e;
-        --bg-tertiary: #334155;
-        --bg-light: #0a0f1d;
-        --bg-white: #131c2e;
-        --bg-card: #1e293b;
-        --card-bg: #1e293b;
+        /* 三层背景深度：页面最深 → 侧边栏中等 → 卡片最亮（中性炭灰，无蓝调） */
+        --bg-primary: #0f1115;
+        --bg-secondary: #14161a;
+        --bg-tertiary: #1a1d22;
+        --bg-light: #0f1115;
+        --bg-white: #14161a;
+        --bg-card: #14161a;
+        --card-bg: #1a1d22;
 
-        /* 提高文字亮度，确保手机端对比度 */
-        --text-primary: #ffffff;
-        --text-secondary: #e2e8f0;
-        --text-light: #94a3b8;
-        --text-muted: #64748b;
+        /* 文字层级：主/次/弱 */
+        --text-primary: #e9ebee;
+        --text-secondary: #a9aeb8;
+        --text-light: #a9aeb8;
+        --text-muted: #71767f;
+    --text-gold: #f7c948;
 
-        /* 更亮的边框，提高元素辨识度 */
-        --border-color: #475569;
-        --border-light: #334155;
+        /* 边框：强（结构线）/ 弱（次级分隔） */
+        --border-color: #262a31;
+        --border-light: #1f2228;
 
-        --shadow-ring: rgba(255, 255, 255, 0.06) 0px 0px 0px 1px;
-        --shadow-ring-light: rgba(255, 255, 255, 0.03) 0px 0px 0px 1px;
-        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-        --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
-        --shadow-card: rgba(255, 255, 255, 0.06) 0px 0px 0px 1px, rgba(0, 0, 0, 0.3) 0px 2px 2px 0px;
-        --shadow-card-full: rgba(255, 255, 255, 0.06) 0px 0px 0px 1px, rgba(0, 0, 0, 0.3) 0px 2px 2px 0px, rgba(0, 0, 0, 0.3) 0px 8px 8px -8px;
+        /* 暗色下重模糊阴影发糊，改用细描边环 */
+        --shadow-ring: 0 0 0 1px var(--border-color);
+        --shadow-ring-light: 0 0 0 1px var(--border-light);
+        --shadow-sm: 0 0 0 1px var(--border-color);
+        --shadow-md: 0 0 0 1px var(--border-color);
+        --shadow-lg: 0 0 0 1px var(--border-color);
+        --shadow-card: 0 0 0 1px var(--border-color);
+        --shadow-card-full: 0 0 0 1px var(--border-color);
     }
 }
 
@@ -145,36 +157,38 @@
     --primary-dark: #e55a2b;
     --primary-gradient: linear-gradient(135deg, #ff6b35 0%, #e55a2b 100%);
 
-    --white: #1e293b;
-    --badge-bg: rgba(255, 107, 53, 0.15);
-    --badge-text: #ff6b35;
+    --white: #1a1d22;
+    --badge-bg: #1b2531;
+    --badge-text: #7fb2ff;
 
-    /* 三层背景深度：页面最深 → 侧边栏中等 → 卡片最亮 */
-    --bg-primary: #0a0f1d;
-    --bg-secondary: #131c2e;
-    --bg-tertiary: #334155;
-    --bg-light: #0a0f1d;
-    --bg-white: #131c2e;
-    --bg-card: #1e293b;
-    --card-bg: #1e293b;
+    /* 三层背景深度：页面最深 → 侧边栏中等 → 卡片最亮（中性炭灰，无蓝调） */
+    --bg-primary: #0f1115;
+    --bg-secondary: #14161a;
+    --bg-tertiary: #1a1d22;
+    --bg-light: #0f1115;
+    --bg-white: #14161a;
+    --bg-card: #14161a;
+    --card-bg: #1a1d22;
 
-    /* 提高文字亮度，确保手机端对比度 */
-    --text-primary: #ffffff;
-    --text-secondary: #e2e8f0;
-    --text-light: #94a3b8;
-    --text-muted: #64748b;
+    /* 文字层级：主/次/弱 */
+    --text-primary: #e9ebee;
+    --text-secondary: #a9aeb8;
+    --text-light: #a9aeb8;
+    --text-muted: #71767f;
+    --text-gold: #f7c948;
 
-    /* 更亮的边框，提高元素辨识度 */
-    --border-color: #475569;
-    --border-light: #334155;
+    /* 边框：强（结构线）/ 弱（次级分隔） */
+    --border-color: #262a31;
+    --border-light: #1f2228;
 
-    --shadow-ring: rgba(255, 255, 255, 0.06) 0px 0px 0px 1px;
-    --shadow-ring-light: rgba(255, 255, 255, 0.03) 0px 0px 0px 1px;
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
-    --shadow-card: rgba(255, 255, 255, 0.06) 0px 0px 0px 1px, rgba(0, 0, 0, 0.3) 0px 2px 2px 0px;
-    --shadow-card-full: rgba(255, 255, 255, 0.06) 0px 0px 0px 1px, rgba(0, 0, 0, 0.3) 0px 2px 2px 0px, rgba(0, 0, 0, 0.3) 0px 8px 8px -8px;
+    /* 暗色下重模糊阴影发糊，改用细描边环 */
+    --shadow-ring: 0 0 0 1px var(--border-color);
+    --shadow-ring-light: 0 0 0 1px var(--border-light);
+    --shadow-sm: 0 0 0 1px var(--border-color);
+    --shadow-md: 0 0 0 1px var(--border-color);
+    --shadow-lg: 0 0 0 1px var(--border-color);
+    --shadow-card: 0 0 0 1px var(--border-color);
+    --shadow-card-full: 0 0 0 1px var(--border-color);
 }
 
 /* Reset & Base */
@@ -299,6 +313,8 @@ h4 { font-size: 1.125rem; }
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
+    /* WCAG 2.5.8：实测命中区 91.38×21px，高度低于 24px 下限 */
+    min-height: 24px;
     font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
@@ -311,33 +327,44 @@ h4 { font-size: 1.125rem; }
 
 .nav-links {
     display: flex;
-    gap: 24px;
-    margin-left: var(--spacing-xl);
+    align-items: center;
+    gap: 8px;
+    margin-left: var(--spacing-lg);
     list-style: none;
 }
 
+/* 导航项：统一 36px 高度节奏（图标 16px + 6px 间距 + 13px 标签） */
 .nav-link {
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--radius-lg);
-    transition: all var(--transition-fast);
+    gap: 6px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 4px;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
     color: var(--text-secondary);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     text-decoration: none;
 }
 
+.nav-link svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* 悬停：仅底色变化，不下划线、不跳色（颜色保持 --text-secondary） */
 .nav-link:hover,
 .nav-link:focus {
-    color: var(--text-primary);
     background-color: var(--bg-tertiary);
 }
 
-.nav-link.active {
+/* 当前页：模板输出 .active 类 + aria-current="page"（两者同选，避免新增类） */
+.nav-link.active,
+.nav-link[aria-current="page"] {
     color: var(--text-primary);
     background-color: var(--bg-tertiary);
+    font-weight: 600;
 }
 
 .nav-link:focus-visible {
@@ -348,7 +375,8 @@ h4 { font-size: 1.125rem; }
 .nav-actions {
     margin-left: auto;
     display: flex;
-    gap: var(--spacing-sm);
+    justify-content: flex-end;
+    gap: 8px;
     align-items: center;
 }
 
@@ -359,23 +387,27 @@ h4 { font-size: 1.125rem; }
     align-items: center;
 }
 
+/* 语言切换按钮：与主题按钮同尺寸同描边（36px / radius 4px / 透明底） */
 .lang-globe-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 6px 10px;
+    gap: 6px;
+    height: 36px;
+    padding: 0 10px;
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    background: var(--bg-card);
+    border-radius: 4px;
+    background: transparent;
     color: var(--text-secondary);
-    font-size: 0.8125rem;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition-normal);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.lang-globe-btn:hover {
-    border-color: var(--link-blue);
+.lang-globe-btn:hover,
+.lang-globe-btn:focus {
+    border-color: var(--text-muted);
+    background: transparent;
     color: var(--text-primary);
 }
 
@@ -386,7 +418,7 @@ h4 { font-size: 1.125rem; }
 
 .lang-current {
     font-size: 0.75rem;
-    min-width: 18px;
+    min-width: 16px;
     text-align: center;
 }
 
@@ -651,12 +683,9 @@ h4 { font-size: 1.125rem; }
         padding: 0 var(--spacing-md);
     }
 
-    .nav-links {
-        gap: 16px;
-    }
-
+    /* 间距节奏保持全站一致（8px），仅收窄内边距与字号以适配窄屏 */
     .nav-link {
-        padding: var(--spacing-xs) var(--spacing-sm);
+        padding: 0 8px;
         font-size: 13px;
     }
 
@@ -710,8 +739,9 @@ h4 { font-size: 1.125rem; }
         display: none;
     }
 
+    /* 移动端仍是横向滚动条：胶囊外观 + 36px 触控高度（保留原有 0.8rem 字号） */
     .nav-link {
-        padding: var(--spacing-xs) var(--spacing-sm);
+        padding: 0 var(--spacing-sm);
         font-size: 0.8rem;
         white-space: nowrap;
         flex-shrink: 0;
@@ -738,8 +768,8 @@ h4 { font-size: 1.125rem; }
         font-size: 0.75rem;
     }
 
+    /* 尺寸由 .top-nav .lang-globe-btn 统一（36px 触控高度）；此处只降字号 */
     .lang-globe-btn {
-        padding: 4px 8px;
         font-size: 0.75rem;
     }
 
@@ -750,11 +780,7 @@ h4 { font-size: 1.125rem; }
         min-height: 32px;
     }
 
-    #theme-toggle {
-        width: 36px;
-        height: 36px;
-        min-width: 36px;
-    }
+    /* 主题按钮尺寸同样由 .top-nav .btn-icon#theme-toggle 统一为 36px（原 36px 保持不变） */
 
     .main-content {
         padding-top: calc(70px + var(--spacing-sm));
@@ -778,29 +804,56 @@ h4 { font-size: 1.125rem; }
     }
 
     .nav-link svg {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
     }
 
+    /* 尺寸统一由下表 .top-nav 规则接管（36px / radius 4px / 边框），此处只降字号 */
     .lang-globe-btn {
-        padding: 3px 6px;
         font-size: 0.7rem;
     }
 
     .lang-globe-btn .icon {
-        width: 14px;
-        height: 14px;
+        width: 16px;
+        height: 16px;
     }
 
     .lang-btn {
         font-size: 0.7rem;
         padding: 2px 6px;
     }
+}
 
-    #theme-toggle {
-        width: 32px;
-        height: 32px;
-    }
+/* ============================================
+ * 顶栏右侧控件组（A 项：语言切换 + 主题切换统一为一个控件组）
+ * 作用域限定在 .top-nav 内，避免影响页面其他 .btn / .btn-icon；
+ * id / class / data-* 全部沿用，无 JS 改动。
+ * ============================================ */
+.top-nav .lang-globe-btn,
+.top-nav .btn-icon#theme-toggle {
+    flex: 0 0 auto;
+    height: 36px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    box-shadow: none;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.top-nav .btn-icon#theme-toggle {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+}
+
+.top-nav .lang-globe-btn:hover,
+.top-nav .lang-globe-btn:focus,
+.top-nav .btn-icon#theme-toggle:hover,
+.top-nav .btn-icon#theme-toggle:focus {
+    border-color: var(--text-muted);
+    background: transparent;
+    box-shadow: none;
 }
 
 /* ============================================
@@ -985,6 +1038,11 @@ a.list-item-image {
 .card-title a {
     color: inherit;
     text-decoration: none;
+    /* WCAG 2.5.8：标题链接实测 42.27×21px。
+       用 inline-block（不是 inline-flex）—— 多行标题仍能正常换行，inline-flex 会把
+       文字变成单个 flex item 从而不换行。 */
+    display: inline-block;
+    min-height: 24px;
 }
 
 .card-title a:hover,

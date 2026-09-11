@@ -35,7 +35,11 @@ def test_bundle_not_only_base_size():
 
 
 def test_home_rerender_uses_original_cover_when_cache_is_pending():
-    """A placeholder cache path must yield to the server-provided NYT URL."""
+    """A placeholder cache path must yield to the server-provided NYT URL.
+
+    列表视图已下线：首页只剩网格一条重渲染路径，因此每个表达式各出现 1 次
+    （此前 grid + list 两条路径 → 各 2 次）。
+    """
     source = (Path(__file__).resolve().parent.parent / 'static' / 'js' / 'index.js').read_text(encoding='utf-8')
-    assert source.count('book.cover && book.cover !== defaultCover') == 2
-    assert source.count('book._original_cover || defaultCover') == 2
+    assert source.count('book.cover && book.cover !== defaultCover') == 1
+    assert source.count('book._original_cover || defaultCover') == 1

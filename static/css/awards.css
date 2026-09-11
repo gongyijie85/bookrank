@@ -23,7 +23,8 @@
     padding: 11px 18px;
     border-right: 1px solid var(--border-color);
     color: var(--text-secondary);
-    font-size: 10px;
+    /* 10px → 12px：正文字号下限（大写 + 0.16em 字距在 10px 下几乎不可读） */
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -75,7 +76,8 @@
 
 .award-tile-meta {
     color: var(--text-muted);
-    font-size: 11px;
+    /* 11px → 12px：正文字号下限（奖项元信息如「美国 · 1917」） */
+    font-size: 12px;
     letter-spacing: 0.04em;
 }
 
@@ -115,6 +117,10 @@
     font-size: 13px;
     text-decoration: none;
     white-space: nowrap;
+    /* WCAG 2.5.8：实测命中区 75.56×19.5px，高度低于 24px 下限 */
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
 }
 
 .award-section-more:hover { text-decoration: underline; }

@@ -104,29 +104,14 @@
         </button>
     </div>
 
-    <div class="view-toggle" role="group" aria-label="{{ _('视图切换') }}" data-i18n-aria-label="view_switch">
-        <button type="button" class="btn btn-icon {% if view_mode == 'grid' %}active{% endif %}"
-                id="view-grid"
-                title="{{ _('网格视图') }}"
-                data-i18n-title="view_grid"
-                aria-label="{{ _('切换到网格视图') }}"
-                data-i18n-aria-label="view_grid_label"
-                aria-pressed="{% if view_mode == 'grid' %}true{% else %}false{% endif %}">
-            <svg class="icon" width="18" height="18"><use href="#icon-grid"/></svg>
-        </button>
-        <button type="button" class="btn btn-icon {% if view_mode == 'list' or not view_mode %}active{% endif %}"
-                id="view-list"
-                title="{{ _('列表视图') }}"
-                data-i18n-title="view_list"
-                aria-label="{{ _('切换到列表视图') }}"
-                data-i18n-aria-label="view_list_label"
-                aria-pressed="{% if view_mode == 'list' or not view_mode %}true{% else %}false{% endif %}">
-            <svg class="icon" width="18" height="18"><use href="#icon-list"/></svg>
-        </button>
-    </div>
 </form>
 
 {% if books %}
+<div class="view-toggle" role="group" aria-label="{{ _('网格密度') }}" data-i18n-aria-label="grid_density">
+    <button type="button" class="btn btn-sm" id="grid-view-featured" aria-pressed="false" data-i18n="grid_view_featured">{{ _('精选三列') }}</button>
+    <button type="button" class="btn btn-sm" id="grid-view-compact" aria-pressed="false" data-i18n="grid_view_compact">{{ _('紧凑五列') }}</button>
+</div>
+
 <section class="export-actions-bar" aria-label="导出选项" data-i18n-aria-label="export_options">
     <span class="export-info">{{ _('共') }} <strong>{{ books|length }}</strong> {{ _('本图书') }}</span>
     <div class="export-buttons">
@@ -138,87 +123,7 @@
 </section>
 {% endif %}
 
-{% if view_mode == 'list' %}
-<section class="books-list active" id="books-list" aria-label="{{ _('图书列表视图') }}" data-i18n-aria-label="books_list_view">
-    {% for book in books %}
-    {% set current_rank = book.rank or loop.index %}
-    {% set source_index = book.source_index if book.source_index is defined else current_rank - 1 %}
-    {% set detail_category = book.source_category if book.source_category is defined else current_category %}
-    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=detail_category) %}
-    <article class="list-item card-animate"
-             data-isbn="{{ book.isbn13 or book.isbn10 }}"
-             data-index="{{ source_index }}"
-             {% if _locale == 'zh' and not book.title_zh %}data-needs-translation="1"{% endif %}
-             aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ current_rank }}{{ _('名') }}">
-        <a href="{{ detail_url }}" class="list-item-image" aria-label="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}">
-            <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
-                 alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
-                 {% if loop.index <= 3 %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
-                 width="100"
-                 height="150"
-                 data-original="{{ book._original_cover or '' }}"
-                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
-            {% if book.weeks_on_list and book.weeks_on_list > 0 %}
-            <span class="cover-weeks" role="img" aria-label="{{ _('累计上榜周数') }}：{{ book.weeks_on_list }}{{ _('周') }}">
-                <span class="cover-weeks-value"><strong>{{ book.weeks_on_list }}</strong><span>{{ _('周') }}</span></span>
-            </span>
-            {% endif %}
-        </a>
-        <div class="list-item-content">
-            <div class="list-item-header">
-                <span class="list-item-rank {% if current_rank == 1 %}rank-gold{% elif current_rank == 2 %}rank-silver{% elif current_rank == 3 %}rank-bronze{% endif %}"
-                      aria-label="{{ _('第') }}{{ current_rank }}{{ _('名') }}">
-                    {{ current_rank }}
-                </span>
-                {% if book.previous_rank and book.previous_rank > 0 %}
-                    {% set rank_change = book.previous_rank - current_rank %}
-                    {% if rank_change > 0 %}
-                    <span class="rank-change-badge up" aria-label="{{ _('上升') }}{{ rank_change }}{{ _('名') }}">+{{ rank_change }}</span>
-                    {% elif rank_change < 0 %}
-                    <span class="rank-change-badge down" aria-label="{{ _('下降') }}{{ rank_change|abs }}{{ _('名') }}">-{{ rank_change|abs }}</span>
-                    {% endif %}
-                {% elif book.is_new %}
-                    <span class="rank-change-badge new" aria-label="{{ _('新书上榜') }}">NEW</span>
-                {% elif book.is_returning %}
-                    <span class="rank-change-badge new" aria-label="{% if _locale == 'zh' %}重返榜单{% else %}Returning to the list{% endif %}">{% if _locale == 'zh' %}重返{% else %}RETURN{% endif %}</span>
-                {% endif %}
-                {% if _locale == 'zh' %}
-                <h3 class="list-item-title"><a href="{{ detail_url }}">{{ book.title_zh or book.title }}</a></h3>
-                {% else %}
-                <h3 class="list-item-title"><a href="{{ detail_url }}">{{ book.title }}</a></h3>
-                {% endif %}
-            </div>
-            <p class="list-item-author">{{ book.author or _('未知作者') }}</p>
-            {% if book.description_zh or book.description %}
-            {% if _locale == 'zh' %}
-            <p class="list-item-desc">{{ (book.description_zh or book.description)[:200] }}{% if (book.description_zh or book.description)|length > 200 %}...{% endif %}</p>
-            {% else %}
-            <p class="list-item-desc">{{ (book.description)[:200] }}{% if (book.description)|length > 200 %}...{% endif %}</p>
-            {% endif %}
-            {% endif %}
-            <div class="list-item-meta">
-                {% if _locale == 'zh' %}
-                <span class="card-tag">{{ book.category_name if book.category_name else _('虚构类') }}</span>
-                {% else %}
-                <span class="card-tag">{{ book.list_name if book.list_name else 'Fiction' }}</span>
-                {% endif %}
-                {% if book.weeks_on_list %}
-                <span class="card-tag">
-                    <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}
-                </span>
-                {% endif %}
-                {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', _('未知'), _('未知出版社')) %}
-                <span class="card-tag">
-                    <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> {{ book.publisher }}
-                </span>
-                {% endif %}
-            </div>
-        </div>
-    </article>
-    {% endfor %}
-</section>
-{% else %}
-<section class="books-grid bestseller-grid active" id="books-grid" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
+<section class="books-grid bestseller-grid active" id="books-grid" data-grid-view="featured" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
     {% for book in books %}
     {% set current_rank = book.rank or loop.index %}
     {% set source_index = book.source_index if book.source_index is defined else current_rank - 1 %}
@@ -268,51 +173,25 @@
             {% endif %}
         </div>
         <div class="card-content">
-            <div class="card-rank-row">
-                <span class="card-rank-badge">{{ _('第') }}{{ current_rank }}{{ _('名') }}</span>
-                {% if book.weeks_on_list %}
-                <span class="card-weeks">
-                    <svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> {{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}
-                </span>
-                {% endif %}
-            </div>
             {% if _locale == 'zh' %}
             <h3 class="card-title" title="{{ book.title_zh or book.title }}">{{ book.title_zh or book.title }}</h3>
             {% else %}
             <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
             {% endif %}
             <p class="card-author">{{ book.author or _('未知作者') }}</p>
-            <div class="card-meta-grid">
-                {% if book.isbn13 %}
-                <span class="card-meta-item isbn" title="ISBN-13: {{ book.isbn13 }}">
-                    <svg class="icon" width="12" height="12"><use href="#icon-barcode"/></svg>
-                    {{ book.isbn13 }}
-                </span>
-                {% elif book.isbn10 %}
-                <span class="card-meta-item isbn" title="ISBN-10: {{ book.isbn10 }}">
-                    <svg class="icon" width="12" height="12"><use href="#icon-barcode"/></svg>
-                    {{ book.isbn10 }}
-                </span>
-                {% endif %}
+            {% if book.publisher or book.isbn13 or book.isbn10 or book.weeks_on_list %}
+            <p class="card-pub-isbn">
                 {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', _('未知'), _('未知出版社')) %}
-                <span class="card-meta-item publisher" title="{{ _('出版社:') }} {{ book.publisher }}">
-                    <svg class="icon" width="12" height="12"><use href="#icon-building"/></svg>
-                    {{ book.publisher[:15] }}{% if book.publisher|length > 15 %}...{% endif %}
-                </span>
+                <span class="card-pub-isbn-item publisher" title="{{ _('出版社') }}: {{ book.publisher }}">{{ book.publisher }}</span>
                 {% endif %}
-                {% if book.page_count and book.page_count not in (0, '0', 'Unknown', 'N/A', '', 'None') %}
-                <span class="card-meta-item pages" title="{{ _('页数:') }} {{ book.page_count }}">
-                    <svg class="icon" width="12" height="12"><use href="#icon-file-text"/></svg>
-                    {{ book.page_count }}{{ _('页') }}
-                </span>
+                {% if book.isbn13 %}
+                <span class="card-pub-isbn-item isbn" title="ISBN-13: {{ book.isbn13 }}">{{ book.isbn13 }}</span>
+                {% elif book.isbn10 %}
+                <span class="card-pub-isbn-item isbn" title="ISBN-10: {{ book.isbn10 }}">{{ book.isbn10 }}</span>
                 {% endif %}
-                {% if book.language and book.language not in ('Unknown', 'N/A', '') %}
-                <span class="card-meta-item language" title="{{ _('语言:') }} {{ book.language }}">
-                    <svg class="icon" width="12" height="12"><use href="#icon-globe"/></svg>
-                    {{ book.language }}
-                </span>
-                {% endif %}
-            </div>
+                {% if book.weeks_on_list %}<span class="card-pub-isbn-item weeks" title="{{ _('累计上榜周数') }}">{{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>{% endif %}
+            </p>
+            {% endif %}
             {% if book.description_zh or book.description %}
             {% if _locale == 'zh' %}
             <p class="card-desc">{{ (book.description_zh or book.description)[:80] }}{% if (book.description_zh or book.description)|length > 80 %}...{% endif %}</p>
@@ -325,7 +204,6 @@
     </article>
     {% endfor %}
 </section>
-{% endif %}
 
 {% if not books %}
 <section class="empty-state" aria-label="{{ _('暂无数据') }}">
@@ -398,6 +276,54 @@
         currentCategory: '{{ current_category }}',
         monthlyCategories: {{ monthly_categories|tojson }}
     };
+</script>
+<script nonce="{{ csp_nonce() }}">
+    // 网格密度切换：精选三列（默认）/ 紧凑五列。只改本页布局，不动 URL。
+    (function () {
+        const STORAGE_KEY = 'bookrank_grid';
+        const grid = document.getElementById('books-grid');
+        const buttons = {
+            featured: document.getElementById('grid-view-featured'),
+            compact: document.getElementById('grid-view-compact')
+        };
+
+        function storedView() {
+            try {
+                return localStorage.getItem(STORAGE_KEY) === 'compact' ? 'compact' : 'featured';
+            } catch (err) {
+                return 'featured';
+            }
+        }
+
+        function applyGrid(next) {
+            const view = next === 'compact' ? 'compact' : 'featured';
+            if (grid) {
+                grid.setAttribute('data-grid-view', view);
+            }
+            Object.keys(buttons).forEach(function (key) {
+                if (buttons[key]) {
+                    buttons[key].setAttribute('aria-pressed', key === view ? 'true' : 'false');
+                }
+            });
+        }
+
+        applyGrid(storedView());
+
+        Object.keys(buttons).forEach(function (key) {
+            const button = buttons[key];
+            if (!button) {
+                return;
+            }
+            button.addEventListener('click', function () {
+                applyGrid(key);
+                try {
+                    localStorage.setItem(STORAGE_KEY, key);
+                } catch (err) {
+                    // 私密模式等存储不可用时，布局仍然生效。
+                }
+            });
+        });
+    })();
 </script>
 <!--
   初始渲染的图书数据，用于切换语言时重渲染（避免重新请求 API）。

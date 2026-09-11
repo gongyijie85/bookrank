@@ -127,14 +127,16 @@
 }
 
 /* Language Switcher */
+/* 容器只负责定位与横向排布；外框由顶栏控件组规则统一绘制（见 base.css 顶栏右侧控件组） */
 .language-switcher {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0;
-    background: var(--bg-tertiary);
+    background: transparent;
     border-radius: var(--radius-md);
-    padding: 4px;
-    border: 1px solid var(--border-color);
+    padding: 0;
+    border: none;
 }
 
 .lang-btn {
@@ -2254,6 +2256,7 @@
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: var(--spacing-md);
     margin-top: var(--spacing-md);
+    list-style: none;
 }
 
 .source-card {
@@ -2356,4 +2359,34 @@
 
 [data-theme="dark"] .disclaimer {
     border-left-color: var(--gray-600);
+}
+
+/* 出版社 / ISBN：书目身份信息行，首页网格与获奖卡片共用 */
+.card-pub-isbn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px 8px;
+    margin: 8px 0 0;
+    /* 11px → 12px：正文字号下限（书目身份信息行是正文级内容，非微型标签） */
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    letter-spacing: 0.01em;
+}
+.card-pub-isbn-item {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.card-pub-isbn-item.isbn {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    letter-spacing: -0.4px;
+}
+.card-pub-isbn-item + .card-pub-isbn-item::before {
+    content: '·';
+    margin-right: 8px;
+    color: var(--border-color);
 }

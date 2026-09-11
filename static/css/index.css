@@ -181,6 +181,10 @@
     color: var(--text-muted);
     cursor: pointer;
     padding: 4px;
+    /* WCAG 2.5.8：实测命中区仅 8×8px（图标本身的尺寸）。
+       用 min-width/min-height 扩大热区，图标视觉尺寸不变。 */
+    min-width: 24px;
+    min-height: 24px;
     border-radius: 4px;
     transition: all 0.2s ease;
     display: flex;
@@ -606,6 +610,13 @@
 .card-meta-item.isbn {
     font-family: 'SF Mono', 'Courier New', monospace;
     letter-spacing: -0.5px;
+}
+
+/* 首页网格：出版社/ISBN 居中显示（卡片为居中文案排版） */
+.charts-page .books-grid.bestseller-grid .card-pub-isbn {
+    justify-content: center;
+    text-align: center;
+    margin-top: 2px;
 }
 
 .card-desc {
@@ -1100,9 +1111,10 @@
 }
 
 .card-skeleton .skeleton-image {
-    /* 真实 .card-image 是 2:3 长宽比 */
+    /* 与首页真实卡片一致：.charts-page .card-image 为 height: 258px、aspect-ratio: auto */
     width: 100%;
-    aspect-ratio: 2 / 3;
+    height: 258px;
+    aspect-ratio: auto;
 }
 
 .card-skeleton .skeleton-content {
@@ -1129,4 +1141,10 @@
     width: 4rem;
     border-radius: var(--radius-full);
     margin-bottom: 0;
+}
+
+/* ---- 紧凑五列骨架图高度 ---- */
+/* 真实卡片在紧凑五列下是 168px 高，骨架图需一致，避免切换时跳动 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card-skeleton .skeleton-image {
+    height: 168px;
 }

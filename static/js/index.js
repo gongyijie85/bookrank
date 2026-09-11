@@ -155,37 +155,6 @@ function applySearch(query) {
     applyFilters();
 }
 
-// ========== 视图切换 ==========
-
-function toggleView(view) {
-    const gridEl = document.getElementById('books-grid');
-    const listEl = document.getElementById('books-list');
-    const gridBtn = document.getElementById('view-grid');
-    const listBtn = document.getElementById('view-list');
-
-    localStorage.setItem('bookrank_view', view);
-
-    if (gridEl && listEl) {
-        // Dual-view DOM: switch visible view via CSS classes
-        if (view === 'grid') {
-            gridEl.classList.add('active');
-            listEl.classList.remove('active');
-            gridBtn?.classList.add('active');
-            listBtn?.classList.remove('active');
-        } else {
-            listEl.classList.add('active');
-            gridEl.classList.remove('active');
-            listBtn?.classList.add('active');
-            gridBtn?.classList.remove('active');
-        }
-    } else {
-        // Single-view DOM: navigate so the server renders the requested view
-        const params = new URLSearchParams(window.location.search);
-        params.set('view', view);
-        window.location.href = window.location.pathname + '?' + params.toString();
-    }
-}
-
 // ========== 收藏功能 ==========
 
 function toggleFavorite(btn, isbn) {
@@ -260,9 +229,7 @@ function buildSkeletonCardsHTML(count) {
 
 function showSkeleton() {
     var grid = document.getElementById('books-grid');
-    var list = document.getElementById('books-list');
     if (grid) grid.innerHTML = buildSkeletonCardsHTML(8);
-    if (list) list.innerHTML = '';
 }
 
 function hideSkeleton() {
@@ -375,10 +342,6 @@ async function changeCategory(category) {
         );
         const params = new URLSearchParams();
         params.set('category', category);
-        const view = new URLSearchParams(window.location.search).get('view') || localStorage.getItem('bookrank_view');
-        if (view && ['grid', 'list'].includes(view)) {
-            params.set('view', view);
-        }
         const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({ category }, '', newUrl);
         if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
@@ -432,10 +395,6 @@ async function changeCategory(category) {
 
         const params = new URLSearchParams();
         params.set('category', category);
-        const view = new URLSearchParams(window.location.search).get('view') || localStorage.getItem('bookrank_view');
-        if (view && ['grid', 'list'].includes(view)) {
-            params.set('view', view);
-        }
         const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({ category }, '', newUrl);
 
@@ -630,6 +589,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             const rank = Number(book.rank) || index + 1;
             const sourceIndex = book.source_index ?? rank - 1;
             const sourceCategory = book.source_category || category;
+            const detailUrl = `/book/${encodeURIComponent(sourceIndex)}?category=${encodeURIComponent(sourceCategory)}`;
             const cover = book.cover && book.cover !== defaultCover
                 ? book.cover
                 : (book._original_cover || defaultCover);
@@ -642,9 +602,8 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                      data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
                      data-index="${sourceIndex}"
                      data-category="${esc(sourceCategory)}"
-                     role="button"
-                     tabindex="0"
                      aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: rank }))}">
+                <a class="card-link" href="${detailUrl}">
                 <div class="card-image">
                     <div class="cover-frame">
                         <img src="${cover}"
@@ -663,65 +622,22 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                     </span>
                     ${renderRankChange(book, rank, lang, 'rank-change')}
                     </div>
+                    <div class="card-content">
                     <h3 class="card-title" title="${esc(title)}">${esc(title)}</h3>
                     <p class="card-author">${esc(book.author)}</p>
-                    ${book.isbn13 ? `<p class="card-isbn">${esc(t('card_isbn_prefix', lang))} ${esc(book.isbn13)}</p>` : book.isbn10 ? `<p class="card-isbn">${esc(t('card_isbn_prefix', lang))} ${esc(book.isbn10)}</p>` : ''}
+                    ${(book.publisher || book.isbn13 || book.isbn10 || book.weeks_on_list) ? `
+                    <p class="card-pub-isbn">
+                        ${book.publisher && ['Unknown', 'Unknown Publisher', '未知', '未知出版社'].indexOf(book.publisher) === -1 ? `<span class="card-pub-isbn-item publisher" title="${esc(t('book_publisher', lang))}: ${esc(book.publisher)}">${esc(book.publisher)}</span>` : ''}
+                        ${book.isbn13 ? `<span class="card-pub-isbn-item isbn" title="ISBN-13: ${esc(book.isbn13)}">${esc(book.isbn13)}</span>` : book.isbn10 ? `<span class="card-pub-isbn-item isbn" title="ISBN-10: ${esc(book.isbn10)}">${esc(book.isbn10)}</span>` : ''}
+                        ${book.weeks_on_list ? `<span class="card-pub-isbn-item weeks" title="${esc(t('weeks_on_list', lang))}">${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
+                    </p>` : ''}
                     ${desc ? `<p class="card-desc">${esc(desc.slice(0, 100))}${desc.length > 100 ? '...' : ''}</p>` : ''}
                 </div>
+                </a>
             </article>
         `}).join('');
     }
 
-    const listEl = document.getElementById('books-list');
-    if (listEl) {
-        listEl.innerHTML = books.map((book, index) => {
-            const rank = Number(book.rank) || index + 1;
-            const sourceIndex = book.source_index ?? rank - 1;
-            const sourceCategory = book.source_category || category;
-            const cover = book.cover && book.cover !== defaultCover
-                ? book.cover
-                : (book._original_cover || defaultCover);
-            const title = isZh ? (book.title_zh || book.title) : book.title;
-            const desc = isZh ? (book.description_zh || book.description || '') : (book.description || '');
-            const catLabel = resolveCategoryLabel(book, category, lang);
-            return `
-            <article class="list-item card-animate"
-                     data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
-                     data-index="${sourceIndex}"
-                     data-category="${esc(sourceCategory)}"
-                     role="button"
-                     tabindex="0"
-                     aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: rank }))}">
-                <div class="list-item-image">
-                <img src="${cover}"
-                         alt="${esc(t('card_cover_alt', lang, { title }))}"
-                         loading="lazy"
-                         width="100"
-                         height="150"
-                         data-original="${book._original_cover || ''}"
-                         data-fallback="${defaultCover}">
-                    ${renderCoverWeeks(book, lang)}
-                </div>
-                <div class="list-item-content">
-                    <div class="list-item-header">
-                        <span class="list-item-rank ${rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : ''}"
-                              aria-label="${esc(t('card_rank_aria', lang, { n: rank }))}">
-                            ${rank}
-                        </span>
-                        ${renderRankChange(book, rank, lang, 'rank-change-badge')}
-                        <h3 class="list-item-title">${esc(title)}</h3>
-                    </div>
-                    <p class="list-item-author">${esc(book.author)}</p>
-                    ${desc ? `<p class="list-item-desc">${esc(desc.slice(0, 200))}${desc.length > 200 ? '...' : ''}</p>` : ''}
-                    <div class="list-item-meta">
-                        <span class="card-tag">${esc(catLabel)}</span>
-                        ${book.weeks_on_list ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-clock"/></svg> ${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
-                        ${book.publisher ? `<span class="card-tag"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ${esc(book.publisher)}</span>` : ''}
-                    </div>
-                </div>
-            </article>
-        `}).join('');
-    }
 
     const exportActions = document.querySelector('.export-actions-bar');
     if (exportActions) {
@@ -740,35 +656,6 @@ window.addEventListener('popstate', function(e) {
     }
 });
 
-// ========== 手机端手势操作 ==========
-let touchStartX = 0;
-let touchStartY = 0;
-let touchStartTime = 0;
-
-document.addEventListener('touchstart', function(e) {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    touchStartTime = Date.now();
-}, { passive: true });
-
-document.addEventListener('touchend', function(e) {
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
-    const deltaTime = Date.now() - touchStartTime;
-
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 80 && deltaTime < 500) {
-        const gridBtn = document.getElementById('view-grid');
-        const listBtn = document.getElementById('view-list');
-
-        if (deltaX > 0 && listBtn.classList.contains('active')) {
-            toggleView('grid');
-        } else if (deltaX < 0 && gridBtn.classList.contains('active')) {
-            toggleView('list');
-        }
-    }
-}, { passive: true });
 
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-input');
@@ -831,7 +718,6 @@ function exportBooks(category) {
 }
 
 const booksGrid = document.getElementById('books-grid');
-const booksList = document.getElementById('books-list');
 
 function handleCardClick(e) {
     const favBtn = e.target.closest('.btn-favorite');
@@ -859,7 +745,6 @@ function handleCardClick(e) {
 }
 
 if (booksGrid) booksGrid.addEventListener('click', handleCardClick);
-if (booksList) booksList.addEventListener('click', handleCardClick);
 
 function handleCardKeydown(e) {
     if (e.target.closest('a[href]')) return;
@@ -873,7 +758,6 @@ function handleCardKeydown(e) {
 }
 
 if (booksGrid) booksGrid.addEventListener('keydown', handleCardKeydown);
-if (booksList) booksList.addEventListener('keydown', handleCardKeydown);
 
 const categorySelect = document.getElementById('category-select');
 if (categorySelect) {

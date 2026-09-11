@@ -3,7 +3,7 @@
 {% block content %}
 {% set _l = get_locale() %}
 <div class="m-status-bar"></div>
-<a href="{{ back_url or '/new-books' }}" class="m-back-link" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.75rem;font-size:0.875rem;color:var(--muted-foreground);text-decoration:none;">
+<a href="{{ back_url or '/new-books' }}" class="m-back-link" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.75rem;font-size:0.875rem;color:var(--text-secondary);text-decoration:none;">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
     {{ _('返回') }}
 </a>
@@ -16,19 +16,19 @@
              onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
         <div style="flex:1;min-width:0;">
             <h1 style="font-size:1.15rem;font-weight:600;line-height:1.35;margin:0 0 0.35rem;">{{ book.title_zh or book.title }}</h1>
-            {% if book.title and book.title_zh and book.title != book.title_zh %}<p style="font-size:0.85rem;color:var(--muted-foreground);margin:0 0 0.5rem;">{{ book.title }}</p>{% endif %}
-            <p style="font-size:0.9rem;color:var(--muted-foreground);margin:0;">{{ book.author or _('未知作者') }}</p>
-            {% if book.publisher %}<p style="font-size:0.85rem;color:var(--muted-foreground);margin:0.25rem 0 0;">{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }}</p>{% endif %}
+            {% if book.title and book.title_zh and book.title != book.title_zh %}<p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0.5rem;">{{ book.title }}</p>{% endif %}
+            <p style="font-size:0.9rem;color:var(--text-secondary);margin:0;">{{ book.author or _('未知作者') }}</p>
+            {% if book.publisher %}<p style="font-size:0.85rem;color:var(--text-secondary);margin:0.25rem 0 0;">{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }}</p>{% endif %}
         </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:1rem 0;padding:0.75rem;background:var(--surface);border-radius:8px;font-size:0.85rem;">
-        {% if book.isbn13 %}<div><span style="color:var(--muted-foreground);">{{ _('ISBN') }}:</span> {{ book.isbn13 }}</div>{% endif %}
-        {% if book.publication_date %}<div><span style="color:var(--muted-foreground);">{{ _('出版日期') }}:</span> {{ book.publication_date }}</div>{% endif %}
-        {% if book.category %}<div><span style="color:var(--muted-foreground);">{{ _('分类') }}:</span> {{ book.category }}</div>{% endif %}
-        {% if book.page_count %}<div><span style="color:var(--muted-foreground);">{{ _('页数') }}:</span> {{ book.page_count }}</div>{% endif %}
-        {% if book.language %}<div><span style="color:var(--muted-foreground);">{{ _('语言') }}:</span> {{ book.language }}</div>{% endif %}
-        {% if book.price %}<div><span style="color:var(--muted-foreground);">{{ _('价格') }}:</span> {{ book.price }}</div>{% endif %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:1rem 0;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;font-size:0.85rem;">
+        {% if book.isbn13 %}<div><span style="color:var(--text-secondary);">{{ _('ISBN') }}:</span> {{ book.isbn13 }}</div>{% endif %}
+        {% if book.publication_date %}<div><span style="color:var(--text-secondary);">{{ _('出版日期') }}:</span> {{ book.publication_date }}</div>{% endif %}
+        {% if book.category %}<div><span style="color:var(--text-secondary);">{{ _('分类') }}:</span> {{ book.category }}</div>{% endif %}
+        {% if book.page_count %}<div><span style="color:var(--text-secondary);">{{ _('页数') }}:</span> {{ book.page_count }}</div>{% endif %}
+        {% if book.language %}<div><span style="color:var(--text-secondary);">{{ _('语言') }}:</span> {{ book.language }}</div>{% endif %}
+        {% if book.price %}<div><span style="color:var(--text-secondary);">{{ _('价格') }}:</span> {{ book.price }}</div>{% endif %}
     </div>
 
     {% if book.buy_links %}
@@ -46,7 +46,7 @@
         <div style="font-size:0.92rem;line-height:1.65;color:var(--foreground);">
             {% if _l=='zh' and book.description_zh %}{{ book.description_zh|sanitize_html|safe }}
             {% elif book.description %}{{ book.description|sanitize_html|safe }}
-            {% else %}<p style="color:var(--muted-foreground);">{{ _('暂无简介') }}</p>{% endif %}
+            {% else %}<p style="color:var(--text-secondary);">{{ _('暂无简介') }}</p>{% endif %}
         </div>
     </section>
 </article>
