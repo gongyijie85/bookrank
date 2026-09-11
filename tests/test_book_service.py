@@ -297,6 +297,51 @@ class TestBookService:
         assert saved['books']['9780143127550']['details_zh'] == '测试详情'
         assert book.title_zh == '测试书名'
 
+    def test_language_pack_rejects_language_marker_details(self, tmp_path):
+        """details_zh 是语言标记（'英文'）时不得写进权威语言包。
+
+        回归：sync_book_language_pack.py 曾把上游 cache 里的「英文」合并进语言包
+        （实测 88 条、其中 32 本在榜），页面渲染成「详情: 英文」。
+        """
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book = {
+            'id': '9780143127550',
+            'isbn13': '9780143127550',
+            'title': 'Test Book',
+            'title_zh': '测试书名',
+            'description': 'A test description',
+            'description_zh': '测试简介',
+            'details': 'Detailed book description',
+            'details_zh': '英文',
+        }
+
+        stats = BookLanguagePack(pack_path).translate_and_store_books([book])
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        entry = saved['books']['9780143127550']
+        assert 'details_zh' not in entry
+        assert entry['title_zh'] == '测试书名'
+        assert entry['description_zh'] == '测试简介'
+        assert stats['rejected_non_substantive'] == 1
+        assert stats['fields_stored'] == 2
+
+    def test_language_pack_keeps_real_details_zh(self, tmp_path):
+        """正常中文详情不得被噪音判定误伤。"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book = {
+            'id': '9780143127550',
+            'isbn13': '9780143127550',
+            'title': 'Test Book',
+            'details': 'Detailed book description',
+            'details_zh': '最初由Viking Penguin于2014年出版。',
+        }
+
+        stats = BookLanguagePack(pack_path).translate_and_store_books([book])
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert saved['books']['9780143127550']['details_zh'] == '最初由Viking Penguin于2014年出版。'
+        assert stats.get('rejected_non_substantive', 0) == 0
+
     def test_sync_all_categories_refreshes_metadata_and_language_pack(self, book_service, db, tmp_path):
         """测试每周NYT同步会补资料、翻译并写入语言包和数据库"""
         pack_path = tmp_path / 'book_language_pack.zh.json'

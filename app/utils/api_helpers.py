@@ -426,6 +426,45 @@ def quick_clean_translation(text: str | None, field_type: str = 'text') -> str |
     return text
 
 
+# 语言标记 / 占位符类噪音：这些取值没有内容信息，不应写入 details_zh。
+# 实测语言包里 88 条 details_zh 就是「原文语言名」本身（'英文' 77 / '- 英文' 9 / '小说' 2），
+# 占 details 有值条的 31%，其中 32 本当时正在榜上，页面会渲染出「详情: 英文」。
+# 长度分布佐证：>30 字的 details_zh 全部正常，<=5 字的 88 条全部是噪音，
+# 两者之间只有 2 条正常值 —— 因此用显式集合判定，不做长度裁剪。
+_NON_SUBSTANTIVE_DETAILS = frozenset(
+    {
+        '英文',
+        '英语',
+        '中文',
+        '汉语',
+        '- 英文',
+        '-英文',
+        '英文。',
+        '英语。',
+        '小说',
+        '非虚构',
+        '暂无详细描述',
+        '暂无简介',
+        '无',
+        '-',
+        '--',
+        'N/A',
+    }
+)
+
+
+def is_non_substantive_details(text: str | None) -> bool:
+    """判断 details / details_zh 是否为无信息量的语言标记或占位符。
+
+    已在两处写入路径生效：BookLanguagePack.translate_and_store_books 拒收
+    details_zh，scripts/sync_book_language_pack._merge_book 拒收上游合并值。
+    只匹配显式集合，正常详情（含短句「最初由Viking Penguin于2014年出版。」）不受影响。
+    """
+    if not text:
+        return False
+    return text.strip() in _NON_SUBSTANTIVE_DETAILS
+
+
 def target_lang_expects_cjk(target_lang: str) -> bool:
     """目标语言是否为中文（据此判断译文里是否应当出现汉字）。
 
