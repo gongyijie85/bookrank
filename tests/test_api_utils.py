@@ -166,7 +166,7 @@ class TestImageCachePrefetch:
                 pass
 
             def iter_content(self, size):
-                yield b'fake-jpeg-bytes'
+                yield b'fake-jpeg-bytes' * 200
 
         session = MagicMock()
         session.get.return_value = Resp()
@@ -213,4 +213,112 @@ class _FakeOKResp:
         pass
 
     def iter_content(self, size):
-        yield b'fake-jpeg-bytes'
+        yield b'fake-jpeg-bytes' * 200
+
+
+class _FakeResp:
+    """可指定响应体的流式响应替身。"""
+
+    def __init__(self, body: bytes, ctype: str = 'image/jpeg'):
+        self.headers = {'Content-Type': ctype}
+        self._body = body
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, size):
+        for i in range(0, len(self._body), size):
+            yield self._body[i : i + size]
+
+
+# Open Library 对无封面 ISBN 的实际响应（从生产缓存文件抓取）：43 字节
+# 1×1 GIF89a，却带 Content-Type: image/jpeg 且被我们存成 .jpg
+OL_STUB = (
+    b'GIF89a\x01\x00\x01\x00\xf0\x00\x00\x00\x00\x00\xff\xff\xff!'
+    b'\xf9\x04\x05\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+)
+
+
+class TestImageCachePlaceholderGuard:
+    """占位图不得作为有效封面入库/被探测为可用。"""
+
+    @pytest.fixture
+    def service(self, tmp_path):
+        import threading as _threading
+
+        svc = ImageCacheService.__new__(ImageCacheService)
+        svc._default_cover = '/static/default-cover.png'
+        svc._memory_cache = OrderedDict()
+        svc._memory_cache_ttl = 3600
+        svc._memory_cache_max_size = 1000
+        svc._cache_dir = tmp_path / 'cache'
+        svc._cache_dir.mkdir()
+        svc._prefetch_lock = _threading.Lock()
+        svc._prefetch_pending = set()
+        return svc
+
+    def _cache_file(self, service, url):
+        import hashlib
+
+        return service._cache_dir / (hashlib.md5(url.encode(), usedforsecurity=False).hexdigest() + '.jpg')
+
+    def test_stub_is_not_written_and_not_retried(self, service):
+        url = 'https://covers.openlibrary.org/b/isbn/9780593491930-L.jpg'
+        session = MagicMock()
+        session.get.return_value = _FakeResp(OL_STUB)
+        service._session = session
+
+        with pytest.raises(ValueError, match='placeholder'):
+            service._download_to_cache(url)
+
+        assert not self._cache_file(service, url).exists()
+        assert session.get.call_count == 1
+        assert url not in service._memory_cache
+
+    def test_public_api_degrades_to_default_cover(self, service):
+        url = 'https://covers.openlibrary.org/b/isbn/9781555978896-L.jpg'
+        service._session = MagicMock()
+        service._session.get.return_value = _FakeResp(OL_STUB)
+
+        assert service.get_cached_image_url(url) == '/static/default-cover.png'
+
+    def test_real_image_still_cached(self, service):
+        url = 'https://books.google.com/books/content?id=abc'
+        body = b'\xff\xd8\xff' + b'x' * 4096
+        service._session = MagicMock()
+        service._session.get.return_value = _FakeResp(body)
+
+        assert service.get_cached_image_url(url).startswith('/cache/images/')
+        assert self._cache_file(service, url).stat().st_size == len(body)
+
+    def test_preexisting_stub_discarded_then_refetched(self, service):
+        url = 'https://covers.openlibrary.org/b/isbn/9780802163784-L.jpg'
+        path = self._cache_file(service, url)
+        path.write_bytes(OL_STUB)
+        body = b'\xff\xd8\xff' + b'y' * 4096
+        session = MagicMock()
+        session.get.return_value = _FakeResp(body)
+        service._session = session
+
+        assert service.get_cached_image_url(url).startswith('/cache/images/')
+        assert path.stat().st_size == len(body)
+        assert session.get.call_count == 1
+
+    def test_non_image_content_type_still_rejected(self, service):
+        url = 'https://example.com/not-an-image'
+        service._session = MagicMock()
+        service._session.get.return_value = _FakeResp(b'<html>' + b'<' * 4096, ctype='text/html')
+
+        assert service.get_cached_image_url(url) == '/static/default-cover.png'
+
+    def test_is_cached_file_present_distinguishes_stub_from_real(self, service):
+        stub = service._cache_dir / 'stub.jpg'
+        stub.write_bytes(OL_STUB)
+        real = service._cache_dir / 'real.jpg'
+        real.write_bytes(b'z' * 4096)
+
+        assert service.is_cached_file_present('/cache/images/stub.jpg') is False
+        assert service.is_cached_file_present('/cache/images/real.jpg') is True
+        assert service.is_cached_file_present('/cache/images/gone.jpg') is False
+        assert service.is_cached_file_present('/static/other.png') is True
+        assert service.is_cached_file_present('') is False

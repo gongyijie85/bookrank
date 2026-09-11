@@ -125,6 +125,11 @@ def api_retry(max_attempts: int = 3, backoff_factor: float = 2.0):
     )
 
 
+# Open Library 对无封面的 ISBN 返回 1×1 GIF 占位（实测恰好 43 字节），
+# 真实封面最小实测约 8KB——两个数量级的差距，仅凭体积即可稳定判别。
+MIN_IMAGE_BYTES = 1024
+
+
 class ImageCacheService:
     """图片缓存服务"""
 
@@ -171,8 +176,12 @@ class ImageCacheService:
             try:
                 file_age = time.time() - cache_path.stat().st_mtime
                 if file_age < ttl:
-                    self._update_memory_cache(original_url, relative_path, current_time)
-                    return relative_path
+                    if self._is_usable_cache_file(cache_path):
+                        self._update_memory_cache(original_url, relative_path, current_time)
+                        return relative_path
+                    # 历史遗留的占位文件（见 MIN_IMAGE_BYTES）：删除后重新回源，
+                    # 否则它会在整个 TTL 内持续顶掉真实封面
+                    cache_path.unlink(missing_ok=True)
             except OSError as e:
                 logger.warning(f'Error checking cache file: {e}')
 
@@ -201,6 +210,7 @@ class ImageCacheService:
         relative_path = f'/cache/images/{filename}'
 
         last_exc: Exception | None = None
+        is_placeholder = False
         for attempt in range(3):
             try:
                 response = self._session.get(original_url, timeout=10, stream=True)
@@ -214,13 +224,20 @@ class ImageCacheService:
                     for chunk in response.iter_content(1024):
                         f.write(chunk)
 
+                if cache_path.stat().st_size < MIN_IMAGE_BYTES:
+                    cache_path.unlink(missing_ok=True)
+                    is_placeholder = True
+                    break
+
                 self._update_memory_cache(original_url, relative_path, time.time())
                 return relative_path
-            except (requests.RequestException, ValueError) as e:
+            except (requests.RequestException, OSError) as e:
                 last_exc = e
                 if attempt < 2:
                     time.sleep(0.4 * (attempt + 1))
                     continue
+        if is_placeholder:
+            raise ValueError(f'placeholder image (below {MIN_IMAGE_BYTES}B) from {original_url}')
         raise last_exc if last_exc else RuntimeError(f'download failed: {original_url}')
 
     def _enqueue_prefetch(self, original_url: str) -> None:
@@ -257,7 +274,11 @@ class ImageCacheService:
                 self._enqueue_prefetch(url)
 
     def is_cached_file_present(self, local_path: str) -> bool:
-        """判断缓存图片文件是否仍存在（生产临时文件系统重启后可能丢失）。
+        """判断缓存图片文件是否仍可用（生产临时文件系统重启后可能丢失）。
+
+        "可用"包含体积校验：占位图虽然后缀是 .jpg、Content-Type 是
+        image/jpeg，但并不是封面，探测必须判为不可用，否则渲染层会停止
+        回退、封面同步也不会把它列为候选（见 MIN_IMAGE_BYTES）。
 
         空路径与默认封面返回 False；非 /cache/images 路径视为无需探测返回 True。
         """
@@ -266,7 +287,17 @@ class ImageCacheService:
         if not local_path.startswith('/cache/images/'):
             return True
         filename = local_path.rsplit('/', 1)[-1]
-        return (self._cache_dir / filename).is_file()
+        return self._is_usable_cache_file(self._cache_dir / filename)
+
+    def _is_usable_cache_file(self, cache_path: Path) -> bool:
+        """缓存文件是否是真实图片（而非 Open Library 的 1×1 占位）。
+
+        调用方请勿改用裸 exists()：占位文件"存在"恰恰是问题所在。
+        """
+        try:
+            return cache_path.stat().st_size >= MIN_IMAGE_BYTES
+        except OSError:
+            return False
 
     def _update_memory_cache(self, key: str, value: str, timestamp: float):
         """更新内存缓存，确保不超过最大大小"""

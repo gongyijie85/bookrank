@@ -22,14 +22,16 @@ class WikidataClient:
     API 文档：https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service
     """
 
+    # 每项均已用 Wikidata 实体接口核对 en 标签（见 tests/test_wikidata_client.py 的
+    # 黄金映射）：写错 QID 时 SPARQL 仍返回 200、只是静默零结果，无标签就无法察觉。
     AWARD_IDS = {
-        'nebula': 'Q327503',
-        'hugo': 'Q162455',
-        'booker': 'Q155091',
-        'international_booker': 'Q2519161',
-        'pulitzer_fiction': 'Q162530',
-        'edgar': 'Q532244',
-        'nobel_literature': 'Q37922',
+        'nebula': 'Q194285',  # Nebula Award
+        'hugo': 'Q188914',  # Hugo Award
+        'booker': 'Q160082',  # Booker Prize
+        'international_booker': 'Q2052291',  # International Booker Prize
+        'pulitzer_fiction': 'Q833633',  # Pulitzer Prize for Fiction
+        'edgar': 'Q833154',  # Edgar Awards
+        'nobel_literature': 'Q37922',  # Nobel Prize in Literature
     }
 
     def __init__(self, timeout: int = 60):
