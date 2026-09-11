@@ -17,6 +17,41 @@ from app.services.zhipu_translation_service import (
     translate_book_info,
     translate_text,
 )
+from app.utils.api_helpers import is_english_echo
+
+
+class TestEnglishEchoGuard:
+    """英文回显防护（#210 取证：坏值写进缓存会自我固化）。"""
+
+    @pytest.mark.parametrize(
+        ('source', 'translated'),
+        [
+            ('SCION', 'SCION'),
+            ('SCION', 'Scion'),
+            ('THE KNAVE AND THE MOON', 'The Knave and the Moon'),
+        ],
+    )
+    def test_flags_english_echo(self, source, translated):
+        assert is_english_echo(source, translated, 'zh') is True
+
+    @pytest.mark.parametrize(
+        ('source', 'translated', 'target_lang'),
+        [
+            # 正常中文译文
+            ('SCION', '后裔', 'zh'),
+            # 中英混排但含汉字，属正常译文
+            ('KPOP DEMON HUNTERS', 'KPOP恶魔猎人', 'zh'),
+            # 目标语言不是中文时不适用本规则
+            ('Hello', 'Hello', 'en'),
+            # 原文没有拉丁字母（数字/符号）本就不该被翻译，不算回显
+            ('9781668067246', '9781668067246', 'zh'),
+            # 空值
+            ('', '', 'zh'),
+            ('SCION', '', 'zh'),
+        ],
+    )
+    def test_does_not_flag_legitimate_values(self, source, translated, target_lang):
+        assert is_english_echo(source, translated, target_lang) is False
 
 
 class TestUnwrapMergedJsonResult:
