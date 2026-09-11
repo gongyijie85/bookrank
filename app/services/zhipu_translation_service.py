@@ -30,6 +30,38 @@ def _cached_translate_author_name(translator: Any, author: str) -> Any:
     return translated if translated is not None else _AUTHOR_TRANSLATION_MISS
 
 
+_MERGED_FIELD_KEYS = {'title': 'title_zh', 'description': 'description_zh', 'details': 'details_zh'}
+
+
+def _unwrap_merged_json_result(result: str, field_type: str) -> str | None:
+    """合并 JSON 模式下，从整串 JSON 里取出当前字段的译文；非 JSON 则原样返回。
+
+    `use_merged_json=True` 时模型会返回 {"title_zh": ..., "description_zh": ...} 整串
+    JSON。逐字段调用方（如模块级 `_translate_book_info` 包装器）拿到这串 JSON 后会
+    直接写进 `title_zh` / `description_zh`，导致页面显示原始 JSON。
+    """
+    text = (result or '').strip()
+    if not text.startswith('{'):
+        return result
+    try:
+        payload = json.loads(text)
+    except (ValueError, TypeError):
+        return result
+    if not isinstance(payload, dict):
+        return result
+    known = [k for k in _MERGED_FIELD_KEYS.values() if isinstance(payload.get(k), str)]
+    if not known:
+        return result
+    wanted = _MERGED_FIELD_KEYS.get(field_type)
+    value = payload.get(wanted) if wanted else None
+    if isinstance(value, str) and value.strip():
+        logger.debug('合并 JSON 响应已按字段 %s 解包', field_type)
+        return value.strip()
+    # 该字段缺失（模型只回了其它字段）：返回 None 而非整串 JSON，避免污染入库
+    logger.warning('合并 JSON 响应缺少字段 %s，丢弃本次结果', field_type)
+    return None
+
+
 def _translate_book_info(translator, book_data: dict[str, Any], target_lang: str = 'zh') -> dict[str, Any]:
     """
     翻译图书信息（共享逻辑）
@@ -451,6 +483,9 @@ class ZhipuTranslationService:
                 if result:
                     if not self._validate_translation(result, text):
                         logger.warning(f'翻译质量校验失败(含污染标记)，将尝试后处理: {result[:100]}')
+                    result = _unwrap_merged_json_result(result, field_type)
+                    if result is None:
+                        return None
                     result = clean_translation_text(result, field_type=field_type)
                     logger.info(f'智谱AI翻译成功: {text[:50]}... -> {result[:50]}...')
                     return cast('str | None', result)

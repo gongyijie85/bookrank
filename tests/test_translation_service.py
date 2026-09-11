@@ -12,6 +12,7 @@ import pytest
 from app.services.zhipu_translation_service import (
     HybridTranslationService,
     ZhipuTranslationService,
+    _unwrap_merged_json_result,
     get_translation_service,
     translate_book_info,
     translate_text,
@@ -51,6 +52,40 @@ class TestEnglishEchoGuard:
     )
     def test_does_not_flag_legitimate_values(self, source, translated, target_lang):
         assert is_english_echo(source, translated, target_lang) is False
+
+
+class TestUnwrapMergedJsonResult:
+    """合并 JSON 响应按字段解包：否则整串 JSON 会被写进 title_zh/description_zh。"""
+
+    MERGED = '{"title_zh": "后裔", "description_zh": "一个关于刺客的故事。"}'
+
+    @pytest.mark.parametrize(
+        ('field_type', 'expected'),
+        [
+            ('title', '后裔'),
+            ('description', '一个关于刺客的故事。'),
+        ],
+    )
+    def test_extracts_requested_field(self, field_type, expected):
+        assert _unwrap_merged_json_result(self.MERGED, field_type) == expected
+
+    def test_returns_none_when_field_absent(self):
+        """模型只回了其它字段时返回 None，不得把整串 JSON 当译文。"""
+        assert _unwrap_merged_json_result(self.MERGED, 'details') is None
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            '后裔',  # 纯文本
+            '{这不是合法JSON',  # 以 { 开头但非法
+            '[1, 2]',  # JSON 数组
+            '{"foo": "bar"}',  # JSON 但无已知字段
+            '',  # 空串
+            None,  # None
+        ],
+    )
+    def test_passes_through_non_merged_values(self, value):
+        assert _unwrap_merged_json_result(value, 'title') == value
 
 
 class TestTranslationService:
