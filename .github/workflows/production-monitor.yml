@@ -111,10 +111,19 @@ jobs:
         run: |
           set -euo pipefail
           API="https://huggingface.co/api/spaces/${HF_SPACE_REPO}"
+          # --location 是必需的：仓库变量里的小写 elvis85/bookrank 会被 HF 307 跳转到
+          # 规范大小写 Elvis85/bookrank，不跟随重定向就只会拿到一个空响应体。
+          fetch() {
+            local suffix="$1" name="$2" code
+            code="$(curl --silent --show-error --location --max-time 25 \
+              --write-out '%{http_code}' "$API$suffix" -o "$RUNNER_TEMP/$name" || echo 000)"
+            printf '%s' "$code" > "$RUNNER_TEMP/$name.http"
+            echo "GET $API$suffix -> HTTP $code"
+          }
           # 公开 Space 上这三个接口无需 token，本作业因此不持任何凭据。
-          curl --silent --show-error --max-time 25 "$API"              -o "$RUNNER_TEMP/space-meta.json"    || true
-          curl --silent --show-error --max-time 25 "$API/runtime"      -o "$RUNNER_TEMP/space-runtime.json" || true
-          curl --silent --show-error --max-time 25 "$API/commits/main" -o "$RUNNER_TEMP/space-commits.json" || true
+          fetch "" space-meta.json
+          fetch /runtime space-runtime.json
+          fetch /commits/main space-commits.json
           python3 <<'PY'
           import datetime
           import json
@@ -137,6 +146,14 @@ jobs:
                   return None
 
 
+          def http_code(name):
+              try:
+                  with open(os.path.join(os.environ['RUNNER_TEMP'], f'{name}.http'), encoding='utf-8') as handle:
+                      return handle.read().strip() or '000'
+              except Exception:
+                  return 'n/a'
+
+
           meta = read('space-meta.json')
           runtime = read('space-runtime.json')
           commits = read('space-commits.json')
@@ -152,7 +169,10 @@ jobs:
           detail = [f'stage={stage}', f'repo={repo_sha[:8] or "?"}', f'build={build_sha[:8] or "?"}']
 
           if meta is None or runtime is None:
-              criticals.append('Space 元数据接口不可读，无法判断构建状态')
+              criticals.append(
+                  'Space 元数据接口不可读（'
+                  f'meta={http_code("space-meta.json")} runtime={http_code("space-runtime.json")}）'
+              )
 
           # Space 最新提交由 ci.yml 的同步步骤写成 "sync: main@<sha>"，据此还原同步进度。
           synced_main = ''
@@ -171,7 +191,7 @@ jobs:
               except Exception:
                   warnings.append('无法解析 Space 最新提交时间，跳过陈旧判定')
           else:
-              criticals.append('Space 提交历史接口不可读')
+              criticals.append(f'Space 提交历史接口不可读（commits={http_code("space-commits.json")}）')
 
           health = 'skipped'
           if stage not in QUIET_STAGES:
