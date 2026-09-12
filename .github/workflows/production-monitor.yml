@@ -100,15 +100,10 @@ jobs:
       SPACE_URL: ${{ vars.SPACE_URL || 'https://elvis85-bookrank.hf.space' }}
       HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
       PRODUCTION_ALERT_WEBHOOK_URL: ${{ secrets.PRODUCTION_ALERT_WEBHOOK_URL }}
-      # deploy 本身要跑十几分钟（Render 校验通过后才推 Space），HF 再构建一次又要几分钟，
-      # 所以同步落后于 main 在宽限窗内是正常的，不能告警。
+      # 同步提交推上去之后，HF 要先构建再等探活通过才会提升，正常要几分钟；
+      # 超过这个窗还没提升，就是新构建起不来、Space 卡在旧版。
       SPACE_STALE_GRACE_MINUTES: ${{ vars.SPACE_STALE_GRACE_MINUTES || '45' }}
-      EXPECTED_MAIN_SHA: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
       - name: Probe Space build freshness and readiness
         id: probe
         shell: bash
@@ -128,22 +123,10 @@ jobs:
           fetch "" space-meta.json
           fetch /runtime space-runtime.json
           fetch /commits/main space-commits.json
-
-          # main 提交的时间戳用来判断"给 deploy 留够时间没有"，与 Space 侧提交年龄无关。
-          # 用 checkout + git 而非 API：公开仓库无需任何凭据，也不会像刚才那样把失败
-          # 吞进 /dev/null 后静默降级。
-          MAIN_COMMIT="$RUNNER_TEMP/main-commit.epoch"
-          if git show -s --format=%ct "$EXPECTED_MAIN_SHA" > "$MAIN_COMMIT" 2>"$RUNNER_TEMP/main-commit.err"; then
-            echo "main commit $EXPECTED_MAIN_SHA epoch=$(cat "$MAIN_COMMIT")"
-          else
-            echo "WARNING: 读不到 main 提交时间: $(cat "$RUNNER_TEMP/main-commit.err")"
-            : > "$MAIN_COMMIT"
-          fi
           python3 <<'PY'
           import datetime
           import json
           import os
-          import re
           import sys
           import urllib.error
           import urllib.request
@@ -196,16 +179,12 @@ jobs:
           if unreadable:
               criticals.append('Space API 响应不可用（无法判定，按故障处理）: ' + ', '.join(unreadable))
 
-          # Space 最新提交由 ci.yml 的同步步骤写成 "sync: main@<sha>"，据此还原同步进度。
-          synced_main = ''
+          # Space 最新提交由 ci.yml 同步步骤写成 "sync: main@<sha>"，其提交时间即"推上去多久了"。
           age_minutes = None
           if isinstance(commits, list) and commits:
               head = commits[0]
               title = (head.get('title') or '').strip()
-              match = re.match(r'sync: main@([0-9a-f]{7,40})', title)
-              if match:
-                  synced_main = match.group(1)
-              elif title:
+              if title and not title.startswith('sync: main@'):
                   warnings.append(f'Space HEAD 不是 CI 同步提交（{title[:48]}）：有人在原地改 Space 仓库')
               try:
                   stamped = datetime.datetime.strptime(head['date'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(
@@ -241,33 +220,12 @@ jobs:
               else:
                   warnings.append(f'{label}（构建窗口内，{int(age_minutes)}m < {grace}m）')
 
-          # 第二判据：main 已经前进，Space 却还停在旧的同步点 —— 同步步骤没跑或没推上去。
-          # 宽限窗必须按 "main 这个提交存在多久了" 计算，而不是 Space 最新提交的年龄：
-          # 仓库空闲一天后刚合一个 PR，Space 提交自然是 22 小时前的，而 deploy 才起步十几秒。
-          expected = os.environ.get('EXPECTED_MAIN_SHA') or ''
-          main_age_minutes = None
-          try:
-              with open(os.path.join(os.environ['RUNNER_TEMP'], 'main-commit.epoch'), encoding='utf-8') as handle:
-                  epoch = handle.read().strip()
-              if epoch:
-                  committed = datetime.datetime.fromtimestamp(int(epoch), tz=datetime.timezone.utc)
-                  main_age_minutes = (datetime.datetime.now(datetime.timezone.utc) - committed).total_seconds() / 60.0
-          except Exception:
-              pass
-          detail.append(f'main_age={int(main_age_minutes) if main_age_minutes is not None else "?"}m')
-
-          if synced_main and expected and not expected.startswith(synced_main):
-              label = 'Space 落后于 main（同步停滞）'
-              facts = f'Space={synced_main[:8]} main={expected[:8]}'
-              if main_age_minutes is None:
-                  warnings.append(f'{label}: {facts}（读不到 main 提交时间，无法判龄，降级为提示）')
-              elif main_age_minutes > grace:
-                  criticals.append(f'{label}: {facts}, main 提交已 {int(main_age_minutes)}m 未被同步')
-              else:
-                  warnings.append(f'{label}: {facts}（deploy 进行中，main 提交才 {int(main_age_minutes)}m）')
+          # 不检查"Space 是否落后于 main"：同步步骤只在运行时文件真有差异时才提交，
+          # 于是只改 workflow/文档/测试的合并会合理地不产生新同步提交，任何与 main HEAD
+          # 的 sha 比对都会在宽限窗后误报 critical。同步本身失败已由 deploy 变红覆盖。
 
           state = 'critical' if criticals else ('warning' if warnings else 'healthy')
-          summary = '; '.join(criticals or warnings or ['Space 构建与 main 一致'])
+          summary = '; '.join(criticals or warnings or ['Space 运行构建与其仓库 HEAD 一致'])
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
               handle.write(f'state={state}\n')
               handle.write(f'status={health}\n')
