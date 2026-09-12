@@ -432,7 +432,7 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "HuggingFace Space already matches ${GITHUB_SHA}."
+            echo "HuggingFace Space 无运行时差异，无需新提交（main=${GITHUB_SHA}）"
             exit 0
           fi
 
