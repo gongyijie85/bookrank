@@ -104,9 +104,11 @@ jobs:
       # 所以同步落后于 main 在宽限窗内是正常的，不能告警。
       SPACE_STALE_GRACE_MINUTES: ${{ vars.SPACE_STALE_GRACE_MINUTES || '45' }}
       EXPECTED_MAIN_SHA: ${{ github.sha }}
-      # 只用于读 main 提交的时间戳；workflow 权限已是 contents: read。
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Probe Space build freshness and readiness
         id: probe
         shell: bash
@@ -128,8 +130,15 @@ jobs:
           fetch /commits/main space-commits.json
 
           # main 提交的时间戳用来判断"给 deploy 留够时间没有"，与 Space 侧提交年龄无关。
-          gh --repo "$GITHUB_REPOSITORY" api "commits/${EXPECTED_MAIN_SHA}" \
-            > "$RUNNER_TEMP/main-commit.json" 2>/dev/null || echo '{}' > "$RUNNER_TEMP/main-commit.json"
+          # 用 checkout + git 而非 API：公开仓库无需任何凭据，也不会像刚才那样把失败
+          # 吞进 /dev/null 后静默降级。
+          MAIN_COMMIT="$RUNNER_TEMP/main-commit.epoch"
+          if git show -s --format=%ct "$EXPECTED_MAIN_SHA" > "$MAIN_COMMIT" 2>"$RUNNER_TEMP/main-commit.err"; then
+            echo "main commit $EXPECTED_MAIN_SHA epoch=$(cat "$MAIN_COMMIT")"
+          else
+            echo "WARNING: 读不到 main 提交时间: $(cat "$RUNNER_TEMP/main-commit.err")"
+            : > "$MAIN_COMMIT"
+          fi
           python3 <<'PY'
           import datetime
           import json
@@ -238,14 +247,11 @@ jobs:
           expected = os.environ.get('EXPECTED_MAIN_SHA') or ''
           main_age_minutes = None
           try:
-              with open(os.path.join(os.environ['RUNNER_TEMP'], 'main-commit.json'), encoding='utf-8') as handle:
-                  committed = json.load(handle)['commit']['committer']['date']
-              main_dt = datetime.datetime.strptime(committed, '%Y-%m-%dT%H:%M:%SZ').replace(
-                  tzinfo=datetime.timezone.utc
-              )
-              main_age_minutes = (
-                  datetime.datetime.now(datetime.timezone.utc) - main_dt
-              ).total_seconds() / 60.0
+              with open(os.path.join(os.environ['RUNNER_TEMP'], 'main-commit.epoch'), encoding='utf-8') as handle:
+                  epoch = handle.read().strip()
+              if epoch:
+                  committed = datetime.datetime.fromtimestamp(int(epoch), tz=datetime.timezone.utc)
+                  main_age_minutes = (datetime.datetime.now(datetime.timezone.utc) - committed).total_seconds() / 60.0
           except Exception:
               pass
           detail.append(f'main_age={int(main_age_minutes) if main_age_minutes is not None else "?"}m')
