@@ -104,6 +104,8 @@ jobs:
       # 所以同步落后于 main 在宽限窗内是正常的，不能告警。
       SPACE_STALE_GRACE_MINUTES: ${{ vars.SPACE_STALE_GRACE_MINUTES || '45' }}
       EXPECTED_MAIN_SHA: ${{ github.sha }}
+      # 只用于读 main 提交的时间戳；workflow 权限已是 contents: read。
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Probe Space build freshness and readiness
         id: probe
@@ -124,6 +126,10 @@ jobs:
           fetch "" space-meta.json
           fetch /runtime space-runtime.json
           fetch /commits/main space-commits.json
+
+          # main 提交的时间戳用来判断"给 deploy 留够时间没有"，与 Space 侧提交年龄无关。
+          gh --repo "$GITHUB_REPOSITORY" api "commits/${EXPECTED_MAIN_SHA}" \
+            > "$RUNNER_TEMP/main-commit.json" 2>/dev/null || echo '{}' > "$RUNNER_TEMP/main-commit.json"
           python3 <<'PY'
           import datetime
           import json
@@ -168,11 +174,18 @@ jobs:
           warnings = []
           detail = [f'stage={stage}', f'repo={repo_sha[:8] or "?"}', f'build={build_sha[:8] or "?"}']
 
-          if meta is None or runtime is None:
-              criticals.append(
-                  'Space 元数据接口不可读（'
-                  f'meta={http_code("space-meta.json")} runtime={http_code("space-runtime.json")}）'
-              )
+          # 宁可误报故障，也绝不 fail-open：状态码非 200、或响应体不是预期结构
+          # （HF 会用 {"error": ...} 回答鉴权/限流），一律判故障。字段缺失会让下面所有
+          # 陈旧判据静默跳过，把监控变成"永远绿灯"。
+          unreadable = []
+          if http_code('space-meta.json') != '200' or not (isinstance(meta, dict) and meta.get('sha')):
+              unreadable.append(f'meta={http_code("space-meta.json")}')
+          if http_code('space-runtime.json') != '200' or not (isinstance(runtime, dict) and runtime.get('stage')):
+              unreadable.append(f'runtime={http_code("space-runtime.json")}')
+          if http_code('space-commits.json') != '200' or not (isinstance(commits, list) and commits):
+              unreadable.append(f'commits={http_code("space-commits.json")}')
+          if unreadable:
+              criticals.append('Space API 响应不可用（无法判定，按故障处理）: ' + ', '.join(unreadable))
 
           # Space 最新提交由 ci.yml 的同步步骤写成 "sync: main@<sha>"，据此还原同步进度。
           synced_main = ''
@@ -186,12 +199,14 @@ jobs:
               elif title:
                   warnings.append(f'Space HEAD 不是 CI 同步提交（{title[:48]}）：有人在原地改 Space 仓库')
               try:
-                  stamped = datetime.datetime.strptime(head['date'], '%Y-%m-%dT%H:%M:%S.%fZ')
-                  age_minutes = (datetime.datetime.utcnow() - stamped).total_seconds() / 60.0
+                  stamped = datetime.datetime.strptime(head['date'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(
+                      tzinfo=datetime.timezone.utc
+                  )
+                  age_minutes = (
+                      datetime.datetime.now(datetime.timezone.utc) - stamped
+                  ).total_seconds() / 60.0
               except Exception:
                   warnings.append('无法解析 Space 最新提交时间，跳过陈旧判定')
-          else:
-              criticals.append(f'Space 提交历史接口不可读（commits={http_code("space-commits.json")}）')
 
           health = 'skipped'
           if stage not in QUIET_STAGES:
@@ -218,13 +233,32 @@ jobs:
                   warnings.append(f'{label}（构建窗口内，{int(age_minutes)}m < {grace}m）')
 
           # 第二判据：main 已经前进，Space 却还停在旧的同步点 —— 同步步骤没跑或没推上去。
+          # 宽限窗必须按 "main 这个提交存在多久了" 计算，而不是 Space 最新提交的年龄：
+          # 仓库空闲一天后刚合一个 PR，Space 提交自然是 22 小时前的，而 deploy 才起步十几秒。
           expected = os.environ.get('EXPECTED_MAIN_SHA') or ''
+          main_age_minutes = None
+          try:
+              with open(os.path.join(os.environ['RUNNER_TEMP'], 'main-commit.json'), encoding='utf-8') as handle:
+                  committed = json.load(handle)['commit']['committer']['date']
+              main_dt = datetime.datetime.strptime(committed, '%Y-%m-%dT%H:%M:%SZ').replace(
+                  tzinfo=datetime.timezone.utc
+              )
+              main_age_minutes = (
+                  datetime.datetime.now(datetime.timezone.utc) - main_dt
+              ).total_seconds() / 60.0
+          except Exception:
+              pass
+          detail.append(f'main_age={int(main_age_minutes) if main_age_minutes is not None else "?"}m')
+
           if synced_main and expected and not expected.startswith(synced_main):
               label = 'Space 落后于 main（同步停滞）'
-              if age_minutes is None or age_minutes > grace:
-                  criticals.append(f'{label}: Space={synced_main[:8]} main={expected[:8]}, {int(age_minutes or 0)}m')
+              facts = f'Space={synced_main[:8]} main={expected[:8]}'
+              if main_age_minutes is None:
+                  warnings.append(f'{label}: {facts}（读不到 main 提交时间，无法判龄，降级为提示）')
+              elif main_age_minutes > grace:
+                  criticals.append(f'{label}: {facts}, main 提交已 {int(main_age_minutes)}m 未被同步')
               else:
-                  warnings.append(f'{label}（deploy 进行中，{int(age_minutes)}m < {grace}m）')
+                  warnings.append(f'{label}: {facts}（deploy 进行中，main 提交才 {int(main_age_minutes)}m）')
 
           state = 'critical' if criticals else ('warning' if warnings else 'healthy')
           summary = '; '.join(criticals or warnings or ['Space 构建与 main 一致'])
