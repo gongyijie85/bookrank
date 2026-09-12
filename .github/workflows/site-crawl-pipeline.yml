@@ -113,7 +113,7 @@ jobs:
           PY
 
       - name: Upload batch draft artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: batch-draft-${{ env.SOURCE_ID }}
           path: artifacts/*
