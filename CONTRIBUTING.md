@@ -61,6 +61,12 @@ make check
 - `mypy app/`
 - `pytest --cov=app --cov-fail-under=70`
 
+## 测试约定
+
+- 正式测试一律放在 `tests/` 目录；CI 与本地门禁只收集该目录。
+- 根目录下的 `test_*.py` / `*_test.py` 是**本地调试产物**：已被 `.gitignore` 忽略（`/test_*.py`、`/*_test.py` 规则），不会被提交，也不参与任何门禁。请勿提交、勿依赖它们做回归判断；本地临时验证用完即删。
+- 新增回归测试请放入 `tests/` 并使用已定义的 marker（unit/integration/slow 等）。
+
 ## Issue 与 PR 流程
 
 - 发现 bug 请使用 [Bug Report](/.github/ISSUE_TEMPLATE/bug_report.yml) 模板。
