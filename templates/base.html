@@ -7,7 +7,8 @@
     <meta name="description" content="{{ _('BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息') }}">
     <meta name="keywords" content="{{ _('图书排行榜, 纽约时报, 畅销书, 图书奖项, 诺贝尔文学奖, 布克奖, 普利策奖') }}">
     <meta name="author" content="BookRank">
-    <meta name="robots" content="index, follow">
+    {# 可覆盖：错误页（尤其 404）需要 noindex，其余页面保持 index, follow #}
+    {% block robots %}<meta name="robots" content="index, follow">{% endblock %}
 
     <!-- Open Graph -->
     <meta property="og:title" content="{% block og_title %}{{ _('BookRank - 图书排行榜') }}{% endblock %}">

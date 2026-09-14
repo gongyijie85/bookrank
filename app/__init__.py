@@ -11,6 +11,7 @@ from typing import Any
 
 from flask import Flask, Response, g, render_template, request
 from flask_babel import Babel
+from flask_babel import gettext as _
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -263,7 +264,19 @@ def _register_error_handlers(app: Flask) -> None:
     def not_found(error: Exception):
         if request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json':
             return {'success': False, 'message': 'Resource not found'}, 404
-        return render_template('error.html', message='Page not found', back_url='/'), 404
+        # 标题与正文必须说同一件事：此前模板把 h1 硬编码成「出错了」（500 的措辞），
+        # 只有 `message` 说 "Page not found"，同一页三处（<title>/<h1>/正文）自相矛盾。
+        # 现在两者都由这里显式给出，`<title>` 与 `<h1>` 共用 heading 所以语义必然一致。
+        return (
+            render_template(
+                'error.html',
+                heading=_('页面不存在'),
+                message=_('您访问的页面不存在，或该链接已失效。'),
+                noindex=True,
+                back_url='/',
+            ),
+            404,
+        )
 
     @app.errorhandler(405)
     def method_not_allowed(error: Exception) -> tuple[dict[str, bool | str], int]:
@@ -293,7 +306,15 @@ def _register_error_handlers(app: Flask) -> None:
             log_error(ErrorCategory.UNKNOWN, f'ErrorTracker 记录失败: {e}', level='warning')
         if request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json':
             return {'success': False, 'message': 'Internal server error'}, 500
-        return render_template('error.html', message='Something went wrong', back_url='/'), 500
+        return (
+            render_template(
+                'error.html',
+                heading=_('服务器出错'),
+                message=_('服务器处理请求时出现问题，请稍后重试。'),
+                back_url='/',
+            ),
+            500,
+        )
 
 
 def _setup_db_event_listeners(app: Flask) -> None:

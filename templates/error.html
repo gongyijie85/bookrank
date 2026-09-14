@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}{{ _('出错') }} - BookRank{% endblock %}
+{# 404 不应被搜索引擎收录，否则爬虫会把错误页当成站点内容、稀释权重。
+   其余错误页（书籍不存在、服务不可用等）保持默认的 index, follow。 #}
+{% block robots %}{% if noindex %}<meta name="robots" content="noindex, nofollow">{% else %}<meta name="robots" content="index, follow">{% endif %}{% endblock %}
+
+{# heading 由调用方显式给出，<title> 与 <h1> 共用同一个值，语义必然一致。
+   未传 heading 的调用点（main.py 里十余处 render_adaptive('error.html', ...)）
+   回退到通用的「出错了」+ 各自的 message，行为与改动前一致。 #}
+{% block title %}{{ heading or _('出错了') }} - BookRank{% endblock %}
 
 {% block content %}
 <div class="error-page">
@@ -8,7 +15,7 @@
         <div class="error-icon">
             <svg class="icon" width="64" height="64"><use href="#icon-x-circle"/></svg>
         </div>
-        <h1>{{ _('出错了') }}</h1>
+        <h1>{{ heading or _('出错了') }}</h1>
         <p class="error-message">{{ message }}</p>
         <div class="error-actions">
             <a href="{{ back_url }}" class="btn btn-primary">
