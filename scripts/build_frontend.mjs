@@ -106,8 +106,11 @@ async function main() {
     await buildOnce();
     return;
   }
-  cleanup();
+  // cleanup 必须在 buildOnce 之后：manifest 是 keep 的依据，构建前它还指向上一轮的
+  // 指纹文件名，此时清理会把上一轮产物当成"在用文件"保留下来，于是 dist 每轮多留
+  // 一份旧哈希（正好慢一代）。构建后 manifest 已指向新哈希，旧哈希才会被正确清掉。
   await buildOnce();
+  cleanup();
 }
 
 main().catch((e) => {
