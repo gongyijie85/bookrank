@@ -13,7 +13,7 @@
         <img src="{{ book.cover_url or url_for('static', filename='default-cover.png') }}"
              alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}"
              style="width:120px;height:180px;object-fit:cover;border-radius:8px;flex-shrink:0;"
-             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+             data-cover-fallback="">
         <div style="flex:1;min-width:0;">
             <h1 style="font-size:1.15rem;font-weight:600;line-height:1.35;margin:0 0 0.35rem;">{{ book.title_zh or book.title }}</h1>
             {% if book.title and book.title_zh and book.title != book.title_zh %}<p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0.5rem;">{{ book.title }}</p>{% endif %}

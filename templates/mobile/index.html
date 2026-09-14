@@ -116,7 +116,7 @@
                  alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="60" height="80"
-                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                 data-cover-fallback="">
         </div>
         <div class="m-book-info">
             <h3 class="m-book-title" title="{{ book.title }}">

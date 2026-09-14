@@ -25,7 +25,7 @@
         <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
              alt="{{ display_title }}"
              width="130" height="175"
-             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+             data-cover-fallback="">
     </div>
 </section>
 
@@ -129,7 +129,7 @@
             <div class="m-related-book-cover">
                 <img src="{{ related.cover_url or url_for('static', filename='default-cover.png') }}"
                      alt="{{ related_title }}" loading="lazy"
-                     onerror="this.onerror=null;this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                     data-cover-fallback="">
             </div>
             <div class="m-related-book-title">{{ related_title }}</div>
         </a>

@@ -188,7 +188,7 @@
                         {% if book.description_zh %}
                         <div class="zh-description">{{ book.description_zh }}</div>
                         {% if book.description and book.description != 'No summary available.' %}
-                        <button class="lang-toggle-btn" onclick="toggleOriginal('desc')">
+                        <button class="lang-toggle-btn" data-toggle-original="desc">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
                             <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
@@ -206,7 +206,7 @@
                         {% if book.details_zh %}
                         <div class="zh-description">{{ book.details_zh }}</div>
                         {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
-                        <button class="lang-toggle-btn" onclick="toggleOriginal('details')">
+                        <button class="lang-toggle-btn" data-toggle-original="details">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
                             <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
@@ -784,6 +784,11 @@
         }
     }
 
+    document.addEventListener('click', (e) => {
+        const trigger = e.target.closest ? e.target.closest('[data-toggle-original]') : null;
+        if (trigger) toggleOriginal(trigger.getAttribute('data-toggle-original'));
+    });
+
     /**
      * 详情页语言切换
      */
@@ -830,25 +835,25 @@
         var authorEl = document.querySelector('.detail-author');
         if (titleEl) {
             titleEl.dataset.zh = titleEl.textContent;
-            titleEl.dataset.en = '{{ book.title|escape }}';
+            titleEl.dataset.en = {{ (book.title or '')|tojson }};
         }
         if (authorEl) {
             authorEl.dataset.zh = authorEl.textContent;
-            authorEl.dataset.en = '{{ book.author|escape }}';
+            authorEl.dataset.en = {{ (book.author or '')|tojson }};
         }
 
         if (typeof BookI18n !== 'undefined') {
             var currentBook = {
-                isbn13: '{{ book.isbn13 or "" }}',
-                isbn10: '{{ book.isbn10 or "" }}',
-                title: '{{ book.title|escape }}',
-                title_zh: '{{ (book.title_zh or book.title)|escape }}',
-                description: '{{ (book.description or "")|escape }}',
-                description_zh: '{{ (book.description_zh or "")|escape }}',
-                details: '{{ (book.details or "")|escape }}',
-                details_zh: '{{ (book.details_zh or "")|escape }}',
-                list_name: '{{ book.list_name|default("")|escape }}',
-                category_name: '{{ book.category_name|default("")|escape }}'
+                isbn13: {{ (book.isbn13 or '')|tojson }},
+                isbn10: {{ (book.isbn10 or '')|tojson }},
+                title: {{ (book.title or '')|tojson }},
+                title_zh: {{ (book.title_zh or book.title or '')|tojson }},
+                description: {{ (book.description or '')|tojson }},
+                description_zh: {{ (book.description_zh or '')|tojson }},
+                details: {{ (book.details or '')|tojson }},
+                details_zh: {{ (book.details_zh or '')|tojson }},
+                list_name: {{ (book.list_name or '')|tojson }},
+                category_name: {{ (book.category_name or '')|tojson }}
             };
             BookI18n.registerAll([currentBook]);
         }

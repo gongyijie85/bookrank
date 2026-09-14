@@ -26,7 +26,7 @@
         <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
              alt="{{ display_title }}"
              width="120" height="160"
-             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+             data-cover-fallback="">
     </div>
 </section>
 

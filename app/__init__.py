@@ -387,7 +387,11 @@ def _apply_security_headers(app: Flask) -> None:
                 "base-uri 'self'; "
                 "form-action 'self'; "
                 f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-                f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+                # style-src 刻意允许 unsafe-inline，且**不能**带 nonce：CSP3 规定源列表里出现
+                # nonce/hash 时 'unsafe-inline' 会被忽略，留着 nonce 等于没放开。被屏蔽的
+                # style="…" 属性是静默失效（不报错、不 500），实测曾让雪碧图容器在页面顶部
+                # 留出 156px 空档。脚本侧仍走 nonce——样式注入不构成脚本执行。
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
                 "img-src 'self' data: https://static01.nyt.com https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
                 'https://covers.openlibrary.org https://openlibrary.org https://archive.org https://*.archive.org '
                 'https://*.penguinrandomhouse.com https://*.harpercollins.com '
@@ -415,7 +419,13 @@ def _apply_security_headers(app: Flask) -> None:
 
         request_path = request.path if request else ''
         if request_path.startswith('/static/'):
-            response.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
+            # immutable 只对内容指纹化的 URL 成立：static/dist/ 里的文件名带内容 hash，
+            # 内容变了 URL 就变。未指纹化的资源（mobile/css、mobile/js 不在构建入口里）
+            # 标 immutable 会让改动最长 30 天送不到回访用户，故改走 ETag 协商。
+            if request_path.startswith('/static/dist/'):
+                response.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
+            else:
+                response.headers['Cache-Control'] = 'public, max-age=3600, must-revalidate'
 
         if (
             'gzip' in request.headers.get('Accept-Encoding', '')

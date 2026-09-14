@@ -168,7 +168,7 @@
             <div class="related-book-cover">
                 {% if related.cover_url %}
                 <img src="{{ related.cover_url }}" alt="{{ related_title_zh }}" loading="lazy"
-                     onerror="this.onerror=null;this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                 {% else %}
                 <img src="{{ url_for('static', filename='default-cover.png') }}" alt="{{ related_title_zh }}" loading="lazy">
                 {% endif %}

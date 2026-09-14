@@ -115,28 +115,3 @@
 </section>
 
 {% endblock %}
-
-{% block extra_js %}
-<script>
-// 取消收藏：DELETE /api/favorites/<isbn>
-(function () {
-    document.querySelectorAll('.m-fav-remove').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var isbn = btn.getAttribute('data-isbn');
-            if (!isbn) return;
-            // 令牌一次性：用 csrfFetch（内部会在请求后清空缓存并在令牌失效时重试）
-            MobileApp.csrfFetch('/api/favorites/' + encodeURIComponent(isbn), { method: 'DELETE' })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (data && data.success) {
-                        var card = btn.closest('.m-book-card');
-                        if (card) card.remove();
-                    }
-                });
-        });
-    });
-})();
-</script>
-{% endblock %}

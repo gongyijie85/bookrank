@@ -360,6 +360,28 @@
         });
     }
 
+    // ===== 4e. 取消收藏（模板只放 .m-fav-remove[data-isbn] 标记，内联脚本会被 CSP 屏蔽） =====
+    function initFavoriteRemove() {
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest ? e.target.closest('.m-fav-remove') : null;
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const isbn = btn.getAttribute('data-isbn');
+            if (!isbn) return;
+            // 令牌一次性：csrfFetch 内部会在请求后清空缓存并在令牌失效时重试
+            csrfFetch('/api/favorites/' + encodeURIComponent(isbn), { method: 'DELETE' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        const card = btn.closest('.m-book-card');
+                        if (card) card.remove();
+                    }
+                })
+                .catch(function () { /* 失败保持原状，不误导用户已取消 */ });
+        });
+    }
+
     // ===== 暴露 API =====
     window.MobileApp = {
         getCsrfToken: getCsrfToken,
@@ -389,5 +411,6 @@
         initImageFallback();
         initReportPolling();
         initShareButtons();
+        initFavoriteRemove();
     });
 })();
