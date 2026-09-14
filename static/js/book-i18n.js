@@ -221,19 +221,23 @@ var BookI18n = (function() {
             var descZhEl = document.querySelector('#panel-description .zh-description');
             var descEnEl = document.querySelector('#panel-description #desc-en, #panel-description .lang-toggle-content');
             if (descZhEl && descEnEl) {
+                // 英文原文面板的显隐归 CSS 规则 .lang-toggle-content(.visible) 独占，
+                // toggleOriginal() 切的也是这个类；这里若写内联 display，会盖过类，
+                // 导致按钮只能展开、永远收不回。
+                var showOriginal = true;
                 if (lang === 'zh') {
                     if (data.description && data.description !== onlyEntry.en.description) {
                         descZhEl.textContent = data.description;
                         descZhEl.style.display = 'block';
-                        descEnEl.style.display = '';
+                        showOriginal = false;
                     } else {
                         descZhEl.style.display = 'none';
-                        descEnEl.style.display = 'block';
                     }
                 } else {
                     descZhEl.style.display = 'none';
-                    descEnEl.style.display = 'block';
                 }
+                descEnEl.style.display = '';
+                descEnEl.classList.toggle('visible', showOriginal);
             }
 
             var catValueEl = document.querySelector('.detail-meta-grid .meta-value[data-cat-zh][data-cat-en]') || _findMetaValueByLabelKey('book_category');

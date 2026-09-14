@@ -313,13 +313,14 @@
         .then(data => {
             if (data.success) {
                 button.classList.toggle('active');
-                const icon = button.querySelector('i');
                 const nowActive = button.classList.contains('active');
-                if (icon) {
-                    icon.innerHTML = nowActive
-                        ? '<use href="#icon-heart-filled"/>'
-                        : '<use href="#icon-heart"/>';
+                // 按钮里是 <svg class="icon"><use href="#icon-heart"/></svg>，没有 <i> 节点：
+                // 旧代码 querySelector('i') 恒为 null，实心图标从未换上过。
+                const iconUse = button.querySelector('use');
+                if (iconUse) {
+                    iconUse.setAttribute('href', nowActive ? '#icon-heart-filled' : '#icon-heart');
                 }
+                button.setAttribute('aria-pressed', nowActive ? 'true' : 'false');
                 button.classList.add('heart-beat');
                 setTimeout(() => button.classList.remove('heart-beat'), 500);
                 showToast(nowActive ? '已添加到收藏' : '已取消收藏', 'success');

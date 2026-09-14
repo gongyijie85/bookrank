@@ -21,6 +21,7 @@ from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
+from .utils.book_titles import split_volume_marker
 from .utils.error_handler import ErrorCategory, log_error
 
 babel = Babel()
@@ -450,10 +451,11 @@ def _apply_security_headers(app: Flask) -> None:
 
         request_path = request.path if request else ''
         if request_path.startswith('/static/'):
-            # immutable 只对内容指纹化的 URL 成立：static/dist/ 里的文件名带内容 hash，
-            # 内容变了 URL 就变。未指纹化的资源（mobile/css、mobile/js 不在构建入口里）
-            # 标 immutable 会让改动最长 30 天送不到回访用户，故改走 ETag 协商。
-            if request_path.startswith('/static/dist/'):
+            # immutable 只对内容指纹化的 URL 成立：文件名带内容 hash 时，内容变了 URL 就变。
+            # 未指纹化的资源（mobile/css、mobile/js 不在构建入口里，以及 dist_url 回退到
+            # dist/base.min.js 这类稳定名的情况）标 immutable，会让改动最长 30 天送不到
+            # 回访用户，故一律改走 ETag 协商。
+            if _HASHED_ASSET_RE.search(request_path):
                 response.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
             else:
                 response.headers['Cache-Control'] = 'public, max-age=3600, must-revalidate'
