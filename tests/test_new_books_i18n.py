@@ -420,3 +420,139 @@ class TestPublisherFilterFirstOption:
         )
         # 兜底：退化实现仍要处理 data-pub-name-zh 元素
         assert 'data-pub-name-zh' in body, 'applyNewBooksLanguage 没有读取 data-pub-name-zh'
+
+
+class TestBrowseCardVolumeMarker:
+    """卡片标题限 3 行截断会把卷号裁掉，同系列各卷看起来就像同一本书被重复渲染。
+
+    回归点：卷号必须从标题里摘出来，渲染进**不被截断**的独立元素
+    (`.browse-card-volume`)，并且同系列各卷渲染后可区分。
+    真实数据中 `title_zh` 常常不带卷号，所以中文界面下更要靠英文字段补。
+    """
+
+    SERIES_TITLE = "The Emperor's Caretaker: I'm Too Happy Living as a Lady-in-Waiting to Leave the Palace"
+
+    def _seed_series(self, db) -> None:
+        """同一系列 7 卷：英文标题带卷号，中文标题不带（复现线上实况）。"""
+        from app.models.new_book import NewBook, Publisher
+
+        publisher = Publisher(name='测试出版社', name_en='Test Publisher', crawler_class='TestCrawler')
+        db.session.add(publisher)
+        db.session.commit()
+
+        for index, volume in enumerate(range(30, 37)):
+            db.session.add(
+                NewBook(
+                    publisher_id=publisher.id,
+                    title=f'{self.SERIES_TITLE} #{volume:03d}',
+                    title_zh='皇帝的侍女：作为宫廷女官，我太快乐了，不愿离开皇宫',
+                    author='Ichiha Hiiragi',
+                    isbn13=f'9798905823{index:03d}',
+                    category='Fiction',
+                    is_displayable=True,
+                )
+            )
+        db.session.commit()
+
+    def test_macro_separates_marker_from_the_clamped_title(self) -> None:
+        """截断留在内层文本上；卷号交给独立徽标元素，否则会被一起裁掉。"""
+        text = _read(MACROS)
+        assert 'split_volume_marker' in text, '宏未调用卷号拆解函数'
+        assert 'browse-card-title-link' in text, '书名内层元素缺失，截断无处安放'
+        assert 'browse-card-volume' in text, '卷号徽标元素缺失'
+
+        # 截断规则应挂在 .browse-card-title-link 上，而不是标题容器
+        macro_body = text[text.find('{% macro browse_book_card') :]
+        macro_body = macro_body[: macro_body.find('{% endmacro %}')]
+        assert 'browse-card-title-link' in macro_body, '宏未渲染内层书名元素'
+        assert 'browse-card-volume' in macro_body, '宏未渲染卷号徽标'
+
+    def test_clamp_lives_on_inner_element_in_stylesheet(self) -> None:
+        """样式表把 line-clamp 从标题容器移到内层，徽标才不会被裁。"""
+        css = _read(ROOT / 'static' / 'css' / 'browse.css')
+        title_rule = css[css.find('.browse-card-title {') :]
+        title_rule = title_rule[: title_rule.find('}')]
+        assert '-webkit-line-clamp' not in title_rule, '.browse-card-title 仍在截断容器上，徽标会被裁掉'
+
+        link_rule = css[css.find('.browse-card-title-link {') :]
+        link_rule = link_rule[: link_rule.find('}')]
+        assert '-webkit-line-clamp' in link_rule, '内层书名元素没有截断规则'
+
+        volume_rule = css[css.find('.browse-card-volume {') :]
+        volume_rule = volume_rule[: volume_rule.find('}')]
+        assert 'nowrap' in volume_rule, '卷号徽标可能被折行/裁切'
+
+    def test_marker_is_stripped_out_of_the_clamped_text(self) -> None:
+        """卷号已从标题文本中摘出，故标题本体里不应再残留 `#NNN`。"""
+        from app.utils.book_titles import split_volume_marker
+
+        stem, marker = split_volume_marker(f'{self.SERIES_TITLE} #030')
+        assert marker == '#030'
+        assert '#030' not in stem
+
+    def test_seeded_series_renders_distinct_volume_markers(self, app, db, client) -> None:
+        """端到端：/new-books 上同系列 7 卷的卷号互不相同。"""
+        with app.app_context():
+            self._seed_series(db)
+
+        response = client.get('/new-books')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+
+        markers = re.findall(r'<span class="browse-card-volume">([^<]+)</span>', html)
+        assert len(markers) >= 7, f'卷号徽标渲染数量不足: {markers}'
+        for volume in range(30, 37):
+            assert f'#{volume:03d}' in markers, f'缺少卷号 #{volume:03d}'
+        assert len(set(markers)) >= 7, '同系列各卷的卷号必须互不相同'
+
+    def test_volume_badge_sits_outside_the_clamped_element(self, app, db, client) -> None:
+        """徽标位于被截断的链接之后，因此不会被 line-clamp 吃掉。"""
+        with app.app_context():
+            self._seed_series(db)
+
+        html = client.get('/new-books').get_data(as_text=True)
+        cards = re.findall(r'<h3 class="browse-card-title".*?</h3>', html, re.S)
+        assert cards, '未渲染出任何 browse-card-title'
+
+        with_marker = [c for c in cards if 'browse-card-volume' in c]
+        assert with_marker, '没有卡片渲染出卷号徽标'
+        for card in with_marker:
+            link_end = card.find('</a>')
+            badge = card.find('browse-card-volume')
+            assert link_end != -1 and badge > link_end, '卷号徽标落在被截断的链接文本内部，会被裁掉'
+
+    def test_card_title_attribute_keeps_the_full_title(self, app, db, client) -> None:
+        """`title` 属性仍给出完整书名（含卷号），供 hover 查看。"""
+        with app.app_context():
+            self._seed_series(db)
+
+        html = client.get('/new-books').get_data(as_text=True)
+        assert '#030' in html
+        for volume in range(30, 37):
+            assert re.search(rf'title="[^"]*#{volume:03d}"', html), f'title 属性缺少卷号 #{volume:03d}'
+
+    def test_plain_titles_are_unaffected(self, app, db, client) -> None:
+        """无卷号的普通书名不应渲染出徽标（避免给每本书都加一个空徽标）。"""
+        from app.models.new_book import NewBook, Publisher
+
+        with app.app_context():
+            publisher = Publisher(name='普通社', name_en='Plain Publisher', crawler_class='TestCrawler')
+            db.session.add(publisher)
+            db.session.commit()
+            db.session.add(
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='A Plain Title Without Any Volume Marker',
+                    author='Someone',
+                    isbn13='9780000000777',
+                    category='Fiction',
+                    is_displayable=True,
+                )
+            )
+            db.session.commit()
+
+        html = client.get('/new-books').get_data(as_text=True)
+        # 该书的标题区不应包含徽标元素
+        match = re.search(r'<h3 class="browse-card-title"[^>]*title="A Plain Title[^"]*".*?</h3>', html, re.S)
+        assert match, '未找到普通书名的卡片'
+        assert 'browse-card-volume' not in match.group(0), '普通书名被误加了卷号徽标'

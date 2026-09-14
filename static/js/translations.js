@@ -194,6 +194,15 @@ const TRANSLATIONS = {
         'nb_detail_label_isbn': 'ISBN',
         'nb_detail_description_title': '图书简介',
         'nb_detail_no_description': '暂无简介',
+        // 页脚 / 面包屑 / 页面副标题（补齐模板引用但字典缺失的 data-i18n key）
+        'breadcrumbs_label': '面包屑导航',
+        'footer_sitemap': '站点地图',
+        'footer_data_source': '数据来源：NYT Books API',
+        'footer_copyright': '© {year} BookRank. 数据仅供学习交流，版权归原作者及出版社所有。',
+        'publishers_subtitle': '汇集全球知名出版社与图书行业网站，点击即可访问',
+        'wr_subtitle': '纽约时报畅销书榜单的每周变化趋势',
+        'nb_search_btn': '搜索',
+        'nb_reset_btn': '重置',
     },
     en: {
         // Filters
@@ -382,6 +391,16 @@ const TRANSLATIONS = {
         'nb_detail_label_isbn': 'ISBN',
         'nb_detail_description_title': 'Description',
         'nb_detail_no_description': 'No description available',
+        // Footer / breadcrumb / page subtitles (template data-i18n keys missing from the dict)
+        'breadcrumbs_label': 'Breadcrumb',
+        'footer_sitemap': 'Sitemap',
+        'footer_data_source': 'Data source: NYT Books API',
+        'footer_copyright':
+            '© {year} BookRank. For learning and reference only. All rights belong to the original authors and publishers.',
+        'publishers_subtitle': 'A collection of world-renowned publishers and book industry websites',
+        'wr_subtitle': 'NYT Bestsellers',
+        'nb_search_btn': 'Search',
+        'nb_reset_btn': 'Reset',
     }
 };
 

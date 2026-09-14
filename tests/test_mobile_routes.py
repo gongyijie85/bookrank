@@ -138,7 +138,10 @@ class TestMobileProfileRoute:
 
     def test_profile_mobile_en_renders_english_labels(self, client, db) -> None:
         """英文移动端个人中心不应残留核心中文标签"""
-        resp = client.get('/profile', headers=EN_MOBILE_HEADERS)
+        # `?lang=en` is pinned: `_get_locale` prefers the `lang` cookie over Accept-Language,
+        # and the session-scoped test client inherits that cookie from tests that hit
+        # /set-language. Relying on the header alone makes this depend on test order.
+        resp = client.get('/profile?lang=en', headers=EN_MOBILE_HEADERS)
         assert resp.status_code == 200
         assert b'<span>My</span>' in resp.data
         assert b'My Favorites' in resp.data
@@ -324,9 +327,13 @@ class TestMobileWeeklyReportDetailEnhanced:
             'top_changes': [{'title': '测试图书', 'rank_change': 5}],
         }
 
-        resp = client.get('/reports/weekly/2024-01-14', headers={'User-Agent': MOBILE_UA})
+        resp = client.get('/reports/weekly/2024-01-14?lang=zh', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-report-hero' in resp.data
+        # `?lang=zh` is pinned deliberately: `_get_locale` defaults to 'en', so without it the
+        # page renders English and these Chinese assertions only held while the English
+        # catalogue had no entry for 总书数 / Top 5 排名变化 (the missing translation leaked
+        # Chinese through). Asserting a language the request never asked for is a bug in the test.
         assert '总书数'.encode() in resp.data
         assert 'Top 5 排名变化'.encode() in resp.data
 
@@ -811,7 +818,7 @@ class TestMobileWeeklyParityAndCsp:
             ],
         }
 
-        body = client.get('/reports/weekly/2024-01-14', headers=ZH_MOBILE_HEADERS).data.decode('utf-8')
+        body = client.get('/reports/weekly/2024-01-14?lang=zh', headers=ZH_MOBILE_HEADERS).data.decode('utf-8')
         assert '《中文书名》' in body
         assert 'data-share-url' in body
         assert 'm-report-hero' in body
