@@ -270,7 +270,7 @@
                     <a href="https://developer.nytimes.com/docs/books-product/1/overview" target="_blank" rel="noopener noreferrer" data-i18n="footer_data_source">{{ _('数据来源：NYT Books API') }}</a>
                 </nav>
             </div>
-            <div class="footer-copy" data-i18n="footer_copyright">
+            <div class="footer-copy" data-i18n="footer_copyright" data-i18n-params-year="{{ now().year }}">
                 &copy; {{ now().year }} BookRank. {{ _('数据仅供学习交流，版权归原作者及出版社所有。') }}
             </div>
         </div>
