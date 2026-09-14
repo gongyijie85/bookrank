@@ -105,6 +105,10 @@ def create_app(config_name: str | None = None) -> Flask:
     # 注入当前时间函数，供模板显示动态年份等场景
     app.jinja_env.globals['now'] = datetime.now
 
+    # 书名卷号拆解：卡片标题被 CSS 限行截断，卷号若留在标题里会被裁掉，
+    # 同系列各卷将显示为完全相同的标题（见 app/utils/book_titles.py）
+    app.jinja_env.globals['split_volume_marker'] = split_volume_marker
+
     # dist_url: 前端构建产物（static/dist/）的指纹化文件名解析
     # （scripts/build_frontend.mjs 生成 manifest.json；dev 无 manifest 时
     # fallback 到源文件路径，保证本地无构建步骤仍可运行）
@@ -381,6 +385,12 @@ def _configure_logging(app: Flask) -> None:
         logging.getLogger('werkzeug').setLevel(logging.WARNING)
         logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
         logging.getLogger('urllib3').setLevel(logging.WARNING)
+
+
+# 构建产物的文件名带 8 位内容指纹（base.88a83f03.min.js / app.MND2IEJ4.min.css）。
+# 判断"能不能 immutable"必须看文件名，而不是看它在不在 static/dist/ 下：
+# dist_url 在 manifest 与磁盘错位时会回退到未指纹的 dist/base.min.js。
+_HASHED_ASSET_RE = re.compile(r'\.[A-Za-z0-9_-]{8}\.min\.(?:css|js)$')
 
 
 def _apply_security_headers(app: Flask) -> None:

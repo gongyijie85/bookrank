@@ -87,13 +87,28 @@
 {# 横向书列卡片：出版社页与新书速递页共用，样式见 static/css/browse.css #}
 {% macro browse_book_card(book) %}
 {% set _l = get_locale() %}
-{% set display_title = (book.title_zh or book.title) if _l == 'zh' else (book.title or book.title_zh) %}
+{# 卷号（#030 / Volume 2 / 第1卷）必须从标题里摘出来单独渲染：
+   .browse-card-title 限 3 行截断，卷号在长书名末尾会被裁掉，
+   同系列各卷就显示成了完全相同的标题。
+   取标记时与 stem 同源优先（中文标题自带卷号时用中文的，否则回退英文），
+   避免两个语种的标记混搭。 #}
+{% set _en_split = split_volume_marker(book.title) %}
+{% set _zh_split = split_volume_marker(book.title_zh) %}
+{% if _l == 'zh' %}
+{% set display_stem = _zh_split[0] or _en_split[0] %}
+{% set volume_marker = _zh_split[1] or _en_split[1] %}
+{% else %}
+{% set display_stem = _en_split[0] or _zh_split[0] %}
+{% set volume_marker = _en_split[1] or _zh_split[1] %}
+{% endif %}
+{# title 属性保留完整书名（含卷号），供 hover 查看 #}
+{% set full_title = (display_stem ~ ' ' ~ volume_marker).strip() if volume_marker else display_stem %}
 {% set pub_name = ((book.publisher.name_en or book.publisher.name) if _l == 'en' else book.publisher.name) if book.publisher else '' %}
 <article class="browse-card">
     <div class="browse-card-media">
         {% if book.cover_url %}
         <img src="{{ book.cover_url }}"
-             alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
+             alt="{{ _('《') }}{{ full_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
              loading="lazy"
              width="160"
              height="240"
@@ -110,8 +125,9 @@
         {% if pub_name and pub_name not in ('Unknown', 'Unknown Publisher', 'N/A', _('未知'), _('未知出版社')) %}
         <span class="browse-card-eyebrow">{{ pub_name }}</span>
         {% endif %}
-        <h3 class="browse-card-title" title="{{ display_title }}">
-            <a href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ display_title or _('未知书名') }}</a>
+        <h3 class="browse-card-title" title="{{ full_title }}">
+            <a class="browse-card-title-link" href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ display_stem or _('未知书名') }}</a>
+            {% if volume_marker %}<span class="browse-card-volume">{{ volume_marker }}</span>{% endif %}
         </h3>
         <p class="browse-card-author">{{ book.author or _('未知作者') }}</p>
     </div>
