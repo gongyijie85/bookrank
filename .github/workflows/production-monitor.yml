@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # 仅用于查上一次运行的结论，做告警去重
 
 jobs:
   ready-and-latency:
@@ -27,12 +28,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # 阈值必须是整数。旧写法把阈值直接内插进 awk 程序文本，配错成非数字时 awk 以
+          # 语法错误退出（码非 0），`if` 判假 → 延迟告警永久静默绿灯，这是 fail-open。
+          # 现在先校验：配置错本身就判 critical，并且要能送进告警通道。
+          is_int() { [[ "$1" =~ ^[0-9]+$ ]]; }
+          if ! is_int "$READY_LATENCY_WARNING_SECONDS" || ! is_int "$READY_LATENCY_CRITICAL_SECONDS"; then
+            echo "state=critical" >> "$GITHUB_OUTPUT"
+            echo "::error::延迟阈值必须是非负整数（vars.READY_LATENCY_WARNING_SECONDS=${READY_LATENCY_WARNING_SECONDS}, vars.READY_LATENCY_CRITICAL_SECONDS=${READY_LATENCY_CRITICAL_SECONDS}）"
+            exit 1
+          fi
+          if (( READY_LATENCY_WARNING_SECONDS > READY_LATENCY_CRITICAL_SECONDS )); then
+            echo "state=critical" >> "$GITHUB_OUTPUT"
+            echo "::error::延迟阈值倒置：warning(${READY_LATENCY_WARNING_SECONDS}s) > critical(${READY_LATENCY_CRITICAL_SECONDS}s)"
+            exit 1
+          fi
+
           result="$(curl --silent --show-error --location --max-time 30 \
             --output /dev/null --write-out '%{http_code} %{time_total}' \
             "$RENDER_BASE_URL/health/ready" || true)"
           read -r status elapsed <<< "$result" || true
           status="${status:-000}"
-          elapsed="${elapsed:-30}"
+          # curl 失败/被代理改写时 time_total 可能不是数字，兜底成 max-time 值而不是放行
+          if [[ ! "$elapsed" =~ ^[0-9]+([.][0-9]+)?$ ]]; then elapsed=30; fi
           echo "status=$status" >> "$GITHUB_OUTPUT"
           echo "elapsed=$elapsed" >> "$GITHUB_OUTPUT"
           echo "Ready probe HTTP ${status} in ${elapsed}s"
@@ -43,54 +61,78 @@ jobs:
             exit 1
           fi
 
-          if awk "BEGIN { exit !($elapsed > $READY_LATENCY_CRITICAL_SECONDS) }"; then
+          if awk -v e="$elapsed" -v c="$READY_LATENCY_CRITICAL_SECONDS" 'BEGIN { exit !(e > c) }'; then
             echo "state=critical" >> "$GITHUB_OUTPUT"
             echo "::error::Ready probe critical latency: ${elapsed}s > ${READY_LATENCY_CRITICAL_SECONDS}s"
             exit 1
           fi
 
-          if awk "BEGIN { exit !($elapsed > $READY_LATENCY_WARNING_SECONDS) }"; then
+          if awk -v e="$elapsed" -v c="$READY_LATENCY_WARNING_SECONDS" 'BEGIN { exit !(e > c) }'; then
             echo "state=warning" >> "$GITHUB_OUTPUT"
             echo "::warning::Ready probe warning latency: ${elapsed}s > ${READY_LATENCY_WARNING_SECONDS}s"
           else
             echo "state=healthy" >> "$GITHUB_OUTPUT"
           fi
 
-      # Notification is best-effort. A missing webhook or a down chat endpoint
-      # must not turn a latency warning into "All jobs have failed".
-      - name: Notify on warning or failure
-        if: always() && steps.probe.outputs.state != 'healthy'
+      # 只对 critical 推送：vars.READY_LATENCY_WARNING_SECONDS 默认 3s，而实测热态延迟就有
+      # 1.07~6.4s，本工作流每 5 分钟一轮 —— warning 也推会让群里一天上百条，最终被人静音，
+      # 等于把 critical 的送达率一起赔掉。warning 仍留 ::warning:: 注解，不进通道。
+      # 持续故障只推第一次（与上一次已完成运行的结论比较）；查不到结论就照发，宁可多报不漏报。
+      # 推送本身失败不会把作业从 critical 改成别的结论（continue-on-error），但一定会留下
+      # 一条 ::error::，红叉上能直接看到"已判定但没通知到人"。
+      - name: Notify on critical
+        if: always() && steps.probe.outputs.state == 'critical'
         continue-on-error: true
         shell: bash
         env:
+          MONITOR_JOB_NAME: Check readiness and response time
           PROBE_STATE: ${{ steps.probe.outputs.state || 'critical' }}
           PROBE_STATUS: ${{ steps.probe.outputs.status || '000' }}
           PROBE_ELAPSED: ${{ steps.probe.outputs.elapsed || 'unknown' }}
         run: |
           set -euo pipefail
-          if [[ -z "$PRODUCTION_ALERT_WEBHOOK_URL" ]]; then
-            echo "::warning::PRODUCTION_ALERT_WEBHOOK_URL is not configured; skipping on-call notification."
+          export PROBE_MESSAGE="[BookRank][${PROBE_STATE}] production readiness probe: HTTP ${PROBE_STATUS}, ${PROBE_ELAPSED}s"
+          if [[ -z "${PRODUCTION_ALERT_WEBHOOK_URL:-}" ]]; then
+            echo "::error::critical 已判定，但告警无法送达：仓库未配置 PRODUCTION_ALERT_WEBHOOK_URL secret。"
             exit 0
+          fi
+
+          # 文件名与作业名在此写死：Actions API 支持用工作流文件名寻址，本文件或作业 name 改名需同步这里。
+          # 去重必须按"本作业"而不是整轮运行：ready-and-latency 与 space-freshness 是两个独立故障域，
+          # 共用运行结论会让 readiness 先红顺带吞掉 Space 的第一条告警。
+          prev_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/production-monitor.yml/runs?per_page=10" \
+            --jq "[.workflow_runs[] | select(.id != ${GITHUB_RUN_ID} and .status == \"completed\")][0].id // empty" \
+            2>/dev/null || echo '')"
+          if [[ -n "$prev_run" ]]; then
+            prev_job="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${prev_run}/jobs" \
+              --jq ".jobs[] | select(.name == \"${MONITOR_JOB_NAME}\") | .conclusion" 2>/dev/null || echo '')"
+            case "$prev_job" in
+              failure | timed_out | cancelled)
+                echo "上一轮运行（${prev_run}）本作业结论已是 ${prev_job}，按同一故障处理，跳过重复推送。"
+                exit 0
+                ;;
+            esac
           fi
 
           payload="$(python3 - <<'PY'
           import json
           import os
 
+          run_link = (
+              f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}"
+              f"/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          )
           print(json.dumps({
               "msg_type": "text",
-              "content": {"text": (
-                  f"[BookRank][{os.environ['PROBE_STATE']}] production readiness probe: "
-                  f"HTTP {os.environ['PROBE_STATUS']}, "
-                  f"{os.environ['PROBE_ELAPSED']}s. "
-                  f"Run: {os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-              )},
+              "content": {"text": os.environ['PROBE_MESSAGE'] + f". Run: {run_link}"},
           }))
           PY
           )"
-          curl --fail --silent --show-error --max-time 15 \
+          if ! curl --fail --silent --show-error --max-time 15 \
             -H 'Content-Type: application/json' \
-            --data "$payload" "$PRODUCTION_ALERT_WEBHOOK_URL"
+            --data "$payload" "$PRODUCTION_ALERT_WEBHOOK_URL"; then
+            echo "::error::告警推送失败（webhook 不可达），本轮 critical 未通知到值班。"
+          fi
 
   space-freshness:
     name: Check HuggingFace Space freshness
@@ -152,6 +194,12 @@ jobs:
                   return 'n/a'
 
 
+          def one_line(value, limit=60):
+              # 进 GITHUB_OUTPUT 的 message= 与 ::warning:: 注解前必须单行化：
+              # Space 提交标题由能向 Space 仓库提交的人控制，换行可伪造输出键或工作流命令。
+              return ' '.join(str(value).split())[:limit]
+
+
           meta = read('space-meta.json')
           runtime = read('space-runtime.json')
           commits = read('space-commits.json')
@@ -185,7 +233,7 @@ jobs:
               head = commits[0]
               title = (head.get('title') or '').strip()
               if title and not title.startswith('sync: main@'):
-                  warnings.append(f'Space HEAD 不是 CI 同步提交（{title[:48]}）：有人在原地改 Space 仓库')
+                  warnings.append(f'Space HEAD 不是 CI 同步提交（{one_line(title, 48)}）：有人在原地改 Space 仓库')
               try:
                   stamped = datetime.datetime.strptime(head['date'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(
                       tzinfo=datetime.timezone.utc
@@ -239,34 +287,55 @@ jobs:
           sys.exit(1 if criticals else 0)
           PY
 
-      - name: Notify on warning or failure
-        if: always() && steps.probe.outputs.state != 'healthy'
+      # 与 ready-and-latency 侧同一套送达策略：只推 critical、按本作业名做跃迁去重、
+      # 通道缺失/推送失败都留 ::error::。Space 陈旧判定本身有 45 分钟宽限窗，
+      # 窗口内的正常构建期只走 ::warning:: 注解。
+      - name: Notify on critical
+        if: always() && steps.probe.outputs.state == 'critical'
         continue-on-error: true
         shell: bash
         env:
+          MONITOR_JOB_NAME: Check HuggingFace Space freshness
           PROBE_STATE: ${{ steps.probe.outputs.state || 'critical' }}
           PROBE_MESSAGE: ${{ steps.probe.outputs.message || 'unknown' }}
         run: |
           set -euo pipefail
-          if [[ -z "$PRODUCTION_ALERT_WEBHOOK_URL" ]]; then
-            echo "::warning::PRODUCTION_ALERT_WEBHOOK_URL is not configured; skipping on-call notification."
+          export PROBE_MESSAGE="[BookRank][space-${PROBE_STATE}] ${PROBE_MESSAGE}"
+          if [[ -z "${PRODUCTION_ALERT_WEBHOOK_URL:-}" ]]; then
+            echo "::error::critical 已判定，但告警无法送达：仓库未配置 PRODUCTION_ALERT_WEBHOOK_URL secret。"
             exit 0
+          fi
+
+          prev_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/production-monitor.yml/runs?per_page=10" \
+            --jq "[.workflow_runs[] | select(.id != ${GITHUB_RUN_ID} and .status == \"completed\")][0].id // empty" \
+            2>/dev/null || echo '')"
+          if [[ -n "$prev_run" ]]; then
+            prev_job="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${prev_run}/jobs" \
+              --jq ".jobs[] | select(.name == \"${MONITOR_JOB_NAME}\") | .conclusion" 2>/dev/null || echo '')"
+            case "$prev_job" in
+              failure | timed_out | cancelled)
+                echo "上一轮运行（${prev_run}）本作业结论已是 ${prev_job}，按同一故障处理，跳过重复推送。"
+                exit 0
+                ;;
+            esac
           fi
 
           payload="$(python3 - <<'PY'
           import json
           import os
 
+          run_link = (
+              f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}"
+              f"/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          )
           print(json.dumps({
               "msg_type": "text",
-              "content": {"text": (
-                  f"[BookRank][space-{os.environ['PROBE_STATE']}] "
-                  f"{os.environ['PROBE_MESSAGE']}. "
-                  f"Run: {os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-              )},
+              "content": {"text": os.environ['PROBE_MESSAGE'] + f". Run: {run_link}"},
           }))
           PY
           )"
-          curl --fail --silent --show-error --max-time 15 \
+          if ! curl --fail --silent --show-error --max-time 15 \
             -H 'Content-Type: application/json' \
-            --data "$payload" "$PRODUCTION_ALERT_WEBHOOK_URL"
+            --data "$payload" "$PRODUCTION_ALERT_WEBHOOK_URL"; then
+            echo "::error::告警推送失败（webhook 不可达），本轮 critical 未通知到值班。"
+          fi
