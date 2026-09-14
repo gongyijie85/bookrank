@@ -757,7 +757,13 @@ def _build_publisher_sections(publishers_data: list, publisher_ids: dict, module
         buckets[cat_idx].append(book)
 
     return [
-        {'category': cat['category'], 'index': i + 1, 'books': buckets[i]}
+        {
+            'category': cat['category'],
+            # 英文页按 locale 取 category_en（见 templates/publishers.html）
+            'category_en': cat.get('category_en', cat['category']),
+            'index': i + 1,
+            'books': buckets[i],
+        }
         for i, cat in enumerate(publishers_data)
         if buckets.get(i)
     ]

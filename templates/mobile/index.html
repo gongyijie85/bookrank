@@ -64,12 +64,12 @@
 </div>
 
 <!-- 分类 Tab 横向滑动 -->
-<section class="m-cat-tabs" aria-label="图书分类">
+<section class="m-cat-tabs" aria-label="{{ _('图书分类') }}">
     <div class="m-cat-tabs-scroll no-scrollbar">
         {% for key, label in categories.items() %}
         <a href="/?category={{ key }}"
            class="m-cat-tab {% if key == current_category %}active{% endif %}">
-            {{ label }}
+            {{ category_names_en.get(key, label) if get_locale() == 'en' else label }}
         </a>
         {% endfor %}
     </div>

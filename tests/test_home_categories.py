@@ -55,6 +55,15 @@ MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'
 DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0'
 
 
+def _mobile_tabs(html: str) -> str:
+    """只取移动端分类 tabs 那一段，避免整页别处的中英文造成误判。"""
+    start = html.find('m-cat-tabs')
+    if start < 0:
+        return ''
+    end = html.find('</section>', start)
+    return html[start : end if end > start else None]
+
+
 class TestCategoryConfig:
     def test_thirteen_categories(self):
         assert len(Config.CATEGORIES) == 13
@@ -95,6 +104,42 @@ class TestCategoryConfig:
         order_block = src.split('var ORDERED_IDS = [', 1)[1].split('];', 1)[0]
         js_order = re.findall(r"'([a-z0-9-]+)'", order_block)
         assert js_order == list(Config.CATEGORIES.keys())
+
+    def test_js_labels_values_parity_with_config(self):
+        """JS 的 zh/en 取值必须与 config 逐字一致（不只是 key 集合一致）.
+
+        服务端按 `CATEGORY_NAMES_EN` 渲染首屏 option，客户端 `getCategoryLabel()` 会在语言切换时
+        改写同一批 option。两边取值若不一致，用户会看到文本在 JS 跑完后"跳一下"；
+        #235 落地 SSR 英文时就发现 `graphic-books-and-manga` 是 'and' vs '&' 不一致。
+        """
+        import json
+        import re
+        from pathlib import Path
+
+        def _js_string(literal: str) -> str:
+            """JS 字符串字面量 -> 值。双引号形式是合法 JSON，单引号形式不是。"""
+            if literal.startswith('"'):
+                return json.loads(literal)
+            return literal[1:-1].replace("\\'", "'").replace('\\\\', '\\')
+
+        src = (Path(__file__).resolve().parent.parent / 'static' / 'js' / 'categories.js').read_text(encoding='utf-8')
+        labels_block = src.split('var LABELS = {', 1)[1].split('};', 1)[0]
+
+        # JS 值有单引号也有双引号（含撇号时用双引号），两种都要能解析
+        pairs = re.findall(
+            r"'([a-z0-9-]+)':\s*\{\s*zh:\s*(\"[^\"]*\"|'[^']*')\s*,\s*en:\s*(\"[^\"]*\"|'[^']*')\s*\}",
+            labels_block,
+        )
+        js = {k: (_js_string(z), _js_string(e)) for k, z, e in pairs}
+        assert set(js) == set(Config.CATEGORIES.keys()), (
+            f'JS LABELS not parsed for all categories: {set(Config.CATEGORIES) - set(js)}'
+        )
+
+        for key, (zh, en) in js.items():
+            assert zh == Config.CATEGORIES[key], f'{key}: JS zh={zh!r} != config {Config.CATEGORIES[key]!r}'
+            assert en == Config.CATEGORY_NAMES_EN[key], (
+                f'{key}: JS en={en!r} != config {Config.CATEGORY_NAMES_EN[key]!r}'
+            )
 
 
 class TestCrossCategorySearch:
@@ -148,14 +193,55 @@ class TestCrossCategorySearch:
         assert '(每月)' in html
 
     @patch('app.routes.main.get_service')
-    def test_desktop_category_select_always_chinese(self, mock_get_svc, client):
-        """分类下拉恒为中文（即使英文 locale）."""
+    def test_desktop_category_select_follows_locale(self, mock_get_svc, client):
+        """分类下拉跟随 locale：英文页首屏即英文（#235 反转了旧行为）.
+
+        此前本用例断言「分类下拉恒为中文（即使英文 locale）」，把当时的行为固化了：
+        SSR 一律输出中文，只靠 index.js 的 `updateCategorySelectOptions()` 在语言切换时改写
+        option 文本。但该函数只在 `setGlobalLanguage` 路径里被调用，**首屏加载不调用**，
+        于是 `?lang=en` 首屏始终是中文（浏览器实测可见中文 4 字符），这正是不该有的泄漏。
+
+        现在改为 SSR 按 locale 取值 —— 与站内其它 `_()` 文案一致，且不依赖 JS；
+        客户端 `categories.js` 仍会在切换语言时改写，两边取值已由
+        `test_js_labels_values_parity_with_config` 保证一致，不会出现切换后闪动。
+        """
         mock_get_svc.return_value = _mock_book_service({'hardcover-fiction': [_make_book()]})
         resp = client.get('/?lang=en', headers={'User-Agent': DESKTOP_UA})
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')
+        assert 'Hardcover Fiction' in html
+        assert '精装小说' not in html
+
+    @patch('app.routes.main.get_service')
+    def test_desktop_category_select_chinese_locale(self, mock_get_svc, client):
+        """中文页仍显示中文分类名."""
+        mock_get_svc.return_value = _mock_book_service({'hardcover-fiction': [_make_book()]})
+        resp = client.get('/?lang=zh', headers={'User-Agent': DESKTOP_UA})
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
         assert '精装小说' in html
-        assert 'Middle Grade Paperback' not in html
+
+    @patch('app.routes.main.get_service')
+    def test_mobile_category_tabs_follow_locale(self, mock_get_svc, client):
+        """移动端 tabs 与桌面下拉同源：英文页首屏即英文，中文页仍是中文.
+
+        #188 原文明确规定「分类下拉（桌面）与 tabs（移动）恒显示中文」，#235 反转该决定时
+        只改了桌面半边 —— 本用例锁住两端一致，避免再次出现「桌面英文、移动中文」的半套状态。
+        """
+        mock_get_svc.return_value = _mock_book_service({'hardcover-fiction': [_make_book()]})
+
+        en = client.get('/?lang=en', headers={'User-Agent': MOBILE_UA}).data.decode('utf-8')
+        tabs_en = _mobile_tabs(en)
+        assert tabs_en, '移动端分类 tabs 未渲染'
+        assert 'Hardcover Fiction' in tabs_en
+        assert '精装小说' not in tabs_en
+        assert 'aria-label="Category"' in tabs_en  # 读屏语言也得跟随 locale
+
+        zh = client.get('/?lang=zh', headers={'User-Agent': MOBILE_UA}).data.decode('utf-8')
+        tabs_zh = _mobile_tabs(zh)
+        assert '精装小说' in tabs_zh
+        assert 'Hardcover Fiction' not in tabs_zh
+        assert 'aria-label="图书分类"' in tabs_zh
 
 
 class TestOnDemandTranslationMarker:

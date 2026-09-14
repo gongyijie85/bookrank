@@ -16,7 +16,7 @@
         'hardcover-nonfiction':             { zh: '精装非虚构',         en: 'Hardcover Nonfiction' },
         'paperback-nonfiction-monthly':     { zh: '平装非虚构',         en: 'Paperback Nonfiction' },
         'advice-how-to-and-miscellaneous':  { zh: '建议、方法与杂项',   en: 'Advice, How-To & Miscellaneous' },
-        'graphic-books-and-manga':          { zh: '漫画与绘本',         en: 'Graphic Books & Manga' },
+        'graphic-books-and-manga':          { zh: '漫画与绘本',         en: 'Graphic Books and Manga' },
         'childrens-middle-grade-hardcover': { zh: '儿童中级精装本',     en: "Children's Middle Grade Hardcover" },
         'young-adult-hardcover':            { zh: '青少年精装本',       en: 'Young Adult Hardcover' },
         'picture-books':                    { zh: '儿童绘本',           en: 'Picture Books' },

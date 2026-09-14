@@ -48,13 +48,18 @@
     <div class="filter-group">
         <label class="filter-label" for="category-select" data-i18n="filter_category">{{ _('图书分类') }}</label>
         <select class="filter-select" id="category-select" name="category">
+            {# 英文 locale 用 NYT 官方英文名。`category_names_en`（config.CATEGORY_NAMES_EN）
+               路由早已传入，但此前下拉框只读中文 `categories`，所以英文页首屏仍是中文；
+               客户端 categories.js 的英文名只在手动切换语言时才应用。
+               注意 <option> 在无头浏览器里尺寸恒为 0，按"零尺寸即不可见"扫可见文本会漏掉它。 #}
+            {% set is_en = get_locale() == 'en' %}
             {% if category_groups %}
             {% for group_key, group_cats in category_groups.items() %}
             <optgroup label="{% if group_key == 'fiction' %}{{ _('小说') }}{% elif group_key == 'nonfiction' %}{{ _('非虚构') }}{% elif group_key == 'children-ya' %}{{ _('儿童与青少年') }}{% elif group_key == 'business' %}{{ _('商业') }}{% elif group_key == 'lifestyle' %}{{ _('生活方式与杂项') }}{% elif group_key == 'comics' %}{{ _('漫画与绘本') }}{% else %}{{ group_labels.get(group_key, group_key) }}{% endif %}">
                 {% for key in group_cats %}
                 {% if key in categories %}
                 <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
-                    {{ categories[key] }}{% if key in monthly_categories %} ({{ _('每月') }}){% endif %}
+                    {{ category_names_en.get(key, categories[key]) if is_en else categories[key] }}{% if key in monthly_categories %} ({{ _('每月') }}){% endif %}
                 </option>
                 {% endif %}
                 {% endfor %}
@@ -63,7 +68,7 @@
             {% else %}
             {% for key, label in categories.items() %}
             <option value="{{ key }}" {% if key == current_category %}selected{% endif %}>
-                {{ label }}
+                {{ category_names_en.get(key, label) if is_en else label }}
             </option>
             {% endfor %}
             {% endif %}

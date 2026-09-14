@@ -24,9 +24,12 @@
 </header>
 
 <!-- Category seal strip -->
+{# 目录数据是人工维护的静态表：category / description 只有中文源，英文在 *_en 字段。
+   这里按 locale 取值，英文页面不再回落到中文。 #}
+{% set is_en = get_locale() == 'en' %}
 <nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
     {% for cat in publishers_data %}
-    <a href="#cat-{{ loop.index }}">{{ cat.category }}</a>
+    <a href="#cat-{{ loop.index }}">{{ cat.category_en if is_en else cat.category }}</a>
     {% endfor %}
 </nav>
 
@@ -34,7 +37,7 @@
 <section class="browse-directory" aria-label="{{ _('出版社分类') }}">
     {% for cat in publishers_data %}
     <a href="#cat-{{ loop.index }}" class="browse-tile">
-        <span class="browse-tile-name">{{ cat.category }}</span>
+        <span class="browse-tile-name">{{ cat.category_en if is_en else cat.category }}</span>
         <span class="browse-tile-count">{{ cat.publishers|length }} {{ _('个网站') }}</span>
     </a>
     {% endfor %}
@@ -42,9 +45,9 @@
 
 <!-- Per-category new arrivals shelves -->
 {% for section in publisher_sections %}
-<section class="browse-section" aria-label="{{ section.category }}">
+<section class="browse-section" aria-label="{{ section.category_en if is_en else section.category }}">
     <div class="browse-section-head">
-        <h2 class="browse-section-title">{{ section.category }}</h2>
+        <h2 class="browse-section-title">{{ section.category_en if is_en else section.category }}</h2>
         <a class="browse-section-more" href="#cat-{{ section.index }}">{{ _('查看更多') }} &rarr;</a>
     </div>
     <div class="browse-rail-shell">
@@ -72,16 +75,22 @@
 <!-- Full listing -->
 <div id="publishers-container">
     {% for cat in publishers_data %}
-    <section class="publisher-group" id="cat-{{ loop.index }}" data-category="{{ cat.category }}">
+    <section class="publisher-group" id="cat-{{ loop.index }}" data-category="{{ cat.category_en if is_en else cat.category }}">
         <div class="publisher-group-head">
-            <h2 class="publisher-group-title">{{ cat.category }}</h2>
+            <h2 class="publisher-group-title">{{ cat.category_en if is_en else cat.category }}</h2>
             <span class="publisher-group-count">{{ cat.publishers|length }} {{ _('个网站') }}</span>
         </div>
         <table class="publishers-table">
             <thead>
                 <tr>
+                    {# 英文页面不列「中文名称」：该列内容恒为中文，整列都会泄漏；
+                       行上仍保留 data-name / data-name-en，两种语言的搜索都不受影响。 #}
+                    {% if is_en %}
+                    <th>{{ _('出版社') }}</th>
+                    {% else %}
                     <th>{{ _('中文名称') }}</th>
                     <th>{{ _('英文名称') }}</th>
+                    {% endif %}
                     <th>{{ _('核心定位') }}</th>
                     <th>{{ _('新书速递') }}</th>
                 </tr>
@@ -89,7 +98,15 @@
             <tbody>
                 {% for pub in cat.publishers %}
                 {% set nb_publisher_id = new_books_publisher_ids.get(pub.name_en) %}
-                <tr data-name="{{ pub.name }}" data-name-en="{{ pub.name_en }}" data-description="{{ pub.description }}">
+                <tr data-name="{{ pub.name }}" data-name-en="{{ pub.name_en }}" data-description="{{ pub.description_en if is_en else pub.description }}">
+                    {% if is_en %}
+                    <td>
+                        <a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer" class="publisher-link">
+                            {{ pub.name_en }}
+                            <svg class="icon" width="14" height="14"><use href="#icon-external-link"/></svg>
+                        </a>
+                    </td>
+                    {% else %}
                     <td>
                         <div class="publisher-name">{{ pub.name }}</div>
                     </td>
@@ -99,8 +116,9 @@
                             <svg class="icon" width="14" height="14"><use href="#icon-external-link"/></svg>
                         </a>
                     </td>
+                    {% endif %}
                     <td>
-                        <span class="publisher-description">{{ pub.description }}</span>
+                        <span class="publisher-description">{{ pub.description_en if is_en else pub.description }}</span>
                     </td>
                     <td>
                         {% if nb_publisher_id %}
