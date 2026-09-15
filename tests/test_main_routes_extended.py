@@ -1783,6 +1783,10 @@ class TestBookDetailSsrLocale:
         }
         assert 'Hardcover Fiction' in cells.values(), f'移动英文详情页分类仍是中文: {cells}'
         assert '精装小说' not in cells.values()
+        # H1 是页面上最值钱的 SEO 元素，此前无条件取 title_zh，只靠前端改写
+        h1 = BeautifulSoup(html, 'html.parser').select_one('.detail-title')
+        assert h1 and h1.get_text(strip=True) == 'The Calamity Club', f'英文页 H1: {h1 and h1.get_text()}'
+        assert not BeautifulSoup(html, 'html.parser').select_one('.detail-title-en'), '英文页不该挂中文原标题副行'
 
     @patch('app.routes.main.merge_or_translate_book')
     @patch('app.routes.main.fetch_google_books_details')
@@ -1792,3 +1796,7 @@ class TestBookDetailSsrLocale:
         html = client.get('/book/0?category=hardcover-fiction&lang=zh').get_data(as_text=True)
         values = self._meta_values(html)
         assert '英语' in values and '精装小说' in values, f'中文页丢了中文标签: {values}'
+        soup = BeautifulSoup(html, 'html.parser')
+        h1 = soup.select_one('.detail-title')
+        assert h1 and h1.get_text(strip=True) == '灾难俱乐部', f'中文页 H1: {h1 and h1.get_text()}'
+        assert soup.select_one('.detail-title-en'), '中文页该保留原文书名副行'

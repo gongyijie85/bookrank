@@ -84,8 +84,8 @@
         <div class="detail-info-section">
             <!-- 标题区 -->
             <div class="detail-header">
-                <h1 class="detail-title">{{ book.title_zh or book.title }}</h1>
-                {% if book.title_zh and book.title != book.title_zh %}
+                <h1 class="detail-title">{{ book.title_zh|bilingual(book.title) }}</h1>
+                {% if book.title_zh and book.title != book.title_zh and get_locale() == 'zh' %}
                 <p class="detail-title-en">{{ book.title }}</p>
                 {% endif %}
                 <p class="detail-author">{{ book.author }}</p>
