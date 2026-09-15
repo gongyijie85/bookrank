@@ -722,9 +722,15 @@ class WeeklyReportService:
             # 3. 启动后台线程补生成（不阻塞页面渲染）
             logger.info(f'expected week 周报缺失（{week_start} 至 {week_end}），后台异步补生成')
 
+            # 工作线程没有请求上下文：generate_weekly_report 里的 require_service 会走
+            # current_app，缺上下文即抛 RuntimeError，又被它的 except RuntimeError 记成
+            # 误导性的"服务未初始化" —— 自愈线程此前从未真正生成过任何东西。
+            app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
+
             def _run_in_thread() -> None:
                 try:
-                    generate_weekly_report(force_regenerate=False)
+                    with app_obj.app_context():
+                        generate_weekly_report(force_regenerate=False)
                 except Exception as e:
                     log_error(ErrorCategory.API_CALL, f'自愈触发周报生成失败: {e!s}')
 

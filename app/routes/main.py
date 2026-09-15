@@ -852,9 +852,14 @@ def new_book_detail(book_id):
     if not book.title_zh or not book.description_zh:
         translation_service = get_service('translation_service')
         if translation_service:
+            # 工作线程没有请求上下文，必须先取 app 对象再在线程里 push：db.session 是绑定
+            # app context 的 scoped session，不 push 就 "Working outside of application
+            # context"，并被 pipeline 的 except 记成 warning —— 后台中文补齐从未真正执行。
+            app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
 
             def translate_book_async():
-                modules.translation_pipeline.translate_book_background(book_id, translation_service)
+                with app_obj.app_context():
+                    modules.translation_pipeline.translate_book_background(book_id, translation_service)
 
             submit_background_task(translate_book_async)
 
