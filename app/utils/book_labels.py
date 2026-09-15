@@ -94,3 +94,41 @@ def award_term(value: object, locale: str | None = None) -> str:
     if active.startswith('en'):
         return _AWARD_TERM_ZH_TO_EN.get(text, '')
     return text
+
+
+_CATEGORY_ZH_TO_EN: dict[str, str] | None = None
+
+
+def _category_zh_to_en() -> dict[str, str]:
+    """从爬虫自己的 CATEGORY_EN_TO_ZH 反查，不再手抄第二张表（抄来的会漂移）。
+
+    `General`/`general` 都映射到「综合」，取非全小写的那个作英文显示名。
+    """
+    global _CATEGORY_ZH_TO_EN
+    if _CATEGORY_ZH_TO_EN is None:
+        from ..services.publisher_data import CATEGORY_EN_TO_ZH
+
+        reversed_map: dict[str, str] = {}
+        for en, zh in CATEGORY_EN_TO_ZH.items():
+            current = reversed_map.get(zh)
+            if current is None or current.islower():
+                reversed_map[zh] = en
+        _CATEGORY_ZH_TO_EN = reversed_map
+    return _CATEGORY_ZH_TO_EN
+
+
+def category_name(value: object, locale: str | None = None) -> str:
+    """新书分类按 locale 呈现。
+
+    未收录的值在英文页原样返回（与 `award_term` 相反）：chip 是**可点的筛选项**，
+    隐掉等于悄悄删掉一种筛选；宁可露一个中文词，也不要少一个选项。新增分类只会经
+    CATEGORY_EN_TO_ZH 写进库，所以这张反查表天然覆盖全部取值 —— 由
+    tests/test_language_labels.py 用 `sanitize_category` 的同一份常量断言。
+    """
+    text = '' if value is None else str(value)
+    if not text:
+        return ''
+    active = locale or str(get_locale() or 'zh')
+    if active.startswith('en'):
+        return _category_zh_to_en().get(text, text)
+    return text

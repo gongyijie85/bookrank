@@ -54,6 +54,27 @@ def _mock_book_service(books=None):
 
 
 MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'
+
+
+def _related_recommendations() -> dict:
+    """推荐位固定载荷：中英书名不同，才能验出 locale 有没有生效。"""
+    return {
+        'recommendations': [
+            {
+                'id': 999,
+                'title': 'Related Book',
+                'title_zh': '相关图书',
+                'author': 'Related Author',
+                'year': 2022,
+                'category': 'Fiction',
+                'cover_url': None,
+                'isbn13': '9780000000999',
+            }
+        ],
+        'reason': '',
+    }
+
+
 DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0'
 ZH_MOBILE_HEADERS = {'User-Agent': MOBILE_UA, 'Accept-Language': 'zh'}
 EN_MOBILE_HEADERS = {'User-Agent': MOBILE_UA, 'Accept-Language': 'en'}
@@ -641,24 +662,31 @@ class TestMobileV978:
         db.session.commit()
 
         mock_rec_svc = MagicMock()
-        mock_rec_svc.get_similarity_recommendations.return_value = {
-            'recommendations': [
-                {
-                    'id': 999,
-                    'title': 'Related Book',
-                    'title_zh': '相关图书',
-                    'author': 'Related Author',
-                    'year': 2022,
-                    'category': 'Fiction',
-                    'cover_url': None,
-                    'isbn13': '9780000000999',
-                }
-            ],
-            'reason': '',
-        }
+        mock_rec_svc.get_similarity_recommendations.return_value = _related_recommendations()
         mock_get_rec_svc.return_value = mock_rec_svc
 
         resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-related-books' in resp.data
+        # 无 ?lang= 时默认英文：推荐位出原文书名。旧断言要求这里显示「相关图书」，
+        # 那正是 #227 要消除的英文页中文泄漏，不是该保住的约定。
+        assert b'Related Book' in resp.data
+        assert '相关图书'.encode() not in resp.data
+
+    @patch('app.routes.main.get_or_create_recommendation_service')
+    def test_award_book_detail_related_books_follow_zh(self, mock_get_rec_svc, client, db, sample_award_book) -> None:
+        """?lang=zh 时推荐位仍出中文书名（与英文页成对，防只修一半）。"""
+        from app.models.schemas import AwardBook
+
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        db.session.commit()
+
+        mock_rec_svc = MagicMock()
+        mock_rec_svc.get_similarity_recommendations.return_value = _related_recommendations()
+        mock_get_rec_svc.return_value = mock_rec_svc
+
+        resp = client.get(f'/award-book/{sample_award_book}?lang=zh', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-related-books' in resp.data
         assert '相关图书'.encode() in resp.data
@@ -883,6 +911,46 @@ class TestMobileNewBooksCategoryChips:
         assert '儿童读物' in html and '小说' in html
         # 中文分类名必须被编码进 query，否则链接点不开
         assert 'category=%E5%B0%8F%E8%AF%B4' in html
+
+    @staticmethod
+    def _fake_books():
+        book = MagicMock()
+        book.id = 7
+        book.title = 'The Machine'
+        book.title_zh = '机器'
+        book.author = 'Ann Writer'
+        book.category = '小说'
+        book.description = 'An English blurb.'
+        book.description_zh = '中文简介。'
+        book.cover_url = ''
+        book.publication_date = '2026-09-01'
+        book.publisher = None
+        return [book]
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_english_page_uses_english_titles_and_categories(self, mock_get_modules, client) -> None:
+        modules = self._mock_modules()
+        modules.query_service.get_new_books.return_value = (self._fake_books(), 1)
+        mock_get_modules.return_value = modules
+
+        html = client.get('/new-books?lang=en', headers={'User-Agent': MOBILE_UA}).get_data(as_text=True)
+        assert 'm-book-title' in html
+        assert 'The Machine' in html, '英文页书名仍是中文'
+        assert '机器' not in html
+        assert '中文简介。' not in html, '英文页简介取了译文'
+        assert '>Fiction<' in html, '分类 chip 未英文化'
+        assert 'category=%E5%B0%8F%E8%AF%B4' in html, 'chip 链接仍需保留中文筛选键'
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_chinese_page_keeps_translated_title(self, mock_get_modules, client) -> None:
+        modules = self._mock_modules()
+        modules.query_service.get_new_books.return_value = (self._fake_books(), 1)
+        mock_get_modules.return_value = modules
+
+        html = client.get('/new-books?lang=zh', headers={'User-Agent': MOBILE_UA}).get_data(as_text=True)
+        assert '机器' in html, '中文页丢了中文书名'
+        assert '中文简介。' in html
+        assert '小说' in html
 
     @patch('app.routes.main.get_new_book_modules')
     def test_selected_category_marks_chip_active(self, mock_get_modules, client) -> None:

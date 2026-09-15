@@ -13,8 +13,10 @@ from app.utils.book_labels import (
     _AWARD_CATEGORY_ZH_TO_EN,
     _COUNTRY_ZH_TO_EN,
     _ZH_TO_EN,
+    _category_zh_to_en,
     award_term,
     bilingual,
+    category_name,
     language_name,
 )
 
@@ -111,6 +113,48 @@ def test_award_filters_follow_request_locale(app):
 def test_award_filters_are_registered_on_the_jinja_env(app):
     assert app.jinja_env.filters['bilingual'] is bilingual
     assert app.jinja_env.filters['award_term'] is award_term
+
+
+# --- 新书分类（#227 续）---
+
+
+def test_category_name_covers_the_whole_written_enum():
+    """新书分类的英文显示名从爬虫自己的 CATEGORY_EN_TO_ZH 反查，不再手抄第二张表。
+
+    库里可能出现的中文分类值就是这张表的值集（`sanitize_category` 只会产出它），所以
+    覆盖它 = 覆盖线上；`VALID_CATEGORIES` 是同一份事实的另一视图，一并断言。
+    """
+    from app.services.publisher_data import CATEGORY_EN_TO_ZH, VALID_CATEGORIES
+
+    rev = _category_zh_to_en()
+    assert set(CATEGORY_EN_TO_ZH.values()) <= set(rev)
+    # VALID_CATEGORIES 混装了英文源词与中文结果两半，只有中文那半需要反查得到
+    zh_members = {v for v in VALID_CATEGORIES if re.search('[一-鿿]', v)}
+    assert zh_members <= set(rev), f'反查不到英文名: {zh_members - set(rev)}'
+    assert rev['小说'] == 'Fiction'
+    assert rev['儿童读物'] == 'Children'
+    assert rev['综合'] == 'General', 'General/general 碰撞要取非全小写的那个'
+
+
+def test_category_name_follows_locale_and_passes_unknown_through():
+    """未知分类原样返回：chip 是可点筛选项，隐掉等于删选项（与 award_term 相反）。"""
+    assert category_name('小说', 'en') == 'Fiction'
+    assert category_name('健康养生', 'en') == 'Health & Fitness'
+    assert category_name('小说', 'zh') == '小说'
+    assert category_name('某个没登记的新分类', 'en') == '某个没登记的新分类'
+    assert category_name('', 'en') == ''
+    assert category_name(None, 'en') == ''
+
+
+def test_category_name_follows_request_locale(app):
+    with app.test_request_context('/new-books?lang=zh'):
+        assert category_name('悬疑') == '悬疑'
+    with app.test_request_context('/new-books?lang=en'):
+        assert category_name('悬疑') == 'Mystery'
+
+
+def test_category_name_filter_registered(app):
+    assert app.jinja_env.filters['category_name'] is category_name
 
 
 def test_award_templates_route_names_through_the_filters():

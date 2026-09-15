@@ -967,6 +967,7 @@ def book_detail(book_index):
         book_index=book_index,
         category=category,
         categories=categories,
+        category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
         back_url=request.referrer or '/?category=' + category,
         active_tab='home',
     )

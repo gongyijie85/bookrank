@@ -165,16 +165,17 @@
         {% for related in related_books %}
         {% set related_title_en = related.title %}
         {% set related_title_zh = related.title_zh or related.title %}
+        {% set related_title_shown = related_title_zh|bilingual(related_title_en) %}
         <a href="{{ url_for('main.award_book_detail', book_id=related.id) }}" class="related-book-card">
             <div class="related-book-cover">
                 {% if related.cover_url %}
-                <img src="{{ related.cover_url }}" alt="{{ related_title_zh }}" loading="lazy"
+                <img src="{{ related.cover_url }}" alt="{{ related_title_shown }}" loading="lazy"
                      data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                 {% else %}
-                <img src="{{ url_for('static', filename='default-cover.png') }}" alt="{{ related_title_zh }}" loading="lazy">
+                <img src="{{ url_for('static', filename='default-cover.png') }}" alt="{{ related_title_shown }}" loading="lazy">
                 {% endif %}
             </div>
-            <div class="related-book-title" data-en="{{ related_title_en }}" data-zh="{{ related_title_zh }}">{{ related_title_zh }}</div>
+            <div class="related-book-title" data-en="{{ related_title_en }}" data-zh="{{ related_title_zh }}">{{ related_title_shown }}</div>
             <div class="related-book-author" data-en="{{ related.author }}" data-zh="{{ related.author }}">{{ related.author }}</div>
             {% if related.year %}<div class="related-book-year">{{ related.year }}{{ _('年') }}</div>{% endif %}
         </a>

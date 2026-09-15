@@ -50,7 +50,7 @@
 <nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
     <a href="{{ url_for('main.new_books', days=selected_days) }}">{% if selected_category %}{{ _('清除分类筛选') }}{% else %}{{ _('全部分类') }}{% endif %}</a>
     {% for cat in categories %}
-    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}">{{ cat.name }}</a>
+    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}">{{ cat.name|category_name }}</a>
     {% endfor %}
 </nav>
 
@@ -59,7 +59,7 @@
     <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}"
        class="browse-tile"
        {% if selected_category == cat.name %}aria-current="page"{% endif %}>
-        <span class="browse-tile-name">{{ cat.name }}</span>
+        <span class="browse-tile-name">{{ cat.name|category_name }}</span>
         <span class="browse-tile-count">{{ cat.count }} {{ _('本') }}</span>
     </a>
     {% endfor %}
@@ -104,7 +104,7 @@
         <select id="category-filter" name="category" aria-label="{{ _('选择分类') }}">
             <option value="" data-i18n="nb_filter_category_all">{{ _('全部分类') }}</option>
             {% for cat in categories %}
-            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name }} ({{ cat.count }})</option>
+            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name|category_name }} ({{ cat.count }})</option>
             {% endfor %}
         </select>
     </div>

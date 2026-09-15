@@ -58,7 +58,7 @@
             </span>
             {% endif %}
             {% if book.category %}
-            <span class="book-tag tag-category">{{ book.category }}</span>
+            <span class="book-tag tag-category">{{ book.category|category_name }}</span>
             {% else %}
             <span class="book-tag tag-category tag-muted">{{ _('分类未公开') }}</span>
             {% endif %}
