@@ -23,7 +23,10 @@
                      alt="" loading="lazy" width="60" height="80">
             </div>
             <div class="m-book-info">
-                <h3 class="m-book-title">{{ entry.title_zh or entry.title }}</h3>
+                {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
+                {% set sub_title = entry.title if _locale == 'zh' and entry.title_zh else '' %}
+                <h3 class="m-book-title">{{ main_title }}</h3>
+                {% if sub_title %}<p class="m-book-original">{{ sub_title }}</p>{% endif %}
                 <p class="m-book-author">{{ entry.author }}</p>
                 <div class="m-badge-row">
                     <span class="m-badge m-badge-primary">{{ _('%(n)s 个分类', n=entry.category_count) }}</span>
@@ -86,12 +89,13 @@
 <div class="m-book-list">
     {% for entry in overlooked_entries %}
     <a href="{{ url_for('main.award_book_detail', book_id=entry.id) }}" class="m-card m-book-card">
+        {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
         <div class="m-book-cover">
             <img src="{{ entry.cover_local_path or entry.cover_original_url or url_for('static', filename='default-cover.png') }}"
-                 alt="{{ _('《') }}{{ entry.title_zh or entry.title }}{{ _('》封面，作者 ') }}{{ entry.author }}" loading="lazy" width="60" height="80">
+                 alt="{{ _('《') }}{{ main_title }}{{ _('》封面，作者 ') }}{{ entry.author }}" loading="lazy" width="60" height="80">
         </div>
         <div class="m-book-info">
-            <h3 class="m-book-title">{{ entry.title_zh or entry.title }}</h3>
+            <h3 class="m-book-title">{{ main_title }}</h3>
             <p class="m-book-author">{{ entry.author }}</p>
             <div class="m-badge-row">
                 {% for award in entry.awards %}
@@ -125,7 +129,7 @@
                 {{ _('上榜 %(n)s 本 · 覆盖 %(c)s 个分类 · 最高 #%(r)s', n=entry.book_count, c=entry.category_count, r=entry.best_rank) }}
             </span>
             <span class="m-publisher-desc">
-                {% for book in entry.books[:2] %}{{ book.title_zh or book.title }}{% if not loop.last %} · {% endif %}{% endfor %}
+                {% for book in entry.books[:2] %}{{ book.title if _locale != 'zh' else (book.title_zh or book.title) }}{% if not loop.last %} · {% endif %}{% endfor %}
             </span>
         </span>
     </div>

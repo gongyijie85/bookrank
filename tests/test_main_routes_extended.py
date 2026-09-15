@@ -1485,6 +1485,37 @@ class TestRankingsPage:
         finally:
             self._remove_book_service(app)
 
+    def test_ranking_titles_follow_locale_on_both_ends(self, client, app):
+        """主书名按 locale 选：EN 页显示原名、ZH 页显示译名，桌面与移动模板各自成立。
+
+        templates/mobile/rankings.html 是桌面版的平行副本，有自己的一套书名标记；
+        上一轮只改了桌面版，生产实测才暴露出移动端仍在显示中文书名 —— 故两端各断言一次。
+        """
+        self._install_book_service(
+            app,
+            [_make_book(title='My Friends', title_zh='我的朋友', author='Fredrik Backman', rank=1)],
+        )
+        ends = {
+            'desktop': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0'},
+            'mobile': {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'},
+        }
+        markers = {
+            'cross': {'desktop': 'cross-title', 'mobile': 'm-book-title'},
+            'publishers': {'desktop': 'publisher-books', 'mobile': 'm-publisher-desc'},
+        }
+        try:
+            for tab in ('cross', 'publishers'):
+                for label, headers in ends.items():
+                    en = client.get(f'/rankings?tab={tab}&lang=en', headers=headers).get_data(as_text=True)
+                    assert markers[tab][label] in en, f'{label}/{tab} 未渲染预期模板'
+                    assert 'My Friends' in en, f'{label}/{tab} EN 页没有英文原名'
+                    assert '我的朋友' not in en, f'{label}/{tab} EN 页泄漏了中文译名'
+
+                    zh = client.get(f'/rankings?tab={tab}&lang=zh', headers=headers).get_data(as_text=True)
+                    assert '我的朋友' in zh, f'{label}/{tab} ZH 页没有中文译名'
+        finally:
+            self._remove_book_service(app)
+
     def test_invalid_tab_falls_back_to_cross(self, client, app):
         self._install_book_service(app, [])
         try:
