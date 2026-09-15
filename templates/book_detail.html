@@ -35,7 +35,7 @@
         "@type": "Organization",
         "name": {{ book.publisher | tojson }}
     }{% endif %}{% if book.description_zh or book.description %},
-    "description": {{ (book.description_zh or book.description)[:500] | tojson }}{% endif %}{% if book.cover %},
+    "description": {{ (book.description_zh|bilingual(book.description))[:500] | tojson }}{% endif %}{% if book.cover %},
     "image": {{ book.cover | tojson }}{% endif %},
     "url": "{{ request.url }}"
 }
@@ -141,7 +141,7 @@
                     <div>
                         <div class="meta-label" data-i18n="book_category">{{ _('分类') }}</div>
                         <div class="meta-value" data-cat-zh="{{ book.category_name|default('') }}" data-cat-en="{{ book.list_name|default('') }}">
-                            {{ book.category_name or book.list_name }}
+                            {{ book.category_name|bilingual(book.list_name) }}
                         </div>
                     </div>
                 </div>
@@ -162,7 +162,7 @@
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-globe"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="language_label">{{ _('语言') }}</div>
-                        <div class="meta-value" data-lang-zh="{{ book.language }}" data-lang-en="{{ book.language|language_name('en') }}">{{ book.language }}</div>
+                        <div class="meta-value" data-lang-zh="{{ book.language }}" data-lang-en="{{ book.language|language_name('en') }}">{{ book.language|language_name }}</div>
                     </div>
                 </div>
                 {% endif %}

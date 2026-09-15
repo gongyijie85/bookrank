@@ -1718,3 +1718,63 @@ class TestAwardPagesLocaleLabels:
             zh = client.get(f'/award-book/{book_id}?lang=zh', headers={'User-Agent': ua}).get_data(as_text=True)
             assert self._book_jsonld(zh)['name'] == '饥饿游戏', f'{ua[:20]} 中文页 JSON-LD name 丢失'
             assert '饥饿游戏 - BookRank' in zh, f'{ua[:20]} 中文页 <title> 丢失'
+
+
+class TestBookDetailSsrLocale:
+    """桌面 /book/<i> 的 **SSR 文本**也要按 locale（#236）。
+
+    分类/语言/简介原先由 book-i18n.js 在加载后改写，所以浏览器里"看着是英文"，
+    但爬虫与无 JS 访客拿到的仍是 英语/精装小说/中文简介。故本用例不看渲染结果，
+    只看响应体里那一段值本身。
+    """
+
+    @staticmethod
+    def _book():
+        return _make_book(
+            title='The Calamity Club',
+            title_zh='灾难俱乐部',
+            category_name='精装小说',
+            list_name='Hardcover Fiction',
+            language='英语',
+            description='An English blurb about the book.',
+            description_zh='中文简介。',
+        )
+
+    @staticmethod
+    def _meta_values(html: str) -> list[str]:
+        soup = BeautifulSoup(html, 'html.parser')
+        return [(e.get_text() or '').strip() for e in soup.select('.meta-value')]
+
+    @staticmethod
+    def _book_ld(html: str) -> dict:
+        soup = BeautifulSoup(html, 'html.parser')
+        for tag in soup.find_all('script', type='application/ld+json'):
+            try:
+                data = json.loads(tag.get_text())
+            except json.JSONDecodeError:
+                continue
+            if isinstance(data, dict) and data.get('@type') == 'Book':
+                return data
+        raise AssertionError('页面没有 @type=Book 的 ld+json')
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.get_service')
+    def test_english_ssr_values_are_english(self, mock_svc, _mock_fetch, _mock_merge, client, app):
+        mock_svc.return_value = _mock_book_service([self._book()])
+        html = client.get('/book/0?category=hardcover-fiction&lang=en').get_data(as_text=True)
+        values = self._meta_values(html)
+        assert 'English' in values, f'语言项 SSR 仍是中文: {values}'
+        assert 'Hardcover Fiction' in values, f'分类项 SSR 仍是中文: {values}'
+        assert '英语' not in values and '精装小说' not in values
+        # 只断言结构化数据：可见的「图书简介」面板本就同时带译文与原文，由前端按语言切显隐
+        assert self._book_ld(html)['description'].startswith('An English blurb'), '英文页 JSON-LD 用了中文简介'
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.get_service')
+    def test_chinese_ssr_values_stay_chinese(self, mock_svc, _mock_fetch, _mock_merge, client, app):
+        mock_svc.return_value = _mock_book_service([self._book()])
+        html = client.get('/book/0?category=hardcover-fiction&lang=zh').get_data(as_text=True)
+        values = self._meta_values(html)
+        assert '英语' in values and '精装小说' in values, f'中文页丢了中文标签: {values}'
