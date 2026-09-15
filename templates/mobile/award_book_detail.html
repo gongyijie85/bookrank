@@ -1,8 +1,8 @@
 {% extends "mobile/base.html" %}
 
-{% block title %}{{ safe_title_zh or safe_title_en }} - BookRank{% endblock %}
-{% block og_title %}{{ safe_title_zh or safe_title_en }} - BookRank{% endblock %}
-{% block tw_title %}{{ safe_title_zh or safe_title_en }} - BookRank{% endblock %}
+{% block title %}{{ shown_title }} - BookRank{% endblock %}
+{% block og_title %}{{ shown_title }} - BookRank{% endblock %}
+{% block tw_title %}{{ shown_title }} - BookRank{% endblock %}
 
 {% block header %}
 <header class="m-header">
@@ -15,8 +15,8 @@
 {% endblock %}
 
 {% block content %}
-{% set display_title = safe_title_zh or safe_title_en %}
-{% set desc = book.description_zh or book.description %}
+{% set display_title = shown_title %}
+{% set desc = shown_desc %}
 {% set detail_text = book.details %}
 
 <!-- 封面 -->
@@ -35,7 +35,7 @@
     <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
     {% if book.award %}
     <div class="m-detail-tags">
-        <span class="m-detail-tag">{{ book.award.name }}</span>
+        <span class="m-detail-tag">{{ book.award.name|bilingual(book.award.name_en) }}</span>
         {% if book.year %}<span class="m-detail-tag accent">{{ book.year }}{{ _('年') }}</span>{% endif %}
     </div>
     {% endif %}
@@ -46,8 +46,9 @@
         {% if book.publication_year %}
         <span><strong>{{ _('出版年份') }}</strong>{{ book.publication_year }}</span>
         {% endif %}
-        {% if book.category %}
-        <span><strong>{{ _('类别') }}</strong>{{ book.category }}</span>
+        {% set shown_category = book.category|award_term %}
+        {% if shown_category %}
+        <span><strong>{{ _('类别') }}</strong>{{ shown_category }}</span>
         {% endif %}
         {% if book.rank %}
         <span><strong>{{ _('排名') }}</strong>{{ book.rank }}</span>
@@ -96,13 +97,14 @@
                 <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
                 {% endif %}
                 {% if book.award %}
-                <div class="m-meta-row"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name }}</dd></div>
+                <div class="m-meta-row"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name|bilingual(book.award.name_en) }}</dd></div>
                 {% endif %}
                 {% if book.year %}
                 <div class="m-meta-row"><dt>{{ _('获奖年份') }}</dt><dd>{{ book.year }}</dd></div>
                 {% endif %}
-                {% if book.category %}
-                <div class="m-meta-row"><dt>{{ _('类别') }}</dt><dd>{{ book.category }}</dd></div>
+                {% set dl_category = book.category|award_term %}
+                {% if dl_category %}
+                <div class="m-meta-row"><dt>{{ _('类别') }}</dt><dd>{{ dl_category }}</dd></div>
                 {% endif %}
                 {% if book.rank %}
                 <div class="m-meta-row"><dt>{{ _('排名') }}</dt><dd>{{ book.rank }}</dd></div>
@@ -145,11 +147,11 @@
 {
     "@context": "https://schema.org",
     "@type": "Book",
-    "name": "{{ display_title }}",
-    "author": "{{ book.author or '' }}",
-    {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% elif book.isbn10 %}"isbn": "{{ book.isbn10 }}",{% endif %}
-    {% if book.publisher %}"publisher": "{{ book.publisher }}",{% endif %}
-    "description": "{{ (desc or book.details or '') | replace('"', '\\"') }}"
+    "name": {{ shown_title | string | tojson }},
+    "author": {{ (book.author or '') | string | tojson }},
+    {% if book.isbn13 %}"isbn": {{ book.isbn13 | string | tojson }},{% elif book.isbn10 %}"isbn": {{ book.isbn10 | string | tojson }},{% endif %}
+    {% if book.publisher %}"publisher": {{ book.publisher | string | tojson }},{% endif %}
+    "description": {{ (shown_desc or book.details or '') | string | tojson }}
 }
 </script>
 {% endblock %}

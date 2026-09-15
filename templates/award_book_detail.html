@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}{{ safe_title_zh }} - BookRank{% endblock %}
-{% block og_title %}{{ safe_title_zh }} - BookRank{% endblock %}
-{% block twitter_title %}{{ safe_title_zh }} - BookRank{% endblock %}
+{% block title %}{{ shown_title }} - BookRank{% endblock %}
+{% block og_title %}{{ shown_title }} - BookRank{% endblock %}
+{% block twitter_title %}{{ shown_title }} - BookRank{% endblock %}
 {% block og_image %}{{ url_for('main.award_book_cover', book_id=book.id, _external=True) }}{% endblock %}
 {% block twitter_image %}{{ url_for('main.award_book_cover', book_id=book.id, _external=True) }}{% endblock %}
 
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
 {% set crumbs = [{'label': _('首页'), 'url': url_for('main.index')}, {'label': _('获奖书单'), 'url': url_for('main.awards')}] %}
-{% if book.award %}{% set _unused = crumbs.append({'label': book.award.name, 'url': url_for('main.awards', award=book.award.name)}) %}{% endif %}
-{% set _unused = crumbs.append({'label': safe_title_zh, 'url': request.url}) %}
+{% if book.award %}{% set _unused = crumbs.append({'label': book.award.name|bilingual(book.award.name_en), 'url': url_for('main.awards', award=book.award.name)}) %}{% endif %}
+{% set _unused = crumbs.append({'label': shown_title, 'url': request.url}) %}
 {{ breadcrumbs(crumbs, csp_nonce()) }}
 {% endblock %}
 
@@ -20,8 +20,8 @@
 {
     "@context": "https://schema.org",
     "@type": "Book",
-    "name": {{ safe_title_zh | tojson }},
-    "alternateName": {{ safe_title_en | tojson }}{% if book.author %},
+    "name": {{ shown_title | tojson }},
+    "alternateName": {{ other_title | tojson }}{% if book.author %},
     "author": {
         "@type": "Person",
         "name": {{ book.author | tojson }}
@@ -45,7 +45,7 @@
     <h1 class="page-title"
         data-en="{{ safe_title_en }}"
         data-zh="{{ safe_title_zh }}">
-        {{ safe_title_zh }}
+        {{ shown_title }}
     </h1>
 </header>
 
@@ -55,7 +55,7 @@
     <div class="detail-left-section">
         <div class="detail-cover">
             <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
-                 alt="{{ safe_title_en }} {{ _('封面') }}"
+                 alt="{{ shown_title }} {{ _('封面') }}"
                  data-fallback="{{ url_for('static', filename='default-cover.png') }}">
         </div>
 
@@ -79,7 +79,7 @@
     <div class="detail-info-section">
         <div class="detail-header-info">
             <h2 data-en="{{ safe_title_en }}" data-zh="{{ safe_title_zh }}">
-                {{ safe_title_zh }}
+                {{ shown_title }}
             </h2>
             <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
         </div>
@@ -89,7 +89,7 @@
             {% if book.award %}
             <div class="meta-item">
                 <span class="meta-label">{{ _('奖项') }}</span>
-                <span class="meta-value">{{ book.award.name }}</span>
+                <span class="meta-value">{{ book.award.name|bilingual(book.award.name_en) }}</span>
             </div>
             {% endif %}
             {% if book.year %}
@@ -98,10 +98,11 @@
                 <span class="meta-value">{{ book.year }}</span>
             </div>
             {% endif %}
-            {% if book.category %}
+            {% set shown_category = book.category|award_term %}
+            {% if shown_category %}
             <div class="meta-item">
                 <span class="meta-label">{{ _('类别') }}</span>
-                <span class="meta-value">{{ book.category }}</span>
+                <span class="meta-value">{{ shown_category }}</span>
             </div>
             {% endif %}
             {% if book.publisher %}

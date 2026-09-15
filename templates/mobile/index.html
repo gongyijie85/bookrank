@@ -19,7 +19,7 @@
             "position": {{ loop.index }},
             "item": {
                 "@type": "Book",
-                "name": {{ (book.title_zh or book.title) | tojson }},
+                "name": {{ book.title_zh|bilingual(book.title) | tojson }},
                 "author": {
                     "@type": "Person",
                     "name": {{ (book.author or _('未知作者')) | tojson }}

@@ -21,7 +21,7 @@ from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
-from .utils.book_labels import language_name
+from .utils.book_labels import award_term, bilingual, language_name
 from .utils.book_titles import split_volume_marker
 from .utils.error_handler import ErrorCategory, log_error
 
@@ -114,6 +114,10 @@ def create_app(config_name: str | None = None) -> Flask:
     # 语言名中英对照：库里存的是 config.LANGUAGE_MAP 的中文名，英文页会显示「英语」
     # （见 app/utils/book_labels.py）。#236
     app.jinja_env.filters['language_name'] = language_name
+
+    # 双语字段择一（奖项名等有 *_en 列的实体）与中文枚举词对照（奖项国家/类别）。#227
+    app.jinja_env.filters['bilingual'] = bilingual
+    app.jinja_env.filters['award_term'] = award_term
 
     # dist_url: 前端构建产物（static/dist/）的指纹化文件名解析
     # （scripts/build_frontend.mjs 生成 manifest.json；dev 无 manifest 时

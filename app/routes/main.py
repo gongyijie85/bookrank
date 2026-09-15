@@ -16,6 +16,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
+from flask_babel import get_locale
 from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
@@ -340,7 +341,8 @@ def _shape_award_book(book) -> dict:
         'publication_year': book.publication_year,
         'year': book.year,
         'category': book.category,
-        'award_name': book.award.name if book.award else '未知奖项',
+        'award_name': book.award.name if book.award else '',
+        'award_name_en': (book.award.name_en or '') if book.award else '',
         'buy_links': book.buy_links,
     }
 
@@ -896,6 +898,19 @@ def award_book_detail(book_id):
             safe_title_en = display_title
             safe_title_zh = display_title
 
+        # 书名按 locale 择一，必须在视图层算：展示位有 8 个（<title>/og/twitter/面包屑/
+        # JSON-LD name+h1+h2），分属不同 block，而 Jinja 的 {% set %} 不跨 block —— 移动端
+        # structured_data 块里的 display_title 正是因此一直是 Undefined，JSON-LD 的 "name"
+        # 渲染成空串。
+        en_title = safe_title_en or display_title
+        zh_title = safe_title_zh or safe_title_en
+        if str(get_locale() or 'zh').startswith('en'):
+            shown_title, other_title = en_title or zh_title, zh_title
+            shown_desc = book.description or book.description_zh
+        else:
+            shown_title, other_title = zh_title or en_title, en_title
+            shown_desc = book.description_zh or book.description
+
         try:
             recommendation_service = get_or_create_recommendation_service()
             related_books = recommendation_service.get_similarity_recommendations(book_id=book.id).get(
@@ -908,8 +923,11 @@ def award_book_detail(book_id):
         return render_adaptive(
             'award_book_detail.html',
             book=book,
-            safe_title_en=safe_title_en or display_title,
-            safe_title_zh=safe_title_zh or safe_title_en,
+            safe_title_en=en_title,
+            safe_title_zh=zh_title,
+            shown_title=shown_title,
+            other_title=other_title,
+            shown_desc=shown_desc,
             related_books=related_books,
             back_url=request.referrer or '/awards',
         )

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block og_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block twitter_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
 {% block og_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
 {% block twitter_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
 
@@ -23,7 +23,7 @@
 {
     "@context": "https://schema.org",
     "@type": "Book",
-    "name": {{ (book.title_zh or book.title) | tojson }},
+    "name": {{ book.title_zh|bilingual(book.title) | tojson }},
     "alternateName": {{ book.title | tojson }}{% if book.author %},
     "author": {
         "@type": "Person",

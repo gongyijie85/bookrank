@@ -145,10 +145,10 @@
 {
     "@context": "https://schema.org",
     "@type": "Article",
-    "headline": "{{ report.title or _('周报') }}",
-    "datePublished": "{{ report.created_at.isoformat() if report.created_at else '' }}",
-    "dateModified": "{{ report.updated_at.isoformat() if report.updated_at else report.created_at.isoformat() if report.created_at else '' }}",
-    "description": "{{ report.summary[:200] if report.summary else '' }}"
+    "headline": {{ (report.title or _('周报')) | string | tojson }},
+    "datePublished": {{ (report.created_at.isoformat() if report.created_at else '') | string | tojson }},
+    "dateModified": {{ (report.updated_at.isoformat() if report.updated_at else report.created_at.isoformat() if report.created_at else '') | string | tojson }},
+    "description": {{ (report.summary[:200] if report.summary else '') | string | tojson }}
 }
 </script>
 {% endblock %}

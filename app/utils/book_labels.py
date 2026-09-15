@@ -41,3 +41,56 @@ def language_name(value: object, locale: str | None = None) -> str:
     if active.startswith('en'):
         return _ZH_TO_EN.get(text, text)
     return text
+
+
+def bilingual(zh: object, en: object, locale: str | None = None) -> str:
+    """双语字段择一，另一侧兜底：中文侧为 `zh or en`，英文侧为 `en or zh`。
+
+    调用点都是"库里可能只填了一边"的可变字段（书名、奖项名、出版社名），所以两侧都不
+    允许空着。与 `award_term` 的兜底方向相反：奖项名/书名是**标识**，隐掉等于把条目变成
+    空白，所以没译文时宁可退回另一种语言；而国家/类别只是装饰性标签，退中文就是 #227 报
+    的泄漏本身。
+    """
+    zh_text = '' if zh is None else str(zh)
+    en_text = '' if en is None else str(en)
+    active = locale or str(get_locale() or 'zh')
+    if active.startswith('en'):
+        return en_text or zh_text
+    return zh_text or en_text
+
+
+_COUNTRY_ZH_TO_EN: dict[str, str] = {
+    '美国': 'United States',
+    '英国': 'United Kingdom',
+    '瑞典': 'Sweden',
+}
+
+_AWARD_CATEGORY_ZH_TO_EN: dict[str, str] = {
+    '小说': 'Fiction',
+    '文学': 'Literature',
+    '最佳小说': 'Best Fiction',
+    '最佳长篇小说': 'Best Novel',
+    '翻译小说': 'Translated Fiction',
+    '非虚构': 'Nonfiction',
+    '非虚构 (获奖)': 'Nonfiction (Winner)',
+    '非虚构 (入围)': 'Nonfiction (Shortlist)',
+}
+
+_AWARD_TERM_ZH_TO_EN: dict[str, str] = {**_COUNTRY_ZH_TO_EN, **_AWARD_CATEGORY_ZH_TO_EN}
+
+
+def award_term(value: object, locale: str | None = None) -> str:
+    """库里存的中文枚举词（奖项国家、奖项类别）按 locale 呈现。
+
+    未知值在英文 locale 下返回空串，让模板把整个标签隐掉：国家/类别是装饰性信息，
+    缺一个标签不伤识别，挂一段中文则正是 #227 要消除的泄漏。两张映射的键集由
+    tests/test_language_labels.py 对着种子数据（AWARDS_FALLBACK_DATA 的 country、
+    sample_award_books 的 category）钉住，新增种子词不登记就红。
+    """
+    text = '' if value is None else str(value)
+    if not text:
+        return ''
+    active = locale or str(get_locale() or 'zh')
+    if active.startswith('en'):
+        return _AWARD_TERM_ZH_TO_EN.get(text, '')
+    return text

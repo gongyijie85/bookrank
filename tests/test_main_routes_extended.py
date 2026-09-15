@@ -1,6 +1,7 @@
 """main.py 路由扩展测试 — 覆盖现有测试未覆盖的路由和代码路径"""
 
 import json
+import re
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
@@ -1438,6 +1439,35 @@ def _make_award_book(**overrides):
     return book
 
 
+def _seed_bilingual_award(app, db):
+    """一条中英齐全的奖项 + 获奖书：奖项名/国家/类别与书名两语都有值，才能验出选错字段。"""
+    from app.models.schemas import Award, AwardBook
+
+    with app.app_context():
+        award = Award(name='布克奖', name_en='Booker Prize', country='英国', established_year=1969)
+        db.session.add(award)
+        db.session.flush()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            category='小说',
+            title='The Hunger',
+            title_zh='饥饿游戏',
+            author='Suzanne Collins',
+            publisher='Scholastic',
+            # 引号 + 换行：移动端 JSON-LD 早先是手拼字符串（只 replace 了引号），这两个字符
+            # 正好让整段 JSON 解析失败，留着当回归样本。
+            description='An "English" blurb.\nSecond line.',
+            description_zh='一段中文简介。',
+            isbn13='9780439023528',
+            is_displayable=True,
+            verification_status='verified',
+        )
+        db.session.add(book)
+        db.session.commit()
+        return book.id
+
+
 class TestRankingsPage:
     """派生榜单页 /rankings"""
 
@@ -1597,3 +1627,94 @@ class TestRankingsPage:
             assert '本周没有跨榜的书' in cross.get_data(as_text=True)
         finally:
             self._remove_book_service(app)
+
+
+DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.5'
+
+
+class TestAwardPagesLocaleLabels:
+    """奖项页的中英显示（#227）：奖项名/国家/类别，以及详情页书名与 JSON-LD。"""
+
+    @staticmethod
+    def _visible_text(html: str) -> str:
+        """只看渲染后可见文本：`?award=布克奖` 这类中文筛选键合法地留在属性里，不算泄漏。"""
+        soup = BeautifulSoup(html, 'html.parser')
+        for tag in soup(['script', 'style', 'textarea', 'noscript', 'template']):
+            tag.decompose()
+        return soup.get_text(' ', strip=True)
+
+    # 一个测试只测一种 locale：`db` fixture 整个测试期间保留一个 app context，
+    # flask-babel 把解析结果缓存在该 context 上，同一测试里第二次换 ?lang= 仍会拿到
+    # 第一次的 locale（实测：先 ?lang=en 再 ?lang=zh，第二次仍是 en）。
+
+    def test_awards_list_page_shows_english_labels_on_both_ends(self, client, app, db):
+        _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            html = client.get('/awards?lang=en', headers={'User-Agent': ua}).get_data(as_text=True)
+            text = self._visible_text(html)
+            assert 'Booker Prize' in text, f'{ua[:20]} 英文奖项页未显示英文名'
+            assert '布克奖' not in text, f'{ua[:20]} 英文奖项页泄漏中文奖项名'
+            assert 'Fiction' in text, f'{ua[:20]} 英文奖项页未显示英文类别'
+            assert '小说' not in text, f'{ua[:20]} 英文奖项页泄漏中文类别'
+        desktop = self._visible_text(
+            client.get('/awards?lang=en', headers={'User-Agent': DESKTOP_UA}).get_data(as_text=True)
+        )
+        assert 'United Kingdom' in desktop, '桌面英文奖项页未显示英文国家名'
+        assert '英国' not in desktop, '国家未经 award_term 仍在输出中文'
+
+    def test_awards_list_page_keeps_chinese_labels_on_zh(self, client, app, db):
+        """反向：中文页不得因为"顺手用英文字段"而丢掉中文标签。"""
+        _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            html = client.get('/awards?lang=zh', headers={'User-Agent': ua}).get_data(as_text=True)
+            text = self._visible_text(html)
+            assert '布克奖' in text, f'{ua[:20]} 中文奖项页丢了中文奖项名'
+            assert '小说' in text, f'{ua[:20]} 中文奖项页丢了中文类别'
+
+    @staticmethod
+    def _book_jsonld(html: str) -> dict:
+        """取页面里 @type=Book 的那段 ld+json 并解析。
+
+        解析这一步本身就是断言：移动端早先手拼 JSON，书名/简介里的引号与换行会直接产出
+        非法 JSON-LD。base.html 可能先输出一段站点级 ld+json，所以按 @type 挑。
+        """
+        for m in re.finditer(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', html, re.S):
+            try:
+                data = json.loads(m.group(1))
+            except json.JSONDecodeError as exc:
+                raise AssertionError(f'ld+json 无法解析：{exc}') from exc
+            if isinstance(data, dict) and data.get('@type') == 'Book':
+                return data
+            if isinstance(data, dict) and data.get('@graph'):
+                for node in data['@graph']:
+                    if node.get('@type') == 'Book':
+                        return node
+        raise AssertionError('页面没有 @type=Book 的 ld+json')
+
+    def test_award_book_detail_english_title_and_jsonld(self, client, app, db):
+        """英文详情页：可见书名、<title> 与 JSON-LD name 都用原文。
+
+        移动端 structured_data 是独立 block，看不见 content 里的 {% set display_title %}，
+        "name" 曾一直是空串；改由视图层传 shown_title 后两端一致。桌面端 data-en/data-zh
+        是原文/译文切换对的合法载体，所以"不出现中文书名"只对移动端断言。
+        """
+        book_id = _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            en = client.get(f'/award-book/{book_id}?lang=en', headers={'User-Agent': ua}).get_data(as_text=True)
+            data = self._book_jsonld(en)
+            assert data['name'] == 'The Hunger', f'{ua[:20]} JSON-LD name 未跟随 locale'
+            assert data['description'].startswith('An "English" blurb.'), f'{ua[:20]} 英文页简介未取原文'
+            assert 'The Hunger - BookRank' in en, f'{ua[:20]} <title> 未本地化'
+        mobile_en = client.get(f'/award-book/{book_id}?lang=en', headers={'User-Agent': MOBILE_UA}).get_data(
+            as_text=True
+        )
+        assert '饥饿游戏' not in mobile_en, '移动英文详情页泄漏中文书名'
+
+    def test_award_book_detail_chinese_title_and_jsonld(self, client, app, db):
+        """反向：中文详情页要出中文书名，且 JSON-LD name 非空（跨 block 取不到值即空串）。"""
+        book_id = _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            zh = client.get(f'/award-book/{book_id}?lang=zh', headers={'User-Agent': ua}).get_data(as_text=True)
+            assert self._book_jsonld(zh)['name'] == '饥饿游戏', f'{ua[:20]} 中文页 JSON-LD name 丢失'
+            assert '饥饿游戏 - BookRank' in zh, f'{ua[:20]} 中文页 <title> 丢失'

@@ -1,8 +1,8 @@
 {% extends "mobile/base.html" %}
 
-{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block tw_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block og_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block tw_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
 
 {% block header %}
 <header class="m-header">
@@ -16,7 +16,7 @@
 
 {% block content %}
 {% set _locale = get_locale() %}
-{% set display_title = (book.title_zh or book.title) if _locale == 'zh' else book.title %}
+{% set display_title = book.title_zh|bilingual(book.title) %}
 {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
 {% set detail_text = book.details_zh if _locale == 'zh' and book.details_zh else book.details %}
 
@@ -126,11 +126,11 @@
 {
     "@context": "https://schema.org",
     "@type": "Book",
-    "name": "{{ display_title }}",
-    "author": "{{ book.author }}",
-    {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% elif book.isbn10 %}"isbn": "{{ book.isbn10 }}",{% endif %}
-    {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %}"publisher": "{{ book.publisher }}",{% endif %}
-    "image": "{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=true) }}"
+    "name": {{ book.title_zh|bilingual(book.title) | string | tojson }},
+    "author": {{ (book.author or '') | string | tojson }},
+    {% if book.isbn13 %}"isbn": {{ book.isbn13 | string | tojson }},{% elif book.isbn10 %}"isbn": {{ book.isbn10 | string | tojson }},{% endif %}
+    {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %}"publisher": {{ book.publisher | string | tojson }},{% endif %}
+    "image": {{ (book.cover if book.cover else url_for('static', filename='default-cover.png', _external=true)) | string | tojson }}
 }
 </script>
 {% endblock %}

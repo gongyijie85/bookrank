@@ -138,7 +138,8 @@
                     <svg class="icon" width="12" height="12"><use href="#icon-trophy"/></svg>
                     {% if _locale == 'zh' %}{{ award.award_name or award.award_name_en }}{% else %}{{ award.award_name_en or award.award_name }}{% endif %}
                     <span>{{ award.year }}</span>
-                    {% if award.category %}<em>{{ award.category }}</em>{% endif %}
+                    {% set shown_award_category = award.category|award_term %}
+                    {% if shown_award_category %}<em>{{ shown_award_category }}</em>{% endif %}
                 </li>
                 {% endfor %}
             </ul>
