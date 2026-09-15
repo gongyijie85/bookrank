@@ -842,3 +842,55 @@ class TestMobileWeeklyParityAndCsp:
         for fn in ('initImageFallback()', 'initReportPolling()', 'initShareButtons()'):
             assert fn in ready_block, f'{fn} 未接入 DOM ready 初始化'
         assert "'error'," in src and 'true' in src, '图片兜底须用捕获阶段监听（error 不冒泡）'
+
+
+class TestMobileNewBooksCategoryChips:
+    """移动端新书页的分类 chip。
+
+    `query_service.get_categories()` 返回的是 `{'name','count'}` 字典列表，桌面版取
+    `cat.name`；移动版曾直接输出 `{{ cat }}`，于是 chip 文案变成 Python repr、href 变成
+    `?category={'name': ...}`（点不动，也永远匹配不上 selected_category）。
+    """
+
+    CATEGORIES = [
+        {'name': '儿童读物', 'count': 419},
+        {'name': '小说', 'count': 402},
+    ]
+
+    @staticmethod
+    def _mock_modules():
+        modules = MagicMock()
+        modules.publisher_manager.get_publishers.return_value = []
+        modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        modules.query_service.get_categories.return_value = TestMobileNewBooksCategoryChips.CATEGORIES
+        modules.query_service.get_new_books.return_value = ([], 0)
+        modules.query_service.get_statistics.return_value = {
+            'total_books': 0,
+            'total_publishers': 0,
+            'active_publishers': 0,
+            'recent_books_7d': 0,
+            'top_categories': [],
+        }
+        return modules
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_chips_render_names_not_dict_repr(self, mock_get_modules, client) -> None:
+        mock_get_modules.return_value = self._mock_modules()
+        resp = client.get('/new-books?lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert '&#39;name&#39;' not in html, 'chip 仍在输出 Python 字典 repr'
+        assert '儿童读物' in html and '小说' in html
+        # 中文分类名必须被编码进 query，否则链接点不开
+        assert 'category=%E5%B0%8F%E8%AF%B4' in html
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_selected_category_marks_chip_active(self, mock_get_modules, client) -> None:
+        mock_get_modules.return_value = self._mock_modules()
+        resp = client.get('/new-books?category=小说&lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        anchors = [a for a in html.split('<a ') if 'category=%E5%B0%8F%E8%AF%B4' in a]
+        assert anchors, '未渲染小说分类 chip 链接'
+        assert any('active' in a for a in anchors), '选中的分类 chip 未标记 active'
+        assert '小说</a>' in html

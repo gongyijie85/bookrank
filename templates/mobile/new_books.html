@@ -46,9 +46,9 @@
     </div>
     {% if categories %}
     <div class="m-cat-tabs-scroll no-scrollbar" style="display:flex;gap:0.5rem;overflow-x:auto;">
-        <a href="/new-books?days={{ selected_days }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部分类') }}</a>
+        <a href="{{ url_for('main.new_books', days=selected_days) }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部分类') }}</a>
         {% for cat in categories %}
-        <a href="/new-books?category={{ cat }}&days={{ selected_days }}" class="m-cat-tab {% if selected_category==cat %}active{% endif %}">{{ cat }}</a>
+        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}" class="m-cat-tab {% if selected_category == cat.name %}active{% endif %}">{{ cat.name }}</a>
         {% endfor %}
     </div>
     {% endif %}
