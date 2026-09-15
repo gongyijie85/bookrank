@@ -1770,6 +1770,20 @@ class TestBookDetailSsrLocale:
         # 只断言结构化数据：可见的「图书简介」面板本就同时带译文与原文，由前端按语言切显隐
         assert self._book_ld(html)['description'].startswith('An English blurb'), '英文页 JSON-LD 用了中文简介'
 
+        mob = client.get(
+            '/book/0?category=hardcover-fiction&lang=en',
+            headers={'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'},
+        ).get_data(as_text=True)
+        assert 'm-meta-row' in mob, '移动端模板未渲染'
+        soup = BeautifulSoup(mob, 'html.parser')
+        cells = {
+            (r.find('dt').get_text(strip=True) or ''): (r.find('dd').get_text(strip=True) or '')
+            for r in soup.select('.m-meta-row')
+            if r.find('dt') and r.find('dd')
+        }
+        assert 'Hardcover Fiction' in cells.values(), f'移动英文详情页分类仍是中文: {cells}'
+        assert '精装小说' not in cells.values()
+
     @patch('app.routes.main.merge_or_translate_book')
     @patch('app.routes.main.fetch_google_books_details')
     @patch('app.routes.main.get_service')

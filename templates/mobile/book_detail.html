@@ -94,7 +94,7 @@
                 <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ book.page_count }}</dd></div>
                 {% endif %}
                 {% if book.category_name %}
-                <div class="m-meta-row"><dt>{{ _('图书分类') }}</dt><dd>{{ book.category_name }}</dd></div>
+                <div class="m-meta-row"><dt>{{ _('图书分类') }}</dt><dd>{{ book.category_name|bilingual(book.list_name) }}</dd></div>
                 {% endif %}
                 {% if book.weeks_on_list %}
                 <div class="m-meta-row"><dt>{{ _('累计上榜') }}</dt><dd>{{ book.weeks_on_list }}{{ _('周') }}</dd></div>
