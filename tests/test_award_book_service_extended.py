@@ -265,6 +265,53 @@ class TestProcessSingleBook:
             new_book = AwardBook.query.filter_by(isbn10='1234567890').first()
             assert new_book is not None
 
+    def test_isbn10_books_do_not_overwrite_each_other(self, app, db, award_service, sample_award):
+        """同奖项的两本"仅有 ISBN-10"的书必须各自成行，不得互相覆写。
+
+        回归：旧代码用 `filter_by(award_id=…, isbn13=None)` 查已存在记录，SQLAlchemy 会译成
+        `isbn13 IS NULL`——而本函数建 10 位行时正是写 isbn13=None，于是第二本书会命中第一本，
+        并把它的 title/author/year/publisher 当成"同一本书的新数据"覆写掉（静默数据损坏）。
+        """
+        with app.app_context():
+            award = db.session.get(Award, sample_award)
+            award_service.openlib_client = MagicMock()
+            award_service.openlib_client.fetch_book_by_isbn.return_value = {}
+            award_service.openlib_client.get_cover_url.return_value = None
+            award_service.google_books_client = MagicMock()
+            award_service.google_books_client.fetch_book_details.return_value = {}
+            award_service.image_cache = None
+
+            first = award_service._process_single_book(
+                award, {'title': 'First Book', 'author': 'Author A', 'year': 2020, 'isbn10': '1111111111'}, '小说'
+            )
+            second = award_service._process_single_book(
+                award, {'title': 'Second Book', 'author': 'Author B', 'year': 2021, 'isbn10': '2222222222'}, '小说'
+            )
+
+            assert (first, second) == ('new', 'new'), f'第二本未独立成行：{first}, {second}'
+            kept = AwardBook.query.filter_by(isbn10='1111111111').one()
+            assert kept.title == 'First Book', f'第一本被第二本覆写为：{kept.title!r}'
+            assert kept.author == 'Author A'
+            assert AwardBook.query.filter_by(isbn10='2222222222').one().title == 'Second Book'
+
+    def test_same_isbn10_updates_its_own_row(self, app, db, award_service, sample_award):
+        """重跑同一本 10 位书仍应按 isbn10 命中并更新自己，而不是新增重复行。"""
+        with app.app_context():
+            award = db.session.get(Award, sample_award)
+            award_service.openlib_client = MagicMock()
+            award_service.openlib_client.fetch_book_by_isbn.return_value = {}
+            award_service.openlib_client.get_cover_url.return_value = None
+            award_service.google_books_client = MagicMock()
+            award_service.google_books_client.fetch_book_details.return_value = {}
+            award_service.image_cache = None
+
+            for _ in range(2):
+                award_service._process_single_book(
+                    award, {'title': 'Repeat Book', 'author': 'Author C', 'year': 2019, 'isbn10': '3333333333'}, '小说'
+                )
+
+            assert AwardBook.query.filter_by(isbn10='3333333333').count() == 1
+
     def test_new_book_long_description_preferred(self, app, db, award_service, sample_award):
         with app.app_context():
             award = db.session.get(Award, sample_award)

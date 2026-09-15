@@ -282,8 +282,14 @@ class AwardBookService:
         # 检查是否已存在：优先使用批量加载的字典，未提供或 ISBN10 时回退到原查询
         if existing_books is not None and len(isbn) == 13:
             existing = existing_books.get(isbn)
+        elif len(isbn) == 13:
+            existing = AwardBook.query.filter_by(award_id=award.id, isbn13=isbn).first()
         else:
-            existing = AwardBook.query.filter_by(award_id=award.id, isbn13=isbn if len(isbn) == 13 else None).first()
+            # 10 位 ISBN 必须按 isbn10 匹配。此前写成 filter_by(isbn13=None)，SQLAlchemy 会
+            # 译成 `isbn13 IS NULL`，于是命中同奖项**任意**一本 isbn13 为空的书（本函数建
+            # 10 位行时正是写 isbn13=None、isbn10=isbn），随后把它的书名/作者/年份/出版社
+            # 当成"同一本书的新数据"覆写掉 —— 静默数据损坏。
+            existing = AwardBook.query.filter_by(award_id=award.id, isbn10=isbn).first()
 
         if existing:
             # 检查是否需要更新
