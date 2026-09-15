@@ -22,8 +22,13 @@ Run from the repo root. CI runs the same commands, so local green ≈ CI green:
 ruff check app/ tests/          # lint, must be clean
 ruff format --check app/ tests/ # formatting gate (run `ruff format` to fix)
 mypy app/                       # type gate, zero errors (pyproject whitelist is the only config)
-python -m pytest tests/         # ~2300 tests, coverage gate --cov-fail-under=70 (currently ~83%)
-make check                      # all of the above + pybabel translations extract/update/compile
+python -m pytest tests/         # ~2500 tests, coverage gate --cov-fail-under=70 (currently ~84%)
+npm run lint:js                 # ESLint zero-tolerance over static/js + static/mobile/js
+npm run test:frontend           # node:test over tests/test_frontend_ranking.mjs (also in CI)
+make i18n-drift                 # catalog vs `_()` call sites; fails when code gained msgids
+                                # the .po files never learned (CI job: i18n-catalog)
+make check                      # lint + typecheck + test + translations (not i18n-drift: it
+                                # regenerates the catalogs first, so drift can never be caught)
 ```
 
 Notes:

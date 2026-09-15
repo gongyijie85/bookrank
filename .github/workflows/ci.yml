@@ -49,6 +49,11 @@ jobs:
       - name: Run ESLint (zero-tolerance)
         run: npm run lint:js
 
+      - name: Run frontend unit tests (node:test)
+        # package.json 的 test:frontend 此前没有任何 job 跑过，所以它的失败从 #209
+        # 一直挂着无人发现；这条把门禁补上（用例本身已修，见 #235 备注）。
+        run: npm run test:frontend
+
   typecheck:
     name: Type Check (mypy)
     runs-on: ubuntu-latest
@@ -68,6 +73,28 @@ jobs:
 
       - name: Run mypy
         run: mypy app/
+
+  i18n-catalog:
+    name: i18n Catalog Drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check catalog matches _() call sites
+        # 此前 CI 只做 `pybabel compile`，从不 extract/update —— 加了 `_()` 却不更新目录
+        # 会静默通过，线上就是英文页直接显示中文 msgid（精选三列/紧凑五列/网格密度 那类事故）。
+        run: python scripts/check_i18n_drift.py
 
   test:
     name: Unit Tests
@@ -166,7 +193,7 @@ jobs:
       # Runs serialize, but only the current main SHA is allowed to deploy.
       group: render-production-current-main-bookrank
       cancel-in-progress: false
-    needs: [lint, lint-frontend, typecheck, test]
+    needs: [lint, lint-frontend, typecheck, i18n-catalog, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4

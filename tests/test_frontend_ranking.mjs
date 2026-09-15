@@ -27,7 +27,10 @@ function renderer(view) {
     return { context, container };
 }
 
-for (const view of ['books-grid', 'books-list']) {
+// 只覆盖真实存在的容器：#209 用「网格密度」切换取代了列表视图，模板里已无
+// id="books-list"，而 index.js 的渲染目标只有 books-grid。此前这里按两个视图参数化，
+// books-list 那条永远拿到空 innerHTML 而失败（test:frontend 未进 CI，所以一直没被发现）。
+for (const view of ['books-grid']) {
     test(`${view}: search and language rerender preserve original rank and destination`, () => {
         const { context, container } = renderer(view);
         const books = [{
