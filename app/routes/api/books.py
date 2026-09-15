@@ -152,7 +152,7 @@ def get_search_history():
     """获取搜索历史"""
     try:
         session_id = get_session_id()
-        limit = min(request.args.get('limit', 5, type=int), 20)
+        limit = min(max(1, request.args.get('limit', 5, type=int)), 20)
 
         history = _user_service.get_search_history(session_id, limit)
 

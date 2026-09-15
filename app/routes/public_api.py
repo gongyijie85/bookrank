@@ -17,7 +17,7 @@ _award_service = AwardBookService()
 @rate_limit(max_requests=60, window=60)
 def get_all_bestsellers():
     try:
-        limit = min(request.args.get('limit', 10, type=int), 50)
+        limit = min(max(1, request.args.get('limit', 10, type=int)), 50)
         book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('Service unavailable', 503, include_timestamp=True)
@@ -48,7 +48,7 @@ def get_bestsellers_by_category(category: str):
                 f'Invalid category. Available categories: {list(categories.keys())}', 400, include_timestamp=True
             )
 
-        limit = min(request.args.get('limit', 20, type=int), 50)
+        limit = min(max(1, request.args.get('limit', 20, type=int)), 50)
         book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('Service unavailable', 503, include_timestamp=True)
@@ -85,7 +85,7 @@ def search_bestsellers():
         if not re.match(r'^[\w\s\-\u4e00-\u9fff]+$', keyword):
             return APIResponse.error('Invalid keyword format', 400, include_timestamp=True)
 
-        limit = min(request.args.get('limit', 20, type=int), 50)
+        limit = min(max(1, request.args.get('limit', 20, type=int)), 50)
         book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('Service unavailable', 503, include_timestamp=True)
@@ -137,7 +137,7 @@ def get_award_books(award_name: str):
             return APIResponse.error('Award not found', 404, include_timestamp=True)
 
         year = request.args.get('year', type=int)
-        limit = min(request.args.get('limit', 20, type=int), 50)
+        limit = min(max(1, request.args.get('limit', 20, type=int)), 50)
         books, _ = _award_service.get_award_books(
             award_id=award.id, year=year, include_displayable_only=True, page=1, limit=limit
         )
@@ -229,7 +229,7 @@ def get_weekly_reports():
     try:
         from ..services.weekly_report_service import WeeklyReportService
 
-        limit = min(request.args.get('limit', 10, type=int), 50)
+        limit = min(max(1, request.args.get('limit', 10, type=int)), 50)
         book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('Service unavailable', 503, include_timestamp=True)
@@ -299,7 +299,7 @@ def get_weekly_report_by_date(date: str):
 def get_new_books():
     try:
         page = max(request.args.get('page', 1, type=int), 1)
-        per_page = min(request.args.get('per_page', 20, type=int), 50)
+        per_page = min(max(1, request.args.get('per_page', 20, type=int)), 50)
         category = request.args.get('category')
         publisher_id = request.args.get('publisher_id', type=int)
 
@@ -327,7 +327,7 @@ def get_new_books():
 def get_new_books_by_publisher(publisher_name: str):
     try:
         page = max(request.args.get('page', 1, type=int), 1)
-        per_page = min(request.args.get('per_page', 20, type=int), 50)
+        per_page = min(max(1, request.args.get('per_page', 20, type=int)), 50)
 
         modules = get_new_book_modules()
         publishers = modules.publisher_manager.get_publishers(active_only=True)
@@ -358,7 +358,7 @@ def get_recommendations():
     try:
         from ..services.recommendation_service import RecommendationService
 
-        limit = min(request.args.get('limit', 10, type=int), 50)
+        limit = min(max(1, request.args.get('limit', 10, type=int)), 50)
 
         service = RecommendationService()
         result = service.get_smart_recommendations(limit=limit)
