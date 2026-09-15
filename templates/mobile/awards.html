@@ -27,9 +27,9 @@
 {% set _locale = get_locale() %}
 
 <!-- 奖项筛选（横向滑动） -->
-<section class="m-cat-tabs" aria-label="奖项筛选">
+<section class="m-cat-tabs" aria-label="{{ _('奖项筛选') }}">
     <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="{{ awards_filter_url(award='') }}" class="m-cat-tab {% if not selected_award %}active{% endif %}">全部</a>
+        <a href="{{ awards_filter_url(award='') }}" class="m-cat-tab {% if not selected_award %}active{% endif %}">{{ _('全部') }}</a>
         {% for award in awards %}
         <a href="{{ awards_filter_url(award=award.name) }}"
            class="m-cat-tab {% if selected_award == award.name %}active{% endif %}">
@@ -42,9 +42,9 @@
 
 <!-- 类别筛选（横向滑动） -->
 {% if categories %}
-<section class="m-cat-tabs" aria-label="类别筛选">
+<section class="m-cat-tabs" aria-label="{{ _('类别筛选') }}">
     <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="{{ awards_filter_url(category='') }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">全部类别</a>
+        <a href="{{ awards_filter_url(category='') }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部类别') }}</a>
         {% for category in categories %}
         <a href="{{ awards_filter_url(category=category) }}"
            class="m-cat-tab {% if selected_category == category %}active{% endif %}">
