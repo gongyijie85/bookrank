@@ -136,10 +136,30 @@ class TestNewBookPoFiles:
         assert not problems, f'en.po 未翻译的 msgid: {problems}'
 
     def test_mo_files_recompiled(self):
-        """.mo 文件必须比 .po 新（说明已重新编译）。"""
-        assert ZH_MO.exists() and EN_MO.exists()
-        assert ZH_MO.stat().st_mtime >= ZH_PO.stat().st_mtime - 1
-        assert EN_MO.stat().st_mtime >= EN_PO.stat().st_mtime - 1
+        """.mo 必须与 .po 内容一致。
+
+        原先比的是 mtime —— .po 被等价重写一次、或 rebase/checkout 刷新时间戳就会假红。
+        这里用 stdlib gettext 解析 .mo，逐项对译文，并确认 fuzzy 条目确实没进 .mo
+        （msgfmt 跳过 fuzzy，运行时回落中文，这正是 en 目录里 fuzzy 必须清零的原因）。
+        """
+        import gettext
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
+        from check_i18n_drift import parse_entries
+
+        for po_path, mo_path in ((ZH_PO, ZH_MO), (EN_PO, EN_MO)):
+            assert po_path.exists() and mo_path.exists()
+            entries, fuzzy = parse_entries(po_path.read_text(encoding='utf-8'))
+            with mo_path.open('rb') as fh:
+                cat = gettext.GNUTranslations(fh)
+            for msgid, expected in entries.items():
+                if msgid in fuzzy:
+                    assert cat.gettext(msgid) == msgid, f'{mo_path.name}: fuzzy 条目 {msgid[:20]!r} 不应进 .mo'
+                    continue
+                if expected.strip():
+                    assert cat.gettext(msgid) == expected, f'{mo_path.name} 与 {po_path.name} 不一致: {msgid[:30]!r}'
 
 
 class TestNewBooksTemplate:
