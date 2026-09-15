@@ -21,6 +21,7 @@ from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
+from .utils.book_labels import language_name
 from .utils.book_titles import split_volume_marker
 from .utils.error_handler import ErrorCategory, log_error
 
@@ -109,6 +110,10 @@ def create_app(config_name: str | None = None) -> Flask:
     # 书名卷号拆解：卡片标题被 CSS 限行截断，卷号若留在标题里会被裁掉，
     # 同系列各卷将显示为完全相同的标题（见 app/utils/book_titles.py）
     app.jinja_env.globals['split_volume_marker'] = split_volume_marker
+
+    # 语言名中英对照：库里存的是 config.LANGUAGE_MAP 的中文名，英文页会显示「英语」
+    # （见 app/utils/book_labels.py）。#236
+    app.jinja_env.filters['language_name'] = language_name
 
     # dist_url: 前端构建产物（static/dist/）的指纹化文件名解析
     # （scripts/build_frontend.mjs 生成 manifest.json；dev 无 manifest 时

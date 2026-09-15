@@ -150,7 +150,7 @@
             {% set ns = namespace(parts=[]) %}
             {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}{% set ns.parts = ns.parts + [book.publisher] %}{% endif %}
             {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}{% set ns.parts = ns.parts + [book.page_count ~ _('页')] %}{% endif %}
-            {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language] %}{% endif %}
+            {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language|language_name] %}{% endif %}
             {% if ns.parts %}<p class="m-book-card-meta">{{ ns.parts|join(' · ') }}</p>{% endif %}
 
             {# 描述预览（80 字截断） #}

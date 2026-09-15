@@ -161,7 +161,7 @@
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-globe"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="language_label">{{ _('语言') }}</div>
-                        <div class="meta-value" data-lang-zh="{{ book.language }}" data-lang-en="{% if '英' in book.language or 'English' in book.language %}English{% elif '中' in book.language or 'Chinese' in book.language %}Chinese{% else %}{{ book.language }}{% endif %}">{{ book.language }}</div>
+                        <div class="meta-value" data-lang-zh="{{ book.language }}" data-lang-en="{{ book.language|language_name('en') }}">{{ book.language }}</div>
                     </div>
                 </div>
                 {% endif %}
