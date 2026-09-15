@@ -15,8 +15,10 @@
                  src="{{ entry.cover or url_for('static', filename='default-cover.png') }}"
                  alt="" loading="lazy" width="88" height="132">
             <div class="cross-body">
-                <h3 class="cross-title">{{ entry.title_zh or entry.title }}</h3>
-                {% if entry.title_zh %}<p class="cross-original">{{ entry.title }}</p>{% endif %}
+                {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
+                {% set sub_title = entry.title if _locale == 'zh' and entry.title_zh else '' %}
+                <h3 class="cross-title">{{ main_title }}</h3>
+                {% if sub_title %}<p class="cross-original">{{ sub_title }}</p>{% endif %}
                 <p class="cross-author">{{ entry.author }}{% if entry.publisher %} · {{ entry.publisher }}{% endif %}</p>
                 <ul class="cross-chips">
                     {% for listing in entry.listings %}
@@ -119,12 +121,14 @@
         {% for entry in overlooked_entries %}
         <li class="overlooked-card">
             <a class="overlooked-link" href="{{ url_for('main.award_book_detail', book_id=entry.id) }}">
+                {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
+                {% set sub_title = entry.title if _locale == 'zh' and entry.title_zh else '' %}
                 <img class="overlooked-cover"
                      src="{{ entry.cover_local_path or entry.cover_original_url or url_for('static', filename='default-cover.png') }}"
-                     alt="{{ entry.title_zh or entry.title }}" loading="lazy" width="120" height="180">
+                     alt="{{ main_title }}" loading="lazy" width="120" height="180">
                 <span class="overlooked-body">
-                    <span class="overlooked-title">{{ entry.title_zh or entry.title }}</span>
-                    {% if entry.title_zh %}<span class="overlooked-original">{{ entry.title }}</span>{% endif %}
+                    <span class="overlooked-title">{{ main_title }}</span>
+                    {% if sub_title %}<span class="overlooked-original">{{ sub_title }}</span>{% endif %}
                     <span class="overlooked-author">{{ entry.author }}</span>
                 </span>
             </a>
@@ -183,7 +187,7 @@
                     <td>{{ entry.total_weeks }}</td>
                     <td class="publisher-books">
                         {% for book in entry.books[:3] %}
-                        <span>{{ book.title_zh or book.title }}</span>{% if not loop.last %}·{% endif %}
+                        <span>{{ book.title if _locale != 'zh' else (book.title_zh or book.title) }}</span>{% if not loop.last %}·{% endif %}
                         {% endfor %}
                     </td>
                 </tr>
