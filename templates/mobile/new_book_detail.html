@@ -1,5 +1,5 @@
 {% extends "mobile/base.html" %}
-{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
+{% block title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
 {% block content %}
 {% set _l = get_locale() %}
 <div class="m-status-bar"></div>
@@ -11,12 +11,12 @@
 <article class="m-book-detail" style="padding:0 1rem 2rem;">
     <div style="display:flex;gap:1rem;align-items:flex-start;">
         <img src="{{ book.cover_url or url_for('static', filename='default-cover.png') }}"
-             alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}"
+             alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}"
              style="width:120px;height:180px;object-fit:cover;border-radius:8px;flex-shrink:0;"
              data-cover-fallback="">
         <div style="flex:1;min-width:0;">
-            <h1 style="font-size:1.15rem;font-weight:600;line-height:1.35;margin:0 0 0.35rem;">{{ book.title_zh or book.title }}</h1>
-            {% if book.title and book.title_zh and book.title != book.title_zh %}<p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0.5rem;">{{ book.title }}</p>{% endif %}
+            <h1 style="font-size:1.15rem;font-weight:600;line-height:1.35;margin:0 0 0.35rem;">{{ book.title_zh|bilingual(book.title) }}</h1>
+            {% if book.title and book.title_zh and book.title != book.title_zh and _l == 'zh' %}<p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0.5rem;">{{ book.title }}</p>{% endif %}
             <p style="font-size:0.9rem;color:var(--text-secondary);margin:0;">{{ book.author or _('未知作者') }}</p>
             {% if book.publisher %}<p style="font-size:0.85rem;color:var(--text-secondary);margin:0.25rem 0 0;">{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }}</p>{% endif %}
         </div>
@@ -25,9 +25,9 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:1rem 0;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;font-size:0.85rem;">
         {% if book.isbn13 %}<div><span style="color:var(--text-secondary);">{{ _('ISBN') }}:</span> {{ book.isbn13 }}</div>{% endif %}
         {% if book.publication_date %}<div><span style="color:var(--text-secondary);">{{ _('出版日期') }}:</span> {{ book.publication_date }}</div>{% endif %}
-        {% if book.category %}<div><span style="color:var(--text-secondary);">{{ _('分类') }}:</span> {{ book.category }}</div>{% endif %}
+        {% if book.category %}<div><span style="color:var(--text-secondary);">{{ _('分类') }}:</span> {{ book.category|category_name }}</div>{% endif %}
         {% if book.page_count %}<div><span style="color:var(--text-secondary);">{{ _('页数') }}:</span> {{ book.page_count }}</div>{% endif %}
-        {% if book.language %}<div><span style="color:var(--text-secondary);">{{ _('语言') }}:</span> {{ book.language }}</div>{% endif %}
+        {% if book.language %}<div><span style="color:var(--text-secondary);">{{ _('语言') }}:</span> {{ book.language|language_name }}</div>{% endif %}
         {% if book.price %}<div><span style="color:var(--text-secondary);">{{ _('价格') }}:</span> {{ book.price }}</div>{% endif %}
     </div>
 

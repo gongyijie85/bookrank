@@ -317,7 +317,7 @@
         const titleEls = document.querySelectorAll('.card-title, .list-item-title');
         if (!titleEls.length) return;
 
-        const lang = localStorage.getItem('bookrank_language') || 'en';
+        const lang = window.__APP_LANG__ || 'en';
         if (lang === 'en') return;
 
         const toTranslate = [];
@@ -384,7 +384,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        var lang = localStorage.getItem('bookrank_language') || localStorage.getItem('app_language') || 'en';
+        var lang = window.__APP_LANG__ || 'en';
 
         if (typeof BookI18n !== 'undefined') {
             var awardBooks = [];

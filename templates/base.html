@@ -415,15 +415,23 @@
     </style>
 
     <!-- Early lang sync：在 <html lang> 首次被读取前应用 localStorage 偏好
-         修正 SSR lang 与用户偏好不一致时的屏幕阅读器误读（I-5） -->
+         修正 SSR lang 与用户偏好不一致时的屏幕阅读器误读（I-5）。
+         同时把「有效语言」发布到 window.__APP_LANG__：有显式偏好取偏好，否则取服务端
+         已经算好的 locale。页面级脚本一律读它——此前各处把默认值硬编码成 'zh' 或 'en'，
+         与 SSR 默认（en）相反，导致没有存储偏好的访客在英文页被 JS 渲成中文。 -->
     <script nonce="{{ csp_nonce() }}">
         (function() {
+            var ssrLang = '{{ get_locale() }}'.indexOf('zh') === 0 ? 'zh' : 'en';
+            var saved = null;
             try {
-                var saved = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
-                if (saved === 'zh' || saved === 'en') {
-                    document.documentElement.lang = saved === 'zh' ? 'zh-CN' : 'en';
-                }
+                saved = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
             } catch (e) { /* localStorage 不可用时忽略 */ }
+            window.__APP_LANG__ = (saved === 'zh' || saved === 'en') ? saved : ssrLang;
+            if (window.__APP_LANG__ === 'zh') {
+                document.documentElement.lang = 'zh-CN';
+            } else {
+                document.documentElement.lang = 'en';
+            }
         })();
     </script>
 

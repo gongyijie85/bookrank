@@ -256,7 +256,7 @@
         applyDetailLanguage(e.detail.language);
     });
     // 初始化时根据当前语言应用一次
-    var currentLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'zh';
+    var currentLang = window.__APP_LANG__ || 'en';
     applyDetailLanguage(currentLang);
 </script>
 

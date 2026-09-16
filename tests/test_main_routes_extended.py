@@ -1800,3 +1800,56 @@ class TestBookDetailSsrLocale:
         h1 = soup.select_one('.detail-title')
         assert h1 and h1.get_text(strip=True) == '灾难俱乐部', f'中文页 H1: {h1 and h1.get_text()}'
         assert soup.select_one('.detail-title-en'), '中文页该保留原文书名副行'
+
+
+class TestNewBooksPublisherNamesFollowLocale:
+    """#232：新书页的出版社显示名两端都要跟 locale。
+
+    Publisher 行本来就有 name_en，只是显示位无条件取了 name —— 侧栏、筛选下拉、
+    每社书列标题三处同理。
+    """
+
+    @staticmethod
+    def _modules():
+        from unittest.mock import MagicMock
+
+        pub = MagicMock()
+        pub.id = 42
+        pub.name = '企鹅兰登'
+        pub.name_en = 'Penguin Random House'
+        pub.website = 'https://example.invalid'
+        modules = MagicMock()
+        modules.publisher_manager.get_publishers.return_value = [pub]
+        modules.publisher_manager.get_publisher_book_counts.return_value = {42: 3}
+        modules.query_service.get_categories.return_value = [{'name': '小说', 'count': 3}]
+        modules.query_service.get_new_books.return_value = ([], 0)
+        modules.query_service.get_statistics.return_value = {
+            'total_books': 3,
+            'total_publishers': 1,
+            'active_publishers': 1,
+            'recent_books_7d': 3,
+            'top_categories': [],
+        }
+        modules.query_service.search_books.return_value = ([], 0)
+        return modules
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_english_page_shows_english_publisher_names(self, mock_modules, client) -> None:
+        mock_modules.return_value = self._modules()
+        soup = BeautifulSoup(
+            client.get('/new-books?lang=en').get_data(as_text=True),
+            'html.parser',
+        )
+        names = [(e.get_text() or '').strip() for e in soup.select('.pub-name, .browse-section-title, option')]
+        assert 'Penguin Random House' in names, f'英文页出版社名仍是中文: {names[:8]}'
+        assert '企鹅兰登' not in names
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_chinese_page_keeps_chinese_publisher_names(self, mock_modules, client) -> None:
+        mock_modules.return_value = self._modules()
+        soup = BeautifulSoup(
+            client.get('/new-books?lang=zh').get_data(as_text=True),
+            'html.parser',
+        )
+        names = [(e.get_text() or '').strip() for e in soup.select('.pub-name, .browse-section-title')]
+        assert '企鹅兰登' in names, f'中文页丢了中文出版社名: {names[:8]}'
