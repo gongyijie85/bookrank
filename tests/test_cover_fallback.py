@@ -34,21 +34,24 @@ def test_template_src_prefers_original_over_placeholder():
 
     回归：block=False 返回 '/static/default-cover.png'（非空串）使模板
     `cover if cover` 判真 → 永远占位；现在排除占位串走 original。
+
+    该表达式已收敛为 `cover_src_or_default` 过滤器（app/utils/cover_urls.py），
+    这里按模板的实际调用形态复现：先剔占位串，再交给过滤器规范化。
     """
-    from jinja2 import Template
+    from app.utils.cover_urls import DEFAULT_COVER, cover_src_or_default
 
-    expr = """{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or 'FINAL-DEFAULT' }}"""
-    t = Template(expr)
+    def render_src(cover, original):
+        _cover = cover if cover and cover != DEFAULT_COVER else ''
+        return cover_src_or_default(_cover or original)
 
-    # 占位 + original → original
-    out = t.render(book={'cover': '/static/default-cover.png', '_original_cover': 'https://static01.nyt.com/x.jpg'})
-    assert out == 'https://static01.nyt.com/x.jpg'
-    # 缓存 + original → cache 优先
-    out = t.render(book={'cover': '/cache/images/abc.jpg', '_original_cover': 'https://static01.nyt.com/x.jpg'})
-    assert out == '/cache/images/abc.jpg'
+    # 占位 + original → original（外链改写为同源代理）
+    assert render_src(DEFAULT_COVER, 'https://static01.nyt.com/x.jpg') == (
+        '/cover?src=https%3A%2F%2Fstatic01.nyt.com%2Fx.jpg'
+    )
+    # 缓存 + original → cache 优先，且同源路径不再被包裹
+    assert render_src('/cache/images/abc.jpg', 'https://static01.nyt.com/x.jpg') == '/cache/images/abc.jpg'
     # 全空 → 最终默认
-    out = t.render(book={'cover': '', '_original_cover': ''})
-    assert out == 'FINAL-DEFAULT'
+    assert render_src('', '') == DEFAULT_COVER
 
 
 class _StubImageCache:

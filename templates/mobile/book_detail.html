@@ -18,14 +18,23 @@
 {% set _locale = get_locale() %}
 {% set display_title = book.title_zh|bilingual(book.title) %}
 {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
-{% set detail_text = book.details_zh if _locale == 'zh' and book.details_zh else book.details %}
+{# details_zh 在库里可能是占位串（'暂无详细描述' 等），直接取用会把占位串当正文渲染；
+   这里与桌面端同口径归一化，两侧都为空时由下面的空态兜底。 #}
+{% set _detail_placeholders = ('No detailed description available.', 'No summary available.', 'No summary available', '暂无详细描述', '暂无详细介绍', 'None') %}
+{% set _detail_zh = (book.details_zh or '')|trim %}
+{% set _detail_en = (book.details or '')|trim %}
+{% set _detail_zh = '' if _detail_zh in _detail_placeholders else _detail_zh %}
+{% set _detail_en = '' if _detail_en in _detail_placeholders else _detail_en %}
+{% set detail_text = _detail_zh if _locale == 'zh' and _detail_zh else (_detail_en or _detail_zh) %}
 
 <!-- 书籍封面 -->
 <section class="m-detail-cover-wrap">
     <div class="m-detail-cover">
-        <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
+        {% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}
+        <img src="{{ (_cover or book._original_cover)|cover_src_or_default }}"
              alt="{{ display_title }}"
              width="120" height="160"
+             data-original="{{ book._original_cover|cover_src }}"
              data-cover-fallback="">
     </div>
 </section>

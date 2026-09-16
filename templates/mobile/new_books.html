@@ -64,7 +64,7 @@
     {% set shown_title = book.title_zh|bilingual(book.title) %}
     <a href="/new-book/{{ book.id }}" class="m-card m-book-card">
         <div class="m-book-cover">
-            <img src="{{ book.cover_url or url_for('static', filename='default-cover.png') }}"
+            <img src="{{ book.cover_url|cover_src_or_default }}"
                  alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知') }}"
                  loading="lazy" width="60" height="80"
                  data-cover-fallback="">

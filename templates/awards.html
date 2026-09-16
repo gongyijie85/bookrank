@@ -24,12 +24,12 @@
     <div class="card-image">
         <div class="cover-frame">
             <a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ shown_title }}{{ _('》封面') }}">
-                <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
+                <img src="{{ (book.cover_local_path or book.cover_original_url)|cover_src_or_default }}"
                      alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                      loading="lazy"
                      width="280"
                      height="420"
-                     data-original="{{ book.cover_original_url or '' }}"
+                     data-original="{{ book.cover_original_url|cover_src }}"
                      data-fallback="{{ url_for('static', filename='default-cover.png') }}">
             </a>
         </div>
@@ -213,7 +213,7 @@
 <!-- Results -->
 {% if not is_browsing %}
 <div class="awards-active-filter">
-    <span>{{ _('当前筛选') }}：{{ selected_award or _('全部奖项') }}
+    <span>{{ _('当前筛选') }}{{ _('：') }}{{ selected_award or _('全部奖项') }}
         {%- if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
         {%- if selected_category %} · {{ selected_category }}{% endif %}
         {%- if search_query %} · &ldquo;{{ search_query }}&rdquo;{% endif %}</span>

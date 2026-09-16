@@ -3,8 +3,8 @@
 {% block title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
 {% block og_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
 {% block twitter_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
-{% block og_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
-{% block twitter_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block og_image %}{{ url_for('main.cover_proxy', src=book._original_cover, _external=True) if book._original_cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('main.cover_proxy', src=book._original_cover, _external=True) if book._original_cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
 
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
@@ -18,6 +18,20 @@
 {% endblock %}
 
 {% block content %}
+{# 详细介绍的取值口径统一在这里算一次：
+   库里可能存着占位串（'No detailed description available.' / '暂无详细描述' 等），
+   直接当正文渲染会渲染出"占位串本身"；而 `details_zh` 有值、`details` 为空时，
+   原来的 `{% if %}/{% elif %}` 两个分支都不命中，面板会**整块空白** —— 这正是
+   "详细介绍内容缺失"的表现。统一归一化后，下面的标签页与面板都按同一份取值渲染。 #}
+{% set _detail_placeholders = (
+    'No detailed description available.', 'No summary available.',
+    'No summary available', '暂无详细描述', '暂无详细介绍', 'None'
+) %}
+{% set _details_zh = (book.details_zh or '')|trim %}
+{% set _details_en = (book.details or '')|trim %}
+{% set _details_zh = '' if _details_zh in _detail_placeholders else _details_zh %}
+{% set _details_en = '' if _details_en in _detail_placeholders else _details_en %}
+{% set _has_details = _details_zh or _details_en %}
 
 <!-- Book Structured Data for SEO -->
 <script type="application/ld+json" nonce="{{ csp_nonce() }}">
@@ -36,7 +50,7 @@
         "name": {{ book.publisher | tojson }}
     }{% endif %}{% if book.description_zh or book.description %},
     "description": {{ (book.description_zh|bilingual(book.description))[:500] | tojson }}{% endif %}{% if book.cover %},
-    "image": {{ book.cover | tojson }}{% endif %},
+    "image": {{ (url_for('main.cover_proxy', src=book._original_cover, _external=True) if book._original_cover else book.cover) | tojson }}{% endif %},
     "url": "{{ request.url }}"
 }
 </script>
@@ -54,11 +68,12 @@
         <!-- 左侧：封面 -->
         <div class="detail-cover-section">
             <div class="detail-cover">
-                <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
+                {% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}
+                <img src="{{ (_cover or book._original_cover)|cover_src_or_default }}"
                      alt="{{ book.title }} {{ _('封面') }}"
                      width="280" height="420"
                      loading="lazy"
-                     data-original="{{ book._original_cover or '' }}"
+                     data-original="{{ book._original_cover|cover_src }}"
                      data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                 <div class="detail-rank-badge">{{ book_index + 1 }}</div>
             </div>
@@ -175,7 +190,7 @@
                         <svg class="icon" width="16" height="16"><use href="#icon-book-open"/></svg>
                         {{ _('图书简介') }}
                     </button>
-                    {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
+                    {% if _has_details %}
                     <button class="tab-btn" id="tab-details" data-tab="details" data-i18n="book_details">
                         <svg class="icon" width="16" height="16"><use href="#icon-info"/></svg>
                         {{ _('详细信息') }}
@@ -204,17 +219,19 @@
 
                     <!-- 详细信息 -->
                     <div class="tab-panel" id="panel-details">
-                        {% if book.details_zh %}
-                        <div class="zh-description">{{ book.details_zh }}</div>
-                        {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
+                        {% if _details_zh %}
+                        <div class="zh-description">{{ _details_zh }}</div>
+                        {% if _details_en %}
                         <button class="lang-toggle-btn" data-toggle-original="details">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
                             <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
-                        <div class="detail-content lang-toggle-content" id="details-en">{{ book.details }}</div>
+                        <div class="detail-content lang-toggle-content" id="details-en">{{ _details_en }}</div>
                         {% endif %}
-                        {% elif book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
-                        <div class="detail-content">{{ book.details }}</div>
+                        {% elif _details_en %}
+                        <div class="detail-content">{{ _details_en }}</div>
+                        {% else %}
+                        <p class="empty-text" data-i18n="no_details">{{ _('暂无详细介绍') }}</p>
                         {% endif %}
                     </div>
                 </div>

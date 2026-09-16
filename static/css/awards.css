@@ -265,7 +265,6 @@
 .awards-page .books-grid .card:nth-child(n+4) .card-image { height: 290px; padding: 18px 18px 12px; }
 .awards-page .books-grid .card:nth-child(n+4) .cover-frame { height: 100%; }
 .awards-page .books-grid .card .card-desc {
-    display: -webkit-box;
     margin-top: 16px;
     padding-top: 14px;
     border-top: 1px solid var(--border-color);
@@ -289,7 +288,7 @@
 
 .awards-page .card-title { font-size: 18px; text-align: left; }
 .awards-page .card-author { text-align: left; }
-.awards-page .card-desc { -webkit-line-clamp: 3; }
+/* 简介完整展示（原 -webkit-line-clamp: 3 会把长简介截到三行） */
 .awards-page .empty-state {
     padding: 64px 24px;
     border: 1px solid var(--border-color);

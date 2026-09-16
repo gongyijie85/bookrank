@@ -70,7 +70,7 @@
     {% set shown_award = (book.award_name|bilingual(book.award_name_en)) or _('未知') %}
     <a href="/award-book/{{ book.id }}" class="m-card m-book-card">
         <div class="m-book-cover">
-            <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
+            <img src="{{ (book.cover_local_path or book.cover_original_url)|cover_src_or_default }}"
                  alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="60" height="80"

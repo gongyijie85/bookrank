@@ -19,7 +19,7 @@
         {% for entry in entries %}
         <div class="m-card m-book-card">
             <div class="m-book-cover">
-                <img src="{{ entry.cover or url_for('static', filename='default-cover.png') }}"
+                <img src="{{ entry.cover|cover_src_or_default }}"
                      alt="" loading="lazy" width="60" height="80">
             </div>
             <div class="m-book-info">
@@ -91,7 +91,7 @@
     <a href="{{ url_for('main.award_book_detail', book_id=entry.id) }}" class="m-card m-book-card">
         {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
         <div class="m-book-cover">
-            <img src="{{ entry.cover_local_path or entry.cover_original_url or url_for('static', filename='default-cover.png') }}"
+            <img src="{{ (entry.cover_local_path or entry.cover_original_url)|cover_src_or_default }}"
                  alt="{{ _('《') }}{{ main_title }}{{ _('》封面，作者 ') }}{{ entry.author }}" loading="lazy" width="60" height="80">
         </div>
         <div class="m-book-info">

@@ -10,7 +10,11 @@
 /* 首页搜索历史下拉与清除按钮是有意保留的功能（由 JS 以内联 display 控制），此处不再用 CSS 隐藏。 */
 
 .charts-page .main-content {
-    width: min(1160px, 100%);
+    /* 1160px（原）→ 1400px：卡片简介不再截断后需要更宽的正文栏。
+       1160px 下「精选三列」每张卡仅约 352px，长简介会排成很高的窄柱；
+       1400px 下每张约 440px，正文行长回到可读区间。
+       ≥1200px 时本页侧边栏已被隐藏（见下方 .charts-page .sidebar），加宽不会与侧栏冲突。 */
+    width: min(1400px, 100%);
     margin: 0 auto;
     padding: 104px 32px 48px;
     background: transparent;
@@ -263,7 +267,7 @@
     color: var(--text-secondary);
     font-size: 13px;
     line-height: 1.7;
-    -webkit-line-clamp: 2;
+    /* 完整展示：原 -webkit-line-clamp: 2 会截断简介 */
 }
 
 .charts-page .books-grid .card:nth-child(n+4) {
@@ -436,7 +440,13 @@
     margin-top: 10px;
     padding-top: 9px;
     text-align: left;
-    -webkit-line-clamp: 2;
+    /* 唯一保留钳制的地方：紧凑模式是用户主动选择的密度档（按钮即「紧凑五列」），
+       5 列下每张卡仅约 250px，整段简介会把卡片拉成长条，与"紧凑"的语义相悖。
+       默认的「精选三列」不钳制，简介完整展示。 */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card-pub-isbn {

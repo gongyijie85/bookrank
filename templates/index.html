@@ -142,15 +142,16 @@
         <a href="{{ detail_url }}" class="card-link">
         <div class="card-image">
             <div class="cover-frame">
-                <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
+                {% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}
+                <img src="{{ (_cover or book._original_cover)|cover_src_or_default }}"
                      alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                      {% if loop.index <= 3 %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
                      width="280"
                      height="240"
-                     data-original="{{ book._original_cover or '' }}"
+                     data-original="{{ book._original_cover|cover_src }}"
                      data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                 {% if book.weeks_on_list and book.weeks_on_list > 0 %}
-                <span class="cover-weeks" role="img" aria-label="{{ _('累计上榜周数') }}：{{ book.weeks_on_list }}{{ _('周') }}">
+                <span class="cover-weeks" role="img" aria-label="{{ _('累计上榜周数') }}{{ _('：') }}{{ book.weeks_on_list }}{{ _('周') }}">
                     <span class="cover-weeks-value"><strong>{{ book.weeks_on_list }}</strong><span>{{ _('周') }}</span></span>
                 </span>
                 {% endif %}
@@ -197,12 +198,11 @@
                 {% if book.weeks_on_list %}<span class="card-pub-isbn-item weeks" title="{{ _('累计上榜周数') }}">{{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>{% endif %}
             </p>
             {% endif %}
-            {% if book.description_zh or book.description %}
-            {% if _locale == 'zh' %}
-            <p class="card-desc">{{ (book.description_zh or book.description)[:80] }}{% if (book.description_zh or book.description)|length > 80 %}...{% endif %}</p>
-            {% else %}
-            <p class="card-desc">{{ (book.description)[:80] }}{% if (book.description)|length > 80 %}...{% endif %}</p>
-            {% endif %}
+            {# 简介完整展示：此前 [:80] 硬截断 + CSS 两行钳制，长简介只剩开头一句。
+               卡片宽度已随列数下调而放宽（见 index.css 的 .books-grid 断点）。 #}
+            {% set _desc = (book.description_zh or book.description) if _locale == 'zh' else book.description %}
+            {% if _desc and _desc not in ('No summary available.', 'No summary available') %}
+            <p class="card-desc">{{ _desc }}</p>
             {% endif %}
         </div>
         </a>

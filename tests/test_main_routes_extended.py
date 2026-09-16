@@ -105,8 +105,47 @@ class TestAwardBookCover:
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
-        assert response.location == 'https://example.com/cover.jpg'
-        assert 'max-age=3600' in response.headers.get('Cache-Control', '')
+        # 解析结果仍是外链时不再 302 到境外图床（国内必然失败），改投同源代理
+        assert response.location.startswith('/cover?src=')
+        assert 'example.com' in response.location
+
+    @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
+    @patch('app.routes.main.get_service')
+    @patch('app.routes.main.get_google_books_client')
+    def test_cover_resolved_to_local_cache_is_served_inline(
+        self, mock_gbc, mock_ics, MockACSS, client, app, db, tmp_path
+    ):
+        """解析结果已落到本地缓存时直接下发字节，省掉一次 302 往返。"""
+        from app.models.schemas import Award, AwardBook
+
+        with app.app_context():
+            award = Award(name='TestAwardLocal', name_en='Test Award Local')
+            db.session.add(award)
+            db.session.flush()
+            book = AwardBook(award_id=award.id, year=2024, title='BookL', author='AuthorL', is_displayable=True)
+            db.session.add(book)
+            db.session.commit()
+            book_id = book.id
+
+        cache_dir = tmp_path / 'images'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        filename = 'd' * 32 + '.jpg'
+        (cache_dir / filename).write_bytes(b'\xff\xd8\xff' + b'0' * 4096)
+
+        mock_sync = MagicMock()
+        mock_sync._resolver.resolve.return_value = f'/cache/images/{filename}'
+        MockACSS.return_value = mock_sync
+
+        original_dir = app.config.get('IMAGE_CACHE_DIR')
+        app.config['IMAGE_CACHE_DIR'] = cache_dir
+        try:
+            response = client.get(f'/award-book/{book_id}/cover')
+        finally:
+            app.config['IMAGE_CACHE_DIR'] = original_dir
+
+        assert response.status_code == 200
+        assert response.mimetype == 'image/jpeg'
+        assert response.headers['X-Cover-Source'] == 'cache'
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
     @patch('app.routes.main.get_service')

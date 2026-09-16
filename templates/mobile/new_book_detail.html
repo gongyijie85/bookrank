@@ -10,7 +10,7 @@
 
 <article class="m-book-detail" style="padding:0 1rem 2rem;">
     <div style="display:flex;gap:1rem;align-items:flex-start;">
-        <img src="{{ book.cover_url or url_for('static', filename='default-cover.png') }}"
+        <img src="{{ book.cover_url|cover_src_or_default }}"
              alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}"
              style="width:120px;height:180px;object-fit:cover;border-radius:8px;flex-shrink:0;"
              data-cover-fallback="">

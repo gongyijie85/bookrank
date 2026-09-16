@@ -3,8 +3,9 @@
 {% block title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
 {% block og_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
 {% block twitter_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
-{% block og_image %}{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
-{% block twitter_image %}{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{# og/twitter 卡片需要**绝对** URL，故走代理路由的 _external 形式而不是 cover_src 过滤器 #}
+{% block og_image %}{{ url_for('main.cover_proxy', src=book.cover_url, _external=True) if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('main.cover_proxy', src=book.cover_url, _external=True) if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
 
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
@@ -52,7 +53,7 @@
     <div class="detail-cover-section">
         <div class="detail-cover">
             {% if book.cover_url %}
-            <img src="{{ book.cover_url }}" alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}" width="280" height="420" loading="lazy" data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            <img src="{{ book.cover_url|cover_src_or_default }}" alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}" width="280" height="420" loading="lazy" data-fallback="{{ url_for('static', filename='default-cover.png') }}">
             {% else %}
             <div class="cover-placeholder">
                 <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>
