@@ -127,6 +127,14 @@ jobs:
           pip install -r requirements.txt
           pip install pytest-timeout
 
+      - name: Install CJK font for PDF export tests
+        # ExportService 找不到中文字体时**不报错**，只把 PDF 文本降级成纯 ASCII（中文变 '?'），
+        # 于是 tests/test_export_service.py 的中文断言在 Linux 上失败。ubuntu-latest 默认
+        # 没有任何 CJK 字体，且 Debian/Ubuntu 把 Noto CJK 装在 opentype/ 而非 truetype/
+        # （见 app/services/export_service.py 的 _SYSTEM_FONT_CANDIDATES）。
+        # 宁可给跑分环境装上真字体，也不要把中文断言改成 ASCII 悄悄放行。
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
       - name: Check Node & build frontend (#177)
         run: |
           node --version

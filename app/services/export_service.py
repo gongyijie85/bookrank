@@ -18,10 +18,17 @@ logger = logging.getLogger(__name__)
 # 中文字体路径（项目内置SimHei黑体，回退系统字体）
 FONT_DIR = Path(__file__).parent.parent.parent / 'static' / 'fonts'
 CHINESE_FONT = FONT_DIR / 'simhei.ttf'
+# 系统字体回退。注意 Debian/Ubuntu 的 fonts-noto-cjk 把字体装在 **opentype/**（不是
+# truetype/），只列 truetype 会让所有 Linux 环境（CI、Render、容器）恒定落空，进而
+# 走到下面的 ASCII 降级分支——中文在导出的 PDF 里全变成 '?'，且**不报错**。
+# 路径清单若再次漂移，tests/test_export_service.py 的环境守卫用例会响亮失败。
 _SYSTEM_FONT_CANDIDATES = [
     Path('C:/Windows/Fonts/simhei.ttf'),
     Path('C:/Windows/Fonts/msyh.ttc'),
+    Path('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'),
     Path('/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc'),
+    Path('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf'),
+    Path('/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'),
     Path('/System/Library/Fonts/PingFang.ttc'),
 ]
 

@@ -65,6 +65,26 @@ class TestInitPdfFont:
         result = export_service._init_pdf_font(pdf)
         assert isinstance(result, bool)
 
+    def test_a_cjk_font_is_available_in_this_environment(self):
+        """环境必须真的能找到一个 CJK 字体。
+
+        `_init_pdf_font()` 找不到字体时**不抛错**，只把文本降级成纯 ASCII（中文变 '?'），
+        所以"缺字体"必须在这里响亮失败，而不是让下游的中文断言换一种写法悄悄通过。
+        线上（Render）曾长期处于这个降级分支：PDF 里的中文全变成 '?'。
+
+        Linux/CI 需要安装 CJK 字体（见 .github/workflows/ci.yml 的 `Install CJK font`
+        步骤，包名 fonts-noto-cjk）；若发行版换了安装路径，请同步更新
+        `_SYSTEM_FONT_CANDIDATES`，不要在本用例上放宽断言。
+        """
+        from fpdf import FPDF
+
+        from app.services import export_service as export_service_module
+
+        assert ExportService()._init_pdf_font(FPDF()) is True, (
+            '当前环境找不到任何可用中文字体，PDF 导出会静默把中文降级成 ASCII。'
+            f'已尝试的路径：{[str(p) for p in export_service_module._SYSTEM_FONT_CANDIDATES]}'
+        )
+
     @patch('app.services.export_service._SYSTEM_FONT_CANDIDATES', [])
     @patch('app.services.export_service.CHINESE_FONT')
     def test_font_not_exists(self, mock_font_path, export_service):
@@ -247,6 +267,26 @@ class TestExportWeeklyReportPdf:
         assert result is not None
         assert mock_report_no_content.summary == raw_summary
         assert mock_report_no_content.content is None
+
+    @patch('app.services.export_service._SYSTEM_FONT_CANDIDATES', [])
+    @patch('app.services.export_service.CHINESE_FONT')
+    def test_pdf_without_any_cjk_font_degrades_to_ascii_instead_of_failing(
+        self, mock_chinese_font, export_service, mock_report
+    ):
+        """环境里没有任何中文字体时的**降级合同**——与本机装没装字体无关的确定性锁。
+
+        导出仍必须产出合法 PDF（不抛异常、不返回 None），中文按既有设计降级为 '?'。
+        这是"宁可缺字也不能让导出失败"的取舍；反向的"有字体就必须渲染中文"由
+        test_pdf_direct_call_renders_derived_summary_and_metrics 与
+        TestInitPdfFont::test_a_cjk_font_is_available_in_this_environment 锁住。
+        """
+        mock_chinese_font.exists.return_value = False
+
+        _, texts = self._real_pdf_with_scope_and_metrics(export_service, mock_report)
+        joined = '\n'.join(texts)
+
+        assert '本周指标' not in joined, '缺字体时不应出现中文（会渲染成豆腐块或问号）'
+        assert '?' in joined, '缺字体时中文应降级为 ? 而不是被整段丢弃'
 
 
 class TestExportWeeklyReportExcel:
