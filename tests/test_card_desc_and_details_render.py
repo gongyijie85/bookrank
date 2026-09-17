@@ -398,3 +398,37 @@ class TestBookDetailCoverIsProxied:
         assert img['src'].startswith('/cover?src='), f'封面应改走同源代理，实际为 {img["src"]}'
         assert not img['src'].startswith('https://'), '浏览器不应直接请求境外图床'
         assert img['data-original'].startswith('/cover?src='), '回退链上的原始封面同样要过代理'
+
+
+class TestCardShowsPlainIsbn:
+    """列表卡片显示明文 ISBN 的回归锁。
+
+    背景：#248 以"避免噪音"为由把 ISBN 从列表卡片移除（首页卡片、新书速递卡片，以及
+    SSR 用的 `new_book_card` 宏），只保留 `data-isbn` 属性。用户实际反馈是
+    "原来卡片上有 ISBN 现在怎么没了"——静默去掉用户看得见的信息，不是降噪。
+
+    三条渲染路径各锁一条：
+    - 首页 SSR：断言**渲染结果**（真实 client.get）
+    - `new_book_card` 宏：断言宏源码（它是多个页面的 SSR 卡片来源，而 `{% from %}` 导入
+      的宏不共享调用方上下文，单独渲染拿不到 `_()` / `url_for`，只好在源码层锁；
+      该文件对 CSS/JS 也是这么做的）
+    - 新书速递 AJAX 卡片：`tests/test_frontend_newbooks_state.mjs` 里执行真实内联脚本后断言
+    """
+
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.merge_or_translate_book')
+    def test_homepage_card_renders_plain_isbn(self, mock_merge, mock_fetch, client, book_service):
+        book = _make_book()
+        book_service([book])
+
+        html = client.get('/?category=hardcover-fiction&lang=zh').get_data(as_text=True)
+
+        assert 'card-pub-isbn-item isbn' in html, '首页卡片丢失了 ISBN 元素（#248 曾整块删掉）'
+        assert book.isbn13 in html, '首页卡片应显示明文 ISBN，而不只是 data-isbn 属性'
+
+    def test_new_book_card_macro_keeps_plain_isbn(self):
+        macro_src = (Path(__file__).resolve().parent.parent / 'templates' / '_macros.html').read_text(encoding='utf-8')
+        macro = macro_src.split('{% macro new_book_card(book) %}', 1)[1].split('{% endmacro %}', 1)[0]
+
+        assert 'class="book-isbn"' in macro, 'new_book_card 宏丢失了明文 ISBN 段落（#248 曾删掉）'
+        assert 'book.isbn13' in macro and 'book.isbn10' in macro, '宏里应同时覆盖 ISBN-13 与回退的 ISBN-10'

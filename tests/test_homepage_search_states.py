@@ -2,7 +2,8 @@
 
 - search_status empty/partial/failed 与 data_load_failed 的状态条在真实模板里渲染
   （empty 回显查询词并提供清除；failed 重试保留查询词；partial 警告且结果仍显示）
-- 卡面不再显示可见 ISBN（保留 data-isbn 供 JS 按需翻译 / 收藏使用）
+- 卡面**显示明文 ISBN**，同时保留 data-isbn 供 JS 按需翻译 / 收藏
+  （#248 曾把可见 ISBN 去掉并在此断言"不应出现"，用户明确要求恢复，见 #251）
 - 头部：h1 主标题即当前语言榜单名；不再渲染重复的顶部快速链接条（.charts-sections）
 
 后端 search_status 契约本身在 test_ux_search.py 已锁，这里只锁模板渲染结果，
@@ -105,7 +106,13 @@ class TestSearchStateRendering:
 
 
 class TestListingHierarchy:
-    def test_visible_isbn_removed_but_data_isbn_kept(self, client):
+    def test_visible_isbn_is_rendered_and_data_isbn_kept(self, client):
+        """两条都要成立：可见文本给人看，`data-isbn` 属性给 JS 用。
+
+        这里此前断言的是"可见 ISBN 不应再出现"（#248 的设计决定：只留 data-isbn）。
+        用户反馈"原来卡片上有 ISBN 现在怎么没了"，该决定已被推翻（恢复见 #251）。
+        别再把它改回去——真要改，先确认用户还要不要这个信息。
+        """
         books = [_make_book()]
         with patch.object(main_routes, '_search_all_categories', return_value=(books, [])):
             resp = _get_index(client, search='测试')
@@ -114,9 +121,10 @@ class TestListingHierarchy:
         assert card is not None
         # data-isbn 保留供 JS 按需翻译 / 收藏
         assert card.get('data-isbn') == '9780143127550'
-        # 可见 ISBN 不应再出现
-        assert card.select_one('.card-pub-isbn-item.isbn') is None
-        assert card.select_one('.card-pub-isbn-item.isbn13') is None
+        # 可见 ISBN 必须渲染出来
+        isbn_el = card.select_one('.card-pub-isbn-item.isbn')
+        assert isbn_el is not None, '首页卡片应显示明文 ISBN'
+        assert isbn_el.get_text(strip=True) == '9780143127550'
 
 
 class TestHeaderIdentity:

@@ -854,11 +854,15 @@ function renderBookCard(book) {
     }
     tagsHtml += '</div>';
 
+    // 明文 ISBN：列表卡片保留。#248 曾移除，用户明确要求恢复；
+    // data-isbn 属性仍然保留（BookI18n 按 ISBN 注册与切语言）。
+    const isbnHtml = book.isbn13
+        ? '<p class="book-isbn">' + esc(book.isbn13) + '</p>'
+        : (book.isbn10 ? '<p class="book-isbn">' + esc(book.isbn10) + '</p>' : '');
+
     const priceHtml = book.price
         ? '<span class="book-price">' + esc(book.price) + '</span>'
         : '';
-
-    // ISBN 只保留在 data-isbn（BookI18n 注册用），列表不再渲染明文。
     return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + esc(book.isbn13 || book.isbn10 || '') + '">' +
         '<a class="book-cover-link" href="' + detailUrl + '" tabindex="-1">' +
         '<div class="book-cover-wrapper">' + coverHtml + '</div></a>' +
@@ -866,7 +870,7 @@ function renderBookCard(book) {
         '<div class="book-title" title="' + esc(titleDisplay) + '" data-en="' + esc(book.title) + '" data-zh="' + esc(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="' + detailUrl + '">' + esc(titleDisplay) + '</a></div>' +
         '<div class="book-author" data-en="' + esc(book.author) + '">' + esc(authorDisplay) + '</div>' +
         '<div class="book-meta"><span class="book-publisher" data-pub-name-zh="' + esc(pubNameZh) + '" data-pub-name-en="' + esc(pubNameEn) + '"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + esc(pubNameDisplay) + '</span>' + priceHtml + '</div>' +
-        tagsHtml +
+        tagsHtml + isbnHtml +
         '</div></div>';
 }
 

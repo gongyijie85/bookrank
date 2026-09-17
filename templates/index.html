@@ -218,10 +218,16 @@
             <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
             {% endif %}
             <p class="card-author">{{ book.author or _('未知作者') }}</p>
-            {% if book.publisher or book.weeks_on_list %}
+            {# 明文 ISBN：首页卡片保留。#248 曾移除，用户明确要求恢复。 #}
+            {% if book.publisher or book.isbn13 or book.isbn10 or book.weeks_on_list %}
             <p class="card-pub-isbn">
                 {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', _('未知'), _('未知出版社')) %}
                 <span class="card-pub-isbn-item publisher" title="{{ _('出版社') }}: {{ book.publisher }}">{{ book.publisher }}</span>
+                {% endif %}
+                {% if book.isbn13 %}
+                <span class="card-pub-isbn-item isbn" title="ISBN-13: {{ book.isbn13 }}">{{ book.isbn13 }}</span>
+                {% elif book.isbn10 %}
+                <span class="card-pub-isbn-item isbn" title="ISBN-10: {{ book.isbn10 }}">{{ book.isbn10 }}</span>
                 {% endif %}
                 {% if book.weeks_on_list %}<span class="card-pub-isbn-item weeks" title="{{ _('累计上榜周数') }}">{{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>{% endif %}
             </p>

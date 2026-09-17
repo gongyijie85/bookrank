@@ -1,7 +1,8 @@
 """共享卡片链接 / 日期语义 / 筛选状态 的聚焦测试。
 
 覆盖三处实际失效：
-1. 卡片链接 —— 封面与书名必须指向**同一个**既有详情路由，且列表里不再显示明文 ISBN；
+1. 卡片链接 —— 封面与书名必须指向**同一个**既有详情路由，并渲染明文 ISBN
+   （#248 曾去掉可见 ISBN，用户要求恢复，见 #251）；
    BookI18n 切语言时不能把标题容器 textContent 覆盖掉内层 <a>（书名变死文本、卡片不可点）。
 2. 日期语义 —— 状态只由 publication_date 决定：未来=即将出版，过去/今天=已出版，
    无日期=出版日期待确认；绝不拿 created_at（发现时间）冒充出版日期。
@@ -148,13 +149,18 @@ class TestSharedCardDetailLink:
         for block in re.findall(r'<a class="book-cover-link".*?</a>', html, re.S):
             assert '<a ' not in block[block.index('>') + 1 :], '封面链接内部嵌套了另一个链接'
 
-    def test_isbn_is_data_only_in_lists(self, app, db, client):
-        """列表里不再有明文 ISBN；ISBN 只留在 data-isbn / data-book-id 元数据上。"""
+    def test_isbn_is_rendered_and_data_isbn_kept(self, app, db, client):
+        """列表卡片显示明文 ISBN，同时保留 data-isbn 元数据。
+
+        这里此前断言的是"列表里不再有明文 ISBN"（#248 的决定）。用户反馈
+        "原来卡片上有 ISBN 现在怎么没了"，该决定已被推翻（恢复见 #251）。
+        别再改回去 —— 要动先确认用户还要不要这个信息。
+        """
         with app.app_context():
             _seed_books(db)
 
         html = client.get('/new-books').get_data(as_text=True)
-        assert 'book-isbn' not in html, 'SSR 列表仍在渲染 .book-isbn 明文块'
+        assert 'class="book-isbn">9780000000001<' in html, 'SSR 列表应渲染明文 ISBN'
         assert 'data-isbn="9780000000001"' in html, 'ISBN 元数据丢失，BookI18n 无法注册'
 
         ajax = client.get('/api/new-books?days=30').get_json()
@@ -163,7 +169,7 @@ class TestSharedCardDetailLink:
             assert book['isbn13'], 'API 不再返回 isbn13 元数据'
 
     def test_ajax_render_book_card_links_cover_and_title(self):
-        """AJAX 重绘的 renderBookCard 同样给出封面 + 书名链接（同一路由）。
+        """AJAX 重绘的 renderBookCard 同样给出封面 + 书名链接（同一路由），并渲染明文 ISBN。
 
         断言用的是源码里的**实际**字面量（HTML 用单引号，属性用双引号）——
         写成别的引号形式会永远为假，等于没测。
@@ -177,7 +183,7 @@ class TestSharedCardDetailLink:
         assert '\'<a class="book-cover-link" href="\' + detailUrl' in card, 'AJAX 卡片封面缺少详情链接'
         assert "'\"><a href=\"' + detailUrl + '\">'" in card, 'AJAX 书名未指向详情路由'
         assert 'detailUrl' in card, 'AJAX 卡片没有统一的详情路由变量'
-        assert 'isbnHtml' not in card, 'AJAX 卡片仍在渲染明文 ISBN'
+        assert 'isbnHtml' in card, 'AJAX 卡片应渲染明文 ISBN（#248 曾移除，恢复见 #251）'
         assert 'esc(book.isbn13 || book.isbn10' in card, 'AJAX 卡片丢了 data-isbn 元数据'
 
     def test_mobile_newbooks_card_links_to_detail_route(self, app, db):
