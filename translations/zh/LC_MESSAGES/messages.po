@@ -799,6 +799,12 @@ msgstr "查看英文原文"
 msgid "暂无简介"
 msgstr "暂无简介"
 
+msgid "："
+msgstr "："
+
+msgid "，"
+msgstr "，"
+
 #: templates/book_detail.html:234
 msgid "暂无详细介绍"
 msgstr "暂无详细介绍"
