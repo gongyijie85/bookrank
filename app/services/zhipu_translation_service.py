@@ -14,7 +14,12 @@ import time
 from functools import lru_cache
 from typing import Any, cast
 
-from ..utils.api_helpers import clean_translation_text, is_english_echo
+from ..utils.api_helpers import (
+    INFLATION_GUARDED_FIELDS,
+    clean_translation_text,
+    is_english_echo,
+    is_inflated_translation,
+)
 from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import run_with_app_context
 
@@ -122,6 +127,21 @@ class ZhipuTranslationService:
         'description',
         'glossary',
     )
+    # 每个字段实际「看得到」的上下文白名单。**只对实证出问题的字段设限**，其余字段
+    # （书名、自定义 field_type）保持完整上下文 —— 不做无依据的行为改动。
+    #
+    # 背景（2026-09-17 生产取证）：简介一度比英文原文长 4 倍，内容却是模型拿上下文里的
+    # 书名/作者/榜单名重写的一段介绍 —— 提示词一边说「不增添」，一边把出版社、榜单类别、
+    # 系列喂了进去，还要求「采用上下文中的书名与术语并保持一致」，短简介场景下模型就把
+    # 这些**事实**当素材写进了译文。
+    #
+    # 简介/详情只需要「书名 + 术语表」来统一译名；出版社/榜单/类别/系列纯属消歧信息，
+    # 不该进入译文。书名翻译不受影响：它本就靠体裁与简介判断含义，输出极短且有
+    # _clean_title_text 兜底。
+    _PROMPT_CONTEXT_FIELDS: dict[str, frozenset[str]] = {
+        'description': frozenset(('title', 'title_zh', 'author', 'glossary')),
+        'details': frozenset(('title', 'title_zh', 'author', 'glossary')),
+    }
 
     def __init__(self, api_key: str | None = None, model: str | None = None, app=None):
         """
@@ -294,7 +314,22 @@ class ZhipuTranslationService:
 
     @classmethod
     def _format_book_context(cls, context: dict[str, Any] | Any | None) -> str:
-        values = cls._normalize_book_context(context)
+        return cls._render_book_context(cls._normalize_book_context(context))
+
+    @classmethod
+    def _context_for_prompt(cls, field_type: str, context: dict[str, Any] | Any | None) -> str:
+        """按字段白名单裁剪上下文，只留下该字段真正需要的信息。
+
+        未在白名单里的字段走完整上下文（例如自定义 field_type）。
+        """
+        allowed = cls._PROMPT_CONTEXT_FIELDS.get(field_type)
+        if allowed is None:
+            return cls._format_book_context(context)
+        filtered = {field: value for field, value in cls._normalize_book_context(context).items() if field in allowed}
+        return cls._render_book_context(filtered)
+
+    @classmethod
+    def _render_book_context(cls, values: dict[str, Any]) -> str:
         labels = {
             'title': '英文书名',
             'title_zh': '已确定中文书名',
@@ -327,7 +362,7 @@ class ZhipuTranslationService:
         if target_lang != 'zh':
             return f'Translate the following segment into {target_lang}, without additional explanation.\n\n{text}'
 
-        book_context = cls._format_book_context(context)
+        book_context = cls._context_for_prompt(field_type, context)
         prompts = {
             'title': (
                 '将下面的英文图书标题翻译成专业、自然的简体中文出版书名。只输出一个最终书名，'
@@ -342,13 +377,19 @@ class ZhipuTranslationService:
                 '要求：完整忠实，不遗漏、不增添、不改变人物关系和情节；在准确的基础上使用凝练、流畅、'
                 '有节奏的现代中文，保留原文语气、悬念和体裁风格；采用上下文中的书名与术语并保持一致；'
                 '人物名不附英文，书名使用《》；保留原有段落结构。\n\n'
-                f'图书上下文：\n{book_context}\n\n待翻译简介：\n{text}'
+                '长度约束：译文是与原文一一对应的翻译，不是图书介绍。译文不得出现原文没有的任何事实，'
+                '尤其不得提及出版社、榜单名称、系列、类别、获奖或销量；译文长度不应明显超过原文。\n\n'
+                f'图书上下文（仅供统一书名与术语的译名，不是待翻译内容）：\n{book_context}\n\n'
+                f'待翻译简介（译文只能包含这段文字已有的信息）：\n{text}'
             ),
             'details': (
                 '将下面的英文图书详情翻译成准确、自然的简体中文。只输出译文，不要解释或使用 Markdown。\n\n'
                 '要求：不增删事实；采用上下文中的书名与术语；保留段落、数字、日期、价格、ISBN及专有标识；'
                 '出版与装帧信息使用规范中文表达。\n\n'
-                f'图书上下文：\n{book_context}\n\n待翻译详情：\n{text}'
+                '长度约束：译文不得引入原文没有的信息，不得补充榜单、获奖、销量等背景，'
+                '不得把上下文里的出版社/系列/类别当作正文写出来。\n\n'
+                f'图书上下文（仅供统一书名与术语的译名，不是待翻译内容）：\n{book_context}\n\n'
+                f'待翻译详情：\n{text}'
             ),
             'author': (
                 '将下面的作者姓名翻译成规范简体中文译名。优先采用公认译名，否则按通行音译规则处理；'
@@ -442,6 +483,9 @@ class ZhipuTranslationService:
 
         from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+        # 可变持有：命中「上下文注水」防线时置空，用无上下文提示词重译一次。
+        prompt_context = context
+
         @retry(
             stop=stop_after_attempt(3),
             wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -455,7 +499,7 @@ class ZhipuTranslationService:
                     messages=[
                         {
                             'role': 'user',
-                            'content': self._build_hunyuan_prompt(text, target_lang, field_type, context),
+                            'content': self._build_hunyuan_prompt(text, target_lang, field_type, prompt_context),
                         }
                     ],
                     temperature=0.7,
@@ -487,6 +531,33 @@ class ZhipuTranslationService:
                     if result is None:
                         return None
                     result = clean_translation_text(result, field_type=field_type)
+
+                    # 上下文注水防线：提示词已按字段裁剪上下文，这里再兜一层。命中时先去掉
+                    # 上下文重译一次；仍不可信就丢弃 —— 宁可不翻译，也不把「模型自撰的图书
+                    # 介绍」当成译文写进缓存与语言包（写进去会自我固化，见 is_english_echo 同理）。
+                    if field_type in INFLATION_GUARDED_FIELDS and is_inflated_translation(text, result, context):
+                        logger.warning(
+                            '译文疑似被上下文注水（%d -> %d 字符），改用无上下文重译: %s',
+                            len(text),
+                            len(result),
+                            text[:40],
+                        )
+                        prompt_context = None
+                        retry_response = _call_api()
+                        self._last_request_time = time.time()
+                        result = None
+                        if retry_response and retry_response.choices and retry_response.choices[0].message.content:
+                            candidate = _unwrap_merged_json_result(
+                                retry_response.choices[0].message.content, field_type
+                            )
+                            if candidate is not None:
+                                candidate = clean_translation_text(candidate, field_type=field_type)
+                                if candidate and not is_inflated_translation(text, candidate, None):
+                                    result = candidate
+                        if not result:
+                            logger.warning('去掉上下文后译文仍不可信，丢弃以免污染缓存: %s', text[:40])
+                            return None
+
                     logger.info(f'智谱AI翻译成功: {text[:50]}... -> {result[:50]}...')
                     return cast('str | None', result)
 
@@ -915,8 +986,14 @@ class HybridTranslationService:
                     from ..utils.api_helpers import clean_translation_text
 
                     result = clean_translation_text(cached.translated_text, field_type=field_type)
-                    logger.debug('缓存命中，返回翻译结果（已后处理）')
-                    return cast('str | None', result)
+                    # 缓存里的旧译文可能是「上下文注水」时代的产物。按未命中处理，
+                    # 让下面的重译用新提示词覆盖同一个缓存键，实现自愈（不必整体
+                    # bump PROMPT_VERSION —— 那会把没问题的缓存也一并作废）。
+                    if field_type in INFLATION_GUARDED_FIELDS and is_inflated_translation(text, result, context):
+                        logger.warning('缓存译文疑似被上下文注水，按未命中处理并重译: %s', text[:40])
+                    else:
+                        logger.debug('缓存命中，返回翻译结果（已后处理）')
+                        return cast('str | None', result)
             except Exception as e:
                 log_error(ErrorCategory.TRANSLATION, f'缓存读取失败: {e}', level='warning')
 
