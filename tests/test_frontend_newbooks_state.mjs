@@ -333,8 +333,8 @@ function parseHtml(html, doc) {
     // <script>/<style> 的内容是文本，不是标记：必须先剥离，否则脚本里字符串字面量中的
     // `data-isbn="..."` 会被解析成真实属性，把 BookI18n 的分支判断带偏。
     const cleaned = html
-        .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '<script></script>')
-        .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '<style></style>');
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*[^>]*>/gi, '<script></script>')
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*[^>]*>/gi, '<style></style>');
     // 分词只负责把标签**边界**切出来（属性文本交给下面的 attrRe 再解析），所以这里
     // 不需要 `name=value` 的结构语法。四个分支按首字符互斥（普通字符 / 不成对的 `/` /
     // 双引号 / 单引号），既不会把引号里的 `>` 当标签结束，也不存在嵌套量词导致的回溯。
