@@ -1,29 +1,42 @@
 {% extends "base.html" %}
 
-{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block og_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
-{% block twitter_image %}{{ book.cover if book.cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block og_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block twitter_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block og_image %}{{ url_for('main.cover_proxy', src=book._original_cover, _external=True) if book._original_cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('main.cover_proxy', src=book._original_cover, _external=True) if book._original_cover else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
 
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
-{% set cat_label = categories.get(category, category) if categories else category %}
+{% set _l = get_locale() %}
+{% set cat_label = (category_names_en.get(category, category) if _l != 'zh' else categories.get(category, category)) if categories else category %}
 {{ breadcrumbs([
     {'label': _('首页'), 'url': url_for('main.index')},
     {'label': cat_label, 'url': url_for('main.index', category=category)},
-    {'label': book.title_zh or book.title, 'url': request.url}
+    {'label': book.title_zh|bilingual(book.title), 'url': request.url}
 ], csp_nonce()) }}
 {% endblock %}
 
 {% block content %}
+{# 详细介绍的取值口径统一在这里算一次：
+   「没有内容」的占位串清单来自 api_helpers 的**单一真相源**，经 app/__init__.py 注入为
+   Jinja 全局 `PLACEHOLDER_TEXTS`。模板不再自带第二份清单 —— 历史上模板/服务/脚本各存一份、
+   改一处漏一处，正是「详情整块消失」的成因之一。
+   库里可能存着占位串（'No detailed description available.' / '暂无详细描述' 等），
+   直接当正文渲染会渲染出"占位串本身"；而 `details_zh` 有值、`details` 为空时，
+   原来的 `{% if %}/{% elif %}` 两个分支都不命中，面板会**整块空白**。 #}
+{% set _details_zh = (book.details_zh or '')|trim %}
+{% set _details_en = (book.details or '')|trim %}
+{% set _details_zh = '' if _details_zh in PLACEHOLDER_TEXTS else _details_zh %}
+{% set _details_en = '' if _details_en in PLACEHOLDER_TEXTS else _details_en %}
+{% set _has_details = _details_zh or _details_en %}
 
 <!-- Book Structured Data for SEO -->
 <script type="application/ld+json" nonce="{{ csp_nonce() }}">
 {
     "@context": "https://schema.org",
     "@type": "Book",
-    "name": {{ (book.title_zh or book.title) | tojson }},
+    "name": {{ book.title_zh|bilingual(book.title) | tojson }},
     "alternateName": {{ book.title | tojson }}{% if book.author %},
     "author": {
         "@type": "Person",
@@ -34,8 +47,8 @@
         "@type": "Organization",
         "name": {{ book.publisher | tojson }}
     }{% endif %}{% if book.description_zh or book.description %},
-    "description": {{ (book.description_zh or book.description)[:500] | tojson }}{% endif %}{% if book.cover %},
-    "image": {{ book.cover | tojson }}{% endif %},
+    "description": {{ (book.description_zh|bilingual(book.description))[:500] | tojson }}{% endif %}{% if book.cover %},
+    "image": {{ (url_for('main.cover_proxy', src=book._original_cover, _external=True) if book._original_cover else book.cover) | tojson }}{% endif %},
     "url": "{{ request.url }}"
 }
 </script>
@@ -53,11 +66,12 @@
         <!-- 左侧：封面 -->
         <div class="detail-cover-section">
             <div class="detail-cover">
-                <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
+                {% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}
+                <img src="{{ (_cover or book._original_cover)|cover_src_or_default }}"
                      alt="{{ book.title }} {{ _('封面') }}"
                      width="280" height="420"
                      loading="lazy"
-                     data-original="{{ book._original_cover or '' }}"
+                     data-original="{{ book._original_cover|cover_src }}"
                      data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                 <div class="detail-rank-badge">{{ book_index + 1 }}</div>
             </div>
@@ -83,8 +97,8 @@
         <div class="detail-info-section">
             <!-- 标题区 -->
             <div class="detail-header">
-                <h1 class="detail-title">{{ book.title_zh or book.title }}</h1>
-                {% if book.title_zh and book.title != book.title_zh %}
+                <h1 class="detail-title">{{ book.title_zh|bilingual(book.title) }}</h1>
+                {% if book.title_zh and book.title != book.title_zh and get_locale() == 'zh' %}
                 <p class="detail-title-en">{{ book.title }}</p>
                 {% endif %}
                 <p class="detail-author">{{ book.author }}</p>
@@ -140,7 +154,7 @@
                     <div>
                         <div class="meta-label" data-i18n="book_category">{{ _('分类') }}</div>
                         <div class="meta-value" data-cat-zh="{{ book.category_name|default('') }}" data-cat-en="{{ book.list_name|default('') }}">
-                            {{ book.category_name or book.list_name }}
+                            {{ book.category_name|bilingual(book.list_name) }}
                         </div>
                     </div>
                 </div>
@@ -161,7 +175,7 @@
                     <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-globe"/></svg></span>
                     <div>
                         <div class="meta-label" data-i18n="language_label">{{ _('语言') }}</div>
-                        <div class="meta-value" data-lang-zh="{{ book.language }}" data-lang-en="{% if '英' in book.language or 'English' in book.language %}English{% elif '中' in book.language or 'Chinese' in book.language %}Chinese{% else %}{{ book.language }}{% endif %}">{{ book.language }}</div>
+                        <div class="meta-value" data-lang-zh="{{ book.language }}" data-lang-en="{{ book.language|language_name('en') }}">{{ book.language|language_name }}</div>
                     </div>
                 </div>
                 {% endif %}
@@ -174,7 +188,7 @@
                         <svg class="icon" width="16" height="16"><use href="#icon-book-open"/></svg>
                         {{ _('图书简介') }}
                     </button>
-                    {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
+                    {% if _has_details %}
                     <button class="tab-btn" id="tab-details" data-tab="details" data-i18n="book_details">
                         <svg class="icon" width="16" height="16"><use href="#icon-info"/></svg>
                         {{ _('详细信息') }}
@@ -187,14 +201,14 @@
                     <div class="tab-panel active" id="panel-description">
                         {% if book.description_zh %}
                         <div class="zh-description">{{ book.description_zh }}</div>
-                        {% if book.description and book.description != 'No summary available.' %}
+                        {% if book.description and book.description not in PLACEHOLDER_TEXTS %}
                         <button class="lang-toggle-btn" data-toggle-original="desc">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
                             <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
                         <div class="en-description lang-toggle-content" id="desc-en">{{ book.description }}</div>
                         {% endif %}
-                        {% elif book.description and book.description != 'No summary available.' %}
+                        {% elif book.description and book.description not in PLACEHOLDER_TEXTS %}
                         <p>{{ book.description }}</p>
                         {% else %}
                         <p class="empty-text" data-i18n="no_description">{{ _('暂无简介') }}</p>
@@ -203,17 +217,19 @@
 
                     <!-- 详细信息 -->
                     <div class="tab-panel" id="panel-details">
-                        {% if book.details_zh %}
-                        <div class="zh-description">{{ book.details_zh }}</div>
-                        {% if book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
+                        {% if _details_zh %}
+                        <div class="zh-description">{{ _details_zh }}</div>
+                        {% if _details_en %}
                         <button class="lang-toggle-btn" data-toggle-original="details">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
                             <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
-                        <div class="detail-content lang-toggle-content" id="details-en">{{ book.details }}</div>
+                        <div class="detail-content lang-toggle-content" id="details-en">{{ _details_en }}</div>
                         {% endif %}
-                        {% elif book.details and book.details not in ('No detailed description available.', '暂无详细描述', '') %}
-                        <div class="detail-content">{{ book.details }}</div>
+                        {% elif _details_en %}
+                        <div class="detail-content">{{ _details_en }}</div>
+                        {% else %}
+                        <p class="empty-text" data-i18n="no_details">{{ _('暂无详细介绍') }}</p>
                         {% endif %}
                     </div>
                 </div>

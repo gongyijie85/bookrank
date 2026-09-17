@@ -25,7 +25,7 @@
                data-pub-name-zh="{{ pub.name }}"
                data-pub-name-en="{{ pub.name_en }}">
                 <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                <span class="pub-name">{{ pub.name }}</span>
+                <span class="pub-name">{{ pub.name|bilingual(pub.name_en) }}</span>
                 <span class="badge">{{ publisher_book_counts.get(pub.id, 0) }}</span>
             </a>
         </li>
@@ -50,7 +50,7 @@
 <nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
     <a href="{{ url_for('main.new_books', days=selected_days) }}">{% if selected_category %}{{ _('清除分类筛选') }}{% else %}{{ _('全部分类') }}{% endif %}</a>
     {% for cat in categories %}
-    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}">{{ cat.name }}</a>
+    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}">{{ cat.name|category_name }}</a>
     {% endfor %}
 </nav>
 
@@ -59,7 +59,7 @@
     <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}"
        class="browse-tile"
        {% if selected_category == cat.name %}aria-current="page"{% endif %}>
-        <span class="browse-tile-name">{{ cat.name }}</span>
+        <span class="browse-tile-name">{{ cat.name|category_name }}</span>
         <span class="browse-tile-count">{{ cat.count }} {{ _('本') }}</span>
     </a>
     {% endfor %}
@@ -67,9 +67,9 @@
 {% endif %}
 
 {% for section in publisher_sections %}
-<section class="browse-section" aria-label="{{ section.publisher.name }}">
+<section class="browse-section" aria-label="{{ section.publisher.name|bilingual(section.publisher.name_en) }}">
     <div class="browse-section-head">
-        <h2 class="browse-section-title">{{ section.publisher.name }}</h2>
+        <h2 class="browse-section-title">{{ section.publisher.name|bilingual(section.publisher.name_en) }}</h2>
         <a class="browse-section-more"
            href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看更多') }} &rarr;</a>
     </div>
@@ -94,7 +94,7 @@
             <option value="{{ pub.id }}"
                     {% if selected_publisher == pub.id %}selected{% endif %}
                     data-pub-name-zh="{{ pub.name }}"
-                    data-pub-name-en="{{ pub.name_en }}">{{ pub.name }}</option>
+                    data-pub-name-en="{{ pub.name_en }}">{{ pub.name|bilingual(pub.name_en) }}</option>
             {% endfor %}
         </select>
     </div>
@@ -104,7 +104,7 @@
         <select id="category-filter" name="category" aria-label="{{ _('选择分类') }}">
             <option value="" data-i18n="nb_filter_category_all">{{ _('全部分类') }}</option>
             {% for cat in categories %}
-            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name }} ({{ cat.count }})</option>
+            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name|category_name }} ({{ cat.count }})</option>
             {% endfor %}
         </select>
     </div>
@@ -215,7 +215,7 @@
 let currentPage = {{ page }};
 let isLoading = false;
 let searchTimer = null;
-let currentLanguage = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'zh';
+let currentLanguage = window.__APP_LANG__ || 'en';
 
 window.addEventListener('languagechange', function(e) {
     currentLanguage = e.detail.language;
@@ -436,8 +436,20 @@ function renderBooks(data) {
 }
 
 function renderBookCard(book) {
-    const coverHtml = book.cover_url
-        ? '<img src="' + esc(book.cover_url) + '" alt="' + esc(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
+    // 出版社图床（images.penguinrandomhouse.com 等）国内不可直连，
+    // 也不在 CSP img-src 白名单内，统一改走同源 /cover 代理（规则见 app/utils/cover_urls.py）。
+    // BookRankCover 未挂上时不能身份回退，否则筛选重绘会把境外 URL 写进 img src。
+    const coverToSrc = (window.BookRankCover && window.BookRankCover.toSrc) || function(raw) {
+        const value = raw == null ? '' : String(raw).trim();
+        if (!value) return '';
+        if (value.indexOf('/static/') === 0 || value.indexOf('/cache/images/') === 0 || value.indexOf('/cover') === 0) {
+            return value;
+        }
+        return '/cover?src=' + encodeURIComponent(value);
+    };
+    const coverUrl = coverToSrc(book.cover_url);
+    const coverHtml = coverUrl
+        ? '<img src="' + esc(coverUrl) + '" alt="' + esc(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
         : '<div class="book-cover-placeholder"><svg class="icon" style="width:3rem;height:3rem"><use href="#icon-book"/></svg></div>';
 
     const titleZh = book.title_zh || book.title;
@@ -454,7 +466,8 @@ function renderBookCard(book) {
             '<svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>{{ _("刚上市") }}</span>';
     }
     if (book.category) {
-        tagsHtml += '<span class="book-tag tag-category">' + esc(book.category) + '</span>';
+        const catDisplay = currentLanguage === 'zh' ? book.category : (book.category_en || book.category);
+        tagsHtml += '<span class="book-tag tag-category">' + esc(catDisplay) + '</span>';
     } else {
         tagsHtml += '<span class="book-tag tag-category tag-muted">{{ _("分类未公开") }}</span>';
     }

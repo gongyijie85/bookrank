@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
+TEMPLATES_DIR = ROOT / 'templates'
 TPL = ROOT / 'templates' / 'new_books.html'
 DETAIL_TPL = ROOT / 'templates' / 'new_book_detail.html'
 MACROS = ROOT / 'templates' / '_macros.html'
@@ -136,10 +137,30 @@ class TestNewBookPoFiles:
         assert not problems, f'en.po 未翻译的 msgid: {problems}'
 
     def test_mo_files_recompiled(self):
-        """.mo 文件必须比 .po 新（说明已重新编译）。"""
-        assert ZH_MO.exists() and EN_MO.exists()
-        assert ZH_MO.stat().st_mtime >= ZH_PO.stat().st_mtime - 1
-        assert EN_MO.stat().st_mtime >= EN_PO.stat().st_mtime - 1
+        """.mo 必须与 .po 内容一致。
+
+        原先比的是 mtime —— .po 被等价重写一次、或 rebase/checkout 刷新时间戳就会假红。
+        这里用 stdlib gettext 解析 .mo，逐项对译文，并确认 fuzzy 条目确实没进 .mo
+        （msgfmt 跳过 fuzzy，运行时回落中文，这正是 en 目录里 fuzzy 必须清零的原因）。
+        """
+        import gettext
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
+        from check_i18n_drift import parse_entries
+
+        for po_path, mo_path in ((ZH_PO, ZH_MO), (EN_PO, EN_MO)):
+            assert po_path.exists() and mo_path.exists()
+            entries, fuzzy = parse_entries(po_path.read_text(encoding='utf-8'))
+            with mo_path.open('rb') as fh:
+                cat = gettext.GNUTranslations(fh)
+            for msgid, expected in entries.items():
+                if msgid in fuzzy:
+                    assert cat.gettext(msgid) == msgid, f'{mo_path.name}: fuzzy 条目 {msgid[:20]!r} 不应进 .mo'
+                    continue
+                if expected.strip():
+                    assert cat.gettext(msgid) == expected, f'{mo_path.name} 与 {po_path.name} 不一致: {msgid[:30]!r}'
 
 
 class TestNewBooksTemplate:
@@ -215,7 +236,7 @@ class TestNewBookMacros:
 
 
 class TestNewBookToDict:
-    """NewBook.to_dict() 包含 publisher_name_en。"""
+    """NewBook.to_dict() 包含 publisher_name_en 与 category_en。"""
 
     def test_publisher_name_en_in_to_dict(self):
         import inspect
@@ -225,6 +246,51 @@ class TestNewBookToDict:
         src = inspect.getsource(NewBook.to_dict)
         assert 'publisher_name_en' in src
         assert 'name_en' in src
+
+    def test_category_en_resolved_from_crawler_map(self):
+        """JS 渲染的书卡也要能出英文分类，payload 必须带 category_en。"""
+        from app.models.new_book import _category_en
+
+        assert _category_en('小说') == 'Fiction'
+        assert _category_en('儿童读物') == 'Children'
+        assert _category_en(None) is None
+
+        import inspect
+
+        from app.models.new_book import NewBook
+
+        assert "'category_en': _category_en(" in inspect.getsource(NewBook.to_dict)
+
+
+class TestFrontEndLanguageDefault:
+    """前端"有效语言"只有一个来源，默认值不得硬编码。
+
+    此前 5 处页面脚本各写一份 `localStorage.getItem(...) || 'zh'`（另有两处写 'en'），
+    与服务端默认（en）相反：没有存储偏好的新访客在英文页搜索/翻页时，JS 渲染的书卡
+    标题、出版社、分类全变中文。现在统一读 base.html 早期同步发布的 __APP_LANG__。
+    """
+
+    def test_base_publishes_effective_lang(self):
+        src = _read(TEMPLATES_DIR / 'base.html')
+        assert 'window.__APP_LANG__' in src
+        assert "'{{ get_locale() }}'" in src, '默认语言必须来自服务端 locale，而非字面量'
+
+    def test_no_template_hardcodes_language_default(self):
+        # 允许：localStorage 读取后交给 __APP_LANG__；禁止：字面量 'zh'/'en' 兜底
+        hardcoded = re.compile(r"getItem\('(app|bookrank)_language'\)[^\n]*\|\|\s*'(zh|en)'")
+        offenders = []
+        for path in sorted(TEMPLATES_DIR.rglob('*.html')):
+            if path.name == 'base.html':  # 早期同步脚本是 __APP_LANG__ 的定义处
+                continue
+            for line in path.read_text(encoding='utf-8').splitlines():
+                if hardcoded.search(line):
+                    offenders.append(f'{path.name}: {line.strip()[:70]}')
+        assert not offenders, '页面脚本仍在硬编码语言默认值:\n' + '\n'.join(offenders)
+
+    def test_pages_read_effective_lang(self):
+        for name in ('new_books.html', 'new_book_detail.html', 'awards.html', 'award_book_detail.html'):
+            src = _read(TEMPLATES_DIR / name)
+            assert '__APP_LANG__' in src, f'{name} 未使用统一的有效语言'
 
 
 class TestNewBookPageClientI18n:
@@ -556,3 +622,31 @@ class TestBrowseCardVolumeMarker:
         match = re.search(r'<h3 class="browse-card-title"[^>]*title="A Plain Title[^"]*".*?</h3>', html, re.S)
         assert match, '未找到普通书名的卡片'
         assert 'browse-card-volume' not in match.group(0), '普通书名被误加了卷号徽标'
+
+
+class TestNewBookDetailLocaleFields:
+    """新书详情页两端都不得无条件输出中文标题/分类/出版社/语言（线上实测英文页 5 / 3 处）。"""
+
+    BARE = [
+        '{{ book.title_zh or book.title }}',
+        '{{ book.category }}',
+        '{{ book.publisher.name }}',
+        '{{ book.language }}',
+        '{{ book.description_zh or book.description',
+    ]
+
+    def test_desktop_and_mobile_detail_have_no_bare_zh_fields(self):
+        offenders = []
+        for rel in ('new_book_detail.html', 'mobile/new_book_detail.html'):
+            text = (TEMPLATES_DIR / rel).read_text(encoding='utf-8')
+            for needle in self.BARE:
+                for line in text.splitlines():
+                    if needle in line and 'data-' not in line and '|' not in line:
+                        offenders.append(f'{rel}: {line.strip()[:70]}')
+        assert not offenders, '详情页仍在无条件输出中文字段:\n' + '\n'.join(offenders)
+
+    def test_desktop_detail_h1_follows_locale(self):
+        text = _read(TEMPLATES_DIR / 'new_book_detail.html')
+        assert 'class="detail-title"' in text
+        assert '{{ book.title_zh|bilingual(book.title) }}' in text
+        assert "get_locale() == 'zh'" in text, '原文书名副行应只在中文页出现'

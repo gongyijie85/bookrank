@@ -11,6 +11,18 @@ from typing import Any, cast
 from .database import db
 
 
+def _category_en(value: str | None) -> str | None:
+    """分类的英文显示名：复用 app.utils.book_labels 对 CATEGORY_EN_TO_ZH 的反查。
+
+    延迟导入（models 不在模块加载期依赖 utils），并且刻意不另建第二张映射表。
+    """
+    if not value:
+        return None
+    from ..utils.book_labels import category_name
+
+    return category_name(value, 'en')
+
+
 class Publisher(db.Model):  # type: ignore[name-defined]
     """
     出版社模型
@@ -186,6 +198,7 @@ class NewBook(db.Model):  # type: ignore[name-defined]
             'cover_url': self.cover_url,
             'cover_local': self.cover_local,
             'category': self.category,
+            'category_en': _category_en(self.category),
             'publication_date': self.publication_date.isoformat() if self.publication_date else None,
             'price': self.price,
             'page_count': self.page_count,

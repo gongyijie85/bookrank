@@ -65,6 +65,38 @@ test('cover weeks badge is shown only for a positive history count', () => {
     assert.equal(context.renderCoverWeeks({ weeks_on_list: 'Unknown' }, 'en'), '');
 });
 
+test('category rerender proxies NYT covers even when BookRankCover is missing', () => {
+    // 分类切换走 /api/category-books 再由本函数重绘卡片。BookRankCover 若尚未挂上
+    // （脚本顺序、移动端、测试夹具），身份回退会把 static01.nyt.com 原样写入 img src，
+    // 国内用户这一屏封面就会变成占位图。回退必须自己走 /cover 代理。
+    const { context, container } = renderer('books-grid');
+    assert.equal(context.window.BookRankCover, undefined);
+    const nyt = 'https://static01.nyt.com/bestsellers/images/9780316608329.jpg';
+    context.updateBooksOnPage([{
+        rank: 1,
+        title: 'Covered',
+        author: 'A',
+        cover: nyt,
+        _original_cover: nyt,
+    }], 'hardcover-fiction', null);
+    assert.match(container.innerHTML, /src="\/cover\?src=https%3A%2F%2Fstatic01\.nyt\.com/);
+    assert.doesNotMatch(container.innerHTML, /src="https:\/\/static01\.nyt\.com/);
+    assert.match(container.innerHTML, /data-original="\/cover\?src=/);
+});
+
+test('category rerender leaves already-local cover paths unwrapped', () => {
+    const { context, container } = renderer('books-grid');
+    context.updateBooksOnPage([{
+        rank: 1,
+        title: 'Cached',
+        author: 'A',
+        cover: '/cache/images/abc.jpg',
+        _original_cover: 'https://static01.nyt.com/x.jpg',
+    }], 'hardcover-fiction', null);
+    assert.match(container.innerHTML, /src="\/cache\/images\/abc\.jpg"/);
+    assert.doesNotMatch(container.innerHTML, /src="\/cover\?src=.*cache\/images/);
+});
+
 test('card navigation uses source category and leaves native links alone', () => {
     const { context } = renderer('books-grid');
     const card = { getAttribute: key => key === 'data-index' ? '7' : 'hardcover-nonfiction' };

@@ -25,6 +25,23 @@ let currentCategory = '';
 // 语言控制变量（统一读取：app_language 优先，兼容旧 bookrank_language 键）
 let currentLanguage = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'en';
 
+/**
+ * 封面地址规范化。优先用 cover.js 挂上的 BookRankCover.toSrc；
+ * 脚本未加载时不能身份回退——那会把 static01.nyt.com 等境外图床写进 img src，
+ * 国内用户这一屏封面就会变成占位图。回退规则必须与 cover.js / cover_urls.py 一致。
+ */
+function coverToSrc(raw) {
+    if (window.BookRankCover && typeof window.BookRankCover.toSrc === 'function') {
+        return window.BookRankCover.toSrc(raw);
+    }
+    const value = raw == null ? '' : String(raw).trim();
+    if (!value) return '';
+    if (value.indexOf('/static/') === 0 || value.indexOf('/cache/images/') === 0 || value.indexOf('/cover') === 0) {
+        return value;
+    }
+    return '/cover?src=' + encodeURIComponent(value);
+}
+
 function updateLanguageButtons(lang) {
     const zhBtn = document.getElementById('lang-zh');
     const enBtn = document.getElementById('lang-en');
@@ -597,6 +614,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             const desc = isZh ? (book.description_zh || book.description || '') : (book.description || '');
             // 分类标签：优先双语映射表 → book 数据 → 默认
             const catLabel = resolveCategoryLabel(book, category, lang);
+            const originalCover = coverToSrc(book._original_cover);
             return `
             <article class="card card-animate"
                      data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
@@ -606,12 +624,12 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                 <a class="card-link" href="${detailUrl}">
                 <div class="card-image">
                     <div class="cover-frame">
-                        <img src="${cover}"
+                        <img src="${esc(coverToSrc(cover) || defaultCover)}"
                              alt="${esc(t('card_cover_alt', lang, { title }))}"
                              loading="lazy"
                              width="280"
                              height="240"
-                             data-original="${book._original_cover || ''}"
+                             data-original="${esc(originalCover)}"
                              data-fallback="${defaultCover}">
                         ${renderCoverWeeks(book, lang)}
                     </div>
@@ -631,7 +649,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                         ${book.isbn13 ? `<span class="card-pub-isbn-item isbn" title="ISBN-13: ${esc(book.isbn13)}">${esc(book.isbn13)}</span>` : book.isbn10 ? `<span class="card-pub-isbn-item isbn" title="ISBN-10: ${esc(book.isbn10)}">${esc(book.isbn10)}</span>` : ''}
                         ${book.weeks_on_list ? `<span class="card-pub-isbn-item weeks" title="${esc(t('weeks_on_list', lang))}">${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                     </p>` : ''}
-                    ${desc ? `<p class="card-desc">${esc(desc.slice(0, 100))}${desc.length > 100 ? '...' : ''}</p>` : ''}
+                    ${desc ? `<p class="card-desc">${esc(desc)}</p>` : ''}
                 </div>
                 </a>
             </article>
@@ -913,8 +931,10 @@ function initOnDemandTranslation() {
             if (desc) {
                 var descEl = card.querySelector('p.card-desc, p.list-item-desc');
                 if (descEl) {
-                    var limit = descEl.classList.contains('card-desc') ? 80 : 200;
-                    descEl.textContent = desc.length > limit ? desc.slice(0, limit) + '...' : desc;
+                    // 简介一律整段写入：显示多少行由 CSS 决定（紧凑五列钳 5 行、
+                    // 精选三列完整展示）。前端再按字数截断会与 CSS 钳制叠加，
+                    // 长简介只剩开头一句 —— 服务端与 CSS 修好后仍从这里复现。
+                    descEl.textContent = desc;
                 }
             }
             try {

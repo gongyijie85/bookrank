@@ -20,7 +20,7 @@ from ..schemas.validators import (
     parse_query_args,
 )
 from ..utils.admin_auth import admin_required
-from ..utils.api_helpers import APIResponse, csrf_protect
+from ..utils.api_helpers import APIResponse, csrf_protect, rate_limit
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import (
     get_new_book_modules,
@@ -59,8 +59,13 @@ def _cooldown_message(verb: str, remaining: float) -> str:
 
 
 def _check_export_cooldown() -> str | None:
-    """v0.9.68: 每 IP 导出冷却(10 秒)防刷（状态在同步请求闸门内）。"""
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'anon').split(',')[0].strip()
+    """v0.9.68: 每 IP 导出冷却(10 秒)防刷（状态在同步请求闸门内）。
+
+    必须用 `request.remote_addr`：它是本仓所有限流器的统一 key，生产环境由
+    ProxyFix(x_for=1) 依据可信代理改写。此前直接取原始 `X-Forwarded-For` 的第一段，
+    那是客户端可任意伪造的（`X-Forwarded-For: 1.1.1.<n>` 每次都是新桶），10 秒冷却形同不存在。
+    """
+    ip = request.remote_addr or 'anon'
     remaining = get_sync_request_gate().export_cooldown_remaining(ip)
     if remaining is not None:
         return _cooldown_message('导出', remaining)
@@ -418,6 +423,7 @@ def get_statistics():
 
 
 @new_books_bp.route('/export/csv')
+@rate_limit()
 def export_csv():
     """导出CSV格式(限制最大导出数量 + 速率限制 + 公式注入防护)"""
     cooldown_error = _check_export_cooldown()

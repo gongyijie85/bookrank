@@ -39,6 +39,7 @@ load_dotenv()
 
 from app import create_app
 from app.services.zhipu_translation_service import get_translation_service
+from app.utils.api_helpers import PLACEHOLDER_TEXTS
 from app.utils.service_helpers import get_service
 
 # 翻译服务自身的进度日志会淹没脚本输出，收敛到 WARNING
@@ -80,8 +81,12 @@ def _has_cjk(text: Any) -> bool:
 # 取值就是「原文语言名」本身，无任何信息量（如 details_zh='英文'）。
 _LANGUAGE_MARKER_NOISE = frozenset({'英文', '英语', '中文', '汉语', '- 英文', '-英文', '英文。', '英语。'})
 
-# 已知无信息量的占位值
-_PLACEHOLDER_NOISE = frozenset({'暂无详细描述', '暂无简介', '无', '-', '--', 'N/A', '小说'})
+# 详情字段特有的额外噪音：单字/符号/泛类词。
+# 共享的「无内容」占位串派生自 api_helpers 的单一真相源，这里不再重复字面量清单。
+_DETAIL_NOISE_EXTRA = frozenset({'无', '-', '--', '小说'})
+
+#: 已知无信息量的占位值（= 共享占位串 ∪ 详情字段特有噪音）
+_PLACEHOLDER_NOISE = PLACEHOLDER_TEXTS | _DETAIL_NOISE_EXTRA
 
 
 def _is_noise_value(value: Any) -> bool:

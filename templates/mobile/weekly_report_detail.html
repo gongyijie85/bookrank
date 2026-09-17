@@ -93,7 +93,7 @@
         <div class="m-card m-book-card" data-href="/?search={{ (book.title or '') | urlencode }}">
             {% if book.cover %}
             <div class="m-book-cover">
-                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="60" height="80"
+                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="60" height="80"
                      data-cover-fallback="">
             </div>
             {% endif %}
@@ -116,7 +116,7 @@
     <div class="m-report-rec-card">
         {% if book.cover %}
         <div class="m-report-rec-cover">
-            <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="50" height="70"
+            <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="50" height="70"
                  data-cover-fallback="">
         </div>
         {% endif %}
@@ -145,10 +145,10 @@
 {
     "@context": "https://schema.org",
     "@type": "Article",
-    "headline": "{{ report.title or _('周报') }}",
-    "datePublished": "{{ report.created_at.isoformat() if report.created_at else '' }}",
-    "dateModified": "{{ report.updated_at.isoformat() if report.updated_at else report.created_at.isoformat() if report.created_at else '' }}",
-    "description": "{{ report.summary[:200] if report.summary else '' }}"
+    "headline": {{ (report.title or _('周报')) | string | tojson }},
+    "datePublished": {{ (report.created_at.isoformat() if report.created_at else '') | string | tojson }},
+    "dateModified": {{ (report.updated_at.isoformat() if report.updated_at else report.created_at.isoformat() if report.created_at else '') | string | tojson }},
+    "description": {{ (report.summary[:200] if report.summary else '') | string | tojson }}
 }
 </script>
 {% endblock %}

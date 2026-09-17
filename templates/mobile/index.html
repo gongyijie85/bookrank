@@ -19,7 +19,7 @@
             "position": {{ loop.index }},
             "item": {
                 "@type": "Book",
-                "name": {{ (book.title_zh or book.title) | tojson }},
+                "name": {{ book.title_zh|bilingual(book.title) | tojson }},
                 "author": {
                     "@type": "Person",
                     "name": {{ (book.author or _('未知作者')) | tojson }}
@@ -112,7 +112,8 @@
        aria-label="{% if _locale == 'zh' %}{{ _('第') }}{{ current_rank }}{{ _('名') }}，{{ book.title_zh or book.title }}{% if book.weeks_on_list %}，{{ _('累计上榜') }}{{ book.weeks_on_list }}{{ _('周') }}{% endif %}{% else %}Rank {{ current_rank }}, {{ book.title }}{% if book.weeks_on_list %}, {{ book.weeks_on_list }} weeks on list{% endif %}{% endif %}">
         <span class="m-rank-badge {% if current_rank > 3 %}small{% endif %}">{{ current_rank }}</span>
         <div class="m-book-cover">
-            <img src="{% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}{{ _cover or book._original_cover or url_for('static', filename='default-cover.png') }}"
+            {% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}
+            <img src="{{ (_cover or book._original_cover)|cover_src_or_default }}"
                  alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="60" height="80"
@@ -150,12 +151,12 @@
             {% set ns = namespace(parts=[]) %}
             {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}{% set ns.parts = ns.parts + [book.publisher] %}{% endif %}
             {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}{% set ns.parts = ns.parts + [book.page_count ~ _('页')] %}{% endif %}
-            {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language] %}{% endif %}
+            {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language|language_name] %}{% endif %}
             {% if ns.parts %}<p class="m-book-card-meta">{{ ns.parts|join(' · ') }}</p>{% endif %}
 
             {# 描述预览（80 字截断） #}
             {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
-            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            {% if desc and desc not in PLACEHOLDER_TEXTS %}
             <p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length > 80 %}…{% endif %}</p>
             {% endif %}
 

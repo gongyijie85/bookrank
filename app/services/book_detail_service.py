@@ -4,10 +4,11 @@ from typing import Any, cast
 from flask import current_app
 
 from ..utils import clean_translation_text
-from ..utils.api_helpers import validate_isbn
+from ..utils.api_helpers import is_placeholder_text, strip_placeholder, validate_isbn
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import (
     get_google_books_client,
+    get_or_create_open_library_client,
     get_service,
     submit_background_task,
 )
@@ -57,6 +58,45 @@ def fetch_google_books_details(book: dict, isbn: str) -> None:
         log_error(ErrorCategory.API_CALL, f'Google Books API 调用失败 ISBN {isbn}: {e}', level='warning')
 
 
+def enrich_book_details(book: dict, isbn: str) -> None:
+    """详情页的详情富化入口：Google Books 优先，取不到实质详情时回退 Open Library。
+
+    只用 Google Books 会让一部分书**永远**没有详情：独立出版与新书在该库常常没有
+    条目（实测 9798890920461《Stitched》在 Google Books 无记录，Open Library 的
+    work 级记录却有 582 字符完整简介）。此时 `details` 只剩抓取侧写下的占位串，
+    模板把它归一化成空，详情页的「详细信息」标签就整块消失。
+
+    先就地清洗历史占位串，再补第二数据源，让详情页有内容可渲染。本函数只负责把
+    正文写进 `book['details']`：翻译与持久化统一交给紧随其后的 `merge_or_translate_book`
+    （它已包含 details 的排队翻译与 save_book_translation），避免同一段正文被翻译两次。
+
+    Args:
+        book: 详情页的书籍字典，原地修改
+        isbn: 已通过 validate_isbn 校验的 ISBN
+    """
+    # 入口即清洗：缓存里可能还躺着历史占位串，先归一化成空，
+    # 下游（模板 / 详情 API / needs_details 判断）才看得到真实的「有 / 没有」。
+    book['details'] = strip_placeholder(book.get('details'))
+
+    fetch_google_books_details(book, isbn)
+    if book.get('details'):
+        return
+
+    try:
+        client = get_or_create_open_library_client()
+        description = client.fetch_work_description_by_isbn(isbn) if client else ''
+    except Exception as e:
+        # 兜底源失败不能影响详情页渲染：没有详情仍然是一张可用的页面。
+        log_error(ErrorCategory.API_CALL, f'Open Library 详情兜底失败 ISBN {isbn}: {e}', level='warning')
+        return
+
+    if not description or is_placeholder_text(description):
+        return
+
+    book['details'] = description
+    logger.info('Open Library 兜底详情命中: ISBN %s (%d 字)', isbn, len(description))
+
+
 def translate_field_async(book: dict, source_field: str, target_field: str) -> None:
     app = cast('Any', current_app)._get_current_object()
     translation_service = get_service('translation_service')
@@ -87,8 +127,11 @@ def translate_field_async(book: dict, source_field: str, target_field: str) -> N
 
 
 def update_book_from_google_books(book: dict, details: dict) -> None:
-    if details.get('details') and details['details'] != 'No detailed description available.':
-        book['details'] = details['details']
+    # 抓取侧用占位串表示「没有详情」，它不是数据：放行会让 needs_details 永远为假，
+    # 该书的详情补齐路径从此封死（见 api_helpers._PLACEHOLDER_TEXTS）。
+    fetched_details = details.get('details')
+    if fetched_details and not is_placeholder_text(fetched_details):
+        book['details'] = fetched_details
         translate_field_async(book, 'details', 'details_zh')
 
     if details.get('page_count') and details['page_count'] != 'Unknown':
@@ -155,13 +198,11 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
         needs_title = bool(book.get('title') and not book.get('title_zh'))
         needs_desc = bool(
             book.get('description')
-            and book.get('description') != 'No summary available.'
+            and not is_placeholder_text(book.get('description'))
             and not book.get('description_zh')
         )
         needs_details = bool(
-            book.get('details')
-            and book.get('details') != 'No detailed description available.'
-            and not book.get('details_zh')
+            book.get('details') and not is_placeholder_text(book.get('details')) and not book.get('details_zh')
         )
 
         if not needs_title and not needs_desc and not needs_details:
