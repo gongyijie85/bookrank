@@ -149,14 +149,34 @@ https://openlibrary.org/works/OL45900944W.json
 | `pytest tests/` | **2609 passed, 1 skipped, 0 failed**（63.9s） |
 | 覆盖率 | 83.63%（门禁 ≥70） |
 
-### 5.3 部署后如何验收
+### 5.3 部署后验收（已完成，RED → GREEN）
 
-```bash
-# 修复前该命令 VERDICT: RED（0 本有真实 details）
-python .debug/probe_details.py trade-fiction-paperback 12
+| 阶段 | 命令 | 结果 |
+| --- | --- | --- |
+| 修复前 | `python .debug/probe_details.py trade-fiction-paperback 12` | `VERDICT: RED — 无任何图书渲染出详细信息`；`#4 tab-details=False` |
+| 部署后 | 同上 | **`VERDICT: GREEN — 12/12 本都渲染出「详细信息」标签`**；`#4 tab-details=True` |
+
+`automated`，`python .debug/verify_prod_details.py 4 trade-fiction-paperback`
+直接读生产页面上面板的可见正文：
+
+```
+第 1 次加载 (tab-details: 有)   ISBN: 9798890920461
+  面板正文: 贝蒂·卢·迪尔登（Betty Lou Dearden）已经是奥格登拼布协会的成员超过二十年了。
+            这时，协会宣布全国最大的拼布比赛将来到她所在的犹他州小镇。…
+            Show original (English)
+            Betty Lou Dearden has been a member of the Ogden Quilter's Association …
+  是否含占位串: 否
 ```
 
-预期：`#4 9798890920461 tab-details=True`，`details` 为 Open Library 的真实简介。
+即：**Open Library 取到的英文简介 → 被翻译成中文并持久化 → 页面渲染中文详情，
+英文原文保留在「查看英文原文」折叠块内**。用户报告的原始 URL 已恢复正常。
+
+### 5.4 发布记录
+
+- PR：**gongyijie85/bookrank#241** → squash 合并，main = `5b77259`
+- CI（PR 上）：Ruff / mypy / ESLint / Unit Tests(1m44s) / i18n Drift / Dependency Audit / CodeQL **全绿**
+- Deploy：`Deploy to Render & HuggingFace` 成功（含 `Deploy and verify Render revision` 与 HF Space 同步）
+- 顺带发现（未处理）：GitHub 报 default branch 有 1 个高危依赖告警（`dependabot/72`）
 
 ---
 
@@ -178,31 +198,52 @@ python .debug/probe_details.py trade-fiction-paperback 12
 
 ---
 
-## 7. ⚠️ 独立于本次故障的 P0：工作区 `.git/refs` 目录丢失
+## 7. ⚠️ 独立于本次故障的 P0：`.git` 对象库被清空 + 一个已确证的 ref 写入环境缺陷
 
-**这与本 bug 无关，但在本次会话中被发现，必须单独告知。**
+**这两件事与本 bug 无关，但在本次会话中被发现，必须单独告知。已于当日完成恢复。**
 
-- `D:\BookRank3\.git` 结构基本完整（`HEAD` / `objects` / `index` / `config` / `packed-refs` / `logs` 都在），
-  但 **`.git/refs` 整个目录不存在**（`.git/refs` lstat → `FileNotFoundError`）。
-  git 要求 `HEAD` + `objects` + `refs` 三者齐备才认仓库，因此现在 `D:\BookRank3` 下**所有 git 命令都报
-  `fatal: not a git repository`**。
-- 时间线（`automated`，文件 mtime）：会话开始时 `git log` **可用**（返回过 `9da4c49` 等提交），
-  说明 refs 是会话期间消失的。`main` 的 reflog 最后一条停在 `2026-09-17 10:45:59`，
-  tip = `a49427b2d1e5c2a0fd1a654c0a9503005e506b3b`。
-- `.scratch/trash` 中**没有**被移走的 `refs` → 不是那套 safe-delete 回收机制的产物。
-- 可疑线索（未确证）：`.git/COMMIT_EDITMSG.swp`、`COMMIT_EDITMSG.tmp`、残留的 `REBASE_HEAD`，
-  以及 `.git/dsh-turn-rewind/`（turn-rewind 插件会操作 git 状态）；`.git/index`(11:19:53) 与
-  `.git/objects`(11:20:24) 在会话期间仍被写入，提示**可能有并发进程在动这个仓库**。
-- **未执行任何 `.git` 修改**（红线：不擅自改动仓库）。refs 可从 reflog 恢复：
+### 7.1 真实损伤：refs 目录没了，**对象库也空了**
 
-```bash
-cd D:\BookRank3
-mkdir .git\refs\heads .git\refs\tags .git\refs\remotes
-git update-ref refs/heads/main a49427b2d1e5c2a0fd1a654c0a9503005e506b3b
-# 其余分支（backup/*, codex/*, feat/*, research/*）与 origin/* 的 SHA 在
-#   .git/logs/refs/heads/**.<branch>  .git/logs/refs/remotes/origin/**
-# 每个文件的最后一行取第 2 个字段
-```
+| 检查 | 结果 |
+| --- | --- |
+| `.git/refs` 目录 | **不存在** → git 报 `fatal: not a git repository` |
+| `.git/packed-refs` | 145 条 ref **一条没少**（heads 49 / remotes 58 / tags 6 / codex 2 / dsh-turn-rewind 30） |
+| `.git/objects/pack/` | **只剩 2 个 `.idx`，`.pack` 全没了** |
+| `.git/objects/` loose 目录 | 33 个目录、**0 个文件** |
+| `.git/worktrees/` | 不存在（所有 worktree 的 gitdir 一并没了） |
+| `.scratch/trash` | 没有它们 → 不是 safe-delete 回收机制所为 |
 
-**在执行任何 `git gc` / `git checkout` / `git reset` 之前，先恢复 `refs`。**
-本次的代码改动全部在工作树内，未提交、未丢失。
+即：**refs 目录与对象数据库同时被清空**，`.idx` 留下而 `.pack` 消失。
+会话开始时 `git log` 还可用 → 发生在会话期间；`.git/index`(11:19:53)、
+`.git/objects`(11:20:24) 当时仍在被写入，提示有并发进程在操作该仓库（**未确证是哪一方**）。
+
+### 7.2 恢复（已执行，工作树零丢失）
+
+不要跟损坏状态缠斗 —— `git fetch --refetch` 会被 `packed-refs` 里的悬空 ref
+（`refs/dsh-turn-rewind/v2/*`、`refs/codex/turn-diffs/*`，对象已不存在）卡成 `fatal: bad object`。
+可行路径（已验证）：
+
+1. 完整备份 `.git` → `.debug/git-backup-broken-20260917-114217/`（33 文件）
+2. `git clone --no-checkout <remote> <tmp>`（对象齐全，pack 28.4 MB）
+3. 移走旧 `.git`（**移动不删除**）→ `.debug/git-broken-inplace-20260917-114501/`
+4. 装回克隆的 `.git`，`git config core.bare false` / `core.logallupdates true`
+5. `git reset --mixed HEAD` —— **只重建 index，不动工作树任何文件**
+
+结果：`git rev-parse HEAD` = `a49427b2`（正是丢失的 tip，远端已有），历史 0 丢失；
+`git status --short` 恰好只剩本次修复的 11 个改动 + 5 个未跟踪项 → 证明工作树未丢东西。
+
+### 7.3 新发现并已确证：**`refs/` 二级路径的 ref 写不进 D:\BookRank3**
+
+- `git update-ref refs/heads/a/b <sha>` 与 `git fetch origin main:refs/remotes/a/b`
+  **都返回成功、零报错，但目标文件根本不存在**；同样操作换扁平名
+  （`refs/heads/ab`、`refs/remotes/ab`）则正常落盘。
+- 已排除：**沙箱**（关闭沙箱复现）、**父目录缺失**（手工预建 `refs/heads/probe5` 后仍失败）
+  → 目录能建，**二级子目录里的文件写不进**。疑似文件系统过滤驱动/路径守卫，未定位。
+- **实际踩坑**：`git checkout -b fix/xxx` 静默得到一个「未出生」分支却不报错，
+  随后的 `git commit` 变成 **root-commit（542 files / +145043，把整棵树提交）**。
+  核对提交时务必 `git rev-parse HEAD^` 确认有父提交。
+- **规避**：在本工作副本里**只用扁平分支名**（本次 PR 分支即
+  `fix-book-details-fallback`）；`git branch --show-current` 之后确认
+  `.git/refs/heads/<name>` 文件真的存在。需要嵌套分支名，请换路径重新克隆。
+- 影响面：远端 62 个分支大多带 `/`，因此 `git fetch` 也不会为它们生成
+  `origin/<name>` 跟踪 ref，`push -u` 的 upstream 追踪同样无效。
