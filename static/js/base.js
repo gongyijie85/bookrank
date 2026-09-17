@@ -426,6 +426,22 @@
     }
 
     /**
+     * 封面地址规范化：委托 cover.js 的 BookRankCover.toSrc。
+     * cover.js 未加载时仍走同源代理，禁止身份回退把境外图床写进 img src。
+     */
+    function coverToSrc(raw) {
+        if (window.BookRankCover && typeof window.BookRankCover.toSrc === 'function') {
+            return window.BookRankCover.toSrc(raw);
+        }
+        const value = (raw === null || raw === undefined) ? '' : String(raw).trim();
+        if (!value) return '';
+        if (value.indexOf('/static/') === 0 || value.indexOf('/cache/images/') === 0 || value.indexOf('/cover') === 0) {
+            return value;
+        }
+        return '/cover?src=' + encodeURIComponent(value);
+    }
+
+    /**
      * 全局图片错误处理 - 替代 onerror 内联属性
      *
      * 多级回退：本地缓存(cover_local_path) → 原始URL(cover_original_url) → 默认封面(data-fallback)
@@ -436,7 +452,7 @@
         const current = img.currentSrc || img.src;
         if (tried.indexOf(current) === -1) tried.push(current);
 
-        const original = img.getAttribute('data-original');
+        const original = coverToSrc(img.getAttribute('data-original'));
         const fallback = img.getAttribute('data-fallback');
         const candidates = [];
         if (original && tried.indexOf(original) === -1) candidates.push(original);
@@ -466,6 +482,9 @@
         initTheme();
         initLanguage();
         initImageErrorHandler();
+        if (window.BookRankCover && typeof window.BookRankCover.bind === 'function') {
+            window.BookRankCover.bind(document);
+        }
     }
 
     // Run on DOM ready

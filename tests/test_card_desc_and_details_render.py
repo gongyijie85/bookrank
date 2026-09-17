@@ -273,6 +273,28 @@ class TestBookDetailDetailsPanel:
         assert '暂无详细介绍' in visible
 
 
+class TestIndexCoverIsProxied:
+    """首页卡片封面不得把境外图床地址直接交给浏览器（国内直连即占位图）。"""
+
+    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.merge_or_translate_book')
+    def test_homepage_card_cover_is_rewritten_to_same_origin_proxy(self, mock_merge, mock_fetch, client, book_service):
+        nyt = 'https://static01.nyt.com/bestsellers/images/9780316608329.jpg'
+        book_service([_make_book(cover='', _original_cover=nyt)])
+
+        html = client.get('/?category=hardcover-fiction').get_data(as_text=True)
+
+        soup = BeautifulSoup(html, 'html.parser')
+        img = soup.select_one('#books-grid img')
+        assert img is not None
+        assert img['src'].startswith('/cover?src='), f'首页封面应改走同源代理，实际为 {img["src"]}'
+        assert not img['src'].startswith('https://'), '浏览器不应直接请求境外图床'
+        scripts = ' '.join(tag.get('src') or '' for tag in soup.select('script[src]'))
+        assert re.search(r'cover(?:\.[a-f0-9]+)?\.min\.js|js/cover\.js', scripts), (
+            f'首页必须加载 cover.js，否则冷缓存占位图不会重试。实际 script src: {scripts}'
+        )
+
+
 class TestBookDetailCoverIsProxied:
     """问题三的渲染侧：详情页封面不得把境外图床地址直接交给浏览器。"""
 

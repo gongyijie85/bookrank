@@ -436,8 +436,20 @@ function renderBooks(data) {
 }
 
 function renderBookCard(book) {
-    const coverHtml = book.cover_url
-        ? '<img src="' + esc(book.cover_url) + '" alt="' + esc(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
+    // 出版社图床（images.penguinrandomhouse.com 等）国内不可直连，
+    // 也不在 CSP img-src 白名单内，统一改走同源 /cover 代理（规则见 app/utils/cover_urls.py）。
+    // BookRankCover 未挂上时不能身份回退，否则筛选重绘会把境外 URL 写进 img src。
+    const coverToSrc = (window.BookRankCover && window.BookRankCover.toSrc) || function(raw) {
+        const value = raw == null ? '' : String(raw).trim();
+        if (!value) return '';
+        if (value.indexOf('/static/') === 0 || value.indexOf('/cache/images/') === 0 || value.indexOf('/cover') === 0) {
+            return value;
+        }
+        return '/cover?src=' + encodeURIComponent(value);
+    };
+    const coverUrl = coverToSrc(book.cover_url);
+    const coverHtml = coverUrl
+        ? '<img src="' + esc(coverUrl) + '" alt="' + esc(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
         : '<div class="book-cover-placeholder"><svg class="icon" style="width:3rem;height:3rem"><use href="#icon-book"/></svg></div>';
 
     const titleZh = book.title_zh || book.title;

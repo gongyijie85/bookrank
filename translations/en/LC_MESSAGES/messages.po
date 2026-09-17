@@ -802,6 +802,10 @@ msgstr "Show original (English)"
 msgid "暂无简介"
 msgstr "No description available"
 
+#: templates/book_detail.html:234
+msgid "暂无详细介绍"
+msgstr "No detailed description available"
+
 #: templates/error.html:10 templates/error.html:18
 #: templates/mobile/error.html:12 templates/mobile/error.html:22
 msgid "出错了"

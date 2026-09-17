@@ -1,8 +1,9 @@
 {
-  "app.css": "app.MND2IEJ4.min.css",
+  "app.css": "app.2ZOMS567.min.css",
   "categories.js": "categories.5e0edc94.min.js",
   "translations.js": "translations.690052bb.min.js",
   "book-i18n.js": "book-i18n.4e93f26b.min.js",
-  "base.js": "base.88a83f03.min.js",
-  "index.js": "index.54e4d1da.min.js"
+  "cover.js": "cover.ddaba447.min.js",
+  "base.js": "base.4439b358.min.js",
+  "index.js": "index.521edec9.min.js"
 }

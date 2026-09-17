@@ -125,6 +125,10 @@
         document.querySelectorAll('img[data-cover-fallback]').forEach(function (img) {
             if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
         });
+        // /cover 冷缓存 302 到占位图时 error 不会触发，交给 cover.js 按 load 重试。
+        if (window.BookRankCover && typeof window.BookRankCover.bind === 'function') {
+            window.BookRankCover.bind(document);
+        }
     }
 
     // ===== 4b. 周报生成轮询（模板只放 [data-report-poll] 标记） =====

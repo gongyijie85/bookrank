@@ -93,7 +93,7 @@
         <div class="m-card m-book-card" data-href="/?search={{ (book.title or '') | urlencode }}">
             {% if book.cover %}
             <div class="m-book-cover">
-                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="60" height="80"
+                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="60" height="80"
                      data-cover-fallback="">
             </div>
             {% endif %}
@@ -116,7 +116,7 @@
     <div class="m-report-rec-card">
         {% if book.cover %}
         <div class="m-report-rec-cover">
-            <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="50" height="70"
+            <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="50" height="70"
                  data-cover-fallback="">
         </div>
         {% endif %}

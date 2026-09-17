@@ -512,6 +512,9 @@
     <!-- Book Content Language Pack -->
     <script src="{{ url_for('static', filename=dist_url('book-i18n.js')) }}"></script>
 
+    <!-- Cover helper (must load before base.js / index.js so BookRankCover.toSrc exists) -->
+    <script src="{{ url_for('static', filename=dist_url('cover.js')) }}"></script>
+
     <!-- Base JavaScript -->
     <script src="{{ url_for('static', filename=dist_url('base.js')) }}"></script>
 
