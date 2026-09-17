@@ -15,9 +15,27 @@ from ..utils.weekly_report_presentation import prepare_report_presentation
 
 logger = logging.getLogger(__name__)
 
-# 中文字体路径（项目内置SimHei黑体，回退系统字体）
+# 中文字体：随仓库发布的字体优先，其次系统字体。
+#
+# 为什么必须自带一份：PDF 导出没有 CJK 字形时中文全部退化成 '?'，而**降级是静默的**
+# （不抛错、只 warning）。Render 走原生 python 环境，装不了系统字体包，它的镜像里也
+# 没有任何 CJK 字体 —— 2026-09-17 实测线上导出的 PDF 只嵌了 Helvetica、无 FontFile2，
+# 说明中文 PDF 已经坏了很久而没人发现。自带字体后，Windows/macOS/Linux/CI/Render/
+# 容器全都用同一份，不再取决于宿主装了什么。
+#
+# 放 assets/ 而不是 static/：static/ 会被同步到 HuggingFace Space，而 HF 的 Xet
+# 钩子拒收新增二进制文件（见 .github/workflows/ci.yml 的 deploy job）。这份字体只被
+# 服务端导出用到，不需要走 HTTP。
+BUILTIN_FONT_DIR = Path(__file__).parent.parent.parent / 'assets' / 'fonts'
+# 历史遗留路径：早期代码假定仓库里有这份内置字体，但一直没兑现（见 assets/fonts/README.md）。
 FONT_DIR = Path(__file__).parent.parent.parent / 'static' / 'fonts'
 CHINESE_FONT = FONT_DIR / 'simhei.ttf'
+# 按优先级排序的内置候选。测试通过整体替换本列表来模拟"一个内置字体都没有"的环境，
+# 所以它必须在调用时读取（不要在这里预先拼成 tuple 常量）。
+_BUILTIN_FONT_CANDIDATES = [
+    BUILTIN_FONT_DIR / 'wqy-microhei.ttc',
+    CHINESE_FONT,
+]
 # 系统字体回退。注意 Debian/Ubuntu 的 fonts-noto-cjk 把字体装在 **opentype/**（不是
 # truetype/），只列 truetype 会让所有 Linux 环境（CI、Render、容器）恒定落空，进而
 # 走到下面的 ASCII 降级分支——中文在导出的 PDF 里全变成 '?'，且**不报错**。
@@ -74,25 +92,28 @@ class ExportService:
     """导出服务类"""
 
     def _init_pdf_font(self, pdf: FPDF) -> bool:
-        """初始化PDF中文字体（项目字体 -> 系统字体 -> 回退ASCII）"""
-        # 1. 尝试项目内置字体
-        if CHINESE_FONT.exists():
+        """初始化PDF中文字体（内置字体 -> 系统字体 -> 回退ASCII）
+
+        内置字体（``assets/fonts/``，见该目录的 README）优先，保证任何环境都能出中文。
+        都找不到时**不抛错**，只把文本降级成纯 ASCII（中文变 `?`）——这个静默分支曾让
+        线上的中文 PDF 坏了很久而无人察觉，所以返回 ``False`` 必须被测试响亮地拦住
+        （见 tests/test_export_service.py 的环境守卫与降级合同两个用例）。
+        """
+        for font_path in (*_BUILTIN_FONT_CANDIDATES, *_SYSTEM_FONT_CANDIDATES):
+            if not font_path.exists():
+                continue
             try:
-                pdf.add_font('SimHei', '', str(CHINESE_FONT))
-                pdf.add_font('SimHei', 'B', str(CHINESE_FONT))
-                return True
+                pdf.add_font('SimHei', '', str(font_path))
+                pdf.add_font('SimHei', 'B', str(font_path))
             except Exception as e:
-                log_error(ErrorCategory.UNKNOWN, f'加载项目中文字体失败: {e}', level='warning')
-        # 2. 尝试系统字体
-        for font_path in _SYSTEM_FONT_CANDIDATES:
-            if font_path.exists():
-                try:
-                    pdf.add_font('SimHei', '', str(font_path))
-                    pdf.add_font('SimHei', 'B', str(font_path))
-                    logger.info(f'使用系统中文字体: {font_path}')
-                    return True
-                except Exception:
-                    continue
+                log_error(
+                    ErrorCategory.UNKNOWN,
+                    f'加载中文字体失败（{font_path}）: {e}',
+                    level='warning',
+                )
+                continue
+            logger.info(f'使用中文字体: {font_path}')
+            return True
         logger.warning('未找到可用的中文字体，PDF将仅支持ASCII字符')
         return False
 

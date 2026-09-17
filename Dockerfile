@@ -14,8 +14,13 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# PDF 导出的中文字体。仓库自带一份（assets/fonts/wqy-microhei.ttc），但 HuggingFace
+# Space 构建镜像时只拿到同步白名单里的目录（app/templates/static/...），**不含 assets/**，
+# 所以这里再装一套系统字体兜底，两条路互不依赖。Debian 把它装在
+# /usr/share/fonts/opentype/noto/（见 app/services/export_service.py 的字体候选清单）。
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
