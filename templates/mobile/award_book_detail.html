@@ -17,11 +17,9 @@
 {% block content %}
 {% set display_title = shown_title %}
 {% set desc = shown_desc %}
-{# 占位串（'No detailed description available.' 等）是抓取侧的"没有"标记，
-   当正文渲染会显示成一句英文占位，这里统一归一化。 #}
-{% set _detail_placeholders = ('No detailed description available.', 'No summary available.', 'No summary available', '暂无详细描述', '暂无详细介绍', 'None') %}
+{# 占位串清单来自 api_helpers 的单一真相源（Jinja 全局 PLACEHOLDER_TEXTS），模板不再自带第二份清单。 #}
 {% set _raw_detail = (book.details or '')|trim %}
-{% set detail_text = '' if _raw_detail in _detail_placeholders else _raw_detail %}
+{% set detail_text = '' if _raw_detail in PLACEHOLDER_TEXTS else _raw_detail %}
 
 <!-- 封面 -->
 <section class="m-detail-cover-wrap">
@@ -77,7 +75,7 @@
         <!-- 图书简介 -->
         <div class="m-tab-panel active" data-panel="description" role="tabpanel">
             {% set intro = desc or book.details %}
-            {% if intro and intro not in ('No summary available.', 'No summary available', '') %}
+            {% if intro and intro not in PLACEHOLDER_TEXTS %}
             <div class="m-detail-text">
                 {% for para in intro.split('\n') if para.strip() %}
                 <p>{{ para.strip() }}</p>
@@ -114,7 +112,7 @@
                 <div class="m-meta-row"><dt>{{ _('排名') }}</dt><dd>{{ book.rank }}</dd></div>
                 {% endif %}
             </dl>
-            {% if detail_text and detail_text not in ('No detailed description available.', '暂无详细介绍', '暂无详细描述', '') %}
+            {% if detail_text and detail_text not in PLACEHOLDER_TEXTS %}
             <div class="m-detail-text m-detail-longtext">
                 {% for para in detail_text.split('\n') if para.strip() %}
                 <p>{{ para.strip() }}</p>

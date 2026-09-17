@@ -19,18 +19,16 @@
 
 {% block content %}
 {# 详细介绍的取值口径统一在这里算一次：
+   「没有内容」的占位串清单来自 api_helpers 的**单一真相源**，经 app/__init__.py 注入为
+   Jinja 全局 `PLACEHOLDER_TEXTS`。模板不再自带第二份清单 —— 历史上模板/服务/脚本各存一份、
+   改一处漏一处，正是「详情整块消失」的成因之一。
    库里可能存着占位串（'No detailed description available.' / '暂无详细描述' 等），
    直接当正文渲染会渲染出"占位串本身"；而 `details_zh` 有值、`details` 为空时，
-   原来的 `{% if %}/{% elif %}` 两个分支都不命中，面板会**整块空白** —— 这正是
-   "详细介绍内容缺失"的表现。统一归一化后，下面的标签页与面板都按同一份取值渲染。 #}
-{% set _detail_placeholders = (
-    'No detailed description available.', 'No summary available.',
-    'No summary available', '暂无详细描述', '暂无详细介绍', 'None'
-) %}
+   原来的 `{% if %}/{% elif %}` 两个分支都不命中，面板会**整块空白**。 #}
 {% set _details_zh = (book.details_zh or '')|trim %}
 {% set _details_en = (book.details or '')|trim %}
-{% set _details_zh = '' if _details_zh in _detail_placeholders else _details_zh %}
-{% set _details_en = '' if _details_en in _detail_placeholders else _details_en %}
+{% set _details_zh = '' if _details_zh in PLACEHOLDER_TEXTS else _details_zh %}
+{% set _details_en = '' if _details_en in PLACEHOLDER_TEXTS else _details_en %}
 {% set _has_details = _details_zh or _details_en %}
 
 <!-- Book Structured Data for SEO -->
@@ -203,14 +201,14 @@
                     <div class="tab-panel active" id="panel-description">
                         {% if book.description_zh %}
                         <div class="zh-description">{{ book.description_zh }}</div>
-                        {% if book.description and book.description != 'No summary available.' %}
+                        {% if book.description and book.description not in PLACEHOLDER_TEXTS %}
                         <button class="lang-toggle-btn" data-toggle-original="desc">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
                             <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
                         <div class="en-description lang-toggle-content" id="desc-en">{{ book.description }}</div>
                         {% endif %}
-                        {% elif book.description and book.description != 'No summary available.' %}
+                        {% elif book.description and book.description not in PLACEHOLDER_TEXTS %}
                         <p>{{ book.description }}</p>
                         {% else %}
                         <p class="empty-text" data-i18n="no_description">{{ _('暂无简介') }}</p>

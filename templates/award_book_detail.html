@@ -149,13 +149,12 @@
             
             <!-- 详细信息 -->
             <div class="tab-panel" id="tab-details">
-                {# 占位串（'No detailed description available.' 等）是抓取侧的"没有"标记，
-                   当正文渲染会显示成一句英文占位；归一化后回落到简介，再回落到空态。 #}
-                {% set _detail_placeholders = ('No detailed description available.', 'No summary available.', 'No summary available', '暂无详细描述', '暂无详细介绍', 'None') %}
+                {# 占位串清单来自 api_helpers 的单一真相源（Jinja 全局 PLACEHOLDER_TEXTS），
+                   模板不再自带第二份清单。归一化后回落到简介，再回落到空态。 #}
                 {% set _details = (book.details or '')|trim %}
-                {% set _details = '' if _details in _detail_placeholders else _details %}
+                {% set _details = '' if _details in PLACEHOLDER_TEXTS else _details %}
                 {% set _fallback_desc = (book.description or '')|trim %}
-                {% set _fallback_desc = '' if _fallback_desc in _detail_placeholders else _fallback_desc %}
+                {% set _fallback_desc = '' if _fallback_desc in PLACEHOLDER_TEXTS else _fallback_desc %}
                 <p id="detail-description">{{ _details or _fallback_desc or _('暂无详细介绍') }}</p>
                 <p id="detail-loading" style="display: none; color: var(--text-secondary); font-style: italic;">
                     {{ _('正在获取详细介绍') }}...
