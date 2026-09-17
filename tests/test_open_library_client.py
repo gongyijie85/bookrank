@@ -149,9 +149,14 @@ class TestParseBookData:
         assert result['description'] == 'A string description'
 
     def test_no_description(self, ol_client):
+        """没有简介时留空，不回填占位串。
+
+        'No description available.' 曾是这里的默认值，但它会被下游当成「已有详情」
+        （`needs_details` 因此恒为假），把详情页的补齐路径封死。
+        """
         data = {'title': 'Book', 'publish_date': '2024'}
         result = ol_client._parse_book_data(data, '9780000000001')
-        assert result['description'] == 'No description available.'
+        assert result['description'] == ''
 
     def test_cover_small(self, ol_client):
         data = {'title': 'Book', 'publish_date': '2024', 'cover': {'small': 'https://covers.example.com/small.jpg'}}

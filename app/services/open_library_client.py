@@ -88,6 +88,69 @@ class OpenLibraryClient:
             )
             return {}
 
+    @api_retry(max_attempts=2, backoff_factor=1.5)
+    def fetch_work_description_by_isbn(self, isbn: str) -> str:
+        """按 ISBN 取 Open Library **work 级**简介（Google Books 无数据时的兜底源）。
+
+        edition 级接口（`/api/books`）对新书与独立出版书目常无记录，但简介其实挂在
+        work 上：`search.json` 用 ISBN 能定位到 `/works/OLxxxW`，再取该 work 的
+        `description`。实测一本 Google Books 完全无记录的独立出版新书
+        （9798890920461《Stitched》）在这里能拿到 582 字符的完整简介。
+
+        Args:
+            isbn: ISBN-10 / ISBN-13（可含连字符或空格）
+
+        Returns:
+            简介正文；无记录时返回空串 —— 调用方据此保留「无详情」语义，
+            绝不回填占位串（那会把「没有」伪装成「有」，见 api_helpers）。
+        """
+        if not isbn:
+            return ''
+
+        clean_isbn = re.sub(r'[\s-]', '', isbn)
+        cache_service = self._get_cache_service()
+        cache_key = f'work_desc_{clean_isbn}'
+
+        if cache_service:
+            cached = cache_service.get('open_library', cache_key)
+            if isinstance(cached, str):
+                logger.info('返回Open Library work简介缓存: ISBN %s', clean_isbn)
+                return cached
+
+        try:
+            search = self._session.get(
+                f'{self._base_url}/search.json',
+                params={'q': f'isbn:{clean_isbn}', 'fields': 'key', 'limit': '1'},
+                timeout=self._timeout,
+            )
+            search.raise_for_status()
+            docs = search.json().get('docs') or []
+            work_key = docs[0].get('key') if docs else None
+
+            text = ''
+            if work_key:
+                work = self._session.get(f'{self._base_url}{work_key}.json', timeout=self._timeout)
+                work.raise_for_status()
+                raw = work.json().get('description')
+                text = (raw.get('value', '') if isinstance(raw, dict) else (raw or '')).strip()
+
+        except requests.RequestException as e:
+            log_error(
+                ErrorCategory.API_CALL,
+                f'Failed to fetch Open Library work description for ISBN {isbn}: {e}',
+                level='warning',
+            )
+            _safe_cache_set(
+                cache_service, 'open_library', cache_key, '', ttl_seconds=300, is_error=True, error_message=str(e)
+            )
+            return ''
+
+        # 「查不到」也缓存，但只缓存 5 分钟：Open Library 会持续收新书，用满 TTL
+        # （默认 3 天）会把「刚刚被收录」的窗口一起挡掉。
+        ttl = self._cache_ttl if text else 300
+        _safe_cache_set(cache_service, 'open_library', cache_key, text, ttl_seconds=ttl)
+        return text
+
     def _parse_book_data(self, book_data: dict[str, Any], isbn: str) -> dict[str, Any]:
         """解析 Open Library 返回的图书数据"""
         authors = []
@@ -118,7 +181,7 @@ class OpenLibraryClient:
             'publisher': publishers[0] if publishers else None,
             'publish_date': publish_date,
             'pages': pages,
-            'description': description or 'No description available.',
+            'description': description,
             'cover_url': cover_url,
             'isbn_13': isbn if len(isbn) == 13 else None,
             'isbn_10': isbn if len(isbn) == 10 else None,

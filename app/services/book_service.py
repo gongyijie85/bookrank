@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from ..models.book import Book
 from ..models.schemas import BookMetadata, db
+from ..utils.api_helpers import is_placeholder_text
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.exceptions import APIException, APIRateLimitException, ExternalAPIError
 from ..utils.space_runtime import is_space_runtime
@@ -424,7 +425,7 @@ class BookService:
         metadata.author = author
 
         details = self._book_value(book, 'details')
-        if details and details != 'No detailed description available.':
+        if details and not is_placeholder_text(details):
             metadata.details = str(details)
 
         page_count = self._parse_page_count(self._book_value(book, 'page_count'))

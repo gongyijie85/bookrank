@@ -797,7 +797,7 @@ class TestAwardBookDetail:
 
 class TestBookDetail:
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     def test_valid_book_index(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
@@ -811,7 +811,7 @@ class TestBookDetail:
                 app.extensions.pop('book_service', None)
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     def test_invalid_category_fallback(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
@@ -1797,7 +1797,7 @@ class TestBookDetailSsrLocale:
         raise AssertionError('页面没有 @type=Book 的 ld+json')
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_english_ssr_values_are_english(self, mock_svc, _mock_fetch, _mock_merge, client, app):
         mock_svc.return_value = _mock_book_service([self._book()])
@@ -1828,7 +1828,7 @@ class TestBookDetailSsrLocale:
         assert not BeautifulSoup(html, 'html.parser').select_one('.detail-title-en'), '英文页不该挂中文原标题副行'
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_chinese_ssr_values_stay_chinese(self, mock_svc, _mock_fetch, _mock_merge, client, app):
         mock_svc.return_value = _mock_book_service([self._book()])

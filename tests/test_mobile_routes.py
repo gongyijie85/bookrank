@@ -129,7 +129,7 @@ class TestMobileBookDetailRoute:
     """书籍详情页移动端渲染"""
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_mobile_ua_renders_mobile_book_detail(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """移动端 UA 访问书籍详情应渲染移动版模板"""
@@ -406,7 +406,7 @@ class TestMobileBookDetailV2:
     """v0.9.77：书籍详情页 v2 视觉验证（v0.9.78 删除了底部"返回榜单"按钮）"""
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_book_detail_has_meta_list(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """移动端书籍详情应使用单列元信息列表"""
@@ -416,7 +416,7 @@ class TestMobileBookDetailV2:
         assert b'm-meta-list' in resp.data
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_book_detail_no_back_button(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """v0.9.78：移动端书籍详情页应不显示底部"返回榜单"按钮"""
@@ -426,7 +426,7 @@ class TestMobileBookDetailV2:
         assert b'm-detail-actions' not in resp.data
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_book_detail_shows_facts_and_detail_text(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """移动端书籍详情应直接展示关键元数据和 details 正文"""
@@ -610,7 +610,7 @@ class TestMobileV978:
     # ----- 详情页 Tab 化 -----
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_book_detail_has_tabs(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """书籍详情页应包含"图书简介 / 详细信息"两个 Tab"""
@@ -625,7 +625,7 @@ class TestMobileV978:
         assert b'data-panel="details"' in resp.data
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.get_service')
     def test_book_detail_has_data_isbn_attr(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """书籍详情页 Tab 容器应带 data-isbn 属性供 JS 懒加载"""
