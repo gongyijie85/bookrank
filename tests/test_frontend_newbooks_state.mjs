@@ -77,7 +77,9 @@ const renderedHtml = renderTemplate();
 
 /** 抽出模板里唯一的内联脚本主体；模板文件本身不是 JS，只有脚本会进浏览器。 */
 function extractScripts(html) {
-    const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    // `</script\s*>`（允许收尾空格）与 `i` 大小写不敏感都是必需的：HTML 里 `</SCRIPT >`
+    // 同样合法，漏掉会让抽取结果里混进后续标记。
+    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map((m) => m[1]);
     assert.ok(scripts.length > 0, '渲染结果未包含内联脚本');
     return scripts;
 }
@@ -331,9 +333,12 @@ function parseHtml(html, doc) {
     // <script>/<style> 的内容是文本，不是标记：必须先剥离，否则脚本里字符串字面量中的
     // `data-isbn="..."` 会被解析成真实属性，把 BookI18n 的分支判断带偏。
     const cleaned = html
-        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '<script></script>')
-        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '<style></style>');
-    const tokenRe = /<!--[\s\S]*?-->|<\/([A-Za-z][A-Za-z0-9-]*)\s*>|<([A-Za-z][A-Za-z0-9-]*)((?:\s+[^\s=>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*\/?>|([^<]+)/g;
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '<script></script>')
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '<style></style>');
+    // 分词只负责把标签**边界**切出来（属性文本交给下面的 attrRe 再解析），所以这里
+    // 不需要 `name=value` 的结构语法。四个分支按首字符互斥（普通字符 / 不成对的 `/` /
+    // 双引号 / 单引号），既不会把引号里的 `>` 当标签结束，也不存在嵌套量词导致的回溯。
+    const tokenRe = /<!--[\s\S]*?-->|<\/([A-Za-z][A-Za-z0-9-]*)\s*>|<([A-Za-z][A-Za-z0-9-]*)((?:[^>"'/]|\/(?!>)|"[^"]*"|'[^']*')*)\/?>|([^<]+)/g;
     let m;
     while ((m = tokenRe.exec(cleaned))) {
         if (m[0].startsWith('<!--')) continue;
@@ -741,7 +746,9 @@ test('移除一个 chip 保留其余条件', async () => {
     page.doc.dispatchEvent({
         type: 'click',
         target: {
-            closest: (sel) => (matchCompound(categoryChip, sel.replace(/^\./, '.')) || sel === '[data-chip-key]' ? categoryChip : null),
+            // `sel` 原样交给 matchCompound：它自己就认 `.class` / `#id` / `[attr]` 三种写法
+            // （此前套了一层 `.replace(/^\./, '.')`，那是把 `.` 替换成 `.` 的空操作）。
+            closest: (sel) => (matchCompound(categoryChip, sel) || sel === '[data-chip-key]' ? categoryChip : null),
         },
         preventDefault() {},
     });

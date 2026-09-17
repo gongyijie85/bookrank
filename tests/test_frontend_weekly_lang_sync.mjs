@@ -49,7 +49,8 @@ const rendered = viaJinja();
 
 /** 抽出渲染结果里的 <script> 主体：模板文件不是 JS，只有脚本会进浏览器。 */
 function extractScript(html) {
-    const match = html.match(/<script[^>]*>([\s\S]*?)<\/script>/);
+    // `i` + `</script\s*>`：`</SCRIPT >` 在 HTML 里同样合法，漏掉会把后续标记一起吞进来。
+    const match = html.match(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/i);
     assert.ok(match, '渲染结果未包含内联脚本');
     return match[1];
 }
@@ -68,9 +69,24 @@ test('rendering harness uses the real Jinja template', () => {
 // 渲染产物本身：SSR 语言来自宏参数，且不再有 HTML 标记承载它
 // ---------------------------------------------------------------------------
 
-/** 去掉 HTML 注释：Jinja `{# … #}` 注释不会进浏览器，脚本内 // 注释也不该被当成标记。 */
+/** 去掉 HTML 注释：Jinja `{# … #}` 注释不会进浏览器，脚本内 // 注释也不该被当成标记。
+ *
+ * 用扫描而不是正则替换：`replace(/<!--[\s\S]*?-->/g, '')` 属于"多字符消毒"形态，单趟替换
+ * 后残留片段可能重新拼出新的 `<!--`（CodeQL js/incomplete-multi-character-sanitization）。
+ * 这里本来也不是安全过滤——只是让断言忽略注释——扫描写法简单且行为可预期：
+ * 未闭合的 `<!--` 与旧实现一致地保留下来。
+ */
 function withoutComments(html) {
-    return html.replace(/<!--[\s\S]*?-->/g, '');
+    let out = '';
+    let rest = html;
+    for (;;) {
+        const start = rest.indexOf('<!--');
+        if (start === -1) return out + rest;
+        out += rest.slice(0, start);
+        const end = rest.indexOf('-->', start + 4);
+        if (end === -1) return out + rest;
+        rest = rest.slice(end + 3);
+    }
 }
 
 test('rendered partial embeds the SSR locale in the script, not in markup', () => {

@@ -843,8 +843,9 @@ def test_english_chart_script_has_no_raw_gettext_string_literals():
 
     src = Path(__file__).resolve().parent.parent / 'templates' / 'weekly_report_detail.html'
     text = src.read_text(encoding='utf-8')
-    # 只看 <script> 块（Jinja 注释在模板里无副作用，但脚本块里的才是真 JS）
-    blocks = re.findall(r'<script(?![^>]*ld\+json)[^>]*>(.*?)</script>', text, re.S)
+    # 只看 <script> 块（Jinja 注释在模板里无副作用，但脚本块里的才是真 JS）。
+    # `re.I` + `</script\s*>` 不能省：`</SCRIPT >` 也是合法的结束标签，漏掉会让匹配跨块。
+    blocks = re.findall(r'<script(?![^>]*ld\+json)[^>]*>(.*?)</script\s*>', text, re.S | re.I)
     assert blocks, 'weekly_report_detail.html 应含内联脚本'
     offenders = []
     for block in blocks:
