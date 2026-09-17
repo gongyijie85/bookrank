@@ -782,6 +782,23 @@ test('Back/Forward：恢复控件/卡片/chips，且不新增历史记录', asyn
     assert.ok(page.doc.getElementById('books-container').textContent.includes('Restored Book'), 'Back 后卡片未刷新');
 });
 
+test('AJAX 渲染的卡片保留明文 ISBN（#248 曾移除，用户要求恢复）', async () => {
+    // 回归锁：新书速递的卡片有 SSR 与 AJAX 两条渲染路径，这里跑的是真实内联脚本产出的
+    // 那一份。bookPayload 的 isbn13 是 '978000000000' + id，故 id=1 → '9780000000001'。
+    const { page } = bootPage({
+        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(bookPayload(1, 'Business Book')) }),
+    });
+
+    page.selectFilter('category-filter', '商业');
+    await flush();
+
+    const container = page.doc.getElementById('books-container');
+    assert.ok(
+        container.textContent.includes('9780000000001'),
+        'AJAX 卡片应渲染明文 ISBN，而不只是 data-isbn 属性（#248 曾整块删掉这段标记）',
+    );
+});
+
 test('语言重绘不新增历史记录', async () => {
     const { page } = bootPage({
         fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(bookPayload(3, 'Lang Book')) }),

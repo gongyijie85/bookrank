@@ -100,7 +100,13 @@
             </span>
             {% endif %}
         </div>
-        {# ISBN 只留在 data-isbn（卡片/标题元素）与详情页，列表不再显示明文，避免噪音 #}
+        {# 明文 ISBN：列表卡片保留。#248 曾以"避免噪音"为由移除，用户明确要求恢复；
+           data-isbn 属性仍然保留（供 BookI18n 按 ISBN 注册与切语言）。 #}
+        {% if book.isbn13 %}
+        <p class="book-isbn">{{ book.isbn13 }}</p>
+        {% elif book.isbn10 %}
+        <p class="book-isbn">{{ book.isbn10 }}</p>
+        {% endif %}
     </div>
 </div>
 {% endmacro %}
