@@ -3,6 +3,7 @@
 覆盖以下路由处理器:
 - POST /api/admin/award-covers/sync
 - GET  /api/admin/award-covers/status
+- GET  /api/admin/new-books/last-sync
 - POST /api/admin/weekly-report/regenerate
 - POST /api/admin/weekly-report/regenerate-all
 - GET|POST /api/admin/categories/cleanup
@@ -21,20 +22,23 @@ from unittest.mock import MagicMock, patch
 
 
 class TestSyncAwardCovers:
-    """POST /api/admin/award-covers/sync"""
+    """POST /api/admin/award-covers/sync（异步：提交后台任务并返回 202）"""
 
-    def test_sync_success(self, client, admin_headers):
-        mock_sync_service = MagicMock()
-        mock_sync_service.sync_missing_covers.return_value = {'updated': 3, 'skipped': 2}
+    def _submit_and_run(self, submitted):
+        """替换 submit_background_task：记录提交的函数并同步执行（便于断言后台行为）"""
 
-        with (
-            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
-            patch(
-                'app.services.award_cover_sync_service.AwardCoverSyncService',
-                return_value=mock_sync_service,
-            ),
-        ):
+        def _fake_submit(fn, *args, **kwargs):
+            submitted.append(fn)
+            fn()
+            return MagicMock()
+
+        return _fake_submit
+
+    def test_sync_returns_202_and_submits_background(self, client, admin_headers):
+        """端点立即返回 202，不同步等待批同步完成（回归：请求线程内跑批超网关超时）"""
+        submitted: list = []
+
+        with patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)):
             response = client.post(
                 '/api/admin/award-covers/sync',
                 data=json.dumps({'batch_size': 5}),
@@ -42,16 +46,22 @@ class TestSyncAwardCovers:
                 headers=admin_headers,
             )
             data = json.loads(response.data)
+            assert response.status_code == 202
             assert data['success'] is True
-            assert '3' in data['message']
+            assert data['data']['status'] == 'submitted'
+            assert data['data']['batch_size'] == 5
+            assert len(submitted) == 1
 
-    def test_sync_default_batch_size(self, client, admin_headers):
+    def test_background_task_invokes_sync_service(self, client, admin_headers):
+        """后台任务在 app context 内调用 sync_missing_covers（batch_size 透传、delay=0.3）"""
         mock_sync_service = MagicMock()
-        mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        mock_sync_service.sync_missing_covers.return_value = {'status': 'success', 'updated': 2}
+        submitted: list = []
 
         with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -59,22 +69,47 @@ class TestSyncAwardCovers:
         ):
             response = client.post(
                 '/api/admin/award-covers/sync',
+                data=json.dumps({'batch_size': 7}),
+                content_type='application/json',
+                headers=admin_headers,
+            )
+            assert response.status_code == 202
+            call_kwargs = mock_sync_service.sync_missing_covers.call_args
+            assert call_kwargs.kwargs['batch_size'] == 7
+            assert call_kwargs.kwargs['delay'] == 0.3
+
+    def test_sync_default_batch_size(self, client, admin_headers):
+        mock_sync_service = MagicMock()
+        mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        submitted: list = []
+
+        with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
+            patch(
+                'app.services.award_cover_sync_service.AwardCoverSyncService',
+                return_value=mock_sync_service,
+            ),
+        ):
+            client.post(
+                '/api/admin/award-covers/sync',
                 data=json.dumps({}),
                 content_type='application/json',
                 headers=admin_headers,
             )
-            data = json.loads(response.data)
-            assert data['success'] is True
             call_kwargs = mock_sync_service.sync_missing_covers.call_args
             assert call_kwargs.kwargs['batch_size'] == 10
 
     def test_sync_batch_size_clamped(self, client, admin_headers):
         mock_sync_service = MagicMock()
         mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        submitted: list = []
 
         with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -92,10 +127,12 @@ class TestSyncAwardCovers:
     def test_sync_batch_size_minimum(self, client, admin_headers):
         mock_sync_service = MagicMock()
         mock_sync_service.sync_missing_covers.return_value = {'updated': 0}
+        submitted: list = []
 
         with (
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
             patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
@@ -110,21 +147,21 @@ class TestSyncAwardCovers:
             call_kwargs = mock_sync_service.sync_missing_covers.call_args
             assert call_kwargs.kwargs['batch_size'] == 1
 
-    def test_sync_creates_client_when_none(self, client, admin_headers):
+    def test_background_task_swallows_sync_exception(self, client, admin_headers):
+        """后台任务的异常不再走 HTTP 错误路径（端点已返回 202），仅记录日志"""
         mock_sync_service = MagicMock()
-        mock_sync_service.sync_missing_covers.return_value = {'updated': 1}
+        mock_sync_service.sync_missing_covers.side_effect = RuntimeError('DB error')
+        submitted: list = []
 
         with (
-            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=None),
-            patch('app.routes.admin.get_image_cache_service', return_value=MagicMock()),
+            patch('app.utils.service_helpers.submit_background_task', self._submit_and_run(submitted)),
+            patch('app.utils.service_helpers.get_or_create_google_books_client', return_value=MagicMock()),
+            patch('app.routes.admin.get_service', return_value=MagicMock()),
             patch(
                 'app.services.award_cover_sync_service.AwardCoverSyncService',
                 return_value=mock_sync_service,
             ),
-            patch(
-                'app.services.google_books_client.GoogleBooksClient',
-                return_value=MagicMock(),
-            ),
+            patch('app.routes.admin.log_error'),
         ):
             response = client.post(
                 '/api/admin/award-covers/sync',
@@ -132,13 +169,15 @@ class TestSyncAwardCovers:
                 content_type='application/json',
                 headers=admin_headers,
             )
-            data = json.loads(response.data)
-            assert data['success'] is True
+            # 202 已返回，后台异常不影响响应
+            assert response.status_code == 202
 
-    def test_sync_exception(self, client, admin_headers):
+    def test_sync_submit_failure_returns_500(self, client, admin_headers):
         with (
-            patch('app.utils.service_helpers.get_google_books_client', return_value=None),
-            patch('app.services.google_books_client.GoogleBooksClient', side_effect=RuntimeError('连接失败')),
+            patch(
+                'app.utils.service_helpers.submit_background_task',
+                side_effect=RuntimeError('线程池已关闭'),
+            ),
             patch('app.routes.admin.log_error'),
         ):
             response = client.post(
@@ -149,6 +188,7 @@ class TestSyncAwardCovers:
             )
             data = json.loads(response.data)
             assert data['success'] is False
+            assert response.status_code == 500
 
     def test_sync_without_auth(self, client):
         response = client.post(
@@ -282,8 +322,8 @@ class TestRegenerateWeeklyReport:
         assert data['success'] is False
         assert '未来' in data['message']
 
-    def test_regenerate_no_book_service(self, client, admin_headers, app):
-        app.extensions['book_service'] = None
+    def test_regenerate_no_book_service(self, client, admin_headers, app, monkeypatch):
+        monkeypatch.setitem(app.extensions, 'book_service', None)
 
         response = client.post(
             '/api/admin/weekly-report/regenerate',
@@ -439,7 +479,7 @@ class TestRegenerateAllWeeklyReports:
             assert data['success'] is True
             assert data['data']['regenerated'] == 0
 
-    def test_no_book_service(self, client, admin_headers, db, app):
+    def test_no_book_service(self, client, admin_headers, db, app, monkeypatch):
         from app.models.schemas import WeeklyReport
 
         report = WeeklyReport(
@@ -452,7 +492,7 @@ class TestRegenerateAllWeeklyReports:
         db.session.add(report)
         db.session.commit()
 
-        app.extensions['book_service'] = None
+        monkeypatch.setitem(app.extensions, 'book_service', None)
 
         response = client.post(
             '/api/admin/weekly-report/regenerate-all',
@@ -507,9 +547,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='小说',
-            create=True,
         ):
             response = client.get('/api/admin/categories/cleanup', headers=admin_headers)
             data = json.loads(response.data)
@@ -533,9 +572,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='干净分类',
-            create=True,
         ):
             response = client.post(
                 '/api/admin/categories/cleanup',
@@ -563,9 +601,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='营销',
-            create=True,
         ):
             response = client.post(
                 '/api/admin/categories/cleanup',
@@ -593,9 +630,8 @@ class TestCleanupCategories:
         db.session.commit()
 
         with patch(
-            'app.services.new_book_service.NewBookService._sanitize_category',
+            'app.services.publisher_data.sanitize_category',
             return_value='小说',
-            create=True,
         ):
             response = client.get('/api/admin/categories/cleanup', headers=admin_headers)
             data = json.loads(response.data)
@@ -611,6 +647,30 @@ class TestCleanupCategories:
         data = json.loads(response.data)
         assert data['success'] is True
         assert data['data']['invalid_found'] == 0
+
+    def test_cleanup_with_real_sanitize_detects_marketing_category(self, client, admin_headers, db):
+        """回归（门面坍塌修复）：不 patch、走真实 sanitize_category 的路径。
+        曾有幽灵引用 NewBookService._sanitize_category 导致本端点 500，
+        而测试用 patch(create=True) 掩盖了它——本用例保证真实路径可用。"""
+        from app.models.new_book import NewBook, Publisher
+
+        pub = Publisher(name='测试社', name_en='Test Pub', crawler_class='TestCrawler')
+        db.session.add(pub)
+        db.session.flush()
+
+        book = NewBook(
+            publisher_id=pub.id,
+            title='测试书',
+            author='作者',
+            category='Fiction learn more',
+        )
+        db.session.add(book)
+        db.session.commit()
+
+        response = client.get('/api/admin/categories/cleanup', headers=admin_headers)
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['data']['invalid_found'] >= 1
 
 
 # ==================== 周报书名号清理 ====================
@@ -1174,3 +1234,50 @@ class TestCleanReportText:
         result = _clean_report_text('*《书名》*')
         assert '*《' not in result
         assert '《书名》' in result
+
+
+# ==================== 新书同步摘要（工单 #83 观测通道） ====================
+
+
+class TestGetNewBooksLastSync:
+    """GET /api/admin/new-books/last-sync"""
+
+    def test_returns_summary_with_date_filter(self, client, admin_headers, db):
+        from app.models.schemas import SystemConfig
+
+        summary = {
+            'finished_at': '2026-08-07T07:00:00+00:00',
+            'added': 3,
+            'updated': 0,
+            'publishers': [
+                {
+                    'publisher': 'Hachette',
+                    'status': 'success',
+                    'elapsed_seconds': 12.3,
+                    'added': 1,
+                    'error': None,
+                    'date_filter': {'traversed_total': 45, 'rejected_no_date': 5},
+                }
+            ],
+        }
+        SystemConfig.set_value('last_auto_sync_result', json.dumps(summary, ensure_ascii=False))
+        SystemConfig.set_value('last_auto_sync_time', '2026-08-07T07:00:00+00:00')
+        db.session.commit()
+
+        response = client.get('/api/admin/new-books/last-sync', headers=admin_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['last_auto_sync_time'] == '2026-08-07T07:00:00+00:00'
+        assert data['result']['publishers'][0]['date_filter']['traversed_total'] == 45
+
+    def test_returns_none_when_no_sync_yet(self, client, admin_headers, db):
+        response = client.get('/api/admin/new-books/last-sync', headers=admin_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['result'] is None
+
+    def test_without_auth_rejected(self, client):
+        response = client.get('/api/admin/new-books/last-sync')
+        assert response.status_code == 403

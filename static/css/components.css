@@ -127,14 +127,16 @@
 }
 
 /* Language Switcher */
+/* 容器只负责定位与横向排布；外框由顶栏控件组规则统一绘制（见 base.css 顶栏右侧控件组） */
 .language-switcher {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0;
-    background: var(--bg-tertiary);
+    background: transparent;
     border-radius: var(--radius-md);
-    padding: 4px;
-    border: 1px solid var(--border-color);
+    padding: 0;
+    border: none;
 }
 
 .lang-btn {
@@ -512,7 +514,7 @@
 }
 
 .card-isbn {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-light);
     margin-bottom: var(--spacing-xs);
     font-family: var(--font-mono);
@@ -532,7 +534,7 @@
     padding: 2px 6px;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: 12px;
     border-radius: var(--radius-full);
     transition: all var(--transition-fast);
     font-family: var(--font-mono);
@@ -543,15 +545,15 @@
     color: var(--text-white);
 }
 
+/* 卡片简介：完整展示，不钳制行数。
+   此前 `-webkit-line-clamp: 2` 会把长简介截成两行，与 JS 侧 80/100 字截断叠加，
+   是"封面下方图书简介显示不全"的主因。列宽已同步放宽（index.css 的 .books-grid）。 */
 .card-desc {
     font-size: 12px;
     color: var(--text-secondary);
     line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    line-clamp: 2;
-    overflow: hidden;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* Rank Change Badge - Vercel Style */
@@ -2060,10 +2062,10 @@
         font-size: 0.75rem;
     }
 
+    /* 小屏单列（index.css 的 .books-grid 断点在此宽度下已收成 1 列），
+       简介整段展示；不再 clamp 成 1 行。 */
     .card-desc {
         font-size: 0.75rem;
-        -webkit-line-clamp: 1;
-        line-clamp: 1;
     }
 
     .card-actions {
@@ -2203,4 +2205,188 @@
     padding: 2px 6px;
     border-radius: var(--radius-sm);
     font-weight: 600;
+}
+
+.about-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--spacing-lg);
+}
+
+.about-hero {
+    text-align: center;
+    padding: var(--spacing-2xl) 0;
+    margin-bottom: var(--spacing-xl);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.about-hero .page-title {
+    justify-content: center;
+    font-size: 2rem;
+    margin-bottom: var(--spacing-md);
+}
+
+.about-subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+.about-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.section-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-md);
+    color: var(--text-primary);
+}
+
+.about-text {
+    line-height: 1.8;
+    color: var(--text-secondary);
+}
+
+.about-text strong {
+    color: var(--text-primary);
+}
+
+.data-sources {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+    list-style: none;
+}
+
+.source-card {
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    transition: box-shadow 0.2s;
+}
+
+.source-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.source-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.source-icon .icon {
+    color: var(--link-blue);
+}
+
+.source-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-primary);
+}
+
+.source-card p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.tech-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+}
+
+.tech-tag {
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.contact-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.contact-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.contact-link:hover {
+    background: var(--bg-secondary);
+}
+
+.contact-link .icon {
+    color: var(--link-blue);
+}
+
+.disclaimer {
+    font-size: 0.9rem;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--gray-400);
+}
+
+/* Dark mode adaptation */
+[data-theme="dark"] .source-card,
+[data-theme="dark"] .tech-tag,
+[data-theme="dark"] .contact-link {
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .disclaimer {
+    border-left-color: var(--gray-600);
+}
+
+/* 出版社 / ISBN：书目身份信息行，首页网格与获奖卡片共用 */
+.card-pub-isbn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px 8px;
+    margin: 8px 0 0;
+    /* 11px → 12px：正文字号下限（书目身份信息行是正文级内容，非微型标签） */
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    letter-spacing: 0.01em;
+}
+.card-pub-isbn-item {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.card-pub-isbn-item.isbn {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    letter-spacing: -0.4px;
+}
+.card-pub-isbn-item + .card-pub-isbn-item::before {
+    content: '·';
+    margin-right: 8px;
+    color: var(--border-color);
 }

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from '_macros.html' import new_book_card, empty_state, pagination %}
+{% from '_macros.html' import browse_book_card, new_book_card %}
 
 {% block title %}{{ _('新书速递') }} - BookRank{% endblock %}
 {% block og_title %}{{ _('新书速递') }} - BookRank{% endblock %}
@@ -13,47 +13,7 @@
 ], csp_nonce()) }}
 {% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/new-books.css') }}">
-{% endblock %}
-
 {% block sidebar %}
-<div class="sidebar-section">
-    <h3 class="sidebar-title">{{ _('导航') }}</h3>
-    <ul class="sidebar-menu">
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.index') }}" class="sidebar-link">
-                <svg class="icon" width="18" height="18"><use href="#icon-fire"/></svg>
-                <span>{{ _('畅销书榜') }}</span>
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.awards') }}" class="sidebar-link">
-                <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
-                <span>{{ _('获奖书单') }}</span>
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.publishers') }}" class="sidebar-link">
-                <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                <span>{{ _('出版社导航') }}</span>
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.new_books') }}" class="sidebar-link active" aria-current="page">
-                <svg class="icon" width="18" height="18"><use href="#icon-sparkles"/></svg>
-                <span>{{ _('新书速递') }}</span>
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="{{ url_for('main.weekly_reports') }}" class="sidebar-link">
-                <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
-                <span>{{ _('畅销书周报') }}</span>
-            </a>
-        </li>
-    </ul>
-</div>
-
 <div class="sidebar-section">
     <h3 class="sidebar-title" data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</h3>
     <ul class="sidebar-menu">
@@ -65,7 +25,7 @@
                data-pub-name-zh="{{ pub.name }}"
                data-pub-name-en="{{ pub.name_en }}">
                 <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                <span class="pub-name">{{ pub.name }}</span>
+                <span class="pub-name">{{ pub.name|bilingual(pub.name_en) }}</span>
                 <span class="badge">{{ publisher_book_counts.get(pub.id, 0) }}</span>
             </a>
         </li>
@@ -75,25 +35,55 @@
 {% endblock %}
 
 {% block content %}
-<div class="new-books-header">
-    <h1><svg class="icon text-gold" width="24" height="24"><use href="#icon-star"/></svg> {{ _('新书速递') }}</h1>
-    <p data-i18n="nb_header_subtitle" style="color: var(--text-secondary);">{{ _('追踪国际大型出版社最新出版物') }}</p>
+<header class="page-header">
+    <p class="charts-kicker">NEW ARRIVALS</p>
+    <h1 class="page-title">
+        New <span>Releases</span>
+    </h1>
+    <p class="charts-source" data-i18n="nb_header_subtitle">{{ _('追踪国际大型出版社最新出版物') }}</p>
+    <p class="page-subtitle">
+        {{ stats.total_books }} {{ _('本新书') }} · {{ stats.active_publishers }} {{ _('家出版社') }} · {{ _('近 %(days)s 天', days=selected_days) }}
+    </p>
+</header>
 
-    <div class="stats-bar">
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-book"/></svg>
-            <span><span data-i18n="nb_total_pre">{{ _('共') }}</span> <strong>{{ stats.total_books }}</strong> <span data-i18n="nb_total_new_books_suffix">{{ _('本新书') }}</span></span>
-        </div>
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-building"/></svg>
-            <span><strong>{{ stats.active_publishers }}</strong> <span data-i18n="nb_publishers_suffix">{{ _('家出版社') }}</span></span>
-        </div>
-        <div class="stat-item">
-            <svg class="icon" width="20" height="20"><use href="#icon-calendar"/></svg>
-            <span><span data-i18n="nb_recent_30d_label">{{ _('近30天出版') }}</span> <strong>{{ stats.recent_books_30d }}</strong> <span>{{ _('本') }}</span></span>
-        </div>
+{% if categories %}
+<nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
+    <a href="{{ url_for('main.new_books', days=selected_days) }}">{% if selected_category %}{{ _('清除分类筛选') }}{% else %}{{ _('全部分类') }}{% endif %}</a>
+    {% for cat in categories %}
+    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}">{{ cat.name|category_name }}</a>
+    {% endfor %}
+</nav>
+
+<section class="browse-directory" aria-label="{{ _('图书分类') }}">
+    {% for cat in categories %}
+    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}"
+       class="browse-tile"
+       {% if selected_category == cat.name %}aria-current="page"{% endif %}>
+        <span class="browse-tile-name">{{ cat.name|category_name }}</span>
+        <span class="browse-tile-count">{{ cat.count }} {{ _('本') }}</span>
+    </a>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% for section in publisher_sections %}
+<section class="browse-section" aria-label="{{ section.publisher.name|bilingual(section.publisher.name_en) }}">
+    <div class="browse-section-head">
+        <h2 class="browse-section-title">{{ section.publisher.name|bilingual(section.publisher.name_en) }}</h2>
+        <a class="browse-section-more"
+           href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看更多') }} &rarr;</a>
     </div>
-</div>
+    <div class="browse-rail-shell">
+        <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+        <div class="browse-rail">
+            {% for book in section.books %}
+            <div class="browse-rail__item">{{ browse_book_card(book) }}</div>
+            {% endfor %}
+        </div>
+        <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+    </div>
+</section>
+{% endfor %}
 
 <form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
     <div class="filter-group">
@@ -104,7 +94,7 @@
             <option value="{{ pub.id }}"
                     {% if selected_publisher == pub.id %}selected{% endif %}
                     data-pub-name-zh="{{ pub.name }}"
-                    data-pub-name-en="{{ pub.name_en }}">{{ pub.name }}</option>
+                    data-pub-name-en="{{ pub.name_en }}">{{ pub.name|bilingual(pub.name_en) }}</option>
             {% endfor %}
         </select>
     </div>
@@ -114,7 +104,7 @@
         <select id="category-filter" name="category" aria-label="{{ _('选择分类') }}">
             <option value="" data-i18n="nb_filter_category_all">{{ _('全部分类') }}</option>
             {% for cat in categories %}
-            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name }} ({{ cat.count }})</option>
+            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name|category_name }} ({{ cat.count }})</option>
             {% endfor %}
         </select>
     </div>
@@ -165,7 +155,7 @@
     <span class="summary-muted" data-i18n="nb_filtered_by_date" data-i18n-params-days="{{ selected_days }}">{{ _('按出版日期筛选最近') }} <strong id="result-summary-days">{{ selected_days }}</strong> {{ _('天已出版图书') }}</span>
 </div>
 
-<div id="sync-status" class="sync-status" style="display: none;"></div>
+<div id="sync-status" class="sync-status" hidden></div>
 
 <div id="books-container">
 {% if books %}
@@ -222,33 +212,10 @@
 <script nonce="{{ csp_nonce() }}">
 'use strict';
 
-const translationCache = {
-    getBook(isbn) {
-        if (!isbn) return null;
-        try {
-            const cached = localStorage.getItem('bookrank_trans_' + isbn);
-            if (!cached) return null;
-            const parsed = JSON.parse(cached);
-            if (parsed._ts && Date.now() - parsed._ts > 86400000) {
-                localStorage.removeItem('bookrank_trans_' + isbn);
-                return null;
-            }
-            return parsed;
-        } catch { return null; }
-    },
-    saveBook(isbn, data) {
-        if (!isbn || !data) return;
-        try {
-            data._ts = Date.now();
-            localStorage.setItem('bookrank_trans_' + isbn, JSON.stringify(data));
-        } catch {}
-    }
-};
-
 let currentPage = {{ page }};
 let isLoading = false;
 let searchTimer = null;
-let currentLanguage = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'zh';
+let currentLanguage = window.__APP_LANG__ || 'en';
 
 window.addEventListener('languagechange', function(e) {
     currentLanguage = e.detail.language;
@@ -353,7 +320,7 @@ function applyFilter(overrideKey, overrideValue) {
 
     if (publisher) params.set('publisher', publisher);
     if (category) params.set('category', category);
-    if (days && days !== '30') params.set('days', days);
+    if (days) params.set('days', days);
     if (search) params.set('search', search);
     params.set('page', '1');
 
@@ -371,7 +338,7 @@ function goToPage(page) {
 
     if (publisher) params.set('publisher', publisher);
     if (category) params.set('category', category);
-    if (days && days !== '30') params.set('days', days);
+    if (days) params.set('days', days);
     if (search) params.set('search', search);
     params.set('page', String(page));
 
@@ -390,7 +357,7 @@ function loadBooks(queryString) {
         const search = document.getElementById('search-input').value.trim();
         if (publisher) params.set('publisher', publisher);
         if (category) params.set('category', category);
-        if (days && days !== '30') params.set('days', days);
+        if (days) params.set('days', days);
         if (search) params.set('search', search);
         params.set('page', String(currentPage || 1));
         queryString = params.toString();
@@ -401,7 +368,15 @@ function loadBooks(queryString) {
         Array(8).fill('<div class="skeleton-card"><div class="skeleton-cover"></div><div class="skeleton-text"></div><div class="skeleton-text short"></div></div>').join('') +
         '</div></div>';
 
-    const url = '/api/new-books?' + queryString;
+    // 页面 URL 沿用 publisher（与 /new-books 页面路由、出版社跳转链接一致），
+    // 但 /api/new-books 的 Pydantic 查询模型只认 publisher_id，此处单点转换。
+    const apiParams = new URLSearchParams(queryString);
+    const publisherValue = apiParams.get('publisher');
+    if (publisherValue) {
+        apiParams.delete('publisher');
+        apiParams.set('publisher_id', publisherValue);
+    }
+    const url = '/api/new-books?' + apiParams.toString();
 
     fetch(url)
         .then(response => response.json())
@@ -416,7 +391,7 @@ function loadBooks(queryString) {
         })
         .catch(error => {
             container.innerHTML = '<div class="empty-state"><svg class="icon" width="48" height="48"><use href="#icon-alert-circle"/></svg>' +
-                '<h3>{{ _('加载失败') }}</h3><p>' + escapeHtml(error.message) + '</p>' +
+                '<h3>{{ _('加载失败') }}</h3><p>' + esc(error.message) + '</p>' +
                 '<button class="btn btn-outline" id="btn-retry" style="margin-top:1rem">{{ _('重试') }}</button></div>';
         })
         .finally(() => {
@@ -461,8 +436,20 @@ function renderBooks(data) {
 }
 
 function renderBookCard(book) {
-    const coverHtml = book.cover_url
-        ? '<img src="' + escapeHtml(book.cover_url) + '" alt="' + escapeHtml(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
+    // 出版社图床（images.penguinrandomhouse.com 等）国内不可直连，
+    // 也不在 CSP img-src 白名单内，统一改走同源 /cover 代理（规则见 app/utils/cover_urls.py）。
+    // BookRankCover 未挂上时不能身份回退，否则筛选重绘会把境外 URL 写进 img src。
+    const coverToSrc = (window.BookRankCover && window.BookRankCover.toSrc) || function(raw) {
+        const value = raw == null ? '' : String(raw).trim();
+        if (!value) return '';
+        if (value.indexOf('/static/') === 0 || value.indexOf('/cache/images/') === 0 || value.indexOf('/cover') === 0) {
+            return value;
+        }
+        return '/cover?src=' + encodeURIComponent(value);
+    };
+    const coverUrl = coverToSrc(book.cover_url);
+    const coverHtml = coverUrl
+        ? '<img src="' + esc(coverUrl) + '" alt="' + esc(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
         : '<div class="book-cover-placeholder"><svg class="icon" style="width:3rem;height:3rem"><use href="#icon-book"/></svg></div>';
 
     const titleZh = book.title_zh || book.title;
@@ -474,15 +461,20 @@ function renderBookCard(book) {
     const pubNameDisplay = currentLanguage === 'zh' ? pubNameZh : pubNameEn;
 
     let tagsHtml = '<div class="book-tags">';
+    if (book.is_recently_published) {
+        tagsHtml += '<span class="book-tag tag-new">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>{{ _("刚上市") }}</span>';
+    }
     if (book.category) {
-        tagsHtml += '<span class="book-tag tag-category">' + escapeHtml(book.category) + '</span>';
+        const catDisplay = currentLanguage === 'zh' ? book.category : (book.category_en || book.category);
+        tagsHtml += '<span class="book-tag tag-category">' + esc(catDisplay) + '</span>';
     } else {
         tagsHtml += '<span class="book-tag tag-category tag-muted">{{ _("分类未公开") }}</span>';
     }
     if (book.publication_date) {
         const pubDate = formatPublicationDate(book.publication_date);
-        tagsHtml += '<span class="book-tag tag-date" title="{{ _("出版日期") }} ' + escapeHtml(pubDate) + '">' +
-            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + escapeHtml(pubDate) + '</span>';
+        tagsHtml += '<span class="book-tag tag-date" title="{{ _("出版日期") }} ' + esc(pubDate) + '">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + esc(pubDate) + '</span>';
     } else {
         tagsHtml += '<span class="book-tag tag-date tag-muted">' +
             '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>{{ _("日期未公开") }}</span>';
@@ -490,19 +482,19 @@ function renderBookCard(book) {
     tagsHtml += '</div>';
 
     const isbnHtml = book.isbn13
-        ? '<p class="book-isbn">' + escapeHtml(book.isbn13) + '</p>'
-        : (book.isbn10 ? '<p class="book-isbn">' + escapeHtml(book.isbn10) + '</p>' : '');
+        ? '<p class="book-isbn">' + esc(book.isbn13) + '</p>'
+        : (book.isbn10 ? '<p class="book-isbn">' + esc(book.isbn10) + '</p>' : '');
 
     const priceHtml = book.price
-        ? '<span class="book-price">' + escapeHtml(book.price) + '</span>'
+        ? '<span class="book-price">' + esc(book.price) + '</span>'
         : '';
 
-    return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + escapeHtml(book.isbn13 || book.isbn10 || '') + '">' +
+    return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + esc(book.isbn13 || book.isbn10 || '') + '">' +
         '<div class="book-cover-wrapper">' + coverHtml + '</div>' +
         '<div class="book-info">' +
-        '<div class="book-title" title="' + escapeHtml(titleDisplay) + '" data-en="' + escapeHtml(book.title) + '" data-zh="' + escapeHtml(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="/new-book/' + book.id + '">' + escapeHtml(titleDisplay) + '</a></div>' +
-        '<div class="book-author" data-en="' + escapeHtml(book.author) + '">' + escapeHtml(authorDisplay) + '</div>' +
-        '<div class="book-meta"><span class="book-publisher" data-pub-name-zh="' + escapeHtml(pubNameZh) + '" data-pub-name-en="' + escapeHtml(pubNameEn) + '"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + escapeHtml(pubNameDisplay) + '</span>' + priceHtml + '</div>' +
+        '<div class="book-title" title="' + esc(titleDisplay) + '" data-en="' + esc(book.title) + '" data-zh="' + esc(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="/new-book/' + book.id + '">' + esc(titleDisplay) + '</a></div>' +
+        '<div class="book-author" data-en="' + esc(book.author) + '">' + esc(authorDisplay) + '</div>' +
+        '<div class="book-meta"><span class="book-publisher" data-pub-name-zh="' + esc(pubNameZh) + '" data-pub-name-en="' + esc(pubNameEn) + '"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + esc(pubNameDisplay) + '</span>' + priceHtml + '</div>' +
         tagsHtml + isbnHtml +
         '</div></div>';
 }
@@ -550,91 +542,6 @@ function formatPublicationDate(value) {
     return String(value).substring(0, 10);
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-}
-
-async function translateAllBooks() {
-    const books = document.querySelectorAll('.book-card');
-    if (!books.length) return;
-
-    if (currentLanguage === 'en') return;
-
-    const tasks = [];
-    for (let i = 0; i < books.length; i++) {
-        const card = books[i];
-        const titleEl = card.querySelector('.book-title');
-        if (!titleEl) continue;
-
-        const titleZh = titleEl.dataset.zh || '';
-        const titleEn = titleEl.dataset.en || '';
-        if (titleZh && titleZh !== titleEn) {
-            titleEl.textContent = titleZh;
-            continue;
-        }
-
-        const isbn = titleEl.dataset.isbn || '';
-        const cached = translationCache.getBook(isbn);
-        if (cached && cached.title_zh) {
-            titleEl.textContent = cached.title_zh;
-            continue;
-        }
-
-        if (isbn) tasks.push({ card, isbn });
-    }
-
-    const limit = 3;
-    const executing = [];
-    for (const task of tasks) {
-        const p = translateSingleBook(task.card, task.isbn).then(() => executing.splice(executing.indexOf(p), 1));
-        executing.push(p);
-        if (executing.length >= limit) {
-            await Promise.race(executing);
-        }
-    }
-}
-
-async function translateSingleBook(card, isbn) {
-    const titleEl = card.querySelector('.book-title');
-    if (!titleEl || !isbn) return;
-
-    try {
-        const response = await fetch('/api/translate/book/' + isbn, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        if (data.success && data.data && data.data.book) {
-            const book = data.data.book;
-            if (book.title_zh) {
-                titleEl.textContent = book.title_zh;
-                titleEl.dataset.zh = book.title_zh;
-            }
-            translationCache.saveBook(isbn, book);
-            if (typeof BookI18n !== 'undefined') {
-                BookI18n.updateTranslation(isbn, 'zh', {
-                    title: book.title_zh || '',
-                    description: book.description_zh || ''
-                });
-            }
-        }
-    } catch (e) {
-        console.warn('[Translation] {{ _('翻译失败') }}:', isbn, e);
-    }
-}
-
-async function translateSingleBookByIsbn(isbn) {
-    if (!isbn) return;
-    const card = document.querySelector('.book-card .book-title[data-isbn="' + isbn + '"]');
-    if (!card) return;
-    const bookCard = card.closest('.book-card');
-    if (!bookCard) return;
-    await translateSingleBook(bookCard, isbn);
-}
-
 function exportExcel() {
     const publisher = document.getElementById('publisher-filter').value;
     const category = document.getElementById('category-filter').value;
@@ -651,13 +558,24 @@ function exportExcel() {
 function syncNewBooks() {
     const btn = document.getElementById('sync-btn');
     const statusDiv = document.getElementById('sync-status');
+    // 后台任务轮询：提交后每 3 秒查一次状态，最长等待 15 分钟
+    const POLL_INTERVAL = 3000;
+    const POLL_MAX_MS = 15 * 60 * 1000;
 
     btn.disabled = true;
     btn.innerHTML = '<svg class="icon icon-spin" width="18" height="18"><use href="#icon-spinner"/></svg> {{ _('同步中') }}...';
 
+    statusDiv.hidden = false;
     statusDiv.style.display = 'flex';
     statusDiv.className = 'sync-status syncing';
     statusDiv.innerHTML = '<svg class="icon icon-spin" width="18" height="18"><use href="#icon-spinner"/></svg> {{ _('正在从出版社获取新书数据') }}...';
+
+    const showError = (message) => {
+        statusDiv.className = 'sync-status error';
+        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--error-color, #ef4444)"><use href="#icon-alert-circle"/></svg> {{ _('同步失败') }}: ' + esc(message);
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg> <span class="hide-mobile">{{ _('同步新书') }}</span>';
+    };
 
     fetch('/api/new-books/sync', {
         method: 'POST',
@@ -665,23 +583,41 @@ function syncNewBooks() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            const summary = data.data.summary;
-            statusDiv.className = 'sync-status success';
-            statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--success-color, #10b981)"><use href="#icon-check-circle"/></svg> {{ _('同步完成') }}！{{ _('新增') }} ' + summary.total_added + ' {{ _('本') }}，{{ _('更新') }} ' + summary.total_updated + ' {{ _('本') }}';
-            setTimeout(() => { location.reload(); }, 2000);
-        } else {
-            throw new Error(data.message || '{{ _('同步失败') }}');
-        }
+        if (!data.success) throw new Error(data.message || '{{ _('同步失败') }}');
+
+        // 202 已受理，进入轮询直至任务结束
+        const pollStart = Date.now();
+        const poll = () => {
+            if (Date.now() - pollStart > POLL_MAX_MS) {
+                showError('{{ _('同步仍在后台执行，请稍后刷新页面查看结果') }}');
+                return;
+            }
+            fetch('/api/new-books/sync/status')
+                .then(r => r.json())
+                .then(statusData => {
+                    if (!statusData.success) throw new Error(statusData.message || '{{ _('查询状态失败') }}');
+                    const task = statusData.data ?? {};
+                    if (task.status === 'running' || task.status === 'submitted') {
+                        setTimeout(poll, POLL_INTERVAL);
+                    } else if (task.status === 'success') {
+                        const summary = task.summary ?? { total_added: 0, total_updated: 0 };
+                        statusDiv.className = 'sync-status success';
+                        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--success-color, #10b981)"><use href="#icon-check-circle"/></svg> {{ _('同步完成') }}！{{ _('新增') }} ' + summary.total_added + ' {{ _('本') }}，{{ _('更新') }} ' + summary.total_updated + ' {{ _('本') }}';
+                        setTimeout(() => { location.reload(); }, 2000);
+                        btn.disabled = false;
+                        btn.innerHTML = '<svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg> <span class="hide-mobile">{{ _('同步新书') }}</span>';
+                    } else if (task.status === 'error') {
+                        showError(task.error || '{{ _('同步失败') }}');
+                    } else {
+                        // idle：任务槽已复位（如服务重启），停止轮询
+                        showError('{{ _('同步任务状态已丢失，请稍后刷新页面查看结果') }}');
+                    }
+                })
+                .catch(err => showError(err.message));
+        };
+        setTimeout(poll, POLL_INTERVAL);
     })
-    .catch(error => {
-        statusDiv.className = 'sync-status error';
-        statusDiv.innerHTML = '<svg class="icon" width="20" height="20" style="color: var(--error-color, #ef4444)"><use href="#icon-alert-circle"/></svg> {{ _('同步失败') }}: ' + escapeHtml(error.message);
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = '<svg class="icon" width="18" height="18"><use href="#icon-sync"/></svg> <span class="hide-mobile">{{ _('同步新书') }}</span>';
-    });
+    .catch(error => showError(error.message));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -751,6 +687,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentLanguage && currentLanguage !== 'zh') {
         applyNewBooksLanguage(currentLanguage);
     }
+
+    document.querySelectorAll('.browse-rail-shell').forEach(function(shell) {
+        const rail = shell.querySelector('.browse-rail');
+        if (!rail) return;
+        shell.querySelectorAll('.browse-rail-nav').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const dir = btn.classList.contains('prev') ? -1 : 1;
+                rail.scrollBy({ left: dir * Math.max(rail.clientWidth - 80, 200), behavior: 'smooth' });
+            });
+        });
+    });
 });
 </script>
 {% endblock %}

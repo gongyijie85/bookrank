@@ -1,0 +1,9 @@
+{
+  "product": {
+    "title": "Untitled Book",
+    "handle": "untitled-book",
+    "published_at": "2025-06-03T00:00:00Z",
+    "images": [{"alt": "Untitled Book cover"}],
+    "variants": [{"title": "Paperback", "barcode": "9780063416192"}]
+  }
+}

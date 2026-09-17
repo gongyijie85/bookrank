@@ -19,7 +19,7 @@ from datetime import date, datetime
 import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BookInfo, CrawlerConfig
+from .base_crawler import BookInfo, CrawlerConfig, CrawlRequest
 from .google_books import GoogleBooksCrawler
 
 logger = logging.getLogger(__name__)
@@ -61,46 +61,11 @@ class MacmillanCrawler(GoogleBooksCrawler):
     PUBLISHER_WEBSITE = 'https://us.macmillan.com'
     CRAWLER_CLASS_NAME = 'MacmillanCrawler'
 
-    CATEGORY_MAP = {
-        'fiction': '小说',
-        'nonfiction': '非虚构',
-        'mystery': '悬疑',
-        'romance': '言情',
-        'thriller': '惊悚',
-        'science_fiction': '科幻',
-        'fantasy': '奇幻',
-        'biography': '传记',
-        'history': '历史',
-        'children': '儿童读物',
-        'young_adult': '青少年',
-        'science': '科学',
-        'business': '商业',
-        'graphic_novels': '图像小说',
-    }
-
     def __init__(self, config: CrawlerConfig | None = None):
         super().__init__(config)
+        self._google_rate_limited = False
         if config is None:
             self.config.request_delay = 0.8
-
-    def get_categories(self) -> list[dict[str, str]]:
-        """获取支持的分类列表"""
-        return [
-            {'id': 'fiction', 'name': '小说'},
-            {'id': 'nonfiction', 'name': '非虚构'},
-            {'id': 'mystery', 'name': '悬疑'},
-            {'id': 'romance', 'name': '言情'},
-            {'id': 'thriller', 'name': '惊悚'},
-            {'id': 'science_fiction', 'name': '科幻'},
-            {'id': 'fantasy', 'name': '奇幻'},
-            {'id': 'biography', 'name': '传记'},
-            {'id': 'history', 'name': '历史'},
-            {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young_adult', 'name': '青少年'},
-            {'id': 'science', 'name': '科学'},
-            {'id': 'business', 'name': '商业'},
-            {'id': 'graphic_novels', 'name': '图像小说'},
-        ]
 
     # ------------------------------------------------------------------ #
     #  路径一：Google Books 多印记查询
@@ -109,7 +74,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
     def _query_imprint(
         self,
         imprint: str,
-        min_year: int,
+        cutoff_date: date,
         max_results: int,
     ) -> Generator[BookInfo]:
         """
@@ -117,7 +82,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
 
         Args:
             imprint: 印记名称（如 "St. Martin's Press"）
-            min_year: 最早出版年份
+            cutoff_date: 新书截止日期
             max_results: 最大返回数
         """
         self._validate_api_key()
@@ -129,7 +94,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
             if collected >= max_results:
                 break
 
-            params = {
+            params: dict[str, str | int] = {
                 'q': f'inpublisher:"{imprint}"',
                 'maxResults': min(max_results - collected, 40),
                 'startIndex': start_index,
@@ -156,6 +121,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
                         timeout=self.config.timeout,
                     )
 
+                if resp.status_code == 429:
+                    self._google_rate_limited = True
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as exc:
@@ -172,7 +139,9 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 volume_info = item.get('volumeInfo', {})
                 published_date = volume_info.get('publishedDate', '')
 
-                if not self._is_recent_book(published_date, min_year):
+                category = self._classify_date_filter(published_date, cutoff_date)
+                self._record_date_filter(category)
+                if not category.startswith('accepted'):
                     continue
 
                 book = self._parse_volume_info(volume_info, 'general')
@@ -248,12 +217,14 @@ class MacmillanCrawler(GoogleBooksCrawler):
             BookInfo 或 None
         """
         url = 'https://www.googleapis.com/books/v1/volumes'
-        params = {'q': f'isbn:{isbn}'}
+        params: dict[str, str] = {'q': f'isbn:{isbn}'}
         if self._key_is_valid and self._api_key:
             params['key'] = self._api_key
 
         try:
             resp = self._session.get(url, params=params, timeout=self.config.timeout)
+            if resp.status_code == 429:
+                self._google_rate_limited = True
             resp.raise_for_status()
             data = resp.json()
             items = data.get('items', [])
@@ -272,9 +243,9 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 elif ident.get('type') == 'ISBN_10':
                     isbn10 = ident.get('identifier', '')
 
-            buy_links = {}
+            buy_links: list[dict[str, str]] = []
             if sale.get('buyLink'):
-                buy_links['Google Play'] = sale['buyLink']
+                buy_links.append({'name': 'Google Play', 'url': sale['buyLink']})
 
             # 将 publishedDate 字符串转为 date 对象（与 BookInfo 类型一致）
             pub_date = self._parse_date_string(info.get('publishedDate', ''))
@@ -313,41 +284,38 @@ class MacmillanCrawler(GoogleBooksCrawler):
         return None
 
     @staticmethod
-    def _is_book_recent(book: BookInfo, min_year: int) -> bool:
-        """检查 BookInfo 的出版年份是否 >= min_year"""
+    def _is_book_recent(book: BookInfo, cutoff_date: date) -> bool:
+        """检查 BookInfo 的出版日期是否 >= cutoff_date
+
+        无日期信息时保守拒绝：无法确认"新"就不能当新书展示（与
+        GoogleBooksCrawler._is_recent_book 的策略保持一致）。
+        """
         if not book.publication_date:
-            return True  # 无日期信息，默认放行
-        return book.publication_date.year >= min_year
+            return False
+        return book.publication_date >= cutoff_date
 
     # ------------------------------------------------------------------ #
     #  主入口：两路合并
     # ------------------------------------------------------------------ #
 
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        year_from: int | None = None,
-    ) -> Generator[BookInfo]:
+    def _iter_new_books(self, request: CrawlRequest):
         """
-        获取 Macmillan 新书列表
+        获取 Macmillan 新书列表的生成器实现
 
         两路合并：
         1. Google Books 多印记 inpublisher 查询（主要）
         2. Sitemap ISBN → Google Books ISBN 查询（补充）
 
         Args:
-            category: 分类（未使用，保持接口兼容）
-            max_books: 最大返回数量
-            year_from: 最早出版年份（默认近2年）
+            request: 抓取请求（category 未使用，保持接口兼容）
         """
-        current_year = datetime.now().year
-        min_year = year_from or (current_year - 2)
+        max_books = request.max_books
+        cutoff_date = self._compute_cutoff_date()
 
         logger.info(
-            '正在获取 %s 的新书（多印记查询 + Sitemap 补充，年份 >= %d）...',
+            '正在获取 %s 的新书（多印记查询 + Sitemap 补充，>= %s）...',
             self.PUBLISHER_NAME_EN,
-            min_year,
+            cutoff_date.isoformat(),
         )
 
         seen_isbns: set[str] = set()
@@ -360,7 +328,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
             if count >= max_books:
                 break
 
-            for book in self._query_imprint(imprint, min_year, per_imprint_limit):
+            for book in self._query_imprint(imprint, cutoff_date, per_imprint_limit):
                 if count >= max_books:
                     break
                 isbn_key = book.isbn13 or book.isbn10 or book.title
@@ -368,6 +336,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
                     seen_isbns.add(isbn_key)
                     count += 1
                     yield book
+            if self._google_rate_limited:
+                break
 
         logger.info(
             'Google Books 多印记查询返回 %d 本，开始 Sitemap 补充...',
@@ -388,20 +358,26 @@ class MacmillanCrawler(GoogleBooksCrawler):
                     continue
 
                 checked += 1
-                book = self._lookup_isbn(isbn)
-                if not book:
+                found_book = self._lookup_isbn(isbn)
+                if self._google_rate_limited:
+                    break
+                if not found_book:
                     continue
 
-                # 年份过滤（修复：使用 min_year 而非 year_from）
-                if not self._is_book_recent(book, min_year):
+                if not self._is_book_recent(found_book, cutoff_date):
+                    # 工单 #83：sitemap 补充路径同样计入日期过滤拒绝分类
+                    # （此路径拿到的是已解析日期，只可能是缺失或窗口外）
+                    self._record_date_filter(
+                        'rejected_no_date' if not found_book.publication_date else 'rejected_out_of_window'
+                    )
                     continue
 
-                isbn_key = book.isbn13 or isbn
+                isbn_key = found_book.isbn13 or isbn
                 if isbn_key not in seen_isbns:
                     seen_isbns.add(isbn_key)
                     count += 1
                     added += 1
-                    yield book
+                    yield found_book
 
                 import time
 

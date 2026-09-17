@@ -1,8 +1,16 @@
 import json
-import logging
-from datetime import datetime
+from datetime import date, datetime
+from typing import cast
 
-logger = logging.getLogger(__name__)
+
+def format_chinese_date(value: date) -> str:
+    """Format a date with Chinese separators without relying on the OS locale.
+
+    ``strftime`` delegates formatting to the platform C runtime. On Windows,
+    literal Chinese characters in a format string can fail when the active
+    locale uses a non-Unicode code page, so build this display value directly.
+    """
+    return f'{value.year:04d}年{value.month:02d}月{value.day:02d}日'
 
 
 def validate_date(date_str: str) -> tuple:
@@ -25,4 +33,4 @@ def parse_report_content(report) -> dict | None:
         content = json.loads(report.content) if isinstance(report.content, str) else report.content
     except (json.JSONDecodeError, TypeError):
         return None
-    return content
+    return cast('dict | None', content)

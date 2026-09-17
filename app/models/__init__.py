@@ -1,12 +1,13 @@
 from .book import Book
 from .database import db, init_db
-from .new_book import NewBook, Publisher
+from .new_book import BatchImportReceipt, NewBook, Publisher
 from .schemas import (
     APICache,
     Award,
     AwardBook,
     BookMetadata,
     CSRFToken,
+    ListSnapshot,
     ReportView,
     SearchHistory,
     SystemConfig,
@@ -21,9 +22,11 @@ __all__ = [
     'APICache',
     'Award',
     'AwardBook',
+    'BatchImportReceipt',
     'Book',
     'BookMetadata',
     'CSRFToken',
+    'ListSnapshot',
     'NewBook',
     'Publisher',
     'ReportView',

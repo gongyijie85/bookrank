@@ -5,7 +5,6 @@ from datetime import date, datetime
 from app.services.publisher_data import (
     CRAWLER_MIGRATION,
     DEFAULT_PUBLISHERS,
-    GOOGLE_BOOKS_CRAWLERS,
     STATIC_DATA_FILES,
     VALID_CATEGORIES,
     coerce_publication_date,
@@ -35,8 +34,52 @@ class TestConstants:
         for new_class in CRAWLER_MIGRATION.values():
             assert new_class in known, f'{new_class} 不在已知爬虫中'
 
-    def test_google_books_crawlers_includes_penguin_random_house(self):
-        assert 'PenguinRandomHouseCrawler' in GOOGLE_BOOKS_CRAWLERS
+    def test_crawler_migration_has_no_self_mapping_noop_entries(self):
+        """自己映射到自己的记录是历史残留，每次 init_publishers() 都会
+        打一条没有意义的"迁移"日志，应该被清理掉。"""
+        for old_class, new_class in CRAWLER_MIGRATION.items():
+            assert old_class != new_class, f'{old_class} 是无意义的自映射'
+
+    def test_prh_migrates_from_google_books_variant_to_official_api(self):
+        """企鹅兰登从 Google Books 变体迁移到官方 API 爬虫（工单 #86）"""
+        assert CRAWLER_MIGRATION['PenguinRandomHouseCrawler'] == 'PrhApiCrawler'
+
+    def test_hachette_hc_migrate_back_to_google_books_channel(self):
+        """工单 #112：站点爬虫在生产失效（2026-06-22 起零入库），
+        迁移方向反转为 站点爬虫 -> Google Books 出版社通道"""
+        assert CRAWLER_MIGRATION['HachetteCrawler'] == 'HachetteGoogleCrawler'
+        assert CRAWLER_MIGRATION['HarperCollinsCrawler'] == 'HarperCollinsGoogleCrawler'
+        # 旧的反向迁移条目已废弃移除
+        assert 'HachetteGoogleCrawler' not in CRAWLER_MIGRATION
+        assert 'HarperCollinsGoogleCrawler' not in CRAWLER_MIGRATION
+
+    def test_hachette_hc_seed_uses_google_books_crawler(self):
+        by_name_en = {p['name_en']: p for p in DEFAULT_PUBLISHERS}
+        assert by_name_en['Hachette']['crawler_class'] == 'HachetteGoogleCrawler'
+        assert by_name_en['HarperCollins']['crawler_class'] == 'HarperCollinsGoogleCrawler'
+
+    def test_prh_seed_uses_official_api_crawler(self):
+        by_name_en = {p['name_en']: p for p in DEFAULT_PUBLISHERS}
+        assert by_name_en['Penguin Random House']['crawler_class'] == 'PrhApiCrawler'
+
+    def test_google_books_and_open_library_default_to_inactive(self):
+        """通用 GoogleBooksCrawler(非出版社限定关键词搜索)实测会把公版经典的
+        重印版当新书返回；OpenLibraryCrawler 实测直接不返回任何结果。两者都
+        不该作为默认启用的数据源，新部署不应该因为它们污染新书速递。"""
+        by_name_en = {p['name_en']: p for p in DEFAULT_PUBLISHERS}
+        assert by_name_en['Google Books']['is_active'] is False
+        assert by_name_en['Open Library']['is_active'] is False
+
+    def test_other_publishers_still_default_active(self):
+        by_name_en = {p['name_en']: p for p in DEFAULT_PUBLISHERS}
+        for name_en in (
+            'Penguin Random House',
+            'Simon & Schuster',
+            'Hachette',
+            'HarperCollins',
+            'Macmillan',
+        ):
+            assert by_name_en[name_en].get('is_active', True) is True
 
 
 class TestSanitizeCategory:

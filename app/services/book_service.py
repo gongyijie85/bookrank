@@ -1,11 +1,11 @@
 import logging
 import threading
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import requests
 from flask import Flask
@@ -13,11 +13,15 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from ..models.book import Book
 from ..models.schemas import BookMetadata, db
+from ..utils.api_helpers import is_placeholder_text
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.exceptions import APIException, APIRateLimitException, ExternalAPIError
-from .api_client import GoogleBooksClient, ImageCacheService, NYTApiClient
+from ..utils.space_runtime import is_space_runtime
+from .api_utils import ImageCacheService, run_with_app_context
 from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
+from .google_books_client import GoogleBooksClient
+from .nyt_client import NYTApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +110,7 @@ class BookService:
                         self._isbn_index[isbn10] = book_data
                         cat_isbns.add(isbn10)
                     if isbn13 == isbn or isbn10 == isbn:
-                        return book_data
+                        return cast('dict[str, Any] | None', book_data)
 
         metadata = db.session.get(BookMetadata, isbn)
         if metadata:
@@ -179,6 +183,7 @@ class BookService:
         force_refresh: bool = False,
         auto_translate: bool = True,
         notify_refresh: bool = True,
+        allow_stale_fallback: bool = True,
     ) -> list[Book]:
         """
         获取指定分类的图书列表
@@ -188,11 +193,16 @@ class BookService:
             force_refresh: 是否强制刷新缓存
             auto_translate: 是否启动后台预翻译
             notify_refresh: 是否通知数据刷新回调
+            allow_stale_fallback: API失败时是否允许返回过期缓存
 
         Returns:
             图书列表
         """
         cache_key = f'books_{category_id}'
+
+        if is_space_runtime():
+            auto_translate = False
+            notify_refresh = False
 
         # 尝试从缓存获取
         if not force_refresh:
@@ -203,15 +213,18 @@ class BookService:
 
         # 从API获取
         try:
-            api_data = self._nyt_client.fetch_books(category_id)
+            api_data = self._nyt_client.fetch_books(category_id, force_refresh=force_refresh)
             if isinstance(api_data, dict) and api_data.get('error'):
                 raise APIException(f'NYT API returned error for {category_id}: {api_data["error"]}')
 
             books = self._process_api_response(api_data, category_id)
             if not books:
-                stale_books = self._get_stale_cached_books(cache_key, category_id)
-                if stale_books:
-                    return stale_books
+                if allow_stale_fallback:
+                    stale_books = self._get_stale_cached_books(cache_key, category_id)
+                    if stale_books:
+                        return stale_books
+                else:
+                    raise APIException(f'NYT API returned no books for {category_id}')
                 logger.warning(f'NYT API returned no books for {category_id}')
                 return []
 
@@ -237,16 +250,20 @@ class BookService:
 
         except APIRateLimitException:
             # 限流时返回缓存数据（即使已过期）
-            stale_books = self._get_stale_cached_books(cache_key, category_id)
-            if stale_books:
-                return stale_books
+            if allow_stale_fallback:
+                stale_books = self._get_stale_cached_books(cache_key, category_id)
+                if stale_books:
+                    return stale_books
             raise
         except APIException as e:
             logger.error(f'Failed to fetch books for {category_id}: {e}')
             # 返回缓存数据作为降级
-            stale_books = self._get_stale_cached_books(cache_key, category_id)
-            if stale_books:
-                return stale_books
+            if allow_stale_fallback:
+                stale_books = self._get_stale_cached_books(cache_key, category_id)
+                if stale_books:
+                    return stale_books
+            if not allow_stale_fallback:
+                raise
             return []
 
     def _process_api_response(self, api_data: dict[str, Any], category_id: str) -> list[Book]:
@@ -268,8 +285,11 @@ class BookService:
         category_name = self._categories.get(category_id, category_id)
 
         isbns = [b.get('primary_isbn13') or b.get('primary_isbn10', '') for b in raw_books]
-        translations = self._batch_get_translations(isbns)
-        supplements = self._batch_get_supplements(isbns)
+        translations: dict[str, dict] = {}
+        supplements: dict[str, dict] = {}
+        if not is_space_runtime():
+            translations = self._batch_get_translations(isbns)
+            supplements = self._batch_get_supplements(isbns)
 
         processed_books = []
         for book_data in raw_books:
@@ -294,7 +314,7 @@ class BookService:
 
     def _batch_get_supplements(self, isbns: list[str]) -> dict[str, dict]:
         """并发获取Google Books补充信息，提升批量查询效率"""
-        supplements = {}
+        supplements: dict[str, dict[str, Any]] = {}
         if not isbns:
             return supplements
 
@@ -307,7 +327,8 @@ class BookService:
 
             def _fetch_one(isbn: str) -> tuple[str, dict]:
                 try:
-                    return isbn, self._google_client.fetch_book_details(isbn)
+                    details = run_with_app_context(self._app, self._google_client.fetch_book_details, isbn)
+                    return isbn, details
                 except (requests.RequestException, requests.Timeout, ValueError, KeyError):
                     return isbn, {}
 
@@ -319,7 +340,7 @@ class BookService:
             log_error(ErrorCategory.API_CALL, f'并发获取补充信息失败，降级为串行: {e}', level='warning')
             for isbn in valid_isbns:
                 try:
-                    supplements[isbn] = self._google_client.fetch_book_details(isbn)
+                    supplements[isbn] = run_with_app_context(self._app, self._google_client.fetch_book_details, isbn)
                 except (requests.RequestException, requests.Timeout, ValueError, KeyError):
                     supplements[isbn] = {}
 
@@ -366,7 +387,8 @@ class BookService:
         # 保存 NYT 原始图片 URL 作为兜底（缓存失效时使用）
         original_image_url = book_data.get('book_image', '') or ''
         book._original_cover = original_image_url
-        book.cover = self._image_cache.get_cached_image_url(original_image_url)
+        # 异步预取：MISS 立即返回占位并在后台下载，不阻塞请求线程（#178）
+        book.cover = self._image_cache.get_cached_image_url(original_image_url, block=False)
 
         if isbn in translations:
             trans = translations[isbn]
@@ -375,13 +397,6 @@ class BookService:
             book.details_zh = trans.get('details_zh')
 
         return book
-
-    def _run_with_context(self, func: Callable[[], Any]) -> Any:
-        """在应用上下文中执行函数（如有app则自动推送上下文）"""
-        if self._app:
-            with self._app.app_context():
-                return func()
-        return func()
 
     @staticmethod
     def _book_value(book: Book | dict[str, Any], attr: str) -> Any:
@@ -410,7 +425,7 @@ class BookService:
         metadata.author = author
 
         details = self._book_value(book, 'details')
-        if details and details != 'No detailed description available.':
+        if details and not is_placeholder_text(details):
             metadata.details = str(details)
 
         page_count = self._parse_page_count(self._book_value(book, 'page_count'))
@@ -448,16 +463,16 @@ class BookService:
             return True
 
         try:
-            return self._run_with_context(_save)
+            return cast('bool', run_with_app_context(self._app, _save))
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存图书元数据失败: {e}')
             try:
-                self._run_with_context(lambda: db.session.rollback())
+                run_with_app_context(self._app, lambda: db.session.rollback())
             except (IntegrityError, OperationalError, SQLAlchemyError):
                 pass
             return False
 
-    def save_book_metadata_batch(self, books: list[Book | dict[str, Any]]) -> int:
+    def save_book_metadata_batch(self, books: Sequence[Book | dict[str, Any]]) -> int:
         """批量保存NYT图书英文资料，通过一次 IN 查询避免 N+1"""
         if not books:
             return 0
@@ -491,11 +506,11 @@ class BookService:
             return saved
 
         try:
-            return self._run_with_context(_save)
+            return cast('int', run_with_app_context(self._app, _save))
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'批量保存图书元数据失败: {e}')
             try:
-                self._run_with_context(lambda: db.session.rollback())
+                run_with_app_context(self._app, lambda: db.session.rollback())
             except (IntegrityError, OperationalError, SQLAlchemyError):
                 pass
             return 0
@@ -531,11 +546,11 @@ class BookService:
             return True
 
         try:
-            return self._run_with_context(_save)
+            return cast('bool', run_with_app_context(self._app, _save))
         except (IntegrityError, OperationalError, SQLAlchemyError) as e:
             logger.error(f'保存翻译失败: {e}')
             try:
-                self._run_with_context(lambda: db.session.rollback())
+                run_with_app_context(self._app, lambda: db.session.rollback())
             except (IntegrityError, OperationalError, SQLAlchemyError):
                 pass
             return False
@@ -597,6 +612,7 @@ class BookService:
                     force_refresh=force_refresh,
                     auto_translate=False,
                     notify_refresh=False,
+                    allow_stale_fallback=False,
                 )
                 metadata_saved = self.save_book_metadata_batch(books)
                 language_pack_stats = (

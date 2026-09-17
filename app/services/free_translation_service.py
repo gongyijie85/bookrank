@@ -3,10 +3,16 @@
 
 包含免费翻译方案：
 1. Google Translate (deep-translator) - 免费但可能不稳定
+
+注意：deep-translator **已从 requirements 中刻意移除**（PyPI 账号被钓鱼接管后
+发布的版本含安装期恶意代码，PYSEC-2022-252，且无修复版本）。本模块按
+「库缺失即优雅降级」实现，因此不安装也能正常运行；若日后出现可信发布版本，
+可在 SECURITY.md 记录的评估结论下重新引入。
 """
 
 import logging
 import time
+from typing import cast
 
 from ..utils.error_handler import ErrorCategory, log_error
 
@@ -17,12 +23,15 @@ class GoogleTranslationService:
     """
     Google Translate 免费翻译服务
     使用 deep-translator 库（免费但可能不稳定）
+
+    该依赖默认不安装（供应链投毒，见模块 docstring 与 SECURITY.md）；
+    未安装时 _get_client() 返回 None，调用方按降级路径处理。
     """
 
     def __init__(self, delay: float = 0.5):
         self.delay = delay
         self._client = None
-        self._last_request_time = 0
+        self._last_request_time: float = 0
         self._deep_translator_warned = False
 
     def _get_client(self):
@@ -37,7 +46,8 @@ class GoogleTranslationService:
                 if not self._deep_translator_warned:
                     log_error(
                         ErrorCategory.TRANSLATION,
-                        f'deep-translator 库未安装，Google 免费翻译不可用: {e}',
+                        f'deep-translator 库未安装，Google 免费翻译不可用（属预期：'
+                        f'该依赖已因供应链投毒刻意移除，见 SECURITY.md）: {e}',
                         level='warning',
                     )
                     self._deep_translator_warned = True
@@ -71,7 +81,7 @@ class GoogleTranslationService:
 
                 if result:
                     logger.info(f'Google翻译成功: {text[:50]}... -> {result[:50]}...')
-                    return result
+                    return cast('str | None', result)
 
             except Exception as e:
                 if attempt < max_retries:

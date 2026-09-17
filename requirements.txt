@@ -6,10 +6,10 @@
 
 # 核心框架
 Flask==3.1.3
-Werkzeug==3.1.0
+Werkzeug==3.1.6
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.7
-Flask-CORS==4.0.1
+Flask-CORS==6.0.0
 Flask-Babel==4.0.0
 
 # ORM 和数据库
@@ -18,10 +18,10 @@ alembic==1.14.0
 psycopg2-binary==2.9.10
 
 # 配置和环境
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # HTTP 客户端（只保留 requests，httpx 未使用）
-requests==2.32.3
+requests==2.33.0
 
 # 系统监控
 psutil>=5.9.0
@@ -33,11 +33,15 @@ gunicorn==23.0.0
 beautifulsoup4==4.13.0
 
 # HTML 白名单净化（用于安全展示用户/外部 HTML 内容）
-bleach==6.1.0
+bleach==6.4.0
 
-# AI 翻译（智谱AI主用，deep-translator备用回退）
+# AI 翻译（智谱AI主用；硅基流动 Hunyuan 走 openai 兼容端点）
 zhipuai==2.1.5.20250825
-deep-translator==1.11.4
+# ⚠️ 不再安装 deep-translator：该项目 PyPI 账号被钓鱼接管后发布的版本含
+# 「安装期读取环境变量并下载运行恶意代码」的投毒代码（PYSEC-2022-252），
+# 1.8.5 及之后全部受影响且无修复版本。它是可选回退，缺失时服务优雅降级。
+# 详见 SECURITY.md「依赖漏洞现状」——在出现可信发布之前请勿重新加入。
+openai>=1.40.0,<3
 
 # 工具库（去掉 cachetools 未使用，保留 tenacity 重试）
 tenacity==9.0.0
@@ -48,13 +52,18 @@ APScheduler==3.11.0
 # 导出功能（PDF/Excel）
 fpdf2==2.7.9
 openpyxl==3.1.2
-Pillow==11.1.0
 
 # Markdown 渲染
-mistune==3.2.1
+# 3.3.3 起修复 CVE-2026-76098；该过滤器输出仍会经 bleach 消毒（纵深防御）
+mistune==3.3.4
 
 # 监控
 sentry-sdk==2.20.0
+
+# 共享限流后端（可选运行时依赖，安全审计 High #2）
+# 仅在配置 RATE_LIMIT_REDIS_URL 时启用；未配置时限流器走进程内实现，
+# 不会 import redis，因此缺少该包也不影响启动。
+redis>=5.0.0
 
 # ============================================
 # 开发工具链（仅本地开发使用，不部署到生产）

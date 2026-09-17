@@ -1,8 +1,8 @@
 {% extends "mobile/base.html" %}
 
-{% block title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
-{% block og_title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
-{% block tw_title %}{{ safe_title_zh or safe_title_en }} - 书榜{% endblock %}
+{% block title %}{{ shown_title }} - BookRank{% endblock %}
+{% block og_title %}{{ shown_title }} - BookRank{% endblock %}
+{% block tw_title %}{{ shown_title }} - BookRank{% endblock %}
 
 {% block header %}
 <header class="m-header">
@@ -15,9 +15,11 @@
 {% endblock %}
 
 {% block content %}
-{% set display_title = safe_title_zh or safe_title_en %}
-{% set desc = book.description_zh or book.description %}
-{% set detail_text = book.details %}
+{% set display_title = shown_title %}
+{% set desc = shown_desc %}
+{# 占位串清单来自 api_helpers 的单一真相源（Jinja 全局 PLACEHOLDER_TEXTS），模板不再自带第二份清单。 #}
+{% set _raw_detail = (book.details or '')|trim %}
+{% set detail_text = '' if _raw_detail in PLACEHOLDER_TEXTS else _raw_detail %}
 
 <!-- 封面 -->
 <section class="m-detail-cover-wrap">
@@ -25,7 +27,7 @@
         <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
              alt="{{ display_title }}"
              width="130" height="175"
-             onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+             data-cover-fallback="">
     </div>
 </section>
 
@@ -35,7 +37,7 @@
     <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
     {% if book.award %}
     <div class="m-detail-tags">
-        <span class="m-detail-tag">{{ book.award.name }}</span>
+        <span class="m-detail-tag">{{ book.award.name|bilingual(book.award.name_en) }}</span>
         {% if book.year %}<span class="m-detail-tag accent">{{ book.year }}{{ _('年') }}</span>{% endif %}
     </div>
     {% endif %}
@@ -46,8 +48,9 @@
         {% if book.publication_year %}
         <span><strong>{{ _('出版年份') }}</strong>{{ book.publication_year }}</span>
         {% endif %}
-        {% if book.category %}
-        <span><strong>{{ _('类别') }}</strong>{{ book.category }}</span>
+        {% set shown_category = book.category|award_term %}
+        {% if shown_category %}
+        <span><strong>{{ _('类别') }}</strong>{{ shown_category }}</span>
         {% endif %}
         {% if book.rank %}
         <span><strong>{{ _('排名') }}</strong>{{ book.rank }}</span>
@@ -72,7 +75,7 @@
         <!-- 图书简介 -->
         <div class="m-tab-panel active" data-panel="description" role="tabpanel">
             {% set intro = desc or book.details %}
-            {% if intro and intro not in ('No summary available.', 'No summary available', '') %}
+            {% if intro and intro not in PLACEHOLDER_TEXTS %}
             <div class="m-detail-text">
                 {% for para in intro.split('\n') if para.strip() %}
                 <p>{{ para.strip() }}</p>
@@ -96,19 +99,20 @@
                 <div class="m-meta-row"><dt>{{ _('ISBN') }}</dt><dd>{{ book.isbn13 or book.isbn10 }}</dd></div>
                 {% endif %}
                 {% if book.award %}
-                <div class="m-meta-row"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name }}</dd></div>
+                <div class="m-meta-row"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name|bilingual(book.award.name_en) }}</dd></div>
                 {% endif %}
                 {% if book.year %}
                 <div class="m-meta-row"><dt>{{ _('获奖年份') }}</dt><dd>{{ book.year }}</dd></div>
                 {% endif %}
-                {% if book.category %}
-                <div class="m-meta-row"><dt>{{ _('类别') }}</dt><dd>{{ book.category }}</dd></div>
+                {% set dl_category = book.category|award_term %}
+                {% if dl_category %}
+                <div class="m-meta-row"><dt>{{ _('类别') }}</dt><dd>{{ dl_category }}</dd></div>
                 {% endif %}
                 {% if book.rank %}
                 <div class="m-meta-row"><dt>{{ _('排名') }}</dt><dd>{{ book.rank }}</dd></div>
                 {% endif %}
             </dl>
-            {% if detail_text and detail_text not in ('No detailed description available.', '暂无详细介绍', '暂无详细描述', '') %}
+            {% if detail_text and detail_text not in PLACEHOLDER_TEXTS %}
             <div class="m-detail-text m-detail-longtext">
                 {% for para in detail_text.split('\n') if para.strip() %}
                 <p>{{ para.strip() }}</p>
@@ -119,6 +123,25 @@
     </div>
 </div>
 
+{% if related_books %}
+<section class="m-related-books" aria-label="{{ _('相关获奖图书') }}">
+    <h2 class="m-section-title">{{ _('相关获奖图书') }}</h2>
+    <div class="m-related-books-scroll no-scrollbar">
+        {% for related in related_books %}
+        {% set related_title = related.title_zh|bilingual(related.title) %}
+        <a href="{{ url_for('main.award_book_detail', book_id=related.id) }}" class="m-related-book-card">
+            <div class="m-related-book-cover">
+                <img src="{{ related.cover_url|cover_src_or_default }}"
+                     alt="{{ related_title }}" loading="lazy"
+                     data-cover-fallback="">
+            </div>
+            <div class="m-related-book-title">{{ related_title }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 {% endblock %}
 
 {% block structured_data %}
@@ -126,11 +149,11 @@
 {
     "@context": "https://schema.org",
     "@type": "Book",
-    "name": "{{ display_title }}",
-    "author": "{{ book.author or '' }}",
-    {% if book.isbn13 %}"isbn": "{{ book.isbn13 }}",{% elif book.isbn10 %}"isbn": "{{ book.isbn10 }}",{% endif %}
-    {% if book.publisher %}"publisher": "{{ book.publisher }}",{% endif %}
-    "description": "{{ (desc or book.details or '') | replace('"', '\\"') }}"
+    "name": {{ shown_title | string | tojson }},
+    "author": {{ (book.author or '') | string | tojson }},
+    {% if book.isbn13 %}"isbn": {{ book.isbn13 | string | tojson }},{% elif book.isbn10 %}"isbn": {{ book.isbn10 | string | tojson }},{% endif %}
+    {% if book.publisher %}"publisher": {{ book.publisher | string | tojson }},{% endif %}
+    "description": {{ (shown_desc or book.details or '') | string | tojson }}
 }
 </script>
 {% endblock %}

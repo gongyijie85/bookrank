@@ -8,6 +8,7 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
+from flask import has_app_context
 
 from app.models.book import Book
 from app.models.schemas import BookMetadata, SystemConfig, TranslationCache
@@ -94,6 +95,30 @@ class TestBookService:
         assert books[0].author == 'Test Author'
         assert books[0].isbn13 == '9780143127550'
         assert books[0].category_id == 'hardcover-fiction'
+
+    def test_force_refresh_reaches_nyt_client(self, book_service):
+        book_service.get_books_by_category('hardcover-fiction', force_refresh=True, auto_translate=False)
+
+        book_service._nyt_client.fetch_books.assert_called_once_with('hardcover-fiction', force_refresh=True)
+
+    def test_batch_get_supplements_keeps_app_context_in_workers(self, book_service, app):
+        """Google Books 并发请求应在 Flask 应用上下文中执行。"""
+        book_service._app = app
+
+        def fetch_details(isbn):
+            assert has_app_context()
+            return {'isbn_13': isbn}
+
+        book_service._google_client.fetch_book_details.side_effect = fetch_details
+
+        with patch('app.services.book_service.log_error') as log_error:
+            supplements = book_service._batch_get_supplements(['9780000000001', '9780000000002'])
+
+        assert supplements == {
+            '9780000000001': {'isbn_13': '9780000000001'},
+            '9780000000002': {'isbn_13': '9780000000002'},
+        }
+        log_error.assert_not_called()
 
     def test_get_books_by_category_with_cache(self, book_service):
         """测试从缓存获取图书列表"""
@@ -272,6 +297,51 @@ class TestBookService:
         assert saved['books']['9780143127550']['details_zh'] == '测试详情'
         assert book.title_zh == '测试书名'
 
+    def test_language_pack_rejects_language_marker_details(self, tmp_path):
+        """details_zh 是语言标记（'英文'）时不得写进权威语言包。
+
+        回归：sync_book_language_pack.py 曾把上游 cache 里的「英文」合并进语言包
+        （实测 88 条、其中 32 本在榜），页面渲染成「详情: 英文」。
+        """
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book = {
+            'id': '9780143127550',
+            'isbn13': '9780143127550',
+            'title': 'Test Book',
+            'title_zh': '测试书名',
+            'description': 'A test description',
+            'description_zh': '测试简介',
+            'details': 'Detailed book description',
+            'details_zh': '英文',
+        }
+
+        stats = BookLanguagePack(pack_path).translate_and_store_books([book])
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        entry = saved['books']['9780143127550']
+        assert 'details_zh' not in entry
+        assert entry['title_zh'] == '测试书名'
+        assert entry['description_zh'] == '测试简介'
+        assert stats['rejected_non_substantive'] == 1
+        assert stats['fields_stored'] == 2
+
+    def test_language_pack_keeps_real_details_zh(self, tmp_path):
+        """正常中文详情不得被噪音判定误伤。"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book = {
+            'id': '9780143127550',
+            'isbn13': '9780143127550',
+            'title': 'Test Book',
+            'details': 'Detailed book description',
+            'details_zh': '最初由Viking Penguin于2014年出版。',
+        }
+
+        stats = BookLanguagePack(pack_path).translate_and_store_books([book])
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert saved['books']['9780143127550']['details_zh'] == '最初由Viking Penguin于2014年出版。'
+        assert stats.get('rejected_non_substantive', 0) == 0
+
     def test_sync_all_categories_refreshes_metadata_and_language_pack(self, book_service, db, tmp_path):
         """测试每周NYT同步会补资料、翻译并写入语言包和数据库"""
         pack_path = tmp_path / 'book_language_pack.zh.json'
@@ -322,6 +392,48 @@ class TestBookService:
         assert metadata.description_zh == '测试简介'
         assert metadata.details_zh == '测试详情'
 
+    def test_get_books_by_category_skips_side_effects_on_space(self, book_service, monkeypatch):
+        """Space 唯一 worker 不得被首屏的后台预翻译和刷新回调占用。"""
+        monkeypatch.setenv('SPACE_ID', 'Elvis85/bookrank')
+        notified = []
+
+        def callback():
+            notified.append(1)
+
+        book_service.on_data_refreshed(callback)
+
+        with patch.object(book_service, '_auto_translate_books') as auto_translate:
+            books = book_service.get_books_by_category('hardcover-fiction')
+
+        assert len(books) == 1
+        auto_translate.assert_not_called()
+        assert notified == []
+
+    def test_process_api_response_skips_batch_lookups_on_space(self, book_service, monkeypatch):
+        """Space 上批量翻译/增补改为按需补齐，避免请求期内串行等待上游。"""
+        monkeypatch.setenv('SPACE_ID', 'Elvis85/bookrank')
+
+        with (
+            patch.object(book_service, '_batch_get_translations') as translations,
+            patch.object(book_service, '_batch_get_supplements') as supplements,
+        ):
+            book_service.get_books_by_category('hardcover-fiction')
+
+        translations.assert_not_called()
+        supplements.assert_not_called()
+
+    def test_process_api_response_fetches_batch_lookups_off_space(self, book_service, monkeypatch):
+        monkeypatch.delenv('SPACE_ID', raising=False)
+
+        with (
+            patch.object(book_service, '_batch_get_translations', return_value={}) as translations,
+            patch.object(book_service, '_batch_get_supplements', return_value={}) as supplements,
+        ):
+            book_service.get_books_by_category('hardcover-fiction')
+
+        translations.assert_called_once()
+        supplements.assert_called_once()
+
     def test_get_books_by_category_returns_stale_cache_on_api_failure(self, book_service):
         """测试API失败时返回过期文件缓存"""
         cached_books = [
@@ -357,6 +469,31 @@ class TestBookService:
 
         assert len(books) == 1
         assert books[0].title == 'Cached Book'
+
+    def test_strict_refresh_does_not_treat_stale_cache_as_success(self, book_service):
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = [{'title': 'Stale Book'}]
+        book_service._nyt_client.fetch_books.side_effect = APIException('NYT unavailable')
+
+        with pytest.raises(APIException, match='NYT unavailable'):
+            book_service.get_books_by_category(
+                'hardcover-fiction',
+                force_refresh=True,
+                allow_stale_fallback=False,
+            )
+
+    def test_strict_refresh_rejects_empty_api_result(self, book_service):
+        book_service._cache.get.return_value = None
+        book_service._nyt_client.fetch_books.return_value = {
+            'results': {'books': [], 'list_name': 'Hardcover Fiction', 'published_date': '2026-09-06'}
+        }
+
+        with pytest.raises(APIException, match='no books'):
+            book_service.get_books_by_category(
+                'hardcover-fiction',
+                force_refresh=True,
+                allow_stale_fallback=False,
+            )
 
     def test_get_books_by_category_treats_error_payload_as_failure(self, book_service):
         """测试NYT错误缓存不会被当成空榜单写入缓存"""

@@ -1,5 +1,6 @@
 """测试周报相关功能"""
 
+import json
 from datetime import date, timedelta
 from io import BytesIO
 
@@ -343,6 +344,103 @@ class TestWeeklyReportRoutes:
             date_str = report.report_date.strftime('%Y-%m-%d')
             response = client.get(f'/reports/weekly/{date_str}')
             assert response.status_code in (200, 500)
+
+    def test_weekly_report_detail_shows_monthly_badge_for_monthly_category(self, client, app, db, monkeypatch):
+        """月度分类书籍应显示月度徽章，每周分类书籍不应显示"""
+        with app.app_context():
+            from unittest.mock import MagicMock
+
+            from app.models.schemas import WeeklyReport
+
+            monkeypatch.setitem(app.extensions, 'book_service', MagicMock())
+
+            content = {
+                'top_changes': [
+                    {
+                        'title': 'Monthly List Book',
+                        'author': 'Author A',
+                        'category': '平装非虚构',
+                        'update_frequency': 'monthly',
+                        'rank_change': 2,
+                    },
+                    {
+                        'title': 'Weekly List Book',
+                        'author': 'Author B',
+                        'category': '精装小说',
+                        'update_frequency': 'weekly',
+                        'rank_change': 1,
+                    },
+                ],
+                'new_books': [],
+                'top_risers': [],
+                'longest_running': [],
+                'featured_books': [],
+            }
+            report = WeeklyReport(
+                report_date=date.today(),
+                week_start=date.today() - timedelta(days=7),
+                week_end=date.today(),
+                title='Test Weekly Report',
+                summary='This is a test weekly report',
+                content=json.dumps(content, ensure_ascii=False),
+            )
+            db.session.add(report)
+            db.session.commit()
+
+            date_str = report.report_date.strftime('%Y-%m-%d')
+            response = client.get(f'/reports/weekly/{date_str}')
+            assert response.status_code == 200
+            body = response.data.decode('utf-8')
+            assert body.count('<span class="monthly-tag">') == 1
+
+    def test_weekly_report_detail_shows_no_monthly_badge_when_all_weekly(self, client, app, db, monkeypatch):
+        """全部为每周分类时，不应渲染任何月度徽章"""
+        with app.app_context():
+            from unittest.mock import MagicMock
+
+            from app.models.schemas import WeeklyReport
+
+            monkeypatch.setitem(app.extensions, 'book_service', MagicMock())
+
+            content = {
+                'top_changes': [
+                    {
+                        'title': 'Weekly Book A',
+                        'author': 'Author A',
+                        'category': '精装小说',
+                        'update_frequency': 'weekly',
+                        'rank_change': 1,
+                    },
+                ],
+                'new_books': [
+                    {
+                        'title': 'Weekly Book B',
+                        'author': 'Author B',
+                        'category': '精装非虚构',
+                        'update_frequency': 'weekly',
+                        'rank': 3,
+                    },
+                ],
+                'top_risers': [],
+                'longest_running': [],
+                'featured_books': [],
+            }
+            report = WeeklyReport(
+                report_date=date.today(),
+                week_start=date.today() - timedelta(days=7),
+                week_end=date.today(),
+                title='Test Weekly Report',
+                summary='This is a test weekly report',
+                content=json.dumps(content, ensure_ascii=False),
+            )
+            db.session.add(report)
+            db.session.commit()
+
+            date_str = report.report_date.strftime('%Y-%m-%d')
+            response = client.get(f'/reports/weekly/{date_str}')
+            assert response.status_code == 200
+            body = response.data.decode('utf-8')
+            assert body.count('<span class="monthly-tag">') == 0
 
     def test_export_route(self, client, app, db):
         """测试导出路由"""

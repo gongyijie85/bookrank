@@ -5,12 +5,19 @@ import logging
 import re
 from datetime import date
 from html import escape
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
+from flask import current_app
+
+from ..models.book import Book
 from ..models.schemas import WeeklyReport, db
+from ..utils.book_filters import get_category_update_frequency
+from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
+from ..utils.ranking import classify_listing
 from .book_service import BookService
+from .list_snapshot_service import save_week_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +79,7 @@ class WeeklyReportService:
             book_service: 图书服务实例
         """
         self._book_service = book_service
-        self._translation_service = None
+        self._translation_service: Any = None
 
     def _get_translation_service(self):
         """获取翻译服务"""
@@ -103,8 +110,8 @@ class WeeklyReportService:
             ).first()
 
             if existing_report and not force_regenerate:
-                logger.info(f'周报已存在: {week_start} 至 {week_end}')
-                return existing_report
+                logger.info(f'周报已存�? {week_start} �?{week_end}')
+                return cast('WeeklyReport | None', existing_report)
 
             # 如果是强制重新生成且旧报告存在，先删除
             if existing_report and force_regenerate:
@@ -115,6 +122,9 @@ class WeeklyReportService:
             # 收集本周数据
             weekly_data = self._collect_weekly_data(week_start, week_end)
 
+            # content 只留摘要，完整榜单另存快照表，供排名曲线/年度榜回溯
+            save_week_snapshot(weekly_data.get('snapshot_rows', []), week_start, week_end)
+
             has_books = bool(weekly_data.get('books'))
             if not has_books:
                 logger.warning(f'数据不足，生成暂无数据周报: {week_start} 至 {week_end}')
@@ -123,7 +133,7 @@ class WeeklyReportService:
             analysis = self._analyze_changes(weekly_data)
 
             # 生成报告标题
-            title = f'{week_start.strftime("%Y年%m月%d日")}-{week_end.strftime("%Y年%m月%d日")} 畅销书周报'
+            title = f'{format_chinese_date(week_start)}-{format_chinese_date(week_end)} 畅销书周报'
 
             # 生成AI摘要
             if has_books:
@@ -178,7 +188,7 @@ class WeeklyReportService:
                 WeeklyReport.week_start == week_start, WeeklyReport.week_end == week_end
             ).first()
             if existing_report:
-                return existing_report
+                return cast('WeeklyReport | None', existing_report)
             return None
 
     def _collect_weekly_data(self, week_start: date, week_end: date) -> dict[str, Any]:
@@ -194,53 +204,46 @@ class WeeklyReportService:
         try:
             # 从纽约时报API获取数据
 
-            # 定义纽约时报书籍分类
-            nyt_categories = {
-                'hardcover-fiction': '精装小说',
-                'paperback-fiction': '平装小说',
-                'hardcover-nonfiction': '精装非虚构',
-                'paperback-nonfiction': '平装非虚构',
-                'advice-how-to-and-miscellaneous': '建议、方法与杂项',
-                'graphic-books-and-manga': '漫画与绘本',
-                'childrens-middle-grade-hardcover': '儿童中级精装本',
-                'young-adult-hardcover': '青少年精装本',
-            }
+            # 纽约时报书籍分类：与首页共用同一份配置，避免分类集脱节
+            nyt_categories = current_app.config['CATEGORIES']
 
-            # 构建周报数据
-            weekly_data = {'books': [], 'categories': list(nyt_categories.values())}
+            # 构建周报数据；snapshot_rows 是给快照表的完整条目，books 是周报展示用的摘要
+            weekly_data = {'books': [], 'categories': list(nyt_categories.values()), 'snapshot_rows': []}
 
             # 从每个分类获取书籍数据
             for category_id, category_name in nyt_categories.items():
                 try:
-                    books = self._book_service.get_books_by_category(category_id)
+                    books = self._book_service.get_books_by_category(
+                        category_id,
+                        force_refresh=True,
+                        allow_stale_fallback=False,
+                    )
                     for _i, book in enumerate(books):
                         # 从NYT API真实数据中获取排名信息
                         # rank_last_week: 上周排名（数字或"无"/"0"表示新上榜）
                         # weeks_on_list: 累计上榜周数（NYT API直接提供）
 
-                        # 解析上周排名
-                        last_week_rank_str = str(book.rank_last_week).strip()
+                        update_frequency = get_category_update_frequency(category_id)
+                        listing_status = classify_listing(book.rank_last_week, book.weeks_on_list)
                         current_rank = book.rank
 
                         # 计算排名变化
-                        if last_week_rank_str in ['无', '0', '', 'None']:
-                            # 新上榜书籍（上周不在榜单上）
+                        if listing_status.previous_rank == 0:
                             rank_change = 0  # 新书不计算变化
-                            is_new = True
+                            is_new = listing_status.is_new and update_frequency == 'weekly'
                         else:
-                            try:
-                                last_week_rank = int(last_week_rank_str)
+                            if listing_status.previous_rank is not None:
                                 # 排名变化 = 上周排名 - 当前排名
                                 # 正数表示上升（排名数字变小），负数表示下降
-                                rank_change = last_week_rank - current_rank
+                                rank_change = listing_status.previous_rank - current_rank
                                 is_new = False
-                            except (ValueError, TypeError):
+                            else:
                                 # 无法解析时，保守处理为非新书
                                 rank_change = 0
                                 is_new = False
 
-                        # 使用NYT API提供的真实上榜周数
-                        weeks_on_list = book.weeks_on_list if book.weeks_on_list > 0 else 1
+                        # 保留NYT API提供的累计周数；0 表示未知，不擅自改写为 1。
+                        weeks_on_list = max(0, book.weeks_on_list)
 
                         weekly_data['books'].append(
                             {
@@ -248,13 +251,26 @@ class WeeklyReportService:
                                 'title': book.title_zh or book.title,
                                 'author': book.author,
                                 'category': category_name,
+                                'update_frequency': update_frequency,
                                 'rank': current_rank,
                                 'rank_change': rank_change,
                                 'weeks_on_list': weeks_on_list,
                                 'is_new': is_new,
+                                'is_returning': listing_status.is_returning,
                                 'cover': book.cover,
                                 'original_cover': getattr(book, '_original_cover', '') or '',
                             }
+                        )
+                        weekly_data['snapshot_rows'].append(
+                            self._build_snapshot_row(
+                                book,
+                                category_id=category_id,
+                                category_name=category_name,
+                                update_frequency=update_frequency,
+                                rank_change=rank_change,
+                                is_new=is_new,
+                                is_returning=listing_status.is_returning,
+                            )
                         )
                 except Exception as e:
                     log_error(ErrorCategory.API_CALL, f'获取分类 {category_name} 数据时出错: {e!s}')
@@ -263,26 +279,48 @@ class WeeklyReportService:
             # 如果没有数据，返回空数据
             if not weekly_data['books']:
                 logger.info('没有找到实际数据，返回空数据')
-                return {'books': [], 'categories': list(nyt_categories.values())}
+                return {'books': [], 'categories': list(nyt_categories.values()), 'snapshot_rows': []}
 
             return weekly_data
 
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'收集周报数据时出错: {e!s}')
             # 出错时返回空数据
-            return {
-                'books': [],
-                'categories': [
-                    '精装小说',
-                    '平装小说',
-                    '精装非虚构',
-                    '平装非虚构',
-                    '建议、方法与杂项',
-                    '漫画与绘本',
-                    '儿童中级精装本',
-                    '青少年精装本',
-                ],
-            }
+            return {'books': [], 'categories': list(current_app.config['CATEGORIES'].values()), 'snapshot_rows': []}
+
+    @staticmethod
+    def _build_snapshot_row(
+        book: Book,
+        *,
+        category_id: str,
+        category_name: str,
+        update_frequency: str,
+        rank_change: int,
+        is_new: bool,
+        is_returning: bool,
+    ) -> dict[str, Any]:
+        """快照需要周报摘要刻意省略的字段：分类 ID、英文原名、出版社、上周名次。"""
+        return {
+            'category_id': category_id,
+            'category_name': category_name,
+            'book_id': book.id,
+            'isbn13': book.isbn13,
+            'isbn10': book.isbn10,
+            'title': book.title,
+            'title_zh': book.title_zh,
+            'author': book.author,
+            'publisher': book.publisher,
+            'cover': book.cover,
+            'original_cover': getattr(book, '_original_cover', '') or '',
+            'rank': book.rank,
+            'rank_last_week': book.rank_last_week,
+            'rank_change': rank_change,
+            'weeks_on_list': max(0, book.weeks_on_list),
+            'is_new': is_new,
+            'is_returning': is_returning,
+            'update_frequency': update_frequency,
+            'list_published_date': book.published_date,
+        }
 
     def _analyze_changes(self, weekly_data: dict[str, Any]) -> dict[str, Any]:
         """分析榜单变化
@@ -297,18 +335,20 @@ class WeeklyReportService:
             books = weekly_data.get('books', [])
 
             # 分类统计
-            category_stats = {}
+            category_stats: dict[str, dict[str, Any]] = {}
             for book in books:
                 cat = book.get('category', '其他')
                 if cat not in category_stats:
-                    category_stats[cat] = {'count': 0, 'new_count': 0, 'avg_weeks': 0, 'total_weeks': 0}
+                    category_stats[cat] = {'count': 0, 'new_count': 0, 'avg_weeks': 0.0, 'total_weeks': 0}
                 category_stats[cat]['count'] += 1
                 if book.get('is_new', False):
                     category_stats[cat]['new_count'] += 1
                 category_stats[cat]['total_weeks'] += book.get('weeks_on_list', 0)
             for cat in category_stats:
                 cnt = category_stats[cat]['count']
-                category_stats[cat]['avg_weeks'] = round(category_stats[cat]['total_weeks'] / cnt, 1) if cnt > 0 else 0
+                category_stats[cat]['avg_weeks'] = (
+                    round(category_stats[cat]['total_weeks'] / cnt, 1) if cnt > 0 else 0.0
+                )
 
             # 重要变化（排名变化较大的书籍）
             top_changes = sorted(books, key=lambda x: abs(x.get('rank_change', 0)), reverse=True)[:10]
@@ -323,7 +363,7 @@ class WeeklyReportService:
                 reverse=True,
             )[:10]
 
-            # 持续上榜最久
+            # 累计上榜周数最多
             longest_running = sorted(books, key=lambda x: x.get('weeks_on_list', 0), reverse=True)[:10]
 
             # 推荐书籍（综合考虑各项指标，生成有意义的推荐理由）
@@ -396,9 +436,9 @@ class WeeklyReportService:
         if rank_change > 0:
             reasons.append(f'排名上升{rank_change}位')
         if weeks_on_list >= 10:
-            reasons.append(f'持续上榜{weeks_on_list}周，读者口碑稳定')
+            reasons.append(f'累计上榜{weeks_on_list}周，读者口碑稳定')
         elif weeks_on_list >= 5:
-            reasons.append(f'连续{weeks_on_list}周在榜')
+            reasons.append(f'累计上榜{weeks_on_list}周')
 
         if not reasons:
             if rank <= 10:
@@ -426,7 +466,7 @@ class WeeklyReportService:
                 return self._generate_default_summary(analysis, week_start, week_end)
 
             # 构建简洁概览提示（与详细分析区分）
-            prompt = f'请为{week_start.strftime("%Y年%m月%d日")}至{week_end.strftime("%Y年%m月%d日")}的畅销书周报生成一份简洁概览摘要，要求：\n'
+            prompt = f'请为{format_chinese_date(week_start)}至{format_chinese_date(week_end)}的畅销书周报生成一份简洁概览摘要，要求：\n'
             prompt += '1. 控制在150-200字以内，精炼概括\n'
             prompt += '2. 突出关键数据：上榜总数、新上榜数、排名变动概况\n'
             prompt += '3. 提及1-2本最值得关注的书籍即可，不要逐一列举\n'
@@ -455,7 +495,7 @@ class WeeklyReportService:
                     prompt += f'{_format_book_title(book["title"])}({book["author"]})上升{book["rank_change"]}位；'
 
             if analysis.get('longest_running'):
-                prompt += '\n【持续上榜最久】：'
+                prompt += '\n【累计上榜周数最多】：'
                 for book in analysis['longest_running'][:3]:
                     prompt += f'{_format_book_title(book["title"])}({book["author"]})已上榜{book["weeks_on_list"]}周；'
 
@@ -483,7 +523,7 @@ class WeeklyReportService:
                 is_prompt_like = any(marker in ai_result for marker in prompt_markers)
 
                 if not is_prompt_like:
-                    return ai_result.strip()
+                    return cast('str', ai_result.strip())
 
             # AI 结果无效时使用格式化的默认摘要
             logger.info('AI摘要无效或包含prompt文本，使用格式化默认摘要')
@@ -540,10 +580,10 @@ class WeeklyReportService:
 
         summary += '。'
 
-        # 持续上榜
+        # 累计上榜
         longest = analysis.get('longest_running', [])
         if longest and longest[0].get('weeks_on_list', 0) >= 5:
-            summary += f'{_format_book_title(longest[0]["title"])}已连续上榜{longest[0]["weeks_on_list"]}周，表现稳定。'
+            summary += f'{_format_book_title(longest[0]["title"])}已累计上榜{longest[0]["weeks_on_list"]}周，表现稳定。'
 
         # 趋势判断
         if total_rising > total_falling * 1.5:
@@ -579,7 +619,10 @@ class WeeklyReportService:
             List[WeeklyReport]: 周报列表
         """
         try:
-            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all()
+            return cast(
+                'list[WeeklyReport]',
+                WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).limit(limit).all(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取周报列表时出错: {e!s}')
             return []
@@ -594,7 +637,10 @@ class WeeklyReportService:
             WeeklyReport: 周报
         """
         try:
-            return WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first()
+            return cast(
+                'WeeklyReport | None',
+                WeeklyReport.query.filter(WeeklyReport.report_date == report_date).first(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据日期获取周报时出错: {e!s}')
             return None
@@ -609,7 +655,10 @@ class WeeklyReportService:
             WeeklyReport: 周报
         """
         try:
-            return WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first()
+            return cast(
+                'WeeklyReport | None',
+                WeeklyReport.query.filter(WeeklyReport.week_end == week_end).first(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据周结束日期获取周报时出错: {e!s}')
             return None
@@ -621,7 +670,10 @@ class WeeklyReportService:
             WeeklyReport: 最新周报
         """
         try:
-            return WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first()
+            return cast(
+                'WeeklyReport | None',
+                WeeklyReport.query.order_by(WeeklyReport.report_date.desc()).first(),
+            )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取最新周报时出错: {e!s}')
             return None
@@ -670,9 +722,15 @@ class WeeklyReportService:
             # 3. 启动后台线程补生成（不阻塞页面渲染）
             logger.info(f'expected week 周报缺失（{week_start} 至 {week_end}），后台异步补生成')
 
+            # 工作线程没有请求上下文：generate_weekly_report 里的 require_service 会走
+            # current_app，缺上下文即抛 RuntimeError，又被它的 except RuntimeError 记成
+            # 误导性的"服务未初始化" —— 自愈线程此前从未真正生成过任何东西。
+            app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
+
             def _run_in_thread() -> None:
                 try:
-                    generate_weekly_report(force_regenerate=False)
+                    with app_obj.app_context():
+                        generate_weekly_report(force_regenerate=False)
                 except Exception as e:
                     log_error(ErrorCategory.API_CALL, f'自愈触发周报生成失败: {e!s}')
 

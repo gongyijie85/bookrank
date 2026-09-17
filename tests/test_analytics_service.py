@@ -5,12 +5,13 @@ from datetime import datetime
 import pytest
 
 from app.models.schemas import UserBehavior, WeeklyReport
-from app.services.analytics_service import AnalyticsService, get_analytics_service
-
-
-@pytest.fixture
-def analytics_service():
-    return AnalyticsService()
+from app.services.analytics_service import (
+    get_daily_stats,
+    get_report_view_stats,
+    get_top_reports,
+    get_user_behavior_stats,
+    get_user_session_stats,
+)
 
 
 @pytest.fixture
@@ -58,16 +59,16 @@ def sample_behaviors(app, db):
 class TestGetReportViewStats:
     """测试 get_report_view_stats"""
 
-    def test_with_data(self, app, db, analytics_service, sample_reports):
+    def test_with_data(self, app, db, sample_reports):
         with app.app_context():
-            result = analytics_service.get_report_view_stats(days=365)
+            result = get_report_view_stats(days=365)
             assert result['total_views'] == 300
             assert result['average_views'] == 150.0
             assert len(result['view_stats']) == 2
 
-    def test_empty_db(self, app, db, analytics_service):
+    def test_empty_db(self, app, db):
         with app.app_context():
-            result = analytics_service.get_report_view_stats()
+            result = get_report_view_stats()
             assert result['total_views'] == 0
             assert result['average_views'] == 0
 
@@ -75,70 +76,57 @@ class TestGetReportViewStats:
 class TestGetUserBehaviorStats:
     """测试 get_user_behavior_stats"""
 
-    def test_with_data(self, app, db, analytics_service, sample_behaviors):
+    def test_with_data(self, app, db, sample_behaviors):
         with app.app_context():
-            result = analytics_service.get_user_behavior_stats(days=365)
+            result = get_user_behavior_stats(days=365)
             assert result['total_behaviors'] == 5
             assert len(result['behavior_stats']) >= 1
 
-    def test_empty_db(self, app, db, analytics_service):
+    def test_empty_db(self, app, db):
         with app.app_context():
-            result = analytics_service.get_user_behavior_stats()
+            result = get_user_behavior_stats()
             assert result['total_behaviors'] == 0
 
 
 class TestGetDailyStats:
     """测试 get_daily_stats"""
 
-    def test_with_data(self, app, db, analytics_service, sample_behaviors):
+    def test_with_data(self, app, db, sample_behaviors):
         with app.app_context():
-            result = analytics_service.get_daily_stats(days=365)
+            result = get_daily_stats(days=365)
             assert 'daily_stats' in result
 
-    def test_empty_db(self, app, db, analytics_service):
+    def test_empty_db(self, app, db):
         with app.app_context():
-            result = analytics_service.get_daily_stats()
+            result = get_daily_stats()
             assert result['daily_stats'] == []
 
 
 class TestGetTopReports:
     """测试 get_top_reports"""
 
-    def test_with_data(self, app, db, analytics_service, sample_reports):
+    def test_with_data(self, app, db, sample_reports):
         with app.app_context():
-            result = analytics_service.get_top_reports(limit=5)
+            result = get_top_reports(limit=5)
             assert len(result) == 2
             assert result[0]['view_count'] >= result[1]['view_count']
 
-    def test_empty_db(self, app, db, analytics_service):
+    def test_empty_db(self, app, db):
         with app.app_context():
-            result = analytics_service.get_top_reports()
+            result = get_top_reports()
             assert result == []
 
 
 class TestGetUserSessionStats:
     """测试 get_user_session_stats"""
 
-    def test_with_data(self, app, db, analytics_service, sample_behaviors):
+    def test_with_data(self, app, db, sample_behaviors):
         with app.app_context():
-            result = analytics_service.get_user_session_stats(days=365)
+            result = get_user_session_stats(days=365)
             assert result['session_count'] == 2
             assert result['average_behaviors_per_session'] > 0
 
-    def test_empty_db(self, app, db, analytics_service):
+    def test_empty_db(self, app, db):
         with app.app_context():
-            result = analytics_service.get_user_session_stats()
+            result = get_user_session_stats()
             assert result['session_count'] == 0
-
-
-class TestGetAnalyticsService:
-    """测试单例获取"""
-
-    def test_singleton(self):
-        import app.services.analytics_service as mod
-
-        mod._analytics_service = None
-        s1 = get_analytics_service()
-        s2 = get_analytics_service()
-        assert s1 is s2
-        mod._analytics_service = None

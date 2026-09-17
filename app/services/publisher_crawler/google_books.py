@@ -15,13 +15,13 @@ API文档: https://developers.google.com/books/docs/v1/getting_started
 
 import logging
 import time
-from datetime import datetime
-from typing import Any
+from datetime import date, datetime, timedelta
 
 import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from ..publisher_data import parse_static_date
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,16 @@ class GoogleBooksCrawler(BaseCrawler):
     PUBLISHER_NAME_EN = 'Google Books'
     PUBLISHER_WEBSITE = 'https://books.google.com'
     CRAWLER_CLASS_NAME = 'GoogleBooksCrawler'
+    # Google Books 系（含各出版社变体）统一走 GOOGLE_API_KEY 注入
+    API_KEY_CONFIG = 'GOOGLE_API_KEY'
 
     BASE_URL = 'https://www.googleapis.com/books/v1/volumes'
+
+    # "新书"窗口：只保留最近 30 天内出版的书（维护者决议，2026-08-07：
+    # 出版 30 天内才算"新书"，与展示层默认窗口一致）。Google Books 没有
+    # 可靠的"首次出版日期"字段，按天计算的窄窗口能显著减少把经典作品
+    # 重印/新版当新书返回的误判。
+    RECENCY_WINDOW_DAYS = 30
 
     SUBJECT_MAP = {
         'fiction': '小说',
@@ -67,6 +75,17 @@ class GoogleBooksCrawler(BaseCrawler):
         self._api_key = config.api_key if config else None
         self._key_validated = False
         self._key_is_valid = False
+        # 工单 #83：日期过滤分类拒绝计数器——量化"日期缺失保守拒绝"策略的
+        # 漏报代价。只测量、不改变任何收录/拒绝行为；计数随同步结果字典流出，
+        # 由 auto_sync 持久化到 last_auto_sync_result 摘要。
+        self.date_filter_stats: dict[str, int] = {
+            'traversed_total': 0,
+            'rejected_no_date': 0,
+            'rejected_unparseable': 0,
+            'rejected_out_of_window': 0,
+            'rejected_future_placeholder': 0,
+            'accepted_year_only': 0,
+        }
 
     def _validate_api_key(self) -> bool:
         """验证 API Key 是否有效，无效则自动降级为无Key模式"""
@@ -79,9 +98,10 @@ class GoogleBooksCrawler(BaseCrawler):
             return False
 
         try:
+            params: dict[str, str | int] = {'q': 'test', 'maxResults': 1, 'key': self._api_key}
             resp = self._session.get(
                 self.BASE_URL,
-                params={'q': 'test', 'maxResults': 1, 'key': self._api_key},
+                params=params,
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -108,7 +128,7 @@ class GoogleBooksCrawler(BaseCrawler):
         subject: str,
         max_results: int,
         start_index: int = 0,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str | int]:
         """构建查询参数"""
         query_parts = []
         if subject and subject != 'general':
@@ -117,7 +137,7 @@ class GoogleBooksCrawler(BaseCrawler):
         if not query_parts:
             query_parts.append('books')
 
-        params = {
+        params: dict[str, str | int] = {
             'q': ' '.join(query_parts),
             'maxResults': min(max_results, 40),
             'startIndex': start_index,
@@ -130,44 +150,22 @@ class GoogleBooksCrawler(BaseCrawler):
 
         return params
 
-    def get_categories(self) -> list[dict[str, str]]:
-        return [
-            {'id': 'fiction', 'name': '小说'},
-            {'id': 'nonfiction', 'name': '非虚构'},
-            {'id': 'mystery', 'name': '悬疑'},
-            {'id': 'romance', 'name': '言情'},
-            {'id': 'thriller', 'name': '惊悚'},
-            {'id': 'science_fiction', 'name': '科幻'},
-            {'id': 'fantasy', 'name': '奇幻'},
-            {'id': 'biography', 'name': '传记'},
-            {'id': 'history', 'name': '历史'},
-            {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young_adult', 'name': '青少年'},
-        ]
-
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        year_from: int | None = None,
-    ):
+    def _iter_new_books(self, request: CrawlRequest):
         """
-        获取新书列表
+        抓取新书的生成器实现
 
         Args:
-            category: 分类主题
-            max_books: 最大数量
-            year_from: 出版年份起（用于筛选新书，默认近2年）
+            request: 抓取请求（category / max_books；backfill 忽略）
         """
+        category = request.category
+        max_books = request.max_books
         subject = category or 'fiction'
-        current_year = datetime.now().year
-        min_year = year_from or (current_year - 2)
+        cutoff_date = self._compute_cutoff_date()
 
         logger.info(
-            '正在从 Google Books 获取 %s 类新书 (%s-%s)...',
+            '正在从 Google Books 获取 %s 类新书 (>= %s)...',
             subject,
-            min_year,
-            current_year,
+            cutoff_date.isoformat(),
         )
 
         self._validate_api_key()
@@ -237,7 +235,9 @@ class GoogleBooksCrawler(BaseCrawler):
                 volume_info = item.get('volumeInfo', {})
                 published_date = volume_info.get('publishedDate', '')
 
-                if not self._is_recent_book(published_date, min_year):
+                category = self._classify_date_filter(published_date, cutoff_date)
+                self._record_date_filter(category)
+                if not category.startswith('accepted'):
                     continue
 
                 book_info = self._parse_volume_info(volume_info, subject)
@@ -253,28 +253,63 @@ class GoogleBooksCrawler(BaseCrawler):
 
         if collected == 0:
             logger.warning(
-                'Google Books 未找到 %s 年后的 %s 类书籍',
-                min_year,
+                'Google Books 未找到 %s 之后的 %s 类书籍',
+                cutoff_date.isoformat(),
                 subject,
             )
         else:
             logger.info('Google Books 共获取 %s 本 %s 类新书', collected, subject)
 
-    @staticmethod
-    def _is_recent_book(published_date: str, min_year: int) -> bool:
-        """判断书籍是否为近期出版（排除未来占位日期和过旧书籍）"""
-        if not published_date:
-            return True
+    @classmethod
+    def _compute_cutoff_date(cls) -> date:
+        """计算"新书"截止日期：按 RECENCY_WINDOW_DAYS 滚动窗口。"""
+        return datetime.now().date() - timedelta(days=cls.RECENCY_WINDOW_DAYS)
 
-        try:
-            year = int(published_date[:4])
-            current_year = datetime.now().year
-            # 过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）
-            if year > current_year + 1:
-                return False
-            return year >= min_year
-        except (ValueError, IndexError):
-            return True
+    @staticmethod
+    def _classify_date_filter(published_date: str, cutoff_date: date) -> str:
+        """对单条日期判定做分类（工单 #83 漏报测量）。
+
+        返回值即收录/拒绝类别，与 _is_recent_book 的布尔判定完全同构：
+
+        - accepted: 日期有效且在窗口内
+        - accepted_year_only: 年份-only（如 '2026'）按当年1月1日放行，单独计数
+        - rejected_no_date: 日期字段缺失
+        - rejected_unparseable: 有值但解析失败
+        - rejected_future_placeholder: 未来超1年的占位日期
+        - rejected_out_of_window: 早于新书窗口
+        """
+        if not published_date:
+            return 'rejected_no_date'
+
+        parsed = parse_static_date(published_date)
+        if parsed is None:
+            return 'rejected_unparseable'
+
+        today = datetime.now().date()
+        # 过滤未来超过1年的占位日期（Google Books 常返回 2030-12-31 等占位值）
+        if parsed > today + timedelta(days=365):
+            return 'rejected_future_placeholder'
+        if parsed < cutoff_date:
+            return 'rejected_out_of_window'
+        if published_date.strip().isdigit() and len(published_date.strip()) == 4:
+            return 'accepted_year_only'
+        return 'accepted'
+
+    @staticmethod
+    def _is_recent_book(published_date: str, cutoff_date: date) -> bool:
+        """判断书籍是否为近期出版（排除未来占位日期、过旧书籍和日期缺失的书籍）
+
+        日期缺失或无法解析时保守拒绝：无法确认"新"就不能当新书展示，
+        宁可漏掉少数元数据不全的书，也不能把无法验证时间的书混进新书速递。
+        """
+        category = GoogleBooksCrawler._classify_date_filter(published_date, cutoff_date)
+        return category.startswith('accepted')
+
+    def _record_date_filter(self, category: str) -> None:
+        """累计一条日期过滤判定到实例计数器（工单 #83）"""
+        self.date_filter_stats['traversed_total'] += 1
+        if category in self.date_filter_stats:
+            self.date_filter_stats[category] += 1
 
     def _parse_volume_info(self, volume_info: dict, default_category: str) -> BookInfo | None:
         """解析 Google Books 卷信息"""
@@ -353,37 +388,4 @@ class GoogleBooksCrawler(BaseCrawler):
 
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'解析 Google Books 卷信息失败: {e}', level='warning')
-            return None
-
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """获取书籍详情"""
-        if not book_url:
-            return None
-
-        try:
-            if 'volumes/' in book_url:
-                volume_id = book_url.split('volumes/')[-1]
-                url = f'{self.BASE_URL}/{volume_id}'
-            else:
-                url = book_url
-
-            params = {}
-            if self._key_is_valid and self._api_key:
-                params['key'] = self._api_key
-
-            response = self._session.get(url, params=params, timeout=self.config.timeout)
-
-            if response.status_code == 400 and self._key_is_valid:
-                self._key_is_valid = False
-                params.pop('key', None)
-                response = self._session.get(url, params=params, timeout=self.config.timeout)
-
-            response.raise_for_status()
-            data = response.json()
-
-            volume_info = data.get('volumeInfo', {})
-            return self._parse_volume_info(volume_info, 'general')
-
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'获取 Google Books 详情失败: {e}')
             return None

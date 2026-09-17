@@ -260,6 +260,36 @@ class TestGenerateReportNoExistingOnException:
 
 
 class TestCollectWeeklyDataEdgeCases:
+    def test_weekly_report_refreshes_nyt_categories(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = []
+
+            WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+
+            expected_category_ids = set(app.config['CATEGORIES'].keys())
+            assert mock_bs.get_books_by_category.call_count == len(expected_category_ids)
+            called_category_ids = {call.args[0] for call in mock_bs.get_books_by_category.call_args_list}
+            assert called_category_ids == expected_category_ids
+            assert all(
+                call.kwargs == {'force_refresh': True, 'allow_stale_fallback': False}
+                for call in mock_bs.get_books_by_category.call_args_list
+            )
+
+    def test_weekly_report_categories_match_config_when_config_changes(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = []
+
+            original_categories = app.config['CATEGORIES']
+            app.config['CATEGORIES'] = {'hardcover-fiction': '精装小说', 'picture-books': '绘本'}
+            try:
+                WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+                called_category_ids = {call.args[0] for call in mock_bs.get_books_by_category.call_args_list}
+                assert called_category_ids == {'hardcover-fiction', 'picture-books'}
+            finally:
+                app.config['CATEGORIES'] = original_categories
+
     def test_category_exception_continues(self, app, db):
         with app.app_context():
             mock_bs = MagicMock()
@@ -299,7 +329,8 @@ class TestCollectWeeklyDataEdgeCases:
             mock_bs.get_books_by_category.return_value = [book]
             data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
             assert len(data['books']) >= 1
-            assert data['books'][0]['is_new'] is True
+            assert data['books'][0]['is_new'] is False
+            assert data['books'][0]['is_returning'] is False
 
     def test_rank_last_week_empty_string(self, app, db):
         with app.app_context():
@@ -312,7 +343,8 @@ class TestCollectWeeklyDataEdgeCases:
 
             mock_bs.get_books_by_category.return_value = [book]
             data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
-            assert data['books'][0]['is_new'] is True
+            assert data['books'][0]['is_new'] is False
+            assert data['books'][0]['is_returning'] is True
 
     def test_rank_last_week_invalid_value(self, app, db):
         with app.app_context():
@@ -342,7 +374,7 @@ class TestCollectWeeklyDataEdgeCases:
             assert data['books'][0]['rank_change'] == 2
             assert data['books'][0]['is_new'] is False
 
-    def test_weeks_on_list_zero_becomes_one(self, app, db):
+    def test_weeks_on_list_zero_is_preserved_as_unknown(self, app, db):
         with app.app_context():
             mock_bs = MagicMock()
             service = WeeklyReportService(mock_bs)
@@ -352,7 +384,70 @@ class TestCollectWeeklyDataEdgeCases:
 
             mock_bs.get_books_by_category.return_value = [book]
             data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
-            assert data['books'][0]['weeks_on_list'] == 1
+            assert data['books'][0]['weeks_on_list'] == 0
+
+    def test_returning_weekly_book_is_not_counted_as_new(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            book = _make_mock_books(1)[0]
+            book.rank_last_week = '0'
+            book.weeks_on_list = 12
+            mock_bs.get_books_by_category.return_value = [book]
+
+            data = WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+
+            assert data['books'][0]['is_new'] is False
+            assert data['books'][0]['is_returning'] is True
+
+    def test_monthly_first_appearance_is_not_counted_as_this_weeks_new_book(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            book = _make_mock_books(1)[0]
+            book.rank_last_week = '0'
+            book.weeks_on_list = 1
+            mock_bs.get_books_by_category.return_value = [book]
+
+            original_categories = app.config['CATEGORIES']
+            original_freqs = app.config['NYT_CATEGORY_UPDATE_FREQUENCIES']
+            app.config['CATEGORIES'] = {'paperback-nonfiction-monthly': '平装非虚构'}
+            app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = {'paperback-nonfiction-monthly': 'monthly'}
+            try:
+                service = WeeklyReportService(mock_bs)
+                data = service._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+                analysis = service._analyze_changes(data)
+
+                assert data['books'][0]['is_new'] is False
+                assert analysis['total_new'] == 0
+            finally:
+                app.config['CATEGORIES'] = original_categories
+                app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = original_freqs
+
+    def test_book_carries_update_frequency_for_weekly_category(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = _make_mock_books(1)
+
+            data = WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+
+            first_category_id = next(iter(app.config['CATEGORIES']))
+            assert app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'][first_category_id] == 'weekly'
+            assert data['books'][0]['update_frequency'] == 'weekly'
+
+    def test_book_carries_update_frequency_for_monthly_category(self, app, db):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = _make_mock_books(1)
+
+            original_categories = app.config['CATEGORIES']
+            original_freqs = app.config['NYT_CATEGORY_UPDATE_FREQUENCIES']
+            app.config['CATEGORIES'] = {'paperback-nonfiction-monthly': '平装非虚构'}
+            app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = {'paperback-nonfiction-monthly': 'monthly'}
+            try:
+                data = WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 1, 5), date(2026, 1, 11))
+                assert data['books'][0]['update_frequency'] == 'monthly'
+            finally:
+                app.config['CATEGORIES'] = original_categories
+                app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'] = original_freqs
 
 
 class TestAnalyzeChangesExtended:
@@ -1175,3 +1270,46 @@ class TestGetOrTriggerCurrentWeekReport:
                 latest, is_generating = service.get_or_trigger_current_week_report()
                 assert is_generating is False
                 assert latest is None  # DB 无数据时返回 None
+
+
+class TestCollectSnapshotRows:
+    """weekly_data 除周报摘要条目外，还要产出可落库的完整快照行"""
+
+    @staticmethod
+    def _collect(mock_bs, app, categories=None):
+        from datetime import date
+
+        original = app.config['CATEGORIES']
+        if categories:
+            app.config['CATEGORIES'] = categories
+        try:
+            return WeeklyReportService(mock_bs)._collect_weekly_data(date(2026, 9, 7), date(2026, 9, 13))
+        finally:
+            app.config['CATEGORIES'] = original
+
+    def test_snapshot_rows_align_with_report_books(self, app):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.return_value = _make_mock_books(2)
+
+            data = self._collect(mock_bs, app, {'hardcover-fiction': '精装小说'})
+
+            assert len(data['snapshot_rows']) == len(data['books']) == 2
+            row = data['snapshot_rows'][0]
+            # 摘要条目用中文书名、且不带 category_id；快照必须两者都有
+            assert data['books'][0]['title'] == '测试书籍1'
+            assert 'category_id' not in data['books'][0]
+            assert row['category_id'] == 'hardcover-fiction'
+            assert row['title'] == 'Test Book 1'
+            assert row['title_zh'] == '测试书籍1'
+            assert row['book_id'] == '9780000000001'
+
+    def test_failed_category_yields_empty_snapshot_rows(self, app):
+        with app.app_context():
+            mock_bs = MagicMock()
+            mock_bs.get_books_by_category.side_effect = Exception('NYT 不可用')
+
+            data = self._collect(mock_bs, app)
+
+            assert data['books'] == []
+            assert data['snapshot_rows'] == []

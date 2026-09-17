@@ -28,8 +28,6 @@ class ErrorCategory(Enum):
     TRANSLATION = 'translation'
     CACHE = 'cache'
     CRAWLER = 'crawler'
-    EMAIL = 'email'
-    AUTH = 'auth'
     UNKNOWN = 'unknown'
 
 

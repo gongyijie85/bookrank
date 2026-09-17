@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class NYTApiClient:
     """纽约时报API客户端"""
 
-    DEFAULT_CACHE_TTL = 86400 * 7  # 默认值，可通过配置覆盖
+    DEFAULT_CACHE_TTL = 60 * 60 * 6
 
     def __init__(
         self, api_key: str, base_url: str, rate_limiter: RateLimiter, timeout: int = 15, cache_ttl: int | None = None
@@ -56,7 +56,7 @@ class NYTApiClient:
                 self._key_is_valid = True
                 logger.info('NYT API Key 验证通过')
             elif resp.status_code == 401:
-                logger.warning('NYT API Key 无效 (401 Unauthorized)，请检查 .env 中的 NYT_API_KEY')
+                logger.warning('NYT API Key 无效 (401 Unauthorized)，请更新服务配置中的凭据')
                 self._key_is_valid = False
             else:
                 logger.warning('NYT API Key 验证异常 (状态码:%s)', resp.status_code)
@@ -69,7 +69,7 @@ class NYTApiClient:
         return self._key_is_valid
 
     @api_retry(max_attempts=3, backoff_factor=2.0)
-    def fetch_books(self, category_id: str) -> dict[str, Any]:
+    def fetch_books(self, category_id: str, force_refresh: bool = False) -> dict[str, Any]:
         """获取指定分类的图书数据"""
         if not self._api_key:
             raise APIException('NYT API key not configured', status_code=500)
@@ -78,18 +78,20 @@ class NYTApiClient:
             self._validate_api_key()
 
         if not self._key_is_valid:
-            raise APIException('NYT API key is invalid, please check your NYT_API_KEY in .env', status_code=401)
+            logger.warning('拒绝请求：NYT API Key 无效，请更新服务配置中的凭据')
+            # 对外不暴露密钥名称与存储位置（.env），仅给可操作的通用提示（安全审计 Medium #5）
+            raise APIException('上游数据源凭据无效，请稍后重试或联系管理员', status_code=401)
 
         cache_service = self._get_cache_service()
 
-        if cache_service:
+        if cache_service and not force_refresh:
             cached = cache_service.get('nyt', category_id)
             if cached:
                 if isinstance(cached, dict) and cached.get('error'):
                     logger.warning('忽略NYT错误缓存: %s', category_id)
                 else:
                     logger.info('返回NYT缓存数据: %s', category_id)
-                    return cached
+                    return cast('dict[str, Any]', cached)
 
         if not self._rate_limiter.is_allowed():
             retry_after = self._rate_limiter.get_retry_after()
@@ -114,7 +116,7 @@ class NYTApiClient:
             if response.status_code == 401:
                 self._key_is_valid = False
                 self._key_validated = True
-                logger.error('NYT API Key 认证失败 (401)，请检查 .env 中的 NYT_API_KEY')
+                logger.error('NYT API Key 认证失败 (401)，请更新服务配置中的凭据')
                 raise APIException('NYT API key authentication failed', status_code=401)
 
             if response.status_code == 429:
@@ -126,7 +128,7 @@ class NYTApiClient:
 
             _safe_cache_set(cache_service, 'nyt', category_id, data, ttl_seconds=self._cache_ttl)
 
-            return data
+            return cast('dict[str, Any]', data)
 
         except requests.Timeout:
             raise APIException(f'Request timeout for {category_id}', status_code=504)

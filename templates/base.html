@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#171717">
     <meta name="description" content="{{ _('BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息') }}">
     <meta name="keywords" content="{{ _('图书排行榜, 纽约时报, 畅销书, 图书奖项, 诺贝尔文学奖, 布克奖, 普利策奖') }}">
     <meta name="author" content="BookRank">
-    <meta name="robots" content="index, follow">
+    {# 可覆盖：错误页（尤其 404）需要 noindex，其余页面保持 index, follow #}
+    {% block robots %}<meta name="robots" content="index, follow">{% endblock %}
 
     <!-- Open Graph -->
     <meta property="og:title" content="{% block og_title %}{{ _('BookRank - 图书排行榜') }}{% endblock %}">
@@ -22,8 +24,14 @@
     <meta name="twitter:description" content="{{ _('汇集纽约时报畅销书排行榜与国际图书奖项榜单') }}">
     <meta name="twitter:image" content="{% block twitter_image %}{{ url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}">
 
-    <!-- Canonical URL -->
-    <link rel="canonical" href="{{ request.url }}">
+    <!-- Canonical URL (不含查询串，避免重复收录) -->
+    <link rel="canonical" href="{{ request.url_root.rstrip('/') + request.path }}">
+
+    <!-- Alternates：中/英语言版本显式互指（SEO I-5） -->
+    {% set _canonical_path = request.url_root.rstrip('/') + request.path %}
+    <link rel="alternate" hreflang="zh-CN" href="{{ _canonical_path }}?lang=zh">
+    <link rel="alternate" hreflang="en" href="{{ _canonical_path }}?lang=en">
+    <link rel="alternate" hreflang="x-default" href="{{ _canonical_path }}">
 
     <title>{% block title %}{{ _('BookRank - 图书排行榜') }}{% endblock %}</title>
 
@@ -35,10 +43,8 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Main Stylesheets -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+    <!-- Main Stylesheets (bundled + fingerprinted by scripts/build_frontend.mjs) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename=dist_url('app.css')) }}">
 
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
@@ -64,7 +70,16 @@
     }
     </script>
 </head>
-<body>
+{% set _body_class = {
+    'main.index': 'charts-page',
+    'main.awards': 'charts-page awards-page',
+    'main.rankings': 'charts-page',
+    'main.publishers': 'charts-page publishers-page',
+    'main.new_books': 'charts-page new-books-page',
+    'main.weekly_reports': 'charts-page weekly-page',
+    'main.weekly_report_detail': 'charts-page weekly-detail-page',
+}.get(request.endpoint) %}
+<body{% if _body_class %} class="{{ _body_class }}"{% endif %}>
     <!-- SVG Icons Sprite (内联，避免 fetch/CSP/时序问题导致图标空白) -->
     <div id="svg-icons-sprite" style="display:none" aria-hidden="true">
         {% include 'icons.svg' %}
@@ -87,6 +102,14 @@
                    {% if request.endpoint == 'main.index' %}aria-current="page"{% endif %}>
                     <svg class="icon" width="18" height="18"><use href="#icon-home"/></svg>
                     <span data-i18n="nav_home">{{ _('首页') }}</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('main.rankings') }}"
+                   class="nav-link {% if request.endpoint == 'main.rankings' %}active{% endif %}"
+                   {% if request.endpoint == 'main.rankings' %}aria-current="page"{% endif %}>
+                    <svg class="icon" width="18" height="18"><use href="#icon-chart"/></svg>
+                    <span data-i18n="nav_rankings">{{ _('更多榜单') }}</span>
                 </a>
             </li>
             <li>
@@ -150,9 +173,50 @@
         </div>
     </nav>
 
-    <!-- Sidebar：仅保留次级入口，避免与顶部主导航重复 -->
+    <!-- Sidebar：主导航 + 次级入口；页面可覆盖 block sidebar 增加专属筛选 -->
     <aside class="sidebar" id="sidebar" aria-label="{{ _('侧边导航') }}" data-i18n-aria-label="sidebar_nav_label">
         {% block sidebar %}
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">{{ _('导航') }}</h3>
+            <ul class="sidebar-menu">
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.index') }}" class="sidebar-link {% if request.endpoint == 'main.index' %}active{% endif %}" {% if request.endpoint == 'main.index' %}aria-current="page"{% endif %}>
+                        <svg class="icon" width="18" height="18"><use href="#icon-fire"/></svg>
+                        <span>{{ _('畅销书榜') }}</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.rankings') }}" class="sidebar-link {% if request.endpoint == 'main.rankings' %}active{% endif %}" {% if request.endpoint == 'main.rankings' %}aria-current="page"{% endif %}>
+                        <svg class="icon" width="18" height="18"><use href="#icon-chart"/></svg>
+                        <span>{{ _('更多榜单') }}</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.awards') }}" class="sidebar-link {% if request.endpoint == 'main.awards' %}active{% endif %}" {% if request.endpoint == 'main.awards' %}aria-current="page"{% endif %}>
+                        <svg class="icon" width="18" height="18"><use href="#icon-trophy"/></svg>
+                        <span>{{ _('获奖书单') }}</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.publishers') }}" class="sidebar-link {% if request.endpoint == 'main.publishers' %}active{% endif %}" {% if request.endpoint == 'main.publishers' %}aria-current="page"{% endif %}>
+                        <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
+                        <span>{{ _('出版社导航') }}</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.new_books') }}" class="sidebar-link {% if request.endpoint == 'main.new_books' %}active{% endif %}" {% if request.endpoint == 'main.new_books' %}aria-current="page"{% endif %}>
+                        <svg class="icon" width="18" height="18"><use href="#icon-sparkles"/></svg>
+                        <span>{{ _('新书速递') }}</span>
+                    </a>
+                </li>
+                <li class="sidebar-item">
+                    <a href="{{ url_for('main.weekly_reports') }}" class="sidebar-link {% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}active{% endif %}" {% if request.endpoint in ['main.weekly_reports', 'main.weekly_report_detail'] %}aria-current="page"{% endif %}>
+                        <svg class="icon" width="18" height="18"><use href="#icon-chart-bar"/></svg>
+                        <span>{{ _('畅销书周报') }}</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
         <div class="sidebar-section">
             <h3 class="sidebar-title" data-i18n="sidebar_about">{{ _('关于') }}</h3>
             <ul class="sidebar-menu">
@@ -206,7 +270,7 @@
                     <a href="https://developer.nytimes.com/docs/books-product/1/overview" target="_blank" rel="noopener noreferrer" data-i18n="footer_data_source">{{ _('数据来源：NYT Books API') }}</a>
                 </nav>
             </div>
-            <div class="footer-copy" data-i18n="footer_copyright">
+            <div class="footer-copy" data-i18n="footer_copyright" data-i18n-params-year="{{ now().year }}">
                 &copy; {{ now().year }} BookRank. {{ _('数据仅供学习交流，版权归原作者及出版社所有。') }}
             </div>
         </div>
@@ -223,9 +287,9 @@
         .site-footer {
             margin-top: auto;
             padding: 1.5rem 1rem;
-            border-top: 1px solid var(--border, #e5e7eb);
-            background: var(--surface, #f9fafb);
-            color: var(--muted-foreground, #6b7280);
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
             font-size: 0.875rem;
         }
         .footer-inner {
@@ -247,11 +311,15 @@
             align-items: center;
             gap: 0.5rem;
             font-weight: 600;
-            color: var(--foreground, #171717);
+            color: var(--text-primary);
             text-decoration: none;
         }
         .footer-brand .icon {
-            color: var(--primary, #171717);
+            color: var(--primary-color);
+        }
+        /* WCAG 2.5.8：品牌字样链接命中区实测 93.61×21px，低于 24×24 下限 */
+        .footer-brand {
+            min-height: 24px;
         }
         .footer-links {
             display: flex;
@@ -259,13 +327,18 @@
             gap: 1rem;
         }
         .footer-links a {
-            color: var(--muted-foreground, #6b7280);
+            color: var(--text-secondary);
             text-decoration: none;
             transition: color 0.2s ease;
+            /* WCAG 2.5.8：实测命中区仅 41.55×21px，低于 24×24 下限。
+               inline-flex + min-height 只扩大热区，文字视觉不变。 */
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
         }
         .footer-links a:hover,
         .footer-links a:focus {
-            color: var(--primary, #171717);
+            color: var(--primary-color);
             text-decoration: underline;
         }
         .footer-copy {
@@ -282,14 +355,31 @@
             }
         }
 
-        /* 面包屑导航 */
+        /* 修复（dsh-design-audit 实测）：new-books 页的面包屑是 <body> 的**直接子节点**（不在 main 内），
+           吃不到 main 的 padding-top（那是给固定顶栏留位的），整块落到 y 0–48 —— 被 0–64 的固定顶栏
+           完全盖住：既看不见、链接也点不到（元素中心命中测试全落到顶栏，而 display/opacity/rect 全部
+           "正常"，纯几何检查发现不了）。这里把顶栏高度补给它；--top-nav-height 已由 base.js 按实测
+           高度同步，故窄屏折行（实测 95px）也自动正确。
+           作用域限定 body 直接子节点，不影响已经放在 main 内的面包屑（那些已吃到 padding-top）。 */
+        body > .breadcrumbs {
+            margin-top: var(--top-nav-height);
+        }
+
+        /* 面包屑导航：与主内容列（侧边栏偏移）左对齐，避免在页面中间悬浮 */
         .breadcrumbs {
             max-width: 1200px;
             width: 100%;
-            margin: 0 auto;
+            margin-left: calc(var(--sidebar-width) + var(--spacing-lg));
+            margin-right: auto;
             padding: 0.75rem 1rem;
             font-size: 0.875rem;
-            color: var(--muted-foreground, #6b7280);
+            color: var(--text-secondary);
+        }
+        /* 平板/手机端：主内容区无侧边栏偏移，面包屑同步左对齐 */
+        @media (max-width: 1199px) {
+            .breadcrumbs {
+                margin-left: var(--spacing-md);
+            }
         }
         .breadcrumbs-list {
             display: flex;
@@ -303,22 +393,60 @@
         .breadcrumb-item:not(:last-child)::after {
             content: '/';
             margin-left: 0.5rem;
-            color: var(--border, #e5e7eb);
+            color: var(--border-color);
         }
         .breadcrumbs-list a {
-            color: var(--muted-foreground, #6b7280);
+            color: var(--text-secondary);
             text-decoration: none;
+            /* WCAG 2.5.8：实测命中区仅 40.8×18px，低于 24×24 下限 */
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
         }
         .breadcrumbs-list a:hover,
         .breadcrumbs-list a:focus {
-            color: var(--primary, #171717);
+            color: var(--primary-color);
             text-decoration: underline;
         }
         .breadcrumb-current {
-            color: var(--foreground, #171717);
+            color: var(--text-primary);
             font-weight: 500;
         }
     </style>
+
+    <!-- Early lang sync：在 <html lang> 首次被读取前应用 localStorage 偏好
+         修正 SSR lang 与用户偏好不一致时的屏幕阅读器误读（I-5）。
+         同时把「有效语言」发布到 window.__APP_LANG__：有显式偏好取偏好，否则取服务端
+         已经算好的 locale。页面级脚本一律读它——此前各处把默认值硬编码成 'zh' 或 'en'，
+         与 SSR 默认（en）相反，导致没有存储偏好的访客在英文页被 JS 渲成中文。 -->
+    <script nonce="{{ csp_nonce() }}">
+        (function() {
+            var ssrLang = '{{ get_locale() }}'.indexOf('zh') === 0 ? 'zh' : 'en';
+            var saved = null;
+            try {
+                saved = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+            } catch (e) { /* localStorage 不可用时忽略 */ }
+            window.__APP_LANG__ = (saved === 'zh' || saved === 'en') ? saved : ssrLang;
+            if (window.__APP_LANG__ === 'zh') {
+                document.documentElement.lang = 'zh-CN';
+            } else {
+                document.documentElement.lang = 'en';
+            }
+        })();
+    </script>
+
+    <!-- Early theme sync：在首次绘制前应用已保存的主题选择，避免深色用户看到浅色闪屏（A10）
+         仅在存在显式偏好时设置 data-theme；未设置时交由 prefers-color-scheme 决定，不覆盖系统偏好 -->
+    <script nonce="{{ csp_nonce() }}">
+        (function() {
+            try {
+                var saved = localStorage.getItem('theme');
+                if (saved === 'dark' || saved === 'light') {
+                    document.documentElement.setAttribute('data-theme', saved);
+                }
+            } catch (e) { /* localStorage 不可用时忽略 */ }
+        })();
+    </script>
 
     <!-- CSRF Token for API requests -->
     <script nonce="{{ csp_nonce() }}">
@@ -345,17 +473,32 @@
         window.fetch = async function(url, options = {}) {
             const method = (options.method || 'GET').toUpperCase();
             const needsCsrf = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
-            if (needsCsrf) {
-                const token = await getCsrfToken();
+            if (!needsCsrf) return originalFetch(url, options);
+
+            const send = async (token) => {
+                const opts = Object.assign({}, options);
                 if (token) {
                     const headers = new Headers(options.headers || {});
                     headers.set('X-CSRF-Token', token);
-                    options.headers = headers;
+                    opts.headers = headers;
                 }
-            }
-            const response = await originalFetch(url, options);
-            if (needsCsrf) {
-                csrfToken = null;
+                return originalFetch(url, opts);
+            };
+
+            // 服务端令牌为一次性（@csrf_protect 校验通过后即删除），
+            // 故每次变更后清空本地缓存，强制下次重新获取。
+            let response = await send(await getCsrfToken());
+            csrfToken = null;
+
+            // 并发的多个变更请求可能共用同一令牌，其中一部分会被拒；
+            // 此时强制刷新令牌重试一次，避免误报给用户。
+            if (response.status === 403) {
+                const probe = response.clone();
+                const text = await probe.text().catch(() => '');
+                if (text && text.toLowerCase().includes('csrf')) {
+                    response = await send(await getCsrfToken(true));
+                    csrfToken = null;
+                }
             }
             return response;
         };
@@ -363,14 +506,17 @@
 
     <!-- Translation System -->
     <!-- 注意：categories.js 必须在 translations.js / book-i18n.js 之前加载（共享 CATEGORIES 映射） -->
-    <script src="{{ url_for('static', filename='js/categories.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('categories.js')) }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('translations.js')) }}"></script>
 
     <!-- Book Content Language Pack -->
-    <script src="{{ url_for('static', filename='js/book-i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('book-i18n.js')) }}"></script>
+
+    <!-- Cover helper (must load before base.js / index.js so BookRankCover.toSrc exists) -->
+    <script src="{{ url_for('static', filename=dist_url('cover.js')) }}"></script>
 
     <!-- Base JavaScript -->
-    <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('base.js')) }}"></script>
 
     {% block extra_js %}{% endblock %}
 
@@ -381,10 +527,10 @@
             var userLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
 
             var host = window.location.hostname;
-            var cookieDomain = host.includes('.') ? host : '';
+            var cookieDomain = (host && host !== 'localhost' && host.includes('.')) ? host : '';
 
             if (userLang && userLang !== serverLang) {
-                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
+                document.cookie = 'lang=' + userLang + '; path=/; max-age=31536000; SameSite=Lax;' + (cookieDomain ? ' domain=' + cookieDomain : '');
             }
 
             var finalLang = userLang || serverLang;

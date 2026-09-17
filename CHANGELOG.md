@@ -1,5 +1,688 @@
 # Changelog
 
+## v0.9.101 - 2026-09-03
+
+### fix(security): 限流器支持 Redis 共享后端（安全审计 High #2 根因修复）
+
+原 `IPRateLimiter` 基于进程内 `dict` + `threading.Lock`，Gunicorn 多 worker 下每个进程
+独立计数，实际生效限额 = 配置限额 × worker 数，可被请求分发绕过（PR #165 只是把
+`WEB_CONCURRENCY` 固定为 1 的部署形态兜底，未修根因）。
+
+- 新增 `RedisRateLimitBackend`：Redis ZSET 滑动窗口，**判定与写入合并为一段 Lua 脚本**
+  原子执行，避免多进程并发下"检查再写入"被同时通过。
+- 相同 `(max_requests, window_seconds)` 共享命名空间，不同 worker 对同一 client_id 累计计数。
+- 通过 `RATE_LIMIT_REDIS_URL` 启用；未配置（默认，含 Render 免费版）时行为**完全一致**。
+- 优雅降级：`redis` 未安装 / 不可达 / 调用异常 → 降级为进程内限流并告警，不阻断请求
+  （降级 = 回到改造前行为，**不是完全放行**）。
+- 公开 API 零改动，调用方无需修改。
+
+### fix(csrf): 移动端令牌复用导致连续删除 403（PR #171）
+
+服务端 `@csrf_protect` 校验通过后即删除令牌（一次性），但 `static/mobile/js/mobile.js`
+的 `cachedCsrfToken` 永不失效，导致移动端「我的收藏」删第一个成功、之后全被 403 拒绝。
+测试发现不了——`csrf_protect` 在 `TESTING` 下被短路。
+
+- 新增 `csrfFetch(url, options)`：自动附带令牌、请求后清缓存，403 且响应含 csrf 时强制刷新重试一次。
+- `templates/mobile/profile.html` 改用 `csrfFetch`；`templates/base.html` 补并发重试。
+- 新增 `tests/test_csrf_token_single_use.py` 锁定一次性语义。
+
+### fix(security): 管理员失败计数跨重启存活（PR #173，审计 Low #9）
+
+`_persist_failures()` 只在达到第 5 次阈值时才被调用，且仅写 `blocked_until > now` 的条目，
+于是 1~4 次的中间计数既不落盘也不保留——攻击者失败 4 次后只要重启/重新部署一次，计数即清零，
+5 次封禁阈值永远无法触发（对 Render 这类频繁部署的环境等于限流失效）。
+
+- state 增加 `last_failure`；持久化同时保留「仍在封禁」与「近期但未达阈值」（24h、上限 1000）；
+- `admin_required` 每次失败都落盘；加载端兼容缺 `last_failure` 的旧快照。
+- 新增 4 个测试，含模拟重启后 `count=4` 能恢复。
+
+### security: 移除被投毒的 deep-translator（PYSEC-2022-252）
+
+OSV 原文：该项目 PyPI 账号被钓鱼接管后发布的版本含「**安装期**读取环境变量并下载运行
+恶意代码」的代码，受影响范围为 **1.8.5 及之后全部版本**（含最新 1.11.4）——即被接管后
+再无可信发布。对本项目尤其危险：Render 构建机安装依赖时环境变量里存放凭据。
+
+- 从 `requirements.txt` / `requirements-prod.txt` 移除并写明原因，防止被重新加回。
+- 该依赖为可选回退（缺失即优雅降级），移除后仅失去 Google 翻译回退，主力不受影响。
+- 实测：卸载后全套测试 2237 passed / 0 failed。
+
+### security: 依赖漏洞治理与门禁（PR #173 / #175）
+
+- `mistune` 3.3.0 → **3.3.4**（修复 CVE-2026-76098），消除 GitHub Dependabot 上
+  **2 个 open/high 告警**；合并后 open 告警归零。
+- 日志与异常不再泄露密钥名称与存储位置（`nyt_client` 三处，其中一处是会对客返回的
+  `APIException` 消息，泄露面比审计描述的更大）。
+- CI 新增 `dependency-audit` job（`pip-audit`），并改造为**例外登记式门禁**：
+  已评估放行的公告 ID 记入例外（日志仍显示 `N ignored`），**未登记的漏洞阻塞合并**；
+  已纳入 branch protection 必需检查。
+- 基线：3 包/12 条 → 2 包/11 条 → **1 包/10 条（pyjwt，均已验证不可达）**。
+  pyjwt 无升级路径（zhipuai 锁 `<2.9.0` 且已是最新版），可达性分析见 `SECURITY.md`。
+
+**质量验证**：ruff / mypy（99 文件）通过；全套 pytest = **2237 passed / 0 failed**。
+**改动文件**：`app/utils/rate_limiter.py`、`app/config.py`、`app/__init__.py`、
+`app/services/nyt_client.py`、`app/utils/admin_auth.py`、`app/services/free_translation_service.py`、
+`static/mobile/js/mobile.js`、`templates/base.html`、`templates/mobile/profile.html`、
+`requirements.txt`、`requirements-prod.txt`、`.github/workflows/ci.yml`、`SECURITY.md`、测试若干。
+## v0.10.1 - 2026-09-04
+
+### feats+fixes: v0.10.0 后续增量（ROADMAP 推进 / 安全快修 / 覆盖补强）
+
+**背景**：v0.10.0 审计整改后的一轮增量——完成 ROADMAP #1/#2/#8，
+补齐安全/健壮性/可访问性快修，测试覆盖提升至 84%。
+
+**ROADMAP 推进**
+- #1 OpenAPI：`static/openapi.json`（3.1.0，14 路径）+ `GET /openapi.json` 端点
+- #2 爬虫选择器漂移监控：`crawler_drift_detector`（读 `last_auto_sync_result`
+  识别 empty/partial_failure/timeout/request_failed 重复异常）+ `GET /crawler/drift`
+  报告端点 + 每日 webhook 告警 job
+- #4 低覆盖补齐：6 个 0% 模块点亮（category_cleanup 100% / source_control 85% /
+  free_translation 91% / pilot_gate 88% / source_health 状态机 / source_alert 66%），
+  整体 81% → 84%
+- #5 N+1 回归保护：`test_n_plus_one_regression.py`（SQLAlchemy SELECT 计数断言）
+- #8 Render 资源告警：`_resource_threshold_alert_task`（RSS/内存% 阈值 + webhook）
+
+**安全/性能快修**
+- Chart.js SRI 固定 @4.5.1（清除浮动版本供应链风险）
+- OpenLibrary 封面 HEAD Content-Type 图片校验（重定向链后防伪装）
+- admin 8 个信息型 GET 加 `@rate_limit(60,60)`（认证后枚举缓解）
+- 应用内 gzip 跳过已有 Content-Encoding（防代理 double-gzip）
+- `get_statistics` 5 次往返 → 2 次聚合（COUNT(*) FILTER）
+- 备份导出流式化已在上版；本版补 `clear_expired` 每日调度（上版）
+
+**i18n/SEO/a11y/健壮性**
+- hreflang zh-CN/en/x-default（桌面+移动 base）+ head 早期 lang 同步（屏幕阅读器）
+- 移动端首页 ItemList JSON-LD；封面 alt 全站统一《书名》封面，作者 X
+- awards 卡片 tabindex+role 键盘可达（F-7）
+- `machine-readable` JSON 字段 getter 容错脏数据（Q-MEDIUM-05）
+- 限流器 `_SlidingWindowLimit` mixin 去重（Q-MEDIUM-03）
+- admin_auth 失败计数清理提升为全局 autouse（测试隔离）
+
+**验证**：2262 passed；ruff clean；mypy app/ 0 errors；覆盖率 84%。
+
+## v0.10.0 - 2026-09-04
+
+### feat+fix+perf: 全维度审计整改（安全/性能/mypy/i18n/前端打包）
+
+**背景**：2026-09-04 六路并行审计（性能/安全/架构/前端/i18n/DX）后，按
+P0→P1→P2 优先级四轮迭代完成全部可执行项，mypy 债务清零。
+
+**安全**
+- XSS：周报详情模态 `innerHTML` 全字段 `escHtml()`（`weekly_report_detail.html:1352`）
+- bleach 缺失 fail-closed（缺库直接 `raise ImportError`），删除弱正则回退
+- SSRF：`_is_safe_image_url`（仅 https + 私网/回环/link-local/非443端口阻断 + `image/*` Content-Type 校验）
+- 备份导出流式化（逐表 `yield_per(200)` 生成器）+ `@rate_limit(5,60)` + `no-store`
+- CSP 补 `base-uri 'self'; form-action 'self'; upgrade-insecure-requests`
+- canonical 去查询串（`request.url_root.rstrip('/') + request.path`）
+- CORS 生产 methods 加 DELETE（favorites 删除端点 preflight 修复）
+
+**性能**
+- `/api/books/all` 8 分类并行拉取（`ThreadPoolExecutor(4)` + 单类失败隔离 + 串行降级），消灭 ~120s 串行阻塞；`self_category_books_parallel` 可测 helper
+- 迁移 `add_perf_indexes`：`idx_new_books_display_date/display_created/canonical` + `award_books_year`；postgres-guarded `pg_trgm` GIN（`IF NOT EXISTS` 优雅降级）
+- 封面异步化（#178）：`get_cached_image_url(block=False)` MISS 立即占位 + 后台下载（threading 去重）；`prefetch_many` 批量；每日 `_cover_prefetch_task` 预热；`default-cover.png` 430KB→93KB（-78%）
+- `APICache.clear_expired` 每日 APScheduler 调度（防表膨胀）
+- 备份导出内存峰值消除（6 表全量 to_dict → 流式 yield）
+
+**mypy 债务清零**
+- `pyproject.toml`：22 模块/13 错误码全禁 → 仅 8 个 ORM 密集文件豁免 SQLAlchemy 2.0 py.typed 噪音（attr-defined/union-attr/no-any-return/misc/arg-type/call-overload）；其余 25+ 模块零 override 严格检查
+- `mypy app/`：0 errors / 99 files（此前 217 masked）
+- 修复被 disable 掩盖的真实缺陷：macmillan `buy_links` dict vs list 形状 + sitemap `book` 变量遮蔽（yield 路径引用错误书籍）、zhipu `translate_kwargs` 类型、award_book_service `stats` 联合类型运算符、weekly_report_service `avg_weeks` int/float、implicit Optional（2 方法 3 参数）、`quick_clean_translation` overload（None→None/str→str）
+- 爬虫客户端 params 全量标注 `dict[str, str | int]` 消 requests-stub arg-type 噪音
+
+**i18n**
+- awards 筛选栏/空状态/快速链接 19 处硬编码包 `_()` + `data-i18n`（EN 模式零中文泄漏验证）
+- translations.js +15 键（filter_*/btn_*/quick_*/empty_retry）；po 追加缺失 msgid + 兼容 `近7天出版`
+- `Makefile translations` target + CI 前置 `pybabel compile`（防 stale .mo 导致回退 msgid）
+- 语言键统一：`app_language` 优先 + mobile 尊重 localStorage + cookie domain 守卫（localhost 不再写 `domain=`）
+- 移动端新增 `mobile/new_books.html` + `mobile/new_book_detail.html`（render_adaptive 接线）
+- `device_detect` 补 iPad/tablet/kindle/silk；mobile viewport 允许缩放（WCAG 1.4.4）
+
+**前端打包（#177 核心）**
+- esbuild：CSS 5 文件 → `app.<hash>.min.css`（119KB→15.7KB，-87%）；全局脚本 JS 逐文件 minify（93KB→51KB，-45%，window 全局语义保留）
+- `dist_url()` Jinja 全局：读 `manifest.json` → hash 文件名；缺失时回退稳定名/源文件（dev 无 node 可运行）
+- 模板全量迁移 dist 引用；删除重复加载（analytics base.js、index/new-books 重复 CSS）
+- `.gitignore` `!static/dist/`（Render 生产 pip-only）；CI 前置 `npm ci + node scripts/build_frontend.mjs`
+- 死代码删除：api.js/utils.js/config.js/all.min.css（0 引用）
+
+**工程效能**
+- CI：pybabel compile + npm ci + build 前置；test_routes.py 样式断言更新为 dist 契约
+- 新书速递移动端筛选（出版社/时间/分类）、统计条、分页、购买链接、JSON-LD
+
+**验证**：2224 passed；ruff clean；mypy app/ 0 errors；dist 页面 dist_ok（css_old/js_old False）
+
+## v0.9.100 - 2026-08-31
+
+### fix(pipeline): 修复批次导入 digest 算法不一致导致 import 永远 409 的问题
+
+**背景**：Site Crawl Pipeline（#122/#138）的 import job 自上线以来
+从未成功。逐层诊断发现三处问题：
+1. GitHub 仓库缺失 `BATCH_IMPORT_SECRET`（import 请求发送空 Bearer
+   token，服务端 401）——已在 GitHub Secrets 与 Render 环境变量双端
+   补齐（连带补齐同样缺失的 `ADMIN_SECRET`）。
+2. **代码 bug**：客户端 `export_batch_draft` 计算 `content_sha256`
+   时多算了 `candidate_urls`、`manifest_sha256` 两个字段，而服务端
+   `compute_content_sha256` 只按 `source_id/schema_version/records`
+   三字段计算——两边 digest 永远不一致，import 必然 409
+   DIGEST_MISMATCH。此前被 401 掩盖从未暴露；服务端单测均用
+   `compute_content_sha256` 自产 digest 自测，缺少生成方→验证方的
+   端到端契约测试，故 CI 无法发现。
+3. `site_import_enabled` 闸门默认关闭（有意设计）——已通过管理端点
+   打开 harpercollins 的 import 闸门，fixture 数据以 pending_review
+   状态安全入库。
+
+**改动**
+
+- `app/services/publisher_observer/batch_draft.py`：digest 计算字段集
+  对齐服务端契约（仅 source_id/schema_version/records），并加注释
+  说明两侧必须严格一致。
+- `tests/test_batch_draft_export.py`：新增
+  `test_draft_digest_matches_import_service_contract` 端到端契约
+  回归测试（生成方 digest == 验证方 digest），防止再次漂移。
+
+**验证**：本地 HTTP 直连生产 import 接口返回 200（2 条记录
+pending_review）；相关测试 27 passed；GHA workflow 全链路重跑通过。
+
+**密钥轮换（2026-08-31）**：因密钥值曾在诊断会话中出现，验证通过后
+对 `BATCH_IMPORT_SECRET` / `ADMIN_SECRET` 执行双端（GitHub Secrets +
+Render 环境变量）轮换；新密钥直连验证 admin 接口与 import 接口均
+返回 200（import 重放同批次显示幂等行为）。
+
+## v0.9.99 - 2026-08-19
+
+### perf+chore: 评审清单低优先级项清理（冷却竞态 / 封面筛选与提交 / 运维脚本）
+
+**背景**：代码评审剩余低优先级项集中处理——性能#4（封面候选筛选全表
+ORM 实例化）、性能#8（同步冷却检查与记录非原子）、性能#9（封面批同步
+逐本 commit）、安全#5（根目录运维脚本进入部署产物）。
+
+**改动**
+
+- **性能#8 冷却竞态**（`app/services/sync_request_gate.py`）：
+  新增 `try_acquire_sync()`——锁内原子完成"检查冷却 + 记录"，消除
+  `sync_cooldown_remaining` + `record_sync` 两步间并发请求双双通过
+  的窗口；`export_cooldown_remaining` 的字典重建移入 `_export_lock`
+  （避免并发清理丢失他线程刚记录的条目）。两个同步端点改用原子占用
+  （`_check_sync_cooldown` → `_acquire_sync_slot`）。
+- **性能#4 候选筛选轻量化**（`app/services/award_cover_sync_service.py`）：
+  候选筛选改为 `db.select(id, cover_local_path)` 两列轻量查询 + 字符串
+  预筛（非 cache 路径纯字符串判定）+ 仅对命中候选按 id 取完整 ORM——
+  稳态（封面齐全）下定时任务不再全表实例化 ORM 对象。
+- **性能#9 批末统一提交**（`app/services/cover_resolver.py`）：
+  `resolve` 新增 `auto_commit=True` 参数；批同步传 `False`（只改属性），
+  循环结束后统一 `db.session.commit()`——每本书一次的外部 PG 往返
+  降为每批一次。懒加载路由保持默认逐本提交。
+- **安全#5 运维脚本清理**：删除已入库的 `fix-circe-complete.py`、
+  `fix-circe-translation.py`、`verify_fix.py`（直连生产 DB 的一次性
+  修复脚本；正式修复已由 TRANSLATION_OVERRIDES 落地，无保留价值）。
+- **安全#4 疑点关闭**：确认 Flask-Talisman 的功能已由自研
+  `add_security_headers` 钩子完整覆盖（CSP nonce / X-Frame-Options /
+  nosniff / Referrer-Policy / Permissions-Policy / 生产 HSTS / 移除
+  Server 头），且 CSP 域名白名单精确到各出版社域名——不引入依赖。
+
+**测试**：新增 `TestTryAcquireSync` 4 个（含 8 线程并发仅 1 个通过的
+原子性验证）；`TestCheckSyncCooldown` 重写为 `TestAcquireSyncSlot` 3 个。
+
+**验证**：全量测试 2187 passed / 1 skipped（+5），覆盖率 83.75%；
+ruff / mypy 通过。
+
+## v0.9.98 - 2026-08-19
+
+### perf(new-books): 来源降级告警改后台派发，导入请求不等待 GitHub API
+
+**背景**：性能评审发现 `import_batch` 的健康状态钩子在请求线程内同步调用
+GitHub Issues API：`record_plan_failure/success` 状态翻转（降级/恢复）时
+触发 `sync_degraded_alert` / `close_degraded_alert`，内部 `urlopen
+(timeout=20)` 最多 3-4 次往返，且 `find_open_by_title` 每次拉取 50 条
+issues 列表——GitHub 抖动直接拖慢导入 P99，最坏 60-80s。
+
+**改动**
+
+- `app/services/source_health_service.py`：
+  - 新增 `_run_alert_job(source_id, action, batch_id)`：执行时**重新查询**
+    publisher（状态机已 commit，后台线程独立 session 可读最新值），
+    degraded 走 `sync_degraded_alert`（其内部守卫仍在），recovered 需
+    执行时刻状态为 healthy 才 `close_degraded_alert`——派发与执行之间
+    状态翻转时陈旧任务自动失效，不会错误关闭告警。
+  - 新增 `_dispatch_alert_async`：捕获 app 后 `submit_background_task`
+    提交后台线程（worker 自建 app context，异常记日志不外抛）；无
+    app 上下文时退回同步（CLI/脚本场景兜底）。
+  - `record_plan_failure` / `record_plan_success` 的告警直调改为派发；
+    **健康状态机的 DB 更新保持同步**（导入响应仍反映最新状态）。
+- `tests/test_source_alert_and_pilot.py`：`fake_gh` fixture 把派发器
+  monkeypatch 为同步直调（4 个既有断言语义不变）；新增
+  `TestAlertAsyncDispatch` 3 个测试——降级告警仅后台执行（请求返回时
+  未触达 GitHub）、恢复关闭同样后台执行、状态翻回 degraded 时陈旧
+  关闭任务被守卫挡下。
+
+**语义说明**：告警以"派发时刻意图 + 执行时刻最新状态"共同决定，比原
+同步路径更保守（避免关闭后马上重建陈旧告警）。
+
+**验证**：全量测试 2182 passed / 1 skipped（+3），覆盖率 83.71%；
+ruff / mypy 通过。
+
+## v0.9.97 - 2026-08-19
+
+### perf(new-books): 入库去重批级预载索引，消除 ingestor N+1 查询
+
+**背景**：性能评审发现 `NewBookIngestor._find_existing` 每本书最多发起
+3 次去重查询（isbn13 → isbn10 → 标题+作者），虽有索引但仍是逐本外部
+PostgreSQL round-trip——首次回填 2000 本 ≈ 最多 6000 次往返，LLM 翻译
+之外的同步耗时大头。
+
+**改动**
+
+- `app/services/new_book/ingestor.py`：
+  - 新增 `_PublisherBookIndex` 内存索引（isbn13 / isbn10 /
+    (title, author) 三键，语义与原查询优先级一致，setdefault 等价
+    first() 的任意命中）。
+  - 新增 `preloaded_lookup(publisher)` 上下文管理器：进入时一次查询
+    构建该社存量书索引；`save_book` 的 `_find_existing` 优先走索引
+    （零查询），无上下文时回退原逐本路径（单本调用/测试兼容）。
+  - `_insert_new` 完成后回填索引，保持同批后续重复书命中的语义
+    （等价原 autoflush 后查询命中）。
+  - 索引状态存 `threading.local` 子类：同步线程与静态播种线程互不串扰。
+- `app/services/new_book/sync_engine.py`：`_ingest_book_stream`
+  （爬虫流与静态流共用）包裹预载上下文，两个调用路径自动受益。
+- `tests/test_ingestor.py`：新增 `TestPreloadedLookup` 5 个测试——
+  上下文内零查询命中（`_QueryBomb` 断言不触发任何 `NewBook.query`）、
+  title+author 键命中、同批重复书命中回填、退出上下文回退查询路径、
+  索引线程隔离。
+
+**收益**：去重查询从每本书最多 3 次往返降为每批 1 次预载——回填 2000 本
+≈ 6000 次 → 1 次；增量同步 30 本 ≈ 90 次 → 1 次。
+
+**验证**：全量测试 2179 passed / 1 skipped（+5），覆盖率 83.75%；
+ruff / mypy 通过。
+
+## v0.9.96 - 2026-08-19
+
+### perf(new-books): 同步端点改后台任务，消除请求线程最长 600s/社阻塞
+
+**背景**：性能评审发现 `/api/new-books/sync` 与 `/api/new-books/sync/<id>` 在
+HTTP 请求线程内同步执行爬虫同步：`sync_all_publishers` 内部每社
+`future.result(timeout=600)`，translate=True 时逐本 LLM 调用，全量最坏
+5 社 × 600s，远超 Render 免费版网关超时（约 100s）——网关超时后前端报
+"同步失败"，但服务端仍在跑，重试还会放大占用。
+
+**改动**
+
+- `app/routes/new_books.py`：
+  - 新增进程内单一同步任务槽（`_sync_task` + 锁）：两个触发端点共享，
+    任务运行中再触发返回 409（防并发跑批互相踩 DB）。
+  - `/sync`、`/sync/<id>` 改为 `submit_background_task` 后台执行
+    （app context 内），立即返回 202 + `status='submitted'`；
+    冷却改为触发即记录（防连点）。
+  - 新增 `GET /api/new-books/sync/status`：返回最近一次任务状态
+    （idle/running/success/error + summary/results/error）。
+- `templates/new_books.html`：`syncNewBooks()` 改为提交 + 每 3s 轮询
+  status（最长 15 分钟），成功展示与此前相同的汇总文案；运行中保持
+  spinner，错误/超时给出可读提示。
+- `tests/test_new_books_routes.py`：新增 `TestSyncAsyncSubmit` 7 个测试
+  （202 与后台执行、单社结果、失败落 error、运行中 409、冷却 429、
+  后台异常不影响 202、status 鉴权）。
+
+**行为变更**：`/sync`、`/sync/<id>` 响应从"同步完成后的完整结果（200）"
+变为"任务已受理（202）"；结果改由 `/sync/status` 获取。cron 路径
+（`/api/cron/trigger-new-books-sync`）本就后台化，不受影响。
+
+**验证**：全量测试 2174 passed / 1 skipped（+7），覆盖率 83.69%；
+ruff / mypy 通过。
+
+## v0.9.95 - 2026-08-19
+
+### perf(awards): 封面批同步改后台任务 + 模块级锁修复防重入失效
+
+**背景**：性能评审发现两个问题——
+1. `POST /api/admin/award-covers/sync` 在 HTTP 请求线程内同步执行批同步：
+   batch_size 上限 50、每本书最多 4 次外部 API（timeout 10s）+ 封面下载 +
+   逐本 commit + 0.3s 间隔延迟，最坏数百秒，远超 Render 免费版网关超时
+   （约 100s），且网关超时重试会放大占用。
+2. 防重入标志失效：admin 每次请求新建 `AwardCoverSyncService` 实例，
+   实例级 `_is_running` 永为 False，手动触发与 APScheduler 定时任务
+   （`_cover_sync_task`）可并发跑批。
+
+**改动**
+
+- `app/routes/admin.py`：`sync_award_covers` 端点改为 `submit_background_task`
+  提交后台线程（app context 内执行，异常仅记日志），立即返回 202 +
+  `status='submitted'`；后台结果写入模块级 `_last_result`，通过
+  `/award-covers/status` 轮询（响应新增 `last_result` 字段）。
+- `app/services/award_cover_sync_service.py`：实例级 `_is_running` 替换为
+  模块级 `threading.Lock`（非阻塞 acquire，所有调用方共享），跨实例/
+  跨触发源防重入真实生效；`get_sync_status` 的 `is_syncing` 改为
+  `_sync_mutex.locked()`（此前恒为 False）。
+- 测试：`test_admin_routes.py` 的 `TestSyncAwardCovers` 重写为异步语义
+  （202 断言、后台任务行为断言、提交失败 500、后台异常不影响响应）；
+  `test_award_cover_sync_service.py` 适配模块级锁并新增跨实例防重入回归测试。
+
+**运维提示**：异步化后端点不再同步返回统计结果；触发后轮询
+`GET /api/admin/award-covers/status` 的 `is_syncing` / `last_result` 获取
+进度与最近一次结果。
+
+**验证**：全量测试 2167 passed / 1 skipped，覆盖率 83.29%；ruff / mypy 通过。
+
+## v0.9.94 - 2026-08-19
+
+### refactor(i18n): 提取翻译覆盖共享助手，消除模型层重复与反向依赖
+
+**背景**：规范评审发现"应用翻译覆盖"逻辑在 Book 与 AwardBook 两处逐字重复且
+行为已分叉（Book 版缺 `key in data` 守卫，会向序列化字典新增任意键），且模型层
+函数内 `from ..services.book_detail_service import TRANSLATION_OVERRIDES` 反向
+依赖服务层——历史上靠两个提交补丁式推进同一逻辑，典型 Shotgun Surgery 苗头。
+
+**改动**
+
+- 新建 `app/utils/translation_overrides.py`：`TRANSLATION_OVERRIDES` 映射 +
+  `apply_translation_overrides(data)` 共享助手（采用 AwardBook 版保守语义：
+  只覆盖已有键、空值跳过、isbn13/isbn10 双键命中）。
+- `app/models/book.py`、`app/models/schemas.py`（AwardBook）：两处重复块收敛为
+  共享助手调用，模型层依赖方向修正为 models → utils（消除对服务层的反向依赖）。
+- `app/services/book_detail_service.py`：`TRANSLATION_OVERRIDES` 数据源改为从
+  utils 导入（名称保留向后兼容）；其内部 `_apply_translation_overrides` 合并
+  语义不同（仅空值/不同值才写 + 日志），按原样保留不合并。
+- `tests/test_translation_overrides.py`：新增 9 个测试——纯函数 6 个（命中/
+  isbn10 回退/不新增键/无 ISBN/未命中/空值跳过）+ 模型接线 3 个
+  （Book.to_dict 覆盖与不覆盖、AwardBook.to_dict 覆盖）。
+
+**行为对齐说明**：Book 版统一后采用"不新增键"守卫；当前映射仅含
+`title_zh`（两个模型输出均含该键），可观察行为不变。
+
+**验证**：全量测试 2165 passed / 1 skipped（+9），覆盖率 83.26%；
+ruff / mypy 通过。
+
+## v0.9.93 - 2026-08-19
+
+### feat(new-books): 接线 fallback_google_enabled 开关（#137 规格缺口修复）
+
+**背景**：规格评审发现 `fallback_google_enabled` 自 #137 引入以来只有存储、审计与
+告警展示三条路径，无任何执行路径读取它——关闭开关无法影响 Google 兜底，开关是
+无效控制面（回退实际由"隐藏官网卡片 + auto_sync 恒跑"隐式达成）。
+
+**改动**
+
+- `app/services/new_book/sync_engine.py`：`sync_publisher_books` 入口新增开关检查
+  ——爬虫为 Google 系（`isinstance(crawler, GoogleBooksCrawler)`，覆盖
+  HarperCollins/S&S/Hachette/Macmillan 等出版社变体）且
+  `publisher.fallback_google_enabled=False` 时跳过同步，返回
+  `status='skipped'` + `reason`（可观测，进入 auto_sync 摘要与 admin 手动
+  同步结果）。跳过计为 `success=True`，避免 auto_sync 的 24h 节流被
+  failed_results 判定卡住导致 cron 每轮重跑。
+- `tests/test_sync_engine.py`：新增 `TestFallbackGoogleSwitch` 三个测试——
+  开关关时 Google 系爬虫跳过且不发起抓取；开关开时正常同步；非 Google 系
+  爬虫（如 PRH 官方 API）不受开关影响。
+
+**语义边界**：开关只控制 Google 系爬虫同步；静态数据兜底导入
+（`seed_from_static_data`）与非 Google 系数据源不受影响。
+
+**验证**：全量测试 2156 passed / 1 skipped（含 3 个新测试），覆盖率 83.19%；
+ruff / mypy 通过。
+
+## v0.9.92 - 2026-08-19
+
+### fix(ci): 消除 GitHub Actions 脚本内的 secrets/输入直接内插
+
+**背景**：安全评审发现 5 处 `${{ }}` 表达式直接内插在 `run:` 脚本中，违反 GitHub
+官方安全加固指南（脚本应通过环境变量引用 secrets，而非模板渲染）：
+
+1. `site-crawl-pipeline.yml` observe job：dispatch 输入 `SOURCE_ID` 直接拼入
+   Python 字符串字面量，构成脚本注入面（需仓库 write 权限才可触达，非外部漏洞）；
+2. 同文件 observe job 的"断言无 secret"步骤自己先把 `BATCH_IMPORT_SECRET`
+   渲染进脚本（死代码 `if` 块，与 #138 相位隔离设计自相矛盾）；
+3. 三处 `CRON_SECRET` 直接内插 curl 参数（secret 含引号/`$` 时可致命令错乱）。
+
+**改动**（仅 YAML，无应用代码变更）
+
+- `site-crawl-pipeline.yml`：`source` 改读 `os.environ["SOURCE_ID"]`
+  （job 级 env 已存在）；删除死代码 `if` 块，保留 Python 断言；
+  wake job 的 `CRON_SECRET` 移入 step `env:` 块。
+- `trigger-new-books-sync.yml`、`trigger-weekly-report.yml`：`CRON_SECRET`
+  移入 step `env:` 块，curl 改用 `${CRON_SECRET}` 引用。
+
+**验证**：3 个 workflow YAML 语法解析通过；全仓库扫描确认 `run:` 脚本内
+零 `${{ }}` 内插（剩余 22 处均在 `env:`/`if:`/action 参数中，为安全写法）；
+pipeline 相关 17 个测试通过。
+
+## v0.9.91 - 2026-08-19
+
+### perf(new-books): 批量导入消除 O(N×M) 全表扫描
+
+**背景**：代码评审发现 `import_batch` 每条 record 的 `_find_existing` 在 source_url
+匹配分支执行 `NewBook.query.filter_by(publisher_id=...).all()`，把该出版社全部书籍
+加载进内存逐本比对规范化 URL。几百条批次 × 数千存量书 = 数百次全表拉取（外部
+PostgreSQL round-trip），导入耗时分钟级。
+
+**改动**
+
+- `app/services/batch_import_service.py`：新增 `_BatchLookup` 批级索引——批次开始时
+  一次性预载该出版社书籍，构建 isbn13 与规范化 source_url（canonical/source 双字段）
+  两个内存字典；`_find_existing` 改为字典查找，消除循环内全表查询。
+- 写路径（`_write_accepted` / `_write_pending`）完成后调用 `register_written`
+  将新建/更新书籍回填索引，保持同批后续 record 的去重命中语义与原 SQL
+  autoflush 行为一致。
+
+**验证**：批量导入相关 31 个测试通过；全量测试 2153 passed / 1 skipped，
+覆盖率 83.19%；`ruff check`、`ruff format`、`mypy` 全部通过。
+
+**收益**：导入查询次数从 O(records × publisher_books) 降为每批 1 次预载，
+预期导入耗时分钟级降至秒级。
+
+## v0.9.90 - 2026-08-14
+
+### fix(awards): 修复生产环境封面同步无法识别"缓存文件丢失"
+
+**背景**：生产环境（Render 临时文件系统）重启后 `cache/images/` 丢失，但数据库
+（PostgreSQL 持久化）中 `cover_local_path` 仍保留旧值。实测获奖页面全部封面图片 404。
+原 `sync_missing_covers` 仅查询 `cover_local_path IS NULL/空/默认封面`，无法覆盖
+"数据库有路径但本地文件已丢失"的场景，因此直接触发同步也无法修复。
+
+**改动**
+
+- `app/services/award_cover_sync_service.py`：`sync_missing_covers` 改为先拉取全部
+  展示书籍，再通过 `_is_cached_path_available`（含文件系统存在性检查）识别真正缺失的封面，
+  覆盖"缓存文件丢失"场景，重新下载并回写。
+- `tests/test_award_cover_sync_service.py`：新增两个回归测试——
+  `test_resync_when_local_cache_file_missing`（文件丢失时重新下载）、
+  `test_skips_book_when_local_cache_file_exists`（文件存在时跳过）。
+
+**验证**：本地模拟"文件丢失"场景，3 本封面被正确重新下载（`updated: 3, failed: 0`）；
+  全部相关测试通过；`ruff`、`mypy` 通过。
+
+### 部署后操作
+生产环境重新部署后，需触发封面同步：
+`POST /api/admin/award-covers/sync`（携带 `X-Admin-Secret`），
+或访问获奖页面触发 `/award-book/<id>/cover` 懒加载自愈。
+
+### 生产环境执行记录（2026-08-14）
+- 部署 v0.9.90 后，调用 `GET /api/csrf-token` 获取一次性 CSRF token，
+  再 `POST /api/admin/award-covers/sync`（携带 `X-Admin-Secret` + `X-CSRF-Token`）。
+- 同步结果：`updated: 34, failed: 0, skipped: 0`。
+- 验证：获奖页面全部 24 张封面图片由 404 恢复为 200，`24/24` 通过，0 失败。
+
+## v0.9.89 - 2026-08-14
+
+### fix(awards): 修复获奖书单封面图片显示问题
+
+**背景**：获奖书单页面图片显示异常。诊断发现所有 `AwardBook.cover_local_path` 均为空，
+前端退化为每次远程加载 Open Library 封面（`covers.openlibrary.org`），依赖外部网络、
+加载慢且不稳定；生产环境临时文件系统还会导致缓存丢失。
+
+**改动**
+
+- `static/js/base.js`：重构 `initImageErrorHandler`，实现多级回退
+  （本地缓存 → 原始 URL → 默认封面），通过 `data-original` / `data-fallback` /
+  `data-img-tried` 属性避免无限回退。
+- `templates/awards.html`：网格与列表视图的 `<img>` 增加 `data-original`（原始封面 URL）
+  与 `data-fallback`（默认封面）属性，作为展示兜底。
+- 数据修复：运行标题封面同步（`AwardCoverSyncService.sync_missing_covers`），
+  将 34 本获奖图书的封面下载到本地缓存并回写 `cover_local_path`，本地文件验证全部存在。
+
+**验证**：302 个获奖/路由/服务相关测试全部通过；`ruff`、`mypy` 不涉及源码逻辑改动。
+
+### feat(awards): 更新 2020-2026 最新获奖书单
+
+从 Wikidata / Open Library / Google Books 同步最新获奖图书，新增 2026 年数据：
+
+- 普利策奖 2026：Angel Down、There Is No Place for Us、A Flower Traveled in My Blood、Mother Emanuel
+- 国际布克奖 2026：Taiwan Travelogue
+- 爱伦·坡奖 2026：The Big Empty
+
+## v0.9.88 - 2026-08-14
+
+### refactor(architecture): 提取 NewBookIngestor 深模块，瘦身 SyncEngine
+
+**背景**：`SyncEngine` 承担了同步编排以外的过多入库规则（去重、字段合并、
+新建、ORM 持久化），接口与实现一样复杂（浅模块），既难测也难导航。
+本次按 improve-codebase-architecture 候选 A 落地，将入库规则集中到深模块
+`NewBookIngestor`，对外只暴露 `save_book` / `update_book_fields` 两个稳定接口。
+
+**改动**
+
+#### 新增深模块
+- `app/services/new_book/ingestor.py`（新增）：
+  - `NewBookIngestor`：集中去重（isbn13 → isbn10 → 标题+作者）、字段合并、
+    新建与 ORM 持久化逻辑
+  - `SaveOutcome` 枚举（`ADDED` / `UPDATED` / `SKIPPED`）替代裸字符串常量
+
+#### 为 TranslationPipeline 增加公共接缝
+- `app/services/new_book/translation_pipeline.py`：
+  - 私有 `_translate_book` → 公共 `translate_book`
+  - 私有 `_translate_and_store_language_pack` → 公共 `persist_language_pack`
+  - 新增 `translator_enabled` 属性，供入库模块判断是否触发翻译
+
+#### 瘦身 SyncEngine
+- `app/services/new_book/sync_engine.py`：
+  - 移除 `_save_book` / `_update_book_fields`，改为注入 `NewBookIngestor`
+  - 翻译调用改用公共接缝，SyncEngine 只管同步编排
+
+#### 测试迁移
+- `tests/test_ingestor.py`（新增）：承接原 `TestSaveBook` / `TestUpdateBookFields`，
+  直接面向入库模块稳定接口与 `SaveOutcome`
+- `tests/test_sync_engine.py`：移除已迁移用例，翻译 mock 改用公共方法名
+- `tests/test_new_book_service.py`：`_update_book_fields` 改用 `_ingestor.update_book_fields`
+
+**决议**：`BatchImportService` 保留独立入库实现，与 `NewBookIngestor` 并存，
+不强行合并（各自处理不同来源、不同去重诉求，合并会引入不必要耦合）。
+
+**验证**
+- `pytest`：2381 passed，1 skipped
+- `ruff check / format app/services/new_book/ tests/test_ingestor.py`：通过
+- `mypy app/services/new_book/`：通过
+
+**相关文件**
+- 新增：`app/services/new_book/ingestor.py`、`tests/test_ingestor.py`
+- 修改：`app/services/new_book/sync_engine.py`、`app/services/new_book/translation_pipeline.py`、
+  `tests/test_sync_engine.py`、`tests/test_new_book_service.py`
+
+---
+
+## v0.9.87 - 2026-07-16
+
+### fix(deps): 修复 Dependabot 36 个依赖安全漏洞
+
+**背景**：GitHub Dependabot 在默认分支检测到 36 个依赖漏洞，涉及 7 个直接依赖（Werkzeug、Flask-CORS、requests、python-dotenv、Pillow、bleach、mistune）。本次升级将这些依赖更新到已修复版本，消除已知安全风险。
+
+**改动**
+
+#### 依赖升级
+- `Werkzeug==3.1.0` → `Werkzeug==3.1.6`
+  - GHSA-29vq-49wr-vm6x：safe_join() allows Windows special device names
+  - GHSA-87hc-h4r5-73f7：safe_join() allows Windows special device names with compound extensions
+  - GHSA-hgf8-39gv-g3f2：safe_join() allows Windows special device names
+- `Flask-CORS==4.0.1` → `Flask-CORS==6.0.0`
+  - GHSA-7rxf-gvfg-47g4：improper regex path matching
+  - GHSA-43qf-4rqw-9q2g：improper handling of case sensitivity
+  - GHSA-8vgw-p6qm-5gr7：inconsistent CORS matching
+  - GHSA-hxwh-jpp2-84pm：Access-Control-Allow-Private-Network header default
+- `requests==2.32.3` → `requests==2.33.0`
+  - GHSA-gc5v-m9x4-r6x2：insecure temp file reuse in extract_zipped_paths()
+  - GHSA-9hjg-9r4m-mvj7：.netrc credentials leak via malicious URLs
+- `python-dotenv==1.0.1` → `python-dotenv==1.2.2`
+  - GHSA-mf9w-mj56-hr94：symlink following in set_key allows arbitrary file overwrite
+- `Pillow==11.1.0` → `Pillow==12.2.0`
+  - GHSA-pwv6-vv43-88gr：OOB Write with Invalid PSD Tile Extents
+  - GHSA-r73j-pqj5-w3x7：PDF Parsing Trailer Infinite Loop
+  - GHSA-wjx4-4jcj-g98j：integer overflow when processing fonts
+  - GHSA-whj4-6x5x-4v2j：FITS GZIP decompression bomb
+  - GHSA-cfh3-3jmp-rvhc：out-of-bounds write when loading PSD images
+- `bleach==6.1.0` → `bleach==6.4.0`
+  - GHSA-gj48-438w-jh9v：dangerous URI schemes in allowed formaction attributes
+  - GHSA-8rfp-98v4-mmr6：disallowed URI schemes with Unicode > U+00A0
+- `mistune==3.2.1` → `mistune==3.3.0`
+  - GHSA-qcq2-496w-v96p：Potential DoS via quadratic-time parsing in parse_link_text
+
+#### 文件更新
+- 同步更新 `requirements.txt` 与 `requirements-prod.txt` 中上述依赖的 pinned 版本。
+
+**验证**
+- `pytest`：2130 passed，覆盖率 81.55%
+- `ruff check app/ tests/`：通过
+- `mypy app/`：通过
+
+**相关文档**
+- `requirements.txt`
+- `requirements-prod.txt`
+
+---
+
+## v0.9.86 - 2026-07-16
+
+### fix(cron): 规范化 cron 端点位置与错误处理
+
+**修复内容**：
+- `app/routes/api/cron.py`：
+  - 将 cron 端点从 `app/routes/cron.py` 迁移到 `app/routes/api/cron.py`，符合 API 路由拆分规范
+  - `trigger_weekly_report` 新增 `@handle_api_errors` 装饰器，统一异常处理与错误响应格式
+  - 移除路由层裸 `try/except Exception`，统一委托给异常装饰器
+- `app/__init__.py`、`app/routes/__init__.py`、`app/routes/api/__init__.py`：
+  - 更新 blueprint 导入与注册，移除独立的 `cron_bp`
+- `.github/workflows/trigger-weekly-report.yml`：
+  - URL 改为从 GitHub vars 的 `RENDER_BASE_URL` 读取，默认回退 Render 生产地址
+  - 保留每周五/六/日 08:00 UTC 三次触发兜底
+  - 新增唤醒 + 重试机制，解决 Render 免费层冷启动导致的周报触发失败
+- `tests/test_cron_routes.py`：
+  - 新增 cron 端点测试，覆盖认证失败、无认证、成功触发、跳过/冷却等场景
+- `pyproject.toml`：
+  - 将 `bleach.*` 加入 `ignore_missing_imports`，与项目其他外部库保持一致
+
+---
+
+## v0.9.85 - 2026-07-16
+
+### chore(repo): v0.9.84 收尾与仓库整理（Agent 文档 / 审计交付物 / GitHub CLI 缓存忽略 / Private Vulnerability Reporting 确认）
+
+**背景**：v0.9.84 OSS 社区成熟度升级后，仓库遗留未跟踪的 Agent 文档、审计交付物和 GitHub CLI 缓存；`SECURITY.md` 中声明的 Private Vulnerability Reporting 需要通过仓库设置手动启用。本次整理补齐这些遗留项，使仓库状态干净并与文档声明一致。
+
+**改动**
+
+#### Private Vulnerability Reporting 确认
+- 通过 `gh api repos/gongyijie85/bookrank/private-vulnerability-reporting` 验证已启用，返回 `{"enabled":true}`。
+- 与 `SECURITY.md` 中的报告方式声明保持一致。
+
+#### GitHub CLI 缓存忽略
+- `.gitignore` 新增 `.gh-cache/`，避免本地 `gh` 命令产生的缓存目录被误提交。
+
+#### Agent 文档入库
+- 提交 `AGENTS.md`：说明 Issue tracker、Triage labels、Domain docs 的入口。
+- 提交 `docs/agents/domain.md`：Agent 探索代码库前应阅读的文档规范。
+- 提交 `docs/agents/issue-tracker.md`：GitHub Issues 操作约定（创建、查看、列表、评论、标签、关闭）。
+- 提交 `docs/agents/triage-labels.md`：五类标准 triage 标签与仓库实际标签的映射表。
+
+#### 审计交付物归档
+- 提交 `deliverables/bookrank-audit-20260708/`：
+  - `audit-data.json`：v0.9.83 同事反馈 P0-P3 优化的全量审计数据。
+  - 三端截图（桌面端/平板端/移动端）覆盖首页、奖项、新书、出版社、周报 5 个页面。
+
+**验证**
+- `ruff check app/ tests/`：未改动源码，保持通过
+- `mypy app/`：未改动源码，保持通过
+- `git status`：除已忽略的 `.gh-cache/` 外无未跟踪文件
+
+**相关文档**
+- `AGENTS.md`、`docs/agents/domain.md`、`docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md`
+- `deliverables/bookrank-audit-20260708/audit-data.json`
+- `SECURITY.md`
+
+---
+
 ## v0.9.84 - 2026-07-13
 
 ### feat(oss): 社区成熟度升级（社区文件 / GitHub 配置 / Docker / Issue #8 修复）

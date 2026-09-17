@@ -12,6 +12,7 @@ const TRANSLATIONS = {
         'nav_home': '首页',
         'nav_awards': '获奖书单',
         'nav_publishers': '出版社',
+        'nav_rankings': '更多榜单',
         'nav_new_books': '新书速递',
         'nav_weekly': '畅销书周报',
         'nav_about': '关于我们',
@@ -35,27 +36,27 @@ const TRANSLATIONS = {
         'notification_area': '通知提示',
         // 详情页
         'back_to_list': '返回榜单',
-        'buy_links': '购买链接',
         'book_publisher': '出版社',
         'book_pub_date': '出版日期',
         'book_pages': '页数',
-        'isbn_label': 'ISBN',
         'book_category': '分类',
-        'weeks_on_list': '累计上榜周数',
-        'language_label': '语言',
         'book_description': '图书简介',
         'book_details': '详细信息',
         'view_original': '查看英文原文',
         'hide_original': '收起英文原文',
         'no_description': '暂无简介',
+        'no_details': '暂无详细介绍',
         // 首页
         'page_title_bestsellers': '纽约时报畅销书排行榜',
+        'page_title_awards': '国际图书奖项榜单',
         'filter_category': '图书分类',
         'filter_search': '搜索',
         'search_placeholder': '搜索书名或作者...',
         'search_clear': '清除搜索',
         'btn_search': '搜索',
-        'btn_reset': '重置',
+        'grid_density': '网格密度',
+        'grid_view_featured': '精选三列',
+        'grid_view_compact': '紧凑五列',
         'view_grid': '网格视图',
         'view_list': '列表视图',
         'view_switch': '视图切换',
@@ -72,8 +73,9 @@ const TRANSLATIONS = {
         'loading': '加载中...',
         'no_data': '暂无数据',
         'error_load': '加载失败',
-        'theme_dark': '已切换到深色模式',
-        'theme_light': '已切换到浅色模式',
+        'theme_toggle_label': '切换主题',
+        'theme_switched_dark': '已切换到深色模式',
+        'theme_switched_light': '已切换到浅色模式',
         'close': '关闭',
         'close_toast': '关闭提示',
         // 书籍卡片
@@ -135,6 +137,22 @@ const TRANSLATIONS = {
         // 图书网格/列表视图
         'books_grid_view': '图书网格视图',
         'books_list_view': '图书列表视图',
+        // 筛选通用
+        'filter_award_label': '奖项',
+        'filter_award_all': '全部奖项',
+        'filter_year_label': '年份',
+        'filter_year_all': '全部年份',
+        'filter_category_label': '类别',
+        'filter_category_all': '全部分类',
+        'filter_search_label': '搜索',
+        'search_placeholder_award': '搜索书名或作者...',
+        'search_book_author': '搜索书名或作者',
+        'btn_filter': '筛选',
+        'btn_reset': '重置',
+        'empty_retry_hint': '请尝试切换筛选条件或稍后重试',
+        'quick_nyt_link': '查看纽约时报畅销书榜',
+        'quick_nyt_desc': '实时更新的畅销图书排行榜',
+        'quick_links': '快速链接',
         // 新书推介页
         'nb_header_subtitle': '追踪国际大型出版社最新出版物',
         'nb_total_pre': '共',
@@ -142,8 +160,6 @@ const TRANSLATIONS = {
         'nb_total_new_books_suffix': '本新书',
         'nb_active_publishers': '{count} 家出版社',
         'nb_publishers_suffix': '家出版社',
-        'nb_recent_7d_label': '近7天出版',
-        'nb_recent_7d_count': '{count} 本',
         'nb_filter_publisher_label': '出版社',
         'nb_filter_publisher_all': '全部出版社',
         'nb_filter_category_label': '分类',
@@ -179,12 +195,37 @@ const TRANSLATIONS = {
         'nb_detail_label_isbn': 'ISBN',
         'nb_detail_description_title': '图书简介',
         'nb_detail_no_description': '暂无简介',
+        // 页脚 / 面包屑 / 页面副标题（补齐模板引用但字典缺失的 data-i18n key）
+        'breadcrumbs_label': '面包屑导航',
+        'footer_sitemap': '站点地图',
+        'footer_data_source': '数据来源：NYT Books API',
+        'footer_copyright': '© {year} BookRank. 数据仅供学习交流，版权归原作者及出版社所有。',
+        'publishers_subtitle': '汇集全球知名出版社与图书行业网站，点击即可访问',
+        'wr_subtitle': '纽约时报畅销书榜单的每周变化趋势',
+        'nb_search_btn': '搜索',
+        'nb_reset_btn': '重置',
     },
     en: {
+        // Filters
+        'filter_award_label': 'Award',
+        'filter_award_all': 'All awards',
+        'filter_year_label': 'Year',
+        'filter_year_all': 'All years',
+        'filter_category_label': 'Category',
+        'filter_category_all': 'All categories',
+        'filter_search_label': 'Search',
+        'search_placeholder_award': 'Search title or author...',
+        'search_book_author': 'Search title or author',
+        'btn_filter': 'Filter',
+        'empty_retry_hint': 'Try changing filters or retry later',
+        'quick_nyt_link': 'View NYT Bestsellers',
+        'quick_nyt_desc': 'Updated bestseller ranking in real time',
+        'quick_links': 'Quick Links',
         // Navigation
         'nav_home': 'Home',
         'nav_awards': 'Awards',
         'nav_publishers': 'Publishers',
+        'nav_rankings': 'More Charts',
         'nav_new_books': 'New Books',
         'nav_weekly': 'Weekly Reports',
         'nav_about': 'About',
@@ -208,26 +249,27 @@ const TRANSLATIONS = {
         'notification_area': 'Notifications',
         // Detail page
         'back_to_list': 'Back to list',
-        'buy_links': 'Buy Links',
         'book_publisher': 'Publisher',
         'book_pub_date': 'Published',
         'book_pages': 'Pages',
-        'isbn_label': 'ISBN',
         'book_category': 'Category',
-        'weeks_on_list': 'Weeks on List',
-        'language_label': 'Language',
         'book_description': 'Description',
         'book_details': 'Details',
         'view_original': 'View Original',
         'hide_original': 'Hide Original',
         'no_description': 'No description',
+        'no_details': 'No detailed description available',
         // Home
         'page_title_bestsellers': 'NYT Bestsellers',
+        'page_title_awards': 'International Book Awards',
         'filter_category': 'Category',
         'filter_search': 'Search',
         'search_placeholder': 'Search title or author...',
         'search_clear': 'Clear search',
         'btn_search': 'Search',
+        'grid_density': 'Grid density',
+        'grid_view_featured': 'Featured 3-col',
+        'grid_view_compact': 'Compact 5-col',
         'btn_reset': 'Reset',
         'view_grid': 'Grid View',
         'view_list': 'List View',
@@ -245,8 +287,9 @@ const TRANSLATIONS = {
         'loading': 'Loading...',
         'no_data': 'No data',
         'error_load': 'Failed to load',
-        'theme_dark': 'Switched to dark mode',
-        'theme_light': 'Switched to light mode',
+        'theme_toggle_label': 'Toggle theme',
+        'theme_switched_dark': 'Switched to dark mode',
+        'theme_switched_light': 'Switched to light mode',
         'close': 'Close',
         'close_toast': 'Close notification',
         // Book card
@@ -315,8 +358,6 @@ const TRANSLATIONS = {
         'nb_total_new_books_suffix': 'new books',
         'nb_active_publishers': '{count} publishers',
         'nb_publishers_suffix': 'publishers',
-        'nb_recent_7d_label': 'Past 7 days:',
-        'nb_recent_7d_count': '{count} books',
         'nb_filter_publisher_label': 'Publishers',
         'nb_filter_publisher_all': 'All publishers',
         'nb_filter_category_label': 'Category',
@@ -352,6 +393,16 @@ const TRANSLATIONS = {
         'nb_detail_label_isbn': 'ISBN',
         'nb_detail_description_title': 'Description',
         'nb_detail_no_description': 'No description available',
+        // Footer / breadcrumb / page subtitles (template data-i18n keys missing from the dict)
+        'breadcrumbs_label': 'Breadcrumb',
+        'footer_sitemap': 'Sitemap',
+        'footer_data_source': 'Data source: NYT Books API',
+        'footer_copyright':
+            '© {year} BookRank. For learning and reference only. All rights belong to the original authors and publishers.',
+        'publishers_subtitle': 'A collection of world-renowned publishers and book industry websites',
+        'wr_subtitle': 'NYT Bestsellers',
+        'nb_search_btn': 'Search',
+        'nb_reset_btn': 'Reset',
     }
 };
 
@@ -451,6 +502,14 @@ function setGlobalLanguage(lang) {
     localStorage.setItem('app_language', lang);
     localStorage.setItem('bookrank_language', lang);
 
+    // 同步 html lang，便于屏幕阅读器正确发音
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+    // 设置语言 cookie，服务端后续请求保持同一语言
+    const host = window.location.hostname;
+    const cookieDomain = (host && host !== 'localhost' && host.includes('.')) ? host : '';
+    document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax;' + (cookieDomain ? ' domain=' + cookieDomain : '');
+
     if (typeof updateLangDropdown === 'function') {
         try { updateLangDropdown(lang); } catch(e) { console.warn('updateLangDropdown error:', e); }
     }
@@ -477,3 +536,4 @@ window.TRANSLATIONS = TRANSLATIONS;
 window.t = t;
 window.applyPageTranslation = applyPageTranslation;
 window.setGlobalLanguage = setGlobalLanguage;
+window.switchLanguage = setGlobalLanguage;

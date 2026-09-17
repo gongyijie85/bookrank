@@ -1,33 +1,59 @@
 {% extends "mobile/base.html" %}
 
-{% block title %}{{ _('图书奖项榜单') }} - 书榜{% endblock %}
+{% block title %}{{ _('图书奖项榜单') }} - BookRank{% endblock %}
 
 {% block header %}
-<header class="m-header">
-    <a href="/" class="m-header-btn" aria-label="{{ _('返回') }}">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </a>
-    <span class="m-header-title">{{ _('奖项榜单') }}</span>
-    <div class="m-header-placeholder"></div>
-</header>
+<nav class="m-top-nav">
+    <div class="m-top-nav-copy">
+        <span class="m-top-nav-kicker">{{ _('国际图书奖项榜单') }}</span>
+        <h1 class="m-top-nav-title">Award <span>Winners</span></h1>
+        <span class="m-top-nav-subtitle">{{ total_books }} {{ _('本图书') }} · {{ awards|length }} {{ _('个奖项') }}</span>
+    </div>
+</nav>
 {% endblock %}
+
+{% macro awards_filter_url(award=none, year=none, category=none) %}
+{%- set _award = award if award is not none else selected_award -%}
+{%- set _year = year if year is not none else selected_year -%}
+{%- set _category = category if category is not none else selected_category -%}
+{%- set parts = [] -%}
+{%- if _award %}{% set _unused = parts.append('award=' ~ (_award | urlencode)) %}{% endif -%}
+{%- if _year %}{% set _unused = parts.append('year=' ~ _year) %}{% endif -%}
+{%- if _category %}{% set _unused = parts.append('category=' ~ (_category | urlencode)) %}{% endif -%}
+/awards{% if parts %}?{{ parts | join('&') }}{% endif %}
+{%- endmacro %}
 
 {% block content %}
 {% set _locale = get_locale() %}
 
 <!-- 奖项筛选（横向滑动） -->
-<section class="m-cat-tabs" aria-label="奖项筛选">
+<section class="m-cat-tabs" aria-label="{{ _('奖项筛选') }}">
     <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="/awards" class="m-cat-tab {% if not selected_award %}active{% endif %}">全部</a>
+        <a href="{{ awards_filter_url(award='') }}" class="m-cat-tab {% if not selected_award %}active{% endif %}">{{ _('全部') }}</a>
         {% for award in awards %}
-        <a href="/awards?award={{ award.name | urlencode }}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+        <a href="{{ awards_filter_url(award=award.name) }}"
            class="m-cat-tab {% if selected_award == award.name %}active{% endif %}">
-            {{ award.name }}
+            {{ award.name|bilingual(award.name_en) }}
             <span class="m-cat-tab-count">{{ award.book_count }}</span>
         </a>
         {% endfor %}
     </div>
 </section>
+
+<!-- 类别筛选（横向滑动） -->
+{% if categories %}
+<section class="m-cat-tabs" aria-label="{{ _('类别筛选') }}">
+    <div class="m-cat-tabs-scroll no-scrollbar">
+        <a href="{{ awards_filter_url(category='') }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部类别') }}</a>
+        {% for category in categories %}
+        <a href="{{ awards_filter_url(category=category) }}"
+           class="m-cat-tab {% if selected_category == category %}active{% endif %}">
+            {{ category|award_term or category }}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
 
 <!-- 统计 -->
 {% if years %}
@@ -40,21 +66,21 @@
 {% if books %}
 <div class="m-book-list">
     {% for book in books %}
+    {% set shown_title = (book.title_zh or book.title) if _locale == 'zh' else book.title %}
+    {% set shown_award = (book.award_name|bilingual(book.award_name_en)) or _('未知') %}
     <a href="/award-book/{{ book.id }}" class="m-card m-book-card">
         <div class="m-book-cover">
-            <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
-                 alt="{{ book.title }}"
+            <img src="{{ (book.cover_local_path or book.cover_original_url)|cover_src_or_default }}"
+                 alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="60" height="80"
-                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                 data-cover-fallback="">
         </div>
         <div class="m-book-info">
-            <h3 class="m-book-title">
-                {% if _locale == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %}
-            </h3>
+            <h3 class="m-book-title">{{ shown_title }}</h3>
             <p class="m-book-author">{{ book.author }}</p>
             <div class="m-badge-row">
-                <span class="m-badge m-badge-primary">{{ book.award_name }}</span>
+                <span class="m-badge m-badge-primary">{{ shown_award }}</span>
                 {% if book.year %}<span class="m-badge m-badge-accent">{{ book.year }}</span>{% endif %}
             </div>
         </div>
@@ -66,11 +92,11 @@
 {% if total_pages > 1 %}
 <div class="m-pagination">
     {% if has_prev %}
-    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&page={{ page - 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>
+    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&category={{ selected_category or '' }}&page={{ page - 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>
     {% endif %}
     <span class="m-text-sm m-text-hint">{{ page }} / {{ total_pages }}</span>
     {% if has_next %}
-    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&page={{ page + 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>
+    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&category={{ selected_category or '' }}&page={{ page + 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>
     {% endif %}
 </div>
 {% endif %}

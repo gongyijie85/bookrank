@@ -6,12 +6,24 @@
 
 import json
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, cast
 
 from .database import db
 
 
-class Publisher(db.Model):
+def _category_en(value: str | None) -> str | None:
+    """分类的英文显示名：复用 app.utils.book_labels 对 CATEGORY_EN_TO_ZH 的反查。
+
+    延迟导入（models 不在模块加载期依赖 utils），并且刻意不另建第二张映射表。
+    """
+    if not value:
+        return None
+    from ..utils.book_labels import category_name
+
+    return category_name(value, 'en')
+
+
+class Publisher(db.Model):  # type: ignore[name-defined]
     """
     出版社模型
 
@@ -30,6 +42,24 @@ class Publisher(db.Model):
     is_active: bool = db.Column(db.Boolean, default=True, index=True, comment='是否启用爬虫')
     last_sync_at: datetime | None = db.Column(db.DateTime, comment='最后同步时间')
     sync_count: int = db.Column(db.Integer, default=0, comment='同步次数')
+    # 官网采集主路径开关与健康状态（#132 预留；默认保持 Google 系现网路径）
+    site_crawl_enabled: bool = db.Column(db.Boolean, default=False, nullable=False, comment='是否启用官网采集')
+    site_import_enabled: bool = db.Column(db.Boolean, default=False, nullable=False, comment='是否启用批次入库')
+    site_display_primary: bool = db.Column(
+        db.Boolean, default=False, nullable=False, comment='展示是否以官网批次为主权威'
+    )
+    fallback_google_enabled: bool = db.Column(
+        db.Boolean, default=True, nullable=False, comment='降级时是否启用 Google 兜底'
+    )
+    source_status: str = db.Column(
+        db.String(32), default='healthy', nullable=False, comment='来源健康状态 healthy/degraded/disabled/recovering'
+    )
+    consecutive_failures: int = db.Column(db.Integer, default=0, nullable=False, comment='连续计划失败次数')
+    consecutive_successes: int = db.Column(db.Integer, default=0, nullable=False, comment='连续计划成功次数')
+    last_success_batch_id: str | None = db.Column(db.String(128), comment='上次成功导入 batch_id')
+    last_attempt_at: datetime | None = db.Column(db.DateTime, comment='上次计划尝试时间')
+    last_error_code: str | None = db.Column(db.String(64), comment='最近计划失败机器码')
+    last_error_summary: str | None = db.Column(db.String(500), comment='最近计划失败摘要（无密钥无正文）')
     created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now(UTC), comment='创建时间')
     updated_at: datetime = db.Column(
         db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), comment='更新时间'
@@ -68,7 +98,7 @@ class Publisher(db.Model):
         return f'<Publisher {self.name_en}>'
 
 
-class NewBook(db.Model):
+class NewBook(db.Model):  # type: ignore[name-defined]
     """
     新书模型
 
@@ -109,6 +139,12 @@ class NewBook(db.Model):
 
     # 来源信息
     source_url: str | None = db.Column(db.String(500), comment='来源页面URL')
+    canonical_source_url: str | None = db.Column(db.String(500), comment='规范化官网产品 URL（归并键）')
+
+    # 关联版本与字段出处（JSON 文本；不做全站 Edition 表）
+    editions_json: str | None = db.Column(db.Text, comment='关联版本 JSON')
+    field_provenance_json: str | None = db.Column(db.Text, comment='字段出处 JSON')
+    last_import_batch_id: str | None = db.Column(db.String(128), comment='写入本卡片的上次导入 batch_id')
 
     # 状态信息
     is_verified: bool = db.Column(db.Boolean, default=False, index=True, comment='是否已验证')
@@ -134,7 +170,18 @@ class NewBook(db.Model):
         db.Index('idx_new_books_search', 'title', 'author'),
     )
 
-    def to_dict(self, include_zh: bool = True) -> dict[str, Any]:
+    # 「刚上市」徽章的判定阈值（天），与新书速递现有「最近7天出版」筛选选项口径一致
+    RECENTLY_PUBLISHED_WITHIN_DAYS = 7
+
+    @property
+    def is_recently_published(self) -> bool:
+        """出版日期是否在最近 N 天内（用于新书速递卡片的"刚上市"徽章）"""
+        if not self.publication_date:
+            return False
+        days_since = (date.today() - self.publication_date).days
+        return 0 <= days_since <= self.RECENTLY_PUBLISHED_WITHIN_DAYS
+
+    def to_dict(self, include_zh: bool = True, include_freshness: bool = True) -> dict[str, Any]:
         """转换为字典"""
         from ..utils import quick_clean_translation
 
@@ -151,16 +198,24 @@ class NewBook(db.Model):
             'cover_url': self.cover_url,
             'cover_local': self.cover_local,
             'category': self.category,
+            'category_en': _category_en(self.category),
             'publication_date': self.publication_date.isoformat() if self.publication_date else None,
             'price': self.price,
             'page_count': self.page_count,
             'language': self.language,
-            'buy_links': json.loads(self.buy_links) if self.buy_links else [],
+            'buy_links': self.get_buy_links(),
             'source_url': self.source_url,
+            'canonical_source_url': self.canonical_source_url,
+            'editions': self.get_editions(),
+            'field_provenance': self.get_field_provenance(),
+            'last_import_batch_id': self.last_import_batch_id,
             'is_verified': self.is_verified,
             'is_displayable': self.is_displayable,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+        if include_freshness:
+            data['is_recently_published'] = self.is_recently_published
 
         if include_zh:
             data.update(
@@ -177,8 +232,58 @@ class NewBook(db.Model):
         self.buy_links = json.dumps(links, ensure_ascii=False)
 
     def get_buy_links(self) -> list[dict[str, str]]:
-        """获取购买链接"""
-        return json.loads(self.buy_links) if self.buy_links else []
+        """获取购买链接；脏数据（非 list / 解析失败）返回空列表。"""
+        if not self.buy_links:
+            return []
+        try:
+            raw = json.loads(self.buy_links)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return raw if isinstance(raw, list) else []
+
+    def set_editions(self, editions: list[dict[str, Any]]) -> None:
+        """设置关联版本列表（元素含 format / isbn13 / is_main）。"""
+        self.editions_json = json.dumps(editions, ensure_ascii=False)
+
+    def get_editions(self) -> list[dict[str, Any]]:
+        """读取关联版本；无数据/脏数据时返回空列表。"""
+        if not self.editions_json:
+            return []
+        try:
+            raw = json.loads(self.editions_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return raw if isinstance(raw, list) else []
+
+    def set_field_provenance(self, provenance: list[dict[str, Any]]) -> None:
+        """设置字段出处列表。"""
+        self.field_provenance_json = json.dumps(provenance, ensure_ascii=False)
+
+    def get_field_provenance(self) -> list[dict[str, Any]]:
+        """读取字段出处；无数据/脏数据时返回空列表。"""
+        if not self.field_provenance_json:
+            return []
+        try:
+            raw = json.loads(self.field_provenance_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return raw if isinstance(raw, list) else []
 
     def __repr__(self) -> str:
         return f'<NewBook {self.title} by {self.author}>'
+
+
+class BatchImportReceipt(db.Model):  # type: ignore[name-defined]
+    """采集批次导入回执：支撑 batch_id 幂等与内容冲突检测。"""
+
+    __tablename__ = 'batch_import_receipts'
+
+    batch_id: str = db.Column(db.String(128), primary_key=True)
+    content_sha256: str = db.Column(db.String(64), nullable=False)
+    source_id: str = db.Column(db.String(64), nullable=False, index=True)
+    status: str = db.Column(db.String(32), nullable=False, comment='applied|duplicate|rejected')
+    receipt_json: str = db.Column(db.Text, nullable=False)
+    created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return cast('dict[str, Any]', json.loads(self.receipt_json))

@@ -12,37 +12,57 @@
     const themeToggle = document.getElementById('theme-toggle');
     const searchInput = document.getElementById('search-input');
 
-    // ===== Utilities =====
+    // ===== 顶部导航高度同步（--top-nav-height 跟随真实高度）=====
 
     /**
-     * Debounce function for performance optimization
+     * 把 --top-nav-height 同步为导航条的**实测高度**。
+     *
+     * 为什么需要这一步：窄屏（≤767px）导航会折行成两行，真实高度随视口变化
+     * （实测 390px 下为 95px），任何写死的值都只能适配一种宽度。
+     *
+     * 此前该变量在 ≤767px 被写成 `auto`，而它被用于 `calc(var(--top-nav-height) + …)`，
+     * 于是这些声明全部**非法并被浏览器丢弃**，后果有两处（均由 dsh-design-audit 实测发现）：
+     *   ① .sidebar-toggle 的 top 退回 auto，position:fixed 的按钮落到 y≈0 的导航条区域内，
+     *      被 z-index 1000 的 .top-nav 完全覆盖 —— 6 个采样点全部命中导航，侧栏开关点不到；
+     *   ② 主内容 padding-top 少了约 7px（88px < 导航实际 95px），正文压在导航条下缘。
+     *
+     * 窄屏下 .top-nav 的 height 是 auto（不是 var），因此实测回写不会自触发循环；
+     * 仍加一道相等判断以彻底避免 ResizeObserver 抖动。
      */
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
+    function syncTopNavHeight() {
+        const nav = document.querySelector('.top-nav');
+        if (!nav) return;
+        const height = Math.round(nav.getBoundingClientRect().height);
+        if (height <= 0) return;
+        const current = document.documentElement.style.getPropertyValue('--top-nav-height').trim();
+        if (current === height + 'px') return;
+        document.documentElement.style.setProperty('--top-nav-height', height + 'px');
     }
+
+    (function initTopNavHeightSync() {
+        // 注意：不要在这里用 `if (!nav) return;` 提前退出 —— base.js 若在导航条进入 DOM
+        // 之前执行，提前退出会把下面的 load 监听一并跳过，同步将永不发生（本次实测踩到）。
+        // 因此监听无条件注册，找不到导航时由 load 事件兜底。
+        syncTopNavHeight();
+        window.addEventListener('load', syncTopNavHeight);
+        window.addEventListener('resize', syncTopNavHeight);
+        document.addEventListener('DOMContentLoaded', syncTopNavHeight);
+        const nav = document.querySelector('.top-nav');
+        if (nav && typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncTopNavHeight).observe(nav);
+        }
+    })();
+
+    // ===== Utilities =====
 
     /**
      * Escape HTML to prevent XSS
      */
-    function escapeHtml(text) {
+    function esc(text) {
+        if (text === undefined || text === null) return '';
         const div = document.createElement('div');
-        div.textContent = text;
+        div.textContent = String(text);
         return div.innerHTML;
-    }
-
-    /**
-     * Generate unique ID
-     */
-    function generateId() {
-        return 'id_' + Math.random().toString(36).substr(2, 9);
     }
 
     // ===== Loading Functions =====
@@ -112,7 +132,7 @@
 
         toast.innerHTML = `
             <svg class="icon" width="20" height="20" style="flex-shrink: 0;"><use href="#${iconClass}"/></svg>
-            <span>${escapeHtml(message)}</span>
+            <span>${esc(message)}</span>
             <button class="toast-close" aria-label="关闭提示">
                 <svg class="icon" width="16" height="16"><use href="#icon-x"/></svg>
             </button>
@@ -244,10 +264,11 @@
     function toggleTheme() {
         const currentTheme = getSavedTheme() || getSystemTheme();
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        const lang = getCurrentLang();
 
         applyTheme(newTheme);
         showToast(
-            newTheme === 'dark' ? '已切换到深色模式' : '已切换到浅色模式',
+            window.t(newTheme === 'dark' ? 'theme_switched_dark' : 'theme_switched_light', lang),
             'success'
         );
     }
@@ -265,78 +286,8 @@
         // Add click listener to theme toggle
         if (themeToggle) {
             themeToggle.addEventListener('click', toggleTheme);
-            themeToggle.setAttribute('aria-label', '切换主题');
+            themeToggle.setAttribute('aria-label', window.t('theme_toggle_label', getCurrentLang()));
         }
-    }
-
-    // ===== View Mode Functions =====
-
-    /**
-     * Build URL with updated view param while preserving other query params
-     * @param {string} view - View mode (grid, list)
-     * @returns {string} URL with view param set
-     */
-    function buildViewUrl(view) {
-        const params = new URLSearchParams(window.location.search);
-        params.set('view', view);
-        return window.location.pathname + '?' + params.toString();
-    }
-
-    /**
-     * Toggle between grid and list view
-     * @param {string} view - View mode (grid, list)
-     */
-    function toggleView(view) {
-        const grid = document.getElementById('books-grid');
-        const list = document.getElementById('books-list');
-        const gridBtn = document.getElementById('view-grid');
-        const listBtn = document.getElementById('view-list');
-
-        localStorage.setItem('bookrank_view', view);
-
-        if (grid && list) {
-            // Dual-view DOM: switch visible view via CSS classes
-            if (view === 'grid') {
-                grid.classList.add('active');
-                list.classList.remove('active');
-                gridBtn?.classList.add('active');
-                listBtn?.classList.remove('active');
-            } else {
-                list.classList.add('active');
-                grid.classList.remove('active');
-                gridBtn?.classList.remove('active');
-                listBtn?.classList.add('active');
-            }
-        } else {
-            // Single-view DOM: let the server render the requested view
-            window.location.href = buildViewUrl(view);
-        }
-    }
-
-    /**
-     * Initialize view mode from saved preference
-     */
-    function initViewMode() {
-        const grid = document.getElementById('books-grid');
-        const list = document.getElementById('books-list');
-        const savedView = localStorage.getItem('bookrank_view') || localStorage.getItem('viewMode');
-        const urlParams = new URLSearchParams(window.location.search);
-
-        if (!grid || !list) {
-            // Single-view DOM: redirect to saved preference when URL has no view param
-            if (!urlParams.has('view') && savedView) {
-                const currentView = grid ? 'grid' : (list ? 'list' : null);
-                if (currentView && currentView !== savedView) {
-                    window.location.href = buildViewUrl(savedView);
-                }
-            }
-            return;
-        }
-
-        // Dual-view DOM: apply saved preference or server-rendered active view
-        const serverView = grid.classList.contains('active') ? 'grid' : (list.classList.contains('active') ? 'list' : null);
-        const view = savedView || serverView || 'grid';
-        toggleView(view);
     }
 
     // ===== Favorite Functions =====
@@ -362,13 +313,14 @@
         .then(data => {
             if (data.success) {
                 button.classList.toggle('active');
-                const icon = button.querySelector('i');
                 const nowActive = button.classList.contains('active');
-                if (icon) {
-                    icon.innerHTML = nowActive
-                        ? '<use href="#icon-heart-filled"/>'
-                        : '<use href="#icon-heart"/>';
+                // 按钮里是 <svg class="icon"><use href="#icon-heart"/></svg>，没有 <i> 节点：
+                // 旧代码 querySelector('i') 恒为 null，实心图标从未换上过。
+                const iconUse = button.querySelector('use');
+                if (iconUse) {
+                    iconUse.setAttribute('href', nowActive ? '#icon-heart-filled' : '#icon-heart');
                 }
+                button.setAttribute('aria-pressed', nowActive ? 'true' : 'false');
                 button.classList.add('heart-beat');
                 setTimeout(() => button.classList.remove('heart-beat'), 500);
                 showToast(nowActive ? '已添加到收藏' : '已取消收藏', 'success');
@@ -409,13 +361,6 @@
         const query = params.toString();
         window.location.href = window.location.pathname + (query ? '?' + query : '');
     }
-
-    /**
-     * Handle search input with debounce
-     */
-    const handleSearch = debounce(() => {
-        applyFilters();
-    }, 500);
 
     // ===== Keyboard Navigation =====
 
@@ -471,38 +416,62 @@
             });
         }
 
-        // View toggle buttons
-        const viewGridBtn = document.getElementById('view-grid');
-        const viewListBtn = document.getElementById('view-list');
-
-        if (viewGridBtn) {
-            viewGridBtn.addEventListener('click', () => toggleView('grid'));
-        }
-        if (viewListBtn) {
-            viewListBtn.addEventListener('click', () => toggleView('list'));
-        }
-
         const langGlobe = document.getElementById('lang-globe');
         const langOptZh = document.getElementById('lang-opt-zh');
         const langOptEn = document.getElementById('lang-opt-en');
 
         if (langGlobe) langGlobe.addEventListener('click', toggleLangMenu);
-        if (langOptZh) langOptZh.addEventListener('click', () => switchLanguage('zh'));
-        if (langOptEn) langOptEn.addEventListener('click', () => switchLanguage('en'));
+        if (langOptZh) langOptZh.addEventListener('click', () => setGlobalLanguage('zh'));
+        if (langOptEn) langOptEn.addEventListener('click', () => setGlobalLanguage('en'));
+    }
+
+    /**
+     * 封面地址规范化：委托 cover.js 的 BookRankCover.toSrc。
+     * cover.js 未加载时仍走同源代理，禁止身份回退把境外图床写进 img src。
+     */
+    function coverToSrc(raw) {
+        if (window.BookRankCover && typeof window.BookRankCover.toSrc === 'function') {
+            return window.BookRankCover.toSrc(raw);
+        }
+        const value = (raw === null || raw === undefined) ? '' : String(raw).trim();
+        if (!value) return '';
+        if (value.indexOf('/static/') === 0 || value.indexOf('/cache/images/') === 0 || value.indexOf('/cover') === 0) {
+            return value;
+        }
+        return '/cover?src=' + encodeURIComponent(value);
     }
 
     /**
      * 全局图片错误处理 - 替代 onerror 内联属性
+     *
+     * 多级回退：本地缓存(cover_local_path) → 原始URL(cover_original_url) → 默认封面(data-fallback)
+     * 通过 data-original / data-fallback 属性实现，避免无限回退。
      */
+    function applyImageFallback(img) {
+        const tried = img.dataset.imgTried ? img.dataset.imgTried.split(',') : [];
+        const current = img.currentSrc || img.src;
+        if (tried.indexOf(current) === -1) tried.push(current);
+
+        const original = coverToSrc(img.getAttribute('data-original'));
+        const fallback = img.getAttribute('data-fallback');
+        const candidates = [];
+        if (original && tried.indexOf(original) === -1) candidates.push(original);
+        if (fallback && tried.indexOf(fallback) === -1) candidates.push(fallback);
+
+        if (candidates.length > 0) {
+            img.dataset.imgTried = tried.join(',') + ',' + candidates[0];
+            img.src = candidates[0];
+        }
+    }
+
     function initImageErrorHandler() {
         document.addEventListener('error', function(e) {
-            if (e.target.tagName === 'IMG') {
-                const fallback = e.target.getAttribute('data-fallback');
-                if (fallback && e.target.src !== fallback) {
-                    e.target.src = fallback;
-                }
-            }
+            if (e.target.tagName === 'IMG') applyImageFallback(e.target);
         }, true);
+        // base.js 在 body 末尾执行，此前已失败的图片不会再触发 error，需补扫
+        document.querySelectorAll('img[data-fallback]').forEach(function(img) {
+            if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
+        });
     }
 
     /**
@@ -511,9 +480,11 @@
     function init() {
         initEventListeners();
         initTheme();
-        initViewMode();
         initLanguage();
         initImageErrorHandler();
+        if (window.BookRankCover && typeof window.BookRankCover.bind === 'function') {
+            window.BookRankCover.bind(document);
+        }
     }
 
     // Run on DOM ready
@@ -576,48 +547,20 @@
     }
 
     /**
-     * Switch language - uses backend /set-language to set cookie then refreshes page
-     * @param {string} lang - Language code (en, zh)
+     * Current UI language: saved preference, else browser detection
      */
-    function switchLanguage(lang) {
-        localStorage.setItem('app_language', lang);
-        localStorage.setItem('bookrank_language', lang);
-
-        // 同步 html lang，便于屏幕阅读器正确发音
-        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-
-        if (typeof setGlobalLanguage === 'function') {
-            setGlobalLanguage(lang);
-        }
-
-        const host = window.location.hostname;
-        const cookieDomain = host.includes('.') ? host : '';
-        document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax; domain=' + cookieDomain;
-    }
-
-    /**
-     * Apply generic translation for pages without custom translation logic
-     * (Kept for backward compatibility with dynamic content)
-     * @param {string} lang - Language code (en, zh)
-     */
-    function applyGenericTranslation(lang) {
-        // Most static UI text is now handled by Flask-Babel server-side
-        // This remains for any dynamic elements with data-zh/data-en attributes
-        const translatableElements = document.querySelectorAll('[data-zh][data-en]');
-
-        translatableElements.forEach(el => {
-            el.textContent = lang === 'zh' ? el.getAttribute('data-zh') : el.getAttribute('data-en');
-        });
+    function getCurrentLang() {
+        var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        var browserLang = navigator.language || navigator.userLanguage || '';
+        var defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
+        return savedLang || defaultLang;
     }
 
     /**
      * Initialize language based on saved preference or browser detection
      */
     function initLanguage() {
-        var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
-        var browserLang = navigator.language || navigator.userLanguage || '';
-        var defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
-        var currentLang = savedLang || defaultLang;
+        var currentLang = getCurrentLang();
 
         updateLangDropdown(currentLang);
 
@@ -636,48 +579,17 @@
 
     // ===== Expose Public API =====
 
-    window.BookRank = Object.assign(window.BookRank || {}, {
-        showLoading,
-        hideLoading,
-        showToast,
-        toggleView,
-        toggleFavorite,
-        clearFilters,
-        applyFilters,
-        toggleTheme,
-        toggleSidebar,
-        switchLanguage,
-        initLanguage
-    });
-
-    // Also expose as global functions for inline handlers
+    // Expose global helpers for inline handlers/templates
+    window.esc = esc;
+    window.escapeHtml = esc;
     window.showLoading = showLoading;
     window.hideLoading = hideLoading;
     window.showToast = showToast;
-    window.toggleView = toggleView;
     window.toggleFavorite = toggleFavorite;
     window.clearFilters = clearFilters;
     window.applyFilters = applyFilters;
     window.toggleTheme = toggleTheme;
-    window.switchLanguage = switchLanguage;
     window.toggleLangMenu = toggleLangMenu;
     window.closeLangMenu = closeLangMenu;
-
-    /**
-     * 防御式主题颜色获取函数
-     * 避免旧构建产物或外部脚本调用时因返回 undefined 而抛出 TypeError
-     */
-    window.getThemeColors = function() {
-        const root = getComputedStyle(document.documentElement);
-        return {
-            exportedColors: {
-                primary: root.getPropertyValue('--primary').trim() || '#171717',
-                secondary: root.getPropertyValue('--secondary').trim() || '#525252',
-                background: root.getPropertyValue('--background').trim() || '#ffffff',
-                foreground: root.getPropertyValue('--foreground').trim() || '#171717',
-                accent: root.getPropertyValue('--accent').trim() || '#dc2626'
-            }
-        };
-    };
 
 })();

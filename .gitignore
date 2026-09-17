@@ -7,6 +7,8 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+# #177 前端构建产物：static/dist/ 必须提交（Render 生产无 node 构建步骤）
+!static/dist/
 downloads/
 eggs/
 .eggs/
@@ -54,8 +56,16 @@ __pycache__/
 .coverage
 pytest_output.txt
 
+# Node.js dependencies
+node_modules/
+
+# Archived / scratch working files
+.scratch/
+archive/
+
 # Agent / IDE data
 .workbuddy/
+.design-audit/
 
 # Logs
 *.log
@@ -120,3 +130,6 @@ open-source-tools/
 # Feedback & review artifacts (working inputs, not source code)
 feedback/
 site-review-report.html
+
+# GitHub CLI cache
+.gh-cache/
