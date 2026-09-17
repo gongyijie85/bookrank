@@ -21,7 +21,10 @@ from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
+from .utils.api_helpers import PLACEHOLDER_TEXTS
+from .utils.book_labels import award_term, bilingual, category_name, language_name
 from .utils.book_titles import split_volume_marker
+from .utils.cover_urls import cover_src, cover_src_or_default
 from .utils.error_handler import ErrorCategory, log_error
 
 babel = Babel()
@@ -110,10 +113,28 @@ def create_app(config_name: str | None = None) -> Flask:
     # 同系列各卷将显示为完全相同的标题（见 app/utils/book_titles.py）
     app.jinja_env.globals['split_volume_marker'] = split_volume_marker
 
+    # 语言名中英对照：库里存的是 config.LANGUAGE_MAP 的中文名，英文页会显示「英语」
+    # （见 app/utils/book_labels.py）。#236
+    app.jinja_env.filters['language_name'] = language_name
+
+    # 双语字段择一（奖项名等有 *_en 列的实体）与中文枚举词对照（奖项国家/类别）。#227
+    app.jinja_env.filters['bilingual'] = bilingual
+    app.jinja_env.filters['award_term'] = award_term
+    app.jinja_env.filters['category_name'] = category_name
+
+    # 封面地址规范化：境外图床（storage.googleapis.com / covers.openlibrary.org 等）
+    # 国内不可直连，且不在 CSP img-src 白名单内，统一改写为同源 /cover?src= 代理。
+    app.jinja_env.filters['cover_src'] = cover_src
+    app.jinja_env.filters['cover_src_or_default'] = cover_src_or_default
+
     # dist_url: 前端构建产物（static/dist/）的指纹化文件名解析
     # （scripts/build_frontend.mjs 生成 manifest.json；dev 无 manifest 时
     # fallback 到源文件路径，保证本地无构建步骤仍可运行）
     app.jinja_env.globals['dist_url'] = _make_dist_url(app)
+
+    # 占位串清单：模板不再自带字面量，统一用 api_helpers 的单一真相源判定
+    # （历史上模板/服务/脚本各存一份，改一处漏一处，正是「详情整块消失」的成因之一）。
+    app.jinja_env.globals['PLACEHOLDER_TEXTS'] = PLACEHOLDER_TEXTS
 
     import atexit
 

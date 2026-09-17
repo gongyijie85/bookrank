@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ..services.new_book import NewBookModules
+    from ..services.open_library_client import OpenLibraryClient
 
 from flask import current_app, request
 
@@ -85,6 +86,21 @@ def get_google_books_client() -> GoogleBooksClient | None:
     if book_service and hasattr(book_service, '_google_client'):
         return cast('GoogleBooksClient | None', book_service._google_client)
     return None
+
+
+def get_open_library_client() -> 'OpenLibraryClient | None':
+    """获取已注册的 OpenLibraryClient（extensions['open_library_client']）；未注册返回 None。"""
+    return cast('OpenLibraryClient | None', get_service('open_library_client'))
+
+
+def get_or_create_open_library_client() -> 'OpenLibraryClient':
+    """获取 OpenLibraryClient；未注册时创建兜底实例（Open Library 无需 API Key）。"""
+    client = get_open_library_client()
+    if client:
+        return client
+    from ..services.open_library_client import OpenLibraryClient
+
+    return OpenLibraryClient()
 
 
 def hash_client_ip(raw_ip: str | None = None) -> str | None:

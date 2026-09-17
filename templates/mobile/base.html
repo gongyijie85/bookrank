@@ -102,6 +102,7 @@
         </a>
     </nav>
 
+    <script src="{{ url_for('static', filename=dist_url('cover.js')) }}"></script>
     <script src="{{ url_for('static', filename='mobile/js/mobile.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>

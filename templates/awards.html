@@ -17,18 +17,19 @@
 {% macro award_book_card(book, in_rail=false) %}
 {% set detail_url = url_for('main.award_book_detail', book_id=book.id) %}
 {% set shown_title = (book.title_zh or book.title_en or book.title) if _l == 'zh' else (book.title_en or book.title) %}
+{% set shown_award = (book.award_name|bilingual(book.award_name_en)) or _('未知') %}
 <article class="card card-animate"
          {% if not in_rail %}data-award-book-id="{{ book.id }}" tabindex="0"
-         aria-label="{{ book.title }} - {{ book.author or _('未知作者') }} - {{ book.award_name }}"{% endif %}>
+         aria-label="{{ book.title }} - {{ book.author or _('未知作者') }} - {{ shown_award }}"{% endif %}>
     <div class="card-image">
         <div class="cover-frame">
             <a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ shown_title }}{{ _('》封面') }}">
-                <img src="{{ book.cover_local_path or book.cover_original_url or url_for('static', filename='default-cover.png') }}"
+                <img src="{{ (book.cover_local_path or book.cover_original_url)|cover_src_or_default }}"
                      alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                      loading="lazy"
                      width="280"
                      height="420"
-                     data-original="{{ book.cover_original_url or '' }}"
+                     data-original="{{ book.cover_original_url|cover_src }}"
                      data-fallback="{{ url_for('static', filename='default-cover.png') }}">
             </a>
         </div>
@@ -46,7 +47,7 @@
     </div>
 
     <div class="card-content">
-        <span class="card-award-tag">{{ book.award_name }}</span>
+        <span class="card-award-tag">{{ shown_award }}</span>
         {% if in_rail %}
         <h3 class="card-title">{{ shown_title }}</h3>
         {% else %}
@@ -84,7 +85,8 @@
     <p class="charts-source" data-i18n="page_title_awards">{{ _('国际图书奖项榜单') }}</p>
     <p class="page-subtitle">
         {% if selected_award %}
-            {{ selected_award }} {{ _('获奖图书展示') }}{% if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
+            {% set selected_award_obj = awards | selectattr('name', 'equalto', selected_award) | first %}
+            {{ (selected_award_obj.name|bilingual(selected_award_obj.name_en)) if selected_award_obj else selected_award }} {{ _('获奖图书展示') }}{% if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
         {% else %}
             {{ _('汇集全球最具影响力的图书奖项') }} · {{ total_books }} {{ _('本图书') }} · {{ awards|length }} {{ _('个奖项') }}
         {% endif %}
@@ -101,7 +103,7 @@
 {% if awards %}
 <nav class="awards-seal-strip" aria-label="{{ _('奖项速览') }}">
     {% for award in awards %}
-    <a href="{{ url_for('main.awards', award=award.name) }}">{{ award.name_en or award.name }}</a>
+    <a href="{{ url_for('main.awards', award=award.name) }}">{{ award.name|bilingual(award.name_en) }}</a>
     {% endfor %}
 </nav>
 {% endif %}
@@ -113,8 +115,9 @@
     <a href="{{ url_for('main.awards', award=award.name) }}"
        class="award-tile"
        {% if selected_award == award.name %}aria-current="page"{% endif %}>
-        <span class="award-tile-name">{{ award.name }}</span>
-        {% set _tile_meta %}{{ award.country or '' }}{% if award.established_year %}{{ ' · ' if award.country else '' }}{{ award.established_year }}{% endif %}{% endset %}
+        <span class="award-tile-name">{{ award.name|bilingual(award.name_en) }}</span>
+        {% set shown_country = award.country|award_term %}
+        {% set _tile_meta %}{{ shown_country }}{% if award.established_year %}{{ ' · ' if shown_country else '' }}{{ award.established_year }}{% endif %}{% endset %}
         {% if _tile_meta.strip() %}<span class="award-tile-meta">{{ _tile_meta }}</span>{% endif %}
         <span class="award-tile-count">{{ award.book_count }} {{ _('本图书') }}</span>
     </a>
@@ -124,9 +127,9 @@
 
 <!-- Per-award shelves -->
 {% for section in award_sections %}
-<section class="award-section" aria-label="{{ section.award.name }}">
+<section class="award-section" aria-label="{{ section.award.name|bilingual(section.award.name_en) }}">
     <div class="award-section-head">
-        <h2 class="award-section-title">{{ section.award.name }}</h2>
+        <h2 class="award-section-title">{{ section.award.name|bilingual(section.award.name_en) }}</h2>
         <a class="award-section-more" href="{{ url_for('main.awards', award=section.award.name) }}">{{ _('查看更多') }} &rarr;</a>
     </div>
     <div class="award-rail-shell">
@@ -149,7 +152,7 @@
             <option value="" data-i18n="filter_award_all">{{ _('全部奖项') }}</option>
             {% for award in awards %}
             <option value="{{ award.name }}" {% if selected_award == award.name %}selected{% endif %}>
-                {{ award.name }}
+                {{ award.name|bilingual(award.name_en) }}
             </option>
             {% endfor %}
         </select>
@@ -173,7 +176,7 @@
             <option value="" data-i18n="filter_category_all">{{ _('全部分类') }}</option>
             {% for category in categories %}
             <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>
-                {{ category }}
+                {{ category|award_term or category }}
             </option>
             {% endfor %}
         </select>
@@ -210,7 +213,7 @@
 <!-- Results -->
 {% if not is_browsing %}
 <div class="awards-active-filter">
-    <span>{{ _('当前筛选') }}：{{ selected_award or _('全部奖项') }}
+    <span>{{ _('当前筛选') }}{{ _('：') }}{{ selected_award or _('全部奖项') }}
         {%- if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
         {%- if selected_category %} · {{ selected_category }}{% endif %}
         {%- if search_query %} · &ldquo;{{ search_query }}&rdquo;{% endif %}</span>
@@ -314,7 +317,7 @@
         const titleEls = document.querySelectorAll('.card-title, .list-item-title');
         if (!titleEls.length) return;
 
-        const lang = localStorage.getItem('bookrank_language') || 'en';
+        const lang = window.__APP_LANG__ || 'en';
         if (lang === 'en') return;
 
         const toTranslate = [];
@@ -381,7 +384,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        var lang = localStorage.getItem('bookrank_language') || localStorage.getItem('app_language') || 'en';
+        var lang = window.__APP_LANG__ || 'en';
 
         if (typeof BookI18n !== 'undefined') {
             var awardBooks = [];

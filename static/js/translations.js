@@ -45,6 +45,7 @@ const TRANSLATIONS = {
         'view_original': '查看英文原文',
         'hide_original': '收起英文原文',
         'no_description': '暂无简介',
+        'no_details': '暂无详细介绍',
         // 首页
         'page_title_bestsellers': '纽约时报畅销书排行榜',
         'page_title_awards': '国际图书奖项榜单',
@@ -257,6 +258,7 @@ const TRANSLATIONS = {
         'view_original': 'View Original',
         'hide_original': 'Hide Original',
         'no_description': 'No description',
+        'no_details': 'No detailed description available',
         // Home
         'page_title_bestsellers': 'NYT Bestsellers',
         'page_title_awards': 'International Book Awards',

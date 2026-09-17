@@ -48,7 +48,9 @@ def main():
 
             try:
                 # 每个出版社先同步 20 本（避免耗时太长）
-                result = modules.sync_engine.sync_publisher_books(publisher.id, category=None, max_books=20, translate=False)
+                result = modules.sync_engine.sync_publisher_books(
+                    publisher.id, category=None, max_books=20, translate=False
+                )
                 results.append(result)
 
                 if result['success']:

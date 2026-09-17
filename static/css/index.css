@@ -398,7 +398,9 @@
 /* 网格视图 */
 .books-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    /* 320px（原 280px）：简介不再截断后需要更宽的正文栏，
+       窄卡片会把长简介挤成"每行几个字"的窄柱。 */
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1.5rem;
 }
 
@@ -631,6 +633,9 @@
     color: var(--text-secondary);
     margin: 0;
     line-height: 1.5;
+    /* 完整展示：不设 -webkit-line-clamp / overflow: hidden（截断源见 components.css） */
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* 列表视图 */
@@ -1083,10 +1088,6 @@
     .card-desc {
         font-size: 0.8125rem;
         line-height: 1.5;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
     }
 
     .list-item-header {

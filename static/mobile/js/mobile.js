@@ -125,6 +125,10 @@
         document.querySelectorAll('img[data-cover-fallback]').forEach(function (img) {
             if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
         });
+        // /cover 冷缓存 302 到占位图时 error 不会触发，交给 cover.js 按 load 重试。
+        if (window.BookRankCover && typeof window.BookRankCover.bind === 'function') {
+            window.BookRankCover.bind(document);
+        }
     }
 
     // ===== 4b. 周报生成轮询（模板只放 [data-report-poll] 标记） =====
@@ -308,7 +312,21 @@
             .then(function (data) {
                 if (!data || !data.data) return;
                 const details = (data.data.details || '').trim();
-                const PLACEHOLDERS = ['暂无详细介绍', 'No detailed description available.', 'No summary available.', 'No summary available'];
+                // 占位串镜像：JS 无法 import Python，这里是
+                // app/utils/api_helpers.py 的 PLACEHOLDER_TEXTS 的逐字副本。
+                // 两边必须一致 —— tests/test_placeholder_single_source.py 会断言相等，漂移即红。
+                const PLACEHOLDERS = [
+                    'No summary available.',
+                    'No summary available',
+                    'No detailed description available.',
+                    'No description available.',
+                    '暂无简介',
+                    '暂无详细介绍',
+                    '暂无详细描述',
+                    'Unknown',
+                    'N/A',
+                    'None'
+                ];
                 if (!details || PLACEHOLDERS.indexOf(details) !== -1) return;
                 // 渲染到 .m-tab-panel-extra
                 extraEl.innerHTML = '';

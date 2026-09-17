@@ -20,6 +20,7 @@ const jsEntries = {
   'categories.js': 'static/js/categories.js',
   'translations.js': 'static/js/translations.js',
   'book-i18n.js': 'static/js/book-i18n.js',
+  'cover.js': 'static/js/cover.js',
   'base.js': 'static/js/base.js',
   'index.js': 'static/js/index.js',
 };
@@ -78,16 +79,12 @@ async function buildOnce() {
 
 function cleanup() {
   if (!existsSync(DIST)) return;
-  // ponytail: manifest is source of truth; old hashed bundles not in manifest get purged
-  let keep = new Set([
-    'manifest.json',
-    'app.min.css',
-    'categories.min.js',
-    'translations.min.js',
-    'book-i18n.min.js',
-    'base.min.js',
-    'index.min.js',
-  ]);
+  // ponytail: manifest is source of truth; old hashed bundles not in manifest get purged.
+  // Stable *.min.js names come from jsEntries so a new entry cannot be written then deleted.
+  let keep = new Set(['manifest.json', 'app.min.css']);
+  for (const key of Object.keys(jsEntries)) {
+    keep.add(key.replace(/\.js$/, '.min.js'));
+  }
   try {
     const manifest = JSON.parse(readFileSync(join(DIST, 'manifest.json'), 'utf-8'));
     for (const name of Object.values(manifest)) keep.add(name);

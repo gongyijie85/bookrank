@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..models.database import db
 from ..models.schemas import BookMetadata, TranslationCache
-from ..utils.api_helpers import clean_translation_text, is_non_substantive_details
+from ..utils.api_helpers import PLACEHOLDER_TEXTS, clean_translation_text, is_non_substantive_details
 from ..utils.error_handler import ErrorCategory, log_error
 from .translation_cache_service import TranslationCacheService
 
@@ -26,14 +26,8 @@ class BookLanguagePack:
         ('description', 'description_zh', 'description'),
         ('details', 'details_zh', 'details'),
     )
-    _PLACEHOLDERS = {
-        'No summary available.',
-        'No detailed description available.',
-        'Unknown',
-        'N/A',
-        '暂无简介',
-        '暂无详细介绍',
-    }
+    # 占位串清单派生自 api_helpers 的单一真相源（不要再写第二份字面量）。
+    _PLACEHOLDERS = PLACEHOLDER_TEXTS
 
     def __init__(self, pack_path: str | Path | None = None):
         self._pack_path = Path(pack_path) if pack_path else None

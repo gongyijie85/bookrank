@@ -27,36 +27,49 @@ ROOT = Path(__file__).resolve().parent.parent
 LOCALES = ('en', 'zh')
 
 
-def parse_entries(text: str) -> dict[str, str]:
-    """把 .po/.pot 解析成 {msgid: msgstr}，丢弃注释、obsolete 条目与头部元数据。"""
+def parse_entries(text: str) -> tuple[dict[str, str], set[str]]:
+    """把 .po/.pot 解析成 ({msgid: msgstr}, 带 fuzzy 标记的 msgid 集合)。
+
+    丢弃注释、obsolete 条目与头部元数据；但 `#, fuzzy` 要单独记下来 —— msgfmt 默认跳过
+    fuzzy 条目，运行时回落 msgid，光看 msgstr 是否为空根本发现不了。
+    """
     entries: dict[str, str] = {}
+    fuzzy: set[str] = set()
     msgid: str | None = None
     msgstr: str | None = None
     field: str | None = None
+    entry_fuzzy = False  # 当前条目是否 fuzzy
+    pending_fuzzy = False  # 注释块里读到、尚未归属任何 msgid 的 fuzzy 标记
 
     def flush() -> None:
-        if msgid is not None and msgid != '' and msgstr is not None:
-            entries[msgid] = msgstr
+        nonlocal msgid, msgstr, field, entry_fuzzy
+        if msgid:
+            entries[msgid] = msgstr or ''
+            if entry_fuzzy:
+                fuzzy.add(msgid)
+        msgid, msgstr, field, entry_fuzzy = None, None, None, False
 
     for line in text.splitlines():
         if line.startswith('msgid '):
             flush()
-            msgid, msgstr, field = _unquote(line[6:]), None, None
+            msgid, msgstr, field = _unquote(line[6:]), None, 'id'
+            entry_fuzzy, pending_fuzzy = pending_fuzzy, False
         elif line.startswith('msgstr '):
             msgstr, field = _unquote(line[7:]), 'str'
         elif line.startswith('"'):
-            body = _unquote(line[1:])
+            body = _unquote(line)  # 整行就是 "…"，截掉首字符会让收尾引号剥不掉
             if field == 'id' and msgid is not None:
-                msgid += body
+                msgid += body  # 多行 msgid 的续行必须拼回，否则长词条会撞成同一个 key
             elif field == 'str' and msgstr is not None:
                 msgstr += body
+        elif line.startswith('#,') and 'fuzzy' in line:
+            pending_fuzzy = True
         elif line.startswith('#'):
-            continue  # 注释与 obsolete：语义无关
+            continue
         else:
             flush()
-            msgid, msgstr, field = None, None, None
     flush()
-    return entries
+    return entries, fuzzy
 
 
 def _unquote(literal: str) -> str:
@@ -85,8 +98,8 @@ def main() -> int:
         bad = 0
         for locale in LOCALES:
             rel = Path('translations') / locale / 'LC_MESSAGES' / 'messages.po'
-            committed = parse_entries((ROOT / rel).read_text(encoding='utf-8'))
-            fresh = parse_entries((work / rel).read_text(encoding='utf-8'))
+            committed, committed_fuzzy = parse_entries((ROOT / rel).read_text(encoding='utf-8'))
+            fresh, fresh_fuzzy = parse_entries((work / rel).read_text(encoding='utf-8'))
             missing = sorted(set(fresh) - set(committed))  # 代码里有、目录里缺 —— 唯一阻塞项
             stale = sorted(set(committed) - set(fresh))  # 模板已删但目录仍留（仅提示）
             empties = sorted(m for m, s in fresh.items() if not s.strip())
@@ -102,6 +115,22 @@ def main() -> int:
                     print(f'   缺 msgid: {m[:60]!r}')
             # 空译文**不阻塞**：zh 侧 msgid 本身就是中文，msgstr 为空是正确回落；en 侧的
             # 历史缺口由 tests/test_i18n_catalog.py 跟踪。判红会让门禁天天是红的，然后被忽略。
+            # fuzzy 必须单独判：`pybabel update` 会给新条目标 fuzzy 并**借用相近词条的旧译文**
+            # （实测 奖项筛选 被填成 "Filter"、类别筛选 被填成 "Category"），而 msgfmt 默认跳过
+            # fuzzy 条目 —— 运行时直接回落中文 msgid，英文页照旧是中文，且按 `msgstr ""`
+            # 找未译项的写法根本看不见它。
+            # 判 committed 里的**所有** fuzzy，而不是只判新增：否则一次带 fuzzy 的提交就永久免检。
+            # en 当前为 0 条，所以这条可以直接阻塞；zh 回落中文 msgid 本就是正确结果，只提示。
+            if locale == 'en' and committed_fuzzy:
+                bad += 1
+                print(
+                    f'::error::en: {len(committed_fuzzy)} 条 fuzzy 条目 —— msgfmt 会跳过它们，'
+                    '运行时回落中文 msgid，且其 msgstr 是借用相近词条的错译'
+                )
+                for m in sorted(committed_fuzzy)[:8]:
+                    print(f'   需去 fuzzy 并核对译文: {m[:60]!r}')
+            elif locale == 'zh' and (fresh_fuzzy - committed_fuzzy):
+                print(f'::warning::zh: 新增 {len(fresh_fuzzy - committed_fuzzy)} 条 fuzzy（zh 回落中文 msgid 可接受）')
             if locale == 'en' and cjk_empties:
                 print(
                     f'::warning::en: {len(cjk_empties)} 条中文 msgid 缺英文译文，英文页会显示中文：'

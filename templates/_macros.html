@@ -9,7 +9,7 @@
 <div class="book-card" data-book-id="{{ book.id }}" data-isbn="{{ book.isbn13 or book.isbn10 or '' }}">
     <div class="book-cover-wrapper">
         {% if book.cover_url %}
-        <img src="{{ book.cover_url }}" alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}" class="book-cover" loading="lazy"
+        <img src="{{ book.cover_url|cover_src_or_default }}" alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}" class="book-cover" loading="lazy"
              data-fallback="/static/default-cover.png">
         {% else %}
         <div class="book-cover-placeholder">
@@ -58,7 +58,7 @@
             </span>
             {% endif %}
             {% if book.category %}
-            <span class="book-tag tag-category">{{ book.category }}</span>
+            <span class="book-tag tag-category">{{ book.category|category_name }}</span>
             {% else %}
             <span class="book-tag tag-category tag-muted">{{ _('分类未公开') }}</span>
             {% endif %}
@@ -107,7 +107,7 @@
 <article class="browse-card">
     <div class="browse-card-media">
         {% if book.cover_url %}
-        <img src="{{ book.cover_url }}"
+        <img src="{{ book.cover_url|cover_src_or_default }}"
              alt="{{ _('《') }}{{ full_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
              loading="lazy"
              width="160"

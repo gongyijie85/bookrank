@@ -46,9 +46,9 @@
     </div>
     {% if categories %}
     <div class="m-cat-tabs-scroll no-scrollbar" style="display:flex;gap:0.5rem;overflow-x:auto;">
-        <a href="/new-books?days={{ selected_days }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部分类') }}</a>
+        <a href="{{ url_for('main.new_books', days=selected_days) }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部分类') }}</a>
         {% for cat in categories %}
-        <a href="/new-books?category={{ cat }}&days={{ selected_days }}" class="m-cat-tab {% if selected_category==cat %}active{% endif %}">{{ cat }}</a>
+        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}" class="m-cat-tab {% if selected_category == cat.name %}active{% endif %}">{{ cat.name|category_name }}</a>
         {% endfor %}
     </div>
     {% endif %}
@@ -61,22 +61,23 @@
 {% if books %}
 <div class="m-book-list">
     {% for book in books %}
+    {% set shown_title = book.title_zh|bilingual(book.title) %}
     <a href="/new-book/{{ book.id }}" class="m-card m-book-card">
         <div class="m-book-cover">
-            <img src="{{ book.cover_url or url_for('static', filename='default-cover.png') }}"
-                 alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知') }}"
+            <img src="{{ book.cover_url|cover_src_or_default }}"
+                 alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知') }}"
                  loading="lazy" width="60" height="80"
                  data-cover-fallback="">
         </div>
         <div class="m-book-info">
-            <h3 class="m-book-title">{{ book.title_zh or book.title }}</h3>
+            <h3 class="m-book-title">{{ shown_title }}</h3>
             <p class="m-book-author">{{ book.author or _('未知') }}</p>
             <p class="m-book-card-meta">
                 {% if book.publisher %}{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }} · {% endif %}
                 {% if book.publication_date %}{{ book.publication_date }}{% endif %}
-                {% if book.category %} · {{ book.category }}{% endif %}
+                {% if book.category %} · {{ book.category|category_name }}{% endif %}
             </p>
-            {% set desc = book.description_zh or book.description %}
+            {% set desc = (book.description_zh or book.description) if _l == 'zh' else (book.description or book.description_zh) %}
             {% if desc %}<p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length>80 %}…{% endif %}</p>{% endif %}
         </div>
     </a>
