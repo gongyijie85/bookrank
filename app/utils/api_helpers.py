@@ -550,3 +550,61 @@ def is_english_echo(source: str, translated: str, target_lang: str) -> bool:
     if not any('a' <= ch.lower() <= 'z' for ch in src):
         return False
     return not any('\u4e00' <= ch <= '\u9fff' for ch in dst)
+
+
+# 只有这些字段启用「上下文注水」防线。简介/详情可长可短，模型最容易借上下文发挥；
+# 书名/作者这类短字段不启用，避免把正常的意译误判成膨胀。
+INFLATION_GUARDED_FIELDS = frozenset({'description', 'details'})
+
+# 判定阈值（按生产快照标定，见 is_inflated_translation）。
+_INFLATION_MIN_TRANSLATED_CHARS = 120
+_INFLATION_MAX_RATIO = 1.5
+_INFLATION_METADATA_FIELDS = ('publisher', 'list_name', 'category_name', 'series')
+_INFLATION_MIN_METADATA_CHARS = 4
+
+
+def is_inflated_translation(source: str | None, translated: str | None, context: Any = None) -> bool:
+    """译文是否被「图书上下文注水」——长度暴涨，或把上下文里的元信息写进了正文。
+
+    实测症状（2026-09-17 生产快照）：中文简介比英文原文长数倍，但内容不是翻译 ——
+    模型拿上下文里的书名、作者、榜单名重新写了一段图书介绍：
+
+    - `AWESOME FRIENDLY KID`：英文 73 字符 → 中文 311 字符（4.26 倍）
+    - `WARRIORS: THE PROPHECIES BEG`：英文 72 字符 → 中文 201 字符（2.79 倍）
+
+    正常译文的中文字符数只有英文的 0.42 倍（中位数），所以长度暴涨是强信号。两条
+    判定互相独立：长度比率；以及上下文元信息（出版社/榜单/类别/系列）出现在译文、
+    却没出现在原文。
+
+    Args:
+        source: 英文原文。
+        translated: 模型产出的中文译文。
+        context: 当时传给翻译的图书上下文（dict，或带同名属性的对象）。
+
+    Returns:
+        True 表示该译文不可信，不应展示、缓存或落库。
+    """
+    src = (source or '').strip()
+    dst = (translated or '').strip()
+    if not src or not dst:
+        return False
+
+    if len(dst) >= _INFLATION_MIN_TRANSLATED_CHARS and len(dst) > len(src) * _INFLATION_MAX_RATIO:
+        return True
+
+    return any(value not in src and value in dst for value in _context_metadata_values(context))
+
+
+def _context_metadata_values(context: Any) -> list[str]:
+    """取出上下文中「只该用于消歧、不该出现在译文里」的元信息值。"""
+    if not context:
+        return []
+    values: list[str] = []
+    for field in _INFLATION_METADATA_FIELDS:
+        raw = context.get(field) if isinstance(context, dict) else getattr(context, field, None)
+        if not raw or isinstance(raw, (dict, list, tuple)):
+            continue
+        text = str(raw).strip()
+        if len(text) >= _INFLATION_MIN_METADATA_CHARS:
+            values.append(text)
+    return values
