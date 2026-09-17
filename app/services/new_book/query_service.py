@@ -1,12 +1,9 @@
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ...models.database import db
 from ...models.new_book import NewBook, Publisher
 from .translation_pipeline import TranslationPipeline
-
-logger = logging.getLogger(__name__)
 
 
 class NewBookQueryService:
@@ -37,13 +34,14 @@ class NewBookQueryService:
         self,
         publisher_id: int | None = None,
         category: str | None = None,
-        days: int = 90,
+        days: int = 30,
         page: int = 1,
         per_page: int = 20,
     ) -> tuple[list[NewBook], int]:
         from sqlalchemy.orm import joinedload
 
-        query = NewBook.query.options(joinedload(NewBook.publisher)).filter(NewBook.is_displayable.is_(True))
+        query = NewBook.query.options(joinedload(NewBook.publisher)).filter(NewBook.is_displayable.is_(True))  # type: ignore[arg-type,attr-defined]
+        query = self._exclude_hidden_site_primary_books(query)
 
         query = self._apply_publication_window(query, days)
 
@@ -53,7 +51,7 @@ class NewBookQueryService:
         if category:
             query = query.filter(NewBook.category == category)
 
-        query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())
+        query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())  # type: ignore[attr-defined,union-attr]
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         self._translation_pipeline._hydrate_language_pack(pagination.items)
@@ -64,7 +62,7 @@ class NewBookQueryService:
     def get_book(self, book_id: int) -> NewBook | None:
         from sqlalchemy.orm import joinedload
 
-        book = db.session.get(NewBook, book_id, options=[joinedload(NewBook.publisher)])
+        book = db.session.get(NewBook, book_id, options=[joinedload(NewBook.publisher)])  # type: ignore[arg-type]
         if book:
             self._translation_pipeline._hydrate_language_pack([book])
         return book
@@ -83,18 +81,19 @@ class NewBookQueryService:
         search_pattern = f'%{keyword}%'
 
         query = (
-            NewBook.query.options(joinedload(NewBook.publisher))
+            NewBook.query.options(joinedload(NewBook.publisher))  # type: ignore[arg-type]
             .filter(
                 db.or_(
-                    NewBook.title.ilike(search_pattern),
-                    NewBook.title_zh.ilike(search_pattern),
-                    NewBook.author.ilike(search_pattern),
+                    NewBook.title.ilike(search_pattern),  # type: ignore[attr-defined]
+                    NewBook.title_zh.ilike(search_pattern),  # type: ignore[union-attr]
+                    NewBook.author.ilike(search_pattern),  # type: ignore[attr-defined]
                     NewBook.isbn13 == keyword,
                     NewBook.isbn10 == keyword,
                 )
             )
-            .filter(NewBook.is_displayable.is_(True))
+            .filter(NewBook.is_displayable.is_(True))  # type: ignore[attr-defined]
         )
+        query = self._exclude_hidden_site_primary_books(query)
 
         if publisher_id:
             query = query.filter(NewBook.publisher_id == publisher_id)
@@ -105,7 +104,7 @@ class NewBookQueryService:
         if days is not None:
             query = self._apply_publication_window(query, days)
 
-        query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())
+        query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())  # type: ignore[attr-defined,union-attr]
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         self._translation_pipeline._hydrate_language_pack(pagination.items)
@@ -117,10 +116,10 @@ class NewBookQueryService:
         from sqlalchemy import func
 
         results = (
-            db.session.query(NewBook.category, func.count(NewBook.id).label('count'))
-            .filter(NewBook.category.isnot(None), NewBook.is_displayable.is_(True))
+            db.session.query(NewBook.category, func.count(NewBook.id).label('count'))  # type: ignore[arg-type,call-overload]
+            .filter(NewBook.category.isnot(None), NewBook.is_displayable.is_(True))  # type: ignore[attr-defined,union-attr]
             .group_by(NewBook.category)
-            .order_by(func.count(NewBook.id).desc())
+            .order_by(func.count(NewBook.id).desc())  # type: ignore[arg-type]
             .all()
         )
 
@@ -129,43 +128,71 @@ class NewBookQueryService:
     def get_statistics(self) -> dict[str, Any]:
         from sqlalchemy import func
 
-        total_books = NewBook.query.count()
-        total_publishers = Publisher.query.count()
-        active_publishers = Publisher.query.filter_by(is_active=True).count()
-
         today = datetime.now(UTC).date()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
 
-        recent_books_7d = NewBook.query.filter(
-            NewBook.is_displayable.is_(True),
-            NewBook.publication_date >= week_ago,
-            NewBook.publication_date <= today,
-        ).count()
+        # 单条聚合查询替代 5 次往返（P-LOW-10）：
+        # COUNT(*) FILTER 一次性算出全部窗口计数
+        # 注解解释：publication_date 模型中声明为 date | None（Column nullable），
+        # SQLAlchemy 编译期将 NULL 比较暴露为 SQL 语义；mypy 对 date|None 的列
+        # 操作符报告假阳性（type: ignore[operator]），运行时无影响。
+        # 同类：本文件所有列操作符（is_/isnot/desc/ilike）、joinedload
+        # relationship 参数与 func 聚合链式调用均为 mypy 已知假阳性
+        # （InstrumentedAttribute 在 stub 中不可见），逐行 ignore 并收敛
+        # 错误码，运行时无影响。
+        row = db.session.query(
+            func.count(NewBook.id).label('total_books'),  # type: ignore[arg-type]
+            func.count(NewBook.id)  # type: ignore[arg-type,call-overload]
+            .filter(
+                NewBook.is_displayable.is_(True),  # type: ignore[attr-defined]
+                NewBook.publication_date >= week_ago,  # type: ignore[operator]
+                NewBook.publication_date <= today,  # type: ignore[operator]
+            )
+            .label('recent_7d'),
+            func.count(NewBook.id)  # type: ignore[arg-type,call-overload]
+            .filter(
+                NewBook.is_displayable.is_(True),  # type: ignore[attr-defined]
+                NewBook.publication_date >= month_ago,  # type: ignore[operator]
+                NewBook.publication_date <= today,  # type: ignore[operator]
+            )
+            .label('recent_30d'),
+        ).one()
 
-        recent_books_30d = NewBook.query.filter(
-            NewBook.is_displayable.is_(True),
-            NewBook.publication_date >= month_ago,
-            NewBook.publication_date <= today,
-        ).count()
+        publisher_row = db.session.query(
+            func.count(Publisher.id).label('total'),  # type: ignore[arg-type]
+            func.count(Publisher.id).filter(Publisher.is_active.is_(True)).label('active'),  # type: ignore[arg-type,attr-defined]
+        ).one()
 
         category_stats = (
-            db.session.query(NewBook.category, func.count(NewBook.id).label('count'))
-            .filter(NewBook.category.isnot(None))
+            db.session.query(NewBook.category, func.count(NewBook.id).label('count'))  # type: ignore[arg-type,call-overload]
+            .filter(NewBook.category.isnot(None))  # type: ignore[union-attr]
             .group_by(NewBook.category)
-            .order_by(func.count(NewBook.id).desc())
+            .order_by(func.count(NewBook.id).desc())  # type: ignore[arg-type]
             .limit(10)
             .all()
         )
 
         return {
-            'total_books': total_books,
-            'total_publishers': total_publishers,
-            'active_publishers': active_publishers,
-            'recent_books_7d': recent_books_7d,
-            'recent_books_30d': recent_books_30d,
+            'total_books': row.total_books,
+            'total_publishers': publisher_row.total,
+            'active_publishers': publisher_row.active,
+            'recent_books_7d': row.recent_7d,
+            'recent_books_30d': row.recent_30d,
             'top_categories': [{'category': c.category, 'count': c.count} for c in category_stats],
         }
+
+    @staticmethod
+    def _exclude_hidden_site_primary_books(query: Any):
+        """Hide site-import cards when publisher.site_display_primary is false (#137)."""
+        from sqlalchemy import or_
+
+        return query.join(Publisher).filter(
+            or_(
+                NewBook.last_import_batch_id.is_(None),  # type: ignore[union-attr]
+                Publisher.site_display_primary.is_(True),  # type: ignore[attr-defined]
+            )
+        )
 
     @staticmethod
     def _apply_publication_window(query, days: int):
@@ -185,12 +212,12 @@ class NewBookQueryService:
         return query.filter(  # type: ignore[union-attr,operator]
             db.or_(
                 db.and_(
-                    NewBook.publication_date.isnot(None),
+                    NewBook.publication_date.isnot(None),  # type: ignore[union-attr]
                     NewBook.publication_date >= cutoff_date,  # type: ignore[operator]
                     NewBook.publication_date <= future_grace_date,  # type: ignore[operator]
                 ),
                 db.and_(
-                    NewBook.publication_date.is_(None),
+                    NewBook.publication_date.is_(None),  # type: ignore[union-attr]
                     NewBook.created_at >= cutoff_datetime,
                     NewBook.created_at < tomorrow_datetime,
                 ),

@@ -1,6 +1,6 @@
 {% extends "mobile/base.html" %}
 
-{% block title %}{{ _('我的') }} - 书榜{% endblock %}
+{% block title %}{{ _('我的') }} - BookRank{% endblock %}
 
 {% block content %}
 
@@ -27,6 +27,13 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="#2980B9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <span class="m-func-label">{{ _('阅读记录') }}</span>
+        <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
+    <a class="m-func-item" href="/rankings">
+        <div class="m-func-icon m-func-icon-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2980B9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+        </div>
+        <span class="m-func-label">{{ _('更多榜单') }}</span>
         <span class="m-func-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
     </a>
     <a class="m-func-item" href="/reports/weekly">
@@ -107,32 +114,4 @@
     {% endif %}
 </section>
 
-{% endblock %}
-
-{% block extra_js %}
-<script>
-// 取消收藏：DELETE /api/favorites/<isbn>
-(function () {
-    document.querySelectorAll('.m-fav-remove').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var isbn = btn.getAttribute('data-isbn');
-            if (!isbn) return;
-            MobileApp.getCsrfToken().then(function (token) {
-                fetch('/api/favorites/' + encodeURIComponent(isbn), {
-                    method: 'DELETE',
-                    headers: { 'X-CSRF-Token': token }
-                }).then(function (r) { return r.json(); })
-                  .then(function (data) {
-                      if (data && data.success) {
-                          var card = btn.closest('.m-book-card');
-                          if (card) card.remove();
-                      }
-                  });
-            });
-        });
-    });
-})();
-</script>
 {% endblock %}

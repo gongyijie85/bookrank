@@ -1,10 +1,11 @@
 from datetime import UTC, datetime
+from typing import cast
 
 from .book import Book
 from .database import db
 
 
-class CSRFToken(db.Model):
+class CSRFToken(db.Model):  # type: ignore[name-defined]
     __tablename__ = 'csrf_tokens'
 
     token = db.Column(db.String(64), primary_key=True)
@@ -16,7 +17,7 @@ class CSRFToken(db.Model):
     __mapper_args__ = {'confirm_deleted_rows': False}
 
 
-class UserPreference(db.Model):
+class UserPreference(db.Model):  # type: ignore[name-defined]
     """用户偏好设置"""
 
     __tablename__ = 'user_preferences'
@@ -42,7 +43,7 @@ class UserPreference(db.Model):
         }
 
 
-class UserCategory(db.Model):
+class UserCategory(db.Model):  # type: ignore[name-defined]
     """用户关注的分类"""
 
     __tablename__ = 'user_categories'
@@ -56,7 +57,7 @@ class UserCategory(db.Model):
     __table_args__ = (db.UniqueConstraint('session_id', 'category_id', name='uix_user_category'),)
 
 
-class UserViewedBook(db.Model):
+class UserViewedBook(db.Model):  # type: ignore[name-defined]
     """用户浏览过的书籍"""
 
     __tablename__ = 'user_viewed_books'
@@ -71,7 +72,7 @@ class UserViewedBook(db.Model):
     __table_args__ = (db.UniqueConstraint('session_id', 'isbn', name='uix_user_book'),)
 
 
-class UserFavorite(db.Model):
+class UserFavorite(db.Model):  # type: ignore[name-defined]
     """用户收藏的书籍"""
 
     __tablename__ = 'user_favorites'
@@ -97,7 +98,7 @@ class UserFavorite(db.Model):
         }
 
 
-class BookMetadata(db.Model):
+class BookMetadata(db.Model):  # type: ignore[name-defined]
     """书籍元数据缓存"""
 
     __tablename__ = 'book_metadata'
@@ -139,7 +140,7 @@ class BookMetadata(db.Model):
         }
 
 
-class SearchHistory(db.Model):
+class SearchHistory(db.Model):  # type: ignore[name-defined]
     """搜索历史"""
 
     __tablename__ = 'search_history'
@@ -161,7 +162,7 @@ class SearchHistory(db.Model):
         }
 
 
-class Award(db.Model):
+class Award(db.Model):  # type: ignore[name-defined]
     """国际图书奖项"""
 
     __tablename__ = 'awards'
@@ -196,7 +197,7 @@ class Award(db.Model):
         }
 
 
-class AwardBook(db.Model):
+class AwardBook(db.Model):  # type: ignore[name-defined]
     """获奖图书"""
 
     __tablename__ = 'award_books'
@@ -260,10 +261,10 @@ class AwardBook(db.Model):
         - 最后回退到原 title（兜底，避免空字符串）
         """
         if self.title and not self._looks_like_isbn(self.title):
-            return self.title
+            return cast('str', self.title)
         if self.title_zh and not self._looks_like_isbn(self.title_zh):
-            return self.title_zh
-        return self.title or self.title_zh or ''
+            return cast('str', self.title_zh)
+        return cast('str', self.title or self.title_zh or '')
 
     def to_dict(self, include_zh: bool = True) -> dict:
         data = {
@@ -296,10 +297,15 @@ class AwardBook(db.Model):
                 }
             )
 
+            # 应用翻译覆盖（共享助手，见 utils/translation_overrides）
+            from ..utils.translation_overrides import apply_translation_overrides
+
+            apply_translation_overrides(data)
+
         return data
 
 
-class TranslationCache(db.Model):
+class TranslationCache(db.Model):  # type: ignore[name-defined]
     """翻译内容缓存表"""
 
     __tablename__ = 'translation_cache'
@@ -353,7 +359,7 @@ class TranslationCache(db.Model):
         }
 
 
-class APICache(db.Model):
+class APICache(db.Model):  # type: ignore[name-defined]
     """外部API缓存表 - 用于缓存NYT、Google Books等API调用结果"""
 
     __tablename__ = 'api_cache'
@@ -384,8 +390,8 @@ class APICache(db.Model):
         if self.expires_at.tzinfo is None:
             # 将无时区信息的时间转换为UTC时区
             expires_at_utc = self.expires_at.replace(tzinfo=UTC)
-            return now > expires_at_utc
-        return now > self.expires_at
+            return cast('bool', now > expires_at_utc)
+        return cast('bool', now > self.expires_at)
 
     def to_dict(self) -> dict:
         return {
@@ -402,7 +408,7 @@ class APICache(db.Model):
         }
 
 
-class SystemConfig(db.Model):
+class SystemConfig(db.Model):  # type: ignore[name-defined]
     """系统配置表"""
 
     __tablename__ = 'system_config'
@@ -430,7 +436,7 @@ class SystemConfig(db.Model):
         return config
 
 
-class WeeklyReport(db.Model):
+class WeeklyReport(db.Model):  # type: ignore[name-defined]
     """每周畅销书报告"""
 
     __tablename__ = 'weekly_reports'
@@ -474,7 +480,7 @@ class WeeklyReport(db.Model):
         }
 
 
-class ReportView(db.Model):
+class ReportView(db.Model):  # type: ignore[name-defined]
     """周报阅读记录"""
 
     __tablename__ = 'report_views'
@@ -495,7 +501,76 @@ class ReportView(db.Model):
     )
 
 
-class UserBehavior(db.Model):
+class ListSnapshot(db.Model):  # type: ignore[name-defined]
+    """NYT 分类榜周度全量快照
+
+    weekly_reports.content 只存分析摘要，无法回溯；本表把每周 13 个分类榜的
+    全量条目落库，是排名曲线、年度榜等历史功能的唯一数据来源。
+    """
+
+    __tablename__ = 'list_snapshots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    week_start = db.Column(db.Date, nullable=False, index=True)
+    week_end = db.Column(db.Date, nullable=False)
+    category_id = db.Column(db.String(64), nullable=False)
+    category_name = db.Column(db.String(100))
+    # Book.id：ISBN13 优先，缺失时退化为 ISBN10，再缺失则为标题+作者哈希。
+    # 同一本书在不同分类榜的精装/平装版本 ISBN 不同，不能用 ISBN 做唯一键。
+    book_id = db.Column(db.String(64), nullable=False)
+    isbn13 = db.Column(db.String(13))
+    isbn10 = db.Column(db.String(10))
+    title = db.Column(db.String(500), nullable=False)
+    title_zh = db.Column(db.String(500))
+    author = db.Column(db.String(300))
+    publisher = db.Column(db.String(200))
+    cover = db.Column(db.String(500))
+    original_cover = db.Column(db.String(500))
+    rank = db.Column(db.Integer)
+    rank_last_week = db.Column(db.String(20))
+    rank_change = db.Column(db.Integer)
+    weeks_on_list = db.Column(db.Integer, default=0)
+    is_new = db.Column(db.Boolean, default=False)
+    is_returning = db.Column(db.Boolean, default=False)
+    update_frequency = db.Column(db.String(10))
+    list_published_date = db.Column(db.String(20))
+    captured_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        db.UniqueConstraint('week_start', 'category_id', 'book_id', name='uix_list_snapshot_week_category_book'),
+        db.Index('idx_list_snapshots_book_week', 'book_id', 'week_start'),
+        db.Index('idx_list_snapshots_category_week', 'category_id', 'week_start'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'week_start': self.week_start.isoformat() if self.week_start else None,
+            'week_end': self.week_end.isoformat() if self.week_end else None,
+            'category_id': self.category_id,
+            'category_name': self.category_name,
+            'book_id': self.book_id,
+            'isbn13': self.isbn13,
+            'isbn10': self.isbn10,
+            'title': self.title,
+            'title_zh': self.title_zh,
+            'author': self.author,
+            'publisher': self.publisher,
+            'cover': self.cover,
+            'original_cover': self.original_cover,
+            'rank': self.rank,
+            'rank_last_week': self.rank_last_week,
+            'rank_change': self.rank_change,
+            'weeks_on_list': self.weeks_on_list,
+            'is_new': self.is_new,
+            'is_returning': self.is_returning,
+            'update_frequency': self.update_frequency,
+            'list_published_date': self.list_published_date,
+            'captured_at': self.captured_at.isoformat() if self.captured_at else None,
+        }
+
+
+class UserBehavior(db.Model):  # type: ignore[name-defined]
     """用户行为数据"""
 
     __tablename__ = 'user_behaviors'

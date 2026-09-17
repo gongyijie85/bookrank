@@ -1,12 +1,18 @@
 # BookRank
 
+**[中文](./README.md) | [English](./README.en.md)**
+
 [![CI - Tests & Quality](https://github.com/gongyijie85/bookrank/actions/workflows/ci.yml/badge.svg)](https://github.com/gongyijie85/bookrank/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/gongyijie85/bookrank/branch/main/graph/badge.svg)](https://codecov.io/gh/gongyijie85/bookrank)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![Flask 3.1](https://img.shields.io/badge/flask-3.1-black.svg)](https://flask.palletsprojects.com/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/gongyijie85/bookrank)](https://github.com/gongyijie85/bookrank/releases)
+[![Live Demo](https://img.shields.io/badge/demo-online-blue)](https://bookrank-ckml.onrender.com)
 
 纽约时报畅销书排行榜应用，追踪国际大型出版社最新出版物，展示各类图书奖项。
+
+在线体验：[bookrank-ckml.onrender.com](https://bookrank-ckml.onrender.com)
 
 ## 项目简介
 
@@ -15,7 +21,7 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
 ## 功能特性
 
 - 📚 **畅销书榜单**：展示纽约时报各类别畅销书，支持多维度排序和筛选
-- 🏆 **获奖书单**：收集和展示8大国际图书奖项，包含详细的获奖信息
+- 🏆 **获奖书单**：收集和展示 7 大国际图书奖项（普利策奖、布克奖、国际布克奖、雨果奖、星云奖、诺贝尔文学奖、爱伦·坡奖），包含详细的获奖信息
 - 🆕 **新书速递**：追踪国际大型出版社最新出版物，支持按出版社筛选
 - 📊 **多维度筛选**：支持按出版社、分类、时间等多维度筛选
 - 🌐 **双端适配**：桌面端 + 移动端独立版本，同一 URL 根据 User-Agent 自动切换移动版模板。移动端核心 8 页面（首页、书籍详情、奖项榜单、获奖详情、关于、错误页、周报列表、周报详情）信息完整度已对齐桌面端，含 Tab 切换、元信息网格、购买链接、收藏/分享、30 秒轮询、搜索过滤、SEO 元数据（canonical + Open Graph + JSON-LD）
@@ -26,6 +32,12 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
 - 🚀 **实时更新**：自动同步最新榜单数据，确保信息时效性；周报自愈机制（三重保险）避免漏跑
 - 🔓 **开放API**：提供公开API，支持第三方系统集成
 
+### 榜单数据口径
+
+- **本周排名**和**上周排名**直接对应纽约时报榜单数据，筛选或排序不会改变原始榜次。
+- **累计上榜周数**保留 NYT 提供的累计值；`0` 表示来源未提供该数据。
+- **NEW** 仅表示首次上榜（上周无排名且累计 1 周）；**重返**表示曾上榜后重新出现（上周无排名且累计超过 1 周）。
+
 ## 技术栈
 
 - **后端**：Flask 3.1.3 (Python 3.13+)
@@ -33,7 +45,9 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
 - **前端**：Jinja2 + 原生JS (ES2020+)
 - **部署**：Render + Gunicorn 23.0
 - **API集成**：NYT Books API、Google Books API、Open Library API、Wikidata SPARQL
-- **翻译服务**：智谱AI GLM API（主）、deep-translator（备选回退）
+- **翻译服务**：硅基流动 Hunyuan-MT-7B（生产默认，openai 兼容端点）、智谱 GLM（回退，测试环境默认）
+  - 原 Google 翻译回退（`deep-translator`）已移除：上游 PyPI 账号被钓鱼接管后发布了含**安装期恶意代码**的版本（PYSEC-2022-252），详见 [`SECURITY.md`](./SECURITY.md)
+- **限流**：进程内滑动窗口（默认）；可选 **Redis 共享后端**，供多 worker 部署时使用（见 [`SECURITY.md`](./SECURITY.md)）
 - **代码质量**：Ruff（linting+formatting）、mypy（类型检查）、Pydantic（数据验证）、pytest-cov
 - **任务调度**：APScheduler（内存队列）
 
@@ -91,22 +105,23 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
    >
    > **v0.9.79 提示**：`.env.example` 已包含完整变量说明，首次配置请直接复制该文件。
 
-5. **初始化数据库**
+5. **初始化数据库（可选）**
    ```bash
-   python run.py
+   python init_db.py
    ```
+   `run.py` 首次启动时也会自动完成惰性数据库初始化，此步可跳过。
 
 6. **启动开发服务器**
    ```bash
    python run.py
    ```
 
-   应用将在 `http://localhost:5000` 运行。
+   应用将在 `http://localhost:8000` 运行（可通过 `PORT` 环境变量修改）。
 
 ## 项目结构
 
 ```
-BookRank3/
+bookrank/
 ├── app/                          # 应用核心目录
 │   ├── __init__.py               # 应用工厂函数
 │   ├── config.py                 # 配置管理
@@ -132,16 +147,17 @@ BookRank3/
 │   │       ├── translation.py    # 翻译 API
 │   │       ├── cache.py          # 缓存管理 API
 │   │       ├── awards.py         # 奖项 API
-│   │       └── recommendations.py # 推荐 API
+│   │       ├── recommendations.py # 推荐 API
+│   │       └── cron.py           # cron 触发端点
 │   ├── schemas/                  # Pydantic 验证层
 │   │   └── validators.py         # 请求验证模型
 │   ├── services/                 # 业务服务层
 │   │   ├── api_client.py         # NYT/Google API 客户端
 │   │   ├── book_service.py       # 图书服务
-│   │   ├── new_book_service.py   # 新书速递服务（重导出）
-│   │   ├── new_book/             # 新书速递子模块（拆分）
+│   │   ├── new_book/             # 新书速递子模块（__init__ 为装配工厂）
 │   │   │   ├── publisher_manager.py  # 出版社管理
 │   │   │   ├── sync_engine.py        # 数据同步引擎
+│   │   │   ├── ingestor.py           # 入库规则
 │   │   │   ├── translation_pipeline.py # 翻译管道
 │   │   │   └── query_service.py      # 查询服务
 │   │   ├── book_detail_service.py # 书籍详情服务
@@ -150,6 +166,7 @@ BookRank3/
 │   │   ├── zhipu_translation_service.py # 智谱AI翻译
 │   │   ├── weekly_report_service.py # 周报服务
 │   │   ├── publisher_crawler/    # 出版社爬虫模块
+│   │   ├── award_cover_sync_service.py # 获奖封面同步
 │   │   └── ...
 │   ├── tasks/                    # 后台任务
 │   │   └── weekly_report_task.py # 周报任务
@@ -217,9 +234,11 @@ BookRank3/
    - `DATABASE_URL`（外部 PostgreSQL，如 Supabase Session Pooler）
    - `NYT_API_KEY`、`GOOGLE_API_KEY`、`ZHIPU_API_KEY`
    - `SENTRY_DSN`、`ALERT_WEBHOOK_URL`（生产环境建议配置）
-4. **关闭自动部署**：`render.yaml` 中 `autoDeploy: false`，改为 CI 成功后通过 Render Deploy Hook 触发，避免未经测试的代码直接上线。
-5. 在 GitHub 仓库 Settings → Secrets 添加 `RENDER_DEPLOY_HOOK_URL`，CI 的 `deploy` job 会自动调用。
+4. **关闭自动部署**：`render.yaml` 中 `autoDeploy: false`。生产部署仅由 `main` 当前 HEAD 的成功 CI 通过 Render Public API 发起；较旧 CI 运行会成功跳过，避免覆盖较新的提交。
+5. 在 GitHub 仓库配置最小权限 Secret `RENDER_API_KEY`，以及非秘密 Repository Variables `RENDER_SERVICE_ID` 和 `RENDER_BASE_URL`。CI 使用这些配置调用 Render Public API；绝不将秘密提交到仓库。紧急情况可在 Render Dashboard 使用 Manual Deploy。
 6. Render 免费层内存限制为 512MB，已强制 `WEB_CONCURRENCY=1` / `MAX_WORKERS=1`，避免多 worker OOM。
+   > **若要提高 `WEB_CONCURRENCY`**：必须先设置 `RATE_LIMIT_REDIS_URL` 启用 Redis 共享限流，
+   > 否则多 worker 会各自独立计数，实际限额被放大、限流可被绕过（详见 [`SECURITY.md`](./SECURITY.md)）。
 7. 等待构建完成，获取访问 URL。
 
 > **注意**：Render 免费版 PostgreSQL 服务已停止提供，请使用外部 PostgreSQL（如 Supabase）。迁移手册见 [`docs/supabase-migration.md`](./docs/supabase-migration.md)。
@@ -234,6 +253,24 @@ docker build -t bookrank .
 docker run -p 5000:5000 --env-file .env bookrank
 ```
 
+## 安全
+
+- 安全政策、漏洞上报方式与**已知风险清单**：[`SECURITY.md`](./SECURITY.md)
+  （已启用 GitHub Private Vulnerability Reporting）
+- 主要防护：
+
+  | 领域 | 措施 |
+  |---|---|
+  | CSRF | 管理员变更端点强制 `@csrf_protect`；令牌**一次性**（校验后即删除） |
+  | XSS | 输出经 bleach 白名单净化；CSP 使用 **per-request nonce**（无 `unsafe-inline`），并有测试锁定 |
+  | 限流 | API 按 IP 滑动窗口限流；可选 **Redis 共享后端**支持多 worker |
+  | 管理员鉴权 | `X-Admin-Secret` + 失败计数 + IP 封禁；失败状态**跨重启持久化** |
+  | 密钥泄露 | 日志与异常均不输出密钥名与存储位置 |
+  | 依赖供应链 | CI 内 `pip-audit` 例外登记式门禁；已移除被投毒的 `deep-translator` |
+
+- ⚠️ 生产需保持 `WEB_CONCURRENCY=1`，**除非**已配置 `RATE_LIMIT_REDIS_URL` 启用共享限流
+  （进程内限流在多 worker 下各进程独立计数，限额会被放大）。详见 [`SECURITY.md`](./SECURITY.md)。
+
 ## 开发指南
 
 ### 代码规范
@@ -247,7 +284,20 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 - 测试目录：`tests/`
 - 配置文件：`pytest.ini`
-- 运行测试：`pytest`
+- 运行测试：`pytest -m "not slow" --timeout=30`
+- 当前规模：**2237 passed / 0 failed**
+
+**合并门禁**：`main` 已启用 branch protection，以下 4 项检查全部通过才可合并：
+
+| 检查 | 说明 |
+|---|---|
+| `Unit Tests` | pytest 全量测试 |
+| `Type Check (mypy)` | `mypy app/ --ignore-missing-imports` |
+| `Code Quality (Ruff)` | `ruff check` + `ruff format --check` |
+| `Dependency Vulnerability Audit` | `pip-audit` 依赖漏洞扫描（例外登记式门禁，见下） |
+
+> 依赖扫描是**例外登记**语义：已评估放行的公告 ID 记入例外表（日志仍显示 `N ignored`，不静默吞掉）；
+> **未登记的漏洞会直接阻塞合并**。登记理由与维护约定见 [`SECURITY.md`](./SECURITY.md)。
 
 ### 数据更新
 
@@ -287,6 +337,33 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 最近更新
 
+- **v0.9.101 - 安全与 CI 硬化（2026-09-03）**：
+  - **限流器支持 Redis 共享后端**（审计 High #2 根因修复）：原为进程内计数，多 worker 下限额被放大、可被绕过；
+    现支持 `RATE_LIMIT_REDIS_URL`，用 Redis ZSET 滑动窗口 + **Lua 原子判定**实现跨 worker 计数；未配置时行为不变，Redis 异常自动降级
+  - **修复移动端 CSRF 令牌复用**：令牌本为一次性，但移动端永久缓存，导致删除收藏"第一个成功、之后全 403"；
+    新增 `csrfFetch()`（用后清缓存 + 失效重试），并补并发重试
+  - **修复管理员封禁阈值可绕过**：失败计数仅在达到第 5 次时才落盘，重启/重新部署即清零，阈值永远触发不了；现每次失败都持久化（24h 保留窗口）
+  - **移除被投毒的依赖 `deep-translator`**（PYSEC-2022-252 供应链攻击，安装期窃取环境变量），详见 `SECURITY.md`
+  - 日志与异常不再泄露密钥名称与存储位置；`mistune` 升级消除 **2 个 GitHub HIGH 告警**（Dependabot open 告警归零）
+  - CI 新增**依赖漏洞门禁**（`pip-audit`，例外登记式：未登记漏洞阻塞合并）并纳入 branch protection 必需检查
+  - 质量：ruff / mypy（99 文件）通过，**2237 passed / 0 failed**。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.100 - 修复批次导入 digest 算法不一致导致 import 永远 409（2026-08-31）：客户端与服务端 `content_sha256` 计算字段不一致，补齐端到端契约测试。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.99 - 评审清单低优先级项清理（2026-08-19）：冷却竞态 / 封面筛选与提交 / 运维脚本。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.98 - 来源降级告警改后台派发（2026-08-19）：导入请求不再等待 GitHub API。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.97 - 入库去重批级预载索引（2026-08-19）：消除 ingestor N+1 查询。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.96 - 同步端点改后台任务（2026-08-19）：消除请求线程最长 600s/社阻塞。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.95 - 封面批同步改后台任务 + 模块级锁修复（2026-08-19）：修复防重入失效。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.94 - 提取翻译覆盖共享助手（2026-08-19）：消除模型层重复与反向依赖。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.93 - 接线 `fallback_google_enabled` 开关（2026-08-19）：#137 规格缺口修复。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.92 - 消除 GitHub Actions 脚本内的 secrets/输入直接内插（2026-08-19）。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.91 - 性能优化与封面同步修复（2026-08-19）：批量导入消除 O(N×M) 全表扫描；修复生产环境封面同步无法识别"缓存文件丢失"。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.10.1 - ROADMAP 推进（2026-09-04）：OpenAPI 3.1 `/openapi.json`、爬虫漂移监控+告警、覆盖率 81%→84%（6 个 0% 模块）、N+1 回归保护、Render 资源告警；安全快修（Chart.js SRI、OpenLibrary Content-Type、admin 限流、gzip 防双压）。2262 passed。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.10.0 - 全维度审计整改（2026-09-04）：安全（XSS/SSRF/CSP/备份流式化）、性能（books/all 并行、封面异步化、索引迁移、缓存调度）、mypy 债务清零（28+ 模块解除 override，修复 7 个被掩盖缺陷）、i18n（awards EN 模式修复、翻译流水线 CI 化、语言键统一）、前端打包（esbuild CSS 119KB→15.7KB / JS 93KB→51KB + 指纹化）。2224 passed。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.100 - 批次导入 digest 契约修复 + BATCH_IMPORT/ADMIN secret 轮换（2026-08-31）
+- v0.9.99 - 评审清单低优先级项清理（2026-08-19）
+- v0.9.90 - 修复生产环境封面同步（2026-08-14）：识别「数据库有路径但本地缓存文件丢失」场景并重新下载；新增两个回归测试。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.89 - 获奖书单封面回退 + 2026 最新获奖书单（2026-08-14）：多级封面回退（本地缓存 → 原始 URL → 默认封面）；同步 2020-2026 最新获奖书单（普利策 4 本、国际布克奖 Taiwan Travelogue、爱伦·坡奖 The Big Empty）。详见 [CHANGELOG.md](./CHANGELOG.md)
+- v0.9.88 - 提取 NewBookIngestor 深模块（2026-08-14）：入库规则集中到 `NewBookIngestor`（对外只暴露 `save_book` / `update_book_fields` 稳定接口），瘦身 SyncEngine；TranslationPipeline 增加公共接缝；2381 passed。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.87 - 依赖安全漏洞修复（2026-07-16）：修复 GitHub Dependabot 报告的 36 个漏洞，升级 Werkzeug、Flask-CORS、requests、python-dotenv、Pillow、bleach、mistune 至安全版本；同步更新 `requirements.txt` 与 `requirements-prod.txt`；2130 passed，覆盖率 81.55%；Ruff / mypy 通过。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.86 - cron 端点规范化（2026-07-16）：迁移到 `app/routes/api/`，统一 `@handle_api_errors` 错误处理；`trigger-weekly-report.yml` 使用 `RENDER_BASE_URL` 变量并保留周五/六/日三次触发兜底；新增 `tests/test_cron_routes.py`。详见 [CHANGELOG.md](./CHANGELOG.md)
 - v0.9.85 - v0.9.84 收尾与仓库整理（2026-07-16）：确认 GitHub Private Vulnerability Reporting 已启用；将 `.gh-cache/` 加入 `.gitignore`；提交 v0.9.84 遗留的 Agent 文档（`AGENTS.md`、`docs/agents/`）；归档 v0.9.83 审计交付物（`deliverables/bookrank-audit-20260708/` 含三端截图与 `audit-data.json`）。详见 [CHANGELOG.md](./CHANGELOG.md)
@@ -354,23 +431,22 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 未来规划
 
-### 短期规划（Q1 2026）
-- 管理后台
-- 用户收藏系统
-- 批量翻译优化
-- 错误监控告警
+当前路线图见 [ROADMAP.md](./ROADMAP.md)，重点方向：
 
-### 中期规划（Q2-Q3 2026）
-- 图书推荐算法
-- 用户评论系统
-- 数据分析面板
-- API v2版本
+### v1.0（进行中）
+- 机器可读 OpenAPI 规范与文档（`/openapi.json`）
+- 出版社爬虫选择器漂移监控与告警
+- mypy override 债务清理（解除 `disable_error_code`）
+- 低覆盖率模块测试补齐（整体覆盖率稳定 ≥80%）
+- N+1 查询回归保护
+- 翻译质量评估与采样（月度人工采样）
+- Code Wiki 与 GitHub Wiki 同步机制
+- Render 资源阈值告警（内存 / 响应时间）
 
-### 长期规划（2027）
-- 移动端App
-- AI图书助手
-- 社区功能
-- 多语言支持
+### 长期方向
+- 持续维护依赖安全与性能
+- 根据社区反馈调整功能优先级
+- 保持代码质量门禁（Ruff / mypy / pytest-cov）通过
 
 ## 许可证
 
@@ -379,6 +455,10 @@ MIT License
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
+
+- 提交前请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 与 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- 安全相关问题请按照 [SECURITY.md](./SECURITY.md) 描述的方式报告
+- Issue 标签约定：类型（`bug` / `enhancement` / `documentation`）+ 优先级（`p0`–`p3`）+ 模块（`awards` / `new-books` / `mobile` 等），完整词汇表见 [docs/agents/triage-labels.md](./docs/agents/triage-labels.md)
 
 ## 联系方式
 
@@ -390,3 +470,6 @@ MIT License
 - **GitHub仓库**：https://github.com/gongyijie85/bookrank
 - **API文档**：API_DOCUMENTATION.md
 - **项目说明文档**：docs/项目说明文档.md
+- **路线图**：ROADMAP.md
+- **贡献指南**：CONTRIBUTING.md
+- **安全策略**：SECURITY.md

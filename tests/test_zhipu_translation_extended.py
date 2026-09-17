@@ -7,7 +7,7 @@
 - translate 速率限制、重试逻辑、异常处理
 - translate_batch 缓存预检 + 并行翻译 + 进度回调
 - translate_book_fields 合并翻译全路径
-- HybridTranslationService._run_with_context / _get_fallback / 缓存写入
+- HybridTranslationService._get_fallback / 缓存写入
 - HybridTranslationService.translate_batch 完整流程
 """
 
@@ -137,7 +137,7 @@ class TestTranslateRateLimiting:
         service._last_request_time = time.time()
         service._request_interval = 0.5
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = service._last_request_time + 0.1
@@ -151,7 +151,7 @@ class TestTranslateRateLimiting:
         service._last_request_time = 0
         service._request_interval = 0.1
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -199,7 +199,7 @@ class TestTranslateRetryLogic:
         service, mock_client = _make_zhipu_service()
         mock_client.chat.completions.create.return_value = _make_api_response('翻译结果')
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -236,7 +236,7 @@ class TestTranslateBatch:
         callback = Mock()
         with (
             patch.object(service, '_get_cache_service', return_value=None),
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch.object(service, 'is_available', return_value=True),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
@@ -460,7 +460,8 @@ class TestTranslateBookFields:
         mock_cached_title = Mock()
         mock_cached_title.translated_text = '已有书名'
 
-        def cache_get_side_effect(text, sl, tl):
+        def cache_get_side_effect(text, sl, tl, model_name=None):
+            assert model_name == service.model
             if text == 'Title':
                 return mock_cached_title
             return None
@@ -500,14 +501,6 @@ class TestTranslateBookFields:
             mock_time.sleep = Mock()
             result = service.translate_book_fields(title='Title')
             assert result['title_zh'] == '单字段_Title'
-
-
-class TestPostprocessTranslation:
-    def test_postprocess_delegates_to_clean(self):
-        with patch('app.utils.api_helpers.clean_translation_text', return_value='清理后') as mock_clean:
-            result = ZhipuTranslationService._postprocess_translation('**清理前**', field_type='title')
-            assert result == '清理后'
-            mock_clean.assert_called_once_with('**清理前**', field_type='title')
 
 
 class TestHybridGetClientErrorPaths:
@@ -559,26 +552,6 @@ class TestHybridGetCacheServiceErrorPaths:
         assert result is mock_cache
 
 
-class TestHybridRunWithContext:
-    def test_without_app_calls_directly(self):
-        service = HybridTranslationService(zhipu_api_key=None)
-        func = Mock(return_value='result')
-        result = service._run_with_context(func, 'arg1')
-        func.assert_called_once_with('arg1')
-        assert result == 'result'
-
-    def test_with_app_uses_app_context(self):
-        mock_app = MagicMock()
-        mock_context = MagicMock()
-        mock_app.app_context.return_value.__enter__ = Mock(return_value=mock_context)
-        mock_app.app_context.return_value.__exit__ = Mock(return_value=False)
-        service = HybridTranslationService(zhipu_api_key=None, app=mock_app)
-        func = Mock(return_value='ctx_result')
-        result = service._run_with_context(func, 'arg1')
-        func.assert_called_once_with('arg1')
-        assert result == 'ctx_result'
-
-
 class TestHybridTranslateExtended:
     def test_cache_error_handled_gracefully(self):
         service = HybridTranslationService(zhipu_api_key=None)
@@ -611,6 +584,31 @@ class TestHybridTranslateExtended:
             result = service.translate('Hello')
             assert result == '智谱翻译'
             mock_cache.set.assert_called_once()
+
+    def test_fallback_cache_is_not_attributed_to_primary_model(self):
+        service = HybridTranslationService(zhipu_api_key='test-key')
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_zhipu = Mock()
+        mock_zhipu.provider = 'siliconflow'
+        mock_zhipu.model = 'tencent/Hunyuan-MT-7B'
+        mock_zhipu.build_cache_context.return_value = 'hunyuan-context'
+        mock_zhipu.is_available.return_value = True
+        mock_zhipu.translate.return_value = None
+        service.zhipu = mock_zhipu
+        mock_fallback = Mock()
+        mock_fallback.translate.return_value = 'Google 备用翻译'
+
+        with (
+            patch.object(service, '_get_cache_service', return_value=mock_cache),
+            patch.object(service, '_get_fallback', return_value=mock_fallback),
+        ):
+            result = service.translate('Verity', field_type='title', context={'author': 'Colleen Hoover'})
+
+        assert result == 'Google 备用翻译'
+        cache_kwargs = mock_cache.set.call_args.kwargs
+        assert cache_kwargs['model_name'] == HybridTranslationService.FALLBACK_MODEL_NAME
+        assert 'cache_context' not in cache_kwargs
 
     def test_cache_write_error_handled(self):
         service = HybridTranslationService(zhipu_api_key='test-key')

@@ -1,7 +1,7 @@
 """
 翻译缓存服务测试
 
-测试 TranslationCacheService 的核心功能，包括缓存读写、统计、搜索、清理和导出
+测试 TranslationCacheService 的核心功能，包括缓存读写、统计、清理
 """
 
 from datetime import UTC, datetime, timedelta
@@ -58,6 +58,14 @@ class TestComputeSourceHash:
         assert len(h) == 64
         assert all(c in '0123456789abcdef' for c in h)
 
+    def test_context_hash_is_stable_and_context_sensitive(self):
+        first = TranslationCacheService._compute_cache_hash('Home', 'prompt-v1:book-a:title')
+        repeated = TranslationCacheService._compute_cache_hash('Home', 'prompt-v1:book-a:title')
+        other_context = TranslationCacheService._compute_cache_hash('Home', 'prompt-v1:book-b:title')
+
+        assert first == repeated
+        assert first != other_context
+
 
 class TestGet:
     """测试 get 方法"""
@@ -87,6 +95,48 @@ class TestGet:
         result = service.get('Hello')
         assert result is not None
         assert result.translated_text == '你好'
+
+    def test_get_does_not_reuse_another_models_cache(self, db):
+        """切换翻译 provider/model 后不应复用旧模型结果。"""
+        service = TranslationCacheService()
+        _insert_cache(
+            db,
+            source_text='Model-specific text',
+            translated_text='旧模型结果',
+            model_name='glm-4.7-flash',
+        )
+
+        result = service.get(
+            'Model-specific text',
+            model_name='tencent/Hunyuan-MT-7B',
+        )
+
+        assert result is None
+
+    def test_get_does_not_reuse_same_text_from_another_book_context(self, db):
+        service = TranslationCacheService()
+        service.set(
+            'Home',
+            '归途',
+            model_name='tencent/Hunyuan-MT-7B',
+            model_version=str(TranslationCacheService.CACHE_VERSION),
+            cache_context='prompt-v1:book-a:title',
+        )
+
+        matching = service.get(
+            'Home',
+            model_name='tencent/Hunyuan-MT-7B',
+            cache_context='prompt-v1:book-a:title',
+        )
+        different = service.get(
+            'Home',
+            model_name='tencent/Hunyuan-MT-7B',
+            cache_context='prompt-v1:book-b:title',
+        )
+
+        assert matching is not None
+        assert matching.translated_text == '归途'
+        assert different is None
 
     def test_get_returns_none_for_expired_version(self, db):
         """版本过期的缓存应被删除并返回 None"""
@@ -207,6 +257,24 @@ class TestSet:
         assert result.model_name == 'custom-model'
         assert result.model_version == '3'
         assert result.quality_score == 0.95
+
+    def test_set_rejects_english_echo(self, db):
+        """英文回显不得落库：坏值一旦缓存会自我固化，书名永远补不上（#210）。"""
+        service = TranslationCacheService()
+
+        with pytest.raises(ValueError):
+            service.set('SCION', 'Scion')
+
+        assert service.get('SCION') is None
+
+    def test_set_accepts_chinese_translation(self, db):
+        """正常中文译文照常落库，防护不误伤。"""
+        service = TranslationCacheService()
+
+        result = service.set('SCION', '后裔')
+
+        assert result is not None
+        assert result.translated_text == '后裔'
 
     def test_set_raises_for_empty_source(self, db):
         """空源文本应抛出 ValueError"""
@@ -365,149 +433,6 @@ class TestGetRecent:
         results = service.get_recent(source_lang='en', target_lang='zh')
         assert len(results) == 1
         assert results[0].source_text == 'BothA'
-
-
-class TestSearch:
-    """测试 search 方法"""
-
-    def test_search_finds_in_source_text(self, db):
-        """应在源文本中匹配关键词"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='The Great Gatsby', translated_text='了不起的盖茨比')
-
-        results = service.search('Gatsby')
-        assert len(results) == 1
-        assert results[0].source_text == 'The Great Gatsby'
-
-    def test_search_finds_in_translated_text(self, db):
-        """应在翻译文本中匹配关键词"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Hello World', translated_text='你好世界')
-
-        results = service.search('你好')
-        assert len(results) == 1
-
-    def test_search_case_insensitive(self, db):
-        """搜索应不区分大小写"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Hello World', translated_text='你好世界')
-
-        results = service.search('hello')
-        assert len(results) == 1
-
-    def test_search_no_results(self, db):
-        """无匹配时应返回空列表"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Hello', translated_text='你好')
-
-        results = service.search('Nonexistent')
-        assert results == []
-
-    def test_search_respects_limit(self, db):
-        """应遵守 limit 参数"""
-        service = TranslationCacheService()
-        for i in range(5):
-            _insert_cache(db, source_text=f'unique test item {i}', translated_text=f'unique测试{i}')
-
-        results = service.search('unique', limit=2)
-        assert len(results) == 2
-
-    def test_search_orders_by_usage_count(self, db):
-        """应按 usage_count 降序排列"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Popular', translated_text='热门', usage_count=10)
-        _insert_cache(db, source_text='Rare', translated_text='少见', usage_count=1)
-
-        results = service.search('搜') or service.search('Popular')
-        if results:
-            assert results[0].usage_count >= results[-1].usage_count
-
-    def test_search_filters_by_source_lang(self, db):
-        """按源语言筛选"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='FilterA', source_lang='en')
-        _insert_cache(db, source_text='FilterB', source_lang='zh')
-
-        results = service.search('Filter', source_lang='en')
-        assert len(results) == 1
-        assert results[0].source_lang == 'en'
-
-    def test_search_filters_by_target_lang(self, db):
-        """按目标语言筛选"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='TargetSearchA', target_lang='zh')
-        _insert_cache(db, source_text='TargetSearchB', target_lang='ja')
-
-        results = service.search('TargetSearch', target_lang='ja')
-        assert len(results) == 1
-        assert results[0].target_lang == 'ja'
-
-    def test_search_keyword_with_percent_returns_empty(self, db):
-        """含 % 的关键词因 SQLite LIKE 转义限制可能无法匹配"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='100% Complete', translated_text='100%完成')
-
-        results = service.search('100%')
-        assert isinstance(results, list)
-
-    def test_search_keyword_with_underscore_returns_empty(self, db):
-        """含 _ 的关键词因 SQLite LIKE 转义限制可能无法匹配"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='test_item_name', translated_text='测试项')
-
-        results = service.search('test_item')
-        assert isinstance(results, list)
-
-    def test_search_empty_keyword_returns_all(self, db):
-        """空关键词应匹配所有记录"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Alpha', translated_text='甲')
-        _insert_cache(db, source_text='Beta', translated_text='乙')
-
-        results = service.search('')
-        assert len(results) >= 2
-
-
-class TestGetLeastUsed:
-    """测试 get_least_used 方法"""
-
-    def test_least_used_empty_db(self, db):
-        """空数据库应返回空列表"""
-        service = TranslationCacheService()
-        assert service.get_least_used() == []
-
-    def test_least_used_returns_ordered_asc(self, db):
-        """应按 usage_count 升序排列"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Most used', usage_count=10)
-        _insert_cache(db, source_text='Least used', usage_count=1)
-
-        results = service.get_least_used()
-        assert len(results) == 2
-        assert results[0].source_text == 'Least used'
-        assert results[1].source_text == 'Most used'
-
-    def test_least_used_respects_limit(self, db):
-        """应遵守 limit 参数"""
-        service = TranslationCacheService()
-        for i in range(5):
-            _insert_cache(db, source_text=f'Limit item {i}', usage_count=i)
-
-        results = service.get_least_used(limit=2)
-        assert len(results) == 2
-
-    def test_least_used_filters_by_older_than_days(self, db):
-        """应能按天数筛选旧记录"""
-        service = TranslationCacheService()
-        old_time = datetime.now(UTC) - timedelta(days=60)
-        recent_time = datetime.now(UTC) - timedelta(days=1)
-
-        _insert_cache(db, source_text='Very old', usage_count=0, last_used_at=old_time)
-        _insert_cache(db, source_text='Recent one', usage_count=0, last_used_at=recent_time)
-
-        results = service.get_least_used(older_than_days=30)
-        assert len(results) == 1
-        assert results[0].source_text == 'Very old'
 
 
 class TestAutoCleanup:
@@ -703,98 +628,6 @@ class TestClearAll:
 
         count = service.clear_all()
         assert count == 10
-
-
-class TestExportCache:
-    """测试 export_cache 方法"""
-
-    def test_export_json_format(self, db):
-        """JSON 格式导出应包含正确结构"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Export Hello', translated_text='导出你好')
-
-        result = service.export_cache('json')
-        assert result['total'] == 1
-        assert 'exported_at' in result
-        assert 'data' in result
-        assert len(result['data']) == 1
-        assert result['data'][0]['source_text'] == 'Export Hello'
-        assert result['data'][0]['translated_text'] == '导出你好'
-
-    def test_export_csv_format(self, db):
-        """CSV 格式导出应包含正确表头和数据"""
-        service = TranslationCacheService()
-        _insert_cache(
-            db,
-            source_text='CSV Hello',
-            translated_text='CSV你好',
-            source_lang='en',
-            target_lang='zh',
-            usage_count=3,
-        )
-
-        result = service.export_cache('csv')
-        assert result['total'] == 1
-        assert 'csv' in result
-        lines = result['csv'].split('\n')
-        assert lines[0] == 'source_text,translated_text,source_lang,target_lang,usage_count'
-        assert '"CSV Hello"' in lines[1]
-        assert '"CSV你好"' in lines[1]
-
-    def test_export_json_empty_db(self, db):
-        """空数据库的 JSON 导出"""
-        service = TranslationCacheService()
-        result = service.export_cache('json')
-        assert result['total'] == 0
-        assert result['data'] == []
-
-    def test_export_csv_empty_db(self, db):
-        """空数据库的 CSV 导出"""
-        service = TranslationCacheService()
-        result = service.export_cache('csv')
-        assert result['total'] == 0
-        lines = result['csv'].split('\n')
-        assert len(lines) == 1
-
-    def test_export_json_default_format(self, db):
-        """不传 format 参数时默认为 JSON"""
-        service = TranslationCacheService()
-        result = service.export_cache()
-        assert 'data' in result
-        assert 'csv' not in result
-
-    def test_export_orders_by_usage_desc(self, db):
-        """导出结果应按 usage_count 降序排列"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Popular export', usage_count=10)
-        _insert_cache(db, source_text='Unpopular export', usage_count=1)
-
-        result = service.export_cache('json')
-        assert result['data'][0]['source_text'] == 'Popular export'
-        assert result['data'][1]['source_text'] == 'Unpopular export'
-
-    def test_export_json_has_to_dict_fields(self, db):
-        """JSON 导出的每条记录应包含 to_dict 的所有字段"""
-        service = TranslationCacheService()
-        _insert_cache(db, source_text='Field check', translated_text='字段检查')
-
-        result = service.export_cache('json')
-        record = result['data'][0]
-        expected_keys = {
-            'id',
-            'source_hash',
-            'source_text',
-            'source_lang',
-            'target_lang',
-            'translated_text',
-            'model_name',
-            'model_version',
-            'quality_score',
-            'usage_count',
-            'last_used_at',
-            'created_at',
-        }
-        assert expected_keys == set(record.keys())
 
 
 class TestSingleton:

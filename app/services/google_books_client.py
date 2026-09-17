@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -13,6 +13,19 @@ class GoogleBooksClient:
     """Google Books API客户端"""
 
     DEFAULT_CACHE_TTL = 86400  # 默认值，可通过配置覆盖
+
+    #: 命中配额限制后的退避时长（秒）。
+    #:
+    #: 为什么必须退避：Google Books 的默认配额是 **1000 次/天/项目**，而本项目一次
+    #: 全量刷新就要按 ISBN 查询 200+ 次。若命中 429 后只按 ISBN 缓存几分钟的错误，
+    #: 每个 ISBN 都会周期性重试，配额被持续烧穿、当天再也恢复不了。
+    #: 实测（2026-09-17）：项目配额耗尽后，全站 GB 来源字段（language / page_count /
+    #: publication_dt）退化为 Unknown，详情富化整体失效。
+    DEFAULT_QUOTA_BACKOFF_TTL = 3600
+
+    #: 退避标记的缓存键。**全局共享**：一旦置上，所有 ISBN 的 GB 调用都直接短路，
+    #: 退避窗口内的上游请求数从「每 ISBN 若干次」降到 0。
+    _QUOTA_BLOCKED_KEY = '__quota_blocked__'
 
     def __init__(self, api_key: str | None, base_url: str, timeout: int = 8, cache_ttl: int | None = None):
         self._api_key = api_key
@@ -29,6 +42,31 @@ class GoogleBooksClient:
             self._api_cache = _get_api_cache_service()
         return self._api_cache
 
+    def _quota_backoff_active(self) -> bool:
+        """配额是否处于退避窗口内（窗口内不再打上游）。"""
+        cache = self._get_cache_service()
+        if not cache:
+            return False
+        try:
+            return bool(cache.get('google_books', self._QUOTA_BLOCKED_KEY))
+        except Exception as e:
+            # 缓存读异常不该阻断主流程，也不能把「读不到标记」当成「正在退避」。
+            log_error(ErrorCategory.CACHE, f'读取 Google Books 配额退避标记失败: {e}', level='warning')
+            return False
+
+    def _enter_quota_backoff(self) -> None:
+        """进入配额退避窗口：置全局标记，让后续所有 GB 调用直接短路。"""
+        logger.warning(
+            'Google Books 配额耗尽，进入 %s 秒全局退避（窗口内不再请求上游）', self.DEFAULT_QUOTA_BACKOFF_TTL
+        )
+        _safe_cache_set(
+            self._get_cache_service(),
+            'google_books',
+            self._QUOTA_BLOCKED_KEY,
+            True,
+            ttl_seconds=self.DEFAULT_QUOTA_BACKOFF_TTL,
+        )
+
     def _validate_api_key(self) -> bool:
         """验证 Google Books API Key 是否有效"""
         if self._key_validated:
@@ -40,9 +78,10 @@ class GoogleBooksClient:
             return False
 
         try:
+            params: dict[str, str | int] = {'q': 'test', 'maxResults': 1, 'key': self._api_key}
             resp = self._session.get(
                 self._base_url,
-                params={'q': 'test', 'maxResults': 1, 'key': self._api_key},
+                params=params,
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -75,6 +114,11 @@ class GoogleBooksClient:
 
         self._validate_api_key()
 
+        # 配额退避窗口内直接返回：不打上游，避免把 1000 次/天的配额持续烧穿。
+        if self._quota_backoff_active():
+            logger.info('Google Books 处于配额退避窗口，跳过请求: ISBN %s', isbn)
+            return {}
+
         cache_service = self._get_cache_service()
         cache_key = f'isbn_{isbn}'
 
@@ -82,7 +126,7 @@ class GoogleBooksClient:
             cached = cache_service.get('google_books', cache_key)
             if cached:
                 logger.info('返回Google Books缓存数据: ISBN %s', isbn)
-                return cached
+                return cast('dict[str, Any]', cached)
 
         params = self._build_params({'q': f'isbn:{isbn}'})
 
@@ -94,6 +138,21 @@ class GoogleBooksClient:
                 self._key_is_valid = False
                 params.pop('key', None)
                 response = self._session.get(self._base_url, params=params, timeout=self._timeout)
+
+            if response.status_code == 429:
+                # 配额耗尽（含「无 Key 时匿名配额为 0」这一常态）。直接返回而不是抛异常：
+                # 抛出去会被 api_retry 重试，等于自己把配额烧得更快。
+                self._enter_quota_backoff()
+                _safe_cache_set(
+                    cache_service,
+                    'google_books',
+                    cache_key,
+                    {},
+                    ttl_seconds=300,
+                    is_error=True,
+                    error_message='quota exceeded (429)',
+                )
+                return {}
 
             response.raise_for_status()
             data = response.json()
@@ -116,12 +175,17 @@ class GoogleBooksClient:
             return {}
 
     @api_retry(max_attempts=2, backoff_factor=1.5)
-    def search_book_by_title(self, title: str, author: str = None) -> dict[str, Any]:
+    def search_book_by_title(self, title: str, author: str | None = None) -> dict[str, Any]:
         """根据书名搜索图书"""
         if not title:
             return {}
 
         self._validate_api_key()
+
+        # 配额退避窗口内直接返回：不打上游（见 DEFAULT_QUOTA_BACKOFF_TTL 的说明）。
+        if self._quota_backoff_active():
+            logger.info('Google Books 处于配额退避窗口，跳过标题搜索: %s', title)
+            return {}
 
         cache_key = f'title_{title.lower()}_{author.lower() if author else "none"}'
         cache_service = self._get_cache_service()
@@ -130,7 +194,7 @@ class GoogleBooksClient:
             cached = cache_service.get('google_books', cache_key)
             if cached:
                 logger.info("返回Google Books缓存搜索结果: '%s'", title)
-                return cached
+                return cast('dict[str, Any]', cached)
 
         query = f'intitle:{title}'
         if author:
@@ -145,6 +209,19 @@ class GoogleBooksClient:
                 self._key_is_valid = False
                 params.pop('key', None)
                 response = self._session.get(self._base_url, params=params, timeout=self._timeout)
+
+            if response.status_code == 429:
+                self._enter_quota_backoff()
+                _safe_cache_set(
+                    cache_service,
+                    'google_books',
+                    cache_key,
+                    {},
+                    ttl_seconds=300,
+                    is_error=True,
+                    error_message='quota exceeded (429)',
+                )
+                return {}
 
             response.raise_for_status()
             data = response.json()
@@ -187,10 +264,13 @@ class GoogleBooksClient:
 
         details = volume_info.get('description', '')
         if not details or len(details) < 20:
+            # 太短的「简介」多半只是副标题/分类，用它们拼一条更有信息量的描述；
+            # 拼不出来就留空 —— 绝不回填占位串：占位串是真值，会让下游的
+            # 「有值即已补全」判断恒为真而封死补齐路径（见 api_helpers.PLACEHOLDER_TEXTS）。
             subtitle = volume_info.get('subtitle', '')
             categories = volume_info.get('categories', [])
             parts = [p for p in [subtitle, ', '.join(categories[:3]) if categories else ''] if p]
-            details = ' | '.join(parts) if parts else '暂无详细描述'
+            details = ' | '.join(parts)
 
         return {
             'title': volume_info.get('title'),
@@ -210,19 +290,19 @@ class GoogleBooksClient:
         identifiers = volume_info.get('industryIdentifiers', [])
         for identifier in identifiers:
             if identifier.get('type') == isbn_type:
-                return identifier.get('identifier')
+                return cast('str | None', identifier.get('identifier'))
         return None
 
-    def get_cover_url(self, isbn: str = None, title: str = None, author: str = None) -> str | None:
+    def get_cover_url(self, isbn: str | None = None, title: str | None = None, author: str | None = None) -> str | None:
         """获取图书封面URL"""
         if isbn:
             details = self.fetch_book_details(isbn)
             if details and details.get('cover_url'):
-                return details['cover_url']
+                return cast('str | None', details['cover_url'])
 
         if title:
             details = self.search_book_by_title(title, author)
             if details and details.get('cover_url'):
-                return details['cover_url']
+                return cast('str | None', details['cover_url'])
 
         return None

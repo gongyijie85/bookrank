@@ -1,17 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block og_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block twitter_title %}{{ book.title_zh or book.title }} - BookRank{% endblock %}
-{% block og_image %}{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
-{% block twitter_image %}{{ book.cover_url if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block og_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{% block twitter_title %}{{ book.title_zh|bilingual(book.title) }} - BookRank{% endblock %}
+{# og/twitter 卡片需要**绝对** URL，故走代理路由的 _external 形式而不是 cover_src 过滤器 #}
+{% block og_image %}{{ url_for('main.cover_proxy', src=book.cover_url, _external=True) if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('main.cover_proxy', src=book.cover_url, _external=True) if book.cover_url else url_for('static', filename='default-cover.png', _external=True) }}{% endblock %}
 
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
 {{ breadcrumbs([
     {'label': _('首页'), 'url': url_for('main.index')},
     {'label': _('新书速递'), 'url': url_for('main.new_books')},
-    {'label': book.title_zh or book.title, 'url': request.url}
+    {'label': book.title_zh|bilingual(book.title), 'url': request.url}
 ], csp_nonce()) }}
 {% endblock %}
 
@@ -21,7 +22,7 @@
 {
     "@context": "https://schema.org",
     "@type": "Book",
-    "name": {{ (book.title_zh or book.title) | tojson }},
+    "name": {{ book.title_zh|bilingual(book.title) | tojson }},
     "alternateName": {{ book.title | tojson }}{% if book.author %},
     "author": {
         "@type": "Person",
@@ -30,9 +31,9 @@
     "isbn": {{ (book.isbn13 or book.isbn10) | tojson }}{% endif %}{% if book.publisher and book.publisher.name %},
     "publisher": {
         "@type": "Organization",
-        "name": {{ book.publisher.name | tojson }}
+        "name": {{ book.publisher.name|bilingual(book.publisher.name_en) | tojson }}
     }{% endif %}{% if book.description_zh or book.description %},
-    "description": {{ (book.description_zh or book.description)[:500] | tojson }}{% endif %}{% if book.cover_url %},
+    "description": {{ (book.description_zh|bilingual(book.description))[:500] | tojson }}{% endif %}{% if book.cover_url %},
     "image": {{ book.cover_url | tojson }}{% endif %},
     "url": "{{ request.url }}"
 }
@@ -52,7 +53,7 @@
     <div class="detail-cover-section">
         <div class="detail-cover">
             {% if book.cover_url %}
-            <img src="{{ book.cover_url }}" alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面') }}" width="280" height="420" loading="lazy" data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+            <img src="{{ book.cover_url|cover_src_or_default }}" alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}" width="280" height="420" loading="lazy" data-fallback="{{ url_for('static', filename='default-cover.png') }}">
             {% else %}
             <div class="cover-placeholder">
                 <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>
@@ -78,9 +79,9 @@
         <!-- 标题区 -->
         <div class="detail-header">
             <h1 class="detail-title" data-en="{{ book.title }}" data-zh="{{ book.title_zh or book.title }}">
-                {{ book.title_zh or book.title }}
+                {{ book.title_zh|bilingual(book.title) }}
             </h1>
-            {% if book.title_zh and book.title != book.title_zh %}
+            {% if book.title_zh and book.title != book.title_zh and get_locale() == 'zh' %}
             <p class="detail-title-en">{{ book.title }}</p>
             {% endif %}
             <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
@@ -93,7 +94,7 @@
                 <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
                 <div>
                     <div class="meta-label">{{ _('出版社') }}</div>
-                    <div class="meta-value" data-pub-name-zh="{{ book.publisher.name }}" data-pub-name-en="{{ book.publisher.name_en or book.publisher.name }}">{{ book.publisher.name }}</div>
+                    <div class="meta-value" data-pub-name-zh="{{ book.publisher.name }}" data-pub-name-en="{{ book.publisher.name_en or book.publisher.name }}">{{ book.publisher.name|bilingual(book.publisher.name_en) }}</div>
                 </div>
             </div>
             {% endif %}
@@ -129,7 +130,7 @@
                 <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-tag"/></svg></span>
                 <div>
                     <div class="meta-label">{{ _('分类') }}</div>
-                    <div class="meta-value">{{ book.category }}</div>
+                    <div class="meta-value">{{ book.category|category_name }}</div>
                 </div>
             </div>
             {% endif %}
@@ -152,7 +153,7 @@
                    data-en="{{ book.description or '' }}"
                    data-zh="{{ book.description_zh or book.description or '' }}"
                    data-no-desc-zh="{{ _('暂无简介') }}"
-                   data-no-desc-en="{{ _('No description available') }}">{{ book.description_zh or book.description or _('暂无简介') }}</p>
+                   data-no-desc-en="{{ _('No description available') }}">{{ book.description_zh|bilingual(book.description) or _('暂无简介') }}</p>
             </div>
         </div>
     </div>
@@ -223,8 +224,8 @@
         }
     }
 
-    // 首屏校正：基于 localStorage 中的语言偏好
-    const storedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'zh';
+    // 首屏校正：有效语言 = 显式偏好 || 服务端 locale（base.html 的 __APP_LANG__）
+    const storedLang = window.__APP_LANG__ || 'en';
     if (storedLang !== 'zh') {
         applyNewBookDetailLanguage(storedLang);
     }

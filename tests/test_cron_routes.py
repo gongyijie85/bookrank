@@ -1,9 +1,11 @@
 """外部 cron 触发端点测试"""
 
-from unittest.mock import patch
+import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.models.schemas import SystemConfig
 from app.utils.rate_limiter import get_rate_limiter
 
 
@@ -118,6 +120,47 @@ class TestTriggerNewBooksSync:
         assert '跳过' in data['message']
 
 
+class TestRunAutoSyncPersistence:
+    """run_auto_sync 必须 commit SystemConfig，否则 last-sync 读不到摘要。"""
+
+    def test_persists_last_auto_sync_result_after_commit(self, app, db):
+        from app.setup import run_auto_sync
+
+        mock_modules = MagicMock()
+        mock_modules.publisher_manager.init_publishers.return_value = None
+        mock_modules.sync_engine.sync_all_publishers.return_value = [
+            {
+                'publisher': 'Simon & Schuster',
+                'status': 'success',
+                'success': True,
+                'elapsed_seconds': 1.2,
+                'added': 1,
+                'updated': 0,
+                'error': None,
+                'traversed_total': 10,
+                'rejected_no_date': 2,
+                'rejected_unparseable': 0,
+                'rejected_out_of_window': 3,
+                'rejected_future_placeholder': 0,
+                'accepted_year_only': 1,
+            }
+        ]
+
+        with (
+            app.app_context(),
+            patch('app.setup.require_service', return_value=mock_modules),
+        ):
+            result = run_auto_sync()
+
+        assert result['status'] == 'synced'
+        raw = SystemConfig.get_value('last_auto_sync_result')
+        assert raw is not None
+        summary = json.loads(raw)
+        assert summary['publishers'][0]['date_filter']['traversed_total'] == 10
+        assert summary['publishers'][0]['date_filter']['rejected_no_date'] == 2
+        assert SystemConfig.get_value('last_auto_sync_time') is not None
+
+
 class TestCronRateLimit:
     """cron 端点限流测试（此前 /api/cron/ 完全豁免限流，属安全缺口）"""
 
@@ -139,3 +182,64 @@ class TestCronRateLimit:
 
             resp = client.get('/api/cron/trigger-weekly-report', headers=headers)
         assert resp.status_code == 429
+
+
+class TestSyncAwardCovers:
+    """测试 /api/cron/sync-award-covers 端点
+
+    生产临时文件系统重启会清空 cache/，封面需靠外部 cron 补同步；
+    应用内 APScheduler 在 gunicorn --preload 下不会在 worker 中运行。
+    """
+
+    def test_missing_cron_secret_returns_401(self, client):
+        response = client.get(
+            '/api/cron/sync-award-covers',
+            headers={'Authorization': 'Bearer any-token'},
+        )
+        assert response.status_code == 401
+        assert response.get_json()['success'] is False
+
+    def test_missing_authorization_returns_401(self, client, cron_secret):
+        response = client.get('/api/cron/sync-award-covers')
+        assert response.status_code == 401
+        assert response.get_json()['success'] is False
+
+    def test_valid_token_submits_background_sync(self, client, cron_secret):
+        with patch('app.utils.service_helpers.submit_background_task') as mock_submit:
+            response = client.get(
+                '/api/cron/sync-award-covers',
+                headers={'Authorization': f'Bearer {cron_secret}'},
+            )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['data']['status'] == 'submitted'
+        # 立即返回，不占住请求线程（Render 免费版网关约 100s 超时）
+        mock_submit.assert_called_once()
+
+    def test_submitted_callable_runs_sync_with_batch_limit(self, client, cron_secret):
+        """提交的后台任务确实调用同步服务，且批大小受控。"""
+        captured = {}
+
+        def _capture(fn):
+            captured['fn'] = fn
+
+        with (
+            patch('app.utils.service_helpers.submit_background_task', side_effect=_capture),
+            patch('app.services.award_cover_sync_service.AwardCoverSyncService') as mock_svc,
+            patch('app.utils.service_helpers.get_or_create_google_books_client'),
+        ):
+            client.get(
+                '/api/cron/sync-award-covers',
+                headers={'Authorization': f'Bearer {cron_secret}'},
+            )
+            mock_svc.return_value.sync_missing_covers.return_value = {
+                'status': 'success',
+                'updated': 3,
+                'skipped': 0,
+                'failed': 0,
+            }
+            assert 'fn' in captured
+            captured['fn']()
+
+        mock_svc.return_value.sync_missing_covers.assert_called_once_with(batch_size=50, delay=0.3)

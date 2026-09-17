@@ -1,17 +1,14 @@
-import logging
-
 from flask import request
 
 from ...utils.admin_auth import admin_required
-from ...utils.api_helpers import APIResponse, csrf_protect, handle_api_errors, validate_isbn
+from ...utils.api_helpers import APIResponse, csrf_protect, handle_api_errors, rate_limit, validate_isbn
 from ...utils.error_handler import ErrorCategory, log_error
-from ...utils.service_helpers import get_book_service
+from ...utils.service_helpers import get_service
 from . import api_bp
-
-logger = logging.getLogger(__name__)
 
 
 @api_bp.route('/translate', methods=['POST'])
+@rate_limit()
 @csrf_protect
 @handle_api_errors
 def translate_text():
@@ -43,6 +40,7 @@ def translate_text():
 
 
 @api_bp.route('/translate/book-fields', methods=['POST'])
+@rate_limit()
 @csrf_protect
 @handle_api_errors
 def translate_book_fields():
@@ -75,6 +73,7 @@ def translate_book_fields():
 
 
 @api_bp.route('/translate/book/<isbn>', methods=['POST'])
+@rate_limit()
 @csrf_protect
 @handle_api_errors
 def translate_book(isbn: str):
@@ -85,7 +84,7 @@ def translate_book(isbn: str):
     from ...services.award_book_service import AwardBookService
     from ...services.zhipu_translation_service import get_translation_service
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     book_data = book_service.get_book_by_isbn(isbn) if book_service else None
 
     # Fallback: 查询 AwardBook 表（获奖书单数据不在主 books 缓存中）
@@ -128,6 +127,7 @@ def translate_book(isbn: str):
 
 
 @api_bp.route('/translate/cache/stats')
+@rate_limit()
 @admin_required
 @handle_api_errors
 def get_translation_cache_stats():
@@ -135,7 +135,9 @@ def get_translation_cache_stats():
     from ...services.zhipu_translation_service import get_translation_service
 
     service = get_translation_service()
-    zhipu_available = service.zhipu.is_available()
+    svc = service.zhipu
+    zhipu_available = svc.is_available()
+    provider_name = 'SiliconFlow Hunyuan-MT-7B' if svc.provider == 'siliconflow' else 'ZhipuAI GLM'
 
     try:
         cache_stats = service.get_cache_stats()
@@ -143,10 +145,10 @@ def get_translation_cache_stats():
         if 'no such table' in str(e):
             return APIResponse.success(
                 data={
-                    'service': 'ZhipuAI GLM-4.7-Flash',
+                    'service': provider_name,
                     'status': 'offline',
-                    'model': 'glm-4.7-flash',
-                    'description': '使用智谱AI免费模型进行高质量翻译',
+                    'model': svc.model,
+                    'description': f'翻译服务(provider={svc.provider}, model={svc.model})',
                     'message': 'Database not initialized',
                 }
             )
@@ -154,16 +156,17 @@ def get_translation_cache_stats():
 
     return APIResponse.success(
         data={
-            'service': 'ZhipuAI GLM-4.7-Flash',
+            'service': provider_name,
             'status': 'online' if zhipu_available else 'offline',
-            'model': 'glm-4.7-flash',
-            'description': '使用智谱AI免费模型进行高质量翻译',
+            'model': svc.model,
+            'description': f'翻译服务(provider={svc.provider}, model={svc.model})',
             'cache': cache_stats,
         }
     )
 
 
 @api_bp.route('/translate/cache/recent')
+@rate_limit()
 @admin_required
 @handle_api_errors
 def get_translation_cache_recent():
@@ -200,6 +203,7 @@ def get_translation_cache_recent():
 
 
 @api_bp.route('/translate/cache/clear', methods=['POST'])
+@rate_limit()
 @csrf_protect
 @admin_required
 @handle_api_errors

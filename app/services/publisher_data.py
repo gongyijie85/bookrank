@@ -1,16 +1,13 @@
 """
 出版社数据定义和静态数据导入辅助
 
-从 NewBookService 中提取，与实例状态分离。
+从新书速递同步逻辑中提取，与实例状态分离。
 """
 
-import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 # ==================== 出版社定义 ====================
 
@@ -48,13 +45,17 @@ DEFAULT_PUBLISHERS: list[dict[str, str | bool]] = [
         'name': '阿歇特',
         'name_en': 'Hachette',
         'website': 'https://www.hachettebookgroup.com',
-        'crawler_class': 'HachetteCrawler',
+        # 工单 #112：官网首页对 Render 出口 IP 返回不同页面（本地可抓、生产自
+        # 2026-06-22 起零入库），切回 Google Books 出版社通道（与 S&S 同模式）
+        'crawler_class': 'HachetteGoogleCrawler',
     },
     {
         'name': '哈珀柯林斯',
         'name_en': 'HarperCollins',
         'website': 'https://www.harpercollins.com',
-        'crawler_class': 'HarperCollinsCrawler',
+        # 工单 #112：同上，站点抓取在生产失效且详情页被 Cloudflare 拦截拿不到
+        # 出版日期，切回 Google Books 出版社通道（带完整出版日期）
+        'crawler_class': 'HarperCollinsGoogleCrawler',
     },
     {
         'name': '麦克米伦',
@@ -130,13 +131,15 @@ VALID_CATEGORIES: set[str] = {
 # 旧爬虫 -> 新爬虫的迁移映射
 CRAWLER_MIGRATION: dict[str, str] = {
     'SimonSchusterCrawler': 'SimonSchusterGoogleCrawler',
-    'HachetteGoogleCrawler': 'HachetteCrawler',
-    'HarperCollinsGoogleCrawler': 'HarperCollinsCrawler',
+    # 工单 #112：站点爬虫在生产失效（2026-06-22 起零入库），切回 Google Books 通道；
+    # 此前的反向迁移（Google -> 站点）已废弃移除
+    'HachetteCrawler': 'HachetteGoogleCrawler',
+    'HarperCollinsCrawler': 'HarperCollinsGoogleCrawler',
     'MacmillanGoogleCrawler': 'MacmillanCrawler',
     'PenguinRandomHouseCrawler': 'PrhApiCrawler',
 }
 
-# 营销关键词过滤（_sanitize_category 使用）
+# 营销关键词过滤（sanitize_category 使用）
 MARKETING_KEYWORDS: list[str] = [
     'learn more',
     'read more',

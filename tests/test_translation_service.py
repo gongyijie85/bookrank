@@ -12,10 +12,80 @@ import pytest
 from app.services.zhipu_translation_service import (
     HybridTranslationService,
     ZhipuTranslationService,
+    _unwrap_merged_json_result,
     get_translation_service,
     translate_book_info,
     translate_text,
 )
+from app.utils.api_helpers import is_english_echo
+
+
+class TestEnglishEchoGuard:
+    """英文回显防护（#210 取证：坏值写进缓存会自我固化）。"""
+
+    @pytest.mark.parametrize(
+        ('source', 'translated'),
+        [
+            ('SCION', 'SCION'),
+            ('SCION', 'Scion'),
+            ('THE KNAVE AND THE MOON', 'The Knave and the Moon'),
+        ],
+    )
+    def test_flags_english_echo(self, source, translated):
+        assert is_english_echo(source, translated, 'zh') is True
+
+    @pytest.mark.parametrize(
+        ('source', 'translated', 'target_lang'),
+        [
+            # 正常中文译文
+            ('SCION', '后裔', 'zh'),
+            # 中英混排但含汉字，属正常译文
+            ('KPOP DEMON HUNTERS', 'KPOP恶魔猎人', 'zh'),
+            # 目标语言不是中文时不适用本规则
+            ('Hello', 'Hello', 'en'),
+            # 原文没有拉丁字母（数字/符号）本就不该被翻译，不算回显
+            ('9781668067246', '9781668067246', 'zh'),
+            # 空值
+            ('', '', 'zh'),
+            ('SCION', '', 'zh'),
+        ],
+    )
+    def test_does_not_flag_legitimate_values(self, source, translated, target_lang):
+        assert is_english_echo(source, translated, target_lang) is False
+
+
+class TestUnwrapMergedJsonResult:
+    """合并 JSON 响应按字段解包：否则整串 JSON 会被写进 title_zh/description_zh。"""
+
+    MERGED = '{"title_zh": "后裔", "description_zh": "一个关于刺客的故事。"}'
+
+    @pytest.mark.parametrize(
+        ('field_type', 'expected'),
+        [
+            ('title', '后裔'),
+            ('description', '一个关于刺客的故事。'),
+        ],
+    )
+    def test_extracts_requested_field(self, field_type, expected):
+        assert _unwrap_merged_json_result(self.MERGED, field_type) == expected
+
+    def test_returns_none_when_field_absent(self):
+        """模型只回了其它字段时返回 None，不得把整串 JSON 当译文。"""
+        assert _unwrap_merged_json_result(self.MERGED, 'details') is None
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            '后裔',  # 纯文本
+            '{这不是合法JSON',  # 以 { 开头但非法
+            '[1, 2]',  # JSON 数组
+            '{"foo": "bar"}',  # JSON 但无已知字段
+            '',  # 空串
+            None,  # None
+        ],
+    )
+    def test_passes_through_non_merged_values(self, value):
+        assert _unwrap_merged_json_result(value, 'title') == value
 
 
 class TestTranslationService:

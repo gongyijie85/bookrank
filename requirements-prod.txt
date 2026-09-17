@@ -32,9 +32,12 @@ gunicorn==23.0.0
 # HTML 解析
 beautifulsoup4==4.13.0
 
-# AI 翻译
+# AI 翻译（智谱AI主用；硅基流动 Hunyuan 走 openai 兼容端点）
 zhipuai==2.1.5.20250825
-deep-translator==1.11.4
+# ⚠️ 不再安装 deep-translator：PyPI 账号被钓鱼接管后发布含安装期恶意代码的
+# 版本（PYSEC-2022-252），1.8.5 及之后全部受影响且无修复版本。
+# 为可选回退，缺失时服务优雅降级。详见 SECURITY.md「依赖漏洞现状」。
+openai>=1.40.0,<3
 
 # 工具库
 tenacity==9.0.0
@@ -45,10 +48,10 @@ APScheduler==3.11.0
 # 导出功能（PDF/Excel）
 fpdf2==2.7.9
 openpyxl==3.1.2
-Pillow==12.3.0
 
 # Markdown 渲染
-mistune==3.3.0
+# 3.3.3 起修复 CVE-2026-76098；该过滤器输出仍会经 bleach 消毒（纵深防御）
+mistune==3.3.4
 
 # HTML 净化（生产环境必须，避免 XSS 净化降级）
 bleach==6.4.0

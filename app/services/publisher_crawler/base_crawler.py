@@ -12,32 +12,20 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Generator
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 from urllib.parse import urljoin
 from urllib.robotparser import RobotFileParser
 
 import requests
-from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from ...utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
-
-
-class SimpleResponse:
-    """轻量级 HTTP 响应包装（用于 Crawl4AI 降级等场景）"""
-
-    def __init__(self, json_data: dict, status_code: int = 200):
-        self._json_data = json_data
-        self.status_code = status_code
-
-    def json(self):
-        return self._json_data
 
 
 @dataclass
@@ -95,7 +83,6 @@ class CrawlerConfig:
 
     # 分页配置
     max_pages: int = 10  # 最大爬取页数
-    page_size: int = 20  # 每页数量
 
     # 内容配置
     max_description_length: int = 2000  # 简介最大长度
@@ -108,6 +95,23 @@ class CrawlerConfig:
 
     # 是否遵守 robots.txt
     respect_robots_txt: bool = True
+
+
+@dataclass
+class CrawlRequest:
+    """抓取请求：调用爬虫接口时的统一请求参数（见 CONTEXT.md 术语表）。"""
+
+    category: str | None = None
+    max_books: int = 100
+    backfill: bool = False
+
+
+@dataclass
+class CrawlOutcome:
+    """抓取结果：书籍流 + 日期过滤计数（非 Google Books 系为 None）。"""
+
+    books: Iterable[BookInfo]
+    date_filter_stats: dict[str, int] | None = None
 
 
 class BaseCrawler(ABC):
@@ -123,6 +127,16 @@ class BaseCrawler(ABC):
     PUBLISHER_WEBSITE: str = ''
     CRAWLER_CLASS_NAME: str = ''
 
+    # 能力与配置声明（接口事实，调用方直接读取，不得用 getattr 猜测）：
+    # 是否支持回填窗口模式（引擎按存量书数决定开关）
+    SUPPORTS_BACKFILL: bool = False
+    # 所需 API Key 的配置键名（如 'GOOGLE_API_KEY' / 'PRH_API_KEY'）；None 表示无需注入
+    API_KEY_CONFIG: str | None = None
+    # 缺 API Key 时是否快速失败（PRH 官方 API 为必填）
+    api_key_required: bool = False
+    # 引擎注入配置时的请求间隔（秒）；None 用 CrawlerConfig 默认值
+    REQUEST_DELAY: float | None = None
+
     def __init__(self, config: CrawlerConfig | None = None):
         """
         初始化爬虫
@@ -133,7 +147,8 @@ class BaseCrawler(ABC):
         self.config = config or CrawlerConfig()
         self._session = self._create_session()
         self._robots_parser: RobotFileParser | None = None
-        self._is_allowed_by_robots = True
+        # 日期过滤计数：Google Books 系子类重置为计数字典，其余保持 None
+        self.date_filter_stats: dict[str, int] | None = None
 
         # 初始化 robots.txt 解析器
         if self.config.respect_robots_txt and self.PUBLISHER_WEBSITE:
@@ -319,19 +334,6 @@ class BaseCrawler(ABC):
         logger.error(f'❌ 所有尝试失败: {url}')
         return None
 
-    def _parse_html(self, html: str, parser: str = 'html.parser') -> BeautifulSoup:
-        """
-        解析 HTML 内容
-
-        Args:
-            html: HTML 字符串
-            parser: BeautifulSoup 解析器
-
-        Returns:
-            BeautifulSoup 对象
-        """
-        return BeautifulSoup(html, parser)
-
     def _clean_text(self, text: str | None) -> str:
         """
         清理文本（去除多余空白和换行）
@@ -348,97 +350,6 @@ class BaseCrawler(ABC):
         # 去除多余空白和换行
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
-
-    def _extract_isbn(self, text: str) -> tuple[str | None, str | None]:
-        """
-        从文本中提取 ISBN-13 和 ISBN-10
-
-        Args:
-            text: 包含 ISBN 的文本
-
-        Returns:
-            (isbn13, isbn10) 元组
-        """
-        isbn13 = None
-        isbn10 = None
-
-        # 提取 ISBN-13（13位数字，可能以978或979开头）
-        isbn13_match = re.search(r'(?:ISBN[-:\s]*)?(97[89]\d{10})', text, re.IGNORECASE)
-        if isbn13_match:
-            isbn13 = isbn13_match.group(1)
-
-        # 提取 ISBN-10（10位，最后一位可能是X）
-        isbn10_match = re.search(r'(?:ISBN[-:\s]*)?(\d{9}[\dXx])(?!\d)', text, re.IGNORECASE)
-        if isbn10_match and not isbn13:
-            isbn10 = isbn10_match.group(1).upper()
-
-        return isbn13, isbn10
-
-    def _parse_date(self, date_str: str | None) -> date | None:
-        """
-        解析日期字符串
-
-        支持多种常见格式：
-        - YYYY-MM-DD
-        - YYYY/MM/DD
-        - Month DD, YYYY
-        - DD Month YYYY
-
-        Args:
-            date_str: 日期字符串
-
-        Returns:
-            date 对象或 None
-        """
-        if not date_str:
-            return None
-
-        date_str = self._clean_text(date_str)
-
-        # 常见日期格式
-        formats = [
-            '%Y-%m-%d',
-            '%Y/%m/%d',
-            '%m/%d/%Y',
-            '%d/%m/%Y',
-            '%B %d, %Y',  # January 15, 2024
-            '%b %d, %Y',  # Jan 15, 2024
-            '%d %B %Y',  # 15 January 2024
-            '%d %b %Y',  # 15 Jan 2024
-            '%Y',  # 仅年份
-        ]
-
-        for fmt in formats:
-            try:
-                parsed = datetime.strptime(date_str, fmt)
-                return parsed.date()
-            except ValueError:
-                continue
-
-        logger.warning(f'⚠️ 无法解析日期: {date_str}')
-        return None
-
-    def _parse_price(self, price_str: str | None) -> str | None:
-        """
-        解析价格字符串
-
-        Args:
-            price_str: 价格字符串
-
-        Returns:
-            格式化后的价格
-        """
-        if not price_str:
-            return None
-
-        price_str = self._clean_text(price_str)
-
-        # 提取数字和货币符号
-        match = re.search(r'([\$€£¥]?\s*[\d,]+\.?\d*)', price_str)
-        if match:
-            return match.group(1).strip()
-
-        return price_str
 
     def _truncate_description(self, description: str | None) -> str | None:
         """
@@ -458,76 +369,31 @@ class BaseCrawler(ABC):
 
         return description[: self.config.max_description_length - 3] + '...'
 
-    @abstractmethod
-    def get_new_books(self, category: str | None = None, max_books: int = 100) -> Generator[BookInfo]:
+    def get_new_books(self, request: 'CrawlRequest') -> 'CrawlOutcome':
         """
-        获取新书列表（抽象方法，子类必须实现）
+        按抓取请求获取新书（模板方法）。
+
+        组装抓取结果：书籍流由抽象钩子 _iter_new_books 产出；
+        日期过滤计数取实例属性 date_filter_stats（非 Google Books 系为 None）。
 
         Args:
-            category: 分类筛选（可选）
-            max_books: 最大获取数量
+            request: 抓取请求（category / max_books / backfill）
 
-        Yields:
-            BookInfo 对象
+        Returns:
+            抓取结果（书籍流 + 日期过滤计数）
         """
-        pass
+        return CrawlOutcome(
+            books=self._iter_new_books(request),
+            date_filter_stats=self.date_filter_stats,
+        )
 
     @abstractmethod
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """
-        获取书籍详情（抽象方法，子类必须实现）
+    def _iter_new_books(self, request: 'CrawlRequest') -> 'Iterable[BookInfo]':
+        """按抓取请求产出新书流的生成器实现（模板方法钩子，子类必须实现）。
 
-        Args:
-            book_url: 书籍详情页 URL
-
-        Returns:
-            BookInfo 对象或 None
+        非回填型适配器读取并忽略 backfill 字段。
         """
         pass
-
-    @abstractmethod
-    def get_categories(self) -> list[dict[str, str]]:
-        """
-        获取支持的分类列表（抽象方法，子类必须实现）
-
-        Returns:
-            分类列表，每个元素包含 id 和 name
-        """
-        pass
-
-    def crawl(self, category: str | None = None, max_books: int = 100) -> list[BookInfo]:
-        """
-        执行爬取任务
-
-        Args:
-            category: 分类筛选
-            max_books: 最大获取数量
-
-        Returns:
-            书籍信息列表
-        """
-        logger.info(f'🔍 开始爬取 {self.PUBLISHER_NAME} 新书...')
-
-        books = []
-        count = 0
-
-        try:
-            for book_info in self.get_new_books(category=category, max_books=max_books):
-                books.append(book_info)
-                count += 1
-
-                if count >= max_books:
-                    break
-
-                # 进度日志
-                if count % 10 == 0:
-                    logger.info(f'📖 已爬取 {count} 本书籍...')
-
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'爬取过程中出错: {e}')
-
-        logger.info(f'✅ 爬取完成，共获取 {len(books)} 本书籍')
-        return books
 
     def close(self) -> None:
         """关闭爬虫，释放资源"""

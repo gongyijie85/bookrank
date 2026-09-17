@@ -41,7 +41,6 @@
     "url": "{{ request.url }}"
 }
 </script>
-<main class="main-content">
     <!-- 新闻风格头部 -->
     <div class="news-hero-section">
         <div class="news-hero-content">
@@ -96,7 +95,7 @@
                         </div>
                         <div class="highlight-content">
                             <span class="highlight-number">{{ content.longest_running | length }}</span>
-                            <span class="highlight-label">{{ _('持续上榜') }}</span>
+                            <span class="highlight-label">{{ _('累计上榜') }}</span>
                         </div>
                     </div>
                     {% endif %}
@@ -194,7 +193,8 @@
                             {% for change in content.top_changes %}
                             <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}">
                                 {% if change.cover %}
-                                <img src="{{ change.cover }}" alt="{{ change.title_zh or change.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ change.cover|cover_src_or_default }}" alt="{{ change.title_zh or change.title }}" class="book-cover" width="50" height="75" loading="lazy"
+                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -230,7 +230,8 @@
                             {% for book in content.new_books %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy"
+                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -258,7 +259,8 @@
                             {% for book in content.top_risers %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy"
+                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -281,12 +283,13 @@
 
                     {% if content.longest_running %}
                     <div class="analysis-section">
-                        <h3 class="analysis-subheading">{{ _('持续上榜最久') }}</h3>
+                        <h3 class="analysis-subheading">{{ _('累计上榜周数') }}</h3>
                         <ul class="books-list">
                             {% for book in content.longest_running %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy"
+                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
@@ -322,7 +325,7 @@
                             {% for book in content.featured_books %}
                             <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
                                 {% if book.cover %}
-                                <img src="{{ book.cover }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
+                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
                                 {% else %}
                                 <div class="recommendation-cover-placeholder" title="{{ _('暂无封面') }}">
                                     <svg class="icon" width="32" height="32"><use href="#icon-book"/></svg>
@@ -392,7 +395,6 @@
             </div>
         </div>
     </div>
-</main>
 {% endblock %}
 
 {% block extra_css %}
@@ -1213,11 +1215,130 @@
             font-size: 0.875rem;
         }
     }
+    /* ============================================
+       Charts tone alignment (appended last so equal-specificity rules win).
+       Re-pointing the --n-* palette recolours the whole page without touching
+       the ~120 rules below, which all read from these variables.
+       ============================================ */
+    :root {
+        --n-black: var(--text-primary);
+        --n-white: var(--bg-card);
+        --n-blue: var(--link-blue);
+        --n-blue-hover: #0060cf;
+        --n-warm-white: var(--bg-secondary);
+        --n-warm-dark: var(--text-primary);
+        --n-warm-gray-500: var(--text-secondary);
+        --n-warm-gray-300: var(--text-muted);
+        --n-teal: var(--link-blue);
+        --n-green: #216140;
+        --n-orange: #974120;
+        --n-badge-bg: var(--badge-bg);
+        --n-badge-text: var(--badge-text);
+        --n-focus: var(--link-blue);
+        --n-shadow-card: none;
+        --n-shadow-deep: var(--shadow-card-full);
+        --n-whisper-border: 1px solid var(--border-color);
+    }
+
+    /* Masthead: drop the boxed "news hero" for the Charts editorial header */
+    .news-hero-section {
+        padding: 20px 0 28px;
+        border: 0;
+        border-bottom: 1px solid var(--border-color);
+        border-radius: 0;
+        background: transparent;
+        overflow: visible;
+    }
+
+    .news-hero-section::before { display: none; }
+    .news-hero-title {
+        font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+        font-size: clamp(28px, 4vw, 42px);
+        font-weight: 500;
+        letter-spacing: -0.035em;
+        line-height: 1.18;
+    }
+
+    .news-hero-date,
+    .news-hero-period { font-size: 12px; letter-spacing: 0.02em; }
+
+    /* Cards: hairline borders instead of rounded floating panels */
+    .content-section,
+    .report-detail-card,
+    .highlight-item,
+    .analysis-section,
+    .book-item,
+    .change-item,
+    .recommendation-card,
+    .navigation-card,
+    .export-card {
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        box-shadow: none;
+    }
+
+    .highlight-item:hover,
+    .book-item:hover,
+    .recommendation-card:hover,
+    .change-item:hover {
+        transform: none;
+        border-color: var(--text-muted);
+        box-shadow: none;
+    }
+
+    .highlight-number {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+    }
+
+    /* Headings: serif, lighter weight, tighter tracking */
+    .section-heading,
+    .analysis-subheading,
+    .section-title {
+        font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+    }
+
+    /* Tabs: Charts-style underline selector, no filled pill */
+    .tab-navigation { padding-bottom: 0; }
+    .tab-btn {
+        padding: 14px 4px;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        border-radius: 0;
+        background: transparent;
+        color: var(--text-secondary);
+        font-weight: 400;
+        transition: color 180ms ease, border-color 180ms ease;
+    }
+
+    .tab-btn:hover { background: transparent; color: var(--text-primary); }
+    .tab-btn.active { background: transparent; color: var(--text-primary); border-bottom-color: var(--text-primary); }
+    .tab-btn + .tab-btn { margin-left: 24px; }
+
+    @media (max-width: 768px) {
+        .news-hero-section { padding: 16px 0 20px; }
+        .news-hero-title { font-size: 26px; }
+        .tab-btn { padding: 10px 2px; font-size: 13px; min-height: 40px; }
+        .tab-btn + .tab-btn { margin-left: 16px; }
+    }
+
+    @media (max-width: 480px) {
+        .news-hero-section { padding: 12px 0 16px; }
+        .news-hero-title { font-size: 22px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .tab-panel.active { animation: none; }
+    }
+
 </style>
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <script nonce="{{ csp_nonce() }}">
 'use strict';
 document.addEventListener('DOMContentLoaded', function() {
@@ -1349,6 +1470,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // XSS 防护：转义所有外部/DB 来源的文本后再拼 innerHTML
+    function escHtml(str) {
+        if (str === undefined || str === null) return '';
+        const d = document.createElement('div');
+        d.textContent = String(str);
+        return d.innerHTML;
+    }
     bookDetailBtns.forEach(btn => {
         btn.addEventListener('click', function() {
             const parent = this.closest('.book-item, .change-item, .recommendation-card');
@@ -1359,14 +1487,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (book) {
                 const changeHtml = book.rank_change && book.rank_change !== 0
-                    ? `<p><strong>{{ _('排名变化') }}：</strong>${book.rank_change > 0 ? '↑' : '↓'} ${Math.abs(book.rank_change)} {{ _('位') }}</p>` : '';
-                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('累计上榜周数') }}：</strong>${book.weeks_on_list} {{ _('周') }}</p>` : '';
-                const rankHtml = book.rank ? `<p><strong>{{ _('当前排名') }}：</strong>{{ _('第') }} ${book.rank} {{ _('名') }}</p>` : '';
-                const categoryHtml = book.category ? `<p><strong>{{ _('类别') }}：</strong>${book.category}</p>` : '';
-                const reasonHtml = book.reason ? `<p><strong>{{ _('推荐理由') }}：</strong>${book.reason}</p>` : '';
-                modalBody.innerHTML = `<h4>${bookTitle}</h4><p><strong>{{ _('作者') }}：</strong>${bookAuthor}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
+                    ? `<p><strong>{{ _('排名变化') }}：</strong>${escHtml(book.rank_change > 0 ? '↑' : '↓')} ${Math.abs(Number(book.rank_change)||0)} {{ _('位') }}</p>` : '';
+                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('累计上榜周数') }}：</strong>${escHtml(book.weeks_on_list)} {{ _('周') }}</p>` : '';
+                const rankHtml = book.rank ? `<p><strong>{{ _('当前排名') }}：</strong>{{ _('第') }} ${escHtml(book.rank)} {{ _('名') }}</p>` : '';
+                const categoryHtml = book.category ? `<p><strong>{{ _('类别') }}：</strong>${escHtml(book.category)}</p>` : '';
+                const reasonHtml = book.reason ? `<p><strong>{{ _('推荐理由') }}：</strong>${escHtml(book.reason)}</p>` : '';
+                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>{{ _('作者') }}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
             } else {
-                modalBody.innerHTML = `<h4>${bookTitle}</h4><p><strong>{{ _('作者') }}：</strong>${bookAuthor}</p><p>{{ _('暂无更多详情数据') }}</p>`;
+                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>{{ _('作者') }}：</strong>${escHtml(bookAuthor)}</p><p>{{ _('暂无更多详情数据') }}</p>`;
             }
             modalOverlay.classList.add('active');
         });

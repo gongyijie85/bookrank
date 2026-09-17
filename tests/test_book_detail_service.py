@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, patch
 
 from app.services.book_detail_service import (
     fetch_google_books_details,
-    is_valid_isbn,
     merge_or_translate_book,
     update_book_from_google_books,
 )
+from app.utils.api_helpers import validate_isbn as is_valid_isbn
 
 
 class TestIsValidIsbn:
@@ -140,6 +140,24 @@ class TestUpdateBookFromGoogleBooks:
 
         assert 'details' not in book
         mock_translate.assert_not_called()
+
+    def test_queues_title_translation_when_title_missing_zh(self, mock_translate):
+        """书名缺中文时也要排队翻译（此前只排了 description/details）。"""
+        book = {'title': 'The Great Gatsby'}
+        details = {'details': 'A detailed book description.'}
+
+        update_book_from_google_books(book, details)
+
+        assert ('title', 'title_zh') in [call.args[1:] for call in mock_translate.call_args_list]
+
+    def test_does_not_requeue_title_when_zh_present(self, mock_translate):
+        """已有中文书名时不应重复排队。"""
+        book = {'title': 'The Great Gatsby', 'title_zh': '了不起的盖茨比'}
+        details = {'details': 'A detailed book description.'}
+
+        update_book_from_google_books(book, details)
+
+        assert all(call.args[1] != 'title' for call in mock_translate.call_args_list)
 
     def test_updates_page_count(self, mock_translate):
         """更新 page_count"""
@@ -388,7 +406,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_cache_hit(self, mock_get_bs, mock_get_gc, mock_update):
         """缓存命中时直接使用缓存数据"""
         cached_data = {'details': 'Cached description.'}
@@ -407,7 +425,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_cache_miss_api_success(self, mock_get_bs, mock_get_gc, mock_update):
         """缓存未命中，API 返回成功"""
         mock_cache = MagicMock()
@@ -430,7 +448,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_cache_miss_api_returns_none(self, mock_get_bs, mock_get_gc, mock_update):
         """缓存未命中，API 返回 None"""
         mock_cache = MagicMock()
@@ -451,7 +469,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_cache_miss_api_exception(self, mock_get_bs, mock_get_gc, mock_update):
         """缓存未命中，API 抛出异常"""
         mock_cache = MagicMock()
@@ -471,7 +489,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_no_google_client(self, mock_get_bs, mock_get_gc, mock_update):
         """没有 Google Books 客户端时直接返回"""
         mock_get_bs.return_value = None
@@ -484,7 +502,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_no_book_service_no_cache(self, mock_get_bs, mock_get_gc, mock_update):
         """book_service 不存在时跳过缓存，直接调 API"""
         mock_get_bs.return_value = None
@@ -502,7 +520,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_cache_read_exception_falls_through(self, mock_get_bs, mock_get_gc, mock_update):
         """缓存读取异常时降级到 API 调用"""
         mock_cache = MagicMock()
@@ -524,7 +542,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_cache_write_exception_does_not_propagate(self, mock_get_bs, mock_get_gc, mock_update):
         """缓存写入异常不影响主流程"""
         mock_cache = MagicMock()
@@ -546,7 +564,7 @@ class TestFetchGoogleBooksDetails:
 
     @patch('app.services.book_detail_service.update_book_from_google_books')
     @patch('app.services.book_detail_service.get_google_books_client')
-    @patch('app.services.book_detail_service.get_book_service')
+    @patch('app.services.book_detail_service.get_service')
     def test_book_service_cache_get_exception(self, mock_get_bs, mock_get_gc, mock_update):
         """获取 book_service 时异常降级到 API"""
         mock_get_bs.side_effect = RuntimeError('service init error')
@@ -565,7 +583,7 @@ class TestFetchGoogleBooksDetails:
 class TestMergeOrTranslateBook:
     """测试 merge_or_translate_book 翻译合并"""
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
@@ -590,7 +608,7 @@ class TestMergeOrTranslateBook:
         assert book['details_zh'] == '已翻译详情'
         mock_submit.assert_not_called()
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
@@ -616,7 +634,7 @@ class TestMergeOrTranslateBook:
             assert 'details_zh' not in book
             mock_submit.assert_called_once()
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
@@ -635,7 +653,7 @@ class TestMergeOrTranslateBook:
 
             mock_submit.assert_called_once()
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
@@ -653,7 +671,7 @@ class TestMergeOrTranslateBook:
 
             mock_submit.assert_not_called()
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
@@ -676,7 +694,7 @@ class TestMergeOrTranslateBook:
 
             mock_submit.assert_not_called()
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
@@ -701,7 +719,7 @@ class TestMergeOrTranslateBook:
 
             mock_submit.assert_not_called()
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
@@ -726,7 +744,7 @@ class TestMergeOrTranslateBook:
 
             mock_submit.assert_not_called()
 
-    @patch('app.services.book_detail_service.get_translation_service')
+    @patch('app.services.book_detail_service.get_service')
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')

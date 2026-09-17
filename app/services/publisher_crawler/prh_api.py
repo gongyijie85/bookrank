@@ -12,10 +12,9 @@ Penguin Random House 官方开发者 API 爬虫
 """
 
 import logging
-from collections.abc import Generator
 from datetime import date, timedelta
 
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +38,15 @@ class PrhApiCrawler(BaseCrawler):
     # 日常增量窗口（天）。PRH 固定周二发书，14 天容忍单次同步失败
     INCREMENTAL_WINDOW_DAYS = 14
 
+    # 首次回填窗口（天）。维护者决议（2026-08-07）：出版 30 天内才算"新书"，
+    # 回填不再用 showNewReleases（固定近 180 天，会拉进大量超龄书），
+    # 改用成对 onSaleFrom/onSaleTo 拉精确 30 天窗口
+    BACKFILL_WINDOW_DAYS = 30
+
     # rows=1000 实测可用（status=warning 但数据完整）
     PAGE_ROWS = 1000
 
-    # 回填模式的翻页上限：showNewReleases 全量约 1.3 万条，约 13 页，留余量到 20
+    # 回填模式的翻页上限：30 天窗口约 2000+ 条（约 3 页），保留余量到 20
     BACKFILL_MAX_PAGES = 20
 
     # division code 黑名单：加拿大系（CAD 定价/加拿大发行）与 Audio
@@ -53,6 +57,12 @@ class PrhApiCrawler(BaseCrawler):
 
     # 能力声明：支持同步引擎按存量书数量传入窗口模式（工单 #87）
     SUPPORTS_BACKFILL = True
+
+    # 配置声明：官方 API 需要 PRH_API_KEY，缺失时引擎快速失败跳过（工单 #86）
+    API_KEY_CONFIG = 'PRH_API_KEY'
+    api_key_required = True
+    # 官方 API 的请求礼貌间隔（秒），由引擎注入配置
+    REQUEST_DELAY = 0.5
 
     # BISAC subject 描述 -> 现有分类体系的英文规范名（按顺序取首个命中）。
     # 规则顺序有讲究：更具体的类目（Young Adult/Juvenile/Science Fiction）
@@ -84,29 +94,25 @@ class PrhApiCrawler(BaseCrawler):
             config = CrawlerConfig(request_delay=0.5)
         # 官方 API 无 robots.txt 约束；避免去爬官网 robots.txt 引入挂起风险
         config.respect_robots_txt = False
-        # 默认 max_pages=10 盖不住回填全量（~13 页），抬高到回填上限
+        # 翻页上限抬高到回填上限，避免默认 max_pages=10 截断回填窗口
         config.max_pages = max(config.max_pages, self.BACKFILL_MAX_PAGES)
         super().__init__(config)
         if not self.config.api_key:
             raise ValueError('PrhApiCrawler 需要 PRH_API_KEY（环境变量注入）')
 
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        backfill: bool = False,
-    ) -> Generator[BookInfo]:
+    def _iter_new_books(self, request: CrawlRequest):
         """
-        获取 PRH 新书
+        获取 PRH 新书的生成器实现
 
         Args:
-            category: 未使用（API 窗口模式不支持分类检索，分类在入库时映射）
-            max_books: 最大产出数量（去重后计数）
-            backfill: True 走首次 180 天全量回填（showNewReleases），
-                False 走近 14 天增量窗口；模式由同步引擎判定传入，爬虫无状态
+            request: 抓取请求（category 未使用；backfill 走回填窗口，爬虫无状态）
         """
+        max_books = request.max_books
+        backfill = request.backfill
         if backfill:
-            raw_titles = self._fetch_pages(self._backfill_params(), '近 180 天回填窗口')
+            window_end = date.today()
+            window_start = window_end - timedelta(days=self.BACKFILL_WINDOW_DAYS)
+            raw_titles = self._fetch_window(window_start, window_end)
         else:
             window_end = date.today()
             window_start = window_end - timedelta(days=self.INCREMENTAL_WINDOW_DAYS)
@@ -124,26 +130,7 @@ class PrhApiCrawler(BaseCrawler):
             if yielded >= max_books:
                 break
 
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """不支持详情页抓取（列表端点已包含所需字段）"""
-        return None
-
-    def get_categories(self) -> list[dict[str, str]]:
-        """API 窗口模式不支持分类检索"""
-        return []
-
     # ---------- 请求与分页 ----------
-
-    def _backfill_params(self) -> dict:
-        """首次回填参数：showNewReleases=true 自带近 180 天窗口（实测 ~1.3 万条），
-        不用日期对"""
-        return {
-            'showNewReleases': 'true',
-            'sort': 'onsale',
-            'dir': 'desc',
-            'rows': self.PAGE_ROWS,
-            'api_key': self.config.api_key,
-        }
 
     def _fetch_window(self, window_start: date, window_end: date) -> list[dict]:
         """成对 onSaleFrom/onSaleTo 拉取窗口内全部 title（分页）"""

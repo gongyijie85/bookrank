@@ -13,10 +13,9 @@ API 文档: https://developers.google.com/books/docs/v1/reference/volumes/list
 """
 
 import logging
-from collections.abc import Generator
 
 from ...utils.error_handler import ErrorCategory, log_error
-from .base_crawler import BookInfo, CrawlerConfig
+from .base_crawler import CrawlRequest
 from .google_books import GoogleBooksCrawler
 
 logger = logging.getLogger(__name__)
@@ -39,30 +38,16 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
     # 子类需要覆盖
     SEARCH_QUERIES: list[str] = ['books']
 
-    def __init__(self, config: CrawlerConfig | None = None):
-        super().__init__(config)
-
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        year_from: int | None = None,
-    ) -> Generator[BookInfo]:
+    def _iter_new_books(self, request: CrawlRequest):
         """
-        按出版社名搜索新书
+        按出版社名搜索新书的生成器实现
 
         使用 inpublisher: 语法限制搜索范围到指定出版社，
         再结合关键词搜索获取该出版社的新书。
-
-        Args:
-            category: 未使用（保持接口兼容）
-            max_books: 最大获取数量
-            year_from: 出版年份起（可选，覆盖默认的滚动天数窗口）
-
-        Yields:
-            BookInfo 对象
         """
-        cutoff_date = self._compute_cutoff_date(year_from)
+        category = request.category
+        max_books = request.max_books
+        cutoff_date = self._compute_cutoff_date()
 
         logger.info(
             '正在从 Google Books 搜索 %s 的新书 (>= %s)...',
@@ -90,7 +75,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     break
 
                 remaining = max_books - collected
-                params = {
+                params: dict[str, str | int] = {
                     'q': search_query,
                     'maxResults': min(remaining, 40),
                     'startIndex': start_index,
@@ -140,7 +125,9 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     volume_info = item.get('volumeInfo', {})
                     published_date = volume_info.get('publishedDate', '')
 
-                    if not self._is_recent_book(published_date, cutoff_date):
+                    category = self._classify_date_filter(published_date, cutoff_date)
+                    self._record_date_filter(category)
+                    if not category.startswith('accepted'):
                         continue
 
                     # 去重：用 ISBN 或标题
@@ -182,7 +169,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
         identifiers = volume_info.get('industryIdentifiers', [])
         for ident in identifiers:
             if ident.get('type') in ('ISBN_13', 'ISBN_10'):
-                return ident.get('identifier', '')
+                return str(ident.get('identifier', ''))
         title = volume_info.get('title', '')
         author = (volume_info.get('authors') or [''])[0]
         return f'{title}|{author}'.lower()
@@ -237,8 +224,9 @@ class HachetteGoogleCrawler(GoogleBooksPublisherCrawler):
         'young adult',
     ]
 
-    def get_new_books(self, category=None, max_books=100, year_from=None):
-        """搜索 Hachette 及其子出版社的新书"""
+    def _iter_new_books(self, request: CrawlRequest):
+        category = request.category
+        max_books = request.max_books
         # 临时覆盖搜索，加入子出版社名称
         original_queries = self.SEARCH_QUERIES.copy()
         sub_publishers = [
@@ -250,7 +238,7 @@ class HachetteGoogleCrawler(GoogleBooksPublisherCrawler):
         ]
 
         # 先搜主出版社
-        yield from super().get_new_books(category, max_books // 2, year_from)
+        yield from super()._iter_new_books(CrawlRequest(category=category, max_books=max_books // 2))
 
         # 再搜子出版社
         self.SEARCH_QUERIES = ['fiction', 'nonfiction', 'thriller']
@@ -260,7 +248,9 @@ class HachetteGoogleCrawler(GoogleBooksPublisherCrawler):
                 break
             old_name = self.PUBLISHER_NAME_EN
             self.PUBLISHER_NAME_EN = sub_pub
-            for _i, book in enumerate(super().get_new_books(category, min(10, remaining), year_from)):
+            for _i, book in enumerate(
+                super()._iter_new_books(CrawlRequest(category=category, max_books=min(10, remaining)))
+            ):
                 yield book
                 remaining -= 1
             self.PUBLISHER_NAME_EN = old_name

@@ -4,14 +4,16 @@
 
 import hashlib
 import logging
+import os
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from ..models.database import db
 from ..models.schemas import TranslationCache
+from ..utils.api_helpers import is_english_echo
 from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
@@ -20,10 +22,11 @@ logger = logging.getLogger(__name__)
 class TranslationCacheService:
     """翻译缓存服务类"""
 
-    CACHE_VERSION = 2  # 递增此值可使旧缓存失效
+    # v4: 提示词改为图书上下文感知；旧提示生成的译文不再复用。
+    CACHE_VERSION = 4
 
     def __init__(self):
-        self.default_model = 'glm-4.7-flash'
+        self.default_model = os.environ.get('TRANSLATION_MODEL') or 'glm-4.7-flash'
 
     @staticmethod
     def _compute_source_hash(text: str) -> str:
@@ -38,7 +41,21 @@ class TranslationCacheService:
         """
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
-    def get(self, source_text: str, source_lang: str = 'en', target_lang: str = 'zh') -> TranslationCache | None:
+    @classmethod
+    def _compute_cache_hash(cls, text: str, cache_context: str | None = None) -> str:
+        """计算缓存哈希；上下文不落入 source_text，但会隔离不同提示与图书语境。"""
+        if not cache_context:
+            return cls._compute_source_hash(text)
+        return cls._compute_source_hash(f'{cache_context}\0{text}')
+
+    def get(
+        self,
+        source_text: str,
+        source_lang: str = 'en',
+        target_lang: str = 'zh',
+        model_name: str | None = None,
+        cache_context: str | None = None,
+    ) -> TranslationCache | None:
         """
         从缓存中获取翻译结果
 
@@ -46,6 +63,8 @@ class TranslationCacheService:
             source_text: 源文本
             source_lang: 源语言
             target_lang: 目标语言
+            model_name: 期望的模型名；指定后不会复用其他模型的缓存
+            cache_context: 提示版本、字段类型和图书上下文组成的稳定标识
 
         Returns:
             TranslationCache对象或None
@@ -53,7 +72,7 @@ class TranslationCacheService:
         if not source_text or not source_text.strip():
             return None
 
-        source_hash = self._compute_source_hash(source_text)
+        source_hash = self._compute_cache_hash(source_text, cache_context)
 
         # 查找缓存
         cache = TranslationCache.query.filter_by(
@@ -61,6 +80,10 @@ class TranslationCacheService:
         ).first()
 
         if cache:
+            if model_name is not None and cache.model_name != model_name:
+                logger.info(f'缓存模型不匹配({cache.model_name!r} != {model_name!r})，视为未命中')
+                return None
+
             # 版本检查：版本不匹配的缓存视为无效
             if hasattr(cache, 'model_version') and cache.model_version:
                 try:
@@ -88,7 +111,7 @@ class TranslationCacheService:
                 return None
 
             logger.debug(f'缓存命中: {source_lang}->{target_lang}, 已使用{cache.usage_count}次')
-            return cache
+            return cast('TranslationCache | None', cache)
 
         logger.debug(f'缓存未命中: {source_lang}->{target_lang}')
         return None
@@ -102,6 +125,7 @@ class TranslationCacheService:
         model_name: str | None = None,
         model_version: str | None = None,
         quality_score: float | None = None,
+        cache_context: str | None = None,
     ) -> TranslationCache:
         """
         保存翻译结果到缓存
@@ -114,6 +138,7 @@ class TranslationCacheService:
             model_name: 使用的模型名称
             model_version: 模型版本
             quality_score: 翻译质量评分 (0-1)
+            cache_context: 提示版本、字段类型和图书上下文组成的稳定标识
 
         Returns:
             TranslationCache对象
@@ -121,7 +146,15 @@ class TranslationCacheService:
         if not source_text or not translated_text:
             raise ValueError('源文本和翻译结果不能为空')
 
-        source_hash = self._compute_source_hash(source_text)
+        # 回显兜底：坏值一旦落库就会自我固化（后续请求全部命中缓存拿到英文）。
+        # 调用方对此的既有处理是捕获异常后记录缓存写入失败，翻译结果照常返回。
+        if is_english_echo(source_text, translated_text, target_lang):
+            logger.warning(
+                '拒绝缓存原文回显: %r -> %r（%s->%s）', source_text[:40], translated_text[:40], source_lang, target_lang
+            )
+            raise ValueError(f'翻译结果为原文回显，拒绝写入缓存: {source_text[:40]!r}')
+
+        source_hash = self._compute_cache_hash(source_text, cache_context)
 
         # 检查是否已存在
         existing = TranslationCache.query.filter_by(
@@ -155,7 +188,7 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.info(f'翻译缓存已保存: {source_lang}->{target_lang}')
-            return existing
+            return cast('TranslationCache', existing)
         except IntegrityError:
             db.session.rollback()
             existing = TranslationCache.query.filter_by(
@@ -170,7 +203,7 @@ class TranslationCacheService:
                 existing.usage_count += 1
                 db.session.commit()
                 logger.info(f'翻译缓存已更新(并发冲突): {source_lang}->{target_lang}')
-                return existing
+                return cast('TranslationCache', existing)
             raise
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'保存翻译缓存失败: {e}')
@@ -233,55 +266,7 @@ class TranslationCacheService:
         if target_lang:
             query = query.filter_by(target_lang=target_lang)
 
-        return query.order_by(TranslationCache.last_used_at.desc()).limit(limit).all()
-
-    def search(
-        self, keyword: str, limit: int = 50, source_lang: str | None = None, target_lang: str | None = None
-    ) -> list[TranslationCache]:
-        """
-        搜索缓存记录
-
-        Args:
-            keyword: 搜索关键词
-            limit: 返回数量限制
-            source_lang: 源语言筛选
-            target_lang: 目标语言筛选
-
-        Returns:
-            匹配的缓存记录列表
-        """
-        safe_keyword = keyword.replace('%', '\\%').replace('_', '\\_')
-        pattern = f'%{safe_keyword}%'
-        query = TranslationCache.query.filter(
-            or_(TranslationCache.source_text.ilike(pattern), TranslationCache.translated_text.ilike(pattern))
-        )
-
-        if source_lang:
-            query = query.filter_by(source_lang=source_lang)
-
-        if target_lang:
-            query = query.filter_by(target_lang=target_lang)
-
-        return query.order_by(TranslationCache.usage_count.desc()).limit(limit).all()
-
-    def get_least_used(self, limit: int = 100, older_than_days: int | None = None) -> list[TranslationCache]:
-        """
-        获取最少使用的缓存记录（用于清理）
-
-        Args:
-            limit: 返回数量限制
-            older_than_days: 筛选N天前的记录
-
-        Returns:
-            最少使用的缓存记录列表
-        """
-        query = TranslationCache.query
-
-        if older_than_days:
-            cutoff_date = datetime.now(UTC) - timedelta(days=older_than_days)
-            query = query.filter(TranslationCache.last_used_at < cutoff_date)
-
-        return query.order_by(TranslationCache.usage_count.asc()).limit(limit).all()
+        return cast('list[TranslationCache]', query.order_by(TranslationCache.last_used_at.desc()).limit(limit).all())
 
     def auto_cleanup(self, max_items: int = 10000, keep_recent_days: int = 30) -> int:
         """
@@ -331,7 +316,7 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.info(f'自动清理完成，删除了 {deleted} 条缓存记录')
-            return deleted
+            return cast('int', deleted)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'自动清理缓存失败: {e}')
             db.session.rollback()
@@ -367,7 +352,7 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.info(f'已删除 {deleted_count} 条翻译缓存')
-            return deleted_count
+            return cast('int', deleted_count)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'删除翻译缓存失败: {e}')
             db.session.rollback()
@@ -384,36 +369,11 @@ class TranslationCacheService:
         try:
             db.session.commit()
             logger.warning(f'已清空所有翻译缓存（{count}条）')
-            return count
+            return cast('int', count)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'清空翻译缓存失败: {e}')
             db.session.rollback()
             raise
-
-    def export_cache(self, format: str = 'json') -> dict[str, Any]:
-        """
-        导出缓存数据
-
-        Args:
-            format: 导出格式 ('json' 或 'csv')
-
-        Returns:
-            导出数据
-        """
-        caches = TranslationCache.query.order_by(TranslationCache.usage_count.desc()).limit(1000).all()
-
-        if format == 'json':
-            return {
-                'total': len(caches),
-                'exported_at': datetime.now(UTC).isoformat(),
-                'data': [c.to_dict() for c in caches],
-            }
-        else:
-            # CSV 格式
-            lines = ['source_text,translated_text,source_lang,target_lang,usage_count']
-            for c in caches:
-                lines.append(f'"{c.source_text}","{c.translated_text}",{c.source_lang},{c.target_lang},{c.usage_count}')
-            return {'total': len(caches), 'csv': '\n'.join(lines)}
 
 
 # 全局缓存服务实例

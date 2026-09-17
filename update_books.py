@@ -27,47 +27,53 @@ STATIC_DATA_DIR = os.path.join('static', 'data')
 os.makedirs(STATIC_DATA_DIR, exist_ok=True)
 
 
+# 活跃爬虫的静态数据导出 slug：与 static/data/*_books.json 的兜底种子
+# 文件名（app/services/publisher_data.py 的 STATIC_DATA_FILES）保持一致
+_PUBLISHER_EXPORTS = [
+    ('Google Books', 'google_books'),
+    ('Penguin Random House', 'penguin_random_house'),
+    ('Hachette', 'hachette'),
+    ('HarperCollins', 'harpercollins'),
+    ('Macmillan', 'macmillan'),
+    ('Simon & Schuster', 'simon_schuster'),
+    ('Open Library', 'open_library'),
+]
+
+
 def sync_all_publishers():
-    """并行同步所有出版社数据
+    """并行同步所有出版社数据（走注册表与新爬虫接口 CrawlRequest/CrawlOutcome）。
 
     v0.9.47：7 个出版社爬虫改为 ThreadPoolExecutor 并行。
     爬虫是 IO 密集型（HTTP 请求），线程足够，无需 multiprocessing。
     """
     try:
-        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
-        from app.services.publisher_crawler.hachette import HachetteCrawler
-        from app.services.publisher_crawler.harpercollins import HarperCollinsCrawler
-        from app.services.publisher_crawler.macmillan import MacmillanCrawler
-        from app.services.publisher_crawler.open_library import OpenLibraryCrawler
-        from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-        from app.services.publisher_crawler.simon_schuster import SimonSchusterCrawler
+        from app.services.publisher_crawler import get_crawler_class
+        from app.services.publisher_crawler.base_crawler import CrawlRequest
+        from app.services.publisher_data import DEFAULT_PUBLISHERS
     except ImportError as e:
         logger.error(f'导入模块失败: {e}')
         return {}
 
-    publishers = {
-        'google_books': GoogleBooksCrawler(),
-        'penguin_random_house': PenguinRandomHouseCrawler(),
-        'hachette': HachetteCrawler(),
-        'harpercollins': HarperCollinsCrawler(),
-        'macmillan': MacmillanCrawler(),
-        'simon_schuster': SimonSchusterCrawler(),
-        'open_library': OpenLibraryCrawler(),
-    }
+    class_by_name_en = {p['name_en']: p['crawler_class'] for p in DEFAULT_PUBLISHERS}
 
     def _sync_one(item: tuple) -> tuple:
         """单个 publisher 同步任务（线程 worker）
 
         失败隔离：单个 publisher 失败不影响其他。
         """
-        name, crawler = item
-        logger.info(f'开始同步 {name}...')
+        name_en, slug = item
+        logger.info(f'开始同步 {name_en}...')
         try:
-            books = crawler.crawl()
-            return name, [book.to_dict() for book in books]
+            crawler_cls = get_crawler_class(class_by_name_en[name_en])
+            if crawler_cls is None:
+                logger.error(f'爬虫类不可用: {name_en}')
+                return slug, []
+            crawler = crawler_cls()
+            outcome = crawler.get_new_books(CrawlRequest(max_books=100))
+            return slug, [book.to_dict() for book in outcome.books]
         except Exception as e:
-            logger.error(f'同步 {name} 失败: {e}')
-            return name, []
+            logger.error(f'同步 {name_en} 失败: {e}')
+            return slug, []
 
     all_books: dict = {}
 
@@ -75,13 +81,13 @@ def sync_all_publishers():
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     with ThreadPoolExecutor(
-        max_workers=len(publishers), thread_name_prefix='pub-crawl'
+        max_workers=len(_PUBLISHER_EXPORTS), thread_name_prefix='pub-crawl'
     ) as executor:
-        futures = {executor.submit(_sync_one, item): item[0] for item in publishers.items()}
+        futures = {executor.submit(_sync_one, item): item for item in _PUBLISHER_EXPORTS}
         for future in as_completed(futures):
-            name, books = future.result()
-            all_books[name] = books
-            logger.info(f'{name} 同步完成，获取到 {len(books)} 本书籍')
+            slug, books = future.result()
+            all_books[slug] = books
+            logger.info(f'{slug} 同步完成，获取到 {len(books)} 本书籍')
 
     return all_books
 

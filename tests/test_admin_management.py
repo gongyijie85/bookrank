@@ -6,7 +6,7 @@ import json
 class TestCrawlerRun:
     """POST /api/admin/crawler/run/<publisher_name>"""
 
-    def test_publisher_not_found(self, client, admin_headers):
+    def test_publisher_not_found(self, client, db, admin_headers):
         response = client.post(
             '/api/admin/crawler/run/不存在的出版社',
             data=json.dumps({'max_books': 5}),
@@ -29,7 +29,7 @@ class TestCrawlerRun:
 class TestCrawlerStatus:
     """GET /api/admin/crawler/status"""
 
-    def test_get_status(self, client, admin_headers):
+    def test_get_status(self, client, db, admin_headers):
         response = client.get('/api/admin/crawler/status', headers=admin_headers)
         data = json.loads(response.data)
         assert data['success'] is True
@@ -78,19 +78,19 @@ class TestSystemStatus:
 class TestBackupExport:
     """GET /api/admin/backup/export"""
 
-    def test_export_returns_json(self, client, admin_headers):
+    def test_export_returns_json(self, client, db, admin_headers):
         response = client.get('/api/admin/backup/export', headers=admin_headers)
         assert response.status_code == 200
         assert 'application/json' in response.content_type
 
-    def test_export_has_structure(self, client, admin_headers):
+    def test_export_has_structure(self, client, db, admin_headers):
         response = client.get('/api/admin/backup/export', headers=admin_headers)
         data = json.loads(response.data)
         assert 'exported_at' in data
         assert 'tables' in data
         assert isinstance(data['tables'], dict)
 
-    def test_export_includes_known_tables(self, client, admin_headers):
+    def test_export_includes_known_tables(self, client, db, admin_headers):
         response = client.get('/api/admin/backup/export', headers=admin_headers)
         data = json.loads(response.data)
         expected_tables = ['awards', 'award_books']
@@ -126,7 +126,7 @@ class TestBackupImport:
         assert data['success'] is True
         assert data['data']['total'] == 0
 
-    def test_import_with_records(self, client, admin_headers):
+    def test_import_with_records(self, client, db, admin_headers):
         import_data = {
             'tables': {
                 'awards': {

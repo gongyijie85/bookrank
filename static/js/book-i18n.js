@@ -109,11 +109,6 @@ var BookI18n = (function() {
         };
     }
 
-    function getRaw(isbn) {
-        var entry = _store.get(isbn);
-        return entry ? entry._raw : null;
-    }
-
     function updateTranslation(isbn, lang, data) {
         var entry = _store.get(isbn);
         if (!entry) return;
@@ -138,17 +133,12 @@ var BookI18n = (function() {
         }
     }
 
-    function hasTranslation(isbn, lang) {
-        var entry = _store.get(isbn);
-        if (!entry) return false;
-        if (lang === 'en') return true;
-        return entry[lang] && entry[lang].title && entry[lang].title !== entry.en.title;
-    }
-
     function getMissingTranslations(lang) {
         var missing = [];
         _store.forEach(function(entry, isbn) {
-            if (!hasTranslation(isbn, lang)) {
+            if (lang === 'en') return;
+            var has = entry[lang] && entry[lang].title && entry[lang].title !== entry.en.title;
+            if (!has) {
                 missing.push(isbn);
             }
         });
@@ -205,7 +195,9 @@ var BookI18n = (function() {
                 for (var c = 0; c < cards.length; c++) {
                     var card = cards[c];
                     _updateTitleInCard(card, data.title);
-                    _updateElement(card.querySelector(DESC_SELECTORS), data.description, 80);
+                    // 简介不传 truncate：整段写入，行数由 CSS 钳制决定。
+                    // 这里曾传 80，与 index.js 的 100/80 一起把简介砍成开头一句。
+                    _updateElement(card.querySelector(DESC_SELECTORS), data.description);
                     _updateElement(card.querySelector(CAT_SELECTORS), data.category);
                 }
             });
@@ -231,19 +223,23 @@ var BookI18n = (function() {
             var descZhEl = document.querySelector('#panel-description .zh-description');
             var descEnEl = document.querySelector('#panel-description #desc-en, #panel-description .lang-toggle-content');
             if (descZhEl && descEnEl) {
+                // 英文原文面板的显隐归 CSS 规则 .lang-toggle-content(.visible) 独占，
+                // toggleOriginal() 切的也是这个类；这里若写内联 display，会盖过类，
+                // 导致按钮只能展开、永远收不回。
+                var showOriginal = true;
                 if (lang === 'zh') {
                     if (data.description && data.description !== onlyEntry.en.description) {
                         descZhEl.textContent = data.description;
                         descZhEl.style.display = 'block';
-                        descEnEl.style.display = '';
+                        showOriginal = false;
                     } else {
                         descZhEl.style.display = 'none';
-                        descEnEl.style.display = 'block';
                     }
                 } else {
                     descZhEl.style.display = 'none';
-                    descEnEl.style.display = 'block';
                 }
+                descEnEl.style.display = '';
+                descEnEl.classList.toggle('visible', showOriginal);
             }
 
             var catValueEl = document.querySelector('.detail-meta-grid .meta-value[data-cat-zh][data-cat-en]') || _findMetaValueByLabelKey('book_category');
@@ -300,10 +296,8 @@ var BookI18n = (function() {
         register: register,
         registerAll: registerAll,
         get: get,
-        getRaw: getRaw,
         updateTranslation: updateTranslation,
         updateBatch: updateBatch,
-        hasTranslation: hasTranslation,
         getMissingTranslations: getMissingTranslations,
         applyLanguage: applyLanguage,
         applyPublisherLanguage: applyPublisherLanguage,

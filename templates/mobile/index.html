@@ -1,6 +1,39 @@
 {% extends "mobile/base.html" %}
 
-{% block title %}{{ _('纽约时报畅销书排行榜') }} - 书榜{% endblock %}
+{% block title %}{{ _('纽约时报畅销书排行榜') }} - BookRank{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/charts.css', v=dist_url('app.css')) }}">
+{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "itemListElement": [
+        {% for book in books %}
+        {% set source_index = (book.rank or loop.index) - 1 %}
+        {
+            "@type": "ListItem",
+            "position": {{ loop.index }},
+            "item": {
+                "@type": "Book",
+                "name": {{ book.title_zh|bilingual(book.title) | tojson }},
+                "author": {
+                    "@type": "Person",
+                    "name": {{ (book.author or _('未知作者')) | tojson }}
+                },
+                "url": {{ url_for('main.book_detail', book_index=source_index, category=current_category, _external=True) | tojson }}{% if book.isbn13 %},
+                "isbn": {{ book.isbn13 | tojson }}{% endif %}{% if book.cover %},
+                "image": {{ book.cover | tojson }}{% endif %}
+            }
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+}
+</script>
+{% endblock %}
 
 {% block content %}
 {% set _locale = get_locale() %}
@@ -12,19 +45,31 @@
 <nav class="m-top-nav">
     <div class="m-top-nav-copy">
         <span class="m-top-nav-kicker">{{ _('纽约时报畅销书排行榜') }}</span>
-        <span class="m-top-nav-title">BookRank</span>
+        <h1 class="m-top-nav-title">BookRank <span>Charts</span></h1>
         <span class="m-top-nav-subtitle">{{ _('汇集全球畅销书榜与图书奖项') }}</span>
     </div>
-    <span class="m-top-nav-mark" aria-hidden="true">BR</span>
+    <button type="button" class="m-search-toggle" id="m-search-toggle" aria-label="{{ _('搜索') }}" aria-expanded="false">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+    </button>
 </nav>
 
+<!-- 移动端搜索入口（点击展开，与桌面端同一套跨分类搜索） -->
+<div class="m-search-bar" id="m-search-bar" hidden>
+    <form action="{{ url_for('main.index') }}" method="get" role="search">
+        <input type="search" name="search" class="m-search-input" id="m-search-input"
+               placeholder="{{ _('搜索书名或作者...') }}"
+               value="{{ search_query if search_query else '' }}" autocomplete="off">
+        <button type="submit" class="m-search-submit">{{ _('搜索') }}</button>
+    </form>
+</div>
+
 <!-- 分类 Tab 横向滑动 -->
-<section class="m-cat-tabs" aria-label="图书分类">
+<section class="m-cat-tabs" aria-label="{{ _('图书分类') }}">
     <div class="m-cat-tabs-scroll no-scrollbar">
         {% for key, label in categories.items() %}
         <a href="/?category={{ key }}"
            class="m-cat-tab {% if key == current_category %}active{% endif %}">
-            {{ label }}
+            {{ category_names_en.get(key, label) if get_locale() == 'en' else label }}
         </a>
         {% endfor %}
     </div>
@@ -58,18 +103,21 @@
 <div class="m-book-list">
     {% for book in books %}
     {% set current_rank = book.rank or loop.index %}
-    {% set previous_rank = book.rank_last_week|int if book.rank_last_week and book.rank_last_week != '0' else 0 %}
+    {% set source_index = book.source_index if book.source_index is defined else current_rank - 1 %}
+    {% set detail_category = book.source_category if book.source_category is defined else current_category %}
+    {% set previous_rank = book.previous_rank or 0 %}
     {% set rank_change = previous_rank - current_rank if previous_rank else 0 %}
-    <a href="/book/{{ loop.index0 }}?category={{ current_category }}"
-       class="m-card m-book-card" data-href="/book/{{ loop.index0 }}?category={{ current_category }}"
+    <a href="/book/{{ source_index }}?category={{ detail_category }}"
+       class="m-card m-book-card" data-href="/book/{{ source_index }}?category={{ detail_category }}"
        aria-label="{% if _locale == 'zh' %}{{ _('第') }}{{ current_rank }}{{ _('名') }}，{{ book.title_zh or book.title }}{% if book.weeks_on_list %}，{{ _('累计上榜') }}{{ book.weeks_on_list }}{{ _('周') }}{% endif %}{% else %}Rank {{ current_rank }}, {{ book.title }}{% if book.weeks_on_list %}, {{ book.weeks_on_list }} weeks on list{% endif %}{% endif %}">
         <span class="m-rank-badge {% if current_rank > 3 %}small{% endif %}">{{ current_rank }}</span>
         <div class="m-book-cover">
-            <img src="{{ book.cover if book.cover else url_for('static', filename='default-cover.png') }}"
-                 alt="{{ book.title }}"
+            {% set _cover = book.cover if book.cover and book.cover != '/static/default-cover.png' else '' %}
+            <img src="{{ (_cover or book._original_cover)|cover_src_or_default }}"
+                 alt="{{ _('《') }}{{ book.title_zh or book.title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
                  loading="lazy"
                  width="60" height="80"
-                 onerror="this.src='{{ url_for('static', filename='default-cover.png') }}'">
+                 data-cover-fallback="">
         </div>
         <div class="m-book-info">
             <h3 class="m-book-title" title="{{ book.title }}">
@@ -90,8 +138,10 @@
                 <span class="m-book-rank-change up" aria-label="{{ _('上升') }}{{ rank_change }}{{ _('名') }}">↑{{ rank_change }}</span>
                 {% elif rank_change < 0 %}
                 <span class="m-book-rank-change down" aria-label="{{ _('下降') }}{{ rank_change|abs }}{{ _('名') }}">↓{{ rank_change|abs }}</span>
-                {% elif not previous_rank %}
+                {% elif book.is_new %}
                 <span class="m-book-rank-change new">NEW</span>
+                {% elif book.is_returning %}
+                <span class="m-book-rank-change new">{% if _locale == 'zh' %}重返{% else %}RETURN{% endif %}</span>
                 {% else %}
                 <span class="m-book-rank-change stable">—</span>
                 {% endif %}
@@ -101,12 +151,12 @@
             {% set ns = namespace(parts=[]) %}
             {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}{% set ns.parts = ns.parts + [book.publisher] %}{% endif %}
             {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}{% set ns.parts = ns.parts + [book.page_count ~ _('页')] %}{% endif %}
-            {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language] %}{% endif %}
+            {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language|language_name] %}{% endif %}
             {% if ns.parts %}<p class="m-book-card-meta">{{ ns.parts|join(' · ') }}</p>{% endif %}
 
             {# 描述预览（80 字截断） #}
             {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
-            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            {% if desc and desc not in PLACEHOLDER_TEXTS %}
             <p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length > 80 %}…{% endif %}</p>
             {% endif %}
 

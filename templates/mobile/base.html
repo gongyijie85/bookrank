@@ -2,28 +2,32 @@
 <html lang="{{ 'en' if get_locale() == 'en' else 'zh-CN' }}" data-lang="{{ get_locale() }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#2C5F2D">
-    <meta name="description" content="书榜 BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单">
-    <title>{% block title %}书榜 BookRank{% endblock %}</title>
+    <meta name="description" content="{{ _('BookRank - 汇集纽约时报畅销书排行榜与国际图书奖项榜单，为您提供最新、最权威的图书排行信息') }}">
+    <title>{% block title %}{{ _('BookRank - 图书排行榜') }}{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons.svg') }}">
-    <link rel="canonical" href="{{ request.host_url }}{{ request.path[1:] if request.path != '/' else '' }}">
+    <link rel="canonical" href="{{ request.url_root.rstrip('/') + request.path }}">
+    {% set _canonical_path = request.url_root.rstrip('/') + request.path %}
+    <link rel="alternate" hreflang="zh-CN" href="{{ _canonical_path }}?lang=zh">
+    <link rel="alternate" hreflang="en" href="{{ _canonical_path }}?lang=en">
+    <link rel="alternate" hreflang="x-default" href="{{ _canonical_path }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
 
-    {# Open Graph / Twitter Card / JSON-LD SEO #}
+    {# Open Graph / Twitter Card / JSON-LD SEO（文案与桌面 base.html 同源，复用同一批 msgid） #}
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="书榜 BookRank">
-    <meta property="og:title" content="{% block og_title %}书榜 BookRank{% endblock %}">
-    <meta property="og:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
+    <meta property="og:site_name" content="BookRank">
+    <meta property="og:title" content="{% block og_title %}{{ _('BookRank - 图书排行榜') }}{% endblock %}">
+    <meta property="og:description" content="{{ _('汇集纽约时报畅销书排行榜与国际图书奖项榜单') }}">
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="{% block tw_title %}书榜 BookRank{% endblock %}">
-    <meta name="twitter:description" content="汇集纽约时报畅销书排行榜与国际图书奖项榜单">
-    <script type="application/ld+json">
+    <meta name="twitter:title" content="{% block tw_title %}{{ _('BookRank - 图书排行榜') }}{% endblock %}">
+    <meta name="twitter:description" content="{{ _('汇集纽约时报畅销书排行榜与国际图书奖项榜单') }}">
+    <script type="application/ld+json" nonce="{{ csp_nonce() }}">
     {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        "name": "书榜 BookRank",
-        "description": "汇集纽约时报畅销书排行榜与国际图书奖项榜单",
+        "name": "BookRank",
+        "description": "{{ _('汇集纽约时报畅销书排行榜与国际图书奖项榜单') }}",
         "url": "{{ request.host_url }}",
         "potentialAction": {
             "@type": "SearchAction",
@@ -34,10 +38,18 @@
     </script>
     {% block extra_css %}{% endblock %}
     {# 复用电脑端 i18n 库，支持中英切换 #}
-    <script src="{{ url_for('static', filename='js/book-i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename=dist_url('book-i18n.js')) }}"></script>
     {% block structured_data %}{% endblock %}
 </head>
-<body>
+{% set _body_class = {
+    'main.index': 'mobile-charts-page',
+    'main.awards': 'mobile-charts-page mobile-awards-page',
+    'main.publishers': 'mobile-charts-page mobile-publishers-page',
+    'main.new_books': 'mobile-charts-page mobile-new-books-page',
+    'main.weekly_reports': 'mobile-weekly-page',
+    'main.weekly_report_detail': 'mobile-weekly-detail-page',
+}.get(request.endpoint) %}
+<body{% if _body_class %} class="{{ _body_class }}"{% endif %}>
     {# Toast 通知容器 #}
     <div class="m-toast-container" id="m-toast-container" aria-live="polite"></div>
 
@@ -90,6 +102,7 @@
         </a>
     </nav>
 
+    <script src="{{ url_for('static', filename=dist_url('cover.js')) }}"></script>
     <script src="{{ url_for('static', filename='mobile/js/mobile.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>

@@ -13,47 +13,92 @@
 {% endblock %}
 
 {% block content %}
-<main class="main-content">
-    <div class="page-header">
-        <h1 class="page-title">
-            <svg class="icon text-gold" width="24" height="24"><use href="#icon-chart-bar"/></svg>
-            {{ _('畅销书周报') }}
-        </h1>
-        <p class="page-description">{{ _('每周更新') }}，{{ _('总结纽约时报畅销书榜单的变化趋势') }}</p>
-    </div>
-
-    {% if is_generating %}
-    <div id="generating-banner" role="status" aria-live="polite"
-         style="background:#fef3c7;border-left:4px solid #f59e0b;
-                padding:12px 16px;margin-bottom:16px;border-radius:6px;
-                color:#78350f;display:flex;align-items:center;gap:8px;">
-        <span style="font-size:18px;line-height:1;" aria-hidden="true">⚙️</span>
-        <span>{{ _('本周周报正在生成中（调用纽约时报 API），约 1-2 分钟后请刷新页面。') }}</span>
-    </div>
-    <script>
-    (function() {
-        var banner = document.getElementById('generating-banner');
-        if (!banner) return;
-        var interval = setInterval(function() {
-            fetch('/api/weekly-report/status', {cache: 'no-store'})
-                .then(function(r) { return r.json(); })
-                .then(function(d) {
-                    if (d && d.has_current_week) {
-                        clearInterval(interval);
-                        location.reload();
-                    }
-                })
-                .catch(function(e) {
-                    if (window.console && console.debug) {
-                        console.debug('weekly-report status poll failed', e);
-                    }
-                });
-        }, 30000);
-    })();
-    </script>
+{% macro report_rail_card(report) %}
+<a class="browse-report-card"
+   href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}">
+    <span class="browse-report-period">{{ report.week_start.strftime('%m/%d') }} &ndash; {{ report.week_end.strftime('%m/%d') }}</span>
+    <span class="browse-report-title">{{ report.title }}</span>
+    {% set content = report.content_data %}
+    {% if content.top_changes or content.new_books or content.featured_books %}
+    <span class="browse-report-stats">
+        {% if content.top_changes %}<span>{{ content.top_changes | length }} {{ _('项变化') }}</span>{% endif %}
+        {% if content.new_books %}<span>{{ content.new_books | length }} {{ _('新上榜') }}</span>{% endif %}
+        {% if content.featured_books %}<span>{{ content.featured_books | length }} {{ _('推荐') }}</span>{% endif %}
+    </span>
     {% endif %}
+</a>
+{% endmacro %}
 
-    <div class="content-section">
+<header class="page-header">
+    <p class="charts-kicker">WEEKLY REPORT</p>
+    <h1 class="page-title">
+        Weekly <span>Reports</span>
+    </h1>
+    <p class="charts-source" data-i18n="wr_subtitle">{{ _('纽约时报畅销书榜单的每周变化趋势') }}</p>
+    <p class="page-subtitle">
+        {{ reports|length }} {{ _('期') }}
+        {% if latest_report and latest_report.week_start %}
+        · {{ _('更新至') }} {{ latest_report.week_start.strftime('%Y-%m-%d') }}
+        {% endif %}
+    </p>
+</header>
+
+{% if is_generating %}
+<div id="generating-banner" class="generating-banner" role="status" aria-live="polite">
+    <span class="generating-banner-icon" aria-hidden="true">&#9881;</span>
+    <span>{{ _('本周周报正在生成中（调用纽约时报 API），约 1-2 分钟后请刷新页面。') }}</span>
+</div>
+<script nonce="{{ csp_nonce() }}">
+(function() {
+    var banner = document.getElementById('generating-banner');
+    if (!banner) return;
+    var interval = setInterval(function() {
+        fetch('/api/weekly-report/status', {cache: 'no-store'})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d && d.has_current_week) {
+                    clearInterval(interval);
+                    location.reload();
+                }
+            })
+            .catch(function(e) {
+                if (window.console && console.debug) {
+                    console.debug('weekly-report status poll failed', e);
+                }
+            });
+    }, 30000);
+})();
+</script>
+{% endif %}
+
+{% if report_sections|length > 1 %}
+<nav class="browse-seal-strip" aria-label="{{ _('月份速览') }}">
+    {% for section in report_sections %}
+    <a href="#month-{{ section.year }}-{{ '%02d' % section.month }}">{{ section.year }}.{{ '%02d' % section.month }}</a>
+    {% endfor %}
+</nav>
+
+{% for section in report_sections %}
+{% set month_label = _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) %}
+<section class="browse-section" aria-label="{{ month_label }}">
+    <div class="browse-section-head">
+        <h2 class="browse-section-title">{{ month_label }}</h2>
+        <a class="browse-section-more" href="#month-{{ section.year }}-{{ '%02d' % section.month }}">{{ _('查看更多') }} &rarr;</a>
+    </div>
+    <div class="browse-rail-shell">
+        <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+        <div class="browse-rail browse-rail--report">
+            {% for report in section.reports %}
+            <div class="browse-rail__item">{{ report_rail_card(report) }}</div>
+            {% endfor %}
+        </div>
+        <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+    </div>
+</section>
+{% endfor %}
+{% endif %}
+
+<div class="content-section">
         <!-- 筛选和搜索功能 -->
         <div class="filter-section">
             <div class="filter-controls">
@@ -182,7 +227,6 @@
             </div>
         </div>
     </div>
-</main>
 {% endblock %}
 
 {% block extra_js %}
@@ -233,6 +277,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') filterReports();
     });
 
+    document.querySelectorAll('.browse-rail-shell').forEach(function(shell) {
+        const rail = shell.querySelector('.browse-rail');
+        if (!rail) return;
+        shell.querySelectorAll('.browse-rail-nav').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const dir = btn.classList.contains('prev') ? -1 : 1;
+                rail.scrollBy({ left: dir * Math.max(rail.clientWidth - 80, 200), behavior: 'smooth' });
+            });
+        });
+    });
+
     if (refreshBtn) {
         refreshBtn.addEventListener('click', function() {
             this.innerHTML = '<svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> {{ _('刷新中') }}...';
@@ -268,419 +323,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endblock %}
 
-{% block extra_css %}
-<style nonce="{{ csp_nonce() }}">
-    /* {{ _('周报列表样式') }} */
-    .reports-list {
-        display: grid;
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    /* {{ _('新闻卡片样式') }} */
-    .news-card {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        padding: 1.5rem;
-        transition: all 0.3s ease;
-        display: flex;
-        gap: 1.5rem;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .news-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        background: linear-gradient(to bottom, var(--primary), var(--secondary));
-        border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-    }
-
-    .news-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
-    }
-
-    /* {{ _('日期徽章') }} */
-    .news-date-badge {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: var(--bg-secondary);
-        border-radius: var(--radius-lg);
-        padding: 1rem;
-        min-width: 80px;
-        flex-shrink: 0;
-        border: 1px solid var(--card-border);
-    }
-
-    .news-day {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--primary);
-        line-height: 1;
-    }
-
-    .news-month {
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        margin-top: 0.25rem;
-    }
-
-    /* {{ _('新闻卡片内容') }} */
-    .news-card-content {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .news-header {
-        margin-bottom: 0.75rem;
-    }
-
-    .news-title {
-        margin: 0 0 0.5rem 0;
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        line-height: 1.3;
-    }
-
-    .news-title a {
-        color: inherit;
-        text-decoration: none;
-        transition: color 0.3s ease;
-    }
-
-    .news-title a:hover {
-        color: var(--primary);
-    }
-
-    .news-meta {
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        margin-bottom: 0.75rem;
-    }
-
-    .news-meta .news-period {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    /* {{ _('新闻摘要') }} */
-    .news-summary {
-        margin-bottom: 1rem;
-        line-height: 1.5;
-        color: var(--text-primary);
-        font-size: 0.9375rem;
-    }
-
-    /* {{ _('新闻亮点') }} */
-    .news-highlights {
-        margin-bottom: 1.25rem;
-    }
-
-    .highlights-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-
-    .highlights-list li {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        background: var(--bg-secondary);
-        padding: 0.5rem 0.75rem;
-        border-radius: var(--radius-full);
-        border: 1px solid var(--card-border);
-    }
-
-    .highlights-list li .icon {
-        color: var(--primary);
-    }
-
-    /* {{ _('操作按钮') }} */
-    .news-actions {
-        display: flex;
-        gap: 0.75rem;
-    }
-
-    /* {{ _('空状态') }} */
-    .empty-state {
-        text-align: center;
-        padding: 3rem 1rem;
-        background: var(--bg-secondary);
-        border-radius: var(--radius-lg);
-    }
-
-    .empty-state .icon {
-        color: var(--text-muted);
-        margin-bottom: 1rem;
-    }
-
-    .empty-state h3 {
-        margin: 0 0 0.5rem 0;
-        color: var(--text-primary);
-    }
-
-    .empty-state p {
-        margin: 0;
-        color: var(--text-secondary);
-    }
-
-    /* {{ _('关于部分') }} */
-    .section-card {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-        padding: 1.5rem;
-    }
-
-    .section-title {
-        margin: 0 0 1rem 0;
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .section-content {
-        color: var(--text-secondary);
-    }
-
-    .section-content p {
-        margin: 0 0 1rem 0;
-    }
-
-    .section-content ul {
-        margin: 0;
-        padding-left: 1.5rem;
-    }
-
-    .section-content li {
-        margin-bottom: 0.5rem;
-    }
-
-    /* {{ _('筛选和搜索样式') }} */
-    .filter-section {
-        margin-bottom: 2rem;
-        padding: 1.5rem;
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-lg);
-    }
-
-    .filter-controls {
-        display: flex;
-        gap: 1.5rem;
-        align-items: flex-end;
-    }
-
-    .filter-group {
-        flex: 1;
-    }
-
-    .filter-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: var(--text-primary);
-    }
-
-    .form-select {
-        width: 100%;
-        padding: 0.75rem 1rem;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        background: var(--bg-primary);
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        transition: border-color 0.3s ease;
-    }
-
-    .form-select:focus {
-        outline: none;
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    .search-box {
-        position: relative;
-    }
-
-    .form-input {
-        width: 100%;
-        padding: 0.75rem 1rem 0.75rem 3rem;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        background: var(--bg-primary);
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        transition: border-color 0.3s ease;
-    }
-
-    .form-input:focus {
-        outline: none;
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    .search-btn {
-        position: absolute;
-        left: 0.75rem;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        color: var(--text-muted);
-        cursor: pointer;
-        padding: 0.25rem;
-        border-radius: var(--radius-sm);
-        transition: all 0.3s ease;
-    }
-
-    .search-btn:hover {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-    }
-
-    /* {{ _('分享按钮样式') }} */
-    .share-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    /* {{ _('刷新按钮样式') }} */
-    .refresh-btn {
-        margin-top: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    /* {{ _('动画效果') }} */
-    .news-card {
-        transition: all 0.3s ease;
-    }
-
-    .news-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
-    }
-
-    .news-card:active {
-        transform: translateY(0);
-    }
-
-    .btn {
-        transition: all 0.3s ease;
-    }
-
-    .btn:hover {
-        transform: translateY(-1px);
-    }
-
-    .btn:active {
-        transform: translateY(0);
-    }
-
-    .highlights-list li {
-        transition: all 0.3s ease;
-    }
-
-    .highlights-list li:hover {
-        background: var(--primary);
-        color: white;
-        border-color: var(--primary);
-    }
-
-    .highlights-list li:hover .icon {
-        color: white;
-    }
-
-    /* {{ _('响应式设计') }} */
-    @media (max-width: 768px) {
-        .news-card {
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .news-date-badge {
-            flex-direction: row;
-            min-width: auto;
-            padding: 0.5rem 1rem;
-            gap: 1rem;
-        }
-
-        .news-day {
-            font-size: 1.25rem;
-        }
-
-        .news-title {
-            font-size: 1.125rem;
-        }
-
-        .highlights-list {
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .highlights-list li {
-            padding: 0.5rem;
-        }
-
-        .news-actions {
-            flex-direction: column;
-        }
-
-        .filter-controls {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 1rem;
-        }
-
-        .filter-group {
-            width: 100%;
-        }
-    }
-
-    .text-gold {
-        color: #ffc107;
-    }
-
-    /* {{ _('自定义滚动条') }} */
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: var(--bg-secondary);
-        border-radius: var(--radius-sm);
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: var(--text-muted);
-        border-radius: var(--radius-sm);
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--text-secondary);
-    }
-</style>
-{% endblock %}

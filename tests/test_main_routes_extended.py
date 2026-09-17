@@ -1,8 +1,11 @@
 """main.py 路由扩展测试 — 覆盖现有测试未覆盖的路由和代码路径"""
 
 import json
+import re
 from io import BytesIO
 from unittest.mock import MagicMock, patch
+
+from bs4 import BeautifulSoup
 
 from app.models.book import Book
 
@@ -77,7 +80,7 @@ class TestCachedImage:
 
 class TestAwardBookCover:
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
-    @patch('app.routes.main.get_image_cache_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_google_books_client')
     def test_cover_resolved_successfully(self, mock_gbc, mock_ics, MockACSS, client, app, db):
         from app.models.schemas import Award, AwardBook
@@ -98,15 +101,54 @@ class TestAwardBookCover:
             book_id = book.id
 
         mock_sync = MagicMock()
-        mock_sync.resolve_cover_for_book.return_value = 'https://example.com/cover.jpg'
+        mock_sync._resolver.resolve.return_value = 'https://example.com/cover.jpg'
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
-        assert response.location == 'https://example.com/cover.jpg'
-        assert 'max-age=3600' in response.headers.get('Cache-Control', '')
+        # 解析结果仍是外链时不再 302 到境外图床（国内必然失败），改投同源代理
+        assert response.location.startswith('/cover?src=')
+        assert 'example.com' in response.location
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
-    @patch('app.routes.main.get_image_cache_service')
+    @patch('app.routes.main.get_service')
+    @patch('app.routes.main.get_google_books_client')
+    def test_cover_resolved_to_local_cache_is_served_inline(
+        self, mock_gbc, mock_ics, MockACSS, client, app, db, tmp_path
+    ):
+        """解析结果已落到本地缓存时直接下发字节，省掉一次 302 往返。"""
+        from app.models.schemas import Award, AwardBook
+
+        with app.app_context():
+            award = Award(name='TestAwardLocal', name_en='Test Award Local')
+            db.session.add(award)
+            db.session.flush()
+            book = AwardBook(award_id=award.id, year=2024, title='BookL', author='AuthorL', is_displayable=True)
+            db.session.add(book)
+            db.session.commit()
+            book_id = book.id
+
+        cache_dir = tmp_path / 'images'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        filename = 'd' * 32 + '.jpg'
+        (cache_dir / filename).write_bytes(b'\xff\xd8\xff' + b'0' * 4096)
+
+        mock_sync = MagicMock()
+        mock_sync._resolver.resolve.return_value = f'/cache/images/{filename}'
+        MockACSS.return_value = mock_sync
+
+        original_dir = app.config.get('IMAGE_CACHE_DIR')
+        app.config['IMAGE_CACHE_DIR'] = cache_dir
+        try:
+            response = client.get(f'/award-book/{book_id}/cover')
+        finally:
+            app.config['IMAGE_CACHE_DIR'] = original_dir
+
+        assert response.status_code == 200
+        assert response.mimetype == 'image/jpeg'
+        assert response.headers['X-Cover-Source'] == 'cache'
+
+    @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_google_books_client')
     def test_cover_resolve_fails_fallback_to_original(self, mock_gbc, mock_ics, MockACSS, client, app, db):
         from app.models.schemas import Award, AwardBook
@@ -128,14 +170,14 @@ class TestAwardBookCover:
             book_id = book.id
 
         mock_sync = MagicMock()
-        mock_sync.resolve_cover_for_book.side_effect = Exception('API Error')
+        mock_sync._resolver.resolve.side_effect = Exception('API Error')
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
         assert 'original.jpg' in response.location
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
-    @patch('app.routes.main.get_image_cache_service')
+    @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_google_books_client')
     def test_cover_resolve_fails_no_original_url(self, mock_gbc, mock_ics, MockACSS, client, app, db):
         from app.models.schemas import Award, AwardBook
@@ -157,7 +199,7 @@ class TestAwardBookCover:
             book_id = book.id
 
         mock_sync = MagicMock()
-        mock_sync.resolve_cover_for_book.side_effect = Exception('API Error')
+        mock_sync._resolver.resolve.side_effect = Exception('API Error')
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
@@ -388,114 +430,114 @@ class TestNewBooksPage:
         response = client.get('/new-books?view=invalid')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_service_ensure_fails(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.side_effect = Exception('seed error')
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_service_ensure_fails(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.side_effect = Exception('seed error')
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_publishers_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.side_effect = Exception('db error')
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_publishers_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.side_effect = Exception('db error')
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_categories_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.side_effect = Exception('db error')
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_categories_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.side_effect = Exception('db error')
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_statistics_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.side_effect = Exception('db error')
-        mock_svc.get_new_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_statistics_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.side_effect = Exception('db error')
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_get_books_exception(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_get_books_exception(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.get_new_books.side_effect = Exception('db error')
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.get_new_books.side_effect = Exception('db error')
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books')
         assert response.status_code == 200
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_new_books_search_path(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.ensure_static_data_seeded.return_value = None
-        mock_svc.get_publishers.return_value = []
-        mock_svc.get_publisher_book_counts.return_value = {}
-        mock_svc.get_categories.return_value = []
-        mock_svc.get_statistics.return_value = {
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_search_path(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = []
+        mock_modules.query_service.get_statistics.return_value = {
             'total_books': 0,
             'total_publishers': 0,
             'active_publishers': 0,
             'recent_books_7d': 0,
             'top_categories': [],
         }
-        mock_svc.search_books.return_value = ([], 0)
-        MockNBS.return_value = mock_svc
+        mock_modules.query_service.search_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-books?search=test')
         assert response.status_code == 200
-        mock_svc.search_books.assert_called_once()
+        mock_modules.query_service.search_books.assert_called_once()
 
     def test_new_books_ssr_card_shows_freshness_badge(self, client, app, db):
         """首屏 SSR 渲染的卡片也应该有"刚上市"徽章，和 AJAX 局部刷新保持一致"""
@@ -559,18 +601,18 @@ class TestNewBooksPage:
 
 
 class TestNewBookDetail:
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_not_found(self, MockNBS, client):
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = None
-        MockNBS.return_value = mock_svc
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_not_found(self, mock_get_modules, client):
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = None
+        mock_get_modules.return_value = mock_modules
         response = client.get('/new-book/999')
         assert response.status_code == 200
 
     @patch('app.routes.main.submit_background_task')
-    @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_needs_translation(self, MockNBS, mock_trans, mock_bg, client):
+    @patch('app.routes.main.get_service')
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_needs_translation(self, mock_get_modules, mock_trans, mock_bg, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -581,18 +623,18 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
         mock_trans.return_value = MagicMock()
 
         response = client.get('/new-book/1')
         assert response.status_code == 200
         mock_bg.assert_called_once()
 
-    @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_already_translated(self, MockNBS, mock_trans, client):
+    @patch('app.routes.main.get_service')
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_already_translated(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -603,16 +645,16 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
 
         response = client.get('/new-book/1')
         assert response.status_code == 200
 
-    @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_no_translation_service(self, MockNBS, mock_trans, client):
+    @patch('app.routes.main.get_service')
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_no_translation_service(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -623,17 +665,17 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
         mock_trans.return_value = None
 
         response = client.get('/new-book/1')
         assert response.status_code == 200
 
-    @patch('app.routes.main.get_translation_service')
-    @patch('app.services.new_book_service.NewBookService')
-    def test_book_found_partial_translation(self, MockNBS, mock_trans, client):
+    @patch('app.routes.main.get_service')
+    @patch('app.routes.main.get_new_book_modules')
+    def test_book_found_partial_translation(self, mock_get_modules, mock_trans, client):
         mock_book = MagicMock()
         mock_book.id = 1
         mock_book.title = 'Test Title'
@@ -644,9 +686,9 @@ class TestNewBookDetail:
         mock_book.description = 'Test description'
         mock_book.cover_url = 'http://example.com/cover.jpg'
         mock_book.publisher = None
-        mock_svc = MagicMock()
-        mock_svc.get_book.return_value = mock_book
-        MockNBS.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.query_service.get_book.return_value = mock_book
+        mock_get_modules.return_value = mock_modules
         mock_trans.return_value = MagicMock()
 
         response = client.get('/new-book/1')
@@ -755,7 +797,7 @@ class TestAwardBookDetail:
 
 class TestBookDetail:
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     def test_valid_book_index(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
@@ -769,7 +811,7 @@ class TestBookDetail:
                 app.extensions.pop('book_service', None)
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     def test_invalid_category_fallback(self, mock_fetch, mock_merge, client, app):
         book = _make_book()
         mock_svc = _mock_book_service([book])
@@ -1320,6 +1362,55 @@ class TestIndexRoute:
             with app.app_context():
                 app.extensions.pop('book_service', None)
 
+    def test_sort_preserves_nyt_rank_and_original_detail_target(self, client, app):
+        books = [
+            _make_book(rank=1, title='Current Number One', weeks_on_list=1, rank_last_week='0'),
+            _make_book(
+                id='9780062796200',
+                isbn13='9780062796200',
+                rank=8,
+                title='Long Runner',
+                weeks_on_list=80,
+                rank_last_week='10',
+            ),
+        ]
+        mock_svc = _mock_book_service(books)
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            # 列表视图已下线，只保留网格视图：断言改为网格卡片标记
+            response = client.get('/?sort=weeks_desc')
+            soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+            first_card = soup.select_one('#books-grid .card')
+            item_list = next(
+                json.loads(script.string)
+                for script in soup.select('script[type="application/ld+json"]')
+                if 'ItemList' in script.string
+            )
+
+            assert first_card.select_one('.card-title').get_text(strip=True) == 'Long Runner'
+            assert first_card.select_one('.card-badge').get_text(strip=True) == '8'
+            assert first_card.select_one('a')['href'].startswith('/book/7?')
+            assert item_list['itemListElement'][0]['item']['url'].endswith('/book/7?category=hardcover-fiction')
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
+    def test_returning_book_is_not_labeled_new(self, client, app):
+        book = _make_book(rank=4, weeks_on_list=12, rank_last_week='0')
+        mock_svc = _mock_book_service([book])
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/')
+            soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+            badge = soup.select_one('#books-grid .rank-change')
+
+            assert badge.get_text(strip=True) == 'RETURN'
+        finally:
+            with app.app_context():
+                app.extensions.pop('book_service', None)
+
     def test_publishers_list_extraction(self, client, app):
         books = [
             _make_book(publisher='Penguin'),
@@ -1364,3 +1455,440 @@ class TestIndexRoute:
         finally:
             with app.app_context():
                 app.extensions.pop('book_service', None)
+
+
+def _make_award_book(**overrides):
+    """构造 _load_recent_award_books 会读取到的 AwardBook 替身"""
+    book = MagicMock()
+    book.id = 1
+    book.display_title = 'Satantango'
+    book.title_zh = '撒旦探戈'
+    book.author = 'László Krasznahorkai'
+    book.publisher = 'New Directions'
+    book.isbn13 = '9780811219297'
+    book.year = 2025
+    book.category = '文学'
+    book.cover_local_path = ''
+    book.cover_original_url = ''
+    book.award = MagicMock()
+    book.award.name = '诺贝尔文学奖'
+    book.award.name_en = 'Nobel Prize in Literature'
+    for key, value in overrides.items():
+        setattr(book, key, value)
+    return book
+
+
+def _seed_bilingual_award(app, db):
+    """一条中英齐全的奖项 + 获奖书：奖项名/国家/类别与书名两语都有值，才能验出选错字段。"""
+    from app.models.schemas import Award, AwardBook
+
+    with app.app_context():
+        award = Award(name='布克奖', name_en='Booker Prize', country='英国', established_year=1969)
+        db.session.add(award)
+        db.session.flush()
+        book = AwardBook(
+            award_id=award.id,
+            year=2024,
+            category='小说',
+            title='The Hunger',
+            title_zh='饥饿游戏',
+            author='Suzanne Collins',
+            publisher='Scholastic',
+            # 引号 + 换行：移动端 JSON-LD 早先是手拼字符串（只 replace 了引号），这两个字符
+            # 正好让整段 JSON 解析失败，留着当回归样本。
+            description='An "English" blurb.\nSecond line.',
+            description_zh='一段中文简介。',
+            isbn13='9780439023528',
+            is_displayable=True,
+            verification_status='verified',
+        )
+        db.session.add(book)
+        db.session.commit()
+        return book.id
+
+
+class TestRankingsPage:
+    """派生榜单页 /rankings"""
+
+    @staticmethod
+    def _install_book_service(app, books):
+        mock_svc = _mock_book_service(books)
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        return mock_svc
+
+    @staticmethod
+    def _remove_book_service(app):
+        with app.app_context():
+            app.extensions.pop('book_service', None)
+
+    def test_detects_same_book_across_categories_with_different_isbn(self, client, app):
+        """同一本书在各分类榜使用不同 ISBN，仍应被识别为跨榜"""
+        category_ids = list(app.config['CATEGORIES'])
+
+        def books_for_category(category, **kwargs):
+            index = category_ids.index(category)
+            isbn = f'97810000000{index:02d}'
+            return [
+                _make_book(
+                    title='My Friends',
+                    author='Fredrik Backman',
+                    id=isbn,
+                    isbn13=isbn,
+                    category_id=category,
+                    rank=index + 1,
+                )
+            ]
+
+        mock_svc = _mock_book_service([])
+        mock_svc.get_books_by_category.side_effect = books_for_category
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            response = client.get('/rankings?lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '跨榜现象级' in html
+            assert 'My Friends' in html
+            assert 'Fredrik Backman' in html
+        finally:
+            self._remove_book_service(app)
+
+    def test_ranking_titles_follow_locale_on_both_ends(self, client, app):
+        """主书名按 locale 选：EN 页显示原名、ZH 页显示译名，桌面与移动模板各自成立。
+
+        templates/mobile/rankings.html 是桌面版的平行副本，有自己的一套书名标记；
+        上一轮只改了桌面版，生产实测才暴露出移动端仍在显示中文书名 —— 故两端各断言一次。
+        """
+        self._install_book_service(
+            app,
+            [_make_book(title='My Friends', title_zh='我的朋友', author='Fredrik Backman', rank=1)],
+        )
+        ends = {
+            'desktop': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0'},
+            'mobile': {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'},
+        }
+        markers = {
+            'cross': {'desktop': 'cross-title', 'mobile': 'm-book-title'},
+            'publishers': {'desktop': 'publisher-books', 'mobile': 'm-publisher-desc'},
+        }
+        try:
+            for tab in ('cross', 'publishers'):
+                for label, headers in ends.items():
+                    en = client.get(f'/rankings?tab={tab}&lang=en', headers=headers).get_data(as_text=True)
+                    assert markers[tab][label] in en, f'{label}/{tab} 未渲染预期模板'
+                    assert 'My Friends' in en, f'{label}/{tab} EN 页没有英文原名'
+                    assert '我的朋友' not in en, f'{label}/{tab} EN 页泄漏了中文译名'
+
+                    zh = client.get(f'/rankings?tab={tab}&lang=zh', headers=headers).get_data(as_text=True)
+                    assert '我的朋友' in zh, f'{label}/{tab} ZH 页没有中文译名'
+        finally:
+            self._remove_book_service(app)
+
+    def test_invalid_tab_falls_back_to_cross(self, client, app):
+        self._install_book_service(app, [])
+        try:
+            response = client.get('/rankings?tab=nonsense&lang=zh')
+            assert response.status_code == 200
+            assert '跨榜现象级' in response.get_data(as_text=True)
+        finally:
+            self._remove_book_service(app)
+
+    def test_publishers_tab_lists_publisher(self, client, app):
+        books = [_make_book(title='Atlas', author='A Author', publisher='Penguin Random House (Hybrid)', rank=2)]
+        self._install_book_service(app, books)
+        try:
+            response = client.get('/rankings?tab=publishers&lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert 'Penguin Random House' in html
+            assert '厂牌榜' in html
+        finally:
+            self._remove_book_service(app)
+
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_overlooked_tab_lists_unlisted_award_winner(self, mock_service_cls, client, app):
+        self._install_book_service(app, [_make_book(title='Some Other Book', author='Someone')])
+        mock_service_cls.return_value.get_award_books.return_value = ([_make_award_book()], 1)
+        try:
+            response = client.get('/rankings?tab=overlooked&lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '撒旦探戈' in html
+            assert '诺贝尔文学奖' in html
+        finally:
+            self._remove_book_service(app)
+
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_overlooked_tab_hides_award_winner_currently_on_list(self, mock_service_cls, client, app):
+        self._install_book_service(app, [_make_book(title='Satantango', author='László Krasznahorkai')])
+        mock_service_cls.return_value.get_award_books.return_value = ([_make_award_book()], 1)
+        try:
+            response = client.get('/rankings?tab=overlooked&lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '撒旦探戈' not in html
+            assert '暂无遗珠' in html
+        finally:
+            self._remove_book_service(app)
+
+    def test_empty_data_renders_empty_state(self, client, app):
+        self._install_book_service(app, [])
+        try:
+            response = client.get('/rankings?lang=zh')
+            html = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert '本周没有跨榜的书' in html
+        finally:
+            self._remove_book_service(app)
+
+    def test_longevity_tab_includes_single_list_long_runner(self, client, app):
+        """长销常青榜收录只守着一个分类榜的长销书；跨榜现象级则不收录它"""
+
+        def books_for_category(category, **kwargs):
+            if category != 'hardcover-fiction':
+                return []
+            return [_make_book(title='Atlas', author='A Author', weeks_on_list=120, rank=5)]
+
+        mock_svc = _mock_book_service([])
+        mock_svc.get_books_by_category.side_effect = books_for_category
+        with app.app_context():
+            app.extensions['book_service'] = mock_svc
+        try:
+            longevity = client.get('/rankings?tab=longevity&lang=zh')
+            html = longevity.get_data(as_text=True)
+            assert longevity.status_code == 200
+            assert '长销常青榜' in html
+            assert 'Atlas' in html
+            assert '120' in html
+
+            cross = client.get('/rankings?tab=cross&lang=zh')
+            assert '本周没有跨榜的书' in cross.get_data(as_text=True)
+        finally:
+            self._remove_book_service(app)
+
+
+DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.5'
+
+
+class TestAwardPagesLocaleLabels:
+    """奖项页的中英显示（#227）：奖项名/国家/类别，以及详情页书名与 JSON-LD。"""
+
+    @staticmethod
+    def _visible_text(html: str) -> str:
+        """只看渲染后可见文本：`?award=布克奖` 这类中文筛选键合法地留在属性里，不算泄漏。"""
+        soup = BeautifulSoup(html, 'html.parser')
+        for tag in soup(['script', 'style', 'textarea', 'noscript', 'template']):
+            tag.decompose()
+        return soup.get_text(' ', strip=True)
+
+    # 一个测试只测一种 locale：`db` fixture 整个测试期间保留一个 app context，
+    # flask-babel 把解析结果缓存在该 context 上，同一测试里第二次换 ?lang= 仍会拿到
+    # 第一次的 locale（实测：先 ?lang=en 再 ?lang=zh，第二次仍是 en）。
+
+    def test_awards_list_page_shows_english_labels_on_both_ends(self, client, app, db):
+        _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            html = client.get('/awards?lang=en', headers={'User-Agent': ua}).get_data(as_text=True)
+            text = self._visible_text(html)
+            assert 'Booker Prize' in text, f'{ua[:20]} 英文奖项页未显示英文名'
+            assert '布克奖' not in text, f'{ua[:20]} 英文奖项页泄漏中文奖项名'
+            assert 'Fiction' in text, f'{ua[:20]} 英文奖项页未显示英文类别'
+            assert '小说' not in text, f'{ua[:20]} 英文奖项页泄漏中文类别'
+        desktop = self._visible_text(
+            client.get('/awards?lang=en', headers={'User-Agent': DESKTOP_UA}).get_data(as_text=True)
+        )
+        assert 'United Kingdom' in desktop, '桌面英文奖项页未显示英文国家名'
+        assert '英国' not in desktop, '国家未经 award_term 仍在输出中文'
+
+    def test_awards_list_page_keeps_chinese_labels_on_zh(self, client, app, db):
+        """反向：中文页不得因为"顺手用英文字段"而丢掉中文标签。"""
+        _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            html = client.get('/awards?lang=zh', headers={'User-Agent': ua}).get_data(as_text=True)
+            text = self._visible_text(html)
+            assert '布克奖' in text, f'{ua[:20]} 中文奖项页丢了中文奖项名'
+            assert '小说' in text, f'{ua[:20]} 中文奖项页丢了中文类别'
+
+    @staticmethod
+    def _book_jsonld(html: str) -> dict:
+        """取页面里 @type=Book 的那段 ld+json 并解析。
+
+        解析这一步本身就是断言：移动端早先手拼 JSON，书名/简介里的引号与换行会直接产出
+        非法 JSON-LD。base.html 可能先输出一段站点级 ld+json，所以按 @type 挑。
+        """
+        for m in re.finditer(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', html, re.S):
+            try:
+                data = json.loads(m.group(1))
+            except json.JSONDecodeError as exc:
+                raise AssertionError(f'ld+json 无法解析：{exc}') from exc
+            if isinstance(data, dict) and data.get('@type') == 'Book':
+                return data
+            if isinstance(data, dict) and data.get('@graph'):
+                for node in data['@graph']:
+                    if node.get('@type') == 'Book':
+                        return node
+        raise AssertionError('页面没有 @type=Book 的 ld+json')
+
+    def test_award_book_detail_english_title_and_jsonld(self, client, app, db):
+        """英文详情页：可见书名、<title> 与 JSON-LD name 都用原文。
+
+        移动端 structured_data 是独立 block，看不见 content 里的 {% set display_title %}，
+        "name" 曾一直是空串；改由视图层传 shown_title 后两端一致。桌面端 data-en/data-zh
+        是原文/译文切换对的合法载体，所以"不出现中文书名"只对移动端断言。
+        """
+        book_id = _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            en = client.get(f'/award-book/{book_id}?lang=en', headers={'User-Agent': ua}).get_data(as_text=True)
+            data = self._book_jsonld(en)
+            assert data['name'] == 'The Hunger', f'{ua[:20]} JSON-LD name 未跟随 locale'
+            assert data['description'].startswith('An "English" blurb.'), f'{ua[:20]} 英文页简介未取原文'
+            assert 'The Hunger - BookRank' in en, f'{ua[:20]} <title> 未本地化'
+        mobile_en = client.get(f'/award-book/{book_id}?lang=en', headers={'User-Agent': MOBILE_UA}).get_data(
+            as_text=True
+        )
+        assert '饥饿游戏' not in mobile_en, '移动英文详情页泄漏中文书名'
+
+    def test_award_book_detail_chinese_title_and_jsonld(self, client, app, db):
+        """反向：中文详情页要出中文书名，且 JSON-LD name 非空（跨 block 取不到值即空串）。"""
+        book_id = _seed_bilingual_award(app, db)
+        for ua in (DESKTOP_UA, MOBILE_UA):
+            zh = client.get(f'/award-book/{book_id}?lang=zh', headers={'User-Agent': ua}).get_data(as_text=True)
+            assert self._book_jsonld(zh)['name'] == '饥饿游戏', f'{ua[:20]} 中文页 JSON-LD name 丢失'
+            assert '饥饿游戏 - BookRank' in zh, f'{ua[:20]} 中文页 <title> 丢失'
+
+
+class TestBookDetailSsrLocale:
+    """桌面 /book/<i> 的 **SSR 文本**也要按 locale（#236）。
+
+    分类/语言/简介原先由 book-i18n.js 在加载后改写，所以浏览器里"看着是英文"，
+    但爬虫与无 JS 访客拿到的仍是 英语/精装小说/中文简介。故本用例不看渲染结果，
+    只看响应体里那一段值本身。
+    """
+
+    @staticmethod
+    def _book():
+        return _make_book(
+            title='The Calamity Club',
+            title_zh='灾难俱乐部',
+            category_name='精装小说',
+            list_name='Hardcover Fiction',
+            language='英语',
+            description='An English blurb about the book.',
+            description_zh='中文简介。',
+        )
+
+    @staticmethod
+    def _meta_values(html: str) -> list[str]:
+        soup = BeautifulSoup(html, 'html.parser')
+        return [(e.get_text() or '').strip() for e in soup.select('.meta-value')]
+
+    @staticmethod
+    def _book_ld(html: str) -> dict:
+        soup = BeautifulSoup(html, 'html.parser')
+        for tag in soup.find_all('script', type='application/ld+json'):
+            try:
+                data = json.loads(tag.get_text())
+            except json.JSONDecodeError:
+                continue
+            if isinstance(data, dict) and data.get('@type') == 'Book':
+                return data
+        raise AssertionError('页面没有 @type=Book 的 ld+json')
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
+    def test_english_ssr_values_are_english(self, mock_svc, _mock_fetch, _mock_merge, client, app):
+        mock_svc.return_value = _mock_book_service([self._book()])
+        html = client.get('/book/0?category=hardcover-fiction&lang=en').get_data(as_text=True)
+        values = self._meta_values(html)
+        assert 'English' in values, f'语言项 SSR 仍是中文: {values}'
+        assert 'Hardcover Fiction' in values, f'分类项 SSR 仍是中文: {values}'
+        assert '英语' not in values and '精装小说' not in values
+        # 只断言结构化数据：可见的「图书简介」面板本就同时带译文与原文，由前端按语言切显隐
+        assert self._book_ld(html)['description'].startswith('An English blurb'), '英文页 JSON-LD 用了中文简介'
+
+        mob = client.get(
+            '/book/0?category=hardcover-fiction&lang=en',
+            headers={'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'},
+        ).get_data(as_text=True)
+        assert 'm-meta-row' in mob, '移动端模板未渲染'
+        soup = BeautifulSoup(mob, 'html.parser')
+        cells = {
+            (r.find('dt').get_text(strip=True) or ''): (r.find('dd').get_text(strip=True) or '')
+            for r in soup.select('.m-meta-row')
+            if r.find('dt') and r.find('dd')
+        }
+        assert 'Hardcover Fiction' in cells.values(), f'移动英文详情页分类仍是中文: {cells}'
+        assert '精装小说' not in cells.values()
+        # H1 是页面上最值钱的 SEO 元素，此前无条件取 title_zh，只靠前端改写
+        h1 = BeautifulSoup(html, 'html.parser').select_one('.detail-title')
+        assert h1 and h1.get_text(strip=True) == 'The Calamity Club', f'英文页 H1: {h1 and h1.get_text()}'
+        assert not BeautifulSoup(html, 'html.parser').select_one('.detail-title-en'), '英文页不该挂中文原标题副行'
+
+    @patch('app.routes.main.merge_or_translate_book')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
+    def test_chinese_ssr_values_stay_chinese(self, mock_svc, _mock_fetch, _mock_merge, client, app):
+        mock_svc.return_value = _mock_book_service([self._book()])
+        html = client.get('/book/0?category=hardcover-fiction&lang=zh').get_data(as_text=True)
+        values = self._meta_values(html)
+        assert '英语' in values and '精装小说' in values, f'中文页丢了中文标签: {values}'
+        soup = BeautifulSoup(html, 'html.parser')
+        h1 = soup.select_one('.detail-title')
+        assert h1 and h1.get_text(strip=True) == '灾难俱乐部', f'中文页 H1: {h1 and h1.get_text()}'
+        assert soup.select_one('.detail-title-en'), '中文页该保留原文书名副行'
+
+
+class TestNewBooksPublisherNamesFollowLocale:
+    """#232：新书页的出版社显示名两端都要跟 locale。
+
+    Publisher 行本来就有 name_en，只是显示位无条件取了 name —— 侧栏、筛选下拉、
+    每社书列标题三处同理。
+    """
+
+    @staticmethod
+    def _modules():
+        from unittest.mock import MagicMock
+
+        pub = MagicMock()
+        pub.id = 42
+        pub.name = '企鹅兰登'
+        pub.name_en = 'Penguin Random House'
+        pub.website = 'https://example.invalid'
+        modules = MagicMock()
+        modules.publisher_manager.get_publishers.return_value = [pub]
+        modules.publisher_manager.get_publisher_book_counts.return_value = {42: 3}
+        modules.query_service.get_categories.return_value = [{'name': '小说', 'count': 3}]
+        modules.query_service.get_new_books.return_value = ([], 0)
+        modules.query_service.get_statistics.return_value = {
+            'total_books': 3,
+            'total_publishers': 1,
+            'active_publishers': 1,
+            'recent_books_7d': 3,
+            'top_categories': [],
+        }
+        modules.query_service.search_books.return_value = ([], 0)
+        return modules
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_english_page_shows_english_publisher_names(self, mock_modules, client) -> None:
+        mock_modules.return_value = self._modules()
+        soup = BeautifulSoup(
+            client.get('/new-books?lang=en').get_data(as_text=True),
+            'html.parser',
+        )
+        names = [(e.get_text() or '').strip() for e in soup.select('.pub-name, .browse-section-title, option')]
+        assert 'Penguin Random House' in names, f'英文页出版社名仍是中文: {names[:8]}'
+        assert '企鹅兰登' not in names
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_chinese_page_keeps_chinese_publisher_names(self, mock_modules, client) -> None:
+        mock_modules.return_value = self._modules()
+        soup = BeautifulSoup(
+            client.get('/new-books?lang=zh').get_data(as_text=True),
+            'html.parser',
+        )
+        names = [(e.get_text() or '').strip() for e in soup.select('.pub-name, .browse-section-title')]
+        assert '企鹅兰登' in names, f'中文页丢了中文出版社名: {names[:8]}'

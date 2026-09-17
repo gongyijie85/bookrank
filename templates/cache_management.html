@@ -360,8 +360,8 @@ async function loadTranslationRecords() {
             result.data.records.forEach(record => {
                 html += `
                     <div class="cache-item">
-                        <div class="cache-text source">${escapeHtml(record.source_text)}</div>
-                        <div class="cache-text translated">${escapeHtml(record.translated_text)}</div>
+                        <div class="cache-text source">${esc(record.source_text)}</div>
+                        <div class="cache-text translated">${esc(record.translated_text)}</div>
                         <div>
                             <span class="cache-lang">${record.source_lang} → ${record.target_lang}</span>
                         </div>
@@ -472,7 +472,7 @@ async function loadAPIRecords() {
                 const badgeClass = record.api_source.replace('_', '-');
                 html += `
                     <div class="cache-item">
-                        <div class="cache-text source">${escapeHtml(record.request_key)}</div>
+                        <div class="cache-text source">${esc(record.request_key)}</div>
                         <div class="cache-text translated">状态: ${record.status_code}</div>
                         <div>
                             <span class="api-source-badge ${badgeClass}">${record.api_source}</span>
@@ -542,29 +542,6 @@ async function clearExpiredCache() {
         console.error('清理过期缓存失败:', error);
         showToast('清理失败，请稍后重试', 'error');
     }
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<span>${message}</span>`;
-    container.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.classList.add('show');
-    }, 10);
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
 }
 
 document.addEventListener('DOMContentLoaded', function() {

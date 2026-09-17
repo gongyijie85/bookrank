@@ -139,20 +139,60 @@ class TestErrorHandlers:
 class TestSecurityHeaders:
     """测试安全响应头"""
 
+    def test_nyt_cover_cdn_allowed(self, client):
+        csp = client.get('/health').headers['Content-Security-Policy']
+        img_src = next(rule.strip() for rule in csp.split(';') if rule.strip().startswith('img-src '))
+        assert 'https://static01.nyt.com' in img_src.split()
+
     def test_security_headers_present(self, client):
         response = client.get('/health')
         assert 'X-Frame-Options' in response.headers
         assert 'X-Content-Type-Options' in response.headers
         assert 'Content-Security-Policy' in response.headers
 
+    def test_immutable_only_for_fingerprinted_assets(self, client):
+        """immutable 只给文件名带内容指纹的资源。
+
+        关键覆盖：`/static/dist/base.min.js` 同样在 dist/ 下，但它是 dist_url 在 manifest
+        与磁盘错位时回退出来的**未指纹**稳定名 —— 按目录前缀判会给它 30 天 immutable，
+        那正是本次要修的 bug。
+        """
+        # 哈希名会随前端重建变化，必须从 manifest 取，不能写死
+        import json
+        from pathlib import Path
+
+        from app import _HASHED_ASSET_RE
+
+        manifest = json.loads(
+            (Path(__file__).resolve().parent.parent / 'static' / 'dist' / 'manifest.json').read_text()
+        )
+        hashed = sorted(manifest.values())[0]
+        assert _HASHED_ASSET_RE.search(hashed), f'manifest 条目不是指纹名: {hashed}'
+        fingerprinted = client.get(f'/static/dist/{hashed}').headers['Cache-Control']
+        assert 'immutable' in fingerprinted and 'max-age=2592000' in fingerprinted, f'{hashed}: {fingerprinted}'
+
+        for path in (
+            '/static/dist/base.min.js',  # dist_url 回退名：在 dist/ 下但没有指纹
+            '/static/mobile/js/mobile.js',  # 不在构建入口里
+            '/static/default-cover.png',
+        ):
+            header = client.get(path).headers['Cache-Control']
+            assert 'immutable' not in header, f'{path} 不该被 immutable：{header}'
+            assert 'must-revalidate' in header, f'{path} 应走协商缓存：{header}'
+
     def test_csp_nonce_injected(self, client):
-        """v0.6.0+ 决策：CSP 使用 per-request nonce，移除 unsafe-inline（详见反馈优化计划 P0-3）。
-        此处验证 nonce 已注入且 script-src / style-src 不再包含 unsafe-inline。"""
+        """脚本侧保持 per-request nonce、不用 unsafe-inline（v0.6.0+ P0-3 决策不变）。
+
+        样式侧相反：模板里的 style="…" 属性需要生效，而 CSP3 规定同一指令出现 nonce 时
+        'unsafe-inline' 会被忽略，所以 style-src 必须不带 nonce、只留 unsafe-inline。
+        """
         response = client.get('/health')
         csp = response.headers.get('Content-Security-Policy', '')
-        assert 'unsafe-inline' not in csp
-        assert "script-src 'self' 'nonce-" in csp
-        assert "style-src 'self' 'nonce-" in csp
+        directives = {part.strip().split(' ', 1)[0]: part.strip() for part in csp.split(';') if part.strip()}
+        assert "script-src 'self' 'nonce-" in directives['script-src']
+        assert 'unsafe-inline' not in directives['script-src']
+        assert "style-src 'self' 'unsafe-inline'" in directives['style-src']
+        assert 'nonce-' not in directives['style-src']
 
 
 class TestGetLocale:

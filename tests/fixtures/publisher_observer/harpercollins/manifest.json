@@ -1,0 +1,59 @@
+{
+  "source": "harpercollins",
+  "fixtures": [
+    {
+      "name": "new-releases.atom",
+      "source_url": "https://www.harpercollins.com/blogs/literary-hub/new-releases.atom"
+    },
+    {
+      "name": "collection-page-1-css.json",
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=1",
+      "page": 1,
+      "next_url": "https://www.harpercollins.com/collections/new-releases?page=2"
+    },
+    {
+      "name": "collection-page-1-xpath.json",
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=1",
+      "page": 1,
+      "next_url": "https://www.harpercollins.com/collections/new-releases?page=2"
+    },
+    {
+      "name": "collection-page-2-css.json",
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=2",
+      "page": 2,
+      "next_url": null
+    },
+    {
+      "name": "collection-page-2-xpath.json",
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=2",
+      "page": 2,
+      "next_url": null
+    },
+    {
+      "name": "collection-drift-css.json",
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=3",
+      "page": 3,
+      "next_url": null
+    },
+    {
+      "name": "collection-drift-xpath.json",
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=3",
+      "page": 3,
+      "next_url": null
+    },
+    {
+      "name": "product-whistler.json",
+      "source_url": "https://www.harpercollins.com/products/whistler-ann-patchett"
+    },
+    {
+      "name": "product-missing-author.json",
+      "source_url": "https://www.harpercollins.com/products/untitled-book"
+    },
+    {
+      "name": "fixed-ai-candidate.json",
+      "source_url": "https://www.harpercollins.com/collections/new-releases?page=1",
+      "page": 1,
+      "next_url": "https://www.harpercollins.com/collections/new-releases?page=2"
+    }
+  ]
+}

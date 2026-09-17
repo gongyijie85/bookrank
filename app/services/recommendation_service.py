@@ -7,21 +7,15 @@ AI 推荐服务
 3. 基于奖项相似度的推荐
 """
 
-import logging
 from collections import Counter
-from typing import Any
+from typing import Any, cast
 
 from ..models.schemas import AwardBook, BookMetadata, UserCategory, UserViewedBook, db
 from ..utils.error_handler import ErrorCategory, log_error
 
-logger = logging.getLogger(__name__)
-
 
 class RecommendationService:
     """AI 图书推荐服务"""
-
-    # 推荐结果缓存时间（秒）
-    CACHE_TTL = 300
 
     def __init__(self, categories: dict | None = None):
         """
@@ -61,7 +55,7 @@ class RecommendationService:
             # 如果推荐结果不足，补充热门图书
             if len(recommendations) < limit:
                 popular = self._get_popular_recommendations(limit - len(recommendations))
-                recommendations.extend(popular)
+                recommendations.extend(popular.get('recommendations', []) if isinstance(popular, dict) else [])
 
             return {
                 'recommendations': recommendations,
@@ -74,12 +68,15 @@ class RecommendationService:
             return self._get_popular_recommendations(limit)
 
     def _get_viewed_books(self, session_id: str) -> list[UserViewedBook]:
-        """获取用户浏览的图书"""
-        return (
-            UserViewedBook.query.filter_by(session_id=session_id)
-            .order_by(UserViewedBook.viewed_at.desc())
-            .limit(20)
-            .all()
+        """获取用户浏览的图�?"""
+        return cast(
+            'list[UserViewedBook]',
+            (
+                UserViewedBook.query.filter_by(session_id=session_id)
+                .order_by(UserViewedBook.viewed_at.desc())
+                .limit(20)
+                .all()
+            ),
         )
 
     def _analyze_user_interests(self, session_id: str, viewed_books: list[UserViewedBook]) -> dict[str, Any]:
@@ -95,7 +92,7 @@ class RecommendationService:
         Returns:
             用户兴趣特征字典
         """
-        interests = {'keywords': [], 'authors': [], 'publishers': [], 'categories': []}
+        interests: dict[str, list[str]] = {'keywords': [], 'authors': [], 'publishers': [], 'categories': []}
 
         # 获取用户关注的分类
         user_categories = UserCategory.query.filter_by(session_id=session_id).all()

@@ -38,6 +38,7 @@ jobs:
       - name: Trigger new books sync
         env:
           BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -e
           MAX_RETRIES=3
@@ -48,7 +49,7 @@ jobs:
 
             HTTP_CODE=$(curl -s -o /tmp/new-books-sync-response.json -w '%{http_code}' \
               --max-time 60 \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
               "${BASE_URL}/api/cron/trigger-new-books-sync")
 
             echo "HTTP 状态码: $HTTP_CODE"

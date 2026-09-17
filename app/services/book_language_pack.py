@@ -1,23 +1,20 @@
 """Server-side book content language-pack hydration."""
 
 import json
-import logging
 import threading
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..models.database import db
 from ..models.schemas import BookMetadata, TranslationCache
-from ..utils.api_helpers import clean_translation_text
+from ..utils.api_helpers import PLACEHOLDER_TEXTS, clean_translation_text, is_non_substantive_details
 from ..utils.error_handler import ErrorCategory, log_error
 from .translation_cache_service import TranslationCacheService
-
-logger = logging.getLogger(__name__)
 
 
 class BookLanguagePack:
@@ -29,19 +26,13 @@ class BookLanguagePack:
         ('description', 'description_zh', 'description'),
         ('details', 'details_zh', 'details'),
     )
-    _PLACEHOLDERS = {
-        'No summary available.',
-        'No detailed description available.',
-        'Unknown',
-        'N/A',
-        '暂无简介',
-        '暂无详细介绍',
-    }
+    # 占位串清单派生自 api_helpers 的单一真相源（不要再写第二份字面量）。
+    _PLACEHOLDERS = PLACEHOLDER_TEXTS
 
     def __init__(self, pack_path: str | Path | None = None):
         self._pack_path = Path(pack_path) if pack_path else None
         self._pack_mtime: float | None = None
-        self._pack_books: dict[str, dict[str, str]] = {}
+        self._pack_books: dict[str, dict[str, str | None]] = {}
         self._table_columns_cache: dict[str, set[str]] = {}
 
     def hydrate_books(self, books: Iterable[Any]) -> None:
@@ -62,6 +53,7 @@ class BookLanguagePack:
         books: Iterable[Any],
         translator: Any | None = None,
         save_metadata: Callable[..., bool] | None = None,
+        force: bool = False,
     ) -> dict[str, int]:
         """Translate missing zh fields and persist them into the static language pack."""
         books = list(books)
@@ -106,7 +98,17 @@ class BookLanguagePack:
                     object_value = self._get_value(book, target_attr)
                     pack_value = pack_entry.get(target_attr)
 
-                    if object_value:
+                    if object_value and not force:
+                        # 拒收语言标记/占位符噪音：这类值写进权威语言包后会让页面
+                        # 显示「详情: 英文」（实测 88 条、其中 32 本在榜）。
+                        if target_attr == 'details_zh' and is_non_substantive_details(object_value):
+                            log_error(
+                                ErrorCategory.TRANSLATION,
+                                f'跳过非实质 details_zh 值: {isbn} {object_value!r}',
+                                level='warning',
+                            )
+                            stats['rejected_non_substantive'] = stats.get('rejected_non_substantive', 0) + 1
+                            continue
                         cleaned = clean_translation_text(object_value, field_type)
                         self._set_value(book, target_attr, cleaned)
                         if not pack_value:
@@ -115,7 +117,7 @@ class BookLanguagePack:
                             stats['fields_stored'] += 1
                         continue
 
-                    if pack_value:
+                    if pack_value and not force:
                         cleaned = clean_translation_text(pack_value, field_type)
                         self._set_value(book, target_attr, cleaned)
                         stats['fields_from_pack'] += 1
@@ -124,7 +126,7 @@ class BookLanguagePack:
                     book_had_missing = True
                     if not translator:
                         continue
-                    translated = self._translate_field(translator, source_text, field_type)
+                    translated = self._translate_field(translator, source_text, field_type, context=book)
                     if not translated:
                         stats['failures'] += 1
                         continue
@@ -147,10 +149,6 @@ class BookLanguagePack:
                 stats['pack_writes'] = 1
 
         return stats
-
-    def store_books(self, books: Iterable[Any]) -> dict[str, int]:
-        """Persist existing zh fields from book objects into the language pack."""
-        return self.translate_and_store_books(books, translator=None, save_metadata=None)
 
     def get_book_metadata_translations(self, isbns: list[str]) -> dict[str, dict[str, str | None]]:
         """Read BookMetadata translations while tolerating older schemas."""
@@ -259,7 +257,7 @@ class BookLanguagePack:
             )
             return {}
 
-    def _load_static_pack(self) -> dict[str, dict[str, str]]:
+    def _load_static_pack(self) -> dict[str, dict[str, str | None]]:
         if not self._pack_path or not self._pack_path.exists():
             return {}
 
@@ -273,7 +271,7 @@ class BookLanguagePack:
             if not isinstance(books, dict):
                 books = {}
 
-            normalized: dict[str, dict[str, str]] = {}
+            normalized: dict[str, dict[str, str | None]] = {}
             for isbn, values in books.items():
                 if isinstance(values, dict):
                     normalized[str(isbn)] = {
@@ -383,13 +381,24 @@ class BookLanguagePack:
             setattr(book, attr, value)
 
     @staticmethod
-    def _translate_field(translator: Any | None, text: str, field_type: str) -> str | None:
+    def _translate_field(
+        translator: Any | None,
+        text: str,
+        field_type: str,
+        context: dict[str, Any] | Any | None = None,
+    ) -> str | None:
         if not translator or not hasattr(translator, 'translate'):
             return None
         try:
-            return translator.translate(text, 'en', 'zh', field_type=field_type)
+            return cast('str | None', translator.translate(text, 'en', 'zh', field_type=field_type, context=context))
         except TypeError:
-            return translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type)
+            try:
+                return cast(
+                    'str | None',
+                    translator.translate(text, source_lang='en', target_lang='zh', field_type=field_type),
+                )
+            except TypeError:
+                return cast('str | None', translator.translate(text, 'en', 'zh', field_type=field_type))
         except Exception as e:
             log_error(
                 ErrorCategory.TRANSLATION, f'Language-pack translation failed for {field_type}: {e}', level='warning'

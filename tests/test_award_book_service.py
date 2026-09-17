@@ -281,21 +281,3 @@ class TestRefreshAwardBooks:
             award_service.wikidata_client.get_all_award_books.return_value = {}
             result = award_service.refresh_award_books(force=True)
             assert result['total_awards'] > 0
-
-
-class TestFetchMissingCovers:
-    """测试 fetch_missing_covers"""
-
-    def test_no_image_cache(self, app, award_service):
-        award_service.image_cache = None
-        with app.app_context():
-            result = award_service.fetch_missing_covers()
-            assert result['success'] == 0
-
-    def test_no_missing_covers(self, app, db, award_service, sample_award_book):
-        with app.app_context():
-            book = db.session.get(AwardBook, sample_award_book)
-            book.cover_local_path = '/covers/test.jpg'
-            db.session.commit()
-            result = award_service.fetch_missing_covers()
-            assert result['success'] == 0

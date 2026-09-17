@@ -31,6 +31,29 @@ jobs:
       - name: Run Ruff format check
         run: ruff format --check app/ tests/
 
+  lint-frontend:
+    name: Lint Frontend (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Run ESLint (zero-tolerance)
+        run: npm run lint:js
+
+      - name: Run frontend unit tests (node:test)
+        # package.json 的 test:frontend 此前没有任何 job 跑过，所以它的失败从 #209
+        # 一直挂着无人发现；这条把门禁补上（用例本身已修，见 #235 备注）。
+        run: npm run test:frontend
+
   typecheck:
     name: Type Check (mypy)
     runs-on: ubuntu-latest
@@ -49,12 +72,34 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run mypy
-        run: mypy app/ --ignore-missing-imports
+        run: mypy app/
+
+  i18n-catalog:
+    name: i18n Catalog Drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check catalog matches _() call sites
+        # 此前 CI 只做 `pybabel compile`，从不 extract/update —— 加了 `_()` 却不更新目录
+        # 会静默通过，线上就是英文页直接显示中文 msgid（精选三列/紧凑五列/网格密度 那类事故）。
+        run: python scripts/check_i18n_drift.py
 
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -71,11 +116,18 @@ jobs:
           pip install -r requirements.txt
           pip install pytest-timeout
 
+      - name: Check Node & build frontend (#177)
+        run: |
+          node --version
+          npm ci --ignore-scripts || npm install
+          node scripts/build_frontend.mjs
+
       - name: Run unit tests with coverage
         env:
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
         run: |
+          pybabel compile -d translations
           python -m pytest tests/ \
             -m "not slow" \
             --timeout=30 \
@@ -86,18 +138,344 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=70
 
-  deploy:
-    name: Deploy to Render
+  dependency-audit:
+    name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
+
+      # 例外登记表（triage gate）——本 job 为**必需检查**，未列入例外的漏洞会阻塞合并。
+      #
+      # 下列 6 个 pyjwt 公告经评估**在当前依赖图中不可达**，详见 SECURITY.md「依赖漏洞现状」：
+      #   1. 本仓库代码不 import jwt；
+      #   2. zhipuai 仅在 core/_jwt_token.py:26 调用 jwt.encode()（生成调用智谱 API 的
+      #      鉴权令牌），从不 decode / 验签，不使用 PyJWKClient；
+      #   3. 这些公告（含 4 条 HIGH）全部位于**解码/验签侧**；
+      #   4. 且 zhipuai 已将 pyjwt 锁定在 >=2.8.0,<2.9.0，修复版本（2.12+/2.13）无法安装。
+      #
+      # ⚠️ 维护约定：
+      #   - 新增例外必须同时在 SECURITY.md 写明理由与**重新评估的触发条件**；
+      #   - 一旦 zhipuai 放宽 pyjwt 上限，应立即升级并**从例外表中移除**这些 ID；
+      #   - 未来若引入任何 JWT **校验/解码**场景，这些 HIGH 将变为可达，必须先升级。
+      - name: Audit Python dependencies
+        run: |
+          IGNORES=(
+            --ignore-vuln PYSEC-2026-120
+            --ignore-vuln PYSEC-2025-183
+            --ignore-vuln PYSEC-2026-179
+            --ignore-vuln PYSEC-2026-175
+            --ignore-vuln PYSEC-2026-177
+            --ignore-vuln PYSEC-2026-178
+          )
+          echo "=== requirements.txt（CI/开发） ==="
+          pip-audit -r requirements.txt --progress-spinner off --desc "${IGNORES[@]}"
+          echo "=== requirements-prod.txt（Render 部署集） ==="
+          pip-audit -r requirements-prod.txt --progress-spinner off --desc "${IGNORES[@]}"
+
+  deploy:
+    name: Deploy to Render & HuggingFace
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    concurrency:
+      # Runs serialize, but only the current main SHA is allowed to deploy.
+      group: render-production-current-main-bookrank
+      cancel-in-progress: false
+    needs: [lint, lint-frontend, typecheck, i18n-catalog, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - name: Trigger Render Deploy Hook
+      - uses: actions/checkout@v4
+
+      - name: Deploy and verify Render revision
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+          RENDER_BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL not set, skipping deploy"
+          set -euo pipefail
+
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "ERROR: RENDER_API_KEY not configured."
+            exit 1
+          fi
+
+          if [ -z "$RENDER_SERVICE_ID" ]; then
+            echo "ERROR: RENDER_SERVICE_ID not configured."
+            exit 1
+          fi
+
+          if [ -z "$RENDER_BASE_URL" ]; then
+            echo "ERROR: RENDER_BASE_URL not configured."
+            exit 1
+          fi
+
+          deploy_response="$(mktemp)"
+          deploy_list_response="$(mktemp)"
+          deploy_status_response="$(mktemp)"
+          trap 'rm -f "$deploy_response" "$deploy_list_response" "$deploy_status_response"' EXIT
+          DEPLOY_DEADLINE=$((SECONDS + 7200))
+
+          MAIN_HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$GITHUB_SHA" != "$MAIN_HEAD_SHA" ]; then
+            echo "Skipping stale deployment for ${GITHUB_SHA}; main is now ${MAIN_HEAD_SHA}."
             exit 0
           fi
-          curl -s -X POST "$RENDER_DEPLOY_HOOK_URL" -o /dev/null -w "%{http_code}"
+
+          MAIN_HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$GITHUB_SHA" != "$MAIN_HEAD_SHA" ]; then
+            echo "Skipping stale deployment for ${GITHUB_SHA}; main is now ${MAIN_HEAD_SHA}."
+            exit 0
+          fi
+
+          DEPLOY_HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 \
+            -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data "{\"clearCache\":\"do_not_clear\",\"commitId\":\"${GITHUB_SHA}\"}" \
+            -o "$deploy_response" \
+            -w '%{http_code}')"
+
+          case "$DEPLOY_HTTP_CODE" in
+            201)
+              DEPLOY_ID="$(python3 - "$deploy_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              print(json.load(response).get("id", ""))
+          PY
+              )"
+              ;;
+            202)
+              DEPLOY_ID=""
+              while [ "$SECONDS" -lt "$DEPLOY_DEADLINE" ]; do
+                if ! curl --fail --show-error --silent --max-time 30 \
+                  -H "Authorization: Bearer ${RENDER_API_KEY}" \
+                  "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys?limit=100" \
+                  -o "$deploy_list_response"; then
+                  echo "Render deployment discovery request failed; retrying in 30 seconds."
+                  sleep 30
+                  continue
+                fi
+
+                DEPLOY_ID="$(python3 - "$deploy_list_response" "$GITHUB_SHA" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              payload = json.load(response)
+
+          deploys = payload.get("deploys", payload) if isinstance(payload, dict) else payload
+          if not isinstance(deploys, list):
+              raise SystemExit("Render deployment list was not an array.")
+
+          for item in deploys:
+              deploy = item.get("deploy", item) if isinstance(item, dict) else {}
+              commit = deploy.get("commit", {})
+              if isinstance(commit, dict) and commit.get("id") == sys.argv[2] and deploy.get("id"):
+                  print(deploy["id"])
+                  break
+          PY
+                )"
+
+                if [ -n "$DEPLOY_ID" ]; then
+                  echo "Found queued Render deployment for ${GITHUB_SHA}."
+                  break
+                fi
+
+                echo "Render deployment is queued; waiting for the requested revision."
+                sleep 30
+              done
+
+              if [ -z "$DEPLOY_ID" ]; then
+                echo "ERROR: Render did not create a deployment for ${GITHUB_SHA} before the total deployment deadline."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "ERROR: Render deployment request returned unexpected HTTP status ${DEPLOY_HTTP_CODE}."
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$DEPLOY_ID" ]; then
+            echo "ERROR: Render deployment response did not include a deployment ID."
+            exit 1
+          fi
+
+          DEPLOY_LIVE=false
+          while [ "$SECONDS" -lt "$DEPLOY_DEADLINE" ]; do
+            if ! curl --fail --show-error --silent --max-time 30 \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+              -o "$deploy_status_response"; then
+              echo "Render deployment status request failed; retrying in 30 seconds."
+              sleep 30
+              continue
+            fi
+
+            DEPLOY_DETAILS="$(python3 - "$deploy_status_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              deploy = json.load(response)
+
+          commit = deploy.get("commit", {})
+          print(f"{deploy.get('status', '')}\t{commit.get('id', '') if isinstance(commit, dict) else ''}")
+          PY
+            )"
+            IFS=$'\t' read -r DEPLOY_STATUS DEPLOY_COMMIT_ID <<< "$DEPLOY_DETAILS"
+
+            if [ "$DEPLOY_COMMIT_ID" != "$GITHUB_SHA" ]; then
+              echo "ERROR: Render deployment ${DEPLOY_ID} is associated with an unexpected commit."
+              exit 1
+            fi
+
+            if [ "$DEPLOY_STATUS" = "live" ]; then
+              echo "Render deployment is live."
+              DEPLOY_LIVE=true
+              break
+            fi
+
+            case "$DEPLOY_STATUS" in
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "ERROR: Render deployment entered terminal status: $DEPLOY_STATUS."
+                exit 1
+                ;;
+            esac
+
+            echo "Render deployment status is ${DEPLOY_STATUS:-unknown}; retrying in 30 seconds."
+            sleep 30
+          done
+
+          if [ "$DEPLOY_LIVE" != "true" ]; then
+            echo "ERROR: Render deployment did not become live before the total deployment deadline."
+            exit 1
+          fi
+
+          curl --fail --show-error --silent --max-time 30 \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+            -o "$deploy_status_response"
+
+          DEPLOY_DETAILS="$(python3 - "$deploy_status_response" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as response:
+              deploy = json.load(response)
+
+          commit = deploy.get("commit", {})
+          print(f"{deploy.get('status', '')}\t{commit.get('id', '') if isinstance(commit, dict) else ''}")
+          PY
+          )"
+          IFS=$'\t' read -r DEPLOY_STATUS DEPLOY_COMMIT_ID <<< "$DEPLOY_DETAILS"
+
+          if [ "$DEPLOY_STATUS" != "live" ] || [ "$DEPLOY_COMMIT_ID" != "$GITHUB_SHA" ]; then
+            echo "ERROR: Render deployment did not remain live for the requested commit."
+            exit 1
+          fi
+
+          for attempt in $(seq 1 12); do
+            if curl --fail --show-error --silent --max-time 30 \
+              "$RENDER_BASE_URL/health/ready" -o /dev/null; then
+              echo "Render deployment is ready."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 12 ]; then
+              echo "Render readiness check ${attempt}/12 failed; retrying in 15 seconds."
+              sleep 15
+            fi
+          done
+
+          echo "ERROR: Render deployment did not become ready after 12 checks."
+          exit 1
+
+      - name: Sync source to HuggingFace Space (backup)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$HF_TOKEN" ]; then
+            echo "ERROR: HF_TOKEN not configured; cannot keep the HuggingFace Space in sync."
+            exit 1
+          fi
+
+          SPACE_CLONE="${RUNNER_TEMP}/space"
+          # hf_user:<token> 是 huggingface_hub 自身写入 git credential 的凭据对；
+          # 用请求头带上可避免 token 出现在 remote URL 或失败日志里。
+          GIT_AUTH="Basic $(printf 'hf_user:%s' "$HF_TOKEN" | base64 -w0)"
+          GIT_HEADER="Authorization: ${GIT_AUTH}"
+
+          git -c http.extraHeader="$GIT_HEADER" clone --quiet \
+            "https://huggingface.co/spaces/${HF_SPACE_REPO}" "$SPACE_CLONE"
+
+          # README.md 的 front matter 是 Space 的 SDK / app_port 配置，删掉或换成仓库版
+          # 都会让 Space 起不来，所以先备份再还原；.huggingface/ 同理。
+          cp "${SPACE_CLONE}/README.md" "${RUNNER_TEMP}/space-README.md"
+          if [ -d "${SPACE_CLONE}/.huggingface" ]; then
+            cp -a "${SPACE_CLONE}/.huggingface" "${RUNNER_TEMP}/space-hf-config"
+          fi
+
+          # 只同步运行时代码。仓库里的 docs/preview、deliverables、bookrank-draft 全是
+          # 截图产物，HF 的 Xet pre-receive hook 会以「contains binary files」拒绝普通
+          # git push，把整个 deploy 拖红。
+          STAGE="${RUNNER_TEMP}/stage"
+          mkdir -p "$STAGE"
+          cp -a app templates static translations migrations \
+            run.py gunicorn.conf.py requirements-prod.txt Dockerfile Procfile .dockerignore \
+            "${STAGE}/"
+
+          # 其余内容整体换成 main，让它不再是手工补丁的硬分叉。
+          # *.mo 不同步：由 Space 镜像构建时从 .po 现编，避免译文一改就撞上二进制拒绝。
+          rsync -a --delete --exclude '.git/' --exclude '*.mo' \
+            "$STAGE/" "$SPACE_CLONE/"
+
+          cp "${RUNNER_TEMP}/space-README.md" "${SPACE_CLONE}/README.md"
+          if [ -d "${RUNNER_TEMP}/space-hf-config" ]; then
+            cp -a "${RUNNER_TEMP}/space-hf-config" "${SPACE_CLONE}/.huggingface"
+          fi
+
+          cd "$SPACE_CLONE"
+          git config user.name 'bookrank-ci'
+          git config user.email 'bookrank-ci@users.noreply.github.com'
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "HuggingFace Space 无运行时差异，无需新提交（main=${GITHUB_SHA}）"
+            exit 0
+          fi
+
+          # 兜底：白名单里仍含 static/，日后新增图片会再次被钩子拒收，而远端只报
+          # "contains binary files" 不点名文件。这里提前拦并列出清单。
+          # 只看新增（A）：已收录文件的修改照常同步；static/dist 的 minified 产物按
+          # 文本计数，不会误报。
+          new_binary=$(git diff --cached --numstat --diff-filter=A | awk '$1 == "-" && $2 == "-" { print $3 }')
+          if [ -n "$new_binary" ]; then
+            echo "::error::以下新增文件会被 HuggingFace 以「contains binary files」拒收。" \
+                 "请把图片等素材移出同步范围（app/templates/static/migrations 之外），" \
+                 "或改用 Git LFS 跟踪后再推送："
+            echo "$new_binary"
+            exit 1
+          fi
+
+          git commit --quiet -m "sync: main@${GITHUB_SHA}"
+          git -c http.extraHeader="$GIT_HEADER" push --quiet origin HEAD:refs/heads/main
+          echo "Pushed main@${GITHUB_SHA} to the Space; HuggingFace rebuilds it on push."
