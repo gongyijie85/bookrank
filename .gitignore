@@ -66,6 +66,15 @@ archive/
 # Agent / IDE data
 .workbuddy/
 .design-audit/
+# 本机工作副本的临时数据，一律不进提交（都只在本地存在，无脚本/工作流依赖）：
+#   .debug/   —— 取证探针、一次性调试脚本、.git 备份、消息草稿
+#   output/   —— 前端/UX 验收产物（截图、视口记录、渲染脚本）
+#   .claude/  —— agent worktrees（eslint.config.mjs 已显式忽略，这里同步为 git 层面）
+#   .workbuddy-ai/ —— 另一工具的本地记忆
+.debug/
+output/
+.claude/
+.workbuddy-ai/
 
 # Logs
 *.log
