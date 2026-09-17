@@ -48,18 +48,16 @@
 
     <div class="card-content">
         <span class="card-award-tag">{{ shown_award }}</span>
-        {% if in_rail %}
-        <h3 class="card-title">{{ shown_title }}</h3>
-        {% else %}
         <h3 class="card-title"
+            {% if not in_rail %}
             title="{{ book.title_en or book.title }}"
             data-en="{{ book.title_en or book.title }}"
             data-zh="{{ book.title_zh or book.title_en or book.title }}"
-            data-isbn="{{ book.isbn13 or '' }}">
+            data-isbn="{{ book.isbn13 or '' }}"
+            {% endif %}>
             <a href="{{ detail_url }}">{{ shown_title }}</a>
         </h3>
-        {% endif %}
-        <p class="card-author">{{ book.author }}</p>
+        <p class="card-author">{{ book.author or _('未知作者') }}</p>
         {% if not in_rail and (book.publisher or book.isbn13) %}
         <p class="card-pub-isbn">
             {% if book.publisher %}<span class="card-pub-isbn-item publisher" title="{{ _('出版社') }}">{{ book.publisher }}</span>{% endif %}
@@ -79,9 +77,7 @@
 <!-- Masthead -->
 <header class="page-header">
     <p class="charts-kicker">AWARDS &amp; ACCOLADES</p>
-    <h1 class="page-title">
-        Award <span>Winners</span>
-    </h1>
+    <h1 class="page-title" data-i18n="nav_awards">{{ _('获奖书单') }}</h1>
     <p class="charts-source" data-i18n="page_title_awards">{{ _('国际图书奖项榜单') }}</p>
     <p class="page-subtitle">
         {% if selected_award %}
@@ -99,50 +95,19 @@
     <a href="{{ url_for('main.new_books') }}" data-i18n="nav_new_books">{{ _('新书速递') }}</a>
 </nav>
 
-<!-- Award seal strip -->
-{% if awards %}
-<nav class="awards-seal-strip" aria-label="{{ _('奖项速览') }}">
-    {% for award in awards %}
-    <a href="{{ url_for('main.awards', award=award.name) }}">{{ award.name|bilingual(award.name_en) }}</a>
-    {% endfor %}
-</nav>
-{% endif %}
-
-<!-- Browse by award -->
-{% if awards %}
-<section class="awards-directory" aria-label="{{ _('奖项分类') }}">
-    {% for award in awards %}
-    <a href="{{ url_for('main.awards', award=award.name) }}"
-       class="award-tile"
-       {% if selected_award == award.name %}aria-current="page"{% endif %}>
-        <span class="award-tile-name">{{ award.name|bilingual(award.name_en) }}</span>
-        {% set shown_country = award.country|award_term %}
-        {% set _tile_meta %}{{ shown_country }}{% if award.established_year %}{{ ' · ' if shown_country else '' }}{{ award.established_year }}{% endif %}{% endset %}
-        {% if _tile_meta.strip() %}<span class="award-tile-meta">{{ _tile_meta }}</span>{% endif %}
-        <span class="award-tile-count">{{ award.book_count }} {{ _('本图书') }}</span>
-    </a>
-    {% endfor %}
-</section>
-{% endif %}
-
-<!-- Per-award shelves -->
-{% for section in award_sections %}
-<section class="award-section" aria-label="{{ section.award.name|bilingual(section.award.name_en) }}">
-    <div class="award-section-head">
-        <h2 class="award-section-title">{{ section.award.name|bilingual(section.award.name_en) }}</h2>
-        <a class="award-section-more" href="{{ url_for('main.awards', award=section.award.name) }}">{{ _('查看更多') }} &rarr;</a>
-    </div>
-    <div class="award-rail-shell">
-        <button class="award-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
-        <div class="award-rail">
-            {% for book in section.books %}
-            <div class="award-rail__item">{{ award_book_card(book, in_rail=true) }}</div>
-            {% endfor %}
-        </div>
-        <button class="award-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
-    </div>
-</section>
-{% endfor %}
+{# 单个筛选 chip 的 URL：仅移除自身，其余条件保留（audit02） #}
+{% macro chip_url(award=none, year=none, category=none, search=none) %}
+{%- set _a = award if award is not none else selected_award -%}
+{%- set _y = year if year is not none else selected_year -%}
+{%- set _c = category if category is not none else selected_category -%}
+{%- set _s = search if search is not none else search_query -%}
+{%- set parts = [] -%}
+{%- if _a %}{% set _u = parts.append('award=' ~ (_a|urlencode)) %}{% endif -%}
+{%- if _y %}{% set _u = parts.append('year=' ~ _y) %}{% endif -%}
+{%- if _c %}{% set _u = parts.append('category=' ~ (_c|urlencode)) %}{% endif -%}
+{%- if _s %}{% set _u = parts.append('search=' ~ (_s|urlencode)) %}{% endif -%}
+/awards{% if parts %}?{{ parts|join('&') }}{% endif %}
+{%- endmacro %}
 
 <!-- Filter Bar -->
 <section class="filter-bar" aria-label="{{ _('筛选选项') }}">
@@ -212,12 +177,29 @@
 
 <!-- Results -->
 {% if not is_browsing %}
-<div class="awards-active-filter">
-    <span>{{ _('当前筛选') }}{{ _('：') }}{{ selected_award or _('全部奖项') }}
-        {%- if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
-        {%- if selected_category %} · {{ selected_category }}{% endif %}
-        {%- if search_query %} · &ldquo;{{ search_query }}&rdquo;{% endif %}</span>
-    <a href="{{ url_for('main.awards') }}" aria-label="{{ _('清除筛选') }}">&times;</a>
+<div class="awards-active-filter" aria-label="{{ _('当前筛选条件') }}">
+    <span class="awards-active-filter-label">{{ _('已选条件') }}：</span>
+    {% if selected_award %}
+    <a class="filter-chip" href="{{ chip_url(award='') }}" aria-label="{{ _('移除奖项筛选：') }}{{ selected_award }}">
+        {{ selected_award }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
+    </a>
+    {% endif %}
+    {% if selected_year %}
+    <a class="filter-chip" href="{{ chip_url(year='') }}" aria-label="{{ _('移除年份筛选：') }}{{ selected_year }}{{ _('年') }}">
+        {{ selected_year }}{{ _('年') }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
+    </a>
+    {% endif %}
+    {% if selected_category %}
+    <a class="filter-chip" href="{{ chip_url(category='') }}" aria-label="{{ _('移除类别筛选：') }}{{ selected_category }}">
+        {{ selected_category }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
+    </a>
+    {% endif %}
+    {% if search_query %}
+    <a class="filter-chip" href="{{ chip_url(search='') }}" aria-label="{{ _('移除搜索：') }}{{ search_query }}">
+        &ldquo;{{ search_query }}&rdquo; <span class="filter-chip-x" aria-hidden="true">&times;</span>
+    </a>
+    {% endif %}
+    <a class="filter-chip-clear" href="{{ url_for('main.awards') }}">{{ _('清除全部') }}</a>
 </div>
 {% endif %}
 
@@ -272,6 +254,45 @@
     {% endif %}
 </nav>
 {% endif %}
+
+<!-- 目录与精选书列：结果之后折叠，避免把筛选与结果向下推（audit02） -->
+<details class="browse-curated" aria-label="{{ _('奖项目录与精选书列') }}">
+    <summary>{{ _('按奖项浏览与精选书列') }}</summary>
+
+    {% if awards %}
+    <section class="awards-directory" aria-label="{{ _('奖项分类') }}">
+        {% for award in awards %}
+        <a href="{{ url_for('main.awards', award=award.name) }}"
+           class="award-tile"
+           {% if selected_award == award.name %}aria-current="page"{% endif %}>
+            <span class="award-tile-name">{{ award.name|bilingual(award.name_en) }}</span>
+            {% set shown_country = award.country|award_term %}
+            {% set _tile_meta %}{{ shown_country }}{% if award.established_year %}{{ ' · ' if shown_country else '' }}{{ award.established_year }}{% endif %}{% endset %}
+            {% if _tile_meta.strip() %}<span class="award-tile-meta">{{ _tile_meta }}</span>{% endif %}
+            <span class="award-tile-count">{{ award.book_count }} {{ _('本图书') }}</span>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% for section in award_sections %}
+    <section class="award-section" aria-label="{{ section.award.name|bilingual(section.award.name_en) }}">
+        <div class="award-section-head">
+            <h2 class="award-section-title">{{ section.award.name|bilingual(section.award.name_en) }}</h2>
+            <a class="award-section-more" href="{{ url_for('main.awards', award=section.award.name) }}">{{ _('查看更多') }} &rarr;</a>
+        </div>
+        <div class="award-rail-shell">
+            <button class="award-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+            <div class="award-rail">
+                {% for book in section.books %}
+                <div class="award-rail__item">{{ award_book_card(book, in_rail=true) }}</div>
+                {% endfor %}
+            </div>
+            <button class="award-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+        </div>
+    </section>
+    {% endfor %}
+</details>
 
 <!-- Quick Link to Bestsellers -->
 <nav class="quick-link-section" aria-label="{{ _('快速链接') }}">

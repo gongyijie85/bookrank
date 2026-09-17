@@ -232,6 +232,34 @@ class TestAwardsPage:
         response = client.get('/awards?year=2024')
         assert response.status_code == 200
 
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_awards_year_select_marks_selected_option(self, MockAwardService, client):
+        """ADDITIONAL：?year=2026 时 #year-select 应渲染对应 option 为 selected。
+
+        _parse_awards_params 把 year 规范为 int，模板 `selected_year == year`（years 是
+        int 列表）才成立；否则会出现 chip 显示 2026 但下拉无选中项，再改别的筛选就
+        会静默丢掉年份。
+        """
+        mock_award = MagicMock()
+        mock_award.id = 1
+        mock_award.name = 'TestAward'
+        mock_award.book_count = 0
+        mock_svc = MagicMock()
+        mock_svc.get_all_awards.return_value = [mock_award]
+        mock_svc.get_distinct_years.return_value = [2026]
+        mock_svc.get_distinct_categories.return_value = ['小说']
+        mock_svc.get_award_by_name.return_value = mock_award
+        mock_svc.get_award_books.return_value = ([], 0)
+        mock_svc.get_book_counts_by_award.return_value = {}
+        MockAwardService.return_value = mock_svc
+
+        response = client.get('/awards?award=布克奖&year=2026&category=小说')
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert '<option value="2026" selected>' in html
+        # 年份筛选 chip 仍在（移除 chip 的链接保留 year=2026 与 category=小说）
+        assert '2026' in html
+
     def test_awards_with_year_too_old(self, client):
         response = client.get('/awards?year=1800')
         assert response.status_code == 200
@@ -397,6 +425,39 @@ class TestNewBooksPage:
     def test_new_books_with_category(self, client):
         response = client.get('/new-books?category=fiction')
         assert response.status_code == 200
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_new_books_raw_english_category_selects_canonical_option(self, mock_get_modules, client):
+        """audit08：?category=Health & Fitness（旧英文 URL）应选中规范选项并显示规范 chip。
+
+        路由把原始英文分类归一为规范显示键（健康养生），否则下拉无选中项、chip 显示英文，
+        且已入库的英文记录会从筛选中消失。
+        """
+        mock_modules = MagicMock()
+        mock_modules.sync_engine.ensure_static_data_seeded.return_value = None
+        mock_modules.publisher_manager.get_publishers.return_value = []
+        mock_modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        mock_modules.query_service.get_categories.return_value = [
+            {'name': '健康养生', 'count': 2},
+            {'name': '小说', 'count': 1},
+        ]
+        mock_modules.query_service.get_statistics.return_value = {
+            'total_books': 3,
+            'total_publishers': 1,
+            'active_publishers': 1,
+            'recent_books_7d': 0,
+            'top_categories': [],
+        }
+        mock_modules.query_service.get_new_books.return_value = ([], 0)
+        mock_get_modules.return_value = mock_modules
+
+        response = client.get('/new-books?category=Health%20%26%20Fitness')
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        # 规范选项被选中（而非英文原始值）
+        assert 'value="健康养生" selected' in html
+        # 筛选 chip 显示规范显示名
+        assert '健康养生' in html
 
     def test_new_books_with_days(self, client):
         response = client.get('/new-books?days=7')
@@ -1892,3 +1953,85 @@ class TestNewBooksPublisherNamesFollowLocale:
         )
         names = [(e.get_text() or '').strip() for e in soup.select('.pub-name, .browse-section-title')]
         assert '企鹅兰登' in names, f'中文页丢了中文出版社名: {names[:8]}'
+
+
+class TestAwardBuyLinksParsing:
+    """`AwardBook.buy_links` 是**裸 JSON 文本列**（模型上没有解析器）。
+
+    回归：桌面模板此前直接 `{% for link in book.buy_links %}`，迭代字符串会逐字符
+    产出 link，`link.url` 变成单个字符 → href 为空/无效。现在路由只在视图内解析，
+    数据库里的原始列保持不变。
+    """
+
+    def test_parses_json_text_into_url_and_name(self) -> None:
+        from app.routes.main import _parse_award_buy_links
+
+        raw = json.dumps(
+            [
+                {'name': 'Amazon', 'url': 'https://www.amazon.com/dp/123'},
+                {'name': 'Bookshop', 'url': 'http://bookshop.org/p/1'},
+            ]
+        )
+        links = _parse_award_buy_links(raw)
+        assert [link['name'] for link in links] == ['Amazon', 'Bookshop']
+        assert links[0]['url'] == 'https://www.amazon.com/dp/123'
+        assert links[1]['url'] == 'http://bookshop.org/p/1'
+
+    def test_accepts_already_parsed_list(self) -> None:
+        from app.routes.main import _parse_award_buy_links
+
+        links = _parse_award_buy_links([{'name': 'Amazon', 'url': 'https://amazon.com'}])
+        assert links == [{'name': 'Amazon', 'url': 'https://amazon.com'}]
+
+    def test_missing_name_falls_back_to_localized_buy_label(self) -> None:
+        from app.routes.main import _parse_award_buy_links
+
+        links = _parse_award_buy_links([{'url': 'https://amazon.com'}])
+        assert len(links) == 1
+        assert links[0]['name'], '缺少 name 时应回退到本地化「购买」文案，绝不渲染空标签'
+        assert links[0]['url'] == 'https://amazon.com'
+
+    def test_malformed_json_does_not_raise_and_yields_no_links(self) -> None:
+        from app.routes.main import _parse_award_buy_links
+
+        assert _parse_award_buy_links('{not json') == []
+        assert _parse_award_buy_links('"a string"') == []
+        assert _parse_award_buy_links('42') == []
+        assert _parse_award_buy_links('') == []
+
+    def test_rejects_non_http_and_non_dict_entries(self) -> None:
+        from app.routes.main import _parse_award_buy_links
+
+        raw = json.dumps(
+            [
+                {'name': 'JS', 'url': 'javascript:alert(1)'},
+                {'name': 'Empty', 'url': ''},
+                {'name': 'Relative', 'url': '/book/1'},
+                'not-a-dict',
+                {'name': 'Good', 'url': 'https://ok.example/book'},
+            ]
+        )
+        links = _parse_award_buy_links(raw)
+        assert links == [{'name': 'Good', 'url': 'https://ok.example/book'}], (
+            '只保留 http(s) 且元素为 dict 的条目，避免空 href / 非安全协议'
+        )
+
+    def test_route_does_not_mutate_stored_raw_column(self, client, app, db) -> None:
+        """路由解析必须只发生在视图内：原始列字节级不变。"""
+        from app.models.schemas import Award, AwardBook
+
+        raw = json.dumps([{'name': 'Amazon', 'url': 'https://amazon.com/dp/9'}])
+        with app.app_context():
+            award = Award(name='测试奖', name_en='Test Award', country='美国', established_year=2000)
+            db.session.add(award)
+            db.session.flush()
+            book = AwardBook(award_id=award.id, year=2024, title='Raw Title', author='A Author', buy_links=raw)
+            db.session.add(book)
+            db.session.commit()
+            book_id = book.id
+
+        client.get(f'/award-book/{book_id}')
+
+        with app.app_context():
+            stored = db.session.get(AwardBook, book_id)
+            assert stored.buy_links == raw, '原始 buy_links 列必须逐字节保持不变'

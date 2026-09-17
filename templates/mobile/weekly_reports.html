@@ -24,8 +24,8 @@
 <div class="m-report-intro">
     <p class="m-report-intro-count">
         {{ reports|length }} {{ _('期') }}
-        {% if latest_report and latest_report.week_start %}
-        · {{ _('更新至') }} {{ latest_report.week_start.strftime('%Y-%m-%d') }}
+        {% if latest_report and latest_report.week_end %}
+        · {{ _('更新至') }} {{ latest_report.week_end.strftime('%Y-%m-%d') }}
         {% endif %}
     </p>
 </div>
@@ -47,25 +47,25 @@
                 </h3>
                 <p class="m-report-sub">
                     {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}
-                    {% if content.total_books %}
-                    · {{ content.total_books }}{{ _('本新书') }}
+                    {% if content.total_books_known %}
+                    · {{ content.total_books_display }}{{ _('上榜记录') }}
                     {% endif %}
                 </p>
-                {% if content.top_changes or content.new_books or content.featured_books %}
+                {% if content.total_new_known or content.total_rising_known or content.total_falling_known %}
                 <div class="m-report-chips">
-                    {% if content.top_changes %}
-                    <span class="m-report-chip">{{ content.top_changes | length }} {{ _('项变化') }}</span>
+                    {% if content.total_new_known %}
+                    <span class="m-report-chip">{{ _('新上榜') }} {{ content.total_new_display }}</span>
                     {% endif %}
-                    {% if content.new_books %}
-                    <span class="m-report-chip">{{ content.new_books | length }} {{ _('新上榜') }}</span>
+                    {% if content.total_rising_known %}
+                    <span class="m-report-chip">{{ _('上升') }} {{ content.total_rising_display }}</span>
                     {% endif %}
-                    {% if content.featured_books %}
-                    <span class="m-report-chip">{{ content.featured_books | length }} {{ _('推荐') }}</span>
+                    {% if content.total_falling_known %}
+                    <span class="m-report-chip">{{ _('下降') }} {{ content.total_falling_display }}</span>
                     {% endif %}
                 </div>
                 {% endif %}
-                {% if report.summary %}
-                <p class="m-report-summary">{{ report.summary }}</p>
+                {% if report.content_data.summary %}
+                <p class="m-report-summary">{{ report.content_data.summary }}</p>
                 {% endif %}
             </div>
             <span class="m-report-chevron">

@@ -9,8 +9,8 @@
 
 <nav class="m-top-nav">
     <div class="m-top-nav-copy">
-        <span class="m-top-nav-kicker">{{ _('新书速递') }}</span>
-        <span class="m-top-nav-title">New Books</span>
+        <span class="m-top-nav-kicker">NEW ARRIVALS</span>
+        <span class="m-top-nav-title">{{ _('新书速递') }}</span>
         <span class="m-top-nav-subtitle">{{ _('追踪国际大型出版社最新出版物') }}</span>
     </div>
 </nav>
@@ -18,20 +18,20 @@
 <!-- 统计条 -->
 {% if stats %}
 <div class="m-list-info">
-    <span>{{ _('共') }} {{ stats.total_books or total }} {{ _('本新书') }}</span> · {{ stats.active_publishers or publishers|length }} {{ _('家出版社') }}
+    <span>{{ _('全库收录') }} {{ stats.total_books or total }} {{ _('本新书') }} · {{ stats.active_publishers or publishers|length }} {{ _('家出版社') }}</span>
 </div>
 {% endif %}
 
 <!-- 简化筛选：出版社 / 分类 / 时间 -->
 <form method="get" action="/new-books" class="m-filter-bar" style="padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;">
     <div style="display:flex;gap:0.5rem;">
-        <select name="publisher" class="m-filter-select" style="flex:1;" aria-label="{{ _('出版社') }}">
+        <select name="publisher" class="m-filter-select" style="flex:1;min-height:44px;" aria-label="{{ _('出版社') }}">
             <option value="">{{ _('全部出版社') }}</option>
             {% for pub in publishers %}
             <option value="{{ pub.id }}" {% if selected_publisher == pub.id %}selected{% endif %}>{{ pub.name_en if _l=='en' and pub.name_en else pub.name }}</option>
             {% endfor %}
         </select>
-        <select name="days" class="m-filter-select" aria-label="{{ _('时间') }}">
+        <select name="days" class="m-filter-select" style="min-height:44px;" aria-label="{{ _('时间') }}">
             <option value="7" {% if selected_days==7 %}selected{% endif %}>{{ _('最近7天') }}</option>
             <option value="30" {% if selected_days==30 %}selected{% endif %}>{{ _('最近30天') }}</option>
             <option value="90" {% if selected_days==90 %}selected{% endif %}>{{ _('最近90天') }}</option>
@@ -40,22 +40,28 @@
         </select>
     </div>
     <div style="display:flex;gap:0.5rem;">
-        <input type="search" name="search" value="{{ search_query }}" placeholder="{{ _('搜索书名、作者') }}" class="m-filter-input" style="flex:1;" aria-label="{{ _('搜索') }}">
-        <button type="submit" class="m-btn m-btn-primary m-btn-sm">{{ _('筛选') }}</button>
-        <a href="/new-books" class="m-btn m-btn-outline m-btn-sm">{{ _('重置') }}</a>
+        <input type="search" name="search" value="{{ search_query }}" placeholder="{{ _('搜索书名、作者') }}" class="m-filter-input" style="flex:1;min-height:44px;" aria-label="{{ _('搜索') }}">
+        <button type="submit" class="m-btn m-btn-primary m-btn-sm" style="min-height:44px;">{{ _('筛选') }}</button>
+        <a href="/new-books" class="m-btn m-btn-outline m-btn-sm" style="min-height:44px;">{{ _('重置') }}</a>
     </div>
     {% if categories %}
     <div class="m-cat-tabs-scroll no-scrollbar" style="display:flex;gap:0.5rem;overflow-x:auto;">
         <a href="{{ url_for('main.new_books', days=selected_days) }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部分类') }}</a>
         {% for cat in categories %}
-        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}" class="m-cat-tab {% if selected_category == cat.name %}active{% endif %}">{{ cat.name|category_name }}</a>
+        {# 分类 chip 文案双语留痕（canonical category_name 两侧），href/value 口径不变 #}
+        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}" class="m-cat-tab {% if selected_category == cat.name %}active{% endif %}"
+           data-cat-zh="{{ cat.name|category_name('zh') }}"
+           data-cat-en="{{ cat.name|category_name('en') }}">{{ cat.name|category_name }}</a>
         {% endfor %}
     </div>
     {% endif %}
 </form>
 
+{# 筛选窗口口径与桌面端共用**同一条** gettext 句子（含 %(days)s / %(preview)s 具名参数），
+   不再拆成碎片各自翻译 —— 碎片拼接在另一种语言下语序必然错。结果计数保留在句首。 #}
 <div class="m-list-info">
-    {{ _('当前结果') }} <strong>{{ total }}</strong> {{ _('本') }} · {{ _('按出版日期筛选最近') }} {{ selected_days }} {{ _('天已出版图书') }}
+    <span>{{ _('当前筛选结果') }} <strong>{{ total }}</strong> {{ _('本') }}</span> ·
+    {{ _('筛选范围：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告；含日期待确认的新发现书目', days=selected_days, preview=future_preview_days) }}
 </div>
 
 {% if books %}
@@ -73,9 +79,22 @@
             <h3 class="m-book-title">{{ shown_title }}</h3>
             <p class="m-book-author">{{ book.author or _('未知') }}</p>
             <p class="m-book-card-meta">
-                {% if book.publisher %}{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }} · {% endif %}
-                {% if book.publication_date %}{{ book.publication_date }}{% endif %}
-                {% if book.category %} · {{ book.category|category_name }}{% endif %}
+                {% if book.publisher %}<span class="m-card-publisher"
+                      data-pub-name-zh="{{ book.publisher.name }}"
+                      data-pub-name-en="{{ book.publisher.name_en or book.publisher.name }}">{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }}</span> · {% endif %}
+                {# 日期状态只由 publication_date 决定；无日期时明确标注"待确认"，
+                   绝不拿 created_at（发现时间）冒充出版日期。状态文案双语留痕，
+                   与桌面卡片同口径（data-date-zh / data-date-en）；zh 槽位写死中文，
+                   用 `_()` 会在 SSR=en 时把英文写进 zh 载荷。 #}
+                {% if book.publication_date %}<span class="m-card-date"
+                      data-date-zh="{{ book.publication_date|publication_state_label('zh') }}"
+                      data-date-en="{{ book.publication_date|publication_state_label('en') }}">{{ book.publication_date }} · {{ book.publication_date|publication_state_label(_l) }}</span>{% else %}<span class="m-card-date"
+                      data-date-zh="出版日期待确认"
+                      data-date-en="Publication date pending">{{ _('出版日期待确认') }}</span>{% endif %}
+                {% if book.category %} · <span class="m-card-category"
+                      data-cat-zh="{{ book.category|category_name('zh') }}"
+                      data-cat-en="{{ book.category|category_name('en') }}">{{ book.category|category_name }}</span>{% endif %}
+                {% if book.language and book.language not in ('Unknown', '', 'un') %} · {{ book.language|language_name }}{% endif %}
             </p>
             {% set desc = (book.description_zh or book.description) if _l == 'zh' else (book.description or book.description_zh) %}
             {% if desc %}<p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length>80 %}…{% endif %}</p>{% endif %}

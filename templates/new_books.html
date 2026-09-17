@@ -25,7 +25,11 @@
                data-pub-name-zh="{{ pub.name }}"
                data-pub-name-en="{{ pub.name_en }}">
                 <svg class="icon" width="18" height="18"><use href="#icon-building"/></svg>
-                <span class="pub-name">{{ pub.name|bilingual(pub.name_en) }}</span>
+                {# 双语留痕直接挂在文本节点所在的 <span> 上：整条 <a> 里还有图标与计数徽标，
+                   若把 data-pub-name-* 挂在 <a> 上，切语言会连图标/徽标一起被覆盖。 #}
+                <span class="pub-name"
+                      data-pub-name-zh="{{ pub.name }}"
+                      data-pub-name-en="{{ pub.name_en or pub.name }}">{{ pub.name|bilingual(pub.name_en) }}</span>
                 <span class="badge">{{ publisher_book_counts.get(pub.id, 0) }}</span>
             </a>
         </li>
@@ -37,59 +41,28 @@
 {% block content %}
 <header class="page-header">
     <p class="charts-kicker">NEW ARRIVALS</p>
-    <h1 class="page-title">
-        New <span>Releases</span>
-    </h1>
+    <h1 class="page-title" data-i18n="nav_new_books">{{ _('新书速递') }}</h1>
     <p class="charts-source" data-i18n="nb_header_subtitle">{{ _('追踪国际大型出版社最新出版物') }}</p>
     <p class="page-subtitle">
-        {{ stats.total_books }} {{ _('本新书') }} · {{ stats.active_publishers }} {{ _('家出版社') }} · {{ _('近 %(days)s 天', days=selected_days) }}
+        {# 整条句子 + 具名参数：切语言时 applyPageTranslation 按 data-i18n-params-* 重写，
+           不再由「全库收录 / 本新书 / 家出版社」三段各自冻结在 SSR 语言上。 #}
+        <span class="collection-total" data-i18n="nb_collection_total"
+              data-i18n-params-books="{{ stats.total_books }}"
+              data-i18n-params-publishers="{{ stats.active_publishers }}">{{ _('全库收录 %(books)s 本新书 · %(publishers)s 家出版社', books=stats.total_books, publishers=stats.active_publishers) }}</span>
+        <span class="collection-window" data-i18n="nb_window_scope"
+              data-i18n-params-days="{{ selected_days }}"
+              data-i18n-params-preview="{{ future_preview_days }}">{{ _('筛选窗口：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告 + 日期待确认的新发现书目', days=selected_days, preview=future_preview_days) }}</span>
     </p>
 </header>
-
-{% if categories %}
-<nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
-    <a href="{{ url_for('main.new_books', days=selected_days) }}">{% if selected_category %}{{ _('清除分类筛选') }}{% else %}{{ _('全部分类') }}{% endif %}</a>
-    {% for cat in categories %}
-    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}">{{ cat.name|category_name }}</a>
-    {% endfor %}
-</nav>
-
-<section class="browse-directory" aria-label="{{ _('图书分类') }}">
-    {% for cat in categories %}
-    <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}"
-       class="browse-tile"
-       {% if selected_category == cat.name %}aria-current="page"{% endif %}>
-        <span class="browse-tile-name">{{ cat.name|category_name }}</span>
-        <span class="browse-tile-count">{{ cat.count }} {{ _('本') }}</span>
-    </a>
-    {% endfor %}
-</section>
-{% endif %}
-
-{% for section in publisher_sections %}
-<section class="browse-section" aria-label="{{ section.publisher.name|bilingual(section.publisher.name_en) }}">
-    <div class="browse-section-head">
-        <h2 class="browse-section-title">{{ section.publisher.name|bilingual(section.publisher.name_en) }}</h2>
-        <a class="browse-section-more"
-           href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看更多') }} &rarr;</a>
-    </div>
-    <div class="browse-rail-shell">
-        <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
-        <div class="browse-rail">
-            {% for book in section.books %}
-            <div class="browse-rail__item">{{ browse_book_card(book) }}</div>
-            {% endfor %}
-        </div>
-        <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
-    </div>
-</section>
-{% endfor %}
 
 <form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
     <div class="filter-group">
         <label for="publisher-filter"><span data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</span>：</label>
         <select id="publisher-filter" name="publisher" aria-label="{{ _('选择出版社') }}">
-            <option value="" data-i18n="nb_filter_publisher_all" data-pub-name-zh="{{ _('全部出版社') }}" data-pub-name-en="All publishers">{{ _('全部出版社') }}</option>
+            {# data-pub-name-zh 必须是**固定中文**：SSR=en 时 `_('全部出版社')` 会变成
+               'All publishers'，写进 zh 槽位后 EN→ZH 就永远切不回中文。可见文案仍用
+               当前语言的 gettext，双语载荷写死。 #}
+            <option value="" data-i18n="nb_filter_publisher_all" data-pub-name-zh="全部出版社" data-pub-name-en="All publishers">{{ _('全部出版社') }}</option>
             {% for pub in publishers %}
             <option value="{{ pub.id }}"
                     {% if selected_publisher == pub.id %}selected{% endif %}
@@ -104,7 +77,11 @@
         <select id="category-filter" name="category" aria-label="{{ _('选择分类') }}">
             <option value="" data-i18n="nb_filter_category_all">{{ _('全部分类') }}</option>
             {% for cat in categories %}
-            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}>{{ cat.name|category_name }} ({{ cat.count }})</option>
+            {# value 仍是库里的规范存储键（筛选/URL 口径不变）；显示文本双语留痕，
+               切语言时按 data-cat-* 换文本，计数保留。 #}
+            <option value="{{ cat.name }}" {% if selected_category == cat.name %}selected{% endif %}
+                    data-cat-zh="{{ cat.name|category_name('zh') }}"
+                    data-cat-en="{{ cat.name|category_name('en') }}">{{ cat.name|category_name }} ({{ cat.count }})</option>
             {% endfor %}
         </select>
     </div>
@@ -122,7 +99,7 @@
 
     <div class="search-box">
         <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
-        <input type="search" id="search-input" name="search" aria-label="{{ _('搜索新书') }}" data-i18n-aria-label="nb_search_label" data-i18n-placeholder="nb_search_placeholder" placeholder="{{ _('搜索书名、作者、') }}ISBN..." value="{{ search_query }}">
+        <input type="search" id="search-input" name="search" aria-label="{{ _('搜索新书') }}" data-i18n-aria-label="nb_search_label" data-i18n-placeholder="nb_search_placeholder" placeholder="{{ _('搜索书名或作者...') }}" value="{{ search_query }}">
     </div>
 
     <div class="filter-actions">
@@ -150,9 +127,49 @@
     </div>
 </form>
 
+{% if selected_publisher or selected_category or search_query %}
+<div class="browse-active-filter" id="active-filters" aria-label="{{ _('当前筛选条件') }}">
+    <span class="browse-active-filter-label">{{ _('已选条件') }}：</span>
+    {% set _sel_pub = publishers | selectattr('id', 'equalto', selected_publisher) | first %}
+    {% if selected_publisher %}
+    {# 出版社 chip：文案双语留痕（data-chip-text-zh/en），切语言时 syncFilterChrome 会
+       按当前语言重建整条 chip，不冻结 SSR 那一刻的 locale。 #}
+    <a class="filter-chip" href="/new-books?days={{ selected_days }}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" data-chip-key="publisher"
+       data-chip-text-zh="{{ (_sel_pub.name|bilingual(_sel_pub.name_en, 'zh')) if _sel_pub else selected_publisher }}"
+       data-chip-text-en="{{ (_sel_pub.name|bilingual(_sel_pub.name_en, 'en')) if _sel_pub else selected_publisher }}"
+       aria-label="{{ _('移除出版社筛选') }}">
+        {{ (_sel_pub.name|bilingual(_sel_pub.name_en)) if _sel_pub else selected_publisher }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
+    </a>
+    {% endif %}
+    {% if selected_category %}
+    <a class="filter-chip" href="/new-books?days={{ selected_days }}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" data-chip-key="category"
+       data-chip-text-zh="{{ selected_category|category_name('zh') }}"
+       data-chip-text-en="{{ selected_category|category_name('en') }}"
+       aria-label="{{ _('移除分类筛选：') }}{{ selected_category }}">
+        {{ selected_category|category_name }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
+    </a>
+    {% endif %}
+    {% if search_query %}
+    <a class="filter-chip" href="/new-books?days={{ selected_days }}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}" data-chip-key="search" aria-label="{{ _('移除搜索：') }}{{ search_query }}">
+        &ldquo;{{ search_query }}&rdquo; <span class="filter-chip-x" aria-hidden="true">&times;</span>
+    </a>
+    {% endif %}
+    <a class="filter-chip-clear" href="{{ url_for('main.new_books') }}" data-clear-all="1">{{ _('清除全部') }}</a>
+</div>
+{% else %}
+{# 无筛选条件时容器仍存在：AJAX 选中筛选后由 syncFilterChrome 在此插入 chip #}
+<div class="browse-active-filter" id="active-filters" aria-label="{{ _('当前筛选条件') }}" hidden></div>
+{% endif %}
+
 <div class="result-summary" id="result-summary" aria-live="polite">
-    <span><span data-i18n="nb_result_summary">{{ _('当前结果') }}</span> <strong id="result-summary-count">{{ total }}</strong> <span data-i18n="nb_result_unit">{{ _('本') }}</span></span>
-    <span class="summary-muted" data-i18n="nb_filtered_by_date" data-i18n-params-days="{{ selected_days }}">{{ _('按出版日期筛选最近') }} <strong id="result-summary-days">{{ selected_days }}</strong> {{ _('天已出版图书') }}</span>
+    <span><span data-i18n="nb_result_summary">{{ _('当前筛选结果') }}</span> <strong id="result-summary-count">{{ total }}</strong> <span data-i18n="nb_result_unit">{{ _('本') }}</span></span>
+    {# 筛选窗口口径 = **一整条** gettext 句子，带 %(days)s / %(preview)s 具名参数；
+       桌面与移动端共用同一个 msgid，绝不再拆成多段片段拼接。 #}
+    <span class="summary-muted" data-i18n="nb_filtered_by_date"
+          data-i18n-params-days="{{ selected_days }}"
+          data-i18n-params-preview="{{ future_preview_days }}">
+        {{ _('筛选范围：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告；含日期待确认的新发现书目', days=selected_days, preview=future_preview_days) }}
+    </span>
 </div>
 
 <div id="sync-status" class="sync-status" hidden></div>
@@ -206,6 +223,43 @@
 </div>
 {% endif %}
 </div>
+
+<!-- 分类目录与出版社精选书列：结果之后折叠，避免把筛选与结果向下推（audit02） -->
+<details class="browse-curated" aria-label="{{ _('分类目录与出版社精选') }}">
+    <summary>{{ _('按分类浏览与出版社精选') }}</summary>
+
+    {% if categories %}
+    <section class="browse-directory" aria-label="{{ _('图书分类') }}">
+        {% for cat in categories %}
+        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}"
+           class="browse-tile"
+           {% if selected_category == cat.name %}aria-current="page"{% endif %}>
+            <span class="browse-tile-name">{{ cat.name|category_name }}</span>
+            <span class="browse-tile-count">{{ cat.count }} {{ _('本') }}</span>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% for section in publisher_sections %}
+    <section class="browse-section" aria-label="{{ section.publisher.name|bilingual(section.publisher.name_en) }}">
+        <div class="browse-section-head">
+            <h2 class="browse-section-title">{{ section.publisher.name|bilingual(section.publisher.name_en) }}</h2>
+            <a class="browse-section-more"
+               href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看更多') }} &rarr;</a>
+        </div>
+        <div class="browse-rail-shell">
+            <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+            <div class="browse-rail">
+                {% for book in section.books %}
+                <div class="browse-rail__item">{{ browse_book_card(book) }}</div>
+                {% endfor %}
+            </div>
+            <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+        </div>
+    </section>
+    {% endfor %}
+</details>
 {% endblock %}
 
 {% block extra_js %}
@@ -214,8 +268,38 @@
 
 let currentPage = {{ page }};
 let isLoading = false;
+/* 最新请求胜出的竞态防护：loadSeq 单调递增，inFlightController 中止被取代的请求。
+   只有「仍是最新请求」的响应才可以写卡片/计数/chips/URL；过期响应与它的失败都被丢弃。 */
+let loadSeq = 0;
+let inFlightController = null;
 let searchTimer = null;
 let currentLanguage = window.__APP_LANG__ || 'en';
+
+/* 分类规范映射（英文别名 → 中文显示名），由后端 category_name 单一真相源导出，
+   chip / 标签 / 下拉框共用一份；未知值诚实回显原值。 */
+const BOOK_CATEGORY_ZH = {{ category_alias_labels|tojson }};
+
+/* 双语**数据载荷**（data-date-zh / data-cat-en / data-just-zh …）的固定词条。
+   这些值必须在任何 SSR 语言下都保持各自语言，绝不能用当前 locale 的 gettext 生成：
+   SSR=en 时 `_('即将出版')` 会被翻成 'Upcoming' 写进 data-date-zh，EN→ZH 就永远
+   切不回中文。所以这里写死两侧（与后端 publication_state_label 的中英文表同源）。 */
+const BOOK_BILINGUAL_TEXT = {
+    datePublished: { zh: '已出版', en: 'Published' },
+    dateUpcoming: { zh: '即将出版', en: 'Upcoming' },
+    datePending: { zh: '出版日期待确认', en: 'Publication date pending' },
+    dateLabel: { zh: '出版日期', en: 'Published' },
+    justPublished: { zh: '刚上市', en: 'Just published' },
+    categoryUnpublished: { zh: '分类未公开', en: 'Category not published' },
+    allPublishers: { zh: '全部出版社', en: 'All publishers' },
+    unknownPublisher: { zh: '未知', en: 'Unknown' },
+};
+
+/** 取固定双语词条；未知键返回空串（调用方自己兜底）。 */
+function biText(key, lang) {
+    const entry = BOOK_BILINGUAL_TEXT[key];
+    if (!entry) return '';
+    return (lang === 'zh' ? entry.zh : entry.en) || entry.zh || entry.en || '';
+}
 
 window.addEventListener('languagechange', function(e) {
     currentLanguage = e.detail.language;
@@ -223,16 +307,23 @@ window.addEventListener('languagechange', function(e) {
         applyPageTranslation(currentLanguage);
     }
     applyNewBooksLanguage(currentLanguage);
+    // 语言切换只是重绘：chip 文案与筛选窗口徽章跟着语言走，但绝不写历史记录
+    // （否则每切一次语言就多一条 Back 记录）。
+    syncFilterChrome();
     // 已加载过的卡片直接重渲；否则拉取首批（避免多余 API 请求）
     const booksContainer = document.getElementById('books-container');
     if (booksContainer && booksContainer.querySelector('.book-card')) {
         if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
             BookI18n.applyLanguage(currentLanguage);
         } else {
-            loadBooks();
+            loadBooks(buildQueryString(readFilterState(), currentPage || 1), { replace: true });
         }
-    } else if (typeof loadBooks === 'function') {
-        loadBooks();
+    } else if (typeof loadBooks === 'function' && !isLoading) {
+        // 有最新请求在途（isLoading 为真）：**不**中止也不替换它 —— 它的响应会按新的
+        // currentLanguage 渲染，且它自己的 push/replace 归属保持不变（语言切换不写历史）。
+        // 上面的标签重绘（applyPageTranslation / applyNewBooksLanguage / syncFilterChrome）
+        // 已经让当前页面的文案切到新语言，这里无需再发第二次请求。
+        loadBooks(buildQueryString(readFilterState(), currentPage || 1), { replace: true });
     }
 });
 
@@ -242,37 +333,25 @@ window.addEventListener('languagechange', function(e) {
  * 这里主要处理自定义的 data-pub-name-* 属性。
  */
 function applyNewBooksLanguage(lang) {
-    // 1. 通用化处理：所有 [data-pub-name-zh] 元素（侧边栏链接 / 详情页 meta-value）
+    // 1. 通用化处理：所有 [data-pub-name-zh] 元素（侧边栏链接 / 卡片出版社 / option）
     if (typeof BookI18n !== 'undefined' && BookI18n.applyPublisherLanguage) {
         BookI18n.applyPublisherLanguage(lang);
     } else {
-        // 退化：本地实现
         document.querySelectorAll('[data-pub-name-zh]').forEach(function(el) {
             const nameZh = el.getAttribute('data-pub-name-zh') || '';
             const nameEn = el.getAttribute('data-pub-name-en') || nameZh;
-            // 侧边栏链接有 .pub-name 子元素时优先用子元素
-            const nameEl = el.querySelector('.pub-name');
-            if (nameEl) {
-                nameEl.textContent = lang === 'en' ? nameEn : nameZh;
-            } else {
-                el.textContent = lang === 'en' ? nameEn : nameZh;
-            }
+            const text = lang === 'en' ? nameEn : nameZh;
+            // 只改文本节点，保住 SVG 图标；没有文本节点且无图标时才整体赋值
+            const textNode = Array.from(el.childNodes).find(
+                n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+            );
+            if (textNode) textNode.textContent = text;
+            else if (!el.querySelector('svg, img')) el.textContent = text;
         });
     }
 
-    // 2. 书籍卡片内的 publisher 名称（保留 SVG 图标）
-    document.querySelectorAll('.book-publisher[data-pub-name-zh]').forEach(function(el) {
-        const nameZh = el.getAttribute('data-pub-name-zh') || '';
-        const nameEn = el.getAttribute('data-pub-name-en') || nameZh;
-        // 只更新 SVG 之后的文本节点
-        const textNode = Array.from(el.childNodes).find(
-            n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
-        );
-        const text = lang === 'en' ? nameEn : nameZh;
-        if (textNode) {
-            textNode.textContent = ' ' + text;
-        }
-    });
+    // 2. （已并入上面的通用分支：BookI18n.applyPublisherLanguage 同样只改文本节点，
+    //     卡片出版社行里的 SVG 图标不会被抹掉。）
 
     // 3. 重新加载已渲染的卡片标题/作者/简介（BookI18n 未持有卡片时回退重渲）
     const booksContainer = document.getElementById('books-container');
@@ -300,6 +379,39 @@ function applyNewBooksLanguage(lang) {
             BookI18n.applyLanguage(lang);
         }
     }
+
+    // 4. 分类 / 日期状态徽标 + 精选书列标签：按 data-cat-* / data-date-* / data-pub-name-*
+    //    双语留痕取值。只改文本节点，SVG 图标、href、卷号徽标一概不动；状态本身
+    //    （已出版 / 即将出版 / 待确认）由 data 属性给出，绝不在这里重新计算日期。
+    applyBilingualBadges(lang);
+
+    // 5. SSR 生成的 chip 文案：用同一份双语留痕重写文本（href 保持原样）。
+    applyBilingualChips(lang);
+}
+
+/** 按 data-cat-* / data-date-* / data-just-* 重写徽标文本，保留图标与其它兄弟节点。
+ *
+ * 唯一实现在 BookI18n.applyBilingualBadges（本页依赖它做卡片语言切换），这里只做
+ * 委托，绝不维护第二份副本 —— 两份实现必然漂移。BookI18n 缺席时（脚本未加载）
+ * 直接不重绘：保留 SSR 文案，好过用一份会过期的逻辑去改 DOM。
+ */
+function applyBilingualBadges(lang) {
+    if (typeof BookI18n !== 'undefined' && typeof BookI18n.applyBilingualBadges === 'function') {
+        BookI18n.applyBilingualBadges(lang);
+    }
+}
+
+/** SSR chip 文案跟随语言；href/aria-label 不动（切语言不是筛选动作）。 */
+function applyBilingualChips(lang) {
+    const suffix = lang === 'zh' ? 'zh' : 'en';
+    document.querySelectorAll('[data-chip-key]').forEach(function(el) {
+        const text = el.getAttribute('data-chip-text-' + suffix);
+        if (!text) return;
+        const nodes = Array.from(el.childNodes).filter(
+            n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+        );
+        if (nodes.length) nodes[0].textContent = ' ' + text + ' ';
+    });
 }
 
 function debouncedSearch() {
@@ -309,59 +421,268 @@ function debouncedSearch() {
     }, 500);
 }
 
-function applyFilter(overrideKey, overrideValue) {
-    if (isLoading) return;
+/* ============================ 筛选状态（单一真相源） ============================
+ * 历史 bug：下拉框是唯一的筛选状态。选「商业」后只发了一次 AJAX（卡片变 10 条），
+ * 却既没有 chip、也不更新 URL；按浏览器返回时 URL 变成 /new-books，而 controls /
+ * count / cards 仍停在「商业」—— 页面与地址栏各说各话。
+ * 现在 URL 查询串就是真相：control → URL → (chips, count, results, pagination) 全部
+ * 由同一份 state 派生，Back/Forward 走 popstate 恢复，且不产生新的历史记录。
+ */
+const FILTER_KEYS = ['publisher', 'category', 'days', 'search'];
 
+function getFilterElements() {
+    return {
+        publisher: document.getElementById('publisher-filter'),
+        category: document.getElementById('category-filter'),
+        days: document.getElementById('days-filter'),
+        search: document.getElementById('search-input'),
+    };
+}
+
+/** 当前筛选条件（不含 page）；只从控件读，保证表单就是用户看到的那个状态。 */
+function readFilterState() {
+    const els = getFilterElements();
+    const state = {};
+    FILTER_KEYS.forEach(function(key) {
+        const el = els[key];
+        if (!el) return;
+        const value = (el.value || '').trim();
+        if (value) state[key] = value;
+    });
+    return state;
+}
+
+/** state → 查询串。page>1 才写 page，保持「默认地址」干净（/new-books?days=30）。 */
+function buildQueryString(state, page) {
     const params = new URLSearchParams();
-    const publisher = overrideKey === 'publisher' ? overrideValue : document.getElementById('publisher-filter').value;
-    const category = document.getElementById('category-filter').value;
-    const days = document.getElementById('days-filter').value;
-    const search = document.getElementById('search-input').value.trim();
+    FILTER_KEYS.forEach(function(key) {
+        if (state[key]) params.set(key, state[key]);
+    });
+    if (page && page > 1) params.set('page', String(page));
+    return params.toString();
+}
 
-    if (publisher) params.set('publisher', publisher);
-    if (category) params.set('category', category);
-    if (days) params.set('days', days);
-    if (search) params.set('search', search);
-    params.set('page', '1');
+/** 查询串 → 规范化 state（未知键丢弃，page 单独返回）。 */
+function parseQueryString(queryString) {
+    const params = new URLSearchParams(queryString || '');
+    const state = {};
+    FILTER_KEYS.forEach(function(key) {
+        const value = (params.get(key) || '').trim();
+        if (value) state[key] = value;
+    });
+    const parsedPage = parseInt(params.get('page') || '1', 10);
+    return { state: state, page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage };
+}
 
-    loadBooks(params.toString());
+function sameState(a, b) {
+    return FILTER_KEYS.every(function(key) { return (a[key] || '') === (b[key] || ''); });
+}
+
+function sameQueryString(queryString) {
+    const current = parseQueryString(window.location.search.replace(/^\?/, ''));
+    const next = parseQueryString(queryString);
+    return sameState(current.state, next.state) && current.page === next.page;
+}
+
+/** state → 控件（Back/Forward、chip 移除、重置都走这里回填）。 */
+function syncControls(state) {
+    const els = getFilterElements();
+    FILTER_KEYS.forEach(function(key) {
+        const el = els[key];
+        if (!el) return;
+        const next = state[key] || '';
+        if (el.value !== next) el.value = next;
+    });
+    // chip 的 href 里 publisher 是"全部出版社"时是空串，控件必须跟着清空
+    const sidebar = document.getElementById('filter-form');
+    if (sidebar) {
+        document.querySelectorAll('[data-filter-publisher]').forEach(function(el) {
+            el.classList.toggle('active', el.getAttribute('data-filter-publisher') === (state.publisher || ''));
+        });
+    }
+}
+
+/** 单个 chip 的 URL：只移除自己，其它条件（含 days）保留。 */
+function chipUrlWithout(key) {
+    const state = Object.assign({}, readFilterState());
+    delete state[key];
+    const query = buildQueryString(state, 1);
+    return '/new-books' + (query ? '?' + query : '');
+}
+
+/* chip 的固定文案：优先走页面字典（window.t，按运行时 currentLanguage 取词），
+   字典里还没有的键回退到 SSR 的 `_()` 字符串。这样切语言后新生成的 chip 不会
+   冻结在 SSR 语言上；最终的 locale 任务补上字典条目即可自动生效。
+   注意 CHIP_LABELS 是「函数」而不是常量对象：必须在渲染那一刻取词。 */
+const CHIP_LABEL_FALLBACKS = {
+    publisher: '{{ _("移除出版社筛选") }}',
+    category: '{{ _("移除分类筛选") }}',
+    search: '{{ _("移除搜索") }}',
+};
+
+/* 名字必须与 translations.js 的全局 `t` 区分开：浏览器里 `window` 就是全局对象，
+   本页若声明顶层 `function t(...)` 会覆盖 translations.js 的 `window.t`，而后
+   再调用 `window.t(...)` 就变成调用自己 —— 无限递归（栈溢出），整页脚本挂掉。
+   测试用的最小 DOM 桩把 window 与全局拆成两个对象，恰好掩盖了这个自递归。 */
+function newBooksText(key, fallback) {
+    if (typeof window.t === 'function') {
+        const value = window.t(key, currentLanguage || 'en');
+        // window.t 缺键时通常回显 key 本身，这种结果不如 SSR 文案，回退
+        if (value && value !== key) return value;
+    }
+    return fallback;
+}
+
+function chipLabel(key) {
+    return newBooksText('nb_chip_remove_' + key, CHIP_LABEL_FALLBACKS[key]);
+}
+
+/* publisher id → {'zh': ..., 'en': ...}（后端从 ORM 的 name/name_en 两列导出）。
+   绝不能在这里冻结 SSR 的 locale，否则切语言后 chip / 下拉框会停在旧语言。 */
+/* 中文规范名 → 英文显示名。**不重新发明选择规则**：Python 侧
+   book_labels._category_zh_to_en() 反查 CATEGORY_EN_TO_ZH 时，同一个中文值会被
+   多个英文键命中（`General` / `general` 都映射「综合」），它取**非全小写**的那个
+   作英文显示名。这里用同一规则在预计算时定一次，避免出现 `general` 这种与后端
+   不一致的小写标签。未知值不进表，回显原值。 */
+const BOOK_CATEGORY_EN = (function() {
+    const reversed = {};
+    if (BOOK_CATEGORY_ZH) {
+        for (const en in BOOK_CATEGORY_ZH) {
+            const zh = BOOK_CATEGORY_ZH[en];
+            const current = reversed[zh];
+            if (current === undefined || (current === current.toLowerCase())) {
+                reversed[zh] = en;
+            }
+        }
+    }
+    return reversed;
+})();
+
+const PUBLISHER_LABELS = {{ publisher_labels|tojson }};
+
+/** publisher id → 当前运行时语言下的展示名；未知 id 诚实回显原值。 */
+function publisherDisplayName(value) {
+    const entry = PUBLISHER_LABELS[value];
+    if (entry && typeof entry === 'object') {
+        const lang = currentLanguage === 'zh' ? 'zh' : 'en';
+        return entry[lang] || entry.zh || entry.en || value;
+    }
+    // 兼容旧形状（纯字符串标签表）
+    if (typeof entry === 'string' && entry) return entry;
+    return value;
+}
+
+function chipText(key, value) {
+    if (key === 'publisher') return publisherDisplayName(value);
+    if (key === 'category') return categoryDisplayName(value);
+    if (key === 'search') return '\u201c' + value + '\u201d';
+    return value;
+}
+
+/** 分类显示名：双向都走规范映射（英文别名↔中文名），未知值诚实回显原值。
+ *  `lang` 缺省取当前运行时语言；显式传入时用于构造 data-cat-* 双语载荷。 */
+function categoryDisplayName(value, lang) {
+    const active = lang || currentLanguage;
+    if (active === 'zh') {
+        // 英文别名 → 规范中文名；已是中文或未知值原样返回
+        return (BOOK_CATEGORY_ZH && BOOK_CATEGORY_ZH[value]) || value;
+    }
+    // 英文方向：用按后端同一规则反查出的表；未知值原样返回
+    return (BOOK_CATEGORY_EN && BOOK_CATEGORY_EN[value]) || value;
+}
+
+/** chips / 数量 / 结果 / 分页全部由同一份 state 派生（不再各自读控件）。 */
+function syncFilterChrome() {
+    const bar = document.getElementById('active-filters');
+    if (bar) {
+        const state = readFilterState();
+        const chips = FILTER_KEYS
+            .filter(function(key) { return key !== 'days' && state[key]; })
+            .map(function(key) {
+                return '<a class="filter-chip" href="' + esc(chipUrlWithout(key)) + '" data-chip-key="' + key +
+                    '" aria-label="' + esc(chipLabel(key)) + '">' +
+                    esc(chipText(key, state[key])) +
+                    ' <span class="filter-chip-x" aria-hidden="true">&times;</span></a>';
+            });
+        if (chips.length) {
+            bar.innerHTML = '<span class="browse-active-filter-label">' + esc(newBooksText('nb_selected_filters', '{{ _("已选条件") }}')) + '：</span>' + chips.join('') +
+                '<a class="filter-chip-clear" href="/new-books" data-clear-all="1">' + esc(newBooksText('nb_clear_all', '{{ _("清除全部") }}')) + '</a>';
+            bar.hidden = false;
+        } else {
+            bar.innerHTML = '';
+            bar.hidden = true;
+        }
+    }
+    updateResultSummary();
+}
+
+/** 控件改动 → 拉数据 + 写历史（用户主动动作才 pushState）。 */
+function applyFilter(overrideKey, overrideValue) {
+    // 不因 isLoading 丢弃：正在加载时改选另一条件，新的 loadBooks 会中止旧请求并接管
+    // （旧请求的被丢弃正是「卡片是 A、chips 是 B」的成因）。
+    const els = getFilterElements();
+    if (overrideKey && els[overrideKey]) {
+        // 侧边栏出版社链接：先回填控件，再统一从控件读 state
+        els[overrideKey].value = overrideValue == null ? '' : String(overrideValue);
+    }
+    const queryString = buildQueryString(readFilterState(), 1);
+    loadBooks(queryString, { push: true });
 }
 
 function goToPage(page) {
-    if (isLoading || page < 1) return;
-
-    const params = new URLSearchParams();
-    const publisher = document.getElementById('publisher-filter').value;
-    const category = document.getElementById('category-filter').value;
-    const days = document.getElementById('days-filter').value;
-    const search = document.getElementById('search-input').value.trim();
-
-    if (publisher) params.set('publisher', publisher);
-    if (category) params.set('category', category);
-    if (days) params.set('days', days);
-    if (search) params.set('search', search);
-    params.set('page', String(page));
-
-    loadBooks(params.toString());
+    if (page < 1) return;
+    const queryString = buildQueryString(readFilterState(), page);
+    loadBooks(queryString, { push: true });
 }
 
-function loadBooks(queryString) {
-    if (isLoading) return;
-    isLoading = true;
+/** 重置：回到无筛选的 /new-books，并同步控件/URL/chips/结果。 */
+function resetFilters() {
+    syncControls({});
+    syncFilterChrome();
+    loadBooks(buildQueryString({}, 1), { push: true });
+}
+
+/** 从地址栏恢复整页状态（Back/Forward）——绝不 pushState，否则历史会被撑爆。 */
+function restoreFromUrl() {
+    // 加载中也要能恢复：popstate 期间点 Back 必须立即接管（replace），
+    // 旧请求的响应会被 reqId 判定为过期而丢弃。
+    const parsed = parseQueryString(window.location.search.replace(/^\?/, ''));
+    syncControls(parsed.state);
+    syncFilterChrome();
+    loadBooks(buildQueryString(parsed.state, parsed.page), { replace: true });
+}
+
+window.addEventListener('popstate', function() {
+    restoreFromUrl();
+});
+
+function loadBooks(queryString, options) {
+    const opts = options || {};
 
     if (!queryString) {
-        const params = new URLSearchParams();
-        const publisher = document.getElementById('publisher-filter').value;
-        const category = document.getElementById('category-filter').value;
-        const days = document.getElementById('days-filter').value;
-        const search = document.getElementById('search-input').value.trim();
-        if (publisher) params.set('publisher', publisher);
-        if (category) params.set('category', category);
-        if (days) params.set('days', days);
-        if (search) params.set('search', search);
-        params.set('page', String(currentPage || 1));
-        queryString = params.toString();
+        queryString = buildQueryString(readFilterState(), currentPage || 1);
     }
+
+    /* 竞态：早先这里在 isLoading 时直接 return，丢弃并发请求。用户加载 A 时改选 B，
+       B 的请求被丢掉；A 稍后返回，却用**当时的**控件/URL 写卡片、计数、chips 与历史，
+       于是页面显示 A 的结果配 B 的筛选条件。现在改成「最新请求胜出」：
+       - 每次请求拿到单调递增的 reqId，并中止仍在上游的旧请求；
+       - 完成/失败/复位都先确认自己仍是最新请求，过期响应一律不碰 UI。 */
+    const reqId = ++loadSeq;
+    if (inFlightController && inFlightController.abort) {
+        inFlightController.abort();
+    }
+    const controller = (typeof AbortController === 'function') ? new AbortController() : null;
+    inFlightController = controller;
+    // 快照本次请求的筛选条件：响应回来时控件可能已被改成别的条件。
+    const requestState = queryString;
+    // isLoading 在整个请求在途期间为真，直到**最新**请求落定（finally）才复位。
+    // 它只表达「有最新请求在飞」，绝不再被当成"该不该写 UI"的依据 —— 跨 await 之后
+    // 一律以 reqId 判定归属。它被两处读取：
+    //   - languagechange 重绘分支：在途请求会按新的 currentLanguage 渲染，不再发第二次；
+    //   - 该分支之外的用户动作（改选筛选 / 重置 / Back-Forward）一律不被它拦住，
+    //     新请求照样发出并接管。
+    isLoading = true;
 
     const container = document.getElementById('books-container');
     container.innerHTML = '<div class="loading-skeleton"><div class="skeleton-grid">' +
@@ -370,7 +691,7 @@ function loadBooks(queryString) {
 
     // 页面 URL 沿用 publisher（与 /new-books 页面路由、出版社跳转链接一致），
     // 但 /api/new-books 的 Pydantic 查询模型只认 publisher_id，此处单点转换。
-    const apiParams = new URLSearchParams(queryString);
+    const apiParams = new URLSearchParams(requestState);
     const publisherValue = apiParams.get('publisher');
     if (publisherValue) {
         apiParams.delete('publisher');
@@ -378,24 +699,39 @@ function loadBooks(queryString) {
     }
     const url = '/api/new-books?' + apiParams.toString();
 
-    fetch(url)
+    fetch(url, controller ? { signal: controller.signal } : undefined)
         .then(response => response.json())
         .then(data => {
+            if (reqId !== loadSeq) return; // 已有更新的请求，丢弃过期响应
             if (!data.success) {
                 throw new Error(data.message || '{{ _('加载失败') }}');
             }
 
             currentPage = data.data.pagination.page;
             renderBooks(data.data);
-            window.history.pushState({}, '', '/new-books?' + queryString);
+            // chips / 数量 / 筛选窗口徽章都跟随 `state`，与卡片同一次更新。
+            syncFilterChrome();
+            // 地址栏与 state 对齐。仅在用户主动改动时 pushState；Back/Forward 恢复与
+            // 语言切换重绘只 replaceState —— 否则历史里会堆满同一条件的两条记录。
+            const historyUrl = '/new-books' + (requestState ? '?' + requestState : '');
+            if (opts.replace) {
+                window.history.replaceState({}, '', historyUrl);
+            } else if (!sameQueryString(requestState)) {
+                window.history.pushState({}, '', historyUrl);
+            }
         })
         .catch(error => {
+            if (reqId !== loadSeq) return; // 过期请求的失败不得覆盖最新状态
             container.innerHTML = '<div class="empty-state"><svg class="icon" width="48" height="48"><use href="#icon-alert-circle"/></svg>' +
                 '<h3>{{ _('加载失败') }}</h3><p>' + esc(error.message) + '</p>' +
                 '<button class="btn btn-outline" id="btn-retry" style="margin-top:1rem">{{ _('重试') }}</button></div>';
         })
         .finally(() => {
+            // 只有**最新**请求的落定才能复位标志与 controller；过期请求的
+            // 完成/失败/finally 都不许清掉更新的在途状态。
+            if (reqId !== loadSeq) return;
             isLoading = false;
+            inFlightController = null;
         });
 }
 
@@ -428,10 +764,19 @@ function renderBooks(data) {
         BookI18n.registerAll(books);
         // 无条件按当前语言 apply（不再依赖 SSR 已渲染的英文）
         BookI18n.applyLanguage(currentLanguage);
+        // 卡片的分类/日期徽标走双语留痕（renderBookCard 已写好 data-cat-* / data-date-*），
+        // BookI18n.applyLanguage 只覆盖标题/简介/分类选择器，这里补上徽标与出版社图标行。
+        if (typeof BookI18n.applyBilingualBadges === 'function') {
+            BookI18n.applyBilingualBadges(currentLanguage);
+        }
+        if (typeof BookI18n.applyPublisherLanguage === 'function') {
+            BookI18n.applyPublisherLanguage(currentLanguage);
+        }
     } else {
         if (typeof applyPageTranslation === 'function') {
             applyPageTranslation(currentLanguage);
         }
+        applyBilingualBadges(currentLanguage);
     }
 }
 
@@ -455,6 +800,7 @@ function renderBookCard(book) {
     const titleZh = book.title_zh || book.title;
     const titleDisplay = currentLanguage === 'zh' ? (titleZh || book.title || '{{ _('未知书名') }}') : (book.title || titleZh || '{{ _('Unknown Title') }}');
     const authorDisplay = book.author || '{{ _('未知作者') }}';
+    const detailUrl = '/new-book/' + book.id;
 
     const pubNameZh = book.publisher_name || '{{ _('未知') }}';
     const pubNameEn = book.publisher_name_en || pubNameZh;
@@ -462,40 +808,65 @@ function renderBookCard(book) {
 
     let tagsHtml = '<div class="book-tags">';
     if (book.is_recently_published) {
-        tagsHtml += '<span class="book-tag tag-new">' +
-            '<svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>{{ _("刚上市") }}</span>';
+        const justZh = biText('justPublished', 'zh');
+        const justEn = biText('justPublished', 'en');
+        tagsHtml += '<span class="book-tag tag-new" data-just-zh="' + esc(justZh) + '" data-just-en="' + esc(justEn) + '">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>' +
+            esc(currentLanguage === 'zh' ? justZh : justEn) + '</span>';
     }
     if (book.category) {
-        const catDisplay = currentLanguage === 'zh' ? book.category : (book.category_en || book.category);
-        tagsHtml += '<span class="book-tag tag-category">' + esc(catDisplay) + '</span>';
+        // 与 SSR 同一套规范映射：后端已给出 category_zh / category_en（都由
+        // category_name 单一真相源导出）。两侧都写进 data-cat-*，切语言时按属性取值。
+        const catZh = book.category_zh || BOOK_CATEGORY_ZH[book.category] || book.category;
+        const catEn = book.category_en || categoryDisplayName(book.category, 'en');
+        const catDisplay = currentLanguage === 'zh' ? catZh : catEn;
+        tagsHtml += '<span class="book-tag tag-category" data-cat-zh="' + esc(catZh) + '" data-cat-en="' + esc(catEn) + '">' +
+            esc(catDisplay) + '</span>';
     } else {
-        tagsHtml += '<span class="book-tag tag-category tag-muted">{{ _("分类未公开") }}</span>';
+        // 无分类：走固定双语词条（不能用当前 locale 的 gettext 生成 data-cat-*），
+        // 并带上 data-cat-* 让切语言时也能换文案。
+        const catNoneZh = biText('categoryUnpublished', 'zh');
+        const catNoneEn = biText('categoryUnpublished', 'en');
+        tagsHtml += '<span class="book-tag tag-category tag-muted" data-cat-zh="' + esc(catNoneZh) + '" data-cat-en="' + esc(catNoneEn) + '">' +
+            esc(currentLanguage === 'zh' ? catNoneZh : catNoneEn) + '</span>';
     }
+    // 日期状态只由 publication_date 决定：未来=即将出版，过去/今天=已出版，
+    // 无日期=出版日期待确认。绝不使用 created_at（发现时间）冒充出版日期。
+    // 状态判定与语言无关，双语文案都留在 data-date-* 上，切语言只换文案。
     if (book.publication_date) {
         const pubDate = formatPublicationDate(book.publication_date);
-        tagsHtml += '<span class="book-tag tag-date" title="{{ _("出版日期") }} ' + esc(pubDate) + '">' +
-            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' + esc(pubDate) + '</span>';
+        const state = publicationState(book.publication_date);
+        const dateZh = state === 'upcoming' ? biText('dateUpcoming', 'zh') : biText('datePublished', 'zh');
+        const dateEn = state === 'upcoming' ? biText('dateUpcoming', 'en') : biText('datePublished', 'en');
+        const stateLabel = currentLanguage === 'zh' ? dateZh : dateEn;
+        tagsHtml += '<span class="book-tag tag-date' + (state === 'upcoming' ? ' tag-date-upcoming' : '') +
+            '" title="' + esc(biText('dateLabel', currentLanguage === 'zh' ? 'zh' : 'en') || pubDate) + ' ' + esc(pubDate) + '"' +
+            ' data-date-zh="' + esc(dateZh) + '" data-date-en="' + esc(dateEn) + '">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' +
+            esc(pubDate) + ' · ' + esc(stateLabel) + '</span>';
     } else {
-        tagsHtml += '<span class="book-tag tag-date tag-muted">' +
-            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>{{ _("日期未公开") }}</span>';
+        const pendingZh = biText('datePending', 'zh');
+        const pendingEn = biText('datePending', 'en');
+        tagsHtml += '<span class="book-tag tag-date tag-muted" title="' + esc(currentLanguage === 'zh' ? pendingZh : pendingEn) + '"' +
+            ' data-date-zh="' + esc(pendingZh) + '" data-date-en="' + esc(pendingEn) + '">' +
+            '<svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>' +
+            esc(currentLanguage === 'zh' ? pendingZh : pendingEn) + '</span>';
     }
     tagsHtml += '</div>';
-
-    const isbnHtml = book.isbn13
-        ? '<p class="book-isbn">' + esc(book.isbn13) + '</p>'
-        : (book.isbn10 ? '<p class="book-isbn">' + esc(book.isbn10) + '</p>' : '');
 
     const priceHtml = book.price
         ? '<span class="book-price">' + esc(book.price) + '</span>'
         : '';
 
+    // ISBN 只保留在 data-isbn（BookI18n 注册用），列表不再渲染明文。
     return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + esc(book.isbn13 || book.isbn10 || '') + '">' +
-        '<div class="book-cover-wrapper">' + coverHtml + '</div>' +
+        '<a class="book-cover-link" href="' + detailUrl + '" tabindex="-1">' +
+        '<div class="book-cover-wrapper">' + coverHtml + '</div></a>' +
         '<div class="book-info">' +
-        '<div class="book-title" title="' + esc(titleDisplay) + '" data-en="' + esc(book.title) + '" data-zh="' + esc(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="/new-book/' + book.id + '">' + esc(titleDisplay) + '</a></div>' +
+        '<div class="book-title" title="' + esc(titleDisplay) + '" data-en="' + esc(book.title) + '" data-zh="' + esc(titleZh) + '" data-isbn="' + (book.isbn13 || '') + '"><a href="' + detailUrl + '">' + esc(titleDisplay) + '</a></div>' +
         '<div class="book-author" data-en="' + esc(book.author) + '">' + esc(authorDisplay) + '</div>' +
         '<div class="book-meta"><span class="book-publisher" data-pub-name-zh="' + esc(pubNameZh) + '" data-pub-name-en="' + esc(pubNameEn) + '"><svg class="icon" width="14" height="14"><use href="#icon-building"/></svg> ' + esc(pubNameDisplay) + '</span>' + priceHtml + '</div>' +
-        tagsHtml + isbnHtml +
+        tagsHtml +
         '</div></div>';
 }
 
@@ -532,9 +903,46 @@ function renderPagination(pagination) {
 
 function updateResultSummary(pagination) {
     const countEl = document.getElementById('result-summary-count');
-    const daysEl = document.getElementById('result-summary-days');
     if (countEl && pagination) countEl.textContent = pagination.total;
-    if (daysEl) daysEl.textContent = document.getElementById('days-filter')?.value || '30';
+    // 筛选窗口口径（过去 days 天已出版 + 未来 preview 天预告 + 未标注日期的新发现）
+    // 是 nb_filtered_by_date 的**整条**完整文案，随 days 变化重渲染，避免碎片拼出旧+新重复。
+    const days = (document.getElementById('days-filter') || {}).value || '30';
+    // currentLanguage 是语言切换的唯一真相源：页面加载期写下的全局语言常量
+    // 在切语言后仍是旧值，会把计数/范围徽章翻回旧语言。
+    const lang = currentLanguage || 'en';
+    renderI18nSentence(document.querySelector('[data-i18n="nb_filtered_by_date"]'), 'nb_filtered_by_date', lang, days);
+    renderI18nSentence(document.querySelector('[data-i18n="nb_window_scope"]'), 'nb_window_scope', lang, days);
+}
+
+/** 用整条 gettext 文案重写一个句子的文本节点，运行时参数取自它自己的 data-i18n-params-*。 */
+function renderI18nSentence(el, key, lang, days) {
+    if (!el || typeof window.t !== 'function') return;
+    const params = {};
+    Array.from(el.attributes).forEach(function(attr) {
+        if (attr.name.indexOf('data-i18n-params-') === 0) {
+            params[attr.name.slice('data-i18n-params-'.length)] = attr.value;
+        }
+    });
+    params.days = days;
+    const textNode = Array.from(el.childNodes).find(
+        n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+    );
+    if (textNode) textNode.textContent = window.t(key, lang, params);
+}
+
+/**
+ * 日期状态：只由 publication_date 决定。
+ * future → upcoming（即将出版）；past/today → published（已出版）；无日期 → pending。
+ * 绝不读取 created_at（系统发现时间）——那会把"日期待确认"的书谎报成已出版。
+ */
+function publicationState(value) {
+    if (!value) return 'pending';
+    const iso = String(value).substring(0, 10);
+    const parsed = new Date(iso + 'T00:00:00');
+    if (isNaN(parsed.getTime())) return 'pending';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return parsed.getTime() > today.getTime() ? 'upcoming' : 'published';
 }
 
 function formatPublicationDate(value) {
@@ -639,8 +1047,10 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         applyFilter();
     });
-    document.getElementById('btn-clear')?.addEventListener('click', function() {
-        window.location.href = '{{ url_for("main.new_books") }}';
+    // 重置走同一套 state 管道（不再整页跳转），控件/URL/chips/结果一起复位
+    document.getElementById('btn-clear')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        resetFilters();
     });
 
     // {{ _('侧边栏出版社筛选事件委托') }}
@@ -649,17 +1059,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!link) return;
         e.preventDefault();
         const pubId = link.getAttribute('data-filter-publisher');
-        // {{ _('同步更新下拉框') }}
-        const select = document.getElementById('publisher-filter');
-        if (select) select.value = pubId;
-        // {{ _('更新侧边栏') }}active{{ _('状态') }}
-        document.querySelectorAll('[data-filter-publisher]').forEach(el => el.classList.remove('active'));
-        link.classList.add('active');
+        // {{ _('同步更新下拉框') }}（applyFilter 统一读控件，这里只回填）
         applyFilter('publisher', pubId);
+    });
+
+    // {{ _('筛选 chip：仅移除自身，保留其余条件') }}
+    document.addEventListener('click', function(e) {
+        const chip = e.target.closest('[data-chip-key]');
+        if (!chip) return;
+        e.preventDefault();
+        const key = chip.getAttribute('data-chip-key');
+        const els = getFilterElements();
+        if (els[key]) els[key].value = '';
+        const queryString = buildQueryString(readFilterState(), 1);
+        syncFilterChrome();
+        loadBooks(queryString, { push: true });
     });
 
     // {{ _('图书卡片点击事件委托') }}
     document.getElementById('books-container')?.addEventListener('click', function(e) {
+        // 标题/封面自带详情链接：交给浏览器默认行为，别再用整卡跳转覆盖它
+        if (e.target.closest('a[href]')) return;
         const card = e.target.closest('.book-card[data-book-id]');
         if (!card) return;
         const bookId = card.getAttribute('data-book-id');

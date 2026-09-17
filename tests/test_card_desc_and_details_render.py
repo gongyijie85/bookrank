@@ -99,10 +99,17 @@ def book_service(app):
 
 
 def _details_panel(html: str):
-    """取详情页 #panel-details 的可见正文，以及英文原文折叠块内的文本。"""
+    """取详情页 #panel-details 的可见正文，以及英文原文折叠块内的文本。
+
+    布局改版（详情页首屏压缩）后，**没有实质详情时 `#panel-details` 与「详细信息」
+    标签都不再渲染** —— 一个点了没内容的空标签页对用户没有价值，且详情端点曾用
+    「语言标记」（'英文'）当正文渲染出「详细信息: 英文」。因此本函数对"无详情"的页面
+    返回 panel=None，由调用方按各自的契约断言（要么有内容，要么整块缺失）。
+    """
     soup = BeautifulSoup(html, 'html.parser')
     panel = soup.find(id='panel-details')
-    assert panel is not None, '详情页应始终渲染 #panel-details 容器'
+    if panel is None:
+        return soup, None, '', ''
     toggled = panel.find(class_='lang-toggle-content')
     toggled_text = toggled.get_text(strip=True) if toggled else ''
     # 可见正文 = 面板全文 - 默认折叠（display:none）的英文块
@@ -303,23 +310,27 @@ class TestBookDetailDetailsPanel:
         ('lang', 'placeholder'),
         [('zh', '暂无详细介绍'), ('en', 'No detailed description available')],
     )
-    def test_missing_details_renders_empty_state_instead_of_blank_panel(self, client, book_service, lang, placeholder):
-        """回归：details 为占位串时原实现两个分支都不命中，面板整块空白。
+    def test_missing_details_renders_no_details_tab(self, client, book_service, lang, placeholder):
+        """回归（布局改版后更新）：占位串不算详情。
 
-        两个 locale 各跑一次：空态文案本身来自 `_()`，只测一侧会让"英文页回落中文"
-        这类泄漏漏网（本仓已多次踩过）。
+        旧实现无条件渲染 `#panel-details`，面板里塞一句空态文案；用户点开一个只有
+        「暂无详细介绍」的标签页没有任何价值，而占位串本身也不该被当成正文渲染出来。
+        现在改为整块（标签按钮 + 面板）都不出现 —— 这仍然满足"面板不得为空白"的原始意图
+        （没有面板 ≠ 一个空白面板），且占位串一律不出现在可见正文里。
         """
         html = self._render(
             client, book_service, lang=lang, details='No detailed description available.', details_zh=None
         )
-        _, _, visible, _ = _details_panel(html)
-        assert visible.strip(), '面板不应为空'
-        assert placeholder in visible
+        soup, panel, _, _ = _details_panel(html)
+        assert panel is None, '占位串不构成详情，不该渲染「详细信息」面板'
+        assert soup.find(id='tab-details') is None, '也不该渲染「详细信息」标签按钮'
+        assert 'No detailed description available.' not in soup.get_text(' ', strip=True)
 
     def test_english_placeholder_is_not_rendered_as_content(self, client, book_service):
         html = self._render(client, book_service, details='No detailed description available.', details_zh=None)
-        _, _, visible, _ = _details_panel(html)
-        assert 'No detailed description available.' not in visible
+        soup, panel, _, _ = _details_panel(html)
+        assert panel is None
+        assert 'No detailed description available.' not in soup.get_text(' ', strip=True)
 
     def test_chinese_details_are_primary_with_english_toggle(self, client, book_service):
         html = self._render(
@@ -341,9 +352,9 @@ class TestBookDetailDetailsPanel:
 
     def test_no_details_hides_the_tab(self, client, book_service):
         html = self._render(client, book_service, details='', details_zh=None)
-        soup, _, visible, _ = _details_panel(html)
+        soup, panel, _, _ = _details_panel(html)
         assert soup.find(id='tab-details') is None
-        assert '暂无详细介绍' in visible
+        assert panel is None, '没有详情时不该留下一个空面板'
 
 
 class TestIndexCoverIsProxied:

@@ -9,15 +9,22 @@
     {% if entries %}
     <ol class="cross-list">
         {% for entry in entries %}
+        {% set detail_url = url_for('main.book_detail', book_index=entry.source_index, category=entry.source_category) if entry.source_category else none %}
         <li class="cross-item">
             <span class="cross-rank">{{ loop.index }}</span>
+            {% if detail_url %}
+            <a class="cross-cover-link" href="{{ detail_url }}" aria-label="{{ _('《') }}{{ entry.title }}{{ _('》封面') }}">
+            {% endif %}
             <img class="cross-cover"
                  src="{{ entry.cover|cover_src_or_default }}"
                  alt="" loading="lazy" width="88" height="132">
+            {% if detail_url %}</a>{% endif %}
             <div class="cross-body">
                 {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
                 {% set sub_title = entry.title if _locale == 'zh' and entry.title_zh else '' %}
-                <h3 class="cross-title">{{ main_title }}</h3>
+                <h3 class="cross-title">
+                    {% if detail_url %}<a href="{{ detail_url }}">{{ main_title }}</a>{% else %}{{ main_title }}{% endif %}
+                </h3>
                 {% if sub_title %}<p class="cross-original">{{ sub_title }}</p>{% endif %}
                 <p class="cross-author">{{ entry.author }}{% if entry.publisher %} · {{ entry.publisher }}{% endif %}</p>
                 <ul class="cross-chips">
@@ -94,27 +101,30 @@
 {% if tab == 'cross' %}
 <section class="rankings-panel" aria-labelledby="rankings-cross-title">
     <h2 class="rankings-title" id="rankings-cross-title">{{ _('跨榜现象级') }}</h2>
-    <p class="rankings-note">
-        {{ _('同一本书在不同分类榜上往往使用不同 ISBN（精装、平装、儿童版各自独立），因此这里按归一化后的书名与作者匹配，统计它同时进入了几个分类榜。') }}
-    </p>
     {{ entry_rows(cross_entries, category_names_en, _locale, _('本周没有跨榜的书'), _('当前各分类榜之间没有重叠书目，或榜单数据尚未同步。')) }}
+    <details class="rankings-methodology">
+        <summary>{{ _('口径说明') }}</summary>
+        <p class="rankings-note">
+            {{ _('同一本书在不同分类榜上往往使用不同 ISBN（精装、平装、儿童版各自独立），因此这里按归一化后的书名与作者匹配，统计它同时进入了几个分类榜。') }}
+        </p>
+    </details>
 </section>
 
 {% elif tab == 'longevity' %}
 <section class="rankings-panel" aria-labelledby="rankings-longevity-title">
     <h2 class="rankings-title" id="rankings-longevity-title">{{ _('长销常青榜') }}</h2>
-    <p class="rankings-note">
-        {{ _('按同一部作品在各分类榜的合计在榜周数排序，只守着一个分类榜的书也一并计入。口径是当前在榜的累计周数，不是本年度累计；真正的年度榜要等每周榜单快照积累若干周之后才能给出。') }}
-    </p>
     {{ entry_rows(longevity_entries, category_names_en, _locale, _('暂无长销书'), _('榜单数据尚未同步，或本次未取到在榜周数。')) }}
+    <details class="rankings-methodology">
+        <summary>{{ _('口径说明') }}</summary>
+        <p class="rankings-note">
+            {{ _('按同一部作品在各分类榜的合计在榜周数排序，只守着一个分类榜的书也一并计入。口径是当前在榜的累计周数，不是本年度累计；真正的年度榜要等每周榜单快照积累若干周之后才能给出。') }}
+        </p>
+    </details>
 </section>
 
 {% elif tab == 'overlooked' %}
 <section class="rankings-panel" aria-labelledby="rankings-overlooked-title">
     <h2 class="rankings-title" id="rankings-overlooked-title">{{ _('遗珠榜') }}</h2>
-    <p class="rankings-note">
-        {{ _('近年拿过国际图书大奖、却没有出现在任何一个纽约时报畅销榜上的书。奖项数据覆盖 %(years)s 年。', years=award_years | join('、')) }}
-    </p>
 
     {% if overlooked_entries %}
     <ul class="overlooked-grid">
@@ -153,14 +163,17 @@
         <p>{{ _('近年获奖图书都已在畅销榜上，或奖项数据尚未同步。') }}</p>
     </section>
     {% endif %}
+    <details class="rankings-methodology">
+        <summary>{{ _('口径说明') }}</summary>
+        <p class="rankings-note">
+            {{ _('近年拿过国际图书大奖、却没有出现在任何一个纽约时报畅销榜上的书。奖项数据覆盖 %(years)s 年。', years=award_years | join('、')) }}
+        </p>
+    </details>
 </section>
 
 {% else %}
 <section class="rankings-panel" aria-labelledby="rankings-publishers-title">
     <h2 class="rankings-title" id="rankings-publishers-title">{{ _('厂牌榜') }}</h2>
-    <p class="rankings-note">
-        {{ _('按上榜本数排序，同数时看最高名次。出版社名取自纽约时报榜单的原始署名，仅合并了五大出版集团的本名，子品牌（imprint）仍各自独立计列。') }}
-    </p>
 
     {% if publisher_entries %}
     <div class="rankings-table-wrap">
@@ -203,6 +216,12 @@
         <p>{{ _('榜单数据尚未同步，或本次未取到出版社信息。') }}</p>
     </section>
     {% endif %}
+    <details class="rankings-methodology">
+        <summary>{{ _('口径说明') }}</summary>
+        <p class="rankings-note">
+            {{ _('按上榜本数排序，同数时看最高名次。出版社名取自纽约时报榜单的原始署名，仅合并了五大出版集团的本名，子品牌（imprint）仍各自独立计列。') }}
+        </p>
+    </details>
 </section>
 {% endif %}
 {% endblock %}

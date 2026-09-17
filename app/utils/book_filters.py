@@ -9,16 +9,25 @@ def get_category_update_frequency(category_id: str) -> str:
     return cast('str', current_app.config['NYT_CATEGORY_UPDATE_FREQUENCIES'].get(category_id, 'weekly'))
 
 
-def filter_books_by_search(books_data: list, search_query: str) -> list:
-    if not search_query or not books_data:
+_SEARCH_FIELDS = ('title', 'title_zh', 'author', 'author_zh')
+
+
+def _search_field_text(book: dict, field: str) -> str:
+    """安全地把检索字段归一为小写文本；None / 缺失统一当作空串。"""
+    value = book.get(field)
+    return '' if value is None else str(value).casefold()
+
+
+def filter_books_by_search(books_data: list, search_query: str | None) -> list:
+    if not books_data:
         return books_data
 
-    search_lower = search_query.lower()
-    return [
-        b
-        for b in books_data
-        if search_lower in b.get('title', '').lower() or search_lower in b.get('author', '').lower()
-    ]
+    query = (search_query or '').strip()
+    if not query:
+        return books_data
+
+    search_lower = query.casefold()
+    return [b for b in books_data if any(search_lower in _search_field_text(b, field) for field in _SEARCH_FIELDS)]
 
 
 def filter_books_by_publisher(books_data: list, publisher: str) -> list:

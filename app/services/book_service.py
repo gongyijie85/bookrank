@@ -184,6 +184,7 @@ class BookService:
         auto_translate: bool = True,
         notify_refresh: bool = True,
         allow_stale_fallback: bool = True,
+        report_failures: bool = False,
     ) -> list[Book]:
         """
         获取指定分类的图书列表
@@ -194,6 +195,9 @@ class BookService:
             auto_translate: 是否启动后台预翻译
             notify_refresh: 是否通知数据刷新回调
             allow_stale_fallback: API失败时是否允许返回过期缓存
+            report_failures: 是否显式上报失败。为 True 且 API 失败且无过期缓存可用时
+                抛异常而非静默返回空列表，便于调用方区分「真的失败」与「成功但空」。
+                默认 False 保持旧调用方行为不变。
 
         Returns:
             图书列表
@@ -262,7 +266,7 @@ class BookService:
                 stale_books = self._get_stale_cached_books(cache_key, category_id)
                 if stale_books:
                     return stale_books
-            if not allow_stale_fallback:
+            if report_failures or not allow_stale_fallback:
                 raise
             return []
 

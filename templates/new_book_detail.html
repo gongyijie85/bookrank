@@ -87,67 +87,9 @@
             <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
         </div>
 
-        <!-- 元信息网格 -->
-        <div class="detail-meta-grid">
-            {% if book.publisher %}
-            <div class="meta-card">
-                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-building"/></svg></span>
-                <div>
-                    <div class="meta-label">{{ _('出版社') }}</div>
-                    <div class="meta-value" data-pub-name-zh="{{ book.publisher.name }}" data-pub-name-en="{{ book.publisher.name_en or book.publisher.name }}">{{ book.publisher.name|bilingual(book.publisher.name_en) }}</div>
-                </div>
-            </div>
-            {% endif %}
-            {% if book.publication_date %}
-            <div class="meta-card">
-                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-calendar"/></svg></span>
-                <div>
-                    <div class="meta-label">{{ _('出版日期') }}</div>
-                    <div class="meta-value">{{ book.publication_date }}</div>
-                </div>
-            </div>
-            {% endif %}
-            {% if book.page_count and book.page_count not in (0, '0', 'Unknown', '未知', 'N/A', 'None', '') %}
-            <div class="meta-card">
-                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-file-text"/></svg></span>
-                <div>
-                    <div class="meta-label">{{ _('页数') }}</div>
-                    <div class="meta-value">{{ book.page_count }} {{ _('页') }}</div>
-                </div>
-            </div>
-            {% endif %}
-            {% if book.isbn13 or book.isbn10 %}
-            <div class="meta-card">
-                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-barcode"/></svg></span>
-                <div>
-                    <div class="meta-label" data-i18n="nb_detail_label_isbn">ISBN</div>
-                    <div class="meta-value">{{ book.isbn13 or book.isbn10 }}</div>
-                </div>
-            </div>
-            {% endif %}
-            {% if book.category %}
-            <div class="meta-card">
-                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-tag"/></svg></span>
-                <div>
-                    <div class="meta-label">{{ _('分类') }}</div>
-                    <div class="meta-value">{{ book.category|category_name }}</div>
-                </div>
-            </div>
-            {% endif %}
-            {% if book.price %}
-            <div class="meta-card">
-                <span class="meta-icon"><svg class="icon" width="16" height="16"><use href="#icon-dollar-sign"/></svg></span>
-                <div>
-                    <div class="meta-label">{{ _('价格') }}</div>
-                    <div class="meta-value">{{ book.price }}</div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- 简介 -->
+        <!-- 简介：提到元信息之前，保证首屏能看到简介开头 -->
         <div class="detail-description">
-            <h3 class="desc-title" data-i18n="nb_detail_description_title">{{ _('图书简介') }}</h3>
+            <h2 class="desc-title" data-i18n="nb_detail_description_title">{{ _('图书简介') }}</h2>
             <div class="desc-content">
                 <p id="detail-description"
                    data-en="{{ book.description or '' }}"
@@ -156,6 +98,47 @@
                    data-no-desc-en="{{ _('No description available') }}">{{ book.description_zh|bilingual(book.description) or _('暂无简介') }}</p>
             </div>
         </div>
+
+        <!-- 元信息定义列表（原为 3 列卡片网格，占满首屏） -->
+        <dl class="detail-meta">
+            {% if book.publisher %}
+            <div class="detail-meta-row">
+                <dt>{{ _('出版社') }}</dt>
+                <dd class="meta-value" data-pub-name-zh="{{ book.publisher.name }}" data-pub-name-en="{{ book.publisher.name_en or book.publisher.name }}">{{ book.publisher.name|bilingual(book.publisher.name_en) }}</dd>
+            </div>
+            {% endif %}
+            {% if book.publication_date %}
+            <div class="detail-meta-row">
+                <dt>{{ _('出版日期') }}</dt>
+                <dd>{{ book.publication_date }}</dd>
+            </div>
+            {% endif %}
+            {% set _pages = book.page_count|positive_int_text %}
+            {% if _pages %}
+            <div class="detail-meta-row">
+                <dt>{{ _('页数') }}</dt>
+                <dd>{{ _pages }} {{ _('页') }}</dd>
+            </div>
+            {% endif %}
+            {% if book.isbn13 or book.isbn10 %}
+            <div class="detail-meta-row">
+                <dt data-i18n="nb_detail_label_isbn">ISBN</dt>
+                <dd>{{ book.isbn13 or book.isbn10 }}</dd>
+            </div>
+            {% endif %}
+            {% if book.category %}
+            <div class="detail-meta-row">
+                <dt>{{ _('分类') }}</dt>
+                <dd>{{ book.category|category_name }}</dd>
+            </div>
+            {% endif %}
+            {% if book.price %}
+            <div class="detail-meta-row">
+                <dt>{{ _('价格') }}</dt>
+                <dd>{{ book.price }}</dd>
+            </div>
+            {% endif %}
+        </dl>
     </div>
 </div>
 
@@ -240,6 +223,18 @@
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce() }}">
+/* 隐藏全局侧边栏（仅详情端点）：body.detail-page 由 base.html 按 request.endpoint 注入。
+   侧边栏是 fixed 的 260px 左列，详情页没有页面级筛选入口，留着只会把正文压窄、
+   把简介推到首屏之下。 */
+body.detail-page .sidebar,
+body.detail-page .sidebar-toggle {
+    display: none;
+}
+
+body.detail-page .main-content {
+    margin-left: 0;
+}
+
 /* ============================================
    {{ _('新书详情页样式') }} (Notion {{ _('设计系统') }})
    ============================================ */
@@ -272,26 +267,27 @@
 /* {{ _('主容器') }} */
 .detail-container {
     display: flex;
-    gap: 2.5rem;
+    gap: 2rem;
     align-items: flex-start;
 }
 
 /* {{ _('左侧封面区域') }} */
 .detail-cover-section {
-    width: 280px;
+    width: 220px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
     position: sticky;
-    top: 1.5rem;
+    top: calc(var(--top-nav-height, 64px) + 1rem);
 }
 
 .detail-cover {
-    border-radius: 16px;
+    border-radius: 4px;
     overflow: hidden;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-    background: #f6f5f4;
+    box-shadow: none;
+    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+    background: transparent;
 }
 
 .detail-cover img {
@@ -308,11 +304,13 @@
     color: #a39e98;
 }
 
-/* {{ _('购买按钮') }} */
+/* {{ _('购买按钮') }}：等权重、低干扰的披露块（原为蓝色实心按钮） */
 .buy-section {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 2px;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
 }
 
 .buy-btn {
@@ -320,20 +318,21 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+    border-radius: 4px;
     text-decoration: none;
-    color: #ffffff;
-    background: #0075de;
+    color: var(--text-primary, rgba(0, 0, 0, 0.95));
+    background: transparent;
     font-size: 0.875rem;
-    font-weight: 600;
-    transition: all 0.2s ease;
+    font-weight: 500;
+    transition: border-color 0.2s ease;
 }
 
 .buy-btn:hover {
-    background: #005bab;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 117, 222, 0.3);
+    border-color: var(--text-primary, rgba(0, 0, 0, 0.95));
+    box-shadow: none;
+    transform: none;
 }
 
 /* {{ _('右侧信息区域') }} */
@@ -342,123 +341,107 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.25rem;
 }
 
-/* {{ _('标题区') }} */
+/* {{ _('标题区') }}：去卡片阴影与顶部渐变色条 */
 .detail-header {
-    background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 16px;
-    padding: 2rem;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
     position: relative;
-    overflow: hidden;
-}
-
-.detail-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(to right, #0075de, #2a9d99);
+    overflow: visible;
 }
 
 .detail-title {
     font-size: 1.75rem;
     font-weight: 700;
-    color: rgba(0, 0, 0, 0.95);
+    color: var(--text-primary, rgba(0, 0, 0, 0.95));
     margin: 0 0 0.5rem 0;
-    line-height: 1.3;
-    letter-spacing: -0.625px;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
 }
 
 .detail-title-en {
-    color: #615d59;
+    color: var(--text-secondary, #615d59);
     font-size: 0.9375rem;
-    margin: 0 0 0.75rem 0;
+    margin: 0 0 0.5rem 0;
 }
 
 .detail-author {
-    font-size: 1.0625rem;
-    color: #615d59;
+    font-size: 1rem;
+    color: var(--text-secondary, #615d59);
     margin: 0;
     font-weight: 500;
 }
 
-/* {{ _('元信息网格') }} */
-.detail-meta-grid {
+/* {{ _('元信息网格') }} → 紧凑定义列表：原为 3 列卡片，首屏被元信息占满、简介落到折叠线下 */
+.detail-meta {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 2rem;
+    margin: 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+    border-radius: 4px;
+}
+
+.detail-meta-row {
+    display: flex;
+    align-items: baseline;
     gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+    min-width: 0;
 }
 
-.meta-card {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
-    background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 12px;
-    transition: all 0.2s ease;
-}
-
-.meta-card:hover {
-    border-color: #0075de;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.meta-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: #f6f5f4;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #0075de;
-    flex-shrink: 0;
-}
-
-.meta-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: #615d59;
-    text-transform: uppercase;
-    letter-spacing: 0.125px;
-    margin-bottom: 0.125rem;
-}
-
-.meta-value {
+.detail-meta-row dt {
+    flex: 0 0 88px;
     font-size: 0.875rem;
-    font-weight: 600;
-    color: rgba(0, 0, 0, 0.95);
+    font-weight: 500;
+    color: var(--text-secondary, #615d59);
+}
+
+.detail-meta-row dd {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary, rgba(0, 0, 0, 0.95));
+    overflow-wrap: anywhere;
 }
 
 /* {{ _('简介区域') }} */
 .detail-description {
-    background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 16px;
-    padding: 2rem;
+    background: transparent;
+    border: 0;
+    border-left: 2px solid var(--text-primary, rgba(0, 0, 0, 0.95));
+    border-radius: 0;
+    padding: 0 0 0 1.25rem;
 }
 
 .desc-title {
-    font-size: 1.125rem;
+    font-size: 1rem;
     font-weight: 700;
-    color: rgba(0, 0, 0, 0.95);
-    margin: 0 0 1rem 0;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--text-primary, rgba(0, 0, 0, 0.95));
+    margin: 0 0 0.75rem 0;
+    padding-bottom: 0;
+    border-bottom: 0;
 }
 
 .desc-content p {
-    font-size: 0.9375rem;
-    line-height: 1.8;
-    color: #31302e;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--text-secondary, #31302e);
     margin: 0;
+    /* 首屏摘要：完整简介由下方「图书简介」区块承载 */
+    display: -webkit-box;
+    -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 /* {{ _('响应式设计') }} */
@@ -470,48 +453,48 @@
 
     .detail-cover-section {
         width: 100%;
-        max-width: 240px;
+        max-width: 200px;
         margin: 0 auto;
         position: static;
-    }
-
-    .detail-header {
-        padding: 1.5rem;
     }
 
     .detail-title {
         font-size: 1.375rem;
     }
 
-    .detail-meta-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .detail-meta {
+        grid-template-columns: 1fr;
     }
 
     .detail-description {
-        padding: 1.5rem;
+        padding: 1.25rem;
     }
 }
 
 @media (max-width: 480px) {
     .detail-cover-section {
-        max-width: 180px;
+        max-width: 160px;
     }
 
     .detail-title {
         font-size: 1.125rem;
     }
 
-    .detail-meta-grid {
-        grid-template-columns: 1fr;
+    .detail-meta {
+        padding: 0.875rem 1rem;
+    }
+
+    .detail-meta-row {
         gap: 0.75rem;
     }
 
-    .meta-card {
-        padding: 0.75rem;
+    .detail-meta-row dt {
+        flex-basis: 72px;
     }
 
-    .detail-header, .detail-description {
-        padding: 1.25rem;
+    .detail-header,
+    .detail-description {
+        padding: 1rem;
     }
 }
 </style>

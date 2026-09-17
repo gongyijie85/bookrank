@@ -44,8 +44,8 @@
 <!-- 顶部导航栏 -->
 <nav class="m-top-nav">
     <div class="m-top-nav-copy">
-        <span class="m-top-nav-kicker">{{ _('纽约时报畅销书排行榜') }}</span>
-        <h1 class="m-top-nav-title">BookRank <span>Charts</span></h1>
+        <span class="m-top-nav-kicker">THE BOOKRANK EDIT</span>
+        <h1 class="m-top-nav-title" data-i18n="page_title_bestsellers">{{ _('纽约时报畅销书排行榜') }}</h1>
         <span class="m-top-nav-subtitle">{{ _('汇集全球畅销书榜与图书奖项') }}</span>
     </div>
     <button type="button" class="m-search-toggle" id="m-search-toggle" aria-label="{{ _('搜索') }}" aria-expanded="false">
@@ -58,6 +58,8 @@
     <form action="{{ url_for('main.index') }}" method="get" role="search">
         <input type="search" name="search" class="m-search-input" id="m-search-input"
                placeholder="{{ _('搜索书名或作者...') }}"
+               data-i18n-placeholder="search_placeholder"
+               aria-label="{{ _('搜索全部 NYT 分类：书名或作者') }}"
                value="{{ search_query if search_query else '' }}" autocomplete="off">
         <button type="submit" class="m-search-submit">{{ _('搜索') }}</button>
     </form>
@@ -89,6 +91,29 @@
         </span>
     {% endif %}
 </div>
+
+{# 搜索 / 加载状态条（与桌面端同构）：empty 回显查询词并提供清除；partial 警告+可用结果；failed 重试。 #}
+{% if search_status == 'empty' %}
+<section class="m-search-state" role="status" aria-live="polite">
+    <p class="m-search-state-text" data-i18n="search_no_results" data-i18n-params-query="{{ search_query }}">{{ _('未找到匹配「%(query)s」的图书', query=search_query) }}</p>
+    <a class="m-search-state-clear" href="{{ url_for('main.index', category=current_category) }}">{{ _('清除搜索') }}</a>
+</section>
+{% elif search_status == 'partial' %}
+<section class="m-search-state" role="status" aria-live="polite">
+    <p class="m-search-state-text" data-i18n="search_partial" data-i18n-params-n="{{ search_unavailable_count }}">{{ _('部分分类暂时不可用，以下为可用结果（%(count)s 个分类未返回）', count=search_unavailable_count) }}</p>
+</section>
+{% elif search_status == 'failed' %}
+<section class="m-search-state" role="status" aria-live="polite">
+    <p class="m-search-state-text">{{ _('搜索暂时不可用，请稍后重试') }}</p>
+    <a class="m-search-state-clear" href="{{ url_for('main.index', category=current_category, search=search_query) }}">{{ _('重试') }}</a>
+</section>
+{% endif %}
+{% if data_load_failed %}
+<section class="m-search-state" role="status" aria-live="polite">
+    <p class="m-search-state-text">{{ _('榜单加载失败，请稍后重试') }}</p>
+    <a class="m-search-state-clear" href="{{ url_for('main.index', category=current_category) }}">{{ _('重试') }}</a>
+</section>
+{% endif %}
 
 {% if books %}
 <div class="m-ranking-guide" aria-label="{{ _('榜单阅读提示') }}">
@@ -164,7 +189,7 @@
     </a>
     {% endfor %}
 </div>
-{% else %}
+{% elif not search_query %}
 <div class="m-empty">
     <div class="m-empty-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>

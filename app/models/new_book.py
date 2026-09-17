@@ -23,6 +23,19 @@ def _category_en(value: str | None) -> str | None:
     return category_name(value, 'en')
 
 
+def _category_zh(value: str | None) -> str | None:
+    """分类的中文显示名：库里的英文别名（Business）也必须显示成中文（商业）。
+
+    AJAX 重绘的卡片在中文页直接用它，别再回退到原始英文别名——这正是
+    「中文页显示 Business」的成因。
+    """
+    if not value:
+        return None
+    from ..utils.book_labels import category_name
+
+    return category_name(value, 'zh')
+
+
 class Publisher(db.Model):  # type: ignore[name-defined]
     """
     出版社模型
@@ -199,6 +212,7 @@ class NewBook(db.Model):  # type: ignore[name-defined]
             'cover_local': self.cover_local,
             'category': self.category,
             'category_en': _category_en(self.category),
+            'category_zh': _category_zh(self.category),
             'publication_date': self.publication_date.isoformat() if self.publication_date else None,
             'price': self.price,
             'page_count': self.page_count,

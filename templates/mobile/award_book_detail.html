@@ -20,6 +20,9 @@
 {# 占位串清单来自 api_helpers 的单一真相源（Jinja 全局 PLACEHOLDER_TEXTS），模板不再自带第二份清单。 #}
 {% set _raw_detail = (book.details or '')|trim %}
 {% set detail_text = '' if _raw_detail in PLACEHOLDER_TEXTS else _raw_detail %}
+{# 语言标记（'英文' 这类）也不算详情：与桌面端同口径，复用注入的 Jinja 全局。 #}
+{% set detail_text = '' if is_non_substantive_details(detail_text) else detail_text %}
+{% set _has_details_tab = detail_text %}
 
 <!-- 封面 -->
 <section class="m-detail-cover-wrap">
@@ -31,10 +34,22 @@
     </div>
 </section>
 
+{# 作者：真正缺失时用与全站卡片一致的本地化兜底（'未知作者' → 'Unknown'），不做任何推测/补齐。
+   兜底文案两种语言各留一份（桌面端同口径）：只渲染当前 locale 的那份会让
+   `mobile.js` applyLanguage 的 `[data-en][data-zh]` 重写把缺省标签焊死在初始语言上；
+   已知作者两侧同值（人名不翻译）。 #}
+{% set _author = (book.author or '')|trim %}
+{% set _author = '' if _author in PLACEHOLDER_TEXTS else _author %}
+{% set shown_author_zh = _author or _('未知作者') %}
+{# 模板里的 `_` 是 flask_babel.gettext，只接受一个参数，不能 `_('未知作者', 'en')`；
+   所以英文兜底取既有 en 目录里的译文（msgstr "Unknown"），不发明新文案。 #}
+{% set shown_author_en = _author or 'Unknown' %}
+{% set shown_author = shown_author_en if get_locale() == 'en' else shown_author_zh %}
+
 <!-- 标题区 -->
 <section class="m-detail-head">
     <h1 class="m-detail-title">{{ display_title }}</h1>
-    <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
+    <p class="m-detail-author" data-en="{{ shown_author_en }}" data-zh="{{ shown_author_zh }}">{{ shown_author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
     {% if book.award %}
     <div class="m-detail-tags">
         <span class="m-detail-tag">{{ book.award.name|bilingual(book.award.name_en) }}</span>
@@ -66,9 +81,11 @@
         <button class="m-tab-btn active" data-tab="description" role="tab" aria-selected="true" type="button">
             {{ _('图书简介') }}
         </button>
+        {% if _has_details_tab %}
         <button class="m-tab-btn" data-tab="details" role="tab" aria-selected="false" type="button">
             {{ _('详细信息') }}
         </button>
+        {% endif %}
     </div>
 
     <div class="m-tab-content">
@@ -84,10 +101,12 @@
             {% else %}
             <p class="m-detail-empty">{{ _('暂无简介') }}</p>
             {% endif %}
-        </div>
 
-        <!-- 详细信息 -->
-        <div class="m-tab-panel" data-panel="details" role="tabpanel">
+            {# 书目元数据（出版社 / 出版年份 / ISBN / 奖项 / 年份 / 类别 / 排名）：
+               这是页面上**唯一**一处完整书目信息，此前被关在「详细信息」面板里 ——
+               没有实质 details 正文时整块不渲染（标签按钮同条件），ISBN/出版社跟着一起
+               消失：用户既看不到这些真数据，也找不到入口。现在移出条件块、常驻简介之后，
+               「详细信息」标签因此只承载真正的 details 正文，不会出现空标签页。 #}
             <dl class="m-meta-list">
                 {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
                 <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
@@ -112,14 +131,21 @@
                 <div class="m-meta-row"><dt>{{ _('排名') }}</dt><dd>{{ book.rank }}</dd></div>
                 {% endif %}
             </dl>
-            {% if detail_text and detail_text not in PLACEHOLDER_TEXTS %}
+        </div>
+
+        <!-- 详细信息：仅在确有实质 details 正文时渲染（与标签按钮同条件），
+             面板里只放正文，不再承载书目元数据。 -->
+        {% if _has_details_tab %}
+        <div class="m-tab-panel" data-panel="details" role="tabpanel">
             <div class="m-detail-text m-detail-longtext">
                 {% for para in detail_text.split('\n') if para.strip() %}
                 <p>{{ para.strip() }}</p>
                 {% endfor %}
             </div>
-            {% endif %}
+            {# JS 懒加载的 Google Books 详细介绍会追加到这里 #}
+            <div class="m-tab-panel-extra" data-source="google-books"></div>
         </div>
+        {% endif %}
     </div>
 </div>
 

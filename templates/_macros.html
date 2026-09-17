@@ -6,7 +6,10 @@
 {% macro new_book_card(book) %}
 {% set _l = get_locale() %}
 {% set display_title = book.title_zh or book.title %}
+{% set _detail_url = url_for('main.new_book_detail', book_id=book.id) %}
 <div class="book-card" data-book-id="{{ book.id }}" data-isbn="{{ book.isbn13 or book.isbn10 or '' }}">
+    {# 封面指向同一详情路由；收藏按钮不在此列（自带交互，不能套进链接）。 #}
+    <a class="book-cover-link" href="{{ _detail_url }}" aria-label="{{ _('《') }}{{ display_title }}{{ _('》详情') }}" tabindex="-1">
     <div class="book-cover-wrapper">
         {% if book.cover_url %}
         <img src="{{ book.cover_url|cover_src_or_default }}" alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}" class="book-cover" loading="lazy"
@@ -17,6 +20,7 @@
         </div>
         {% endif %}
     </div>
+    </a>
     <div class="book-info">
         {% if _l == 'zh' %}
         <div class="book-title"
@@ -24,7 +28,7 @@
              data-en="{{ book.title }}"
              data-zh="{{ book.title_zh or book.title }}"
              data-isbn="{{ book.isbn13 or '' }}">
-            <a href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ book.title_zh or book.title or _('未知书名') }}</a>
+            <a href="{{ _detail_url }}">{{ book.title_zh or book.title or _('未知书名') }}</a>
         </div>
         {% else %}
         <div class="book-title"
@@ -32,7 +36,7 @@
              data-en="{{ book.title }}"
              data-zh="{{ book.title_zh or book.title }}"
              data-isbn="{{ book.isbn13 or '' }}">
-            <a href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ book.title or book.title_zh or _('Unknown Title') }}</a>
+            <a href="{{ _detail_url }}">{{ book.title or book.title_zh or _('Unknown Title') }}</a>
         </div>
         {% endif %}
         <div class="book-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author or _('未知作者') }}</div>
@@ -52,34 +56,51 @@
         </div>
         <div class="book-tags">
             {% if book.is_recently_published %}
-            <span class="book-tag tag-new">
+            {# 「刚上市」徽标同样双语留痕：切语言只按属性换文本，闪光图标保留。
+               zh 槽位写死中文 —— 用 `_()` 会在 SSR=en 时被翻成英文，污染 zh 载荷。 #}
+            <span class="book-tag tag-new"
+                  data-just-zh="刚上市"
+                  data-just-en="Just published">
                 <svg class="icon" width="12" height="12"><use href="#icon-sparkles"/></svg>
                 {{ _('刚上市') }}
             </span>
             {% endif %}
             {% if book.category %}
-            <span class="book-tag tag-category">{{ book.category|category_name }}</span>
+            {# 分类徽标双语：两侧都走 category_name 过滤器（canonical 单一真相源），并留
+               data-cat-zh / data-cat-en 供 BookI18n 在切语言时按属性取值，绝不回退英文别名。 #}
+            <span class="book-tag tag-category"
+                  data-cat-zh="{{ book.category|category_name('zh') }}"
+                  data-cat-en="{{ book.category|category_name('en') }}">{{ book.category|category_name }}</span>
             {% else %}
-            <span class="book-tag tag-category tag-muted">{{ _('分类未公开') }}</span>
+            {# 无分类：同样带双语留痕，切语言可换文案（可见文案用当前 gettext） #}
+            <span class="book-tag tag-category tag-muted"
+                  data-cat-zh="分类未公开"
+                  data-cat-en="Category not published">{{ _('分类未公开') }}</span>
             {% endif %}
             {% if book.publication_date %}
             {% set pub_date = book.publication_date.strftime('%Y-%m-%d') if book.publication_date is not string else book.publication_date[:10] %}
-            <span class="book-tag tag-date" title="{{ _('出版日期') }} {{ pub_date }}">
+            {% set pub_state = book.publication_date|publication_state %}
+            {# 日期状态文案双语留痕：状态仍只由 publication_date 决定，切语言只换文案。 #}
+            <span class="book-tag tag-date {% if pub_state == 'upcoming' %}tag-date-upcoming{% endif %}"
+                  title="{{ _('出版日期') }} {{ pub_date }}"
+                  data-date-zh="{{ book.publication_date|publication_state_label('zh') }}"
+                  data-date-en="{{ book.publication_date|publication_state_label('en') }}">
                 <svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>
-                {{ pub_date }}
+                {{ pub_date }} · {{ book.publication_date|publication_state_label(_l) }}
             </span>
             {% else %}
-            <span class="book-tag tag-date tag-muted">
+            {# 无 publication_date 时绝不拿 created_at（发现时间）冒充出版日期。
+               zh 槽位写死中文：`_()` 在 SSR=en 时返回英文，会让 zh 载荷变成英文。 #}
+            <span class="book-tag tag-date tag-muted"
+                  title="{{ _('出版日期待确认') }}"
+                  data-date-zh="出版日期待确认"
+                  data-date-en="Publication date pending">
                 <svg class="icon" width="12" height="12"><use href="#icon-calendar"/></svg>
-                {{ _('日期未公开') }}
+                {{ _('出版日期待确认') }}
             </span>
             {% endif %}
         </div>
-        {% if book.isbn13 %}
-        <p class="book-isbn">{{ book.isbn13 }}</p>
-        {% elif book.isbn10 %}
-        <p class="book-isbn">{{ book.isbn10 }}</p>
-        {% endif %}
+        {# ISBN 只留在 data-isbn（卡片/标题元素）与详情页，列表不再显示明文，避免噪音 #}
     </div>
 </div>
 {% endmacro %}
@@ -104,7 +125,10 @@
 {# title 属性保留完整书名（含卷号），供 hover 查看 #}
 {% set full_title = (display_stem ~ ' ' ~ volume_marker).strip() if volume_marker else display_stem %}
 {% set pub_name = ((book.publisher.name_en or book.publisher.name) if _l == 'en' else book.publisher.name) if book.publisher else '' %}
+{% set _browse_detail_url = url_for('main.new_book_detail', book_id=book.id) %}
 <article class="browse-card">
+    {# 封面与书名指向同一详情路由；收藏按钮是独立交互，不在此链接内。 #}
+    <a class="browse-card-media-link" href="{{ _browse_detail_url }}" aria-label="{{ _('《') }}{{ full_title }}{{ _('》详情') }}" tabindex="-1">
     <div class="browse-card-media">
         {% if book.cover_url %}
         <img src="{{ book.cover_url|cover_src_or_default }}"
@@ -116,20 +140,37 @@
         {% else %}
         <img src="{{ url_for('static', filename='default-cover.png') }}" alt="{{ _('暂无封面') }}" width="160" height="240">
         {% endif %}
+        {# 日期标记与列表卡片同口径：有出版日期才显示，无日期不拿发现时间冒充。
+           封面角标只显示 MM-DD（日期本身，与语言无关）；tooltip 是可翻译的状态文案，
+           所以只给 tooltip 留双语留痕，角标文本**不**参与 applyBilingualBadges
+           （否则月-日会被状态文字替换掉）。 #}
         {% if book.publication_date %}
         {% set pub_date = book.publication_date.strftime('%Y-%m-%d') if book.publication_date is not string else book.publication_date[:10] %}
-        <span class="browse-cover-flag">{{ pub_date[5:] }}</span>
+        <span class="browse-cover-flag"
+              data-date-tip-zh="{{ book.publication_date|publication_state_label('zh') }}"
+              data-date-tip-en="{{ book.publication_date|publication_state_label('en') }}"
+              title="{{ book.publication_date|publication_state_label(_l) }}">{{ pub_date[5:] }}</span>
         {% endif %}
     </div>
+    </a>
     <div class="browse-card-body">
         {% if pub_name and pub_name not in ('Unknown', 'Unknown Publisher', 'N/A', _('未知'), _('未知出版社')) %}
-        <span class="browse-card-eyebrow">{{ pub_name }}</span>
+        {# 精选书列的出版社标签同样双语留痕：切语言时 BookI18n 按属性取值，
+           而 <h3>/<p> 里的其它节点（卷号徽标、分类）不受影响。 #}
+        <span class="browse-card-eyebrow"
+              data-pub-name-zh="{{ book.publisher.name if book.publisher else '' }}"
+              data-pub-name-en="{{ (book.publisher.name_en or book.publisher.name) if book.publisher else '' }}">{{ pub_name }}</span>
         {% endif %}
         <h3 class="browse-card-title" title="{{ full_title }}">
-            <a class="browse-card-title-link" href="{{ url_for('main.new_book_detail', book_id=book.id) }}">{{ display_stem or _('未知书名') }}</a>
+            <a class="browse-card-title-link" href="{{ _browse_detail_url }}">{{ display_stem or _('未知书名') }}</a>
             {% if volume_marker %}<span class="browse-card-volume">{{ volume_marker }}</span>{% endif %}
         </h3>
         <p class="browse-card-author">{{ book.author or _('未知作者') }}</p>
+        {% if book.category %}
+        <p class="browse-card-category"
+           data-cat-zh="{{ book.category|category_name('zh') }}"
+           data-cat-en="{{ book.category|category_name('en') }}">{{ book.category|category_name }}</p>
+        {% endif %}
     </div>
 </article>
 {% endmacro %}

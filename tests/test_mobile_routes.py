@@ -4,6 +4,7 @@
 在桌面 UA 下回退桌面版模板。
 """
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -353,10 +354,58 @@ class TestMobileWeeklyReportDetailEnhanced:
         assert b'm-report-hero' in resp.data
         # `?lang=zh` is pinned deliberately: `_get_locale` defaults to 'en', so without it the
         # page renders English and these Chinese assertions only held while the English
-        # catalogue had no entry for 总书数 / Top 5 排名变化 (the missing translation leaked
+        # catalogue had no entry for 上榜记录 / Top 5 排名变化 (the missing translation leaked
         # Chinese through). Asserting a language the request never asked for is a bug in the test.
-        assert '总书数'.encode() in resp.data
+        assert '上榜记录'.encode() in resp.data
         assert 'Top 5 排名变化'.encode() in resp.data
+
+    @patch('app.routes.main.parse_report_content')
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_service')
+    def test_weekly_report_detail_marks_unknown_metric_with_pending_class(
+        self, mock_get_svc, mock_report_svc, mock_parse, client
+    ) -> None:
+        """未知总量须带 pending 类，已知数值不得带（移动端 390px 断词缺陷回归）
+
+        `Data pending` 在 20px / 71px 单元格里会被 overflow-wrap:anywhere 拆成
+        `Data / pendi / ng`；模板据 `total_*_known` 加 `.pending`（14px，
+        line-height 1.3）让它整词折行。未知态永远不得显示 0。
+        """
+        from datetime import date, datetime
+
+        mock_get_svc.return_value = _mock_book_service([])
+
+        report_mock = MagicMock()
+        report_mock.id = 1
+        report_mock.week_end = date(2024, 1, 14)
+        report_mock.week_start = date(2024, 1, 8)
+        report_mock.created_at = datetime(2024, 1, 14, 10, 0)
+        report_mock.title = '测试周报'
+        report_mock.summary = '测试摘要'
+
+        svc_mock = MagicMock()
+        svc_mock.get_report_by_week_end.return_value = report_mock
+        svc_mock.record_report_view.return_value = None
+        mock_report_svc.return_value = svc_mock
+
+        # total_books 缺失 → unknown；其余三项为已确认的真实计数（含一个已知 0）。
+        mock_parse.return_value = {
+            'total_new': 3,
+            'total_rising': 4,
+            'total_falling': 0,
+        }
+
+        resp = client.get('/reports/weekly/2024-01-14?lang=en', headers=EN_MOBILE_HEADERS)
+        assert resp.status_code == 200
+        body = resp.data.decode('utf-8')
+
+        # 恰好第一格（上榜记录）未知 → 只有它带 pending
+        assert 'm-report-hero-stat-value pending' in body
+        assert body.count('m-report-hero-stat-value pending') == 1
+        # 未知格显示占位文案，绝不显示 0
+        assert 'Data pending' in body
+        # 已知的 0 仍按 0 渲染（已知零 ≠ 未知），且不带 pending
+        assert 'm-report-hero-stat-value">0<' in body
 
 
 class TestMobileIndexSimplified:
@@ -393,13 +442,18 @@ class TestMobileIndexSimplified:
 
     @patch('app.routes.main.get_service')
     def test_mobile_index_has_compact_hero_header(self, mock_get_svc, client) -> None:
-        """移动端首页头部应有品牌信息和紧凑 hero 结构"""
+        """移动端首页头部应为本地化 NYT 榜单主标题 + 小型品牌 kicker（紧凑 hero）"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
         resp = client.get('/', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-top-nav-copy' in resp.data
         assert b'm-top-nav-subtitle' in resp.data
-        assert b'<h1 class="m-top-nav-title">BookRank <span>Charts</span></h1>' in resp.data
+        # 品牌 kicker 收小，h1 让位给本地化榜单任务标题
+        assert b'THE BOOKRANK EDIT' in resp.data
+        assert b'<h1 class="m-top-nav-title"' in resp.data
+        assert b'data-i18n="page_title_bestsellers"' in resp.data
+        # 不再保留旧的大号英文品牌 "BookRank Charts"
+        assert b'<span>Charts</span>' not in resp.data
 
 
 class TestMobileBookDetailV2:
@@ -636,11 +690,16 @@ class TestMobileV978:
         assert b'data-book-index="0"' in resp.data
 
     def test_award_book_detail_has_tabs(self, client, db, sample_award_book) -> None:
-        """获奖图书详情页应包含"图书简介 / 详细信息"两个 Tab"""
+        """获奖图书详情页应包含"图书简介"Tab；"详细信息"仅在确有实质 details 时出现。
+
+        改版前无条件渲染第二个标签，于是只有元信息（出版社/奖项/年份）而没有 details 正文的
+        书也挂着一个点了没内容的「详细信息」标签。现在标签按钮与面板同条件渲染。
+        """
         from app.models.schemas import AwardBook
 
         book = db.session.get(AwardBook, sample_award_book)
         book.is_displayable = True
+        book.details = 'A substantial detail paragraph.'
         db.session.commit()
 
         resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
@@ -649,6 +708,22 @@ class TestMobileV978:
         assert b'm-tab-btn' in resp.data
         assert b'data-tab="description"' in resp.data
         assert b'data-tab="details"' in resp.data
+        assert b'data-panel="details"' in resp.data
+
+    def test_award_book_detail_hides_details_tab_without_details(self, client, db, sample_award_book) -> None:
+        """反向断言：没有实质 details 时不该出现「详细信息」标签或面板。"""
+        from app.models.schemas import AwardBook
+
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        book.details = None
+        db.session.commit()
+
+        resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'data-tab="description"' in resp.data
+        assert b'data-tab="details"' not in resp.data
+        assert b'data-panel="details"' not in resp.data
 
     @patch('app.routes.main.get_or_create_recommendation_service')
     def test_award_book_detail_mobile_shows_related_books(
@@ -750,12 +825,23 @@ class TestMobileWeeklyParityAndCsp:
         r.created_at = datetime(2024, 1, 14, 10, 0)
         r.title = '测试周报'
         r.summary = '测试摘要'
-        r.content_data = {
-            'total_books': total_books,
-            'top_changes': list(top_changes),
-            'new_books': list(new_books),
-            'featured_books': list(featured),
-        }
+        # audit04：路由会用 prepare_report_presentation 从 content 解析权威总量，
+        # 因此 mock 必须提供可解析的 content JSON，而非手工塞 content_data。
+        r.content = json.dumps(
+            {
+                'total_books': total_books,
+                'total_new': 3,
+                'total_rising': 1,
+                'total_falling': 1,
+                'top_changes': list(top_changes),
+                'new_books': list(new_books),
+                'featured_books': list(featured),
+                'top_risers': [],
+                'longest_running': [],
+                'category_stats': {},
+            },
+            ensure_ascii=False,
+        )
         return r
 
     @patch('app.services.weekly_report_service.WeeklyReportService')
@@ -783,7 +869,8 @@ class TestMobileWeeklyParityAndCsp:
         assert resp.status_code == 200
         assert b'm-report-group' in resp.data
         assert b'm-report-chips' in resp.data
-        assert '项变化'.encode() in resp.data
+        # audit04：chips 展示权威总量（新上榜/上升/下降），不再用 Top-N 数组长度。
+        assert '上升'.encode() in resp.data
         assert '新上榜'.encode() in resp.data
         assert b'W02' in resp.data
 
@@ -850,7 +937,8 @@ class TestMobileWeeklyParityAndCsp:
         assert '《中文书名》' in body
         assert 'data-share-url' in body
         assert 'm-report-hero' in body
-        assert '总书数' in body
+        # 英雄区首格是权威「上榜记录」（原「总书数」措辞与 API 语义不符，已改名）。
+        assert '上榜记录' in body
         # 兜底目标取自 mobile.js 常量，模板只负责开关标记；两张封面图都应带上
         assert body.count('data-cover-fallback') == 2
 

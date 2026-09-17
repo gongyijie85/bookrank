@@ -1,0 +1,50 @@
+{# 周报列表 / 详情专用：偏好语言与服务端渲染语言不一致时，按语言重新请求一次。
+
+   周报的指标与事实摘要由服务端按渲染语言生成，客户端 i18n 翻译不了摘要正文，
+   所以「偏好语言」≠「服务端渲染语言」时必须让服务端用正确语言再渲染一次。
+   不能直接 reload()：URL 的 ?lang= 优先于 cookie / localStorage，若地址栏是
+   ?lang=en 而偏好是 zh，无条件 reload 会永远渲染 EN 形成死循环；因此改写 URL 的
+   lang 参数并用 location.replace 覆盖当前历史记录。
+
+   ssr_locale 是本页服务端真实渲染语言（模板里就是 get_locale()），通过 |tojson
+   内联进脚本常量——脚本不读任何 DOM 标记。
+   nonce 必须由调用方传入：`{% from … import %}` 导入的宏默认不共享调用方上下文，
+   ctx processor 注入的 csp_nonce() 在宏内是 undefined（同 _breadcrumbs.html 约定）。 #}
+{% macro weekly_lang_sync(ssr_locale, nonce='') %}
+<script nonce="{{ nonce or csp_nonce() }}">
+(function () {
+    var ssrLang = canonical({{ ssr_locale|string|tojson }});
+    var navigating = false;
+
+    // 'zh-CN' / 'zh_Hans' / 'en-US' -> 'zh' / 'en'；未知值返回 ''（一律不导航）
+    function canonical(value) {
+        if (typeof value !== 'string') return '';
+        var v = value.trim().toLowerCase().replace(/_/g, '-');
+        if (!v) return '';
+        if (v === 'zh' || v.indexOf('zh-') === 0) return 'zh';
+        if (v === 'en' || v.indexOf('en-') === 0) return 'en';
+        return '';
+    }
+
+    function targetUrl(lang) {
+        var url = new URL(window.location.href);
+        url.searchParams.set('lang', lang); // 无则新增、有则覆盖，其余参数与 hash 原样保留
+        return url.toString();
+    }
+
+    function reconcile(event) {
+        // 事件带的就是权威的偏好语言。只有「事件根本没提供语言」才退回 <html lang>；
+        // 提供了但无法识别（如 'fr'）必须忽略——退回会把未知偏好变成一次真实导航。
+        var raw = event && event.detail ? event.detail.language : null;
+        var provided = typeof raw === 'string' && raw.trim() !== '';
+        var lang = provided ? canonical(raw) : canonical(document.documentElement.getAttribute('lang'));
+        // 未知语言 / 与本次 SSR 相同 / 已经排好导航：什么都不做。
+        if (!lang || !ssrLang || lang === ssrLang || navigating) return;
+        navigating = true; // 守卫保持置位：本次事件循环里不再排第二次导航
+        window.location.replace(targetUrl(lang));
+    }
+
+    window.addEventListener('languagechange', reconcile);
+})();
+</script>
+{% endmacro %}

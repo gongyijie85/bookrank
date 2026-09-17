@@ -24,6 +24,7 @@ from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
 from ..services.book_detail_service import enrich_book_details, merge_or_translate_book
+from ..services.publisher_data import canonicalize_category
 from ..utils import ExternalAPIError
 from ..utils.api_helpers import (
     APIResponse,
@@ -39,12 +40,14 @@ from ..utils.book_filters import (
     get_category_update_frequency,
     sort_books,
 )
+from ..utils.book_labels import category_alias_labels, publisher_labels
 from ..utils.cover_urls import cached_filename_from_path, is_allowed_cover_host
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.ranking import classify_listing
 from ..utils.security import is_safe_redirect_url
 from ..utils.template_resolver import render_adaptive
+from ..utils.weekly_report_presentation import prepare_report_presentation
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 from ..utils.service_helpers import (
@@ -79,6 +82,11 @@ def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | N
 
     book_service = get_service('book_service')
     if not book_service:
+        # 请求方显式要求上报失败时，服务不可用必须上抛而非伪装成「成功但空」
+        if kwargs.get('report_failures'):
+            raise ExternalAPIError(
+                f"获取分类 '{category}' 数据失败", api_name='book_service', details={'category': category}
+            )
         return [], None
 
     books_data, update_time = [], None
@@ -100,28 +108,52 @@ def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | N
     return books_data, update_time
 
 
-def _fetch_all_category_books(categories: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
-    """抓取全部分类的当前榜；单个分类失败时跳过该分类，不影响其余数据。"""
+def _fetch_all_category_books_with_status(
+    categories: dict[str, str],
+) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    """抓取全部分类的当前榜，并返回抓取失败的分类列表。
+
+    单个分类失败时跳过该分类，不影响其余数据；只把真正抛异常的分类计入
+    失败（unavailable），某个分类成功但为空不算失败——不因空数据误判失败。
+    """
     result: dict[str, list[dict[str, Any]]] = {}
+    unavailable: list[str] = []
     for key in categories:
         try:
-            books_data, _ = _get_books_for_category(key, auto_translate=False, notify_refresh=False)
+            books_data, _ = _get_books_for_category(
+                key, auto_translate=False, notify_refresh=False, report_failures=True
+            )
         except ExternalAPIError as e:
             e.log()
+            unavailable.append(key)
             continue
         result[key] = books_data
-    return result
+    return result, unavailable
 
 
-def _search_all_categories(search_query: str, categories: dict[str, str]) -> list[dict[str, Any]]:
-    """跨全部分类抓取并标注来源分类（#66）；过滤由调用方的 filter_books_by_search 完成"""
+def _fetch_all_category_books(categories: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
+    """抓取全部分类的当前榜；单个分类失败时跳过该分类，不影响其余数据。
+
+    rankings 消费者的既有契约：只返回 dict[category, books]，失败分类静默跳过。
+    """
+    books, _unavailable = _fetch_all_category_books_with_status(categories)
+    return books
+
+
+def _search_all_categories(search_query: str, categories: dict[str, str]) -> tuple[list[dict[str, Any]], list[str]]:
+    """跨全部分类抓取并标注来源分类（#66）；返回合并结果与抓取失败的分类列表。
+
+    过滤由调用方的 filter_books_by_search 完成；source_category/source_index 在合并时标注，
+    后续过滤只剔除条目、不改动字典，来源标注得以保留。
+    """
     merged: list[dict[str, Any]] = []
-    for key, books_data in _fetch_all_category_books(categories).items():
+    books_by_category, unavailable = _fetch_all_category_books_with_status(categories)
+    for key, books_data in books_by_category.items():
         for idx, book in enumerate(books_data):
             book['source_category'] = key
             book['source_index'] = (book.get('rank') or (idx + 1)) - 1
             merged.append(book)
-    return merged
+    return merged, unavailable
 
 
 @main_bp.route('/')
@@ -146,15 +178,19 @@ def index():
 
     books_data: list[dict[str, Any]] = []
     update_time: str | None = None
+    search_unavailable_count = 0
+    data_load_failed = False
     if search_query:
         # 跨全部分类搜索（#66）：不再受当前选中分类限制，结果标注来源分类
-        books_data = _search_all_categories(search_query, categories)
+        books_data, unavailable = _search_all_categories(search_query, categories)
+        search_unavailable_count = len(unavailable)
         update_time = None
     else:
         try:
-            books_data, update_time = _get_books_for_category(category)
+            books_data, update_time = _get_books_for_category(category, report_failures=True)
         except ExternalAPIError as e:
             e.log()
+            data_load_failed = True
             # 降级：用空列表渲染页面，不崩溃
 
     update_frequency = get_category_update_frequency(category)
@@ -162,6 +198,17 @@ def index():
 
     if search_query:
         books_data = filter_books_by_search(books_data, search_query)
+        total_categories = len(categories)
+        if search_unavailable_count == total_categories:
+            search_status = 'failed'
+        elif search_unavailable_count > 0:
+            search_status = 'partial'
+        elif not books_data:
+            search_status = 'empty'
+        else:
+            search_status = 'ready'
+    else:
+        search_status = 'ready'
     if publisher_filter:
         books_data = filter_books_by_publisher(books_data, publisher_filter)
     if weeks_filter:
@@ -200,6 +247,9 @@ def index():
         books=books_data,
         current_category=category,
         search_query=search_query,
+        search_status=search_status,
+        search_unavailable_count=search_unavailable_count,
+        data_load_failed=data_load_failed,
         view_mode=view_mode,
         update_time=update_time,
         publishers=publishers,
@@ -375,8 +425,10 @@ def _parse_awards_params(args) -> dict:
     if selected_year:
         try:
             year_int = int(selected_year)
-            if year_int < 1900 or year_int > 2100:
-                selected_year = ''
+            # 规范为 int，与模板 years（int 列表）比较时 `selected_year == year` 才成立，
+            # 否则 '/awards?award=布克奖&year=2026' 会渲染出 year-chip 2026 但
+            # #year-select 无选中项（str '2026' != int 2026），再选别的筛选会丢年份。
+            selected_year = year_int if 1900 <= year_int <= 2100 else ''
         except (ValueError, TypeError):
             selected_year = ''
 
@@ -429,6 +481,9 @@ def _shape_award_book(book) -> dict:
         'title': book.display_title,
         'title_en': title_en,
         'title_zh': title_zh,
+        # AwardBook.author 是真实存在的列（如 Penn Cole），此前塑形时整条漏掉，
+        # awards 列表/书列的卡片作者行因此恒为空 —— 只补这一个缺失字段，不做任何推测/补齐。
+        'author': book.author,
         'description': book.description,
         'description_zh': quick_clean_translation(book.description_zh, 'description'),
         'details': book.details,
@@ -624,6 +679,25 @@ def rankings():
         entry.to_dict() for entry in build_publisher_entries(books_by_category, limit=PUBLISHER_LEADERBOARD_LIMIT)
     ]
 
+    # audit11：把聚合榜条目指回已知来源书详情 /book/<source_index>?category=source_category。
+    # 取该书在各分类榜中名次最好的那条记录；source_index = rank - 1 与首页跨分类搜索
+    # (_search_all_categories) 的 0-based 索引口径一致。无需新的跨库匹配系统。
+    def _attach_source(entry: dict) -> dict:
+        listings = entry.get('listings') or []
+        if listings:
+            best = min(listings, key=lambda item: int(item.get('rank') or 999))
+            entry['source_category'] = best.get('category_id', '')
+            entry['source_index'] = max(0, (int(best.get('rank') or 1) - 1))
+        else:
+            entry['source_category'] = ''
+            entry['source_index'] = 0
+        return entry
+
+    for entry in cross_entries:
+        _attach_source(entry)
+    for entry in longevity_entries:
+        _attach_source(entry)
+
     current_year = datetime.now(UTC).year
     award_years = list(range(current_year, current_year - OVERLOOKED_YEAR_SPAN, -1))
     award_books = _load_recent_award_books(AwardBookService(), award_years)
@@ -662,7 +736,10 @@ def _parse_new_books_params(args) -> dict:
     selected_publisher = (
         int(selected_publisher_raw) if selected_publisher_raw and selected_publisher_raw.isdigit() else None
     )
-    selected_category = args.get('category', '')
+    # audit08：把旧的原生英文分类 URL（如 ?category=Health & Fitness）归一到规范显示键，
+    # 让下拉 option 选中规范分类、chip 显示规范名；查询仍经 _category_alias_in_set 展开
+    # 到完整别名组，命中同一批记录（不改写存量数据）。
+    selected_category = canonicalize_category(args.get('category', ''))
 
     try:
         # 默认 30 天：维护者决议的"新书"标准（出版 30 天内），与 API 默认一致
@@ -777,6 +854,14 @@ def _load_new_books_data(modules, params: dict) -> dict:
         'categories': categories,
         'books': books,
         'stats': stats,
+        # 英文别名 → 规范中文显示名（由 book_labels 从 publisher_data 的
+        # CATEGORY_EN_TO_ZH 导出）。AJAX 重绘 chip/分类标签时复用它，
+        # 前端不再另抄一张会漂移的部分映射表。
+        'category_alias_labels': category_alias_labels(),
+        # publisher id → {'zh': ..., 'en': ...}，由 ORM 的 name/name_en 两列导出。
+        # 前端 chip / 下拉框 / 精选书列标签都按**当前运行时语言**取值，因此这里必须
+        # 同时给出两侧，不能把 SSR 那一刻的 locale 冻结进映射。
+        'publisher_labels': {pub.id: publisher_labels(pub.name, pub.name_en) for pub in publishers},
         'selected_publisher': selected_publisher,
         'selected_category': selected_category,
         'selected_days': selected_days,
@@ -786,6 +871,10 @@ def _load_new_books_data(modules, params: dict) -> dict:
         'total': total,
         'total_pages': total_pages,
         'per_page': per_page,
+        # audit10：日期窗口语义——过去 selected_days 天已出版，加未来 14 天预告窗口。
+        # 与 query_service._apply_publication_window 的 future_grace_date 保持一致，
+        # 供模板把"全库收录总量"与"当前筛选结果"以及窗口口径讲清楚。
+        'future_preview_days': 14,
     }
 
 
@@ -967,6 +1056,53 @@ def new_book_detail(book_id):
     return render_adaptive('new_book_detail.html', book=book, back_url=request.referrer or '/new-books')
 
 
+def _parse_award_buy_links(raw: Any) -> list[dict[str, str]]:
+    """把 ``AwardBook.buy_links``（裸 JSON 文本，也可能是已解析列表）整理成模板可迭代的列表。
+
+    - 接受已是 list 的情况（调用方/测试可能已解析）与 JSON 文本两种情况；
+    - JSON 非法、不是 list、或元素不是 dict 时一律返回空列表，绝不抛异常；
+    - 只保留 ``url`` 为**带主机名的** http(s) 地址、且 ``name`` 非空（缺失时回退
+      本地化「购买」）的条目 —— 避免渲染出空 href / `https://` 这类无主机地址 /
+      javascript: 之类的无效链接；
+    - 纯视图层处理：**不改写** ORM 原始列，不做模型/迁移变更。
+    """
+    import json
+    from urllib.parse import urlsplit
+
+    from flask_babel import gettext as _gettext
+
+    items: Any = raw
+    if isinstance(raw, str):
+        try:
+            items = json.loads(raw) if raw.strip() else []
+        except (ValueError, TypeError):
+            return []
+    if isinstance(items, dict):
+        # 某些历史写入形态是 {'amazon': 'https://...'} 的映射，同样按名称+URL 展开。
+        items = [{'name': key, 'url': value} for key, value in items.items()]
+    if not isinstance(items, list):
+        return []
+
+    links: list[dict[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get('url') or '').strip()
+        if not url.lower().startswith(('http://', 'https://')):
+            continue
+        # 主机名是必要条件：`https://` / `https:///path` 解析出的 netloc 为空，
+        # 渲染出来就是一条点了没反应的死链。用标准库解析，不做字符串猜测。
+        try:
+            parts = urlsplit(url)
+        except ValueError:
+            continue
+        if parts.scheme.lower() not in ('http', 'https') or not parts.netloc:
+            continue
+        name = str(item.get('name') or '').strip() or _gettext('购买')
+        links.append({'name': name, 'url': url})
+    return links
+
+
 @main_bp.route('/award-book/<int:book_id>')
 def award_book_detail(book_id):
     """获奖图书详情（通过 Service 层）"""
@@ -1010,6 +1146,11 @@ def award_book_detail(book_id):
             shown_title, other_title = zh_title or en_title, en_title
             shown_desc = book.description_zh or book.description
 
+        # 购买链接：AwardBook.buy_links 是**裸 JSON 文本列**（模型上没有解析器），模板
+        # 直接迭代会把字符串逐字符当成 link，于是 href 成为单个字符（空/无效 href）。
+        # 这里只在**视图内**解析成列表传给模板，绝不改写 ORM 原始列（无 schema/迁移）。
+        buy_links = _parse_award_buy_links(book.buy_links)
+
         try:
             recommendation_service = get_or_create_recommendation_service()
             related_books = recommendation_service.get_similarity_recommendations(book_id=book.id).get(
@@ -1027,6 +1168,7 @@ def award_book_detail(book_id):
             shown_title=shown_title,
             other_title=other_title,
             shown_desc=shown_desc,
+            buy_links=buy_links,
             related_books=related_books,
             back_url=request.referrer or '/awards',
         )
@@ -1210,7 +1352,7 @@ def weekly_reports():
     reports = report_service.get_reports()
 
     for report in reports:
-        report.content_data = parse_report_content(report) or {}
+        report.content_data = prepare_report_presentation(report, locale=str(get_locale() or 'zh'))['content']
 
     return render_adaptive(
         'weekly_reports.html',
@@ -1289,10 +1431,13 @@ def weekly_report_detail(date):
         )
 
         content_data = parse_report_content(report)
+        prepared = prepare_report_presentation(report, content=content_data, locale=str(get_locale() or 'zh'))
         return render_adaptive(
             'weekly_report_detail.html',
             report=report,
-            content=content_data,
+            content=prepared['content'],
+            safe_summary=prepared['summary'],
+            summary_source=prepared['summary_source'],
             active_tab='weekly',
         )
 
@@ -1348,7 +1493,8 @@ def export_weekly_report(date):
         }
 
         config = export_config[format_type]
-        buffer = config['export_method'](report)
+        prepared = prepare_report_presentation(report, locale=str(get_locale() or 'zh'))
+        buffer = config['export_method'](report, prepared=prepared)
         if not buffer:
             return render_adaptive('error.html', message=config['error_message'], back_url=f'/reports/weekly/{date}')
 

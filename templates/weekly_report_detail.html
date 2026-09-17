@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_weekly_lang_sync.html' import weekly_lang_sync %}
 {% set _locale = get_locale() %}
 
 {% macro monthly_badge(item) %}
@@ -45,60 +46,55 @@
     <div class="news-hero-section">
         <div class="news-hero-content">
             <div class="news-hero-meta">
-                <span class="news-hero-date">{{ report.report_date.strftime('%Y年%m月%d日') }}</span>
+                {# report_date 与区间都按当前语言渲染：此前硬编码中文 '年月日' strftime
+                   与「至」连接词，英文页会显示中文日期与中文连接词。 #}
+                <span class="news-hero-date">{{ report.report_date.strftime('%Y-%m-%d') if _locale == 'en' else report.report_date.strftime('%Y年%m月%d日') }}</span>
                 <span class="news-hero-period">
                     <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
-                    {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
+                    {{ content.week_range if content and content.week_range else report.week_start.strftime('%Y-%m-%d') ~ '–' ~ report.week_end.strftime('%Y-%m-%d') }}
                 </span>
             </div>
-            <h1 class="news-hero-title">{{ report.title }}</h1>
+            {# 只本地化系统生成的标准标题；任意 DB 标题由 helper 原样透传（不改库）。 #}
+            <h1 class="news-hero-title">{{ content.title_display if content and content.title_display else report.title }}</h1>
             <div class="news-hero-highlights">
                 {% if content %}
                 <div class="highlights-grid">
-                    {% if content.top_changes %}
                     <div class="highlight-item">
                         <div class="highlight-icon">
-                            <svg class="icon" width="24" height="24"><use href="#icon-arrow-up"/></svg>
+                            <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
                         </div>
                         <div class="highlight-content">
-                            <span class="highlight-number">{{ content.top_changes | length }}</span>
-                            <span class="highlight-label">{{ _('排名变化') }}</span>
+                            <span class="highlight-number">{{ content.total_books_display }}</span>
+                            <span class="highlight-label">{{ _('上榜记录') }}</span>
                         </div>
                     </div>
-                    {% endif %}
-                    {% if content.new_books %}
                     <div class="highlight-item">
                         <div class="highlight-icon">
                             <svg class="icon" width="24" height="24"><use href="#icon-star"/></svg>
                         </div>
                         <div class="highlight-content">
-                            <span class="highlight-number">{{ content.new_books | length }}</span>
+                            <span class="highlight-number">{{ content.total_new_display }}</span>
                             <span class="highlight-label">{{ _('新上榜') }}</span>
                         </div>
                     </div>
-                    {% endif %}
-                    {% if content.featured_books %}
                     <div class="highlight-item">
                         <div class="highlight-icon">
-                            <svg class="icon" width="24" height="24"><use href="#icon-heart"/></svg>
+                            <svg class="icon" width="24" height="24"><use href="#icon-arrow-up"/></svg>
                         </div>
                         <div class="highlight-content">
-                            <span class="highlight-number">{{ content.featured_books | length }}</span>
-                            <span class="highlight-label">{{ _('推荐书籍') }}</span>
+                            <span class="highlight-number">{{ content.total_rising_display }}</span>
+                            <span class="highlight-label">{{ _('上升') }}</span>
                         </div>
                     </div>
-                    {% endif %}
-                    {% if content.longest_running %}
                     <div class="highlight-item">
                         <div class="highlight-icon">
-                            <svg class="icon" width="24" height="24"><use href="#icon-clock"/></svg>
+                            <svg class="icon" width="24" height="24"><use href="#icon-arrow-down"/></svg>
                         </div>
                         <div class="highlight-content">
-                            <span class="highlight-number">{{ content.longest_running | length }}</span>
-                            <span class="highlight-label">{{ _('累计上榜') }}</span>
+                            <span class="highlight-number">{{ content.total_falling_display }}</span>
+                            <span class="highlight-label">{{ _('下降') }}</span>
                         </div>
                     </div>
-                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -137,7 +133,7 @@
                             {{ _('本周概览') }}
                         </h2>
                         <div class="report-summary-content">
-                            {{ report.summary | clean_brackets | markdown | safe }}
+                            {{ safe_summary | markdown | safe }}
                         </div>
                     </div>
                 </div>
@@ -398,6 +394,8 @@
 {% endblock %}
 
 {% block extra_css %}
+{# SSR 语言修正：只在偏好语言与服务端渲染语言不一致时按语言重新请求一次 #}
+{{ weekly_lang_sync(get_locale(), csp_nonce()) }}
 <style nonce="{{ csp_nonce() }}">
     /* ============================================
        BookRank {{ _('周报详情页样式') }} (Notion {{ _('设计系统') }})
@@ -864,6 +862,17 @@
         position: relative;
         height: 320px;
         margin-top: 1rem;
+    }
+
+    /* {{ _('图表不可用提示') }} */
+    .chart-unavailable-message {
+        margin: 1rem 0 0 0;
+        padding: 1rem;
+        border: 1px dashed var(--border-color, rgba(0,0,0,0.15));
+        border-radius: 4px;
+        color: var(--text-secondary, #615d59);
+        font-size: 0.875rem;
+        text-align: center;
     }
 
     /* -- {{ _('弹窗') }} ({{ _('居中') }} + {{ _('移动端优化') }}) -- */
@@ -1461,7 +1470,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.style.display = 'none';
                         const placeholder = document.createElement('div');
                         placeholder.className = this.classList.contains('recommendation-cover') ? 'recommendation-cover-placeholder' : 'book-cover-placeholder';
-                        placeholder.title = '{{ _('暂无封面') }}';
+                        placeholder.title = {{ _('暂无封面')|tojson }};
                         placeholder.innerHTML = '<svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>';
                         this.parentNode.insertBefore(placeholder, this);
                     }
@@ -1487,14 +1496,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (book) {
                 const changeHtml = book.rank_change && book.rank_change !== 0
-                    ? `<p><strong>{{ _('排名变化') }}：</strong>${escHtml(book.rank_change > 0 ? '↑' : '↓')} ${Math.abs(Number(book.rank_change)||0)} {{ _('位') }}</p>` : '';
-                const weeksHtml = book.weeks_on_list ? `<p><strong>{{ _('累计上榜周数') }}：</strong>${escHtml(book.weeks_on_list)} {{ _('周') }}</p>` : '';
-                const rankHtml = book.rank ? `<p><strong>{{ _('当前排名') }}：</strong>{{ _('第') }} ${escHtml(book.rank)} {{ _('名') }}</p>` : '';
-                const categoryHtml = book.category ? `<p><strong>{{ _('类别') }}：</strong>${escHtml(book.category)}</p>` : '';
-                const reasonHtml = book.reason ? `<p><strong>{{ _('推荐理由') }}：</strong>${escHtml(book.reason)}</p>` : '';
-                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>{{ _('作者') }}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
+                    ? `<p><strong>${escHtml({{ _('排名变化')|tojson }})}：</strong>${escHtml(book.rank_change > 0 ? '↑' : '↓')} ${Math.abs(Number(book.rank_change)||0)} ${escHtml({{ _('位')|tojson }})}</p>` : '';
+                const weeksHtml = book.weeks_on_list ? `<p><strong>${escHtml({{ _('累计上榜周数')|tojson }})}：</strong>${escHtml(book.weeks_on_list)} ${escHtml({{ _('周')|tojson }})}</p>` : '';
+                const rankHtml = book.rank ? `<p><strong>${escHtml({{ _('当前排名')|tojson }})}：</strong>${escHtml({{ _('第')|tojson }})} ${escHtml(book.rank)} ${escHtml({{ _('名')|tojson }})}</p>` : '';
+                const categoryHtml = book.category ? `<p><strong>${escHtml({{ _('类别')|tojson }})}：</strong>${escHtml(book.category)}</p>` : '';
+                const reasonHtml = book.reason ? `<p><strong>${escHtml({{ _('推荐理由')|tojson }})}：</strong>${escHtml(book.reason)}</p>` : '';
+                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
             } else {
-                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>{{ _('作者') }}：</strong>${escHtml(bookAuthor)}</p><p>{{ _('暂无更多详情数据') }}</p>`;
+                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p><p>${escHtml({{ _('暂无更多详情数据')|tojson }})}</p>`;
             }
             modalOverlay.classList.add('active');
         });
@@ -1523,38 +1532,44 @@ document.addEventListener('DOMContentLoaded', function() {
             const bgColors = data.map(c => c > 0 ? chartColors.green : c < 0 ? chartColors.red : chartColors.gray);
             new Chart(ctx, {
                 type: 'bar',
-                data: { labels, datasets: [{ label: '{{ _('排名变化') }}', data, backgroundColor: bgColors, borderWidth: 1 }] },
+                data: { labels, datasets: [{ label: {{ _('排名变化')|tojson }}, data, backgroundColor: bgColors, borderWidth: 1 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _('排名变化') }}（{{ _('位') }}）' } } },
-                    plugins: { tooltip: { callbacks: { label: ctx => { const v = ctx.raw; return v > 0 ? `↑ ${v} {{ _('位') }}` : v < 0 ? `↓ ${Math.abs(v)} {{ _('位') }}` : '{{ _('无变化') }}'; } } } }
+                    scales: { y: { beginAtZero: true, title: { display: true, text: {{ (_('排名变化') ~ '（' ~ _('位') ~ '）')|tojson }} } } },
+                    plugins: { tooltip: { callbacks: { label: ctx => { const v = ctx.raw; const unit = {{ _('位')|tojson }}; return v > 0 ? `↑ ${v} ${unit}` : v < 0 ? `↓ ${Math.abs(v)} ${unit}` : {{ _('无变化')|tojson }}; } } } }
                 }
             });
         }
 
         // {{ _('类别分布饼图') }}
-        const allBooksForCategory = [
-            ...(reportContent.top_changes || []), ...(reportContent.new_books || []),
-            ...(reportContent.top_risers || []), ...(reportContent.longest_running || []),
-            ...(reportContent.featured_books || [])
-        ];
-        if (allBooksForCategory.length > 0) {
-            const categoryData = {};
-            allBooksForCategory.forEach(b => { categoryData[b.category || '{{ _('其他') }}'] = (categoryData[b.category || '{{ _('其他') }}'] || 0) + 1; });
+        // 数据源必须是结构化 category_stats[*].count（helper 已校验并 expose 为
+        // reportContent.category_chart）：绝不拼接 top_changes/new_books/top_risers/
+        // longest_running/featured_books ——这些数组被截断到 Top-N 且互相重叠，会把
+        // 同一本书在多个分类榜单里的出现重复计数。
+        const categoryChart = reportContent.category_chart;
+        if (categoryChart && categoryChart.available === true && categoryChart.counts.length > 0) {
             const palette = ['rgba(255,99,132,0.6)','rgba(54,162,235,0.6)','rgba(255,206,86,0.6)','rgba(75,192,192,0.6)','rgba(153,102,255,0.6)','rgba(255,159,64,0.6)','rgba(199,199,199,0.6)','rgba(83,102,255,0.6)'];
             new Chart(document.getElementById('category-chart').getContext('2d'), {
                 type: 'doughnut',
-                data: { labels: Object.keys(categoryData), datasets: [{ data: Object.values(categoryData), backgroundColor: palette.slice(0, Object.keys(categoryData).length), borderWidth: 1 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: ctx => { const total = ctx.dataset.data.reduce((a, b) => a + b, 0); return `${ctx.label}: ${ctx.raw}{{ _('本') }} (${Math.round(ctx.raw / total * 100)}%)`; } } } } }
+                data: { labels: categoryChart.labels, datasets: [{ data: categoryChart.counts, backgroundColor: palette.slice(0, categoryChart.labels.length), borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: ctx => { const total = ctx.dataset.data.reduce((a, b) => a + b, 0); const unit = {{ _('条')|tojson }}; return `${ctx.label}: ${ctx.raw}${unit} (${total > 0 ? Math.round(ctx.raw / total * 100) : 0}%)`; } } } } }
             });
+        } else {
+            // 缺失/非法分类统计：显式不可用提示，绝不用 0 或猜测值画图。
+            const categoryCanvas = document.getElementById('category-chart');
+            const categoryMessage = document.createElement('p');
+            categoryMessage.className = 'chart-unavailable-message';
+            categoryMessage.textContent = (categoryChart && categoryChart.message)
+                || {{ _('数据待补全：缺少可用的分类统计，暂时无法绘制书籍类别分布图')|tojson }};
+            categoryCanvas.replaceWith(categoryMessage);
         }
 
         // {{ _('排名变化趋势折线图') }}
         if (reportContent.top_changes?.length > 0) {
             new Chart(document.getElementById('trend-chart').getContext('2d'), {
                 type: 'line',
-                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: '{{ _('排名变化趋势') }}', data: reportContent.top_changes.map(i => i.rank_change), borderColor: chartColors.blueBorder, backgroundColor: 'rgba(54,162,235,0.1)', borderWidth: 2, tension: 0.3, fill: true }] },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _('排名变化') }}（{{ _('位') }}）' } } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
+                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: {{ _('排名变化趋势')|tojson }}, data: reportContent.top_changes.map(i => i.rank_change), borderColor: chartColors.blueBorder, backgroundColor: 'rgba(54,162,235,0.1)', borderWidth: 2, tension: 0.3, fill: true }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: {{ (_('排名变化') ~ '（' ~ _('位') ~ '）')|tojson }} } } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
             });
         }
 
@@ -1565,11 +1580,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: {
                     labels: reportContent.top_changes.map(i => i.title),
                     datasets: [
-                        { label: '{{ _('本周排名') }}', data: reportContent.top_changes.map(i => i.rank || 0), backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 },
-                        { label: '{{ _('上周排名') }}', data: reportContent.top_changes.map(i => Math.max(1, (i.rank || 0) + (i.rank_change || 0))), backgroundColor: chartColors.red, borderColor: chartColors.redBorder, borderWidth: 1 }
+                        { label: {{ _('本周排名')|tojson }}, data: reportContent.top_changes.map(i => i.rank || 0), backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 },
+                        { label: {{ _('上周排名')|tojson }}, data: reportContent.top_changes.map(i => Math.max(1, (i.rank || 0) + (i.rank_change || 0))), backgroundColor: chartColors.red, borderColor: chartColors.redBorder, borderWidth: 1 }
                     ]
                 },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _('排名') }}' }, reverse: true } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: {{ _('排名')|tojson }} }, reverse: true } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
             });
         }
 
@@ -1578,8 +1593,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const scores = reportContent.top_changes.map(i => Math.max(1, Math.min(100, (i.weeks_on_list || 1) * 10 - Math.abs(i.rank_change || 0) * 5)));
             new Chart(document.getElementById('stability-chart').getContext('2d'), {
                 type: 'radar',
-                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: '{{ _('排名稳定性评分') }}', data: scores, backgroundColor: 'rgba(75,192,192,0.2)', borderColor: chartColors.greenBorder, borderWidth: 2, pointBackgroundColor: chartColors.greenBorder }] },
-                options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 100, title: { display: true, text: '{{ _('稳定性评分') }}' } } } }
+                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: {{ _('排名稳定性评分')|tojson }}, data: scores, backgroundColor: 'rgba(75,192,192,0.2)', borderColor: chartColors.greenBorder, borderWidth: 2, pointBackgroundColor: chartColors.greenBorder }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 100, title: { display: true, text: {{ _('稳定性评分')|tojson }} } } } }
             });
         }
     }

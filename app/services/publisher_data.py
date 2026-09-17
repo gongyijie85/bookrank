@@ -97,7 +97,68 @@ CATEGORY_EN_TO_ZH: dict[str, str] = {
     'Juvenile Nonfiction': '儿童非小说',
     'Health & Fitness': '健康养生',
     'Literary Criticism': '文学评论',
+    # audit08：语义等价的常见标签——同一分类在英文侧有多个写法（Biography 与
+    # Biography & Autobiography），归一到同一中文显示值，避免同义项分流结果。
+    'Biography & Autobiography': '传记',
+    'Business & Economics': '商业',
+    'Poetry': '诗歌',
+    'Medical': '医学',
 }
+
+
+def build_category_alias_groups() -> dict[str, set[str]]:
+    """从 CATEGORY_EN_TO_ZH 派生完整的反查别名组，不再维护第二张手工表。
+
+    规范显示键就是中文显示值（CATEGORY_EN_TO_ZH 的值域）；每个组一定包含该键自身，
+    所以对任一**已知英文键**做别名展开都能拿到「原值 + 规范值」的完整集合，不会让
+    已入库的英文原始分类（如 'Health & Fitness'）在筛选时消失。手工维护第二张部分
+    表会导致「表没覆盖到的已知英文键」悄悄丢数据，这里用单一真相源一次性生成全部组。
+    """
+    groups: dict[str, set[str]] = {}
+    for en, zh in CATEGORY_EN_TO_ZH.items():
+        groups.setdefault(zh, set()).add(en)
+    for zh in groups:
+        groups[zh].add(zh)
+    return groups
+
+
+# audit08：规范化分类的"显示键 -> 原始别名集"。用于把 DB 里已存储的原始分类
+# （英文或中文）归并到同一个规范选项，并把选中的规范分类展开为 SQL IN 别名集，
+# 让旧的原生 URL（如 ?category=Biography / ?category=Health & Fitness）依旧命中
+# 对应结果，而不改写任何存量数据。未知标签不进此表，原样保留
+# （见 canonicalize_category）。由 build_category_alias_groups() 从
+# CATEGORY_EN_TO_ZH 派生；若需增删同义词，改 EN_TO_ZH 一处即可。
+CATEGORY_CANONICAL_ALIASES: dict[str, tuple[str, ...]] = {
+    canonical: tuple(sorted(aliases)) for canonical, aliases in build_category_alias_groups().items()
+}
+
+
+def canonicalize_category(raw: str | None) -> str:
+    """把原始存储/查询分类归一为规范显示键。
+
+    先经 CATEGORY_EN_TO_ZH 把英文映射为中文，再看该值（或原始值）落在哪个规范别名组；
+    未知标签不在任何组内时，原样返回（保留诚实展示，不隐掉筛选项）。
+    """
+    text = (raw or '').strip()
+    if not text:
+        return text
+    zh = CATEGORY_EN_TO_ZH.get(text, text)
+    for canonical, aliases in CATEGORY_CANONICAL_ALIASES.items():
+        if zh in aliases or text in aliases:
+            return canonical
+    return zh
+
+
+def category_alias_in_set(category: str | None) -> list[str]:
+    """把选中的分类（规范键或任一别名）展开为 SQL IN 别名集。
+
+    规范键 → 组内全部别名；未知键 → 仅自身（旧原生 URL 仍能精确命中）。
+    """
+    if not category:
+        return []
+    canonical = canonicalize_category(category)
+    return list(CATEGORY_CANONICAL_ALIASES.get(canonical, (canonical,)))
+
 
 VALID_CATEGORIES: set[str] = {
     '小说',

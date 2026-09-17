@@ -21,8 +21,16 @@ from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
-from .utils.api_helpers import PLACEHOLDER_TEXTS
-from .utils.book_labels import award_term, bilingual, category_name, language_name
+from .utils.api_helpers import PLACEHOLDER_TEXTS, is_non_substantive_details
+from .utils.book_labels import (
+    award_term,
+    bilingual,
+    category_name,
+    language_name,
+    positive_int_text,
+    publication_state,
+    publication_state_label,
+)
 from .utils.book_titles import split_volume_marker
 from .utils.cover_urls import cover_src, cover_src_or_default
 from .utils.error_handler import ErrorCategory, log_error
@@ -121,6 +129,15 @@ def create_app(config_name: str | None = None) -> Flask:
     app.jinja_env.filters['bilingual'] = bilingual
     app.jinja_env.filters['award_term'] = award_term
     app.jinja_env.filters['category_name'] = category_name
+    # 出版日期状态（即将出版 / 已出版 / 日期待确认）：只由 publication_date 决定，
+    # 用 created_at（发现时间）冒充出版日期的做法在此被结构性排除。
+    app.jinja_env.filters['publication_state'] = publication_state
+    app.jinja_env.filters['publication_state_label'] = publication_state_label
+
+    # 页数等「正整数」字段的展示口径：0 / '0' / 负数 / 布尔 / 小数 / 非数字串一律归一化成
+    # 空串，模板据此整行隐藏（见 app/utils/book_labels.positive_int_text）。此前各模板各自
+    # 列举脏值字面量，改一处漏一处，详情页会渲染出「页数：0 页」。
+    app.jinja_env.filters['positive_int_text'] = positive_int_text
 
     # 封面地址规范化：境外图床（storage.googleapis.com / covers.openlibrary.org 等）
     # 国内不可直连，且不在 CSP img-src 白名单内，统一改写为同源 /cover?src= 代理。
@@ -135,6 +152,11 @@ def create_app(config_name: str | None = None) -> Flask:
     # 占位串清单：模板不再自带字面量，统一用 api_helpers 的单一真相源判定
     # （历史上模板/服务/脚本各存一份，改一处漏一处，正是「详情整块消失」的成因之一）。
     app.jinja_env.globals['PLACEHOLDER_TEXTS'] = PLACEHOLDER_TEXTS
+
+    # 「无信息量的详情」判定（语言标记 '英文' / '小说' 等）：详情页据此决定要不要出
+    # 「详细信息」标签页。同一判定已在语言包写入路径生效，模板复用同一个公开函数，
+    # 不再自建第二份清单。
+    app.jinja_env.globals['is_non_substantive_details'] = is_non_substantive_details
 
     import atexit
 
