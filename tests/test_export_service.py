@@ -85,9 +85,11 @@ class TestInitPdfFont:
             f'已尝试的路径：{[str(p) for p in export_service_module._SYSTEM_FONT_CANDIDATES]}'
         )
 
+    @patch('app.services.export_service._BUILTIN_FONT_CANDIDATES', [])
     @patch('app.services.export_service._SYSTEM_FONT_CANDIDATES', [])
     @patch('app.services.export_service.CHINESE_FONT')
     def test_font_not_exists(self, mock_font_path, export_service):
+        """两个候选列表都必须清空：仓库自带的 assets/fonts/ 否则一定会命中。"""
         from fpdf import FPDF
 
         mock_font_path.exists.return_value = False
@@ -105,6 +107,34 @@ class TestInitPdfFont:
         with patch.object(pdf, 'add_font', side_effect=Exception('font error')):
             result = export_service._init_pdf_font(pdf)
         assert result is False
+
+    @patch('app.services.export_service._SYSTEM_FONT_CANDIDATES', [])
+    def test_bundled_cjk_font_is_shipped_and_loadable(self):
+        """回归锁：**只靠仓库自带的字体**（不依赖任何系统字体）也必须能出中文。
+
+        存在理由——`_init_pdf_font()` 找不到字体时**不报错**，只把中文降级成 '?'，线上
+        （Render 原生环境，装不了系统字体包、镜像里也没有任何 CJK 字体）就长期处于这个
+        状态：导出的 PDF 只嵌 Helvetica、中文全是 '?'。所以字体必须随仓库走。
+
+        这里把系统候选清空，正是为了复现 Render 的环境：本用例通过 = 位置在
+        ``assets/fonts/wqy-microhei.ttc`` 的字体确实在位、能被 fpdf2 加载、且覆盖中文。
+        删掉该文件、或换成 fpdf2 不支持的 CFF/OTF 轮廓字体，必须变红
+        （换字体请同步更新同目录 README 与哈希）。
+        """
+        from fontTools.ttLib import TTFont
+        from fpdf import FPDF
+
+        from app.services import export_service as export_service_module
+
+        font_path = export_service_module.BUILTIN_FONT_DIR / 'wqy-microhei.ttc'
+        assert font_path.is_file(), f'内置中文字体缺失：{font_path}（见同目录 README）'
+
+        # fpdf2 只吃 TrueType 轮廓；且字体必须真的覆盖中文，不能被换成拉丁字体。
+        cmap = TTFont(str(font_path), fontNumber=0).getBestCmap()
+        missing = [ch for ch in '本周指标数据待补全榜单作者类别排名变化' if ord(ch) not in cmap]
+        assert not missing, f'内置字体缺少这些字形：{"".join(missing)}'
+
+        assert ExportService()._init_pdf_font(FPDF()) is True
 
 
 class TestExportWeeklyReportPdf:
@@ -268,6 +298,7 @@ class TestExportWeeklyReportPdf:
         assert mock_report_no_content.summary == raw_summary
         assert mock_report_no_content.content is None
 
+    @patch('app.services.export_service._BUILTIN_FONT_CANDIDATES', [])
     @patch('app.services.export_service._SYSTEM_FONT_CANDIDATES', [])
     @patch('app.services.export_service.CHINESE_FONT')
     def test_pdf_without_any_cjk_font_degrades_to_ascii_instead_of_failing(
