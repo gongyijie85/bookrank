@@ -465,6 +465,49 @@ def is_non_substantive_details(text: str | None) -> bool:
     return text.strip() in _NON_SUBSTANTIVE_DETAILS
 
 
+# 「没有内容」的占位串：语义等价于 NULL，不是数据。
+#
+# 抓取侧（Google Books / Open Library）拿不到 description 时会写回这些串，
+# 而 Book.from_api_response 又把它们当默认值落进 description/details 字段。
+# 后果有两条，且互相叠加：
+#   1. 展示侧会把这些串当正文渲染出来；
+#   2. 更隐蔽的是「有值即已补全」——book_detail_service 的 needs_details 判断
+#      `book.get('details') and != 占位串` 永远为假，于是该书的详情补齐路径被
+#      彻底封死，永远不会再去取真正的详情。
+# 因此它们必须只在写入边界被归一化成空串，绝不能进入存储。
+_PLACEHOLDER_TEXTS = frozenset(
+    {
+        'No summary available.',
+        'No summary available',
+        'No detailed description available.',
+        'No description available.',
+        '暂无简介',
+        '暂无详细介绍',
+        '暂无详细描述',
+        'None',
+    }
+)
+
+
+def is_placeholder_text(text: str | None) -> bool:
+    """文本是否为抓取侧的「没有内容」占位串（语义上等于 NULL）。"""
+    if not isinstance(text, str):
+        return False
+    return text.strip() in _PLACEHOLDER_TEXTS
+
+
+def strip_placeholder(text: str | None) -> str:
+    """把占位串归一化为空串，供写入边界使用（其它取值原样保留并去首尾空白）。
+
+    非字符串输入一律归一化为空串：这两个字段（description/details）只接受文本，
+    放行 None/数字只会把类型问题推迟到展示层。
+    """
+    if not isinstance(text, str):
+        return ''
+    value = text.strip()
+    return '' if value in _PLACEHOLDER_TEXTS else value
+
+
 def target_lang_expects_cjk(target_lang: str) -> bool:
     """目标语言是否为中文（据此判断译文里是否应当出现汉字）。
 

@@ -114,7 +114,7 @@ def _details_panel(html: str):
 class TestCardDescriptionNotTruncated:
     """问题一：封面下方的图书简介必须完整展示。"""
 
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.merge_or_translate_book')
     def test_long_chinese_description_rendered_in_full(self, mock_merge, mock_fetch, client, book_service):
         book = _make_book(description=LONG_DESCRIPTION, description_zh=LONG_DESCRIPTION)
@@ -125,7 +125,7 @@ class TestCardDescriptionNotTruncated:
         assert LONG_DESCRIPTION in html, '简介应按原文完整下发，不应按字数截断'
         assert LONG_DESCRIPTION_TAIL in html, '简介结尾必须出现在页面上（旧的 [:80] 截断会砍掉它）'
 
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.merge_or_translate_book')
     def test_english_description_rendered_in_full(self, mock_merge, mock_fetch, client, book_service):
         long_en = (
@@ -141,7 +141,7 @@ class TestCardDescriptionNotTruncated:
         assert long_en in html
         assert 'still shows up on the rendered page.' in html
 
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.merge_or_translate_book')
     def test_placeholder_summary_is_not_rendered_as_description(self, mock_merge, mock_fetch, client, book_service):
         """'No summary available.' 是抓取侧的"没有"标记，不该当成简介正文。"""
@@ -208,7 +208,7 @@ class TestBookDetailDetailsPanel:
         """
         book_service([_make_book(**overrides)])
         with (
-            patch('app.routes.main.fetch_google_books_details'),
+            patch('app.routes.main.enrich_book_details'),
             patch('app.routes.main.merge_or_translate_book'),
         ):
             response = client.get(f'/book/0?category=hardcover-fiction&lang={lang}')
@@ -276,7 +276,7 @@ class TestBookDetailDetailsPanel:
 class TestIndexCoverIsProxied:
     """首页卡片封面不得把境外图床地址直接交给浏览器（国内直连即占位图）。"""
 
-    @patch('app.routes.main.fetch_google_books_details')
+    @patch('app.routes.main.enrich_book_details')
     @patch('app.routes.main.merge_or_translate_book')
     def test_homepage_card_cover_is_rewritten_to_same_origin_proxy(self, mock_merge, mock_fetch, client, book_service):
         nyt = 'https://static01.nyt.com/bestsellers/images/9780316608329.jpg'
@@ -301,7 +301,7 @@ class TestBookDetailCoverIsProxied:
     def test_original_cover_is_rewritten_to_same_origin_proxy(self, client, book_service):
         book_service([_make_book(cover='', _original_cover='https://storage.googleapis.com/du-prd/books/images/x.jpg')])
         with (
-            patch('app.routes.main.fetch_google_books_details'),
+            patch('app.routes.main.enrich_book_details'),
             patch('app.routes.main.merge_or_translate_book'),
         ):
             html = client.get('/book/0?category=hardcover-fiction').get_data(as_text=True)

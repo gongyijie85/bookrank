@@ -23,9 +23,15 @@ from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
-from ..services.book_detail_service import fetch_google_books_details, merge_or_translate_book
+from ..services.book_detail_service import enrich_book_details, merge_or_translate_book
 from ..utils import ExternalAPIError
-from ..utils.api_helpers import APIResponse, handle_api_errors, quick_clean_translation, validate_isbn
+from ..utils.api_helpers import (
+    APIResponse,
+    handle_api_errors,
+    quick_clean_translation,
+    strip_placeholder,
+    validate_isbn,
+)
 from ..utils.book_filters import (
     filter_books_by_publisher,
     filter_books_by_search,
@@ -1051,7 +1057,7 @@ def book_detail(book_index):
 
     isbn = book.get('isbn13') or book.get('isbn10')
     if isbn and validate_isbn(isbn):
-        fetch_google_books_details(book, isbn)
+        enrich_book_details(book, isbn)
         merge_or_translate_book(book, isbn)
 
     return render_adaptive(
@@ -1124,7 +1130,9 @@ def book_details_api():
         return APIResponse.error('书籍不存在', 404)
 
     book = books_data[book_index]
-    details = book.get('details') or book.get('description') or '暂无详细介绍'
+    # 占位串（'No detailed description available.' 等）不是内容：不归一化就会把
+    # 「没有详情」当成详情下发给前端。归一化后回退到简介，再回退到空态文案。
+    details = strip_placeholder(book.get('details')) or strip_placeholder(book.get('description')) or '暂无详细介绍'
 
     return APIResponse.success(data={'details': details})
 
