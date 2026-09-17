@@ -66,7 +66,6 @@ class Config:
     ZHIPU_API_KEY: str | None = os.environ.get('ZHIPU_API_KEY')
     PRH_API_KEY: str | None = os.environ.get('PRH_API_KEY')
 
-    CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'simple')
     CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_TTL', 7200))
     MEMORY_CACHE_TTL: int = int(os.environ.get('MEMORY_CACHE_TTL', 600))
 
@@ -77,6 +76,12 @@ class Config:
     API_RATE_LIMIT_WINDOW: int = int(os.environ.get('API_RATE_LIMIT_WINDOW', 60))
     CRON_RATE_LIMIT: int = int(os.environ.get('CRON_RATE_LIMIT', 20))
     CRON_RATE_LIMIT_WINDOW: int = int(os.environ.get('CRON_RATE_LIMIT_WINDOW', 60))
+
+    # 共享限流后端（安全审计 High #2 根因修复）：
+    # 留空 = 进程内限流（当前 Render 免费版无 Redis，行为与改造前一致，
+    # 因此必须保持 WEB_CONCURRENCY=1，见 SECURITY.md）。
+    # 配置后（如 redis://... ）限流计数跨 worker 共享，多 worker 才安全。
+    RATE_LIMIT_REDIS_URL: str = os.environ.get('RATE_LIMIT_REDIS_URL', '')
 
     MAX_WORKERS: int = int(os.environ.get('MAX_WORKERS', 4))
 
@@ -92,6 +97,11 @@ class Config:
         'graphic-books-and-manga': '漫画与绘本',
         'childrens-middle-grade-hardcover': '儿童中级精装本',
         'young-adult-hardcover': '青少年精装本',
+        'picture-books': '儿童绘本',
+        'series-books': '儿童与青少年系列',
+        'business-books': '商业',
+        'middle-grade-paperback-monthly': '儿童中级平装本',
+        'young-adult-paperback-monthly': '青少年平装本',
     }
 
     NYT_CATEGORY_UPDATE_FREQUENCIES: dict[str, str] = {
@@ -103,6 +113,45 @@ class Config:
         'graphic-books-and-manga': 'monthly',
         'childrens-middle-grade-hardcover': 'weekly',
         'young-adult-hardcover': 'weekly',
+        'picture-books': 'monthly',
+        'series-books': 'monthly',
+        'business-books': 'monthly',
+        'middle-grade-paperback-monthly': 'monthly',
+        'young-adult-paperback-monthly': 'monthly',
+    }
+
+    # 首页分类体裁分组（#66）：每个分类恰属一组，模板按组展示
+    CATEGORY_GROUPS: dict[str, list[str]] = {
+        'fiction': ['hardcover-fiction', 'trade-fiction-paperback'],
+        'nonfiction': ['hardcover-nonfiction', 'paperback-nonfiction-monthly'],
+        'children-ya': [
+            'childrens-middle-grade-hardcover',
+            'young-adult-hardcover',
+            'picture-books',
+            'series-books',
+            'middle-grade-paperback-monthly',
+            'young-adult-paperback-monthly',
+        ],
+        'business': ['business-books'],
+        'lifestyle': ['advice-how-to-and-miscellaneous'],
+        'comics': ['graphic-books-and-manga'],
+    }
+
+    # 分类英文名（NYT 官方 display name；英文 locale 下拉框用）
+    CATEGORY_NAMES_EN: dict[str, str] = {
+        'hardcover-fiction': 'Hardcover Fiction',
+        'trade-fiction-paperback': 'Trade Fiction Paperback',
+        'hardcover-nonfiction': 'Hardcover Nonfiction',
+        'paperback-nonfiction-monthly': 'Paperback Nonfiction',
+        'advice-how-to-and-miscellaneous': 'Advice, How-To & Miscellaneous',
+        'graphic-books-and-manga': 'Graphic Books and Manga',
+        'childrens-middle-grade-hardcover': "Children's Middle Grade Hardcover",
+        'young-adult-hardcover': 'Young Adult Hardcover',
+        'picture-books': 'Picture Books',
+        'series-books': 'Series Books',
+        'business-books': 'Business Books',
+        'middle-grade-paperback-monthly': 'Middle Grade Paperback',
+        'young-adult-paperback-monthly': 'Young Adult Paperback',
     }
 
     NYT_API_BASE_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/current'
@@ -112,10 +161,25 @@ class Config:
     # 外部 API 缓存 TTL（秒）
     NYT_CACHE_TTL: int = 60 * 60 * 6  # 避免跨过 NYT 发榜时间仍返回上周数据
     GOOGLE_BOOKS_CACHE_TTL: int = _SECONDS_PER_DAY  # Google Books 缓存 24 小时
-    OPEN_LIBRARY_CACHE_TTL: int = _SECONDS_PER_DAY * 3  # Open Library 缓存 3 天
 
-    # 智谱 AI 翻译模型
-    ZHIPU_TRANSLATION_MODEL: str = 'glm-4.7-flash'
+    # 翻译服务配置
+    # provider: 'zhipu'（智谱 GLM，免费）| 'siliconflow'（硅基流动 Hunyuan-MT-7B，付费）
+    # 线上实测期默认走 siliconflow/Hunyuan；回退智谱只需设 TRANSLATION_PROVIDER=zhipu。
+    TRANSLATION_PROVIDER: str = os.environ.get('TRANSLATION_PROVIDER', 'siliconflow')
+    # SiliconFlow 模型名（render.yaml/线上设置）；缺省为 tencent/Hunyuan-MT-7B。
+    # zhipu 始终读取 ZHIPU_TRANSLATION_MODEL，保证只改 provider 即可回退。
+    TRANSLATION_MODEL: str | None = os.environ.get('TRANSLATION_MODEL')
+    # zhipu 专用模型名，保留旧配置键以兼容现有部署。
+    ZHIPU_TRANSLATION_MODEL: str = os.environ.get('ZHIPU_TRANSLATION_MODEL', 'glm-4.7-flash')
+    SILICONFLOW_API_KEY: str | None = os.environ.get('SILICONFLOW_API_KEY')
+    SILICONFLOW_BASE_URL: str = os.environ.get('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1')
+    # 合并 JSON 单次调用：zhipu 默认启用（GLM 已验证稳定）；siliconflow 的 MT 模型默认逐字段更稳。
+    # 显式设 TRANSLATION_USE_MERGED_JSON=1/true 强制开启，=0/false 强制关闭；不设则按 provider 决定。
+    TRANSLATION_USE_MERGED_JSON: bool | None = (
+        None
+        if os.environ.get('TRANSLATION_USE_MERGED_JSON') is None
+        else os.environ.get('TRANSLATION_USE_MERGED_JSON', '').strip().lower() in ('1', 'true', 'yes', 'on')
+    )
 
     # BookService 默认缓存 TTL（秒）
     BOOK_SERVICE_CACHE_TTL: int = _SECONDS_PER_DAY  # 24 小时
@@ -210,7 +274,6 @@ class ProductionConfig(Config):
 
     # 以下配置在 Render 免费层做了硬编码优化：
     # 当前部署无 Redis，使用 simple 缓存；如需外部缓存可改为环境变量读取。
-    CACHE_TYPE: str = 'simple'
     CACHE_DEFAULT_TIMEOUT: int = 3600  # 缩短缓存时间减少内存占用
     MEMORY_CACHE_TTL: int = 300
 
@@ -245,6 +308,9 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED: bool = False
     SESSION_COOKIE_SECURE: bool = False
     API_RATE_LIMIT: int = 10000
+    # 翻译：测试固定走智谱 GLM（合并 JSON 路径稳定），不受线上默认 provider 影响；
+    # 模型名不在此固定，由服务按 provider 决定（zhipu→ZHIPU_TRANSLATION_MODEL）
+    TRANSLATION_PROVIDER: str = 'zhipu'
     SQLALCHEMY_ENGINE_OPTIONS: dict[str, object] = {
         'poolclass': StaticPool,
         'connect_args': {'check_same_thread': False},
@@ -255,5 +321,4 @@ config: dict[str, type[Config]] = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'testing': TestingConfig,
-    'default': ProductionConfig,
 }

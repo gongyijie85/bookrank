@@ -45,12 +45,7 @@ def app():
 
 @pytest.fixture(scope='session')
 def client(app):
-    """
-    创建测试客户端
-
-    Returns:
-        Flask 测试客户端
-    """
+    """创建测试客户端"""
     return app.test_client()
 
 
@@ -75,8 +70,20 @@ def db(app):
 
         yield _db
 
+        # teardown 必须保持在 app context 内：TestingConfig 用 StaticPool
+        # 共享同一条 SQLite 内存连接，drop_all/session.remove 需要在
+        # 应用上下文中执行，否则触发
+        # "RuntimeError: Working outside of application context"。
         _db.session.remove()
         _db.drop_all()
+        # 防护②（issue #167）：drop_all 后立即重建空 schema。
+        # StaticPool 下整库共用单条连接，drop_all 会清空共享内存库，
+        # 使后续仅用 client/admin_headers（不请求 db）的 HTTP 用例命中
+        # 'no such table'。重建空 schema 后：
+        # - 下一个 db 用例起始状态不变（其自身 create_all 本就幂等）；
+        # - 仅用 client 的用例始终有可用表结构；
+        # - 纯函数单测不受影响（从不触发 db fixture）。
+        _db.create_all()
 
 
 @pytest.fixture(scope='function')
@@ -317,9 +324,29 @@ def _seed_award(app, db):
     return {'award_id': award.id, 'book_id': book.id}
 
 
-@pytest.fixture
+@pytest.fixture(scope='session', autouse=True)
+def _no_scheduler_leak_at_session_end():
+    """会话结束时不得残留运行中的 APScheduler（否则解释器退出挂起/CI 噪音）。
+
+    回归：test_circe_translation.py 曾用 create_app()（默认 development 配置）
+    在测试里启动了真实调度器且从不关闭，导致退出时
+    "cannot schedule new futures after interpreter shutdown"（长跑 CI）或
+    进程挂起（本机）。测试代码只能用 create_app('testing')。
+    """
+    yield
+    from app import setup as _setup
+
+    sched = _setup._scheduler
+    assert sched is None or not sched.running, (
+        '测试会话结束时仍有运行中的 APScheduler 泄漏: '
+        f'{sched!r}。请检查是否有测试调用了 create_app()（非 testing 配置）'
+        '或启动了调度器却未关闭。'
+    )
+
+
+@pytest.fixture(autouse=True)
 def clear_auth_failures():
-    """清理 admin_auth 的失败计数，避免测试间污染。
+    """清理 admin_auth 的失败计数，避免测试间污染（全局 autouse）。
 
     注意：_auth_failures 是 admin_auth 模块级全局 dict，需要清理以避免
     跨测试用例状态污染。_persist_loaded 故意**不**重置，因为它是

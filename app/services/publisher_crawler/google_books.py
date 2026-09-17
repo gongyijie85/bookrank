@@ -16,13 +16,12 @@ API文档: https://developers.google.com/books/docs/v1/getting_started
 import logging
 import time
 from datetime import date, datetime, timedelta
-from typing import Any
 
 import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
 from ..publisher_data import parse_static_date
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +38,8 @@ class GoogleBooksCrawler(BaseCrawler):
     PUBLISHER_NAME_EN = 'Google Books'
     PUBLISHER_WEBSITE = 'https://books.google.com'
     CRAWLER_CLASS_NAME = 'GoogleBooksCrawler'
+    # Google Books 系（含各出版社变体）统一走 GOOGLE_API_KEY 注入
+    API_KEY_CONFIG = 'GOOGLE_API_KEY'
 
     BASE_URL = 'https://www.googleapis.com/books/v1/volumes'
 
@@ -97,9 +98,10 @@ class GoogleBooksCrawler(BaseCrawler):
             return False
 
         try:
+            params: dict[str, str | int] = {'q': 'test', 'maxResults': 1, 'key': self._api_key}
             resp = self._session.get(
                 self.BASE_URL,
-                params={'q': 'test', 'maxResults': 1, 'key': self._api_key},
+                params=params,
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -126,7 +128,7 @@ class GoogleBooksCrawler(BaseCrawler):
         subject: str,
         max_results: int,
         start_index: int = 0,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str | int]:
         """构建查询参数"""
         query_parts = []
         if subject and subject != 'general':
@@ -135,7 +137,7 @@ class GoogleBooksCrawler(BaseCrawler):
         if not query_parts:
             query_parts.append('books')
 
-        params = {
+        params: dict[str, str | int] = {
             'q': ' '.join(query_parts),
             'maxResults': min(max_results, 40),
             'startIndex': start_index,
@@ -148,37 +150,17 @@ class GoogleBooksCrawler(BaseCrawler):
 
         return params
 
-    def get_categories(self) -> list[dict[str, str]]:
-        return [
-            {'id': 'fiction', 'name': '小说'},
-            {'id': 'nonfiction', 'name': '非虚构'},
-            {'id': 'mystery', 'name': '悬疑'},
-            {'id': 'romance', 'name': '言情'},
-            {'id': 'thriller', 'name': '惊悚'},
-            {'id': 'science_fiction', 'name': '科幻'},
-            {'id': 'fantasy', 'name': '奇幻'},
-            {'id': 'biography', 'name': '传记'},
-            {'id': 'history', 'name': '历史'},
-            {'id': 'children', 'name': '儿童读物'},
-            {'id': 'young_adult', 'name': '青少年'},
-        ]
-
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        year_from: int | None = None,
-    ):
+    def _iter_new_books(self, request: CrawlRequest):
         """
-        获取新书列表
+        抓取新书的生成器实现
 
         Args:
-            category: 分类主题
-            max_books: 最大数量
-            year_from: 出版年份起（可选，覆盖默认的滚动天数窗口）
+            request: 抓取请求（category / max_books；backfill 忽略）
         """
+        category = request.category
+        max_books = request.max_books
         subject = category or 'fiction'
-        cutoff_date = self._compute_cutoff_date(year_from)
+        cutoff_date = self._compute_cutoff_date()
 
         logger.info(
             '正在从 Google Books 获取 %s 类新书 (>= %s)...',
@@ -279,11 +261,8 @@ class GoogleBooksCrawler(BaseCrawler):
             logger.info('Google Books 共获取 %s 本 %s 类新书', collected, subject)
 
     @classmethod
-    def _compute_cutoff_date(cls, year_from: int | None) -> date:
-        """计算"新书"截止日期：显式传 year_from 时按该年1月1日算，否则用
-        RECENCY_WINDOW_DAYS 滚动窗口（比粗粒度的"近几年"精确得多）。"""
-        if year_from:
-            return date(year_from, 1, 1)
+    def _compute_cutoff_date(cls) -> date:
+        """计算"新书"截止日期：按 RECENCY_WINDOW_DAYS 滚动窗口。"""
         return datetime.now().date() - timedelta(days=cls.RECENCY_WINDOW_DAYS)
 
     @staticmethod
@@ -409,37 +388,4 @@ class GoogleBooksCrawler(BaseCrawler):
 
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'解析 Google Books 卷信息失败: {e}', level='warning')
-            return None
-
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """获取书籍详情"""
-        if not book_url:
-            return None
-
-        try:
-            if 'volumes/' in book_url:
-                volume_id = book_url.split('volumes/')[-1]
-                url = f'{self.BASE_URL}/{volume_id}'
-            else:
-                url = book_url
-
-            params = {}
-            if self._key_is_valid and self._api_key:
-                params['key'] = self._api_key
-
-            response = self._session.get(url, params=params, timeout=self.config.timeout)
-
-            if response.status_code == 400 and self._key_is_valid:
-                self._key_is_valid = False
-                params.pop('key', None)
-                response = self._session.get(url, params=params, timeout=self.config.timeout)
-
-            response.raise_for_status()
-            data = response.json()
-
-            volume_info = data.get('volumeInfo', {})
-            return self._parse_volume_info(volume_info, 'general')
-
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'获取 Google Books 详情失败: {e}')
             return None

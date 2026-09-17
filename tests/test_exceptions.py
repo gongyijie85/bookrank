@@ -6,13 +6,8 @@ from app.utils.exceptions import (
     APIException,
     APIRateLimitException,
     BookRankException,
-    CacheMissException,
-    DatabaseError,
     DataNotFoundError,
     ExternalAPIError,
-    SecurityException,
-    ServiceUnavailableError,
-    TranslationError,
     ValidationException,
     safe_call,
     safe_service_call,
@@ -82,49 +77,6 @@ class TestDataNotFoundError:
         assert str(exc) == 'Custom not found message'
 
 
-class TestServiceUnavailableError:
-    """测试服务不可用异常"""
-
-    def test_default(self):
-        exc = ServiceUnavailableError()
-        assert 'unknown' in str(exc)
-
-    def test_custom_service(self):
-        exc = ServiceUnavailableError(service_name='Redis')
-        assert 'Redis' in str(exc)
-        assert exc.log_level == 'error'
-
-
-class TestDatabaseError:
-    """测试数据库异常"""
-
-    def test_default(self):
-        exc = DatabaseError()
-        assert 'unknown' in str(exc)
-
-    def test_custom_operation(self):
-        exc = DatabaseError('connection lost', operation='insert')
-        assert 'insert' in str(exc)
-        assert exc.operation == 'insert'
-
-
-class TestTranslationError:
-    """测试翻译异常"""
-
-    def test_default(self):
-        exc = TranslationError()
-        assert 'zh' in str(exc)
-
-    def test_custom(self):
-        exc = TranslationError(text_preview='A' * 100, target_lang='en')
-        assert 'en' in str(exc)
-        assert len(exc.text_preview) == 50
-
-    def test_short_preview(self):
-        exc = TranslationError(text_preview='Hello')
-        assert exc.text_preview == 'Hello'
-
-
 class TestAPIRateLimitException:
     """测试限流异常"""
 
@@ -136,18 +88,6 @@ class TestAPIRateLimitException:
     def test_custom_retry(self):
         exc = APIRateLimitException('slow down', retry_after=120)
         assert exc.retry_after == 120
-
-
-class TestCacheMissException:
-    """测试缓存未命中异常"""
-
-    def test_default(self):
-        exc = CacheMissException()
-        assert exc.log_level == 'debug'
-
-    def test_custom_message(self):
-        exc = CacheMissException('nyt:hardcover-fiction')
-        assert 'nyt' in str(exc)
 
 
 class TestAPIException:
@@ -177,18 +117,6 @@ class TestValidationException:
     def test_with_reason_only(self):
         exc = ValidationException(reason='too short')
         assert 'too short' in str(exc)
-
-
-class TestSecurityException:
-    """测试安全异常"""
-
-    def test_default(self):
-        exc = SecurityException()
-        assert exc.log_level == 'warning'
-
-    def test_custom_message(self):
-        exc = SecurityException('CSRF token mismatch')
-        assert 'CSRF' in str(exc)
 
 
 class TestSafeCall:

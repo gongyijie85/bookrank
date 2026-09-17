@@ -13,13 +13,27 @@ def wikidata_client():
 
 
 class TestAwardIds:
-    """测试 AWARD_IDS 常量"""
+    """AWARD_IDS 黄金映射：QID 写错是静默故障，只能整表钉死。
 
-    def test_known_awards(self):
-        assert 'nebula' in WikidataClient.AWARD_IDS
-        assert 'hugo' in WikidataClient.AWARD_IDS
-        assert 'booker' in WikidataClient.AWARD_IDS
-        assert 'pulitzer_fiction' in WikidataClient.AWARD_IDS
+    Wikidata 对任意实体都能跑通 SPARQL 并返回 200，写错只会表现为"该奖项
+    零获奖"。此前 6/7 个 QID 实际解析成 Tres / Gini coefficient / Regilde /
+    Baiocis pernanulus / Clarence Williams / Uch。改映射必须连 en 标签一起改，
+    核对入口：https://www.wikidata.org/wiki/Special:Entities
+    """
+
+    EXPECTED = {
+        'nebula': ('Q194285', 'Nebula Award'),
+        'hugo': ('Q188914', 'Hugo Award'),
+        'booker': ('Q160082', 'Booker Prize'),
+        'international_booker': ('Q2052291', 'International Booker Prize'),
+        'pulitzer_fiction': ('Q833633', 'Pulitzer Prize for Fiction'),
+        'edgar': ('Q833154', 'Edgar Awards'),
+        'nobel_literature': ('Q37922', 'Nobel Prize in Literature'),
+    }
+
+    def test_mapping_matches_verified_entities(self):
+        verified = {key: qid for key, (qid, _) in self.EXPECTED.items()}
+        assert verified == WikidataClient.AWARD_IDS
 
 
 class TestBuildSparqlQuery:

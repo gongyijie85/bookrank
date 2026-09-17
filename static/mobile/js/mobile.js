@@ -21,17 +21,64 @@
     });
 
     // ===== 2. CSRF token 缓存 =====
+    // 服务端令牌是**一次性**的：@csrf_protect 校验通过后会立即删除该令牌记录
+    // （app/utils/api_helpers.py:214-222）。因此客户端在每次变更请求后必须清空
+    // 缓存，否则同一页面上的第二次变更会因令牌已失效而收到 403。
+    // 典型故障：移动端「我的收藏」页删第一个收藏成功，之后的都失败。
     let cachedCsrfToken = null;
 
-    function getCsrfToken() {
-        if (cachedCsrfToken) return Promise.resolve(cachedCsrfToken);
-        return fetch('/api/csrf-token')
+    function getCsrfToken(forceRefresh) {
+        if (cachedCsrfToken && !forceRefresh) return Promise.resolve(cachedCsrfToken);
+        cachedCsrfToken = null;
+        return fetch('/api/csrf-token', { cache: 'no-store' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 cachedCsrfToken = (data && data.data && data.data.csrf_token) || '';
                 return cachedCsrfToken;
             })
             .catch(function () { return ''; });
+    }
+
+    /**
+     * 携带 CSRF 令牌发起请求（变更类请求请使用本方法，而非手动拼接 token）。
+     * - 令牌一次性：请求结束后清空缓存，下次自动重新获取。
+     * - 容错：若因令牌失效被拒（403 且响应含 csrf），强制刷新令牌重试一次，
+     *   用于覆盖并发变更请求共用同一令牌的场景。
+     */
+    function csrfFetch(url, options) {
+        var opts = options || {};
+        var method = (opts.method || 'GET').toUpperCase();
+        var isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].indexOf(method) !== -1;
+
+        function withToken(token) {
+            var headers = {};
+            if (opts.headers) {
+                Object.keys(opts.headers).forEach(function (k) { headers[k] = opts.headers[k]; });
+            }
+            if (token) headers['X-CSRF-Token'] = token;
+            return fetch(url, Object.assign({}, opts, { headers: headers }));
+        }
+
+        return getCsrfToken().then(withToken).then(function (response) {
+            if (!isMutation) return response;
+            cachedCsrfToken = null;
+
+            if (response.status === 403) {
+                return response.clone().text().then(function (body) {
+                    if (body && body.toLowerCase().indexOf('csrf') !== -1) {
+                        return getCsrfToken(true).then(withToken).then(function (retried) {
+                            cachedCsrfToken = null;
+                            return retried;
+                        });
+                    }
+                    return response;
+                });
+            }
+            return response;
+        }, function (err) {
+            if (isMutation) cachedCsrfToken = null;
+            throw err;
+        });
     }
 
     // ===== 3. Toast 通知 =====
@@ -54,15 +101,78 @@
         }, 2500);
     }
 
-    // ===== 4. 周报生成轮询 =====
-    let pollingTimer = null;
-    function startPolling(intervalMs) {
-        if (pollingTimer) clearInterval(pollingTimer);
-        pollingTimer = setInterval(function () {
-            fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(function () { window.location.reload(); })
-                .catch(function () {});
-        }, intervalMs || 30000);
+    // ===== 4. 封面兜底（CSP 下内联 onerror 全部失效，改为事件委托） =====
+    // 标记属性只作开关：目标地址取自常量，不从页面属性流入 src
+    const COVER_FALLBACK = '/static/default-cover.png';
+
+    function applyImageFallback(img) {
+        if (img.dataset.coverFallbackApplied === '1') return;
+        img.dataset.coverFallbackApplied = '1';
+        img.src = COVER_FALLBACK;
+    }
+
+    function initImageFallback() {
+        // img 的 error 事件不冒泡，只能在捕获阶段监听
+        document.addEventListener(
+            'error',
+            function (e) {
+                const el = e.target;
+                if (el && el.tagName === 'IMG' && el.hasAttribute('data-cover-fallback')) applyImageFallback(el);
+            },
+            true
+        );
+        // mobile.js 在 body 末尾执行，此前已失败的图片不会再触发 error，需补扫
+        document.querySelectorAll('img[data-cover-fallback]').forEach(function (img) {
+            if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
+        });
+        // /cover 冷缓存 302 到占位图时 error 不会触发，交给 cover.js 按 load 重试。
+        if (window.BookRankCover && typeof window.BookRankCover.bind === 'function') {
+            window.BookRankCover.bind(document);
+        }
+    }
+
+    // ===== 4b. 周报生成轮询（模板只放 [data-report-poll] 标记） =====
+    function initReportPolling() {
+        if (!document.querySelector('[data-report-poll]')) return;
+        const timer = setInterval(function () {
+            fetch('/api/weekly-report/status', { cache: 'no-store' })
+                .then(function (r) {
+                    return r.json();
+                })
+                .then(function (d) {
+                    if (d && d.has_current_week) {
+                        clearInterval(timer);
+                        window.location.reload();
+                    }
+                })
+                .catch(function () {
+                    /* 状态接口暂不可用，下一轮再试 */
+                });
+        }, 30000);
+    }
+
+    // ===== 4c. 首页搜索入口展开/收起（#66）=====
+    function initMobileSearchToggle() {
+        const toggle = document.getElementById('m-search-toggle');
+        const bar = document.getElementById('m-search-bar');
+        if (!toggle || !bar) return;
+        toggle.addEventListener('click', function () {
+            const expanded = toggle.getAttribute('aria-expanded') === 'true';
+            toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+            if (expanded) {
+                bar.setAttribute('hidden', '');
+            } else {
+                bar.removeAttribute('hidden');
+                const input = document.getElementById('m-search-input');
+                if (input) input.focus();
+            }
+        });
+        // 带搜索词进来时保持展开
+        const input = document.getElementById('m-search-input');
+        if (input && input.value) {
+            bar.removeAttribute('hidden');
+            toggle.setAttribute('aria-expanded', 'true');
+        }
     }
 
     // ===== 5. v0.9.78 语言切换 =====
@@ -70,6 +180,10 @@
     const APP_LANG_STORAGE_KEY = 'app_language';
 
     function getSavedLanguage() {
+        try {
+            const saved = localStorage.getItem(APP_LANG_STORAGE_KEY) || localStorage.getItem(LANG_STORAGE_KEY);
+            if (saved === 'en' || saved === 'zh') return saved;
+        } catch (e) { /* 忽略 localStorage 不可用 */ }
         return SERVER_LANGUAGE === 'en' ? 'en' : 'zh';
     }
 
@@ -198,7 +312,21 @@
             .then(function (data) {
                 if (!data || !data.data) return;
                 const details = (data.data.details || '').trim();
-                const PLACEHOLDERS = ['暂无详细介绍', 'No detailed description available.', 'No summary available.', 'No summary available'];
+                // 占位串镜像：JS 无法 import Python，这里是
+                // app/utils/api_helpers.py 的 PLACEHOLDER_TEXTS 的逐字副本。
+                // 两边必须一致 —— tests/test_placeholder_single_source.py 会断言相等，漂移即红。
+                const PLACEHOLDERS = [
+                    'No summary available.',
+                    'No summary available',
+                    'No detailed description available.',
+                    'No description available.',
+                    '暂无简介',
+                    '暂无详细介绍',
+                    '暂无详细描述',
+                    'Unknown',
+                    'N/A',
+                    'None'
+                ];
                 if (!details || PLACEHOLDERS.indexOf(details) !== -1) return;
                 // 渲染到 .m-tab-panel-extra
                 extraEl.innerHTML = '';
@@ -217,11 +345,66 @@
             .catch(function () { /* 静默失败，详情区已有元信息列表 */ });
     }
 
+    // ===== 4d. 分享（文案由模板以 data 属性传入：babel.cfg 不提取 JS） =====
+    function initShareButtons() {
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest ? e.target.closest('[data-share-url]') : null;
+            if (!btn) return;
+            e.preventDefault();
+            const url = btn.getAttribute('data-share-url');
+            const title = btn.getAttribute('data-share-title') || document.title;
+
+            function copyLink() {
+                const promptText = btn.getAttribute('data-share-prompt') || '';
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard
+                        .writeText(url)
+                        .then(function () {
+                            toast(btn.getAttribute('data-share-copied') || '');
+                        })
+                        .catch(function () {
+                            window.prompt(promptText, url);
+                        });
+                } else {
+                    window.prompt(promptText, url);
+                }
+            }
+
+            if (navigator.share) {
+                navigator.share({ title: title, url: url }).catch(copyLink);
+            } else {
+                copyLink();
+            }
+        });
+    }
+
+    // ===== 4e. 取消收藏（模板只放 .m-fav-remove[data-isbn] 标记，内联脚本会被 CSP 屏蔽） =====
+    function initFavoriteRemove() {
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest ? e.target.closest('.m-fav-remove') : null;
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const isbn = btn.getAttribute('data-isbn');
+            if (!isbn) return;
+            // 令牌一次性：csrfFetch 内部会在请求后清空缓存并在令牌失效时重试
+            csrfFetch('/api/favorites/' + encodeURIComponent(isbn), { method: 'DELETE' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        const card = btn.closest('.m-book-card');
+                        if (card) card.remove();
+                    }
+                })
+                .catch(function () { /* 失败保持原状，不误导用户已取消 */ });
+        });
+    }
+
     // ===== 暴露 API =====
     window.MobileApp = {
         getCsrfToken: getCsrfToken,
+        csrfFetch: csrfFetch,
         toast: toast,
-        startPolling: startPolling,
         getSessionId: function () {
             const m = document.cookie.match(/(?:^|; )session_id=([^;]*)/);
             return m ? m[1] : 'anonymous';
@@ -242,5 +425,10 @@
     ready(function () {
         initLangSwitcher();
         initDetailTabs();
+        initMobileSearchToggle();
+        initImageFallback();
+        initReportPolling();
+        initShareButtons();
+        initFavoriteRemove();
     });
 })();

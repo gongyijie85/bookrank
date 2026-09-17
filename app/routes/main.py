@@ -1,10 +1,13 @@
 import ipaddress
 import logging
 import re
+from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 from flask import (
     Blueprint,
+    Response,
     abort,
     current_app,
     jsonify,
@@ -15,12 +18,20 @@ from flask import (
     send_from_directory,
     url_for,
 )
+from flask_babel import get_locale
+from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
-from ..services.book_detail_service import fetch_google_books_details, is_valid_isbn, merge_or_translate_book
+from ..services.book_detail_service import enrich_book_details, merge_or_translate_book
 from ..utils import ExternalAPIError
-from ..utils.api_helpers import APIResponse, handle_api_errors, quick_clean_translation
+from ..utils.api_helpers import (
+    APIResponse,
+    handle_api_errors,
+    quick_clean_translation,
+    strip_placeholder,
+    validate_isbn,
+)
 from ..utils.book_filters import (
     filter_books_by_publisher,
     filter_books_by_search,
@@ -28,23 +39,26 @@ from ..utils.book_filters import (
     get_category_update_frequency,
     sort_books,
 )
+from ..utils.cover_urls import cached_filename_from_path, is_allowed_cover_host
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
+from ..utils.ranking import classify_listing
 from ..utils.security import is_safe_redirect_url
 from ..utils.template_resolver import render_adaptive
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 from ..utils.service_helpers import (
-    get_book_service,
     get_google_books_client,
-    get_image_cache_service,
+    get_new_book_modules,
     get_or_create_recommendation_service,
-    get_translation_service,
+    get_service,
+    get_sync_request_gate,
     hash_client_ip,
     submit_background_task,
 )
 
 main_bp = Blueprint('main', __name__)
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,21 +70,21 @@ def _get_list_published_date(books_data: list[dict]) -> str | None:
     return None
 
 
-def _get_books_for_category(category: str) -> tuple[list, str | None]:
+def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | None]:
     """获取指定分类的书籍数据（统一入口）"""
     categories = current_app.config['CATEGORIES']
     default_category = next(iter(categories.keys()))
     if category not in categories:
         category = default_category
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return [], None
 
     books_data, update_time = [], None
 
     try:
-        books = book_service.get_books_by_category(category) or []
+        books = book_service.get_books_by_category(category, **kwargs) or []
         books_data = [book.to_dict() for book in books]
     except Exception as e:
         raise ExternalAPIError(
@@ -86,6 +100,30 @@ def _get_books_for_category(category: str) -> tuple[list, str | None]:
     return books_data, update_time
 
 
+def _fetch_all_category_books(categories: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
+    """抓取全部分类的当前榜；单个分类失败时跳过该分类，不影响其余数据。"""
+    result: dict[str, list[dict[str, Any]]] = {}
+    for key in categories:
+        try:
+            books_data, _ = _get_books_for_category(key, auto_translate=False, notify_refresh=False)
+        except ExternalAPIError as e:
+            e.log()
+            continue
+        result[key] = books_data
+    return result
+
+
+def _search_all_categories(search_query: str, categories: dict[str, str]) -> list[dict[str, Any]]:
+    """跨全部分类抓取并标注来源分类（#66）；过滤由调用方的 filter_books_by_search 完成"""
+    merged: list[dict[str, Any]] = []
+    for key, books_data in _fetch_all_category_books(categories).items():
+        for idx, book in enumerate(books_data):
+            book['source_category'] = key
+            book['source_index'] = (book.get('rank') or (idx + 1)) - 1
+            merged.append(book)
+    return merged
+
+
 @main_bp.route('/')
 def index():
     """首页 - 畅销书榜单（支持多维度筛选和排序）"""
@@ -97,20 +135,27 @@ def index():
         category = default_category
 
     search_query = request.args.get('search', '').strip()[:100]
-    view_mode = request.args.get('view', 'list')
+    # 默认网格视图：15 本 4-5 列 × 3 行（用户期望；list 视图仍可切换）
+    view_mode = request.args.get('view', 'grid')
     if view_mode not in ['grid', 'list']:
-        view_mode = 'list'
+        view_mode = 'grid'
 
     publisher_filter = request.args.get('publisher', '').strip()
     weeks_filter = request.args.get('weeks', '')
     sort_by = request.args.get('sort', '')
 
-    books_data, update_time = [], None
-    try:
-        books_data, update_time = _get_books_for_category(category)
-    except ExternalAPIError as e:
-        e.log()
-        # 降级：用空列表渲染页面，不崩溃
+    books_data: list[dict[str, Any]] = []
+    update_time: str | None = None
+    if search_query:
+        # 跨全部分类搜索（#66）：不再受当前选中分类限制，结果标注来源分类
+        books_data = _search_all_categories(search_query, categories)
+        update_time = None
+    else:
+        try:
+            books_data, update_time = _get_books_for_category(category)
+        except ExternalAPIError as e:
+            e.log()
+            # 降级：用空列表渲染页面，不崩溃
 
     update_frequency = get_category_update_frequency(category)
     list_published_date = _get_list_published_date(books_data)
@@ -125,6 +170,12 @@ def index():
     if sort_by:
         books_data = sort_books(books_data, sort_by)
 
+    for book in books_data:
+        listing_status = classify_listing(book.get('rank_last_week'), book.get('weeks_on_list'))
+        book['previous_rank'] = listing_status.previous_rank
+        book['is_new'] = listing_status.is_new
+        book['is_returning'] = listing_status.is_returning
+
     publishers = sorted(
         set(
             b.get('publisher', '')
@@ -136,6 +187,16 @@ def index():
     return render_adaptive(
         'index.html',
         categories=categories,
+        category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
+        category_groups=current_app.config.get('CATEGORY_GROUPS', {}),
+        group_labels={
+            'fiction': '小说',
+            'nonfiction': '非虚构',
+            'children-ya': '儿童与青少年',
+            'business': '商业',
+            'lifestyle': '生活方式与杂项',
+            'comics': '漫画与绘本',
+        },
         books=books_data,
         current_category=category,
         search_query=search_query,
@@ -168,6 +229,79 @@ def cached_image(filename: str):
     return send_from_directory(cache_dir, safe_filename)
 
 
+def _send_cached_cover(local_path: str, max_age: int = 604800) -> Response | None:
+    """把 `/cache/images/<md5>.jpg` 直接作为响应体下发；不可用返回 None。
+
+    走 `send_from_directory` 而不是 `redirect`：外链 302 只是把不可达问题推给
+    浏览器，多一次往返且国内依旧解析失败，等于没修。
+    """
+    filename = cached_filename_from_path(local_path)
+    if not filename:
+        return None
+    cache_dir = current_app.config.get('IMAGE_CACHE_DIR', Path('cache/images'))
+    try:
+        response = make_response(send_from_directory(cache_dir, filename))
+    except NotFound:
+        return None
+    response.headers['Cache-Control'] = f'public, max-age={max_age}'
+    response.headers['X-Cover-Source'] = 'cache'
+    return response
+
+
+@main_bp.route('/cover')
+def cover_proxy():
+    """同源封面代理：只从本地缓存读字节下发，让浏览器只请求本站。
+
+    国内网络无法直连 storage.googleapis.com（NYT 榜单封面实际所在的图床）、
+    covers.openlibrary.org 等境外域名，且这些域名也不在 CSP `img-src` 白名单内，
+    表现为封面一律退化成占位图。把取图动作挪到服务端后，浏览器侧只看到
+    `/cover?src=…` 这一个同源地址，网络可达性与 CSP 两个问题一并解决。
+
+    本路由**不做同步回源**（`block=False`）：命中缓存就直接下发字节，MISS 时提交后台
+    预取并 302 回落默认封面。原因见下方 `block=False` 处的说明——热路径阻塞会拖垮
+    单 worker / 2 线程的生产配置。
+
+    失败时回落到默认封面而不是返回错误：封面缺失不应让整页渲染失败。
+    """
+    src = (request.args.get('src') or '').strip()
+    default_cover_url = url_for('static', filename='default-cover.png')
+
+    if not src or not is_allowed_cover_host(src):
+        if src:
+            logger.warning(f'拒绝代理非白名单封面源: {src[:200]}')
+        return redirect(default_cover_url, code=302)
+
+    image_cache = get_service('image_cache_service')
+    if image_cache:
+        try:
+            # ttl 取一年：封面内容基本不变，过期只会白白回源一次境外图床。
+            #
+            # block=False 是硬要求，不是优化项：本路由是**列表页热路径**，首页一屏就有
+            # 15 个封面，而生产是 workers=1 / threads=2（多 worker 会绕过进程内限流器，
+            # 见 gunicorn.conf.py 与安全审计 High #2）。若在这里同步回源，上游变慢时
+            # 3 次 10s 重试（约 31s）会把仅有的 2 个线程全占满，整站一起卡住。
+            # 仓库既有约定正是"预取与请求热路径解耦"：book_service 用 block=False
+            # 提交后台预取，冷启动整批预热交给每日的 _cover_prefetch_task
+            # （见 app/setup.py:_cover_prefetch_task 的说明）。
+            # MISS 时返回默认封面 → 本路由 302 回落并标 no-store，预取完成后
+            # 浏览器下次请求即可拿到真实字节。
+            local_path = image_cache.get_cached_image_url(src, ttl=86400 * 365, block=False)
+        except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'封面代理回源失败 {src[:200]}: {e}', level='warning')
+            local_path = ''
+
+        cached = _send_cached_cover(local_path) if local_path else None
+        if cached is not None:
+            return cached
+
+    # 注意变量不能复用：flask.redirect 的静态返回类型是 werkzeug 的 Response，
+    # 与 _send_cached_cover 的 flask.Response 互不兼容，共用一个名字会让 mypy 报错。
+    fallback = redirect(default_cover_url, code=302)
+    # 失败结果不做长缓存：图床抖动一次不该让这张封面在用户端长期锁死成占位图。
+    fallback.headers['Cache-Control'] = 'no-store'
+    return fallback
+
+
 @main_bp.route('/award-book/<int:book_id>/cover')
 def award_book_cover(book_id: int):
     """解析获奖图书封面，缺失时按 ISBN/书名补全并回写。"""
@@ -179,18 +313,32 @@ def award_book_cover(book_id: int):
         abort(404)
     sync_service = AwardCoverSyncService(
         get_google_books_client(),
-        image_cache=get_image_cache_service(),
+        image_cache=get_service('image_cache_service'),
     )
 
     try:
-        cover_url = sync_service.resolve_cover_for_book(book)
+        cover_url = sync_service._resolver.resolve(book)
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'获奖图书封面解析失败 book_id={book_id}: {e}', level='warning')
         cover_url = (book.cover_original_url or '').strip()
 
-    response = redirect(cover_url or url_for('static', filename='default-cover.png'), code=302)
-    response.headers['Cache-Control'] = 'public, max-age=3600' if cover_url else 'no-store'
-    return response
+    if not cover_url:
+        response = redirect(url_for('static', filename='default-cover.png'), code=302)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    # 解析成功时通常已是本地缓存文件，直接下发；万一回源失败只剩外链，
+    # 也必须改走同源代理——直接 302 到境外图床在国内同样是占位图。
+    cached = _send_cached_cover(cover_url, max_age=3600)
+    if cached is not None:
+        return cached
+
+    if cover_url.startswith('/'):
+        response = redirect(cover_url, code=302)
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+        return response
+
+    return redirect(url_for('main.cover_proxy', src=cover_url), code=302)
 
 
 @main_bp.route('/awards')
@@ -243,6 +391,83 @@ def _parse_awards_params(args) -> dict:
     }
 
 
+def _available_local_cover(local_path: str | None) -> str:
+    """仅在本地缓存文件确实存在时返回其路径，否则返回空串。
+
+    生产（Render 免费层）的临时文件系统会在重启后清空 cache/，而 DB 里的
+    cover_local_path 仍指向已消失的文件。模板按 `cover_local_path or
+    cover_original_url` 取值，不做这层探测就会让每张封面先白跑一个 404，
+    再靠前端回退链救回来。
+    """
+    path = (local_path or '').strip()
+    if not path:
+        return ''
+    image_cache = get_service('image_cache_service')
+    if image_cache and not image_cache.is_cached_file_present(path):
+        return ''
+    return path
+
+
+def _shape_award_book(book) -> dict:
+    """将 AwardBook ORM 对象塑形为 awards 模板所需的 dict。
+
+    title_en 取原始 DB title 供前端 data-en 使用；若原始 title 是 ISBN 脏数据
+    则退回 display_title。title_zh 同理，ISBN 脏数据直接清空。
+    """
+    from ..models.schemas import AwardBook
+
+    raw_title = (book.title or '').strip()
+    title_en = (
+        book.display_title or '' if AwardBook._looks_like_isbn(raw_title) else (raw_title or book.display_title or '')
+    )
+
+    raw_zh = quick_clean_translation(book.title_zh, 'title')
+    title_zh = '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or '')
+
+    return {
+        'id': book.id,
+        'title': book.display_title,
+        'title_en': title_en,
+        'title_zh': title_zh,
+        'description': book.description,
+        'description_zh': quick_clean_translation(book.description_zh, 'description'),
+        'details': book.details,
+        'cover_local_path': _available_local_cover(book.cover_local_path),
+        'cover_original_url': book.cover_original_url,
+        'isbn13': book.isbn13,
+        'isbn10': book.isbn10,
+        'publisher': book.publisher,
+        'publication_year': book.publication_year,
+        'year': book.year,
+        'category': book.category,
+        'award_name': book.award.name if book.award else '',
+        'award_name_en': (book.award.name_en or '') if book.award else '',
+        'buy_links': book.buy_links,
+    }
+
+
+def _build_award_sections(award_service, awards_list: list, limit: int = 12) -> list:
+    """按奖项分组的精选书列（亚马逊获奖图书页的横向书列区块）。
+
+    仅在无任何筛选条件时调用；每个奖项一次带 limit 的查询，次数受奖项数约束。
+    """
+    sections: list = []
+    for award in awards_list:
+        try:
+            books, _total = award_service.get_award_books(
+                award_id=award.id,
+                include_displayable_only=True,
+                page=1,
+                limit=limit,
+            )
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'奖项书列查询失败 award={award.name}: {e}', level='warning')
+            continue
+        if books:
+            sections.append({'award': award, 'books': [_shape_award_book(b) for b in books]})
+    return sections
+
+
 def _load_awards_data(award_service, params: dict) -> dict:
     """加载 awards() 渲染所需的所有数据，返回模板上下文 dict（含分页元信息）"""
     awards_list: list = []
@@ -287,44 +512,8 @@ def _load_awards_data(award_service, params: dict) -> dict:
             limit=params['per_page'],
         )
 
-        def _is_isbn(text: str) -> bool:
-            """简易 ISBN 检测：10/13 位纯数字（可含连字符/空格）"""
-            if not text:
-                return False
-            c = text.replace('-', '').replace(' ', '')
-            return c.isdigit() and len(c) in (10, 13)
-
         for book in books:
-            # title_en: 原始 DB title 供前端 data-en 使用；
-            # 若原始 title 是 ISBN 脏数据则退回 display_title
-            raw_title = (book.title or '').strip()
-            title_en = book.display_title or '' if _is_isbn(raw_title) else (raw_title or book.display_title or '')
-
-            # title_zh: 清理后的中文标题；ISBN 脏数据直接清空
-            raw_zh = quick_clean_translation(book.title_zh, 'title')
-            title_zh = '' if _is_isbn(raw_zh or '') else (raw_zh or '')
-
-            books_data.append(
-                {
-                    'id': book.id,
-                    'title': book.display_title,
-                    'title_en': title_en,
-                    'title_zh': title_zh,
-                    'description': book.description,
-                    'description_zh': quick_clean_translation(book.description_zh, 'description'),
-                    'details': book.details,
-                    'cover_local_path': book.cover_local_path,
-                    'cover_original_url': book.cover_original_url,
-                    'isbn13': book.isbn13,
-                    'isbn10': book.isbn10,
-                    'publisher': book.publisher,
-                    'publication_year': book.publication_year,
-                    'year': book.year,
-                    'category': book.category,
-                    'award_name': book.award.name if book.award else '未知奖项',
-                    'buy_links': book.buy_links,
-                }
-            )
+            books_data.append(_shape_award_book(book))
 
         book_counts = award_service.get_book_counts_by_award(displayable_only=True)
         for award_item in awards_list:
@@ -339,9 +528,15 @@ def _load_awards_data(award_service, params: dict) -> dict:
     page = params['page']
     total_pages = max(1, (total_books + per_page - 1) // per_page) if total_books else 1
 
+    is_browsing = not (
+        params['selected_award'] or params['selected_year'] or params['selected_category'] or params['search_query']
+    )
+    award_sections = _build_award_sections(award_service, awards_list) if is_browsing else []
+
     return {
         'awards': awards_list,
         'books': books_data,
+        'award_sections': award_sections,
         'years': years,
         'categories': categories,
         'selected_award': params['selected_award'],
@@ -358,15 +553,107 @@ def _load_awards_data(award_service, params: dict) -> dict:
     }
 
 
+RANKING_TABS = ('cross', 'longevity', 'overlooked', 'publishers')
+# 遗珠榜只看最近若干个年度的获奖记录：更早的获奖书早已离开畅销榜是常态，不构成"遗珠"
+OVERLOOKED_YEAR_SPAN = 3
+OVERLOOKED_AWARD_BOOKS_PER_YEAR = 300
+PUBLISHER_LEADERBOARD_LIMIT = 30
+LONGEVITY_LIMIT = 20
+
+
+def _load_recent_award_books(award_service, years: list[int]) -> list[dict]:
+    """逐年取可展示的获奖图书；不改 AwardBookService，避免影响其查询数回归测试。"""
+    from ..models.schemas import AwardBook
+
+    records: list[dict] = []
+    for year in years:
+        try:
+            books, _total = award_service.get_award_books(
+                year=year,
+                include_displayable_only=True,
+                page=1,
+                limit=OVERLOOKED_AWARD_BOOKS_PER_YEAR,
+            )
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'遗珠榜获奖数据加载失败 year={year}: {e}', level='warning')
+            continue
+        for book in books:
+            raw_zh = quick_clean_translation(book.title_zh, 'title')
+            records.append(
+                {
+                    'id': book.id,
+                    'title': book.display_title,
+                    'title_zh': '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or ''),
+                    'author': book.author,
+                    'publisher': book.publisher,
+                    'isbn13': book.isbn13,
+                    'year': book.year,
+                    'category': book.category,
+                    'cover_local_path': _available_local_cover(book.cover_local_path),
+                    'cover_original_url': book.cover_original_url,
+                    'award_name': book.award.name if book.award else '',
+                    'award_name_en': book.award.name_en if book.award else '',
+                }
+            )
+    return records
+
+
+@main_bp.route('/rankings')
+def rankings():
+    """派生榜单：跨榜现象级 / 长销常青榜 / 遗珠榜 / 厂牌榜，全部由现有数据二次加工"""
+    from datetime import UTC, datetime
+
+    from ..services.award_book_service import AwardBookService
+    from ..services.derived_lists_service import (
+        build_cross_list_entries,
+        build_longevity_entries,
+        build_overlooked_entries,
+        build_publisher_entries,
+    )
+
+    tab = request.args.get('tab', 'cross')
+    if tab not in RANKING_TABS:
+        tab = 'cross'
+
+    categories = current_app.config['CATEGORIES']
+    books_by_category = _fetch_all_category_books(categories)
+
+    cross_entries = [entry.to_dict() for entry in build_cross_list_entries(books_by_category)]
+    longevity_entries = [entry.to_dict() for entry in build_longevity_entries(books_by_category, limit=LONGEVITY_LIMIT)]
+    publisher_entries = [
+        entry.to_dict() for entry in build_publisher_entries(books_by_category, limit=PUBLISHER_LEADERBOARD_LIMIT)
+    ]
+
+    current_year = datetime.now(UTC).year
+    award_years = list(range(current_year, current_year - OVERLOOKED_YEAR_SPAN, -1))
+    award_books = _load_recent_award_books(AwardBookService(), award_years)
+    overlooked_entries = [entry.to_dict() for entry in build_overlooked_entries(award_books, books_by_category)]
+
+    book_service = get_service('book_service')
+    update_time = book_service.get_latest_cache_time() if book_service else None
+
+    return render_adaptive(
+        'rankings.html',
+        tab=tab,
+        cross_entries=cross_entries,
+        longevity_entries=longevity_entries,
+        overlooked_entries=overlooked_entries,
+        publisher_entries=publisher_entries,
+        award_years=award_years,
+        category_count=len(categories),
+        category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
+        update_time=update_time,
+        active_tab='rankings',
+    )
+
+
 @main_bp.route('/new-books')
 def new_books():
     """新书速递页面"""
-    from ..services.new_book_service import NewBookService
-
     params = _parse_new_books_params(request.args)
-    service = NewBookService()
-    context = _load_new_books_data(service, params)
-    return render_template('new_books.html', **context)
+    modules = get_new_book_modules()
+    context = _load_new_books_data(modules, params)
+    return render_adaptive('new_books.html', **context)
 
 
 def _parse_new_books_params(args) -> dict:
@@ -405,33 +692,33 @@ def _parse_new_books_params(args) -> dict:
     }
 
 
-def _load_new_books_data(service, params: dict) -> dict:
+def _load_new_books_data(modules, params: dict) -> dict:
     """加载 new_books() 渲染所需数据，每段查询独立降级"""
     try:
-        service.ensure_static_data_seeded()
+        get_sync_request_gate().seed_static_data(modules.sync_engine)
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'新书静态数据兜底初始化失败: {e}', level='warning')
 
     try:
-        publishers = service.get_publishers(active_only=True)
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取出版社列表失败: {e}', level='warning')
         publishers = []
 
     try:
-        publisher_book_counts = service.get_publisher_book_counts()
+        publisher_book_counts = modules.publisher_manager.get_publisher_book_counts()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取出版社图书计数失败: {e}')
         publisher_book_counts = {}
 
     try:
-        categories = service.get_categories()
+        categories = modules.query_service.get_categories()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取分类列表失败: {e}', level='warning')
         categories = []
 
     try:
-        stats = service.get_statistics()
+        stats = modules.query_service.get_statistics()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取统计数据失败: {e}', level='warning')
         stats = {
@@ -451,7 +738,7 @@ def _load_new_books_data(service, params: dict) -> dict:
 
     try:
         if search_query:
-            books, total = service.search_books(
+            books, total = modules.query_service.search_books(
                 search_query,
                 page,
                 per_page,
@@ -460,7 +747,7 @@ def _load_new_books_data(service, params: dict) -> dict:
                 days=selected_days,
             )
         else:
-            books, total = service.get_new_books(
+            books, total = modules.query_service.get_new_books(
                 publisher_id=selected_publisher,
                 category=selected_category if selected_category else None,
                 days=selected_days,
@@ -473,9 +760,20 @@ def _load_new_books_data(service, params: dict) -> dict:
 
     total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
 
+    publisher_sections: list = []
+    is_browsing = not (selected_publisher or selected_category or search_query)
+    if is_browsing:
+        try:
+            publisher_sections = _build_new_book_publisher_sections(
+                modules, publishers, publisher_book_counts, selected_days
+            )
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'新书出版社书列加载失败: {e}', level='warning')
+
     return {
         'publishers': publishers,
         'publisher_book_counts': publisher_book_counts,
+        'publisher_sections': publisher_sections,
         'categories': categories,
         'books': books,
         'stats': stats,
@@ -501,52 +799,130 @@ def favicon():
     )
 
 
+@main_bp.route('/openapi.json')
+def openapi_spec():
+    """机器可读 OpenAPI 3.1 规范（ROADMAP #1）"""
+    return send_from_directory(
+        current_app.static_folder or current_app.root_path + '/static',
+        'openapi.json',
+        mimetype='application/json',
+    )
+
+
 @main_bp.route('/about')
 def about():
     """关于我们页面"""
     return render_adaptive('about.html')
 
 
-# 静态出版社目录里,部分条目的英文名写法与新书速递数据库中的出版社记录不完全一致
-_PUBLISHER_DIRECTORY_ALIASES: dict[str, str] = {
-    'Hachette Book Group': 'Hachette',
-    'Pan Macmillan': 'Macmillan',
-}
-
-
 def _resolve_new_books_publisher_ids(publishers_data: list[dict], db_publishers: list) -> dict[str, int]:
-    """把静态出版社目录条目的 name_en 映射到新书速递数据库对应出版社的 id（仅对已抓取入库的出版社生效）"""
+    """把出版社目录条目映射到新书速递数据库对应出版社的 id（仅对已抓取入库的出版社生效）。
+
+    目录条目可用可选字段 sync_name_en 声明与 DB 出版社的关联键（名称写法不一致时），
+    缺省回退到 name_en 精确匹配。
+    """
     id_by_db_name_en = {pub.name_en: pub.id for pub in db_publishers}
     result: dict[str, int] = {}
     for cat in publishers_data:
         for pub in cat['publishers']:
             name_en = pub.get('name_en', '')
-            db_name_en = _PUBLISHER_DIRECTORY_ALIASES.get(name_en, name_en)
+            db_name_en = pub.get('sync_name_en', name_en)
             pub_id = id_by_db_name_en.get(db_name_en)
             if pub_id is not None:
                 result[name_en] = pub_id
     return result
 
 
+def _build_publisher_sections(publishers_data: list, publisher_ids: dict, modules, limit: int = 8) -> list:
+    """按出版社分类聚合的最近新书书列。
+
+    一次 get_new_books 查询 + Python 侧按 publisher_id 分桶，避免逐出版社发查询；
+    窗口沿用新书链路统一的 30 天口径，某分类 30 天内无新书则不出该栏。
+    """
+    category_index_by_id: dict[int, int] = {}
+    for idx, cat in enumerate(publishers_data):
+        for pub in cat['publishers']:
+            pid = publisher_ids.get(pub['name_en'])
+            if pid is not None:
+                category_index_by_id[pid] = idx
+    if not category_index_by_id:
+        return []
+
+    books, _total = modules.query_service.get_new_books(days=30, page=1, per_page=200)
+
+    buckets: dict[int, list] = defaultdict(list)
+    for book in books:
+        cat_idx = category_index_by_id.get(book.publisher_id)
+        if cat_idx is None or len(buckets[cat_idx]) >= limit:
+            continue
+        buckets[cat_idx].append(book)
+
+    return [
+        {
+            'category': cat['category'],
+            # 英文页按 locale 取 category_en（见 templates/publishers.html）
+            'category_en': cat.get('category_en', cat['category']),
+            'index': i + 1,
+            'books': buckets[i],
+        }
+        for i, cat in enumerate(publishers_data)
+        if buckets.get(i)
+    ]
+
+
+def _build_new_book_publisher_sections(
+    modules, publishers: list, publisher_book_counts: dict, days: int, limit: int = 8, max_sections: int = 6
+) -> list:
+    """按出版社聚合的新书书列。
+
+    沿用页面当前时间窗口，一次 get_new_books 查询 + Python 侧按 publisher_id 分桶，
+    避免逐出版社发查询；按各出版社新书数降序取前若干栏，窗口内无新书的出版社不出栏。
+    """
+    ranked = sorted(
+        (p for p in publishers if publisher_book_counts.get(p.id)),
+        key=lambda p: publisher_book_counts.get(p.id, 0),
+        reverse=True,
+    )[:max_sections]
+    wanted = {p.id: p for p in ranked}
+    if not wanted:
+        return []
+
+    books, _total = modules.query_service.get_new_books(days=days, page=1, per_page=300)
+
+    buckets: dict[int, list] = defaultdict(list)
+    for book in books:
+        if book.publisher_id in wanted and len(buckets[book.publisher_id]) < limit:
+            buckets[book.publisher_id].append(book)
+
+    return [{'publisher': wanted[pid], 'books': buckets[pid]} for pid in wanted if buckets.get(pid)]
+
+
 @main_bp.route('/publishers')
 def publishers():
     """出版社导航页面"""
-    from ..services.new_book_service import NewBookService
-
     total_publishers = sum(len(cat['publishers']) for cat in PUBLISHERS_DATA)
+    publisher_sections: list = []
 
     try:
-        service = NewBookService(translation_service=get_translation_service())
+        modules = get_new_book_modules()
         new_books_publisher_ids = _resolve_new_books_publisher_ids(
-            PUBLISHERS_DATA, service.get_publishers(active_only=True)
+            PUBLISHERS_DATA, modules.publisher_manager.get_publishers(active_only=True)
         )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'出版社跳转链接匹配失败: {e}', level='warning')
         new_books_publisher_ids = {}
+        modules = None
+
+    if modules and new_books_publisher_ids:
+        try:
+            publisher_sections = _build_publisher_sections(PUBLISHERS_DATA, new_books_publisher_ids, modules)
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'出版社新书书列加载失败: {e}', level='warning')
 
     return render_adaptive(
         'publishers.html',
         publishers_data=PUBLISHERS_DATA,
+        publisher_sections=publisher_sections,
         total_publishers=total_publishers,
         new_books_publisher_ids=new_books_publisher_ids,
         active_tab='publisher',
@@ -568,24 +944,27 @@ def analytics_dashboard():
 @main_bp.route('/new-book/<int:book_id>')
 def new_book_detail(book_id):
     """新书详情页（异步翻译，不阻塞响应）"""
-    from ..services.new_book_service import NewBookService
-
-    service = NewBookService()
-    book = service.get_book(book_id)
+    modules = get_new_book_modules()
+    book = modules.query_service.get_book(book_id)
 
     if not book:
         return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
 
     if not book.title_zh or not book.description_zh:
-        translation_service = get_translation_service()
+        translation_service = get_service('translation_service')
         if translation_service:
+            # 工作线程没有请求上下文，必须先取 app 对象再在线程里 push：db.session 是绑定
+            # app context 的 scoped session，不 push 就 "Working outside of application
+            # context"，并被 pipeline 的 except 记成 warning —— 后台中文补齐从未真正执行。
+            app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
 
             def translate_book_async():
-                service.translate_book_background(book_id, translation_service)
+                with app_obj.app_context():
+                    modules.translation_pipeline.translate_book_background(book_id, translation_service)
 
             submit_background_task(translate_book_async)
 
-    return render_template('new_book_detail.html', book=book, back_url=request.referrer or '/new-books')
+    return render_adaptive('new_book_detail.html', book=book, back_url=request.referrer or '/new-books')
 
 
 @main_bp.route('/award-book/<int:book_id>')
@@ -618,6 +997,19 @@ def award_book_detail(book_id):
             safe_title_en = display_title
             safe_title_zh = display_title
 
+        # 书名按 locale 择一，必须在视图层算：展示位有 8 个（<title>/og/twitter/面包屑/
+        # JSON-LD name+h1+h2），分属不同 block，而 Jinja 的 {% set %} 不跨 block —— 移动端
+        # structured_data 块里的 display_title 正是因此一直是 Undefined，JSON-LD 的 "name"
+        # 渲染成空串。
+        en_title = safe_title_en or display_title
+        zh_title = safe_title_zh or safe_title_en
+        if str(get_locale() or 'zh').startswith('en'):
+            shown_title, other_title = en_title or zh_title, zh_title
+            shown_desc = book.description or book.description_zh
+        else:
+            shown_title, other_title = zh_title or en_title, en_title
+            shown_desc = book.description_zh or book.description
+
         try:
             recommendation_service = get_or_create_recommendation_service()
             related_books = recommendation_service.get_similarity_recommendations(book_id=book.id).get(
@@ -630,8 +1022,11 @@ def award_book_detail(book_id):
         return render_adaptive(
             'award_book_detail.html',
             book=book,
-            safe_title_en=safe_title_en or display_title,
-            safe_title_zh=safe_title_zh or safe_title_en,
+            safe_title_en=en_title,
+            safe_title_zh=zh_title,
+            shown_title=shown_title,
+            other_title=other_title,
+            shown_desc=shown_desc,
             related_books=related_books,
             back_url=request.referrer or '/awards',
         )
@@ -661,8 +1056,8 @@ def book_detail(book_index):
     book = books_data[book_index]
 
     isbn = book.get('isbn13') or book.get('isbn10')
-    if isbn and is_valid_isbn(isbn):
-        fetch_google_books_details(book, isbn)
+    if isbn and validate_isbn(isbn):
+        enrich_book_details(book, isbn)
         merge_or_translate_book(book, isbn)
 
     return render_adaptive(
@@ -671,6 +1066,7 @@ def book_detail(book_index):
         book_index=book_index,
         category=category,
         categories=categories,
+        category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
         back_url=request.referrer or '/?category=' + category,
         active_tab='home',
     )
@@ -734,7 +1130,9 @@ def book_details_api():
         return APIResponse.error('书籍不存在', 404)
 
     book = books_data[book_index]
-    details = book.get('details') or book.get('description') or '暂无详细介绍'
+    # 占位串（'No detailed description available.' 等）不是内容：不归一化就会把
+    # 「没有详情」当成详情下发给前端。归一化后回退到简介，再回退到空态文案。
+    details = strip_placeholder(book.get('details')) or strip_placeholder(book.get('description')) or '暂无详细介绍'
 
     return APIResponse.success(data={'details': details})
 
@@ -753,7 +1151,7 @@ def api_category_books():
     update_time = None
 
     try:
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if book_service:
             try:
                 books = book_service.get_books_by_category(category)
@@ -778,6 +1176,21 @@ def api_category_books():
     )
 
 
+def _group_reports_by_month(reports: list) -> list:
+    """按月份倒序分组周报，供列表页的月度书列区块使用。
+
+    report_date 为空的脏记录直接跳过，避免分组时抛异常拖垮整页。
+    """
+    groups: dict[tuple[int, int], list] = {}
+    for report in reports:
+        report_date = getattr(report, 'report_date', None)
+        if not report_date:
+            continue
+        groups.setdefault((report_date.year, report_date.month), []).append(report)
+
+    return [{'year': y, 'month': m, 'reports': rs} for (y, m), rs in sorted(groups.items(), reverse=True)]
+
+
 @main_bp.route('/reports/weekly')
 def weekly_reports():
     """周报列表
@@ -788,7 +1201,7 @@ def weekly_reports():
     """
     from ..services.weekly_report_service import WeeklyReportService
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return render_adaptive('error.html', message='服务不可用', back_url='/')
 
@@ -802,6 +1215,7 @@ def weekly_reports():
     return render_adaptive(
         'weekly_reports.html',
         reports=reports,
+        report_sections=_group_reports_by_month(reports),
         latest_report=latest_report,
         is_generating=is_generating,
         active_tab='weekly',
@@ -820,7 +1234,7 @@ def weekly_report_status():
     from ..services.weekly_report_service import WeeklyReportService
     from ..tasks.weekly_report_task_helpers import compute_expected_week_range
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return jsonify({'error': '服务不可用'}), 503
 
@@ -846,7 +1260,7 @@ def weekly_report_detail(date):
 
     from ..services.weekly_report_service import WeeklyReportService
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
@@ -896,7 +1310,7 @@ def export_weekly_report(date):
     from ..services.export_service import ExportService
     from ..services.weekly_report_service import WeeklyReportService
 
-    book_service = get_book_service()
+    book_service = get_service('book_service')
     if not book_service:
         return render_adaptive('error.html', message='服务不可用', back_url='/reports/weekly')
 
@@ -918,7 +1332,7 @@ def export_weekly_report(date):
         if format_type not in ['pdf', 'excel']:
             return render_adaptive('error.html', message='不支持的导出格式', back_url=f'/reports/weekly/{date}')
 
-        export_config = {
+        export_config: dict[str, dict[str, Any]] = {
             'pdf': {
                 'export_method': export_service.export_weekly_report_pdf,
                 'error_message': 'PDF导出失败',

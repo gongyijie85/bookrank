@@ -9,12 +9,12 @@
 - 模块级 _translate_book_info 辅助函数
 """
 
-from collections import OrderedDict
 from unittest.mock import MagicMock, Mock, patch
 
 from app.services.zhipu_translation_service import (
     HybridTranslationService,
     ZhipuTranslationService,
+    _cached_translate_author_name,
     _translate_book_info,
     get_translation_service,
     translate_book_info,
@@ -117,6 +117,43 @@ class TestZhipuTranslationServiceInit:
         service = ZhipuTranslationService(api_key='k', app=app)
         assert service.model == 'config-model'
 
+    def test_zhipu_rollback_ignores_siliconflow_model(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='zhipu',
+            TRANSLATION_MODEL='tencent/Hunyuan-MT-7B',
+            ZHIPU_TRANSLATION_MODEL='glm-4.7-flash',
+            TRANSLATION_USE_MERGED_JSON=None,
+        )
+
+        service = ZhipuTranslationService(api_key='k', app=app)
+
+        assert service.provider == 'zhipu'
+        assert service.model == 'glm-4.7-flash'
+        assert service.use_merged_json is True
+
+    def test_siliconflow_uses_configured_model_and_field_mode(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='siliconflow',
+            TRANSLATION_MODEL='tencent/Hunyuan-MT-7B',
+            TRANSLATION_USE_MERGED_JSON=None,
+        )
+
+        service = ZhipuTranslationService(api_key='k', app=app)
+
+        assert service.provider == 'siliconflow'
+        assert service.model == 'tencent/Hunyuan-MT-7B'
+        assert service.use_merged_json is False
+
+    def test_merged_json_config_overrides_provider_default(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='siliconflow',
+            TRANSLATION_USE_MERGED_JSON=True,
+        )
+
+        service = ZhipuTranslationService(api_key='k', app=app)
+
+        assert service.use_merged_json is True
+
     def test_model_default_fallback(self):
         service = ZhipuTranslationService(api_key='k')
         assert service.model == 'glm-4.7-flash'
@@ -126,8 +163,6 @@ class TestZhipuTranslationServiceInit:
         assert service._client is None
         assert service._cache_service is None
         assert service._last_request_time == 0
-        assert isinstance(service._author_name_cache, OrderedDict)
-        assert len(service._author_name_cache) == 0
 
 
 class TestZhipuTranslationServiceAvailability:
@@ -394,7 +429,9 @@ class TestTranslateBookInfoHelper:
         result = _translate_book_info(mock_translator, book_data)
         assert result['title_zh'] == '已翻译标题'
         assert mock_translator.translate.call_count == 1
-        mock_translator.translate.assert_called_with('English Desc', target_lang='zh', field_type='description')
+        mock_translator.translate.assert_called_with(
+            'English Desc', target_lang='zh', field_type='description', context=book_data
+        )
 
     def test_skips_empty_source_fields(self):
         mock_translator = Mock()
@@ -417,7 +454,9 @@ class TestTranslateBookInfoHelper:
         mock_translator.translate.return_value = '翻訳'
         book_data = {'title': 'Book'}
         _translate_book_info(mock_translator, book_data, target_lang='ja')
-        mock_translator.translate.assert_called_once_with('Book', target_lang='ja', field_type='title')
+        mock_translator.translate.assert_called_once_with(
+            'Book', target_lang='ja', field_type='title', context=book_data
+        )
 
 
 class TestZhipuTranslationServiceTranslate:
@@ -439,7 +478,7 @@ class TestZhipuTranslationServiceTranslate:
         service, mock_client = _make_zhipu_service()
         mock_client.chat.completions.create.return_value = _make_api_response('翻译结果')
         with (
-            patch.object(service, '_postprocess_translation', return_value='翻译结果'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='翻译结果'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -463,7 +502,7 @@ class TestZhipuTranslationServiceTranslate:
         mock_client.chat.completions.create.return_value = _make_api_response('书名：测试')
         with (
             patch.object(service, '_validate_translation', return_value=False),
-            patch.object(service, '_postprocess_translation', return_value='测试'),
+            patch('app.services.zhipu_translation_service.clean_translation_text', return_value='测试'),
             patch('app.services.zhipu_translation_service.time') as mock_time,
         ):
             mock_time.time.return_value = 1000.0
@@ -483,27 +522,29 @@ class TestZhipuTranslationServiceTranslateAuthorName:
 
     def test_cached_author_returns_from_cache(self):
         service, _ = _make_zhipu_service()
-        service._author_name_cache['John Smith'] = '约翰·史密斯'
-        result = service.translate_author_name('John Smith')
-        assert result == '约翰·史密斯'
+        with patch.object(service, 'translate', return_value='约翰·史密斯') as mock_translate:
+            assert service.translate_author_name('John Smith') == '约翰·史密斯'
+            assert service.translate_author_name('John Smith') == '约翰·史密斯'
+            mock_translate.assert_called_once_with('John Smith', field_type='author')
 
-    def test_cache_eviction_when_full(self):
+    def test_lru_cache_bounds_size(self):
         service, _ = _make_zhipu_service()
-        service._author_name_cache_max_size = 5
-        for i in range(5):
-            service._author_name_cache[f'Author {i}'] = f'作者{i}'
-        with patch.object(service, 'translate', return_value='新作者'):
-            result = service.translate_author_name('New Author')
-            assert result == '新作者'
-            assert len(service._author_name_cache) <= 5
+        with patch.object(service, 'translate', return_value='作者'):
+            for i in range(1001):
+                service.translate_author_name(f'Author {i}')
+        info = _cached_translate_author_name.cache_info()
+        assert info.currsize <= 1000
 
-    def test_lru_move_to_end(self):
+    def test_lru_cache_hits_on_repeat(self):
         service, _ = _make_zhipu_service()
-        service._author_name_cache['A'] = '甲'
-        service._author_name_cache['B'] = '乙'
-        service._author_name_cache['C'] = '丙'
-        service.translate_author_name('A')
-        assert list(service._author_name_cache.keys()) == ['B', 'C', 'A']
+        with patch.object(service, 'translate', return_value='甲') as mock_translate:
+            service.translate_author_name('A')
+            service.translate_author_name('B')
+            service.translate_author_name('C')
+            service.translate_author_name('A')
+        info = _cached_translate_author_name.cache_info()
+        assert info.hits >= 1
+        assert mock_translate.call_count == 3
 
 
 class TestHybridTranslationServiceGetCacheStats:
@@ -541,3 +582,75 @@ class TestFieldPrompts:
         text_prompt = service._get_prompt_for_field('text')
         unknown_prompt = service._get_prompt_for_field('nonexistent')
         assert unknown_prompt == text_prompt
+
+
+class TestHunyuanPublishingPrompts:
+    def test_title_prompt_generalizes_semantic_adaptation_with_context(self):
+        prompt = ZhipuTranslationService._build_hunyuan_prompt(
+            'VERITY',
+            'zh',
+            'title',
+            {
+                'author': 'Colleen Hoover',
+                'category': 'Psychological thriller',
+                'description': 'A manuscript exposes a horrifying truth.',
+            },
+        )
+
+        assert '意译' in prompt
+        assert '有限创译' in prompt
+        assert '人名标题不必机械音译' in prompt
+        assert '避免生硬逐字翻译' in prompt
+        assert 'Colleen Hoover' in prompt
+        assert 'Psychological thriller' in prompt
+        assert prompt.endswith('VERITY')
+
+    def test_description_prompt_uses_confirmed_title_and_glossary(self):
+        prompt = ZhipuTranslationService._build_hunyuan_prompt(
+            'Lowen discovers a manuscript.',
+            'zh',
+            'description',
+            {
+                'title': 'Verity',
+                'title_zh': '真相',
+                'glossary': {'Lowen Ashleigh': '洛温·阿什利'},
+            },
+        )
+
+        assert '已确定中文书名：真相' in prompt
+        assert 'Lowen Ashleigh' in prompt
+        assert '洛温·阿什利' in prompt
+        assert '不改变人物关系和情节' in prompt
+
+    def test_hunyuan_request_uses_single_user_message_and_recommended_parameters(self, app):
+        app.config.update(
+            TRANSLATION_PROVIDER='siliconflow',
+            TRANSLATION_MODEL='tencent/Hunyuan-MT-7B',
+            TRANSLATION_USE_MERGED_JSON=None,
+        )
+        service, mock_client = _make_zhipu_service(app=app)
+        mock_client.chat.completions.create.return_value = _make_api_response('真相')
+
+        result = service.translate(
+            'VERITY',
+            field_type='title',
+            context={'author': 'Colleen Hoover', 'description': 'A horrifying truth is uncovered.'},
+        )
+
+        assert result == '真相'
+        request = mock_client.chat.completions.create.call_args.kwargs
+        assert [message['role'] for message in request['messages']] == ['user']
+        assert 'Colleen Hoover' in request['messages'][0]['content']
+        assert request['temperature'] == 0.7
+        assert request['top_p'] == 0.6
+        assert request['frequency_penalty'] == 0
+        assert request['extra_body'] == {'top_k': 20, 'repetition_penalty': 1.05}
+
+    def test_cache_context_changes_by_field_and_book_context(self):
+        title_context = ZhipuTranslationService.build_cache_context('title', {'author': 'Author A'})
+        other_book = ZhipuTranslationService.build_cache_context('title', {'author': 'Author B'})
+        description_context = ZhipuTranslationService.build_cache_context('description', {'author': 'Author A'})
+
+        assert title_context != other_book
+        assert title_context != description_context
+        assert ZhipuTranslationService.PROMPT_VERSION in title_context

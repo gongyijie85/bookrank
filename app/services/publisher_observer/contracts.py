@@ -1,6 +1,6 @@
 """Immutable, serialization-safe contracts for publisher observations."""
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -69,7 +69,6 @@ class ObservationReport:
     unverified_ai_candidates: tuple[TemplateCandidate, ...]
     ai_fallback_calls: int
     manifest_sha256: str | None = None
-    write_enabled: bool = field(default=False, init=False)
 
     @property
     def empty_result(self) -> bool:
@@ -96,7 +95,6 @@ class ObservationReport:
                 )
             ],
             'ai_fallback_calls': self.ai_fallback_calls,
-            'write_enabled': self.write_enabled,
             'empty_result': self.empty_result,
         }
 

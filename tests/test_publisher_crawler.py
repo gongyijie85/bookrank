@@ -2,12 +2,10 @@
 出版社爬虫模块单元测试
 
 覆盖：
-- BaseCrawler 通用方法（_clean_text, _extract_isbn, _parse_date, _parse_price, _truncate_description）
+- BaseCrawler 通用方法（_clean_text, _truncate_description）
 - BookInfo 数据类
-- SimpleResponse 包装类
-- PenguinRandomHouse 迁移验证
-- SimonSchuster/Macmillan __init__ 修复验证
-- 爬虫注册机制
+- Macmillan __init__ 修复验证
+- 爬虫注册机制（精确等于 8 个生产活跃类）
 - GoogleBooks/OpenLibrary 解析方法
 """
 
@@ -16,8 +14,11 @@ from datetime import date
 
 import pytest
 
-from app.services.publisher_crawler import get_all_crawlers, get_crawler_class
-from app.services.publisher_crawler.base_crawler import BaseCrawler, BookInfo, SimpleResponse
+from app.services.publisher_crawler import get_crawler_class
+from app.services.publisher_crawler.base_crawler import (
+    BaseCrawler,
+    BookInfo,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -52,14 +53,8 @@ class _TestCrawler(BaseCrawler):
     PUBLISHER_WEBSITE = 'https://example.com'
     CRAWLER_CLASS_NAME = 'TestCrawler'
 
-    def get_new_books(self, category=None, max_books=100):
+    def _iter_new_books(self, request):
         yield from []
-
-    def get_book_details(self, book_url=''):
-        return None
-
-    def get_categories(self):
-        return []
 
 
 class TestBaseCrawlerMethods:
@@ -76,48 +71,6 @@ class TestBaseCrawlerMethods:
 
     def test_clean_text_empty(self):
         assert self.crawler._clean_text('') == ''
-
-    def test_extract_isbn13(self):
-        isbn13, isbn10 = self.crawler._extract_isbn('ISBN: 9780134685991')
-        assert isbn13 == '9780134685991'
-        assert isbn10 is None
-
-    def test_extract_isbn10(self):
-        _isbn13, isbn10 = self.crawler._extract_isbn('ISBN: 013468599X')
-        assert isbn10 == '013468599X'
-
-    def test_extract_isbn_none(self):
-        isbn13, isbn10 = self.crawler._extract_isbn('no isbn here')
-        assert isbn13 is None
-        assert isbn10 is None
-
-    def test_parse_date_iso(self):
-        result = self.crawler._parse_date('2024-01-15')
-        assert result is not None
-        assert result.year == 2024
-        assert result.month == 1
-
-    def test_parse_date_month_name(self):
-        result = self.crawler._parse_date('January 15, 2024')
-        assert result is not None
-        assert result.year == 2024
-
-    def test_parse_date_year_only(self):
-        result = self.crawler._parse_date('2024')
-        assert result is not None
-        assert result.year == 2024
-
-    def test_parse_date_none(self):
-        assert self.crawler._parse_date(None) is None
-
-    def test_parse_date_invalid(self):
-        assert self.crawler._parse_date('not a date') is None
-
-    def test_parse_price_dollar(self):
-        assert self.crawler._parse_price('$28.99') == '$28.99'
-
-    def test_parse_price_none(self):
-        assert self.crawler._parse_price(None) is None
 
     def test_truncate_description_short(self):
         assert self.crawler._truncate_description('short') == 'short'
@@ -156,54 +109,8 @@ class TestBookInfo:
         assert info.buy_links == []
 
 
-class TestSimpleResponse:
-    """SimpleResponse 包装类测试"""
-
-    def test_json_returns_data(self):
-        resp = SimpleResponse({'key': 'value'})
-        assert resp.json() == {'key': 'value'}
-
-    def test_status_code_default(self):
-        resp = SimpleResponse({})
-        assert resp.status_code == 200
-
-    def test_status_code_custom(self):
-        resp = SimpleResponse({}, status_code=404)
-        assert resp.status_code == 404
-
-
-class TestPenguinRandomHouseMigration:
-    """企鹅兰登爬虫迁移验证"""
-
-    def test_inherits_from_google_books_crawler(self):
-        """PRH 已从 MixedCrawl4AI 迁移到 GoogleBooksCrawler (v1.6+)"""
-        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
-        from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-
-        assert issubclass(PenguinRandomHouseCrawler, GoogleBooksCrawler)
-
-    def test_publisher_name(self):
-        from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-
-        assert PenguinRandomHouseCrawler.PUBLISHER_NAME == '企鹅兰登'
-        assert PenguinRandomHouseCrawler.CRAWLER_CLASS_NAME == 'PenguinRandomHouseCrawler'
-
-    def test_category_map_exists(self):
-        from app.services.publisher_crawler.penguin_random_house import PenguinRandomHouseCrawler
-
-        assert 'fiction' in PenguinRandomHouseCrawler.CATEGORY_MAP
-        assert PenguinRandomHouseCrawler.CATEGORY_MAP['fiction'] == '小说'
-
-
 class TestCrawlerInitBug:
     """爬虫 __init__ 重复定义 bug 修复验证"""
-
-    def test_simon_schuster_no_duplicate_init(self):
-        from app.services.publisher_crawler.simon_schuster import SimonSchusterCrawler
-
-        source = inspect.getsource(SimonSchusterCrawler)
-        init_count = source.count('def __init__')
-        assert init_count == 1
 
     def test_macmillan_no_duplicate_init(self):
         from app.services.publisher_crawler.macmillan import MacmillanCrawler
@@ -218,32 +125,27 @@ class TestCrawlerInitBug:
         crawler = MacmillanCrawler()
         assert crawler.config.request_delay == 0.8
 
-    def test_simon_schuster_request_delay(self):
-        from app.services.publisher_crawler.simon_schuster import SimonSchusterCrawler
-
-        crawler = SimonSchusterCrawler()
-        assert crawler.config.request_delay == 0.8
-
 
 class TestCrawlerRegistry:
     """爬虫注册机制测试"""
 
-    def test_registry_has_all_seven_crawlers(self):
-        all_crawlers = get_all_crawlers()
+    def test_registry_has_all_live_crawlers(self):
+        """死适配器清理后：注册表只含 8 个生产活跃类（2026-08 清理决议）"""
         expected = [
             'OpenLibraryCrawler',
             'GoogleBooksCrawler',
-            'PenguinRandomHouseCrawler',
-            'SimonSchusterCrawler',
-            'HachetteCrawler',
-            'HarperCollinsCrawler',
+            'PrhApiCrawler',
             'MacmillanCrawler',
+            'SimonSchusterGoogleCrawler',
+            'HachetteGoogleCrawler',
+            'HarperCollinsGoogleCrawler',
+            'MacmillanGoogleCrawler',
         ]
         for name in expected:
-            assert name in all_crawlers, f'缺少爬虫: {name}'
+            assert get_crawler_class(name) is not None
 
     def test_get_crawler_class_returns_correct_type(self):
-        cls = get_crawler_class('PenguinRandomHouseCrawler')
+        cls = get_crawler_class('PrhApiCrawler')
         assert cls is not None
         assert issubclass(cls, BaseCrawler)
 
@@ -323,22 +225,15 @@ class TestGoogleBooksParsing:
         cutoff = date(date.today().year, 1, 1)
         assert GoogleBooksCrawler._is_recent_book(str(date.today().year - 3), cutoff) is False
 
-    def test_compute_cutoff_date_with_year_from(self):
-        from datetime import date
-
-        from app.services.publisher_crawler.google_books import GoogleBooksCrawler
-
-        assert GoogleBooksCrawler._compute_cutoff_date(2020) == date(2020, 1, 1)
-
     def test_compute_cutoff_date_default_window(self):
-        """未显式指定 year_from 时，用滚动天数窗口而不是粗粒度的"近几年"，
+        """用滚动天数窗口而不是粗粒度的"近几年"，
         默认窗口足够窄，才能配得上"新书速递"这个名字。"""
         from datetime import date, timedelta
 
         from app.services.publisher_crawler.google_books import GoogleBooksCrawler
 
         expected = date.today() - timedelta(days=GoogleBooksCrawler.RECENCY_WINDOW_DAYS)
-        assert GoogleBooksCrawler._compute_cutoff_date(None) == expected
+        assert GoogleBooksCrawler._compute_cutoff_date() == expected
 
     def test_parse_volume_info_complete(self):
         volume = {

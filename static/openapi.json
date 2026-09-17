@@ -1,0 +1,125 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BookRank Public API",
+    "version": "1.2.0",
+    "description": "纽约时报畅销书排行榜与国际图书奖项公开 API。所有请求默认返回 JSON。"
+  },
+  "servers": [
+    { "url": "https://bookrank-ckml.onrender.com", "description": "Production" }
+  ],
+  "paths": {
+    "/api/public/bestsellers": {
+      "get": {
+        "summary": "获取所有分类畅销书",
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/bestsellers/{category}": {
+      "get": {
+        "summary": "获取指定分类畅销书",
+        "parameters": [
+          { "name": "category", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/bestsellers/search": {
+      "get": {
+        "summary": "搜索畅销书",
+        "parameters": [
+          { "name": "keyword", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/awards": {
+      "get": {
+        "summary": "获取所有奖项列表",
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/awards/{award_name}": {
+      "get": {
+        "summary": "获取指定奖项的获奖图书",
+        "parameters": [
+          { "name": "award_name", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/awards/{award_name}/{year}": {
+      "get": {
+        "summary": "获取指定奖项和年份的获奖图书",
+        "parameters": [
+          { "name": "award_name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "year", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/book/{isbn}": {
+      "get": {
+        "summary": "获取图书详细信息",
+        "parameters": [
+          { "name": "isbn", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/new-books": {
+      "get": {
+        "summary": "获取新书列表",
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/new-books/{publisher_name}": {
+      "get": {
+        "summary": "获取指定出版社新书",
+        "parameters": [
+          { "name": "publisher_name", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/recommendations": {
+      "get": {
+        "summary": "获取智能推荐",
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/reports/weekly": {
+      "get": {
+        "summary": "获取周报列表",
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/reports/weekly/latest": {
+      "get": {
+        "summary": "获取最新周报",
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public/reports/weekly/{date}": {
+      "get": {
+        "summary": "根据日期获取周报",
+        "parameters": [
+          { "name": "date", "in": "path", "required": true, "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/public": {
+      "get": {
+        "summary": "API 基本信息与端点列表",
+        "responses": { "200": { "description": "Success" } }
+      }
+    }
+  },
+  "tags": [
+    { "name": "bestsellers", "description": "畅销书排行榜" },
+    { "name": "awards", "description": "国际图书奖项" },
+    { "name": "new-books", "description": "新书速递" },
+    { "name": "reports", "description": "周报" }
+  ]
+}

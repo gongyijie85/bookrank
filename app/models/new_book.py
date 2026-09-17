@@ -6,12 +6,24 @@
 
 import json
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, cast
 
 from .database import db
 
 
-class Publisher(db.Model):
+def _category_en(value: str | None) -> str | None:
+    """分类的英文显示名：复用 app.utils.book_labels 对 CATEGORY_EN_TO_ZH 的反查。
+
+    延迟导入（models 不在模块加载期依赖 utils），并且刻意不另建第二张映射表。
+    """
+    if not value:
+        return None
+    from ..utils.book_labels import category_name
+
+    return category_name(value, 'en')
+
+
+class Publisher(db.Model):  # type: ignore[name-defined]
     """
     出版社模型
 
@@ -86,7 +98,7 @@ class Publisher(db.Model):
         return f'<Publisher {self.name_en}>'
 
 
-class NewBook(db.Model):
+class NewBook(db.Model):  # type: ignore[name-defined]
     """
     新书模型
 
@@ -186,11 +198,12 @@ class NewBook(db.Model):
             'cover_url': self.cover_url,
             'cover_local': self.cover_local,
             'category': self.category,
+            'category_en': _category_en(self.category),
             'publication_date': self.publication_date.isoformat() if self.publication_date else None,
             'price': self.price,
             'page_count': self.page_count,
             'language': self.language,
-            'buy_links': json.loads(self.buy_links) if self.buy_links else [],
+            'buy_links': self.get_buy_links(),
             'source_url': self.source_url,
             'canonical_source_url': self.canonical_source_url,
             'editions': self.get_editions(),
@@ -219,18 +232,27 @@ class NewBook(db.Model):
         self.buy_links = json.dumps(links, ensure_ascii=False)
 
     def get_buy_links(self) -> list[dict[str, str]]:
-        """获取购买链接"""
-        return json.loads(self.buy_links) if self.buy_links else []
+        """获取购买链接；脏数据（非 list / 解析失败）返回空列表。"""
+        if not self.buy_links:
+            return []
+        try:
+            raw = json.loads(self.buy_links)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return raw if isinstance(raw, list) else []
 
     def set_editions(self, editions: list[dict[str, Any]]) -> None:
         """设置关联版本列表（元素含 format / isbn13 / is_main）。"""
         self.editions_json = json.dumps(editions, ensure_ascii=False)
 
     def get_editions(self) -> list[dict[str, Any]]:
-        """读取关联版本；无数据时返回空列表。"""
+        """读取关联版本；无数据/脏数据时返回空列表。"""
         if not self.editions_json:
             return []
-        raw = json.loads(self.editions_json)
+        try:
+            raw = json.loads(self.editions_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
         return raw if isinstance(raw, list) else []
 
     def set_field_provenance(self, provenance: list[dict[str, Any]]) -> None:
@@ -238,10 +260,13 @@ class NewBook(db.Model):
         self.field_provenance_json = json.dumps(provenance, ensure_ascii=False)
 
     def get_field_provenance(self) -> list[dict[str, Any]]:
-        """读取字段出处；无数据时返回空列表。"""
+        """读取字段出处；无数据/脏数据时返回空列表。"""
         if not self.field_provenance_json:
             return []
-        raw = json.loads(self.field_provenance_json)
+        try:
+            raw = json.loads(self.field_provenance_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
         return raw if isinstance(raw, list) else []
 
     def __repr__(self) -> str:
@@ -261,4 +286,4 @@ class BatchImportReceipt(db.Model):  # type: ignore[name-defined]
     created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(self.receipt_json)
+        return cast('dict[str, Any]', json.loads(self.receipt_json))

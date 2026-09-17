@@ -12,10 +12,9 @@ Penguin Random House 官方开发者 API 爬虫
 """
 
 import logging
-from collections.abc import Generator
 from datetime import date, timedelta
 
-from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig
+from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +58,12 @@ class PrhApiCrawler(BaseCrawler):
     # 能力声明：支持同步引擎按存量书数量传入窗口模式（工单 #87）
     SUPPORTS_BACKFILL = True
 
+    # 配置声明：官方 API 需要 PRH_API_KEY，缺失时引擎快速失败跳过（工单 #86）
+    API_KEY_CONFIG = 'PRH_API_KEY'
+    api_key_required = True
+    # 官方 API 的请求礼貌间隔（秒），由引擎注入配置
+    REQUEST_DELAY = 0.5
+
     # BISAC subject 描述 -> 现有分类体系的英文规范名（按顺序取首个命中）。
     # 规则顺序有讲究：更具体的类目（Young Adult/Juvenile/Science Fiction）
     # 必须先于宽泛的 FICTION 命中；TRUE CRIME 属非虚构而非 Mystery。
@@ -95,21 +100,15 @@ class PrhApiCrawler(BaseCrawler):
         if not self.config.api_key:
             raise ValueError('PrhApiCrawler 需要 PRH_API_KEY（环境变量注入）')
 
-    def get_new_books(
-        self,
-        category: str | None = None,
-        max_books: int = 100,
-        backfill: bool = False,
-    ) -> Generator[BookInfo]:
+    def _iter_new_books(self, request: CrawlRequest):
         """
-        获取 PRH 新书
+        获取 PRH 新书的生成器实现
 
         Args:
-            category: 未使用（API 窗口模式不支持分类检索，分类在入库时映射）
-            max_books: 最大产出数量（去重后计数）
-            backfill: True 走首次回填窗口（成对日期拉近 BACKFILL_WINDOW_DAYS 天），
-                False 走近 14 天增量窗口；模式由同步引擎判定传入，爬虫无状态
+            request: 抓取请求（category 未使用；backfill 走回填窗口，爬虫无状态）
         """
+        max_books = request.max_books
+        backfill = request.backfill
         if backfill:
             window_end = date.today()
             window_start = window_end - timedelta(days=self.BACKFILL_WINDOW_DAYS)
@@ -130,14 +129,6 @@ class PrhApiCrawler(BaseCrawler):
             yielded += 1
             if yielded >= max_books:
                 break
-
-    def get_book_details(self, book_url: str) -> BookInfo | None:
-        """不支持详情页抓取（列表端点已包含所需字段）"""
-        return None
-
-    def get_categories(self) -> list[dict[str, str]]:
-        """API 窗口模式不支持分类检索"""
-        return []
 
     # ---------- 请求与分页 ----------
 

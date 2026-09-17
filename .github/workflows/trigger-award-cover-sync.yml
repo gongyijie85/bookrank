@@ -1,0 +1,75 @@
+name: Trigger Award Cover Sync
+
+# 为什么需要外部 cron 而不是应用内定时器：
+# 1. Procfile 用 `gunicorn --preload` 启动，应用在 master 进程导入期就调用了
+#    create_app → init_services → _scheduler.start()。fork 不继承父进程线程，
+#    因此 worker 里根本没有 APScheduler 线程，应用内定时器在生产从不执行。
+# 2. Render 免费层 15 分钟无请求即休眠，进程内定时器还会被休眠打断
+#    （同类结论见 issue #76 与 trigger-new-books-sync.yml 注释）。
+#
+# 生产临时文件系统会在重启后清空 cache/，而 DB 的 cover_local_path 仍指向已消失
+# 的文件；同步服务会把这类记录视为缺失并重新下载，所以必须有个外部触发兜底。
+# APScheduler 的每日任务保留作兜底，服务内置防重入，两套机制并存不会并发同步。
+
+on:
+  schedule:
+    # 每日 08:20 UTC，错开 08:00 的新书同步，避免同时打满外部 API 配额
+    - cron: '20 8 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: trigger-award-cover-sync
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Wake up Render app (free tier cold start)
+        env:
+          BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+        run: |
+          echo "唤醒 Render 应用（免费层冷启动）..."
+          curl -s --max-time 30 \
+            "${BASE_URL}/api/health" > /dev/null || true
+          echo "等待冷启动完成..."
+          sleep 15
+
+      - name: Trigger award cover sync
+        env:
+          BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -e
+          MAX_RETRIES=3
+          RETRY_DELAY=30
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "尝试 $i/$MAX_RETRIES: 触发获奖封面补同步..."
+
+            HTTP_CODE=$(curl -s -o /tmp/award-cover-sync-response.json -w '%{http_code}' \
+              --max-time 60 \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
+              "${BASE_URL}/api/cron/sync-award-covers")
+
+            echo "HTTP 状态码: $HTTP_CODE"
+            cat /tmp/award-cover-sync-response.json | python3 -m json.tool || cat /tmp/award-cover-sync-response.json
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ 封面同步触发成功（后台执行，结果见服务器日志）"
+              exit 0
+            elif [ "$HTTP_CODE" = "401" ]; then
+              echo "❌ 认证失败，请检查 CRON_SECRET"
+              exit 1
+            fi
+
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "请求失败，${RETRY_DELAY}秒后重试..."
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo "❌ $MAX_RETRIES 次尝试后仍失败"
+          exit 1

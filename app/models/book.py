@@ -39,6 +39,16 @@ class Book:
         data['title_zh'] = quick_clean_translation(self.title_zh, 'title')
         data['description_zh'] = quick_clean_translation(self.description_zh, 'description')
         data['details_zh'] = quick_clean_translation(self.details_zh, 'details')
+        # dataclass `_original_cover`（下划线前缀）不被 asdict 收集；显式暴露
+        # 供模板做「缓存未就绪时显示原始封面」回退（封面异步化 #178 后由
+        # cover 字段承载本地缓存路径，原始 URL 需独立保留）。
+        data['_original_cover'] = self._original_cover or ''
+
+        # 应用翻译覆盖（共享助手，见 utils/translation_overrides）
+        from ..utils.translation_overrides import apply_translation_overrides
+
+        apply_translation_overrides(data)
+
         return data
 
     @classmethod
@@ -59,6 +69,12 @@ class Book:
         supplement: dict,
     ) -> 'Book':
         """从API响应创建Book对象"""
+        # 占位串（'No summary available.' / 'No detailed description available.'）在语义上
+        # 等于 NULL，不是数据。历史上这里把它们当默认值落库，于是「没有详情」被伪装成
+        # 「已有详情」：book_detail_service 的 needs_details 判断因此永远为假，详情补齐
+        # 路径被彻底封死，详情页表现为「详细信息」整块消失。归一化在写入边界完成。
+        from ..utils.api_helpers import strip_placeholder
+
         raw_isbn13 = book_data.get('primary_isbn13', '')
         raw_isbn10 = book_data.get('primary_isbn10', '')
         isbn = raw_isbn13 if cls._is_valid_isbn(raw_isbn13) else ''
@@ -93,8 +109,8 @@ class Book:
             weeks_on_list=book_data.get('weeks_on_list', 0),
             rank_last_week=book_data.get('rank_last_week', '无'),
             published_date=published_date,
-            description=book_data.get('description', 'No summary available.'),
-            details=supplement.get('details', 'No detailed description available.'),
+            description=strip_placeholder(book_data.get('description')),
+            details=strip_placeholder(supplement.get('details')),
             publication_dt=supplement.get('publication_dt', 'Unknown'),
             page_count=str(supplement.get('page_count', 'Unknown')),
             language=supplement.get('language', 'Unknown'),

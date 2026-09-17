@@ -10,6 +10,8 @@ bind = '0.0.0.0:' + os.environ.get('PORT', '10000')
 
 # 工作进程数
 # Render 免费版 512MB 内存：1 个 worker 最合适
+# 安全约束：API 限流器为进程内存实现，多 worker 下计数不共享、限流可被绕过，
+# 因此生产环境必须保持 WEB_CONCURRENCY=1（见安全审计报告 High #2）。多 worker 需先接入 Redis/Memcached。
 workers = int(os.environ.get('WEB_CONCURRENCY', 1))
 
 # 工作进程类型（使用 gthread 允许单 worker 处理并发请求，比 sync 更高效）

@@ -26,7 +26,7 @@ from .services import (
 )
 from .utils import RateLimiter
 from .utils.error_handler import ErrorCategory, log_error
-from .utils.service_helpers import register_service
+from .utils.service_helpers import register_service, require_service
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,10 @@ def init_services(app):
     if image_cache:
         register_service(app, 'image_cache_service', image_cache)
     translation_service = _init_translation_service(app)
+
+    _init_sync_request_gate(app)
+
+    _init_new_book_modules(app, translation_service)
 
     book_service = _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg)
 
@@ -144,6 +148,39 @@ def _init_translation_service(app):
         return None
 
 
+def _init_sync_request_gate(app):
+    """注册同步请求闸门（无依赖，装配不可能失败；仍按惯例容错）。"""
+    try:
+        from .services.sync_request_gate import SyncRequestGate
+
+        register_service(app, 'sync_request_gate', SyncRequestGate())
+    except Exception as e:
+        log_error(ErrorCategory.UNKNOWN, f'同步请求闸门初始化失败: {e}', level='warning')
+
+
+def _init_new_book_modules(app, translation_service):
+    """装配新书速递子模块并注册到 app.extensions（启动时一次性绑定翻译器）。"""
+    try:
+        from .services.new_book import create_new_book_modules
+
+        modules = create_new_book_modules(translation_service=translation_service)
+        register_service(app, 'new_book_modules', modules)
+        app.logger.info('新书速递子模块初始化成功')
+        return modules
+    except Exception as e:
+        # code review #154：装配失败时注册"空装配"降级（翻译器缺位），
+        # 保证 require_service('new_book_modules') 不再抛错、相关路由不裸 500。
+        # 仍只有装配工厂这一个装配入口。
+        log_error(ErrorCategory.UNKNOWN, f'新书速递子模块装配失败，降级为空装配: {e}', level='warning')
+        try:
+            modules = create_new_book_modules(translation_service=None)
+            register_service(app, 'new_book_modules', modules)
+            return modules
+        except Exception:
+            log_error(ErrorCategory.UNKNOWN, '新书速递子模块降级装配也失败', level='error')
+            return None
+
+
 def _init_book_service(nyt_client, google_client, cache_service, image_cache, app, cfg):
     """初始化图书服务"""
     if not nyt_client or not cache_service:
@@ -213,7 +250,11 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     cover_sync_delay = 120 if is_render_free else 60
 
     _scheduler = BackgroundScheduler(
-        daemon=False,  # 非 daemon：进程退出前等待任务完成
+        # daemon 线程：非 daemon 主循环线程会被 threading._shutdown 在 atexit 之前
+        # join，导致解释器退出挂起（或退出时提交到期任务报 "cannot schedule new
+        # futures after interpreter shutdown"）。运行中任务的完成等待由 atexit 注册的
+        # shutdown_scheduler(wait=True) 保证。
+        daemon=True,
         job_defaults={
             'coalesce': True,  # 合并错过的执行
             'max_instances': 1,  # 防止重叠执行
@@ -257,22 +298,21 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     translation_status = '含翻译' if translation_service else '不含翻译'
     app.logger.info(f'📅 新书速递自动同步已安排（每天，首次{initial_delay * 2}秒后，{translation_status}）')
 
-    # 3. NYT排行榜自动同步（每周一次）：刷新榜单、补充资料、翻译并写入语言包
+    # 3. NYT排行榜自动同步：每天检查，完整成功后按配置的周期间隔跳过
     if book_service:
         from datetime import timedelta
 
-        interval_days = app.config.get('NYT_RANKING_SYNC_DAYS', 7)
         _scheduler.add_job(
             func=_scheduler_wrapper(app, _nyt_ranking_sync_task),
             trigger=IntervalTrigger(
-                days=interval_days,
+                days=1,
                 start_date=now + timedelta(seconds=initial_delay * 3),
                 timezone=UTC,
             ),
             id='nyt_ranking_sync',
             name='NYT排行榜语言包同步',
         )
-        app.logger.info(f'📅 NYT排行榜语言包同步已安排（每{interval_days}天，首次{initial_delay * 3}秒后）')
+        app.logger.info(f'📅 NYT排行榜语言包同步已安排（每日检查，首次{initial_delay * 3}秒后）')
 
     # 4. 获奖书籍封面同步（每天一次，延迟执行）
     if google_client:
@@ -301,6 +341,43 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
             name='翻译缓存自动清理',
         )
         app.logger.info('📅 翻译缓存自动清理已安排（每30分钟，首次600秒后）')
+
+    # 5b. API 缓存过期记录清理（每 24 小时一次，防表膨胀）
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _api_cache_expired_cleanup_task),
+        trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay), timezone=UTC),
+        id='api_cache_cleanup',
+        name='API缓存过期记录清理',
+    )
+    app.logger.info('📅 API缓存过期记录清理已安排（每24小时）')
+
+    # 5c. 畅销书封面热度预取（每日一次，次冷启动后从缓存收集 URL 后台下载）
+    if book_service:
+        _scheduler.add_job(
+            func=_scheduler_wrapper(app, _cover_prefetch_task),
+            trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay * 2), timezone=UTC),
+            id='cover_prefetch',
+            name='畅销书封面热度预取',
+        )
+        app.logger.info('📅 畅销书封面热度预取已安排（每天一次）')
+
+    # 5d. 爬虫选择器漂移告警（每日一次，ROADMAP #2）
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _crawler_drift_alert_task),
+        trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay * 3), timezone=UTC),
+        id='crawler_drift_alert',
+        name='爬虫选择器漂移告警',
+    )
+    app.logger.info('📅 爬虫选择器漂移告警已安排（每天一次）')
+
+    # 5e. Render 资源阈值告警（每日一次，ROADMAP #8）
+    _scheduler.add_job(
+        func=_scheduler_wrapper(app, _resource_threshold_alert_task),
+        trigger=IntervalTrigger(days=1, start_date=now + timedelta(seconds=initial_delay * 4), timezone=UTC),
+        id='resource_threshold_alert',
+        name='资源阈值告警',
+    )
+    app.logger.info('📅 资源阈值告警已安排（每天一次）')
 
     # 6. 翻译数据清理和预置获奖图书补种（一次性，延迟到后台执行，减轻冷启动负担）
     from datetime import timedelta
@@ -434,6 +511,146 @@ def _translation_cache_cleanup_task(app):
         log_error(ErrorCategory.CACHE, f'翻译缓存自动清理跳过: {e}', level='warning')
 
 
+def _api_cache_expired_cleanup_task(app):
+    """API 缓存表过期记录清理（每日一次，防 APICache 表无界膨胀）"""
+    try:
+        with app.app_context():
+            from .services.api_cache_service import get_api_cache_service
+
+            cache_svc = get_api_cache_service()
+            deleted = cache_svc.clear_expired()
+            app.logger.info('API 缓存过期记录已清理: %d 条', deleted)
+    except Exception as e:
+        log_error(ErrorCategory.CACHE, f'API 缓存过期清理跳过: {e}', level='warning')
+
+
+def _crawler_drift_alert_task(app):
+    """爬虫选择器漂移告警（每日一次，ROADMAP #2）。
+
+    读 last_auto_sync_result 识别疑似漂移出版社；有候选时推 webhook
+    （复用 ALERT_WEBHOOK_URL），无 webhook 时仅日志留痕。
+    """
+    try:
+        with app.app_context():
+            from .services.crawler_drift_detector import drift_report
+
+            report = drift_report()
+            drifted = report.get('drifted', [])
+            if not drifted:
+                app.logger.info('爬虫漂移检查通过（%d 家出版社无异常）', report.get('total_publishers', 0))
+                return
+
+            payload = {
+                'task': 'crawler_drift',
+                'level': 'warning',
+                'drifted': [{'publisher': d['publisher'], 'reasons': d['reasons']} for d in drifted],
+                'observed_at': report.get('observed_at'),
+            }
+            webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
+            if webhook_url:
+                try:
+                    import requests
+
+                    requests.post(webhook_url, json=payload, timeout=10)
+                    app.logger.warning('⚠️ 爬虫漂移告警已发送: %s', [d['publisher'] for d in drifted])
+                except Exception as exc:
+                    app.logger.warning('爬虫漂移告警 webhook 发送失败: %s', exc)
+            else:
+                app.logger.warning('⚠️ 爬虫漂移候选（无 webhook，仅日志）: %s', payload['drifted'])
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'爬虫漂移检查跳过: {e}', level='warning')
+
+
+def _resource_threshold_alert_task(app):
+    """Render 资源阈值告警（每日一次，ROADMAP #8）。
+
+    检查进程内存 RSS 与百分比；超过阈值时推 webhook（复用
+    ALERT_WEBHOOK_URL），无 webhook 时仅日志。
+    """
+    try:
+        import psutil
+
+        mem_mb_limit = float(os.environ.get('MEMORY_ALERT_MB', '400'))
+        mem_pct_limit = float(os.environ.get('MEMORY_ALERT_PERCENT', '80'))
+
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        rss_mb = round(memory_info.rss / (1024 * 1024), 2)
+        mem_pct = round(process.memory_percent(), 2)
+
+        exceeded: list[str] = []
+        if rss_mb > mem_mb_limit:
+            exceeded.append(f'rss={rss_mb}MB > {mem_mb_limit}MB')
+        if mem_pct > mem_pct_limit:
+            exceeded.append(f'mem_pct={mem_pct}% > {mem_pct_limit}%')
+        if not exceeded:
+            app.logger.info('资源阈值检查通过（rss=%sMB, pct=%s%%）', rss_mb, mem_pct)
+            return
+
+        payload = {
+            'task': 'resource_threshold',
+            'level': 'alert',
+            'thresholds': {'mem_mb_limit': mem_mb_limit, 'mem_pct_limit': mem_pct_limit},
+            'current': {'rss_mb': rss_mb, 'memory_percent': mem_pct},
+            'exceeded': exceeded,
+            'timestamp': datetime.now(UTC).isoformat(),
+        }
+        webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
+        if webhook_url:
+            try:
+                import requests
+
+                requests.post(webhook_url, json=payload, timeout=10)
+                app.logger.warning('⚠️ 资源阈值告警已发送: %s', exceeded)
+            except Exception as exc:
+                app.logger.warning('资源阈值告警 webhook 发送失败: %s', exc)
+        else:
+            app.logger.warning('⚠️ 资源超阈值（无 webhook，仅日志）: %s', exceeded)
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'资源阈值检查跳过: {e}', level='warning')
+
+
+def _cover_prefetch_task(app):
+    """畅销书封面热度预取（每日一次）：从缓存收集原始封面 URL 后台预取。
+
+    预取与请求热路径解耦：book_service 的 block=False 已在请求线程序列化
+    提交预取；本任务兜底整批预热（例如冷启动后缓存键全部 MISS）。
+    遍历各分类 get_books_by_category（缓存命中时零网络），收集 Book 的
+    _original_cover 字段后批量 prefetch_many 后台下载。
+    """
+    try:
+        with app.app_context():
+            from .services.api_utils import _is_safe_image_url
+            from .utils.service_helpers import get_service
+
+            image_cache = get_service('image_cache_service')
+            if not image_cache:
+                app.logger.info('封面预取跳过：无 image_cache_service')
+                return
+
+            book_service = get_service('book_service')
+            if not book_service:
+                return
+
+            urls: list[str] = []
+            for category in app.config.get('CATEGORIES', {}):
+                try:
+                    books = book_service.get_books_by_category(category, auto_translate=False, notify_refresh=False)
+                except Exception as e:
+                    log_error(ErrorCategory.API_CALL, f'封面预取分类 {category} 失败: {e}', level='warning')
+                    continue
+                for book in books:
+                    cover = getattr(book, '_original_cover', '') or getattr(book, 'cover', '')
+                    if cover and _is_safe_image_url(cover):
+                        urls.append(cover)
+
+            if urls:
+                image_cache.prefetch_many(urls)
+                app.logger.info(f'畅销书封面预取已提交: {len(urls)} 个 URL（去重后）')
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'畅销书封面预取跳过: {e}', level='warning')
+
+
 def _deferred_init_task(app):
     """延迟初始化任务：翻译数据清理 + 预置获奖图书补种（从冷启动路径移出）"""
     try:
@@ -495,10 +712,7 @@ def run_auto_sync() -> dict:
     """
     from flask import current_app
 
-    from .services.new_book_service import NewBookService
-    from .utils.service_helpers import get_translation_service
-
-    service = NewBookService(translation_service=get_translation_service())
+    modules = require_service('new_book_modules')
 
     last_sync = SystemConfig.get_value('last_auto_sync_time')
     if last_sync:
@@ -510,8 +724,8 @@ def run_auto_sync() -> dict:
             return {'status': 'skipped', 'reason': f'距离上次同步仅 {hours_since:.1f} 小时'}
 
     current_app.logger.info('开始自动同步新书数据...')
-    service.init_publishers()
-    results = service.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
+    modules.publisher_manager.init_publishers()
+    results = modules.sync_engine.sync_all_publishers(max_books_per_publisher=15, batch_size=1)
 
     total_added = sum(r.get('added', 0) for r in results)
     total_updated = sum(r.get('updated', 0) for r in results)
@@ -623,9 +837,9 @@ def trigger_auto_sync_background(app) -> dict:
 def _nyt_ranking_sync_task(app):
     """NYT排行榜自动同步任务：强制刷新榜单并写入中文语言包。"""
     try:
-        from .utils.service_helpers import get_book_service, get_translation_service
+        from .utils.service_helpers import get_service
 
-        service = get_book_service()
+        service = get_service('book_service')
         if not service:
             app.logger.warning('缺少 BookService，跳过NYT排行榜同步')
             return
@@ -645,7 +859,7 @@ def _nyt_ranking_sync_task(app):
         results = service.sync_all_categories(
             force_refresh=True,
             translate=True,
-            translator=get_translation_service(),
+            translator=get_service('translation_service'),
         )
 
         successful = [result for result in results if result.get('success')]
@@ -654,7 +868,7 @@ def _nyt_ranking_sync_task(app):
         translated_fields = sum(result.get('language_pack', {}).get('fields_translated', 0) for result in successful)
         failures = [result for result in results if not result.get('success')]
 
-        if successful:
+        if successful and not failures:
             from .models import db
 
             SystemConfig.set_value('last_nyt_ranking_sync_time', datetime.now(UTC).isoformat())
@@ -681,7 +895,7 @@ def _cover_sync_task(app):
     """获奖书籍封面自动同步任务"""
     try:
         from .services.award_cover_sync_service import AwardCoverSyncService
-        from .utils.service_helpers import get_image_cache_service
+        from .utils.service_helpers import get_service
 
         app.logger.info('开始检查获奖书籍封面...')
 
@@ -691,7 +905,7 @@ def _cover_sync_task(app):
 
         sync_service = AwardCoverSyncService(
             google_client,
-            image_cache=get_image_cache_service(),
+            image_cache=get_service('image_cache_service'),
         )
 
         result = sync_service.sync_missing_covers(batch_size=30, delay=0.5)

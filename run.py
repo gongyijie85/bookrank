@@ -10,6 +10,7 @@ Render 部署启动入口（免费版优化版）
 import logging
 import os
 import threading
+from typing import Any, cast
 
 from sqlalchemy import inspect
 
@@ -17,6 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from app import app, db
+from app.utils.space_runtime import is_space_runtime
 
 _db_init_lock = threading.Lock()
 _db_initialized = False
@@ -53,7 +55,7 @@ def _cleanup_dirty_translations():
         from app.models.new_book import NewBook
 
         try:
-            records = NewBook.query.filter(NewBook.title_zh.isnot(None)).all()
+            records = NewBook.query.filter(cast('Any', NewBook.title_zh).is_not(None)).all()
             for record in records:
                 original = record.title_zh
                 cleaned = clean_translation_text(original, 'title')
@@ -81,6 +83,9 @@ def _run_migrations():
     try:
         result = db.session.execute(db.text('SELECT version_num FROM alembic_version')).fetchone()
         if result:
+            if is_space_runtime():
+                logger.info(f'数据库已有迁移版本 {result[0]}，跳过 upgrade 以免独占 Space 唯一 worker')
+                return True
             from flask_migrate import upgrade as _upgrade
 
             _upgrade()
@@ -88,7 +93,15 @@ def _run_migrations():
             return True
     except Exception:
         db.session.rollback()
-        logger.info('alembic_version 表不存在，需要检查当前 schema')
+        logger.info('迁移升级失败或 alembic_version 表不存在，尝试清理并重新 stamp')
+
+    # 迁移失败时：清理 alembic_version，检查 schema 后重新 stamp
+    try:
+        db.session.execute(db.text('DELETE FROM alembic_version'))
+        db.session.commit()
+        logger.info('已清理 alembic_version 表')
+    except Exception:
+        db.session.rollback()
 
     has_app_tables, schema_is_current = _inspect_schema_state()
     if schema_is_current:
@@ -182,10 +195,10 @@ def _init_database_lazy():
 
                 if db.session.query(Publisher).count() == 0:
                     logger.info('初始化出版社数据...')
-                    from app.services.new_book_service import NewBookService
+                    from app.services.new_book import create_new_book_modules
 
-                    service = NewBookService()
-                    service.init_publishers()
+                    modules = create_new_book_modules()
+                    modules.publisher_manager.init_publishers()
 
             except Exception as e:
                 logger.warning(f'基础数据初始化跳过: {e}')

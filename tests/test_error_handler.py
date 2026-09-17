@@ -14,8 +14,6 @@ class TestErrorCategory:
             ErrorCategory.TRANSLATION,
             ErrorCategory.CACHE,
             ErrorCategory.CRAWLER,
-            ErrorCategory.EMAIL,
-            ErrorCategory.AUTH,
             ErrorCategory.UNKNOWN,
         ]
         for cat in categories:

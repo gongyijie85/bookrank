@@ -52,14 +52,14 @@ def _count_rows() -> dict[str, int | str]:
 
 def _seed_base_data() -> None:
     from app.initialization import init_awards_data, init_sample_books
-    from app.services.new_book_service import NewBookService
+    from app.services.new_book import create_new_book_modules
 
     init_awards_data(app)
     init_sample_books(app)
 
-    service = NewBookService()
-    service.init_publishers()
-    service.ensure_static_data_seeded()
+    modules = create_new_book_modules()
+    modules.publisher_manager.init_publishers()
+    modules.sync_engine.ensure_static_data_seeded()
 
 
 def main() -> int:

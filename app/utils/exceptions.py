@@ -5,14 +5,9 @@
   BookRankException (基类)
     ├── ExternalAPIError        # 外部 API 调用失败 (NYT, Google Books 等)
     ├── DataNotFoundError       # 数据不存在
-    ├── ServiceUnavailableError # 服务未初始化/不可用
-    ├── DatabaseError           # 数据库操作失败
-    ├── TranslationError        # 翻译服务失败
     ├── APIRateLimitException   # 速率限制
-    ├── CacheMissException      # 缓存未命中
     ├── APIException            # API 调用通用异常
-    ├── ValidationException     # 输入验证失败
-    └── SecurityException       # 安全相关异常
+    └── ValidationException     # 输入验证失败
 """
 
 import functools
@@ -68,44 +63,12 @@ class DataNotFoundError(BookRankException):
         super().__init__(f'{resource_type} not found: {resource_id}' if resource_id else message, log_level='info')
 
 
-class ServiceUnavailableError(BookRankException):
-    """服务未初始化或不可用"""
-
-    def __init__(self, message: str = 'Service unavailable', *, service_name: str = 'unknown'):
-        self.service_name = service_name
-        super().__init__(f"Service '{service_name}' is not available", log_level='error')
-
-
-class DatabaseError(BookRankException):
-    """数据库操作失败"""
-
-    def __init__(self, message: str = 'Database operation failed', *, operation: str = 'unknown'):
-        self.operation = operation
-        super().__init__(f'Database {operation} failed: {message}', log_level='error')
-
-
-class TranslationError(BookRankException):
-    """翻译服务失败"""
-
-    def __init__(self, message: str = 'Translation failed', *, text_preview: str = '', target_lang: str = 'zh'):
-        self.text_preview = text_preview[:50]
-        self.target_lang = target_lang
-        super().__init__(f"Translation to {target_lang} failed for: '{self.text_preview}...'", log_level='warning')
-
-
 class APIRateLimitException(BookRankException):
     """API限流异常"""
 
     def __init__(self, message: str = 'API rate limit exceeded', *, retry_after: int = 60):
         self.retry_after = retry_after
         super().__init__(message, log_level='warning')
-
-
-class CacheMissException(BookRankException):
-    """缓存未命中异常"""
-
-    def __init__(self, message: str = 'Cache miss'):
-        super().__init__(message, log_level='debug')
 
 
 class APIException(BookRankException):
@@ -124,13 +87,6 @@ class ValidationException(BookRankException):
         self.reason = reason
         detail = f"field='{field}': {reason}" if field else reason
         super().__init__(f'Validation error: {detail}' if detail else message, log_level='info')
-
-
-class SecurityException(BookRankException):
-    """安全相关异常"""
-
-    def __init__(self, message: str = 'Security violation'):
-        super().__init__(message, log_level='warning')
 
 
 # ==================== 工具函数 ====================

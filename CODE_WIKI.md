@@ -40,7 +40,7 @@
                          │
 ┌────────────────────────▼─────────────────────────────────┐
 │                     服务层 (Services)                      │
-│  BookService │ NewBookService │ AwardBookService           │
+│  BookService │ new_book 子模块 │ AwardBookService          │
 │  WeeklyReportService │ UserService │ RecommendationService │
 │  ZhipuTranslationService │ CacheService │ ExportService    │
 │  SmartSearchService │ BookLanguagePack                     │
@@ -50,12 +50,12 @@
 │   外部 API 客户端  │ │   数据模型层   │ │  爬虫子系统        │
 │ NYTApiClient    │ │ Book(dataclass)│ │ BaseCrawler       │
 │ GoogleBooksClient│ │ BookMetadata  │ │ GoogleBooksCrawler│
-│ OpenLibraryClient│ │ AwardBook     │ │ PenguinRHCrawler  │
-│ WikidataClient  │ │ NewBook       │ │ HachetteCrawler   │
-│                 │ │ WeeklyReport  │ │ HarperCollinsCrawler│
-│                 │ │ TranslationCache│ │ MacmillanCrawler │
-│                 │ │ APICache      │ │ SimonSchusterCrawler│
-│                 │ │ SystemConfig  │ │ OpenLibraryCrawler│
+│ OpenLibraryClient│ │ AwardBook     │ │ PrhApiCrawler     │
+│ WikidataClient  │ │ NewBook       │ │ GoogleBooksPublisher│
+│                 │ │ WeeklyReport  │ │ MacmillanCrawler  │
+│                 │ │ TranslationCache│ │ OpenLibraryCrawler│
+│                 │ │ APICache      │ │                   │
+│                 │ │ SystemConfig  │ │                   │
 └─────────────────┘ └───────────────┘ └───────────────────┘
 ```
 
@@ -107,7 +107,12 @@ BookRank3/
 │   │       └── recommendations.py# 推荐 API
 │   ├── services/                 # 服务层
 │   │   ├── book_service.py       # 图书核心服务
-│   │   ├── new_book_service.py   # 新书速递服务
+│   │   ├── new_book/             # 新书速递子模块（__init__ 为装配工厂）
+│   │   │   ├── sync_engine.py        # 同步引擎
+│   │   │   ├── ingestor.py           # 入库规则
+│   │   │   ├── query_service.py      # 查询服务
+│   │   │   ├── publisher_manager.py  # 出版社管理
+│   │   │   └── translation_pipeline.py # 翻译管道
 │   │   ├── award_book_service.py # 获奖图书服务
 │   │   ├── weekly_report_service.py# 周报服务
 │   │   ├── user_service.py       # 用户行为服务
@@ -128,17 +133,12 @@ BookRank3/
 │   │   ├── open_library_client.py# Open Library API 客户端
 │   │   ├── wikidata_client.py    # Wikidata API 客户端
 │   │   └── publisher_crawler/    # 出版社爬虫子系统
-│   │       ├── base_crawler.py   # 爬虫基类（HTTP重试/robots.txt/分页）
+│   │       ├── base_crawler.py   # 爬虫基类（CrawlRequest/CrawlOutcome 接口）
 │   │       ├── google_books.py   # Google Books 爬虫
-│   │       ├── google_books_publisher.py # Google Books 出版社爬虫
+│   │       ├── google_books_publisher.py # Google Books 出版社爬虫（4 个出版社变体）
 │   │       ├── open_library.py   # Open Library 爬虫
-│   │       ├── penguin_random_house.py # 企鹅兰登爬虫
-│   │       ├── hachette.py       # Hachette 爬虫
-│   │       ├── harpercollins.py  # HarperCollins 爬虫
-│   │       ├── macmillan.py      # Macmillan 爬虫
-│   │       ├── simon_schuster.py # Simon & Schuster 爬虫
-│   │       ├── rss_crawler.py    # RSS 爬虫
-│   │       └── mixed_crawl4ai_crawler.py # Crawl4AI 混合爬虫
+│   │       ├── prh_api.py        # 企鹅兰登官方 API 爬虫
+│   │       └── macmillan.py      # Macmillan 爬虫（Sitemap+Google Books 双路）
 │   ├── schemas/
 │   │   └── validators.py         # Pydantic 验证模型
 │   ├── utils/                    # 工具模块
@@ -375,19 +375,19 @@ MemoryCache + FileCache → CacheService → NYTApiClient → GoogleBooksClient
 
 依赖：`NYTApiClient`、`GoogleBooksClient`、`CacheService`、`ImageCacheService`、`BookLanguagePack`
 
-#### `NewBookService` (`app/services/new_book_service.py`)
+#### `new_book` 子模块（`app/services/new_book/`）
 
-新书速递服务，管理爬虫、数据同步和翻译。
+新书速递由 4 个子模块组成，`__init__.py` 只提供装配工厂
+`create_new_book_modules()`，由 `app.setup.init_services` 注册到
+`app.extensions['new_book_modules']`（启动时一次性绑定翻译器）。
 
-| 方法 | 说明 |
+| 子模块 | 职责 |
 |------|------|
-| `init_publishers()` | 初始化出版社数据 |
-| `sync_all_publishers()` | 同步所有出版社新书 |
-| `get_new_books(publisher_id, category, days, page, per_page)` | 分页获取新书 |
-| `search_books(keyword, page, per_page)` | 搜索新书 |
-| `get_publishers(active_only)` | 获取出版社列表 |
-| `get_statistics()` | 获取统计数据 |
-| `translate_book_background(book_id, translator)` | 后台翻译新书 |
+| `SyncEngine` | 同步编排：爬虫调度、回填判定、单家超时熔断 |
+| `NewBookIngestor` | 入库规则：去重、字段合并、持久化 |
+| `NewBookQueryService` | 列表 / 搜索 / 分类 / 统计查询 |
+| `PublisherManager` | 出版社初始化、状态与迁移 |
+| `TranslationPipeline` | 翻译与语言包持久化 |
 
 #### `AwardBookService` (`app/services/award_book_service.py`)
 
@@ -492,17 +492,14 @@ MemoryCache + FileCache → CacheService → NYTApiClient → GoogleBooksClient
 ### 8.1 架构
 
 ```
-BaseCrawler (ABC)
-├── GoogleBooksCrawler        # Google Books API 爬虫
-├── GoogleBooksPublisherCrawler # Google Books 出版社爬虫
-├── OpenLibraryCrawler        # Open Library API 爬虫
-├── PenguinRandomHouseCrawler # 企鹅兰登网站爬虫
-├── HachetteCrawler           # Hachette 网站爬虫
-├── HarperCollinsCrawler      # HarperCollins 网站爬虫
-├── MacmillanCrawler          # Macmillan 网站爬虫
-├── SimonSchusterCrawler      # Simon & Schuster 网站爬虫
-├── RSSCrawler                # RSS Feed 爬虫
-└── MixedCrawl4AICrawler      # Crawl4AI 混合爬虫
+BaseCrawler (ABC)  — 接口：get_new_books(CrawlRequest) -> CrawlOutcome
+├── GoogleBooksCrawler            # Google Books API 爬虫（声明 GOOGLE_API_KEY）
+├── GoogleBooksPublisherCrawler   # Google Books 出版社爬虫（S&S/Hachette/HC/Macmillan 变体）
+├── OpenLibraryCrawler            # Open Library API 爬虫
+├── PrhApiCrawler                 # 企鹅兰登官方 API（回填窗口 + PRH_API_KEY 必填）
+└── MacmillanCrawler              # Macmillan Sitemap+Google Books 双路
+
+（2026-08 死适配器清理：legacy 站点爬虫、RSS、MixedCrawl4AI 已删除）
 ```
 
 ### 8.2 `BaseCrawler` 核心功能
@@ -511,7 +508,7 @@ BaseCrawler (ABC)
 |------|------|
 | HTTP 重试 | `requests.Session` + `HTTPAdapter` + `Retry` |
 | robots.txt 遵守 | `RobotFileParser` 检查 |
-| 分页处理 | 抽象方法 `crawl()` 返回 `Generator[BookInfo]` |
+| 分页处理 | 单一抽象方法 `get_new_books(CrawlRequest) -> CrawlOutcome` |
 | 错误处理 | 统一日志 + 优雅降级 |
 
 ### 8.3 `BookInfo` 数据类
@@ -627,7 +624,8 @@ routes.main → services.book_service → services.nyt_client
                                       → services.google_books_client
                                       → services.cache_service
                                       → services.book_language_pack
-           → services.new_book_service → services.publisher_crawler.*
+           → app.extensions['new_book_modules']（SyncEngine/Query/PublisherManager/TranslationPipeline）
+           → services.publisher_crawler.*
            → services.award_book_service
            → services.weekly_report_service → services.export_service
            → services.user_service
@@ -774,7 +772,10 @@ flask db downgrade           # 回滚
 | 测试文件 | 覆盖模块 |
 |----------|----------|
 | `test_book_service.py` | BookService |
-| `test_new_book_service.py` | NewBookService |
+| `test_publisher_manager.py` | PublisherManager |
+| `test_query_service.py` | NewBookQueryService |
+| `test_sync_engine.py` | SyncEngine / 入库 / 语言包 |
+| `test_ingestor.py` | NewBookIngestor |
 | `test_translation_service.py` | 翻译服务 |
 | `test_api_routes.py` | API 路由 |
 | `test_api_translation.py` | 翻译 API |

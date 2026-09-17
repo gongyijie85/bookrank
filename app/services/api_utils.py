@@ -1,9 +1,13 @@
 import hashlib
+import ipaddress
 import logging
+import threading
 import time
 from collections import OrderedDict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -13,6 +17,47 @@ from urllib3.util.retry import Retry
 from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_image_url(url: str) -> bool:
+    """SSRF 防护：仅允许 https 且阻断私网/回环/link-local 目标。"""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme != 'https':
+            return False
+        hostname = (parsed.hostname or '').lower()
+        if not hostname:
+            return False
+        if hostname in ('localhost', 'metadata.google.internal'):
+            return False
+        # IP 字面量直接判定
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
+            ):
+                return False
+        except ValueError:
+            # 非 IP：阻断内网后缀
+            if hostname.endswith('.internal') or hostname.endswith('.local') or hostname == '169.254.169.254':
+                return False
+        # 非标准端口阻断（仅允许默认 443）
+        return parsed.port in (None, 443)
+    except Exception:
+        return False
+
+
+def run_with_app_context(app, func, *args):
+    """Run *func* inside *app*'s context when an app is available."""
+    if app is not None:
+        with app.app_context():
+            return func(*args)
+    return func(*args)
 
 
 def create_session_with_retry(max_retries: int = 3, backoff_factor: float = 0.5) -> requests.Session:
@@ -80,6 +125,11 @@ def api_retry(max_attempts: int = 3, backoff_factor: float = 2.0):
     )
 
 
+# Open Library 对无封面的 ISBN 返回 1×1 GIF 占位（实测恰好 43 字节），
+# 真实封面最小实测约 8KB——两个数量级的差距，仅凭体积即可稳定判别。
+MIN_IMAGE_BYTES = 1024
+
+
 class ImageCacheService:
     """图片缓存服务"""
 
@@ -87,13 +137,24 @@ class ImageCacheService:
         self._cache_dir = cache_dir
         self._default_cover = default_cover
         self._cache_dir.mkdir(parents=True, exist_ok=True)
-        self._memory_cache = OrderedDict()
+        self._memory_cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
         self._memory_cache_ttl = 3600
         self._memory_cache_max_size = 1000
         self._session = create_session_with_retry(max_retries=2)
+        # 异步预取去重锁（同 URL 并发仅一次下载）
+        self._prefetch_lock = threading.Lock()
+        self._prefetch_pending: set[str] = set()
 
-    def get_cached_image_url(self, original_url: str, ttl: int = 3600) -> str:
-        """获取缓存的图片URL"""
+    def get_cached_image_url(self, original_url: str, ttl: int = 3600, block: bool = True) -> str:
+        """获取缓存的图片URL。
+
+        Args:
+            original_url: 原始图片 URL
+            ttl: 文件缓存有效期（秒）
+            block: True=同步下载（MISS 时阻塞直到文件就绪或失败）；
+                   False=异步预取（MISS 时立即提交后台下载并返回占位，供
+                   请求热路径使用，避免阻塞请求线程）
+        """
         if not original_url:
             return self._default_cover
 
@@ -115,25 +176,128 @@ class ImageCacheService:
             try:
                 file_age = time.time() - cache_path.stat().st_mtime
                 if file_age < ttl:
-                    self._update_memory_cache(original_url, relative_path, current_time)
-                    return relative_path
+                    if self._is_usable_cache_file(cache_path):
+                        self._update_memory_cache(original_url, relative_path, current_time)
+                        return relative_path
+                    # 历史遗留的占位文件（见 MIN_IMAGE_BYTES）：删除后重新回源，
+                    # 否则它会在整个 TTL 内持续顶掉真实封面
+                    cache_path.unlink(missing_ok=True)
             except OSError as e:
                 logger.warning(f'Error checking cache file: {e}')
 
+        if not _is_safe_image_url(original_url):
+            logger.warning(f'Blocked unsafe image URL (SSRF guard): {original_url}')
+            return self._default_cover
+
+        if not block:
+            self._enqueue_prefetch(original_url)
+            return self._default_cover
+
         try:
-            response = self._session.get(original_url, timeout=10, stream=True)
-            response.raise_for_status()
-
-            with open(cache_path, 'wb') as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
-
-            self._update_memory_cache(original_url, relative_path, current_time)
-            return relative_path
-
+            return self._download_to_cache(original_url)
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'Failed to cache image from {original_url}: {e}', level='warning')
             return self._default_cover
+
+    def _download_to_cache(self, original_url: str, ttl: int = 3600) -> str:
+        """同步下载图片到缓存；失败抛异常（由调用方兜底返回占位）。
+
+        NYT CDN 偶发 SSL 手部失败（SSLEOFError）——做 2 次短退避重试，
+        降低瞬断导致的默认封面占位（#178 follow-up 实测 15 本中 3 本瞬断）。
+        """
+        filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'  # type: ignore[arg-type]
+        cache_path = self._cache_dir / filename
+        relative_path = f'/cache/images/{filename}'
+
+        last_exc: Exception | None = None
+        is_placeholder = False
+        for attempt in range(3):
+            try:
+                response = self._session.get(original_url, timeout=10, stream=True)
+                response.raise_for_status()
+                ctype = response.headers.get('Content-Type', '')
+                if ctype and not ctype.startswith('image/'):
+                    logger.warning(f'Blocked non-image Content-Type {ctype} for {original_url}')
+                    raise ValueError(f'non-image content: {ctype}')
+
+                with open(cache_path, 'wb') as f:
+                    for chunk in response.iter_content(1024):
+                        f.write(chunk)
+
+                if cache_path.stat().st_size < MIN_IMAGE_BYTES:
+                    cache_path.unlink(missing_ok=True)
+                    is_placeholder = True
+                    break
+
+                self._update_memory_cache(original_url, relative_path, time.time())
+                return relative_path
+            except (requests.RequestException, OSError) as e:
+                last_exc = e
+                if attempt < 2:
+                    time.sleep(0.4 * (attempt + 1))
+                    continue
+        if is_placeholder:
+            raise ValueError(f'placeholder image (below {MIN_IMAGE_BYTES}B) from {original_url}')
+        raise last_exc if last_exc else RuntimeError(f'download failed: {original_url}')
+
+    def _enqueue_prefetch(self, original_url: str) -> None:
+        """MISS 时提交后台下载（同 URL 去重，下载成功回填内存/文件缓存）。"""
+        if not original_url:
+            return
+        with self._prefetch_lock:
+            if original_url in self._prefetch_pending:
+                return
+            self._prefetch_pending.add(original_url)
+
+        from ..utils.service_helpers import submit_background_task
+
+        def _worker() -> None:
+            try:
+                self._download_to_cache(original_url)
+            except Exception as e:
+                log_error(ErrorCategory.API_CALL, f'后台图片预取失败 {original_url}: {e}', level='warning')
+            finally:
+                with self._prefetch_lock:
+                    self._prefetch_pending.discard(original_url)
+
+        try:
+            submit_background_task(_worker)
+        except Exception as e:
+            log_error(ErrorCategory.API_CALL, f'后台图片预取提交失败 {original_url}: {e}', level='warning')
+            with self._prefetch_lock:
+                self._prefetch_pending.discard(original_url)
+
+    def prefetch_many(self, urls: Iterable[str]) -> None:
+        """批量提交后台预取（供列表页整体预热，全部去重）。"""
+        for url in urls:
+            if url:
+                self._enqueue_prefetch(url)
+
+    def is_cached_file_present(self, local_path: str) -> bool:
+        """判断缓存图片文件是否仍可用（生产临时文件系统重启后可能丢失）。
+
+        "可用"包含体积校验：占位图虽然后缀是 .jpg、Content-Type 是
+        image/jpeg，但并不是封面，探测必须判为不可用，否则渲染层会停止
+        回退、封面同步也不会把它列为候选（见 MIN_IMAGE_BYTES）。
+
+        空路径与默认封面返回 False；非 /cache/images 路径视为无需探测返回 True。
+        """
+        if not local_path or local_path == self._default_cover:
+            return False
+        if not local_path.startswith('/cache/images/'):
+            return True
+        filename = local_path.rsplit('/', 1)[-1]
+        return self._is_usable_cache_file(self._cache_dir / filename)
+
+    def _is_usable_cache_file(self, cache_path: Path) -> bool:
+        """缓存文件是否是真实图片（而非 Open Library 的 1×1 占位）。
+
+        调用方请勿改用裸 exists()：占位文件"存在"恰恰是问题所在。
+        """
+        try:
+            return cache_path.stat().st_size >= MIN_IMAGE_BYTES
+        except OSError:
+            return False
 
     def _update_memory_cache(self, key: str, value: str, timestamp: float):
         """更新内存缓存，确保不超过最大大小"""

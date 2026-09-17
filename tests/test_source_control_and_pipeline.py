@@ -116,7 +116,9 @@ def test_flag_change_is_audited(app, db, harper):
 
 
 def test_query_hides_site_books_when_display_primary_off(app, db, harper):
-    from app.services.new_book import NewBookService
+    from unittest.mock import MagicMock
+
+    from app.services.new_book.query_service import NewBookQueryService
 
     source_control_service.set_flags(
         'harpercollins',
@@ -130,8 +132,8 @@ def test_query_hides_site_books_when_display_primary_off(app, db, harper):
     book.is_displayable = True
     db.session.commit()
 
-    service = NewBookService()
-    books, total = service.get_new_books(days=90, page=1, per_page=50)
+    query_service = NewBookQueryService(MagicMock())
+    books, total = query_service.get_new_books(days=90, page=1, per_page=50)
     ids = {b.isbn13 for b in books}
     assert ISBN not in ids
 
@@ -140,7 +142,7 @@ def test_query_hides_site_books_when_display_primary_off(app, db, harper):
         site_display_primary=True,
         actor='test',
     )
-    books2, _ = service.get_new_books(days=90, page=1, per_page=50)
+    books2, _ = query_service.get_new_books(days=90, page=1, per_page=50)
     assert ISBN in {b.isbn13 for b in books2}
 
 

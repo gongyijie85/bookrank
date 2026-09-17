@@ -1,32 +1,28 @@
 import json as json_lib
-import logging
 import re
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import psutil
 from flask import Blueprint, Response, current_app, request
 
+from ..models.database import db
 from ..services.admin_service import (
-    batch_commit,
     batch_import_from_dict,
-    batch_update_categories,
     get_weekly_report_by_id,
-    rollback,
     update_book_metadata_records,
     update_translation_cache_records,
 )
 from ..utils.admin_auth import admin_required
-from ..utils.api_helpers import APIResponse, csrf_protect
+from ..utils.api_helpers import APIResponse, csrf_protect, rate_limit
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.error_tracker import error_tracker
-from ..utils.service_helpers import get_book_service, get_image_cache_service
+from ..utils.service_helpers import get_new_book_modules, get_service
 
 _ADMIN_ERROR_MSG = '操作失败，请查看服务器日志获取详情'
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
-logger = logging.getLogger(__name__)
 
 _crawler_status: dict[str, dict[str, Any]] = {}
 
@@ -35,28 +31,49 @@ _crawler_status: dict[str, dict[str, Any]] = {}
 @csrf_protect
 @admin_required
 def sync_award_covers():
-    """手动触发获奖书籍封面同步"""
+    """手动触发获奖书籍封面同步（后台任务，立即返回 202）
+
+    批同步含外部 API 调用 + 下载 + 逐本提交，最坏数百秒，不能占住
+    请求线程（Render 免费版网关超时约 100s）；改为提交后台线程执行，
+    进度与最近结果通过 /award-covers/status 轮询。
+    """
     try:
         from ..services.award_cover_sync_service import AwardCoverSyncService
-        from ..utils.service_helpers import get_or_create_google_books_client
-
-        google_client = get_or_create_google_books_client()
-
-        sync_service = AwardCoverSyncService(google_client, image_cache=get_image_cache_service())
+        from ..utils.service_helpers import (
+            get_or_create_google_books_client,
+            submit_background_task,
+        )
 
         data = request.get_json(silent=True) or {}
         batch_size = min(max(1, data.get('batch_size', 10)), 50)
 
-        result = sync_service.sync_missing_covers(batch_size=batch_size, delay=0.3)
+        app_obj = cast('Any', current_app)._get_current_object()
 
-        return APIResponse.success(data=result, message=f'同步完成: 更新{result.get("updated", 0)}本')
+        def _run_sync() -> None:
+            with app_obj.app_context():
+                try:
+                    google_client = get_or_create_google_books_client()
+                    sync_service = AwardCoverSyncService(google_client, image_cache=get_service('image_cache_service'))
+                    result = sync_service.sync_missing_covers(batch_size=batch_size, delay=0.3)
+                    app_obj.logger.info(f'后台封面同步完成: {result.get("status")} 更新{result.get("updated", 0)}本')
+                except Exception as e:
+                    log_error(ErrorCategory.API_CALL, f'后台封面同步失败: {e}', exc_info=True)
+
+        submit_background_task(_run_sync)
+
+        return APIResponse.success(
+            data={'status': 'submitted', 'batch_size': batch_size},
+            message='封面同步已提交后台执行，可通过 /api/admin/award-covers/status 查询进度与最近结果',
+            status_code=202,
+        )
 
     except Exception as e:
-        log_error(ErrorCategory.DB_QUERY, f'同步获取书籍封面失败: {e}', exc_info=True)
-        return APIResponse.error('同步失败', 500)
+        log_error(ErrorCategory.DB_QUERY, f'提交封面同步任务失败: {e}', exc_info=True)
+        return APIResponse.error('提交同步任务失败', 500)
 
 
 @admin_bp.route('/award-covers/status')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_award_covers_status():
     """获取获奖书籍封面同步状态"""
@@ -77,6 +94,7 @@ def get_award_covers_status():
 
 
 @admin_bp.route('/new-books/source-health')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_new_books_source_health():
     """按来源返回官网采集健康状态与降级计数（#136）。"""
@@ -118,6 +136,7 @@ def manage_new_books_source_control(source_id: str):
 
 
 @admin_bp.route('/new-books/source-control-audit')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_source_control_audit():
     """来源开关变更审计日志。"""
@@ -219,6 +238,7 @@ def post_sync_source_alert(source_id: str):
 
 
 @admin_bp.route('/new-books/last-sync')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def get_new_books_last_sync():
     """读取最近一次新书自动同步结果（工单 #83 观测通道）
@@ -241,6 +261,20 @@ def get_new_books_last_sync():
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'读取新书同步摘要失败: {e}', exc_info=True)
         return APIResponse.error('读取失败', 500)
+
+
+@admin_bp.route('/crawler/drift')
+@rate_limit(max_requests=60, window=60)
+@admin_required
+def crawler_drift_report():
+    """爬虫选择器漂移报告（ROADMAP #2）：依据 last_auto_sync_result 识别疑似漂移出版社。"""
+    try:
+        from ..services.crawler_drift_detector import drift_report
+
+        return APIResponse.success(data=drift_report())
+    except Exception as e:
+        log_error(ErrorCategory.API_CALL, f'爬虫漂移报告失败: {e}', exc_info=True)
+        return APIResponse.error('读取漂移报告失败', 500)
 
 
 @admin_bp.route('/weekly-report/regenerate', methods=['POST'])
@@ -267,7 +301,7 @@ def regenerate_weekly_report():
         if report_date > date.today():
             return APIResponse.error('不能重新生成未来的周报', 400)
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
@@ -322,7 +356,7 @@ def regenerate_all_weekly_reports():
                 message='所有周报数据正常',
             )
 
-        book_service = get_book_service()
+        book_service = get_service('book_service')
         if not book_service:
             return APIResponse.error('服务不可用', 503)
         weekly_service = WeeklyReportService(book_service)
@@ -364,8 +398,7 @@ def regenerate_all_weekly_reports():
 def cleanup_categories():
     """清理新书分类中的营销文案数据"""
     try:
-        from ..models.new_book import NewBook
-        from ..services.new_book_service import NewBookService
+        from ..services.category_cleanup_service import apply_cleanup
 
         if request.method == 'GET':
             dry_run = True
@@ -373,37 +406,27 @@ def cleanup_categories():
             data = request.get_json(silent=True) or {}
             dry_run = data.get('dry_run', True)
 
-        books = NewBook.query.filter(NewBook.category.isnot(None)).all()  # type: ignore[union-attr]
-
-        invalid_books = []
-        for book in books:
-            cleaned = NewBookService._sanitize_category(book.category)  # type: ignore[attr-defined]
-            if cleaned != book.category:
-                invalid_books.append(
-                    {'id': book.id, 'title': book.title, 'old_category': book.category, 'new_category': cleaned}
-                )
+        result = apply_cleanup(dry_run=dry_run)
 
         if not dry_run:
-            id_to_category = {item['id']: item['new_category'] for item in invalid_books}
-            updated = batch_update_categories(id_to_category)
             return APIResponse.success(
                 data={
-                    'total_checked': len(books),
-                    'invalid_found': len(invalid_books),
-                    'updated': updated,
-                    'details': invalid_books[:50],
+                    'total_checked': result.total_checked,
+                    'invalid_found': result.invalid_found,
+                    'updated': result.updated,
+                    'details': result.details,
                 },
-                message=f'清理完成: 修复{updated}条分类数据',
+                message=f'清理完成: 修复{result.updated}条分类数据',
             )
         else:
             return APIResponse.success(
                 data={
-                    'total_checked': len(books),
-                    'invalid_found': len(invalid_books),
-                    'details': invalid_books[:50],
+                    'total_checked': result.total_checked,
+                    'invalid_found': result.invalid_found,
+                    'details': result.details,
                     'message': '预览模式，未实际修改。发送 dry_run=false 执行清理',
                 },
-                message=f'预览: 发现{len(invalid_books)}条无效分类',
+                message=f'预览: 发现{result.invalid_found}条无效分类',
             )
 
     except Exception as e:
@@ -490,7 +513,7 @@ def clean_report_brackets():
 
                 updated += 1
 
-            batch_commit()
+            db.session.commit()
             return APIResponse.success(
                 data={'total_reports': len(reports), 'fixable': len(fixable), 'updated': updated, 'details': fixable},
                 message=f'清理完成: 修复{updated}份周报',
@@ -507,7 +530,7 @@ def clean_report_brackets():
             )
 
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理周报书名号失败: {e}', exc_info=True)
         return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
@@ -575,7 +598,7 @@ def fix_truncated_titles():
                     report.content = json_lib.dumps(content, ensure_ascii=False)
 
         if not dry_run and fixed_count > 0:
-            batch_commit()
+            db.session.commit()
 
         return APIResponse.success(
             data={
@@ -588,7 +611,7 @@ def fix_truncated_titles():
         )
 
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'修复截断书名失败: {e}', exc_info=True)
         return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
@@ -670,7 +693,7 @@ def cleanup_translations():
                 m_isbn_list, lambda r: setattr(r, 'title_zh', clean_translation_text(r.title_zh, field_type='title'))
             )
 
-            batch_commit()
+            db.session.commit()
             return APIResponse.success(
                 data={
                     'translation_cache': {'total': len(t_records), 'fixed': t_updated},
@@ -693,12 +716,13 @@ def cleanup_translations():
             )
 
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'清理翻译缓存失败: {e}', exc_info=True)
         return APIResponse.error(_ADMIN_ERROR_MSG, 500)
 
 
 @admin_bp.route('/errors')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def view_errors():
     """查看内存中记录的错误（最近50条）"""
@@ -735,10 +759,8 @@ def clear_errors():
 @admin_required
 def run_crawler(publisher_name: str):
     try:
-        from ..services.new_book import NewBookService
-
-        service = NewBookService()
-        publishers = service.get_publishers(active_only=True)
+        modules = get_new_book_modules()
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
         publisher = next((p for p in publishers if p.name == publisher_name), None)
         if not publisher:
             return APIResponse.error(f'出版社不存在: {publisher_name}', 404)
@@ -754,7 +776,7 @@ def run_crawler(publisher_name: str):
         }
 
         try:
-            result = service.sync_publisher_books(
+            result = modules.sync_engine.sync_publisher_books(
                 publisher_id=publisher.id,
                 category=category,
                 max_books=max_books,
@@ -784,14 +806,13 @@ def run_crawler(publisher_name: str):
 
 
 @admin_bp.route('/crawler/status')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def crawler_status():
     try:
-        from ..services.new_book import NewBookService
-
-        service = NewBookService()
-        publishers = service.get_publishers(active_only=True)
-        pub_book_counts = service.get_publisher_book_counts()
+        modules = get_new_book_modules()
+        publishers = modules.publisher_manager.get_publishers(active_only=True)
+        pub_book_counts = modules.publisher_manager.get_publisher_book_counts()
 
         publishers_info = []
         for p in publishers:
@@ -817,6 +838,7 @@ def crawler_status():
 
 
 @admin_bp.route('/system/status')
+@rate_limit(max_requests=60, window=60)
 @admin_required
 def system_status():
     try:
@@ -834,9 +856,9 @@ def system_status():
             db_type = 'mysql'
 
         try:
-            from ..utils.service_helpers import get_cache_service as _get_cs
+            from ..utils.service_helpers import get_service as _get_svc
 
-            cs = _get_cs()
+            cs = _get_svc('cache_service')
             cache_stats = (
                 cs.get_stats() if cs else {'memory': {'size': 0, 'max_size': 0, 'hits': 0, 'misses': 0, 'hit_rate': 0}}
             )
@@ -874,36 +896,60 @@ def system_status():
 
 
 @admin_bp.route('/backup/export')
+@rate_limit(max_requests=5, window=60)
 @admin_required
 def backup_export():
     try:
+        from flask import current_app as _current_app
+
+        app_obj = cast('Any', _current_app)._get_current_object()
+
         from ..models.schemas import Award, AwardBook, BookMetadata, SearchHistory, TranslationCache, WeeklyReport
 
-        tables_to_export = {
-            'awards': Award.query.all(),
-            'award_books': AwardBook.query.all(),
-            'weekly_reports': WeeklyReport.query.all(),
-            'translation_caches': TranslationCache.query.all(),
-            'book_metadata': BookMetadata.query.all(),
-            'search_histories': SearchHistory.query.all(),
+        table_models: dict[str, Any] = {
+            'awards': Award,
+            'award_books': AwardBook,
+            'weekly_reports': WeeklyReport,
+            'translation_caches': TranslationCache,
+            'book_metadata': BookMetadata,
+            'search_histories': SearchHistory,
         }
 
-        export_data: dict[str, Any] = {
-            'exported_at': datetime.now(UTC).isoformat(),
-            'tables': {},
-        }
+        def generate():
+            # 逐表流式输出，避免全量 query.all() 内存峰值（5表×千行 to_dict）
+            # 生成器在响应消费时才执行，需手动进入 app context
+            with app_obj.app_context():
+                yield f'{{"exported_at": {json_lib.dumps(datetime.now(UTC).isoformat())}, "tables": {{'
+                first_table = True
+                for table_name, model in table_models.items():
+                    if not first_table:
+                        yield ','
+                    first_table = False
+                    yield json_lib.dumps(table_name)
+                    yield ': {"count": '
+                    # count 先行（独立小查询），内容流式
+                    count = model.query.count()
+                    yield str(count)
+                    yield ', "records": ['
+                    first_row = True
+                    # yield_per 分批取，单批响应缓冲有界
+                    for record in model.query.yield_per(200):
+                        if not first_row:
+                            yield ','
+                        first_row = False
+                        yield json_lib.dumps(record.to_dict(), ensure_ascii=False)
+                    yield ']}'
+                yield '}}'
 
-        for table_name, records in tables_to_export.items():
-            export_data['tables'][table_name] = {
-                'count': len(records),
-                'records': [r.to_dict() for r in records],
-            }
-
-        return Response(
-            json_lib.dumps(export_data, ensure_ascii=False, indent=2),
+        response = Response(
+            generate(),
             mimetype='application/json',
-            headers={'Content-Disposition': 'attachment; filename=bookrank_backup.json'},
+            headers={
+                'Content-Disposition': 'attachment; filename=bookrank_backup.json',
+                'Cache-Control': 'no-store',
+            },
         )
+        return response
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'数据导出失败: {e}', exc_info=True)
         return APIResponse.error('数据导出失败', 500)
@@ -936,7 +982,7 @@ def backup_import():
             message=f'导入完成，共导入 {sum(imported_counts.values())} 条记录',
         )
     except Exception as e:
-        rollback()
+        db.session.rollback()
         log_error(ErrorCategory.DB_QUERY, f'数据导入失败: {e}', exc_info=True)
         return APIResponse.error('数据导入失败', 500)
 
@@ -949,7 +995,7 @@ def seed_award_books():
     try:
         from ..initialization.sample_award_books import init_sample_award_books
 
-        init_sample_award_books(current_app._get_current_object())  # type: ignore[attr-defined]
+        init_sample_award_books(cast('Any', current_app)._get_current_object())
 
         from ..models.schemas import AwardBook
 

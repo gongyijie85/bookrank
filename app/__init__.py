@@ -11,6 +11,7 @@ from typing import Any
 
 from flask import Flask, Response, g, render_template, request
 from flask_babel import Babel
+from flask_babel import gettext as _
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -20,6 +21,10 @@ from .initialization import init_sample_award_books as init_sample_award_books
 from .models import db, init_db
 from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_books_bp, public_api_bp
 from .setup import shutdown_scheduler
+from .utils.api_helpers import PLACEHOLDER_TEXTS
+from .utils.book_labels import award_term, bilingual, category_name, language_name
+from .utils.book_titles import split_volume_marker
+from .utils.cover_urls import cover_src, cover_src_or_default
 from .utils.error_handler import ErrorCategory, log_error
 
 babel = Babel()
@@ -58,15 +63,32 @@ def create_app(config_name: str | None = None) -> Flask:
             ' 并设置为 SECRET_KEY 环境变量'
         )
 
+    # 限流跨进程安全警告（安全审计 High #2）：
+    # - 未配置 RATE_LIMIT_REDIS_URL：限流器为进程内存实现（dict + threading.Lock），
+    #   多 Gunicorn worker 下各进程独立计数，攻击者可借请求分发绕过限流。
+    #   生产部署必须保持 WEB_CONCURRENCY=1（render.yaml 已固定）。
+    # - 已配置 RATE_LIMIT_REDIS_URL：限流计数经 Redis 跨 worker 共享（Lua 原子判定），
+    #   此时多 worker 是安全的，不再告警；Redis 不可达时会自动降级为进程内限流并告警。
+    if config_name == 'production':
+        try:
+            _web_concurrency = int(os.environ.get('WEB_CONCURRENCY', '1') or '1')
+        except (ValueError, TypeError):
+            _web_concurrency = 1
+        if _web_concurrency > 1 and not os.environ.get('RATE_LIMIT_REDIS_URL'):
+            app.logger.warning(
+                '⚠️ WEB_CONCURRENCY=%s (>1) 且未配置 RATE_LIMIT_REDIS_URL：'
+                'API 限流器为进程内存实现，多 worker 下计数不共享，限流可被绕过。'
+                '生产环境请保持 WEB_CONCURRENCY=1（render.yaml 已固定）；'
+                '如需多 worker，请先配置 RATE_LIMIT_REDIS_URL 启用 Redis 共享限流。',
+                _web_concurrency,
+            )
+
     _init_extensions(app, config_name)
     _register_blueprints(app)
     _register_error_handlers(app)
     _configure_logging(app)
     _apply_security_headers(app)
     _register_jinja_filters(app)
-
-    if config_name in ('production', 'testing'):
-        _enable_rate_limiting(app)
 
     # 为每个请求生成唯一追踪 ID，便于日志关联与排障
     @app.before_request
@@ -87,11 +109,82 @@ def create_app(config_name: str | None = None) -> Flask:
     # 注入当前时间函数，供模板显示动态年份等场景
     app.jinja_env.globals['now'] = datetime.now
 
+    # 书名卷号拆解：卡片标题被 CSS 限行截断，卷号若留在标题里会被裁掉，
+    # 同系列各卷将显示为完全相同的标题（见 app/utils/book_titles.py）
+    app.jinja_env.globals['split_volume_marker'] = split_volume_marker
+
+    # 语言名中英对照：库里存的是 config.LANGUAGE_MAP 的中文名，英文页会显示「英语」
+    # （见 app/utils/book_labels.py）。#236
+    app.jinja_env.filters['language_name'] = language_name
+
+    # 双语字段择一（奖项名等有 *_en 列的实体）与中文枚举词对照（奖项国家/类别）。#227
+    app.jinja_env.filters['bilingual'] = bilingual
+    app.jinja_env.filters['award_term'] = award_term
+    app.jinja_env.filters['category_name'] = category_name
+
+    # 封面地址规范化：境外图床（storage.googleapis.com / covers.openlibrary.org 等）
+    # 国内不可直连，且不在 CSP img-src 白名单内，统一改写为同源 /cover?src= 代理。
+    app.jinja_env.filters['cover_src'] = cover_src
+    app.jinja_env.filters['cover_src_or_default'] = cover_src_or_default
+
+    # dist_url: 前端构建产物（static/dist/）的指纹化文件名解析
+    # （scripts/build_frontend.mjs 生成 manifest.json；dev 无 manifest 时
+    # fallback 到源文件路径，保证本地无构建步骤仍可运行）
+    app.jinja_env.globals['dist_url'] = _make_dist_url(app)
+
+    # 占位串清单：模板不再自带字面量，统一用 api_helpers 的单一真相源判定
+    # （历史上模板/服务/脚本各存一份，改一处漏一处，正是「详情整块消失」的成因之一）。
+    app.jinja_env.globals['PLACEHOLDER_TEXTS'] = PLACEHOLDER_TEXTS
+
     import atexit
 
     atexit.register(lambda: shutdown_scheduler(app))
 
     return app
+
+
+def _make_dist_url(app: Flask):
+    """构造基于 manifest.json 的指纹资源 URL 解析器。
+
+    manifest 读取缓存于 app.extensions['dist_manifest']；manifest 缺失或
+    key 不在其中时回退到原始 static 路径（开发环境直接引源文件）。
+    """
+
+    def dist_url(asset_name: str) -> str:
+        manifest = app.extensions.get('dist_manifest')
+        if manifest is None:
+            manifest_path = PROJECT_ROOT / 'static' / 'dist' / 'manifest.json'
+            try:
+                import json as _json
+
+                manifest = _json.loads(manifest_path.read_text(encoding='utf-8'))
+            except Exception:
+                manifest = {}
+            app.extensions['dist_manifest'] = manifest
+
+        filename = manifest.get(asset_name, '')
+        if filename and (PROJECT_ROOT / 'static' / 'dist' / filename).exists():
+            return f'dist/{filename}'
+
+        # fallback #1：稳定名 dev 产物存在时使用
+        base = asset_name[:-3] if asset_name.endswith('.js') else asset_name
+        if asset_name == 'app.css':
+            stable = 'dist/app.min.css'
+        elif asset_name.endswith('.js'):
+            stable = f'dist/{base}.min.js'
+        else:
+            stable = ''
+        if stable and (PROJECT_ROOT / 'static' / stable).exists():
+            return stable
+
+        # fallback #2：源文件路径（本地开发无构建步骤时保持可用）
+        if asset_name == 'app.css':
+            return 'css/base.css'
+        if asset_name.endswith('.js'):
+            return f'js/{asset_name}'
+        return f'css/{asset_name}'
+
+    return dist_url
 
 
 def _get_locale() -> str:
@@ -127,7 +220,7 @@ def _init_extensions(app: Flask, config_name: str) -> None:
                 '例如: CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com'
             )
             cors_origins = []
-        cors_methods = ['GET', 'POST', 'OPTIONS']
+        cors_methods = ['GET', 'POST', 'DELETE', 'OPTIONS']
     elif config_name == 'testing':
         cors_origins = '*'
         cors_methods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
@@ -197,7 +290,19 @@ def _register_error_handlers(app: Flask) -> None:
     def not_found(error: Exception):
         if request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json':
             return {'success': False, 'message': 'Resource not found'}, 404
-        return render_template('error.html', message='Page not found', back_url='/'), 404
+        # 标题与正文必须说同一件事：此前模板把 h1 硬编码成「出错了」（500 的措辞），
+        # 只有 `message` 说 "Page not found"，同一页三处（<title>/<h1>/正文）自相矛盾。
+        # 现在两者都由这里显式给出，`<title>` 与 `<h1>` 共用 heading 所以语义必然一致。
+        return (
+            render_template(
+                'error.html',
+                heading=_('页面不存在'),
+                message=_('您访问的页面不存在，或该链接已失效。'),
+                noindex=True,
+                back_url='/',
+            ),
+            404,
+        )
 
     @app.errorhandler(405)
     def method_not_allowed(error: Exception) -> tuple[dict[str, bool | str], int]:
@@ -227,7 +332,15 @@ def _register_error_handlers(app: Flask) -> None:
             log_error(ErrorCategory.UNKNOWN, f'ErrorTracker 记录失败: {e}', level='warning')
         if request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json':
             return {'success': False, 'message': 'Internal server error'}, 500
-        return render_template('error.html', message='Something went wrong', back_url='/'), 500
+        return (
+            render_template(
+                'error.html',
+                heading=_('服务器出错'),
+                message=_('服务器处理请求时出现问题，请稍后重试。'),
+                back_url='/',
+            ),
+            500,
+        )
 
 
 def _setup_db_event_listeners(app: Flask) -> None:
@@ -260,6 +373,8 @@ def _setup_db_event_listeners(app: Flask) -> None:
             cursor = None
             try:
                 cursor = dbapi_connection.cursor()
+                # 静态常量字符串，不含任何外部输入，不存在注入风险（安全审计 Low #6）。
+                # 保持字面量写法；切勿将其改为 f-string/拼接，否则会引入真实注入面。
                 cursor.execute("SET TIME ZONE 'UTC'")
             except Exception as e:
                 log_error(ErrorCategory.DB_QUERY, f'设置时区失败: {e}', level='warning')
@@ -294,6 +409,12 @@ def _configure_logging(app: Flask) -> None:
         logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 
+# 构建产物的文件名带 8 位内容指纹（base.88a83f03.min.js / app.MND2IEJ4.min.css）。
+# 判断"能不能 immutable"必须看文件名，而不是看它在不在 static/dist/ 下：
+# dist_url 在 manifest 与磁盘错位时会回退到未指纹的 dist/base.min.js。
+_HASHED_ASSET_RE = re.compile(r'\.[A-Za-z0-9_-]{8}\.min\.(?:css|js)$')
+
+
 def _apply_security_headers(app: Flask) -> None:
     """应用安全响应头和静态资源缓存"""
 
@@ -316,16 +437,23 @@ def _apply_security_headers(app: Flask) -> None:
             'Referrer-Policy': 'strict-origin-when-cross-origin',
             'Content-Security-Policy': (
                 "default-src 'self'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
                 f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-                f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
-                "img-src 'self' data: https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
+                # style-src 刻意允许 unsafe-inline，且**不能**带 nonce：CSP3 规定源列表里出现
+                # nonce/hash 时 'unsafe-inline' 会被忽略，留着 nonce 等于没放开。被屏蔽的
+                # style="…" 属性是静默失效（不报错、不 500），实测曾让雪碧图容器在页面顶部
+                # 留出 156px 空档。脚本侧仍走 nonce——样式注入不构成脚本执行。
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+                "img-src 'self' data: https://static01.nyt.com https://*.nytimes.com https://*.amazon.com https://*.amazonaws.com https://books.google.com "
                 'https://covers.openlibrary.org https://openlibrary.org https://archive.org https://*.archive.org '
                 'https://*.penguinrandomhouse.com https://*.harpercollins.com '
                 'https://*.macmillan.com https://*.simonandschuster.com https://*.hachettebookgroup.com; '
                 "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; "
                 "connect-src 'self' https://cdn.jsdelivr.net; "
                 "frame-src 'none'; "
-                "object-src 'none';"
+                "object-src 'none'; "
+                'upgrade-insecure-requests;'
             ),
             'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
         }
@@ -344,10 +472,18 @@ def _apply_security_headers(app: Flask) -> None:
 
         request_path = request.path if request else ''
         if request_path.startswith('/static/'):
-            response.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
+            # immutable 只对内容指纹化的 URL 成立：文件名带内容 hash 时，内容变了 URL 就变。
+            # 未指纹化的资源（mobile/css、mobile/js 不在构建入口里，以及 dist_url 回退到
+            # dist/base.min.js 这类稳定名的情况）标 immutable，会让改动最长 30 天送不到
+            # 回访用户，故一律改走 ETag 协商。
+            if _HASHED_ASSET_RE.search(request_path):
+                response.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
+            else:
+                response.headers['Cache-Control'] = 'public, max-age=3600, must-revalidate'
 
         if (
             'gzip' in request.headers.get('Accept-Encoding', '')
+            and not response.headers.get('Content-Encoding')  # 防上游代理已压缩导致双重 gzip（P-MEDIUM-07）
             and response.content_type
             and any(
                 t in response.content_type for t in ('text/', 'application/json', 'application/javascript', 'image/svg')
@@ -367,133 +503,66 @@ def _apply_security_headers(app: Flask) -> None:
         return response
 
 
-def _enable_rate_limiting(app: Flask) -> None:
-    """启用API速率限制"""
-    from flask import make_response
-
-    from .utils.rate_limiter import get_rate_limiter
-
-    rate_limiter = get_rate_limiter(
-        max_requests=app.config.get('API_RATE_LIMIT', 60), window_seconds=app.config.get('API_RATE_LIMIT_WINDOW', 60)
-    )
-    cron_rate_limiter = get_rate_limiter(
-        max_requests=app.config.get('CRON_RATE_LIMIT', 20),
-        window_seconds=app.config.get('CRON_RATE_LIMIT_WINDOW', 60),
-    )
-
-    @app.before_request
-    def rate_limit_requests() -> Response | None:
-        from flask import current_app
-
-        if current_app.config.get('TESTING'):
-            return None
-
-        if request.path.startswith('/static/') or request.path.startswith('/health/'):
-            return None
-
-        if request.path.startswith('/api/cron/'):
-            client_ip = request.remote_addr or 'unknown'
-            if not cron_rate_limiter.is_allowed(client_ip):
-                retry_after = cron_rate_limiter.get_retry_after(client_ip)
-                response = make_response(
-                    {'success': False, 'message': 'Rate limit exceeded. Please try again later.'}, 429
-                )
-                response.headers['Retry-After'] = str(retry_after)
-                return response
-            return None
-
-        if not request.path.startswith('/api/'):
-            return None
-
-        excluded_paths = ['/api/csrf-token', '/api/health']
-        if request.path in excluded_paths:
-            return None
-
-        client_ip = request.remote_addr or 'unknown'
-
-        if not rate_limiter.is_allowed(client_ip):
-            retry_after = rate_limiter.get_retry_after(client_ip)
-            response = make_response({'success': False, 'message': 'Rate limit exceeded. Please try again later.'}, 429)
-            response.headers['Retry-After'] = str(retry_after)
-            return response
-
-        return None
-
-
 def _register_jinja_filters(app: Flask) -> None:
     """注册自定义Jinja2过滤器"""
     import mistune
 
     try:
         import bleach as _bleach
+    except ImportError as e:
+        raise ImportError(
+            'bleach 未安装，HTML 消毒无法安全执行。请执行 pip install -r requirements.txt 安装 bleach==6.4.0'
+        ) from e
 
-        _ALLOWED_TAGS = [
-            'p',
-            'br',
-            'strong',
-            'em',
-            'b',
-            'i',
-            'u',
-            'h1',
-            'h2',
-            'h3',
-            'h4',
-            'h5',
-            'h6',
-            'ul',
-            'ol',
-            'li',
-            'a',
-            'blockquote',
-            'code',
-            'pre',
-            'span',
-            'div',
-            'table',
-            'thead',
-            'tbody',
-            'tr',
-            'th',
-            'td',
-            'img',
-            'hr',
-            'sub',
-            'sup',
-        ]
-        _ALLOWED_ATTRS = {
-            'a': ['href', 'title'],
-            'img': ['src', 'alt', 'title', 'width', 'height'],
-            'span': ['class'],
-            'div': ['class'],
-            'code': ['class'],
-            'pre': ['class'],
-            'td': ['colspan', 'rowspan'],
-            'th': ['colspan', 'rowspan'],
-        }
+    _ALLOWED_TAGS = [
+        'p',
+        'br',
+        'strong',
+        'em',
+        'b',
+        'i',
+        'u',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'ul',
+        'ol',
+        'li',
+        'a',
+        'blockquote',
+        'code',
+        'pre',
+        'span',
+        'div',
+        'table',
+        'thead',
+        'tbody',
+        'tr',
+        'th',
+        'td',
+        'img',
+        'hr',
+        'sub',
+        'sup',
+    ]
+    _ALLOWED_ATTRS = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'title', 'width', 'height'],
+        'span': ['class'],
+        'div': ['class'],
+        'code': ['class'],
+        'pre': ['class'],
+        'td': ['colspan', 'rowspan'],
+        'th': ['colspan', 'rowspan'],
+    }
 
-        def _sanitize_with_bleach(text: str) -> str:
-            return str(_bleach.clean(text, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True))
+    def _sanitize_with_bleach(text: str) -> str:
+        return str(_bleach.clean(text, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True))
 
-        _sanitize_fn = _sanitize_with_bleach
-    except ImportError:
-        # Fallback: regex-based sanitizer when bleach is not installed
-        _UNSAFE_TAGS_RE = re.compile(
-            r'<\s*/?\s*(?:script|iframe|object|embed|form|input|textarea|button|link|meta|base|applet)\b[^>]*>',
-            re.IGNORECASE,
-        )
-        _EVENT_HANDLER_RE = re.compile(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)', re.IGNORECASE)
-        _JS_URL_RE = re.compile(
-            r'(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|\'javascript:[^\']*\'|javascript:\S+)', re.IGNORECASE
-        )
-
-        def _sanitize_with_regex(text: str) -> str:
-            text = _UNSAFE_TAGS_RE.sub('', text)
-            text = _EVENT_HANDLER_RE.sub('', text)
-            text = _JS_URL_RE.sub('', text)
-            return text
-
-        _sanitize_fn = _sanitize_with_regex
+    _sanitize_fn = _sanitize_with_bleach
 
     @app.template_filter('sanitize_html')
     def sanitize_html_filter(text: str | None) -> str:

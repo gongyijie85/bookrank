@@ -54,6 +54,27 @@ def _mock_book_service(books=None):
 
 
 MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'
+
+
+def _related_recommendations() -> dict:
+    """推荐位固定载荷：中英书名不同，才能验出 locale 有没有生效。"""
+    return {
+        'recommendations': [
+            {
+                'id': 999,
+                'title': 'Related Book',
+                'title_zh': '相关图书',
+                'author': 'Related Author',
+                'year': 2022,
+                'category': 'Fiction',
+                'cover_url': None,
+                'isbn13': '9780000000999',
+            }
+        ],
+        'reason': '',
+    }
+
+
 DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0'
 ZH_MOBILE_HEADERS = {'User-Agent': MOBILE_UA, 'Accept-Language': 'zh'}
 EN_MOBILE_HEADERS = {'User-Agent': MOBILE_UA, 'Accept-Language': 'en'}
@@ -62,7 +83,7 @@ EN_MOBILE_HEADERS = {'User-Agent': MOBILE_UA, 'Accept-Language': 'en'}
 class TestMobileIndexRoute:
     """首页移动端渲染"""
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_ua_renders_mobile_template(self, mock_get_svc, client) -> None:
         """移动端 UA 访问首页应渲染移动版模板（含 m-tabbar）"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -70,7 +91,7 @@ class TestMobileIndexRoute:
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data  # 移动端底部 Tab 栏
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_desktop_ua_renders_desktop_template(self, mock_get_svc, client) -> None:
         """桌面端 UA 访问首页应渲染桌面版模板（不含 m-tabbar）"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -78,7 +99,7 @@ class TestMobileIndexRoute:
         assert resp.status_code == 200
         assert b'm-tabbar' not in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_monthly_category_shows_hint(self, mock_get_svc, client) -> None:
         """移动端月榜分类显示月榜提示"""
         mock_get_svc.return_value = _mock_book_service(
@@ -95,7 +116,7 @@ class TestMobileIndexRoute:
         assert resp.status_code == 200
         assert '月榜 · 每月更新 · 榜单日期 2026-06-01'.encode() in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_weekly_category_hides_monthly_hint(self, mock_get_svc, client) -> None:
         """移动端周榜分类不显示月榜提示"""
         mock_get_svc.return_value = _mock_book_service([_make_book(published_date='2026-07-05')])
@@ -108,8 +129,8 @@ class TestMobileBookDetailRoute:
     """书籍详情页移动端渲染"""
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
     def test_mobile_ua_renders_mobile_book_detail(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """移动端 UA 访问书籍详情应渲染移动版模板"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -138,7 +159,10 @@ class TestMobileProfileRoute:
 
     def test_profile_mobile_en_renders_english_labels(self, client, db) -> None:
         """英文移动端个人中心不应残留核心中文标签"""
-        resp = client.get('/profile', headers=EN_MOBILE_HEADERS)
+        # `?lang=en` is pinned: `_get_locale` prefers the `lang` cookie over Accept-Language,
+        # and the session-scoped test client inherits that cookie from tests that hit
+        # /set-language. Relying on the header alone makes this depend on test order.
+        resp = client.get('/profile?lang=en', headers=EN_MOBILE_HEADERS)
         assert resp.status_code == 200
         assert b'<span>My</span>' in resp.data
         assert b'My Favorites' in resp.data
@@ -214,7 +238,7 @@ class TestMobileWeeklyRoute:
     """周报列表移动端渲染"""
 
     @patch('app.services.weekly_report_service.WeeklyReportService')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_ua_renders_weekly(self, mock_get_svc, mock_report_svc, client) -> None:
         """移动端 UA 访问 /reports/weekly 应渲染移动版周报列表"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -281,7 +305,7 @@ class TestMobileAboutAndErrorRoute:
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_error_page_mobile_renders_mobile_template(self, mock_get_svc, client) -> None:
         """移动端 UA 访问不存在的书籍应渲染移动版错误页"""
         mock_get_svc.return_value = _mock_book_service([])  # 空书籍列表
@@ -296,7 +320,7 @@ class TestMobileWeeklyReportDetailEnhanced:
 
     @patch('app.routes.main.parse_report_content')
     @patch('app.services.weekly_report_service.WeeklyReportService')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_weekly_report_detail_renders_hero_stats(self, mock_get_svc, mock_report_svc, mock_parse, client) -> None:
         """周报详情应渲染 Hero 区数字卡片"""
         from datetime import date, datetime
@@ -324,9 +348,13 @@ class TestMobileWeeklyReportDetailEnhanced:
             'top_changes': [{'title': '测试图书', 'rank_change': 5}],
         }
 
-        resp = client.get('/reports/weekly/2024-01-14', headers={'User-Agent': MOBILE_UA})
+        resp = client.get('/reports/weekly/2024-01-14?lang=zh', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-report-hero' in resp.data
+        # `?lang=zh` is pinned deliberately: `_get_locale` defaults to 'en', so without it the
+        # page renders English and these Chinese assertions only held while the English
+        # catalogue had no entry for 总书数 / Top 5 排名变化 (the missing translation leaked
+        # Chinese through). Asserting a language the request never asked for is a bug in the test.
         assert '总书数'.encode() in resp.data
         assert 'Top 5 排名变化'.encode() in resp.data
 
@@ -334,7 +362,7 @@ class TestMobileWeeklyReportDetailEnhanced:
 class TestMobileIndexSimplified:
     """v0.9.76：移动端首页精简验证"""
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_index_no_filter_panel(self, mock_get_svc, client) -> None:
         """移动端首页不应渲染筛选/排序面板"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -343,7 +371,7 @@ class TestMobileIndexSimplified:
         assert b'm-filter-panel' not in resp.data
         assert b'm-filter-toggle' not in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_index_shows_rank_insights(self, mock_get_svc, client) -> None:
         """移动端首页卡片应显示本周排名和历史上榜周数"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -355,7 +383,7 @@ class TestMobileIndexSimplified:
         assert b'#1' in resp.data
         assert '3周'.encode() in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_index_has_top_nav(self, mock_get_svc, client) -> None:
         """移动端首页应渲染顶部导航栏"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -363,7 +391,7 @@ class TestMobileIndexSimplified:
         assert resp.status_code == 200
         assert b'm-top-nav' in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_mobile_index_has_compact_hero_header(self, mock_get_svc, client) -> None:
         """移动端首页头部应有品牌信息和紧凑 hero 结构"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -371,15 +399,15 @@ class TestMobileIndexSimplified:
         assert resp.status_code == 200
         assert b'm-top-nav-copy' in resp.data
         assert b'm-top-nav-subtitle' in resp.data
-        assert b'm-top-nav-mark' in resp.data
+        assert b'<h1 class="m-top-nav-title">BookRank <span>Charts</span></h1>' in resp.data
 
 
 class TestMobileBookDetailV2:
     """v0.9.77：书籍详情页 v2 视觉验证（v0.9.78 删除了底部"返回榜单"按钮）"""
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
     def test_book_detail_has_meta_list(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """移动端书籍详情应使用单列元信息列表"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -388,8 +416,8 @@ class TestMobileBookDetailV2:
         assert b'm-meta-list' in resp.data
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
     def test_book_detail_no_back_button(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """v0.9.78：移动端书籍详情页应不显示底部"返回榜单"按钮"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -398,8 +426,8 @@ class TestMobileBookDetailV2:
         assert b'm-detail-actions' not in resp.data
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
     def test_book_detail_shows_facts_and_detail_text(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """移动端书籍详情应直接展示关键元数据和 details 正文"""
         mock_get_svc.return_value = _mock_book_service([_make_book(details='Full mobile detail text')])
@@ -442,7 +470,7 @@ class TestMobileWeeklyReportListV2:
     """v0.9.77：周报列表 v2 视觉验证"""
 
     @patch('app.services.weekly_report_service.WeeklyReportService')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_weekly_list_shows_week_indicator(self, mock_get_svc, mock_report_svc, client) -> None:
         """移动端周报列表应显示周数指示器"""
         from datetime import date, datetime
@@ -474,7 +502,7 @@ class TestMobileV978:
 
     # ----- base.html 通用：语言切换器 -----
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_base_has_lang_switcher_button(self, mock_get_svc, client) -> None:
         """移动端 base.html 应包含语言切换按钮"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -483,7 +511,7 @@ class TestMobileV978:
         assert b'm-lang-globe-btn' in resp.data
         assert b'id="m-lang-globe"' in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_base_has_lang_dropdown_options(self, mock_get_svc, client) -> None:
         """语言下拉应包含"简体中文"和"English"两个选项"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -494,7 +522,7 @@ class TestMobileV978:
         assert b'data-lang="en"' in resp.data
         assert b'data-lang="zh"' in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_base_html_lang_follows_current_locale(self, mock_get_svc, client) -> None:
         """移动端 html lang 应跟随当前 locale，供 JS 与辅助技术读取"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -510,7 +538,7 @@ class TestMobileV978:
         assert 'localStorage.setItem(APP_LANG_STORAGE_KEY, lang)' in js
         assert "classList.toggle('active', isActive)" in js
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_base_includes_book_i18n_script(self, mock_get_svc, client) -> None:
         """base.html 应引入 book-i18n.js"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -520,7 +548,7 @@ class TestMobileV978:
 
     # ----- 底部 Tab Bar 文字/链接 -----
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_tabbar_no_search_label(self, mock_get_svc, client) -> None:
         """底部 Tab Bar 不应再含"搜索"Tab（data-tab 标识）"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -529,7 +557,7 @@ class TestMobileV978:
         # 旧版"搜索"Tab 用 data-tab="search" 标识，应不再存在
         assert b'data-tab="search"' not in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_tabbar_has_awards_and_publisher(self, mock_get_svc, client) -> None:
         """底部 Tab Bar 应含"获奖书单"和"出版社"两个 Tab（data-tab 标识）"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -539,7 +567,7 @@ class TestMobileV978:
         assert b'data-tab="awards"' in resp.data
         assert b'data-tab="publisher"' in resp.data
 
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.get_service')
     def test_tabbar_publisher_links_to_publishers(self, mock_get_svc, client) -> None:
         """底部出版社 Tab 应进入出版社导航页，而不是奖项页"""
         mock_get_svc.return_value = _mock_book_service([])
@@ -565,15 +593,15 @@ class TestMobileV978:
         assert b'href="#publisher-cat-1"' in resp.data
         assert b'id="publisher-cat-1"' in resp.data
 
-    @patch('app.services.new_book_service.NewBookService')
-    def test_publishers_mobile_links_matched_entry_to_new_books(self, MockService, client) -> None:
+    @patch('app.routes.main.get_new_book_modules')
+    def test_publishers_mobile_links_matched_entry_to_new_books(self, mock_get_modules, client) -> None:
         """移动端出版社页,数据库里有对应记录的条目应出现「查看新书」跳转链接"""
         mock_pub = MagicMock()
         mock_pub.id = 42
         mock_pub.name_en = 'Penguin Random House'
-        mock_svc = MagicMock()
-        mock_svc.get_publishers.return_value = [mock_pub]
-        MockService.return_value = mock_svc
+        mock_modules = MagicMock()
+        mock_modules.publisher_manager.get_publishers.return_value = [mock_pub]
+        mock_get_modules.return_value = mock_modules
 
         resp = client.get('/publishers', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
@@ -582,8 +610,8 @@ class TestMobileV978:
     # ----- 详情页 Tab 化 -----
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
     def test_book_detail_has_tabs(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """书籍详情页应包含"图书简介 / 详细信息"两个 Tab"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -597,8 +625,8 @@ class TestMobileV978:
         assert b'data-panel="details"' in resp.data
 
     @patch('app.routes.main.merge_or_translate_book')
-    @patch('app.routes.main.fetch_google_books_details')
-    @patch('app.routes.main.get_book_service')
+    @patch('app.routes.main.enrich_book_details')
+    @patch('app.routes.main.get_service')
     def test_book_detail_has_data_isbn_attr(self, mock_get_svc, mock_fetch, mock_merge, client) -> None:
         """书籍详情页 Tab 容器应带 data-isbn 属性供 JS 懒加载"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
@@ -634,41 +662,303 @@ class TestMobileV978:
         db.session.commit()
 
         mock_rec_svc = MagicMock()
-        mock_rec_svc.get_similarity_recommendations.return_value = {
-            'recommendations': [
-                {
-                    'id': 999,
-                    'title': 'Related Book',
-                    'title_zh': '相关图书',
-                    'author': 'Related Author',
-                    'year': 2022,
-                    'category': 'Fiction',
-                    'cover_url': None,
-                    'isbn13': '9780000000999',
-                }
-            ],
-            'reason': '',
-        }
+        mock_rec_svc.get_similarity_recommendations.return_value = _related_recommendations()
         mock_get_rec_svc.return_value = mock_rec_svc
 
         resp = client.get(f'/award-book/{sample_award_book}', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
         assert b'm-related-books' in resp.data
+        # 无 ?lang= 时默认英文：推荐位出原文书名。旧断言要求这里显示「相关图书」，
+        # 那正是 #227 要消除的英文页中文泄漏，不是该保住的约定。
+        assert b'Related Book' in resp.data
+        assert '相关图书'.encode() not in resp.data
+
+    @patch('app.routes.main.get_or_create_recommendation_service')
+    def test_award_book_detail_related_books_follow_zh(self, mock_get_rec_svc, client, db, sample_award_book) -> None:
+        """?lang=zh 时推荐位仍出中文书名（与英文页成对，防只修一半）。"""
+        from app.models.schemas import AwardBook
+
+        book = db.session.get(AwardBook, sample_award_book)
+        book.is_displayable = True
+        db.session.commit()
+
+        mock_rec_svc = MagicMock()
+        mock_rec_svc.get_similarity_recommendations.return_value = _related_recommendations()
+        mock_get_rec_svc.return_value = mock_rec_svc
+
+        resp = client.get(f'/award-book/{sample_award_book}?lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-related-books' in resp.data
         assert '相关图书'.encode() in resp.data
 
-    # ----- 首页无搜索图标 -----
+    # ----- 首页搜索入口（#66 有意加回，替代历史无图标约定）-----
 
-    @patch('app.routes.main.get_book_service')
-    def test_index_no_search_icon(self, mock_get_svc, client) -> None:
-        """首页顶部 nav 不应包含搜索放大镜图标"""
+    @patch('app.routes.main.get_service')
+    def test_index_has_search_icon_intentional(self, mock_get_svc, client) -> None:
+        """#66 产品决策：移动端首页顶部 nav 恢复搜索图标（同页展开）。
+        此断言证明是故意加回而非误操作。"""
         mock_get_svc.return_value = _mock_book_service([_make_book()])
         resp = client.get('/', headers={'User-Agent': MOBILE_UA})
         assert resp.status_code == 200
-        # 顶部 nav 区域不含 search/magnifier 关键字
         top_nav_start = resp.data.find(b'm-top-nav')
         top_nav_end = resp.data.find(b'</nav>', top_nav_start)
         top_nav_block = resp.data[top_nav_start:top_nav_end]
-        assert b'magnifier' not in top_nav_block
-        assert b'm-search' not in top_nav_block
-        # 旧版搜索图标 SVG（M11 19 Q14 14 19 14 或类似圆+柄）应不存在
-        assert b'M21 21l-4.35-4.35' not in top_nav_block
+        assert b'm-search-toggle' in top_nav_block
+
+
+class TestMobileRankingsRoute:
+    """更多榜单页（派生榜单）移动端渲染"""
+
+    @staticmethod
+    def _mocks(mock_get_svc, mock_award_svc):
+        mock_get_svc.return_value = _mock_book_service([_make_book(title='My Friends', author='Fredrik Backman')])
+        mock_award_svc.return_value.get_award_books.return_value = ([], 0)
+
+    @patch('app.routes.main.get_service')
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_mobile_ua_renders_mobile_template(self, mock_award_svc, mock_get_svc, client) -> None:
+        self._mocks(mock_get_svc, mock_award_svc)
+        resp = client.get('/rankings?lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' in resp.data
+        assert '跨榜现象级'.encode() in resp.data
+        assert b'My Friends' in resp.data
+
+    @patch('app.routes.main.get_service')
+    @patch('app.services.award_book_service.AwardBookService')
+    def test_desktop_ua_renders_desktop_template(self, mock_award_svc, mock_get_svc, client) -> None:
+        self._mocks(mock_get_svc, mock_award_svc)
+        resp = client.get('/rankings?lang=zh', headers={'User-Agent': DESKTOP_UA})
+        assert resp.status_code == 200
+        assert b'm-tabbar' not in resp.data
+        assert '跨榜现象级'.encode() in resp.data
+        assert b'class="cross-list"' in resp.data
+
+
+class TestMobileWeeklyParityAndCsp:
+    """移动端周报：与桌面版信息对等 + CSP 下的脚本/兜底可用性"""
+
+    @staticmethod
+    def _report(week_end, top_changes=(), new_books=(), featured=(), total_books=12):
+        from datetime import datetime, timedelta
+
+        r = MagicMock()
+        r.id = 1
+        r.week_end = week_end
+        r.week_start = week_end - timedelta(days=6)
+        r.report_date = week_end
+        r.created_at = datetime(2024, 1, 14, 10, 0)
+        r.title = '测试周报'
+        r.summary = '测试摘要'
+        r.content_data = {
+            'total_books': total_books,
+            'top_changes': list(top_changes),
+            'new_books': list(new_books),
+            'featured_books': list(featured),
+        }
+        return r
+
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_service')
+    def test_list_groups_by_month_and_shows_stats(self, mock_get_svc, mock_report_svc, client) -> None:
+        """列表页应按月份分组并给出三项统计（与桌面版对齐）"""
+        from datetime import date
+
+        mock_get_svc.return_value = _mock_book_service([])
+        reports = [
+            self._report(
+                date(2024, 1, 14),
+                top_changes=[{'title': 'A', 'rank': 3, 'rank_change': 5}],
+                new_books=[{'title': 'B'}],
+                featured=[{'title': 'C'}],
+            ),
+            self._report(date(2023, 12, 31)),
+        ]
+        svc = MagicMock()
+        svc.get_or_trigger_current_week_report.return_value = (reports[0], False)
+        svc.get_reports.return_value = reports
+        mock_report_svc.return_value = svc
+
+        resp = client.get('/reports/weekly?lang=zh', headers=ZH_MOBILE_HEADERS)
+        assert resp.status_code == 200
+        assert b'm-report-group' in resp.data
+        assert b'm-report-chips' in resp.data
+        assert '项变化'.encode() in resp.data
+        assert '新上榜'.encode() in resp.data
+        assert b'W02' in resp.data
+
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_service')
+    def test_generating_banner_declares_poll_marker(self, mock_get_svc, mock_report_svc, client) -> None:
+        """生成中横幅须带 data-report-poll，且不得再出现裸内联 <script>
+
+        CSP 为 script-src 'self' 'nonce-…'，无 unsafe-inline，内联脚本会被静默拦截。
+        """
+        from datetime import date
+
+        mock_get_svc.return_value = _mock_book_service([])
+        report = self._report(date(2024, 1, 14))
+        svc = MagicMock()
+        svc.get_or_trigger_current_week_report.return_value = (report, True)
+        svc.get_reports.return_value = [report]
+        mock_report_svc.return_value = svc
+
+        resp = client.get('/reports/weekly?lang=zh', headers=ZH_MOBILE_HEADERS)
+        body = resp.data.decode('utf-8')
+        assert 'data-report-poll' in body
+        assert 'startPolling' not in body
+
+    @patch('app.routes.main.parse_report_content')
+    @patch('app.services.weekly_report_service.WeeklyReportService')
+    @patch('app.routes.main.get_service')
+    def test_detail_prefers_translated_title_and_shares(
+        self, mock_get_svc, mock_report_svc, mock_parse, client
+    ) -> None:
+        """详情页书名走 title_zh，并提供分享入口"""
+        from datetime import date, datetime
+
+        mock_get_svc.return_value = _mock_book_service([])
+        report = MagicMock()
+        report.id = 1
+        report.week_end = date(2024, 1, 14)
+        report.week_start = date(2024, 1, 8)
+        report.created_at = datetime(2024, 1, 14, 10, 0)
+        report.title = '测试周报'
+        report.summary = '测试摘要'
+        svc = MagicMock()
+        svc.get_report_by_week_end.return_value = report
+        svc.record_report_view.return_value = None
+        mock_report_svc.return_value = svc
+        mock_parse.return_value = {
+            'total_books': 10,
+            'top_changes': [{'title': 'The Book', 'title_zh': '中文书名', 'rank': 3, 'rank_change': 5}],
+            'new_books': [
+                {'title': 'New One', 'title_zh': '新书', 'category': '小说', 'cover': '/cache/images/new-one.jpg'},
+            ],
+            'featured_books': [
+                {
+                    'title': 'Fav',
+                    'title_zh': '荐书',
+                    'author': 'A',
+                    'reason': '值得一读',
+                    'cover': '/cache/images/fav.jpg',
+                },
+            ],
+        }
+
+        body = client.get('/reports/weekly/2024-01-14?lang=zh', headers=ZH_MOBILE_HEADERS).data.decode('utf-8')
+        assert '《中文书名》' in body
+        assert 'data-share-url' in body
+        assert 'm-report-hero' in body
+        assert '总书数' in body
+        # 兜底目标取自 mobile.js 常量，模板只负责开关标记；两张封面图都应带上
+        assert body.count('data-cover-fallback') == 2
+
+    def test_weekly_templates_have_no_csp_blocked_onerror(self) -> None:
+        """移动端周报模板不得再使用内联 onerror（CSP 下永不执行）"""
+        root = Path(__file__).resolve().parents[1] / 'templates' / 'mobile'
+        for name in ('weekly_reports.html', 'weekly_report_detail.html'):
+            src = (root / name).read_text(encoding='utf-8')
+            assert 'onerror=' not in src, f'{name} 仍含被 CSP 屏蔽的内联 onerror'
+            assert '<script>' not in src, f'{name} 仍含被 CSP 屏蔽的裸内联脚本'
+
+    def test_mobile_js_wires_fallback_and_polling(self) -> None:
+        """处理器必须在 DOM ready 队列里被真正调用（只定义不接线是本次要修的故障）"""
+        root = Path(__file__).resolve().parents[1] / 'static' / 'mobile' / 'js' / 'mobile.js'
+        src = root.read_text(encoding='utf-8')
+        ready_block = src[src.index('ready(function () {') :]
+        for fn in ('initImageFallback()', 'initReportPolling()', 'initShareButtons()'):
+            assert fn in ready_block, f'{fn} 未接入 DOM ready 初始化'
+        assert "'error'," in src and 'true' in src, '图片兜底须用捕获阶段监听（error 不冒泡）'
+
+
+class TestMobileNewBooksCategoryChips:
+    """移动端新书页的分类 chip。
+
+    `query_service.get_categories()` 返回的是 `{'name','count'}` 字典列表，桌面版取
+    `cat.name`；移动版曾直接输出 `{{ cat }}`，于是 chip 文案变成 Python repr、href 变成
+    `?category={'name': ...}`（点不动，也永远匹配不上 selected_category）。
+    """
+
+    CATEGORIES = [
+        {'name': '儿童读物', 'count': 419},
+        {'name': '小说', 'count': 402},
+    ]
+
+    @staticmethod
+    def _mock_modules():
+        modules = MagicMock()
+        modules.publisher_manager.get_publishers.return_value = []
+        modules.publisher_manager.get_publisher_book_counts.return_value = {}
+        modules.query_service.get_categories.return_value = TestMobileNewBooksCategoryChips.CATEGORIES
+        modules.query_service.get_new_books.return_value = ([], 0)
+        modules.query_service.get_statistics.return_value = {
+            'total_books': 0,
+            'total_publishers': 0,
+            'active_publishers': 0,
+            'recent_books_7d': 0,
+            'top_categories': [],
+        }
+        return modules
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_chips_render_names_not_dict_repr(self, mock_get_modules, client) -> None:
+        mock_get_modules.return_value = self._mock_modules()
+        resp = client.get('/new-books?lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert '&#39;name&#39;' not in html, 'chip 仍在输出 Python 字典 repr'
+        assert '儿童读物' in html and '小说' in html
+        # 中文分类名必须被编码进 query，否则链接点不开
+        assert 'category=%E5%B0%8F%E8%AF%B4' in html
+
+    @staticmethod
+    def _fake_books():
+        book = MagicMock()
+        book.id = 7
+        book.title = 'The Machine'
+        book.title_zh = '机器'
+        book.author = 'Ann Writer'
+        book.category = '小说'
+        book.description = 'An English blurb.'
+        book.description_zh = '中文简介。'
+        book.cover_url = ''
+        book.publication_date = '2026-09-01'
+        book.publisher = None
+        return [book]
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_english_page_uses_english_titles_and_categories(self, mock_get_modules, client) -> None:
+        modules = self._mock_modules()
+        modules.query_service.get_new_books.return_value = (self._fake_books(), 1)
+        mock_get_modules.return_value = modules
+
+        html = client.get('/new-books?lang=en', headers={'User-Agent': MOBILE_UA}).get_data(as_text=True)
+        assert 'm-book-title' in html
+        assert 'The Machine' in html, '英文页书名仍是中文'
+        assert '机器' not in html
+        assert '中文简介。' not in html, '英文页简介取了译文'
+        assert '>Fiction<' in html, '分类 chip 未英文化'
+        assert 'category=%E5%B0%8F%E8%AF%B4' in html, 'chip 链接仍需保留中文筛选键'
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_chinese_page_keeps_translated_title(self, mock_get_modules, client) -> None:
+        modules = self._mock_modules()
+        modules.query_service.get_new_books.return_value = (self._fake_books(), 1)
+        mock_get_modules.return_value = modules
+
+        html = client.get('/new-books?lang=zh', headers={'User-Agent': MOBILE_UA}).get_data(as_text=True)
+        assert '机器' in html, '中文页丢了中文书名'
+        assert '中文简介。' in html
+        assert '小说' in html
+
+    @patch('app.routes.main.get_new_book_modules')
+    def test_selected_category_marks_chip_active(self, mock_get_modules, client) -> None:
+        mock_get_modules.return_value = self._mock_modules()
+        resp = client.get('/new-books?category=小说&lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        anchors = [a for a in html.split('<a ') if 'category=%E5%B0%8F%E8%AF%B4' in a]
+        assert anchors, '未渲染小说分类 chip 链接'
+        assert any('active' in a for a in anchors), '选中的分类 chip 未标记 active'
+        assert '小说</a>' in html

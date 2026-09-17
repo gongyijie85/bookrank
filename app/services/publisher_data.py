@@ -1,16 +1,13 @@
 """
 出版社数据定义和静态数据导入辅助
 
-从 NewBookService 中提取，与实例状态分离。
+从新书速递同步逻辑中提取，与实例状态分离。
 """
 
-import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 # ==================== 出版社定义 ====================
 
@@ -142,7 +139,7 @@ CRAWLER_MIGRATION: dict[str, str] = {
     'PenguinRandomHouseCrawler': 'PrhApiCrawler',
 }
 
-# 营销关键词过滤（_sanitize_category 使用）
+# 营销关键词过滤（sanitize_category 使用）
 MARKETING_KEYWORDS: list[str] = [
     'learn more',
     'read more',

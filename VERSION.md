@@ -1,11 +1,245 @@
 # BookRank 版本信息
 
-**当前版本**：v0.9.87
-**发布日期**：2026-07-16
+**当前版本**：v0.10.1
+**发布日期**：2026-09-04
 **Python 版本**：3.13
 **Flask 版本**：3.1.3
 
 ## 版本亮点
+
+### v0.9.101 (2026-09-03) — 安全与 CI 硬化
+
+**背景**：完成 2026-07-02 安全审计的剩余项收尾，并修复排查中发现的真实缺陷。
+审计报告中**有 5 项经核查已过时**（#3/#7/#10 等早已修复且有测试锁定），故先查证再动手，避免制造无意义 diff。
+
+**六项改动**：
+1. **限流器支持 Redis 共享后端**（审计 High #2 根因修复）：新增 `RedisRateLimitBackend`
+   （ZSET 滑动窗口 + Lua 原子判定），配置 `RATE_LIMIT_REDIS_URL` 后跨 worker 计数；
+   未配置时行为完全一致，Redis 异常自动降级为进程内限流（非完全放行）。
+2. **修复移动端 CSRF 令牌复用**：令牌为一次性，但移动端永久缓存 → 删除收藏"第一个成功、
+   之后全 403"。新增 `csrfFetch()`（用后清缓存 + 失效重试），并为主前端补并发重试。
+   该缺陷测试抓不到，因为 `csrf_protect` 在 `TESTING` 下被短路。
+3. **修复管理员封禁阈值可绕过**（审计 Low #9）：失败计数仅在达到第 5 次时落盘，
+   重启/重新部署即清零 → 阈值永远无法触发。现每次失败都持久化（24h 保留窗口）。
+4. **移除被投毒的依赖 `deep-translator`**（PYSEC-2022-252 供应链攻击，安装期窃取
+   环境变量；1.8.5 及之后全部受影响且无修复版本）。
+5. **日志/异常不再泄露密钥名称与存储位置**（审计 Medium #5）。
+6. **依赖漏洞门禁**：`mistune` 3.3.0 → 3.3.4 消除 2 个 GitHub HIGH 告警（Dependabot open 告警归零）；
+   CI 新增 `pip-audit` 例外登记式门禁（未登记漏洞阻塞合并），并纳入 branch protection 必需检查。
+
+**质量验证**：ruff / mypy（99 文件）通过；全套 pytest = **2237 passed / 0 failed**。
+**已知风险**：pyjwt 2.8.0（10 条记录 / 6 个公告 ID，含 4 条 HIGH）因 zhipuai 锁定 `<2.9.0`
+而**无升级路径**；已验证**不可达**（本仓库不 import jwt，zhipuai 仅调 `jwt.encode()`，
+公告全在解码/验签侧）。详见 `SECURITY.md`。
+### v0.10.1 (2026-09-04) — ROADMAP 推进 + 安全快修 + 覆盖 84%
+
+- **ROADMAP**：#1 OpenAPI 3.1（/openapi.json）、#2 爬虫漂移监控（检测+告警）、
+  #4 覆盖 81%→84%（6 个 0% 模块点亮）、#5 N+1 回归保护、#8 Render 资源告警
+- **安全**：Chart.js SRI、OpenLibrary Content-Type 校验、admin GET 限流、gzip 防双压
+- **性能**：get_statistics 单查询化
+- **i18n/SEO/a11y**：hreflang、移动端 JSON-LD、封面 alt 统一、卡片键盘可达
+- **健壮性**：JSON getter 容错、限流器去重、测试隔离全局化
+
+### v0.10.0 (2026-09-04) — 全维度审计整改：安全/性能/mypy/i18n/前端打包
+
+**背景**：2026-09-04 全维度审计（性能/安全/架构/前端/i18n/DX 六路并行）后
+按优先级分四轮迭代完成 P0/P1/P2 全部项 + mypy 债务清零。
+
+**安全**
+- XSS：周报详情模态 `innerHTML` 全字段 `escHtml()`（`weekly_report_detail.html`）
+- bleach 缺失 fail-closed（`raise ImportError`），删除弱正则回退
+- SSRF 防护：`_is_safe_image_url`（仅 https + 私网/回环/link-local/非443阻断 + `image/*` 校验）
+- 备份导出流式化（逐表 `yield_per(200)`）+ `@rate_limit(5,60)`
+- CSP 补 `base-uri`/`form-action`/`upgrade-insecure-requests`；canonical 去查询串
+- CORS 生产加 DELETE（favorites 删除端点）
+
+**性能**
+- `/api/books/all` 8 分类并行拉取（`ThreadPoolExecutor` + 失败隔离 + 串行降级）
+- 迁移 `add_perf_indexes`：复合索引 + pg_trgm GIN（postgres-guarded）
+- 封面异步化：`get_cached_image_url(block=False)` 立即返回占位 + 后台预取
+  （去重锁）；每日 `_cover_prefetch_task` 预热；default-cover 430KB→93KB
+- 备份导出流式化 + `clear_expired` 每日调度
+
+**类型质量（mypy 清零）**
+- `pyproject.toml` 从 22 模块/13 错误码全禁收紧为仅 8 个 ORM 文件豁免
+  SQLAlchemy 2.0 py.typed 噪音；25+ 模块零 override；`mypy app/` 0 errors
+- 修复 7 个被 disable 掩盖的真实缺陷（macmillan buy_links 形状、book 变量
+  遮蔽、zhipu translate_kwargs、award stats 联合类型、implicit Optional 等）
+
+**i18n**
+- awards 页筛选栏/空状态/快速链接 19 处硬编码中文化 + `data-i18n`
+- translations.js 补 zh/en 键；po 同步 + 兼容键；`Makefile translations` +
+  CI 前置 `pybabel compile`（防 stale .mo）
+- 语言键统一（app_language 优先，mobile 尊重 localStorage，cookie domain 守卫）
+
+**前端打包（#177 核心）**
+- esbuild：CSS 5→1（119KB→15.7KB），JS 逐文件 minify（93KB→51KB）
+- `dist_url()` Jinja 辅助读 manifest 指纹；模板全量迁移 dist
+- 产物提交 `static/dist/`（Render 生产无 node）；CI 前置构建
+
+**工程效能**
+- CI 前置 `pybabel compile` + `npm ci` + `node scripts/build_frontend.mjs`
+- 死代码删除（api.js/utils.js/config.js/all.min.css 未引用）
+- 4 个 GitHub Issue 建档/关闭（#10/#177/#178）
+
+**验证**：全量测试 2224 passed；ruff clean；mypy app/ 0 errors。
+
+### v0.9.99 (2026-08-19) — 评审清单低优先级项清理
+
+**四项改动**：
+- [sync_request_gate.py](file:///d:/BookRank3/app/services/sync_request_gate.py)：`try_acquire_sync()` 原子检查+记录消除冷却竞态；export 字典重建加锁。
+- [award_cover_sync_service.py](file:///d:/BookRank3/app/services/award_cover_sync_service.py)：候选筛选改两列轻量查询 + 按需取 ORM，稳态零实例化。
+- [cover_resolver.py](file:///d:/BookRank3/app/services/cover_resolver.py)：`resolve` 支持 `auto_commit=False`，批同步批末统一提交。
+- 删除三个根目录运维脚本（fix-circe-*.py / verify_fix.py，正式修复已在 TRANSLATION_OVERRIDES）。
+- 安全#4 疑点关闭：自研 `add_security_headers` 已完整覆盖 Talisman 功能（CSP nonce/HSTS 等），不引入依赖。
+
+**验证**：全量测试 2187 passed / 1 skipped，覆盖率 83.75%；ruff / mypy 通过。
+
+### v0.9.98 (2026-08-19) — 来源降级告警改后台派发，导入请求不等待 GitHub API
+
+**背景**：性能评审发现 `import_batch` 健康钩子在请求线程内同步调 GitHub Issues API
+（最多 3-4 次 × timeout 20s，且每次拉 50 条 issues 列表），GitHub 抖动直接拖慢导入 P99。
+
+**核心优化**
+- [source_health_service.py](file:///d:/BookRank3/app/services/source_health_service.py) 新增 `_run_alert_job`（执行时重查 publisher + 状态守卫）与 `_dispatch_alert_async`（后台线程派发，无 app 上下文退回同步）；状态机 DB 更新保持同步，仅 GitHub HTTP 往返移出请求线程。
+- 陈旧任务守卫：派发与执行之间状态翻转时（如翻回 degraded），恢复关闭任务自动失效。
+- `fake_gh` fixture 同步直调适配 + 新增 3 个异步派发测试。
+
+**验证**：全量测试 2182 passed / 1 skipped，覆盖率 83.71%；ruff / mypy 通过。
+
+### v0.9.97 (2026-08-19) — 入库去重批级预载索引，消除 ingestor N+1 查询
+
+**背景**：性能评审发现 `NewBookIngestor._find_existing` 每本书最多 3 次去重查询
+（isbn13 → isbn10 → 标题+作者），首次回填 2000 本 ≈ 最多 6000 次外部 PG 往返。
+
+**核心优化**
+- [ingestor.py](file:///d:/BookRank3/app/services/new_book/ingestor.py) 新增 `_PublisherBookIndex` 三键内存索引 + `preloaded_lookup(publisher)` 上下文管理器：上下文内 `save_book` 去重走字典零查询，无上下文回退原逐本路径；新建书回填索引保持同批重复命中语义；索引状态线程隔离。
+- [sync_engine.py](file:///d:/BookRank3/app/services/new_book/sync_engine.py) `_ingest_book_stream`（爬虫流与静态流共用）包裹预载上下文。
+- 新增 5 个测试（零查询断言用 `_QueryBomb`）。
+
+**收益**：去重查询从每本最多 3 次往返降为每批 1 次预载——回填 2000 本 ≈ 6000 次 → 1 次。
+
+**验证**：全量测试 2179 passed / 1 skipped，覆盖率 83.75%；ruff / mypy 通过。
+
+### v0.9.96 (2026-08-19) — 同步端点改后台任务，消除请求线程最长 600s/社阻塞
+
+**背景**：性能评审发现 `/api/new-books/sync` 与 `/sync/<id>` 在请求线程内同步执行
+爬虫同步（全量最坏 5 社 × 600s + LLM 翻译），超 Render 网关超时后前端误报失败、
+服务端继续空跑。
+
+**核心修复**
+- [new_books.py](file:///d:/BookRank3/app/routes/new_books.py)：进程内单一任务槽（运行中再触发返回 409）；两个触发端点改 `submit_background_task` 后台执行并立即返回 202；冷却改触发即记录；新增 `GET /api/new-books/sync/status` 轮询端点。
+- [new_books.html](file:///d:/BookRank3/templates/new_books.html)：`syncNewBooks()` 改提交 + 每 3s 轮询（最长 15 分钟），成功/失败/超时均有可读提示。
+- 新增 7 个异步行为测试。
+
+**行为变更**：触发端点从"同步结果（200）"变为"任务已受理（202）"，结果经 `/sync/status` 获取。
+
+**验证**：全量测试 2174 passed / 1 skipped，覆盖率 83.69%；ruff / mypy 通过。
+
+### v0.9.95 (2026-08-19) — 封面批同步改后台任务 + 模块级锁修复防重入失效
+
+**背景**：性能评审发现 admin 封面同步端点在请求线程内同步跑批（最坏数百秒，
+超 Render 网关超时），且每次请求新建 Service 实例导致实例级防重入标志恒为
+False，手动触发与定时任务可并发跑批。
+
+**核心修复**
+- [admin.py](file:///d:/BookRank3/app/routes/admin.py) `sync_award_covers`：改 `submit_background_task` 后台执行，立即返回 202；结果与进度通过 `/award-covers/status` 轮询（新增 `last_result` 字段）。
+- [award_cover_sync_service.py](file:///d:/BookRank3/app/services/award_cover_sync_service.py)：实例级 `_is_running` 替换为模块级 `threading.Lock`，跨实例/跨触发源（admin 手动 + APScheduler 定时）防重入真实生效。
+- 测试重写为异步语义 + 新增跨实例防重入回归测试。
+
+**验证**：全量测试 2167 passed / 1 skipped，覆盖率 83.29%；ruff / mypy 通过。
+
+### v0.9.94 (2026-08-19) — 提取翻译覆盖共享助手，消除模型层重复与反向依赖
+
+**背景**：规范评审发现"应用翻译覆盖"逻辑在 Book 与 AwardBook 两处逐字重复且行为
+已分叉（Book 版缺 key in data 守卫），且模型层反向依赖服务层。
+
+**核心重构**
+- 新建 [translation_overrides.py](file:///d:/BookRank3/app/utils/translation_overrides.py)：`TRANSLATION_OVERRIDES` 映射 + `apply_translation_overrides()` 共享助手（保守语义：只覆盖已有键、空值跳过、isbn13/isbn10 双键命中）。
+- Book / AwardBook 两处重复块收敛为共享助手，依赖方向修正为 models → utils。
+- `book_detail_service` 数据源改为从 utils 导入（名称向后兼容），合并语义不同的内部逻辑保留不合并。
+- 新增 9 个测试（纯函数 6 + 模型接线 3）。
+
+**验证**：全量测试 2165 passed / 1 skipped，覆盖率 83.26%；ruff / mypy 通过。
+
+### v0.9.93 (2026-08-19) — 接线 fallback_google_enabled 开关（#137）
+
+**背景**：规格评审发现 `fallback_google_enabled` 开关只有存储/审计/展示路径，
+无执行路径读取——关闭开关无法影响 Google 兜底，属无效控制面。
+
+**核心修复**
+- [sync_engine.py](file:///d:/BookRank3/app/services/new_book/sync_engine.py) `sync_publisher_books` 入口新增开关检查：Google 系爬虫 + 开关关闭 → 跳过同步，返回 `status='skipped'`（可观测，不算失败以保住 auto_sync 24h 节流）。
+- 新增 3 个测试覆盖：关→跳过、开→正常、非 Google 系→不受控。
+
+**语义边界**：只控制 Google 系爬虫同步；静态数据兜底与非 Google 系数据源不受影响。
+
+**验证**：全量测试 2156 passed / 1 skipped，覆盖率 83.19%；ruff / mypy 通过。
+
+### v0.9.92 (2026-08-19) — 消除 CI 脚本内的 secrets/输入直接内插
+
+**背景**：安全评审发现 5 处 `${{ }}` 表达式直接内插在 GitHub Actions 的 `run:` 脚本中，
+包括 dispatch 输入拼入 Python 字符串（注入面）、"断言无 secret"步骤自己渲染 secret
+（死代码）、三处 `CRON_SECRET` 内插 curl 参数。
+
+**核心修复**
+- [site-crawl-pipeline.yml](file:///d:/BookRank3/.github/workflows/site-crawl-pipeline.yml)：`SOURCE_ID` 改读环境变量；删除渲染 secret 的死代码块；`CRON_SECRET` 移入 `env:`。
+- [trigger-new-books-sync.yml](file:///d:/BookRank3/.github/workflows/trigger-new-books-sync.yml)、[trigger-weekly-report.yml](file:///d:/BookRank3/.github/workflows/trigger-weekly-report.yml)：`CRON_SECRET` 移入 `env:` 块。
+
+**验证**：YAML 解析通过；`run:` 脚本内零 `${{ }}` 内插；相关 17 个测试通过。
+
+### v0.9.91 (2026-08-19) — 批量导入消除 O(N×M) 全表扫描
+
+**背景**：代码评审发现批量导入的 `_find_existing` 在每条 record 循环内执行
+该出版社全表加载并逐本内存匹配规范化 URL，几百条批次 × 数千存量书导致数百次
+外部 PostgreSQL 全表拉取，导入耗时分钟级。
+
+**核心优化**
+- [batch_import_service.py](file:///d:/BookRank3/app/services/batch_import_service.py) 新增 `_BatchLookup` 批级索引：批次开始一次性预载出版社书籍，构建 isbn13 / 规范化 URL 双字典，`_find_existing` 改为 O(1) 字典查找。
+- 写路径完成后回填索引（`register_written`），保持同批去重语义与原 SQL autoflush 行为一致。
+
+**验证**：全量测试 2153 passed / 1 skipped，覆盖率 83.19%；ruff / mypy 通过。
+
+### v0.9.90 (2026-08-14) — 修复生产环境封面同步：识别"缓存文件丢失"并重新下载
+
+**背景**：生产环境（Render 临时文件系统）重启后 `cache/images/` 丢失，但数据库（PostgreSQL 持久化）中 `cover_local_path` 仍保留旧值。实测获奖页面全部封面图片 404。
+
+**核心修复**
+- [award_cover_sync_service.py](file:///d:/BookRank3/app/services/award_cover_sync_service.py) `sync_missing_covers`：
+  改为先拉取全部展示书籍，再通过 `_is_cached_path_available`（含文件系统存在性检查）识别真正缺失的封面，覆盖"数据库有路径但本地文件已丢失"场景，重新下载并回写。
+- 新增两个回归测试验证新增逻辑。
+
+**部署约定**：生产环境重新部署后，必须触发封面同步（`POST /api/admin/award-covers/sync`）以补齐缓存。
+
+### v0.9.89 (2026-08-14) — 修复获奖书单封面回退 + 更新 2026 最新获奖书单
+
+**背景**：获奖书单页面图片显示异常。诊断发现所有 `AwardBook.cover_local_path` 均为空，
+前端退化为每次远程加载 Open Library 封面，加载慢且不稳定；生产环境临时文件系统还会导致缓存丢失。
+
+**关键优化**
+- **多级封面回退**：`base.js` 重构 `initImageErrorHandler`，`awards.html` 增加
+  `data-original` / `data-fallback`，实现 本地缓存 → 原始 URL → 默认封面 三级兜底
+- **封面缓存补齐**：运行 `sync_missing_covers` 将 34 本获奖图书封面下载到本地缓存并回写
+  `cover_local_path`，本地文件验证全部存在
+- **数据更新**：同步 2020-2026 最新获奖书单，新增 2026 年数据
+  （普利策奖 4 本、国际布克奖 Taiwan Travelogue、爱伦·坡奖 The Big Empty）
+
+**验证**：302 个获奖/路由/服务相关测试全部通过。
+
+### v0.9.88 (2026-08-14) — 提取 NewBookIngestor 深模块，瘦身 SyncEngine
+
+**背景**：`SyncEngine` 承担同步编排以外的过多入库规则，接口与实现一样复杂（浅模块）。
+本次将去重、字段合并、新建与 ORM 持久化集中到深模块 `NewBookIngestor`，对外只暴露
+`save_book` / `update_book_fields` 两个稳定接口；`TranslationPipeline` 增加公共接缝
+（`translate_book` / `persist_language_pack` / `translator_enabled`）。
+
+**关键优化**
+- **深模块**：新增 `app/services/new_book/ingestor.py`，用 `SaveOutcome` 枚举替代裸字符串
+- **接缝**：`TranslationPipeline` 私有方法转公共，斩断与 SyncEngine 的紧耦合
+- **测试可测性**：入库规则不再经由 SyncEngine 私有方法测试，直接面向稳定接口
+
+**决议**：`BatchImportService` 保留独立入库实现，与 `NewBookIngestor` 并存。
+
+**验证**：`pytest` 2381 passed / 1 skipped；`ruff`、`mypy` 通过。
 
 ### v0.9.87 (2026-07-16) — 依赖安全漏洞修复（Dependabot 36 个 alert）
 

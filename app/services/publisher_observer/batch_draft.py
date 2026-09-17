@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .contracts import BookObservation, ObservationReport
-from .harpercollins import FixedTemplateFallback, observe_fixture_manifest
+from .harpercollins import observe_fixture_manifest
 
 
 def export_batch_draft(
@@ -27,16 +27,14 @@ def export_batch_draft(
         raise TypeError('export_batch_draft expects an ObservationReport')
     if not isinstance(produced_at, datetime):
         raise TypeError('produced_at must be a datetime')
-    if report.write_enabled:
-        raise ValueError('observation report must keep write_enabled=false')
 
     records = [_book_to_record(book) for book in report.records]
+    # digest 字段集必须与服务端 compute_content_sha256 严格一致（source_id/schema_version/records），
+    # 多算或漏算任何字段都会导致 import 请求 409 DIGEST_MISMATCH
     body_for_digest = {
         'source_id': report.source,
         'schema_version': report.schema_version,
         'records': records,
-        'candidate_urls': list(report.candidate_urls),
-        'manifest_sha256': report.manifest_sha256,
     }
     content_sha256 = sha256(
         json.dumps(body_for_digest, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
@@ -78,11 +76,10 @@ def observe_fixture_manifest_as_batch_draft(
     produced_at: datetime,
     run_date: str,
     producer: str,
-    fallback: FixedTemplateFallback | None = None,
 ) -> dict[str, Any]:
     """Run fixture observation then export a no-write batch draft."""
     path = Path(manifest_path)
-    report = observe_fixture_manifest(path, fallback=fallback)
+    report = observe_fixture_manifest(path)
     return export_batch_draft(
         report,
         produced_at=produced_at,
