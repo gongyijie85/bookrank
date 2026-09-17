@@ -19,12 +19,12 @@
 {% set display_title = book.title_zh|bilingual(book.title) %}
 {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
 {# details_zh 在库里可能是占位串（'暂无详细描述' 等），直接取用会把占位串当正文渲染；
+   占位串清单来自 api_helpers 的单一真相源（Jinja 全局 PLACEHOLDER_TEXTS），模板不自带清单。
    这里与桌面端同口径归一化，两侧都为空时由下面的空态兜底。 #}
-{% set _detail_placeholders = ('No detailed description available.', 'No summary available.', 'No summary available', '暂无详细描述', '暂无详细介绍', 'None') %}
 {% set _detail_zh = (book.details_zh or '')|trim %}
 {% set _detail_en = (book.details or '')|trim %}
-{% set _detail_zh = '' if _detail_zh in _detail_placeholders else _detail_zh %}
-{% set _detail_en = '' if _detail_en in _detail_placeholders else _detail_en %}
+{% set _detail_zh = '' if _detail_zh in PLACEHOLDER_TEXTS else _detail_zh %}
+{% set _detail_en = '' if _detail_en in PLACEHOLDER_TEXTS else _detail_en %}
 {% set detail_text = _detail_zh if _locale == 'zh' and _detail_zh else (_detail_en or _detail_zh) %}
 
 <!-- 书籍封面 -->
@@ -76,7 +76,7 @@
     <div class="m-tab-content">
         <!-- 图书简介 -->
         <div class="m-tab-panel active" data-panel="description" role="tabpanel">
-            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            {% if desc and desc not in PLACEHOLDER_TEXTS %}
             <div class="m-detail-text">
                 {% for para in desc.split('\n') if para.strip() %}
                 <p>{{ para.strip() }}</p>
@@ -115,7 +115,7 @@
                 <div class="m-meta-row"><dt>{{ _('价格') }}</dt><dd>{{ book.price }}</dd></div>
                 {% endif %}
             </dl>
-            {% if detail_text and detail_text not in ('No detailed description available.', '暂无详细介绍', '暂无详细描述', '') %}
+            {% if detail_text and detail_text not in PLACEHOLDER_TEXTS %}
             <div class="m-detail-text m-detail-longtext">
                 {% for para in detail_text.split('\n') if para.strip() %}
                 <p>{{ para.strip() }}</p>

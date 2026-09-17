@@ -100,7 +100,11 @@ class TestFetchBookDetails:
 
     def test_cache_hit(self, client_no_key):
         mock_cache_service = MagicMock()
-        mock_cache_service.get.return_value = {'title': 'Cached Book'}
+        # 按 key 精确返回：退避标记键（__quota_blocked__）必须为假，
+        # 否则「对所有键都返回同一真值」的宽 mock 会被误判成"正在配额退避"而短路。
+        mock_cache_service.get.side_effect = lambda _namespace, key: (
+            {'title': 'Cached Book'} if key == 'isbn_9780743273565' else None
+        )
         client_no_key._api_cache = mock_cache_service
 
         result = client_no_key.fetch_book_details('9780743273565')
@@ -336,7 +340,10 @@ class TestParseVolumeInfo:
             'industryIdentifiers': [],
         }
         result = client_no_key._parse_volume_info(volume_info)
-        assert result['details'] == '暂无详细描述'
+        # 拼不出任何有信息量的描述时留空，**不回填占位串**：
+        # 占位串是真值，会让下游「有值即已补全」的判断恒为真，封死详情补齐路径
+        # （见 app/utils/api_helpers.py 的 PLACEHOLDER_TEXTS）。
+        assert result['details'] == ''
 
     def test_http_cover_url_converted(self, client_no_key):
         volume_info = {
@@ -421,3 +428,81 @@ class TestGetCoverUrl:
         mock_search.return_value = {'cover_url': 'https://example.com/cover.jpg'}
         result = client_no_key.get_cover_url(title='Test Book')
         assert result == 'https://example.com/cover.jpg'
+
+
+class _RecordingCache:
+    """最小缓存替身：记录 set/get，用来断言退避标记是否被置上。"""
+
+    def __init__(self) -> None:
+        self.store: dict[tuple[str, str], object] = {}
+
+    def get(self, namespace: str, key: str):
+        return self.store.get((namespace, key))
+
+    def set(self, namespace: str, key: str, data, ttl_seconds: int = 300, **_kwargs) -> None:
+        self.store[(namespace, key)] = data
+
+
+class TestQuotaBackoff:
+    """配额耗尽时必须**退避**，而不是按 ISBN 反复重试把 1000 次/天的配额烧穿。
+
+    实测（2026-09-17）：Google Books 默认配额是 1000 次/天/项目，而一次全量刷新就要按
+    ISBN 查询 200+ 次。旧实现只把错误按 ISBN 缓存 300 秒 → 每个 ISBN 周期性重试 →
+    配额被持续烧穿、当天再也不会恢复，全站 GB 来源字段（language/page_count/
+    publication_dt）退化为 Unknown。
+    """
+
+    @staticmethod
+    def _client_with_cache():
+        client = GoogleBooksClient(api_key=None, base_url='https://example.invalid/volumes')
+        client._session = MagicMock()
+        cache = _RecordingCache()
+        client._api_cache = cache
+        return client, cache
+
+    @staticmethod
+    def _resp(status: int) -> MagicMock:
+        response = MagicMock()
+        response.status_code = status
+        response.json.return_value = {}
+        return response
+
+    def test_429_sets_a_shared_backoff_marker(self):
+        client, cache = self._client_with_cache()
+        client._session.get.return_value = self._resp(429)
+
+        assert client.fetch_book_details('9780000000001') == {}
+
+        assert cache.get('google_books', client._QUOTA_BLOCKED_KEY) is True, '命中 429 后应置上全局退避标记'
+
+    def test_calls_inside_the_backoff_window_skip_the_network(self):
+        client, _cache = self._client_with_cache()
+        client._session.get.return_value = self._resp(429)
+        client.fetch_book_details('9780000000001')
+        calls_after_first = client._session.get.call_count
+
+        # 换一个完全不同的 ISBN：退避窗口内必须直接短路，不再打上游
+        assert client.fetch_book_details('9780000000002') == {}
+        assert client._session.get.call_count == calls_after_first, '退避窗口内不该再请求上游'
+
+    def test_backoff_also_guards_title_search(self):
+        client, _cache = self._client_with_cache()
+        client._session.get.return_value = self._resp(429)
+        client.search_book_by_title('Some Book')
+        calls = client._session.get.call_count
+
+        assert client.search_book_by_title('Another Book') == {}
+        assert client._session.get.call_count == calls
+
+    def test_successful_lookup_does_not_enter_backoff(self):
+        client, cache = self._client_with_cache()
+        ok = self._resp(200)
+        ok.json.return_value = {'items': [{'volumeInfo': {'title': 'T', 'description': 'x' * 40}}]}
+        client._session.get.return_value = ok
+
+        assert client.fetch_book_details('9780000000003')['title'] == 'T'
+        assert cache.get('google_books', client._QUOTA_BLOCKED_KEY) is None
+
+    def test_backoff_ttl_is_hours_not_minutes(self):
+        """退避太短等于没退避：必须显著长于旧的 300 秒错误缓存。"""
+        assert GoogleBooksClient.DEFAULT_QUOTA_BACKOFF_TTL >= 1800

@@ -201,7 +201,7 @@
             {# 简介完整展示：此前 [:80] 硬截断 + CSS 两行钳制，长简介只剩开头一句。
                卡片宽度已随列数下调而放宽（见 index.css 的 .books-grid 断点）。 #}
             {% set _desc = (book.description_zh or book.description) if _locale == 'zh' else book.description %}
-            {% if _desc and _desc not in ('No summary available.', 'No summary available') %}
+            {% if _desc and _desc not in PLACEHOLDER_TEXTS %}
             <p class="card-desc">{{ _desc }}</p>
             {% endif %}
         </div>

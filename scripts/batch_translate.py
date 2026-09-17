@@ -19,6 +19,7 @@ from app import create_app
 from app.models.database import db
 from app.models.schemas import BookMetadata
 from app.services.zhipu_translation_service import get_translation_service
+from app.utils.api_helpers import is_placeholder_text
 from app.utils.service_helpers import get_service
 
 
@@ -68,8 +69,8 @@ def batch_translate_all_books():
                     description_zh = None
                     details_zh = None
 
-                    # 翻译描述
-                    if book.description and book.description not in ['No summary available.', '暂无简介', '']:
+                    # 翻译描述（占位串判定统一走 api_helpers，别再写第二份清单）
+                    if book.description and not is_placeholder_text(book.description):
                         print('    翻译描述...', end=' ')
                         description_zh = translation_service.translate(
                             book.description, source_lang='en', target_lang='zh'
@@ -81,7 +82,7 @@ def batch_translate_all_books():
                             failed_count += 1
 
                     # 翻译详细信息
-                    if book.details and book.details not in ['No detailed description available.', '暂无详细介绍', '']:
+                    if book.details and not is_placeholder_text(book.details):
                         print('    翻译详情...', end=' ')
                         details_zh = translation_service.translate(book.details, source_lang='en', target_lang='zh')
                         if details_zh:

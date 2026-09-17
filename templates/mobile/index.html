@@ -156,7 +156,7 @@
 
             {# 描述预览（80 字截断） #}
             {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
-            {% if desc and desc not in ('No summary available.', 'No summary available', '') %}
+            {% if desc and desc not in PLACEHOLDER_TEXTS %}
             <p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length > 80 %}…{% endif %}</p>
             {% endif %}
 

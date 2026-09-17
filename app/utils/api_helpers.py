@@ -431,6 +431,10 @@ def quick_clean_translation(text: str | None, field_type: str = 'text') -> str |
 # 占 details 有值条的 31%，其中 32 本当时正在榜上，页面会渲染出「详情: 英文」。
 # 长度分布佐证：>30 字的 details_zh 全部正常，<=5 字的 88 条全部是噪音，
 # 两者之间只有 2 条正常值 —— 因此用显式集合判定，不做长度裁剪。
+#
+# 边界说明：这里与 PLACEHOLDER_TEXTS 有 3 个取值重叠（'暂无详细描述' / '暂无简介' / 'N/A'），
+# 但两者是**不同概念** —— 本集合是「无信息量的语言标记 + 噪音词」，PLACEHOLDER_TEXTS 是
+# 「抓取侧『没有内容』的占位串」。刻意不合并，避免把两套语义揉成一个。
 _NON_SUBSTANTIVE_DETAILS = frozenset(
     {
         '英文',
@@ -465,35 +469,48 @@ def is_non_substantive_details(text: str | None) -> bool:
     return text.strip() in _NON_SUBSTANTIVE_DETAILS
 
 
-# 「没有内容」的占位串：语义等价于 NULL，不是数据。
+# 占位串的**单一真相源** —— 全仓只此一份字面量清单。
 #
-# 抓取侧（Google Books / Open Library）拿不到 description 时会写回这些串，
-# 而 Book.from_api_response 又把它们当默认值落进 description/details 字段。
-# 后果有两条，且互相叠加：
-#   1. 展示侧会把这些串当正文渲染出来；
-#   2. 更隐蔽的是「有值即已补全」——book_detail_service 的 needs_details 判断
-#      `book.get('details') and != 占位串` 永远为假，于是该书的详情补齐路径被
-#      彻底封死，永远不会再去取真正的详情。
-# 因此它们必须只在写入边界被归一化成空串，绝不能进入存储。
-_PLACEHOLDER_TEXTS = frozenset(
+# 这些取值语义上等于 NULL，不是数据。抓取侧（Google Books / Open Library）拿不到内容时会写回
+# 它们，而写入边界若把「默认值」直接落库，就会出现两个后果：
+#   1. 展示侧把占位串当正文渲染出来；
+#   2. 更隐蔽的：**「有值即已补全」** —— 例如 book_detail_service 的
+#      `needs_details = details 有值 and != 占位串` 会因此恒为假，该字段的补齐/翻译路径
+#      被永久封死，页面表现为「内容整块消失」。
+#
+# 使用方式（新代码一律走这两个入口，不要再写第二份清单）：
+#   - 写入边界归一化：`strip_placeholder(text)`
+#   - 判定：`is_placeholder_text(text)`
+#   - 模板：注入的 Jinja 全局 `PLACEHOLDER_TEXTS`（见 app/__init__.py 注册处）
+#   - 前端 JS 无法 import Python：`static/mobile/js/mobile.js` 保留一份镜像，
+#     由 `tests/test_placeholder_single_source.py` 断言与这里完全一致，漂移即红。
+PLACEHOLDER_TEXTS = frozenset(
     {
+        # 抓取侧英文
         'No summary available.',
         'No summary available',
         'No detailed description available.',
         'No description available.',
+        # 抓取侧中文
         '暂无简介',
         '暂无详细介绍',
         '暂无详细描述',
+        # 通用「无值」标记：语言包/元数据表在这三类字段上共用的取值
+        'Unknown',
+        'N/A',
         'None',
     }
 )
+
+#: 兼容旧名（模块内与历史引用）。
+_PLACEHOLDER_TEXTS = PLACEHOLDER_TEXTS
 
 
 def is_placeholder_text(text: str | None) -> bool:
     """文本是否为抓取侧的「没有内容」占位串（语义上等于 NULL）。"""
     if not isinstance(text, str):
         return False
-    return text.strip() in _PLACEHOLDER_TEXTS
+    return text.strip() in PLACEHOLDER_TEXTS
 
 
 def strip_placeholder(text: str | None) -> str:
@@ -505,7 +522,7 @@ def strip_placeholder(text: str | None) -> str:
     if not isinstance(text, str):
         return ''
     value = text.strip()
-    return '' if value in _PLACEHOLDER_TEXTS else value
+    return '' if value in PLACEHOLDER_TEXTS else value
 
 
 def target_lang_expects_cjk(target_lang: str) -> bool:
