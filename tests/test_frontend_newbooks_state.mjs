@@ -77,9 +77,9 @@ const renderedHtml = renderTemplate();
 
 /** 抽出模板里唯一的内联脚本主体；模板文件本身不是 JS，只有脚本会进浏览器。 */
 function extractScripts(html) {
-    // `</script\s*>`（允许收尾空格）与 `i` 大小写不敏感都是必需的：HTML 里 `</SCRIPT >`
-    // 同样合法，漏掉会让抽取结果里混进后续标记。
-    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map((m) => m[1]);
+    // 结束标签必须是 `</script\s*[^>]*>`：HTML5 里 `</SCRIPT >`、`</script\t\n bar>`
+    // 都算合法结束标签（属性被忽略），只写 `</script>` 会让抽取结果跨块吞掉后续标记。
+    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*[^>]*>/gi)].map((m) => m[1]);
     assert.ok(scripts.length > 0, '渲染结果未包含内联脚本');
     return scripts;
 }

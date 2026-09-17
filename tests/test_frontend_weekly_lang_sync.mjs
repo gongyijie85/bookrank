@@ -49,8 +49,9 @@ const rendered = viaJinja();
 
 /** 抽出渲染结果里的 <script> 主体：模板文件不是 JS，只有脚本会进浏览器。 */
 function extractScript(html) {
-    // `i` + `</script\s*>`：`</SCRIPT >` 在 HTML 里同样合法，漏掉会把后续标记一起吞进来。
-    const match = html.match(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/i);
+    // `i` + `</script\s*[^>]*>`：`</SCRIPT >` / `</script\t\n bar>` 在 HTML5 里同样
+    // 是合法结束标签（尾随属性被忽略），漏掉会把后续标记一起吞进来。
+    const match = html.match(/<script\b[^>]*>([\s\S]*?)<\/script\s*[^>]*>/i);
     assert.ok(match, '渲染结果未包含内联脚本');
     return match[1];
 }
