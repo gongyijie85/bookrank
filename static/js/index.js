@@ -649,7 +649,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                         ${book.isbn13 ? `<span class="card-pub-isbn-item isbn" title="ISBN-13: ${esc(book.isbn13)}">${esc(book.isbn13)}</span>` : book.isbn10 ? `<span class="card-pub-isbn-item isbn" title="ISBN-10: ${esc(book.isbn10)}">${esc(book.isbn10)}</span>` : ''}
                         ${book.weeks_on_list ? `<span class="card-pub-isbn-item weeks" title="${esc(t('weeks_on_list', lang))}">${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                     </p>` : ''}
-                    ${desc ? `<p class="card-desc">${esc(desc.slice(0, 100))}${desc.length > 100 ? '...' : ''}</p>` : ''}
+                    ${desc ? `<p class="card-desc">${esc(desc)}</p>` : ''}
                 </div>
                 </a>
             </article>
@@ -931,8 +931,10 @@ function initOnDemandTranslation() {
             if (desc) {
                 var descEl = card.querySelector('p.card-desc, p.list-item-desc');
                 if (descEl) {
-                    var limit = descEl.classList.contains('card-desc') ? 80 : 200;
-                    descEl.textContent = desc.length > limit ? desc.slice(0, limit) + '...' : desc;
+                    // 简介一律整段写入：显示多少行由 CSS 决定（紧凑五列钳 5 行、
+                    // 精选三列完整展示）。前端再按字数截断会与 CSS 钳制叠加，
+                    // 长简介只剩开头一句 —— 服务端与 CSS 修好后仍从这里复现。
+                    descEl.textContent = desc;
                 }
             }
             try {

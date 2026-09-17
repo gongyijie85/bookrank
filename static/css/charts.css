@@ -442,9 +442,14 @@
     text-align: left;
     /* 唯一保留钳制的地方：紧凑模式是用户主动选择的密度档（按钮即「紧凑五列」），
        5 列下每张卡仅约 250px，整段简介会把卡片拉成长条，与"紧凑"的语义相悖。
-       默认的「精选三列」不钳制，简介完整展示。 */
+       默认的「精选三列」不钳制，简介完整展示。
+       2026-09-17：按需求把钳制从 3 行放宽到 5 行，并同步收小字号/行高 ——
+       3 行(13px×1.5)=58.5px 与 5 行(12px×1.45)=87px 仍然更高，但字更小、行更密，
+       同样的卡片宽度里能容纳的正文明显变多。 */
+    font-size: 12px;
+    line-height: 1.45;
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 5;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -544,8 +549,9 @@
 }
 
 /* ---- 排版收口 v2 ---- */
-/* 紧凑五列 + 精选三列的通栏行：隐藏封面角上的胶囊，改用同行 chip */
-.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image .cover-weeks,
+/* 精选三列的通栏行：隐藏封面角上的胶囊，改用同行 chip。
+   2026-09-17：紧凑五列**不再**隐藏胶囊 —— 周数改回封面右上角（与精选三列一致），
+   见下方 [data-grid-view="compact"] 的 chip 隐藏规则。 */
 .charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(n+4) .card-image .cover-weeks {
     display: none;
 }
@@ -558,19 +564,37 @@
 .charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(-n+3) .card-pub-isbn-item.weeks {
     display: none;
 }
-/* 不再需要预留带：紧凑列与通栏行恢复满高封面 */
-.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image .cover-frame img,
+/* 紧凑五列：周数同样走封面右上角胶囊 → 隐藏 meta 行 chip，仍是一处一现 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card-pub-isbn-item.weeks {
+    display: none;
+}
+/* 精选三列的通栏行恢复满高封面；紧凑五列**保留** 20px 顶部预留带 ——
+   周数胶囊回到封面右上角后，需要一条不被封面图压住的落位带（与精选三列同构）。 */
 .charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(n+4) .card-image .cover-frame img {
     height: 100%;
     margin-top: 0;
 }
-/* 紧凑五列：画框加高，五列封面也不显小 */
+/* 紧凑五列：画框加高，多出的 20px 补回预留带，封面尺寸不缩水 */
 .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image {
-    height: 194px;
+    height: 214px;
     padding: 16px 20px 8px;
 }
 .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-frame {
-    height: 170px;
+    height: 190px;
+}
+/* 五列更窄：胶囊收小一档并贴顶落在 20px 预留带内（覆盖 761px 断点里给外置胶囊留的 top:4px），
+   既不压封面、也不碰隔壁卡片 */
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-image .cover-weeks {
+    top: 1px;
+    right: 0;
+    left: auto;
+    padding: 2px 0 3px 8px;
+}
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-weeks-value strong {
+    font-size: 16px;
+}
+.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .cover-weeks-value > span {
+    font-size: 10px;
 }
 
 /* ---- 排版收尾 v3 ---- */

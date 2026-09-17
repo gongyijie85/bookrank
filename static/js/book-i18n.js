@@ -195,7 +195,9 @@ var BookI18n = (function() {
                 for (var c = 0; c < cards.length; c++) {
                     var card = cards[c];
                     _updateTitleInCard(card, data.title);
-                    _updateElement(card.querySelector(DESC_SELECTORS), data.description, 80);
+                    // 简介不传 truncate：整段写入，行数由 CSS 钳制决定。
+                    // 这里曾传 80，与 index.js 的 100/80 一起把简介砍成开头一句。
+                    _updateElement(card.querySelector(DESC_SELECTORS), data.description);
                     _updateElement(card.querySelector(CAT_SELECTORS), data.category);
                 }
             });

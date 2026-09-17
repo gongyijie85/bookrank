@@ -29,6 +29,7 @@ from bs4 import BeautifulSoup
 from app.models.book import Book
 
 CSS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'css'
+JS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'js'
 
 #: 明显超过旧的 80 字服务端截断阈值，用来证明没有按长度砍
 LONG_DESCRIPTION = (
@@ -194,6 +195,78 @@ class TestCardDescCssDoesNotClamp:
         )
         assert rule, '紧凑模式的 .card-desc 规则不存在'
         assert 'line-clamp' in rule.group(1)
+
+
+class TestCardDescJsNeverTruncates:
+    """问题一的前端层：**JS 按字数截断简介**（这一层曾被整批漏掉）。
+
+    服务端 `[:80]` 与 CSS `-webkit-line-clamp` 都修好之后，页面上简介仍只显示开头一句：
+    `index.js` 在 JSON 重渲染时 `desc.slice(0, 100) + '...'`、翻译回填时 `limit = 80`，
+    `book-i18n.js` 更新卡片简介时又传了 `80` —— 三处叠加把长简介砍成约 100 字，
+    实测渲染出的正文长度是 103 字符（100 + '...'）。
+
+    这里从"源码里不能再出现针对简介的字数截断"来锁，避免再从任一入口回归。
+    """
+
+    def test_index_js_does_not_truncate_description(self):
+        src = (JS_DIR / 'index.js').read_text(encoding='utf-8')
+        assert not re.search(r'desc\.slice\(\s*0\s*,', src), '卡片简介又出现按字数截断（slice）'
+        assert not re.search(r'desc\.length\s*>\s*\d+', src), '卡片简介又出现按长度加省略号'
+
+    def test_book_i18n_does_not_pass_truncate_for_description(self):
+        src = (JS_DIR / 'book-i18n.js').read_text(encoding='utf-8')
+        assert not re.search(r'DESC_SELECTORS\)\s*,\s*data\.description\s*,\s*\d+', src), (
+            '更新卡片简介时又传了字数上限，长简介会被砍短'
+        )
+
+
+class TestCompactGridWeeksPlacement:
+    """紧凑五列排版约定（2026-09-17 调整）：
+
+    周数回到**封面右上角**（与精选三列一致），meta 行的 chip 不再重复出现；
+    封面图让出顶部 20px 作为徽标落位带，徽标不压封面。
+    """
+
+    @staticmethod
+    def _charts() -> str:
+        return re.sub(r'/\*.*?\*/', '', (CSS_DIR / 'charts.css').read_text(encoding='utf-8'), flags=re.DOTALL)
+
+    @staticmethod
+    def _targets_compact(selector: str) -> bool:
+        """选择器是否**正向**命中紧凑模式。
+
+        必须先剥掉 `:not([data-grid-view="compact"])` —— 反选里含有完全相同的子串，
+        直接做 `in` 判断会把"精选三列"的规则误判成"紧凑模式"的规则。
+        """
+        positive = selector.replace(':not([data-grid-view="compact"])', '')
+        return '[data-grid-view="compact"]' in positive
+
+    def test_compact_keeps_five_line_clamp(self):
+        rule = re.search(r'\[data-grid-view="compact"\]\s+\.card\s+\.card-desc\s*\{([^}]*)\}', self._charts())
+        assert rule, '紧凑模式的 .card-desc 规则不存在'
+        assert '-webkit-line-clamp: 5' in rule.group(1), '紧凑模式简介应为 5 行'
+
+    def test_compact_does_not_hide_cover_weeks(self):
+        for match in re.finditer(r'([^{}]+)\{([^{}]*)\}', self._charts()):
+            selector, body = match.group(1), match.group(2)
+            if 'display: none' in body and '.cover-weeks' in selector:
+                assert not self._targets_compact(selector), (
+                    f'紧凑模式又把封面右上角的周数徽标隐藏了: {selector.strip()[:140]}'
+                )
+
+    def test_compact_hides_the_meta_row_weeks_chip(self):
+        assert re.search(
+            r'\[data-grid-view="compact"\]\s+\.card-pub-isbn-item\.weeks\s*\{[^}]*display:\s*none',
+            self._charts(),
+        ), '紧凑模式应隐藏 meta 行的周数 chip，避免与封面徽标一处两现'
+
+    def test_compact_cover_image_leaves_the_badge_strip(self):
+        for match in re.finditer(r'([^{}]+)\{([^{}]*)\}', self._charts()):
+            selector, body = match.group(1), match.group(2)
+            if 'cover-frame img' in selector and self._targets_compact(selector):
+                assert 'margin-top: 0' not in body, (
+                    f'紧凑模式取消了封面顶部落位带，徽标会压到封面上: {selector.strip()[:140]}'
+                )
 
 
 class TestBookDetailDetailsPanel:
