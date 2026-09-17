@@ -5,15 +5,19 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('../static/js/index.js', import.meta.url), 'utf8');
 
-function renderer(view) {
+function renderer(view, overrides = {}) {
     const container = { innerHTML: '', addEventListener() {} };
+    const appConfig = Object.assign(
+        { defaultCover: '/static/default-cover.png', currentCategory: 'hardcover-fiction' },
+        overrides.appConfig || {}
+    );
     const context = vm.createContext({
         console,
         localStorage: { getItem: () => 'en' },
         window: {
-            APP_CONFIG: { defaultCover: '/static/default-cover.png', currentCategory: 'hardcover-fiction' },
-            addEventListener() {},
-            location: { href: '' },
+            APP_CONFIG: appConfig,
+            addEventListener(type, fn) { this['_on' + type] = fn; },
+            location: { href: '', pathname: '/', reload() { this._reloaded = true; } },
         },
         document: {
             getElementById: id => id === view ? container : null,
@@ -21,6 +25,7 @@ function renderer(view) {
             addEventListener() {},
         },
         esc: value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;'),
+        URLSearchParams,
         t: (key, lang, values = {}) => `${key} ${values.n ?? ''}`,
     });
     vm.runInContext(source, context);
@@ -105,4 +110,22 @@ test('card navigation uses source category and leaves native links alone', () =>
     context.window.location.href = '';
     context.handleCardClick({ target: { closest: selector => selector === 'a[href]' ? {} : null } });
     assert.equal(context.window.location.href, '');
+});
+
+test('category change from an active search state navigates to category-only URL', () => {
+    // 搜索是跨全部分类的临时视图：旧输入框与空状态条不会随 AJAX 重绘清除，
+    // 所以从搜索/错误状态换分类必须整页跳转到仅分类的 URL（丢弃 search 参数）。
+    const { context } = renderer('books-grid', { appConfig: { searchQuery: '不存在', searchUnavailableCount: 0 } });
+    context.changeCategory('business-books');
+    assert.equal(context.window.location.href, '/?category=business-books');
+});
+
+test('popstate restores URL state by reloading instead of pushing again', () => {
+    // 前进/后退不再走 changeCategory（其内部 pushState 会新增历史条目），
+    // 而是整页重载当前 URL 还原状态。
+    const { context } = renderer('books-grid');
+    const popstate = context.window._onpopstate;
+    assert.equal(typeof popstate, 'function');
+    popstate();
+    assert.equal(context.window.location._reloaded, true);
 });

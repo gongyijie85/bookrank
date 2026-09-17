@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_weekly_lang_sync.html' import weekly_lang_sync %}
 
 {% block title %}{{ _('畅销书周报') }} - BookRank{% endblock %}
 {% block og_title %}{{ _('畅销书周报') }} - BookRank{% endblock %}
@@ -19,30 +20,33 @@
     <span class="browse-report-period">{{ report.week_start.strftime('%m/%d') }} &ndash; {{ report.week_end.strftime('%m/%d') }}</span>
     <span class="browse-report-title">{{ report.title }}</span>
     {% set content = report.content_data %}
-    {% if content.top_changes or content.new_books or content.featured_books %}
+    {% if content.total_books_known or content.total_new_known or content.total_rising_known or content.total_falling_known %}
     <span class="browse-report-stats">
-        {% if content.top_changes %}<span>{{ content.top_changes | length }} {{ _('项变化') }}</span>{% endif %}
-        {% if content.new_books %}<span>{{ content.new_books | length }} {{ _('新上榜') }}</span>{% endif %}
-        {% if content.featured_books %}<span>{{ content.featured_books | length }} {{ _('推荐') }}</span>{% endif %}
+        {% if content.total_books_known %}<span>{{ content.total_books_display }} {{ _('本') }}</span>{% endif %}
+        {% if content.total_new_known %}<span>{{ _('新上榜') }} {{ content.total_new_display }}</span>{% endif %}
+        {% if content.total_rising_known %}<span>{{ _('上升') }} {{ content.total_rising_display }}</span>{% endif %}
+        {% if content.total_falling_known %}<span>{{ _('下降') }} {{ content.total_falling_display }}</span>{% endif %}
     </span>
     {% endif %}
 </a>
 {% endmacro %}
 
 <header class="page-header">
-    <p class="charts-kicker">WEEKLY REPORT</p>
+    <p class="charts-kicker">{{ _('周报') }}</p>
     <h1 class="page-title">
-        Weekly <span>Reports</span>
+        {{ _('畅销书周报') }}
     </h1>
     <p class="charts-source" data-i18n="wr_subtitle">{{ _('纽约时报畅销书榜单的每周变化趋势') }}</p>
     <p class="page-subtitle">
         {{ reports|length }} {{ _('期') }}
-        {% if latest_report and latest_report.week_start %}
-        · {{ _('更新至') }} {{ latest_report.week_start.strftime('%Y-%m-%d') }}
+        {% if latest_report and latest_report.week_end %}
+        · {{ _('更新至') }} {{ latest_report.week_end.strftime('%Y-%m-%d') }}
         {% endif %}
     </p>
 </header>
 
+{# SSR 语言修正：只在偏好语言与服务端渲染语言不一致时按语言重新请求一次 #}
+{{ weekly_lang_sync(get_locale(), csp_nonce()) }}
 {% if is_generating %}
 <div id="generating-banner" class="generating-banner" role="status" aria-live="polite">
     <span class="generating-banner-icon" aria-hidden="true">&#9881;</span>
@@ -127,7 +131,7 @@
         {% if reports %}
         <div class="reports-list">
             {% for report in reports %}
-            <div class="report-card news-card" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.title }}" data-summary="{{ report.summary }}">
+            <div class="report-card news-card" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.title }}" data-summary="{{ report.content_data.summary }}">
                 <!-- 日期徽章 -->
                 <div class="news-date-badge">
                     <span class="news-day">{{ report.report_date.strftime('%d') }}</span>
@@ -143,16 +147,17 @@
                             </a>
                         </h3>
                         <div class="news-meta">
+                            {# 连接词走 gettext，英文不再出现中文「至」；日期本身用语言中立的 ISO。 #}
                             <span class="news-period">
                                 <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
-                                {{ report.week_start.strftime('%Y-%m-%d') }} 至 {{ report.week_end.strftime('%Y-%m-%d') }}
+                                {{ report.week_start.strftime('%Y-%m-%d') }} {{ _('至') }} {{ report.week_end.strftime('%Y-%m-%d') }}
                             </span>
                         </div>
                     </div>
                     
                     <!-- 新闻摘要 -->
                     <div class="news-summary">
-                        {{ report.summary | markdown | striptags | truncate(200) }}
+                        {{ report.content_data.summary | markdown | striptags | truncate(200) }}
                     </div>
                     
                     <!-- 新闻亮点 -->
@@ -160,22 +165,28 @@
                         <ul class="highlights-list">
                             {% if report.content_data %}
                             {% set content = report.content_data %}
-                            {% if content.top_changes %}
+                            {% if content.total_books_known %}
                             <li>
-                                <svg class="icon" width="14" height="14"><use href="#icon-arrow-up"/></svg>
-                                {{ _('排名变化') }}：{{ content.top_changes | length }} {{ _('本图书') }}
+                                <svg class="icon" width="14" height="14"><use href="#icon-book"/></svg>
+                                {{ _('总书数') }}：{{ content.total_books_display }} {{ _('本') }}
                             </li>
                             {% endif %}
-                            {% if content.new_books %}
+                            {% if content.total_new_known %}
                             <li>
                                 <svg class="icon" width="14" height="14"><use href="#icon-star"/></svg>
-                                {{ _('新上榜') }}：{{ content.new_books | length }} {{ _('本图书') }}
+                                {{ _('新上榜') }}：{{ content.total_new_display }} {{ _('本') }}
                             </li>
                             {% endif %}
-                            {% if content.featured_books %}
+                            {% if content.total_rising_known %}
                             <li>
-                                <svg class="icon" width="14" height="14"><use href="#icon-heart"/></svg>
-                                {{ _('推荐书籍') }}：{{ content.featured_books | length }} {{ _('本') }}
+                                <svg class="icon" width="14" height="14"><use href="#icon-arrow-up"/></svg>
+                                {{ _('上升') }}：{{ content.total_rising_display }} {{ _('本') }}
+                            </li>
+                            {% endif %}
+                            {% if content.total_falling_known %}
+                            <li>
+                                <svg class="icon" width="14" height="14"><use href="#icon-arrow-down"/></svg>
+                                {{ _('下降') }}：{{ content.total_falling_display }} {{ _('本') }}
                             </li>
                             {% endif %}
                             {% endif %}

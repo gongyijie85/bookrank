@@ -57,6 +57,10 @@
     --border-color: var(--gray-100);
     --border-light: var(--gray-50);
 
+    /* Warning state (search/load failure banners) - light */
+    --state-warning-border: #d6a94f;
+    --state-warning-tint: #fdf6ec;
+
     /* Accent Colors - Vercel Workflow Colors */
     --accent-silver: linear-gradient(135deg, var(--gray-400) 0%, var(--gray-600) 100%);
     --accent-bronze: linear-gradient(135deg, var(--console-purple) 0%, var(--console-pink) 100%);
@@ -139,6 +143,10 @@
         --border-color: #262a31;
         --border-light: #1f2228;
 
+        /* 警告态（搜索/加载失败横幅）- 暗色 */
+        --state-warning-border: #8a6d2f;
+        --state-warning-tint: #1c1a14;
+
         /* 暗色下重模糊阴影发糊，改用细描边环 */
         --shadow-ring: 0 0 0 1px var(--border-color);
         --shadow-ring-light: 0 0 0 1px var(--border-light);
@@ -180,6 +188,10 @@
     /* 边框：强（结构线）/ 弱（次级分隔） */
     --border-color: #262a31;
     --border-light: #1f2228;
+
+    /* 警告态（搜索/加载失败横幅）- 暗色 */
+    --state-warning-border: #8a6d2f;
+    --state-warning-tint: #1c1a14;
 
     /* 暗色下重模糊阴影发糊，改用细描边环 */
     --shadow-ring: 0 0 0 1px var(--border-color);
@@ -774,7 +786,7 @@ h4 { font-size: 1.125rem; }
         font-size: 0.75rem;
     }
 
-    /* 尺寸由 .top-nav .lang-globe-btn 统一（36px 触控高度）；此处只降字号 */
+    /* 尺寸由 .top-nav .lang-globe-btn 统一（窄屏 44px 产品目标触控高度）；此处只降字号 */
     .lang-globe-btn {
         font-size: 0.75rem;
     }
@@ -786,7 +798,7 @@ h4 { font-size: 1.125rem; }
         min-height: 32px;
     }
 
-    /* 主题按钮尺寸同样由 .top-nav .btn-icon#theme-toggle 统一为 36px（原 36px 保持不变） */
+    /* 主题按钮尺寸同样由 .top-nav .btn-icon#theme-toggle 统一（窄屏 44px 产品目标触控高度） */
 
     .main-content {
         padding-top: calc(70px + var(--spacing-sm));
@@ -814,7 +826,7 @@ h4 { font-size: 1.125rem; }
         height: 16px;
     }
 
-    /* 尺寸统一由下表 .top-nav 规则接管（36px / radius 4px / 边框），此处只降字号 */
+    /* 尺寸统一由下表 .top-nav 规则接管（窄屏 44px 产品目标 / radius 4px / 边框），此处只降字号 */
     .lang-globe-btn {
         font-size: 0.7rem;
     }
@@ -828,6 +840,182 @@ h4 { font-size: 1.125rem; }
         font-size: 0.7rem;
         padding: 2px 6px;
     }
+}
+
+/* ============================================
+ * 窄屏全局导航（native <dialog>）
+ * ≤900px：顶栏菜单按钮打开 #site-nav-dialog，承载六个主导航链接；
+ * 图标导航行与旧侧边栏在此区间隐藏，窄屏只暴露一个导航菜单。
+ * ============================================ */
+
+/* 全局菜单按钮：仅窄屏显示；样式与顶栏其余控件一致（44px 产品目标触控高度） */
+.nav-menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.nav-menu-btn:hover,
+.nav-menu-btn:focus {
+    border-color: var(--text-muted);
+    background: transparent;
+    color: var(--text-primary);
+}
+
+.nav-menu-btn .icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* 窄屏（≤900px）：只保留菜单按钮 + 对话框，隐藏图标导航行与旧侧边栏 */
+@media (max-width: 900px) {
+    .nav-menu-btn {
+        display: inline-flex;
+    }
+
+    /* 窄屏顶栏主题/语言按钮最小 44px 触控面积（产品目标） */
+    .top-nav .nav-actions .lang-globe-btn,
+    .top-nav .nav-actions .btn-icon#theme-toggle {
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        min-height: 44px;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .sidebar-toggle {
+        display: none;
+    }
+
+    .sidebar {
+        display: none;
+    }
+}
+
+/* 对话框本体：不在 #site-nav-dialog 上写 display 属性 ——
+   原生 UA 样式 dialog:not([open]) { display: none } 负责关闭态隐藏，
+   若这里覆盖 display 会让关闭的对话框重新可见。 */
+#site-nav-dialog {
+    margin: auto;
+    padding: 0;
+    width: min(calc(100vw - 32px), 320px);
+    max-height: min(calc(100dvh - 32px), 640px);
+    border: none;
+    border-radius: var(--radius-xl);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-lg);
+    overflow-y: auto;
+}
+
+#site-nav-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.site-nav-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-md) var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.site-nav-dialog-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* 关闭按钮：≥44px 触控目标（产品目标尺寸，非 WCAG 2.5.8 下限） */
+.site-nav-dialog-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.site-nav-dialog-close:hover,
+.site-nav-dialog-close:focus {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.site-nav-dialog-nav {
+    padding: var(--spacing-sm);
+}
+
+.site-nav-dialog-menu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.site-nav-dialog-item + .site-nav-dialog-item {
+    margin-top: 2px;
+}
+
+/* 导航链接：≥44px 触控目标，主题感知文字/背景 */
+.site-nav-dialog-link {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.site-nav-dialog-link svg {
+    width: 18px;
+    height: 18px;
+}
+
+.site-nav-dialog-link:hover,
+.site-nav-dialog-link:focus {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.site-nav-dialog-link.active,
+.site-nav-dialog-link[aria-current="page"] {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.site-nav-dialog-link:focus-visible {
+    outline: 2px solid var(--focus-blue);
+    outline-offset: 2px;
 }
 
 /* ============================================

@@ -27,31 +27,35 @@
     <div class="m-report-hero-date">{{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }} · {{ _('第') }}{{ report.week_end.strftime('%V') }}{{ _('周') }}</div>
     <div class="m-report-hero-period">{{ report.title or _('周报') }}</div>
 
+    {% if content %}
     <div class="m-report-hero-stats">
         <div class="m-report-hero-stat">
-            <div class="m-report-hero-stat-value">{{ content.total_books if content and content.total_books else 0 }}</div>
-            <div class="m-report-hero-stat-label">{{ _('总书数') }}</div>
+            {# 未知总量渲染的是本地化占位文案（如 "Data pending" / "数据待补全"），
+               不是数字：加 pending 类降字号，保证 "Data" / "pending" 各自整词折行。 #}
+            <div class="m-report-hero-stat-value{% if not content.total_books_known %} pending{% endif %}">{{ content.total_books_display }}</div>
+            <div class="m-report-hero-stat-label">{{ _('上榜记录') }}</div>
         </div>
         <div class="m-report-hero-stat">
-            <div class="m-report-hero-stat-value">{{ content.total_new if content and content.total_new else 0 }}</div>
-            <div class="m-report-hero-stat-label">{{ _('新书') }}</div>
+            <div class="m-report-hero-stat-value{% if not content.total_new_known %} pending{% endif %}">{{ content.total_new_display }}</div>
+            <div class="m-report-hero-stat-label">{{ _('新上榜') }}</div>
         </div>
         <div class="m-report-hero-stat">
-            <div class="m-report-hero-stat-value">{{ content.total_rising if content and content.total_rising else 0 }}</div>
+            <div class="m-report-hero-stat-value{% if not content.total_rising_known %} pending{% endif %}">{{ content.total_rising_display }}</div>
             <div class="m-report-hero-stat-label">{{ _('上升') }}</div>
         </div>
         <div class="m-report-hero-stat">
-            <div class="m-report-hero-stat-value">{{ content.total_falling if content and content.total_falling else 0 }}</div>
+            <div class="m-report-hero-stat-value{% if not content.total_falling_known %} pending{% endif %}">{{ content.total_falling_display }}</div>
             <div class="m-report-hero-stat-label">{{ _('下降') }}</div>
         </div>
     </div>
+    {% endif %}
 </section>
 
 <!-- 本周概览 -->
-{% if report.summary %}
+{% if safe_summary %}
 <section class="m-report-section">
     <h2 class="m-report-section-title">{{ _('本周概览') }}</h2>
-    <p class="m-report-overview-text">{{ report.summary }}</p>
+    <p class="m-report-overview-text">{{ safe_summary }}</p>
 </section>
 {% endif %}
 
@@ -134,7 +138,9 @@
 
 <!-- 底部 -->
 <div class="m-report-footer">
-    <span class="m-text-sm m-text-hint">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}{{ _('生成') }}</span>
+    {# 完整的本地化「生成时间」短语：此前只是把 locale 片段 '生成'/'generated'
+       紧贴时间戳，英文会渲染成 '12:29generated'（无空格、不成句）。 #}
+    <span class="m-text-sm m-text-hint">{{ _('生成于 %(time)s', time=report.created_at.strftime('%Y-%m-%d %H:%M')) }}</span>
     <a href="/reports/weekly" class="m-btn m-btn-outline m-btn-sm">{{ _('返回列表') }}</a>
 </div>
 
@@ -148,7 +154,7 @@
     "headline": {{ (report.title or _('周报')) | string | tojson }},
     "datePublished": {{ (report.created_at.isoformat() if report.created_at else '') | string | tojson }},
     "dateModified": {{ (report.updated_at.isoformat() if report.updated_at else report.created_at.isoformat() if report.created_at else '') | string | tojson }},
-    "description": {{ (report.summary[:200] if report.summary else '') | string | tojson }}
+    "description": {{ (safe_summary[:200] if safe_summary else '') | string | tojson }}
 }
 </script>
 {% endblock %}

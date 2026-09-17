@@ -209,6 +209,93 @@
         }
     }
 
+    // ===== 窄屏全局导航对话框（native <dialog>）=====
+
+    /**
+     * 窄屏（≤900px）全局导航：原生 <dialog> 的 showModal。
+     *
+     * 原生行为已覆盖：Escape 关闭、焦点圈定（focus containment）、
+     * 关闭后焦点还原到打开者（showModal 前的活动元素）。因此这里
+     * **不**实现自定义焦点陷阱，只做：打开按钮 → showModal()、
+     * 关闭按钮 → close()、点击遮罩/对话框空白区 → close()。
+     * 各控件不存在时静默跳过（模板/老页面可能没有这些元素）。
+     */
+    function initNavDialog() {
+        const dialog = document.getElementById('site-nav-dialog');
+        if (!dialog || typeof dialog.showModal !== 'function') return;
+
+        const openBtn = document.getElementById('nav-menu-btn');
+        const closeBtn = document.getElementById('site-nav-dialog-close');
+
+        function syncExpanded() {
+            if (openBtn) {
+                openBtn.setAttribute('aria-expanded', dialog.open ? 'true' : 'false');
+            }
+        }
+
+        if (openBtn) {
+            openBtn.addEventListener('click', function() {
+                dialog.showModal();
+                syncExpanded();
+            });
+        }
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                dialog.close();
+            });
+        }
+
+        // 点击遮罩/对话框自身（非子元素）关闭；点内容区不关闭
+        dialog.addEventListener('click', function(event) {
+            if (event.target === dialog) {
+                dialog.close();
+            }
+        });
+
+        // 真实浏览器中，从 autofocus 关闭按钮按 Shift+Tab 会把焦点丢到 document.body
+        //（showModal 的焦点圈定并非在所有浏览器/焦点序下都完整）。这里在打开的 dialog
+        // 内做一个小范围 Tab/Shift+Tab 循环：只对当前可见、可用、可聚焦的元素生效，
+        // 不改动原生 Escape、close() 与关闭后的焦点归还行为。
+        dialog.addEventListener('keydown', function(event) {
+            if (event.key !== 'Tab' || !dialog.open) return;
+
+            var focusables = Array.prototype.slice.call(
+                dialog.querySelectorAll(
+                    'a[href], button:not([disabled]), input:not([disabled]), ' +
+                    'select:not([disabled]), textarea:not([disabled]), ' +
+                    '[tabindex]:not([tabindex="-1"])'
+                )
+            ).filter(function(el) {
+                return el.offsetParent !== null && !el.disabled && el.getAttribute('aria-hidden') !== 'true';
+            });
+            if (focusables.length === 0) return;
+
+            var first = focusables[0];
+            var last = focusables[focusables.length - 1];
+            var active = document.activeElement;
+
+            if (event.shiftKey) {
+                if (active === first || !dialog.contains(active)) {
+                    event.preventDefault();
+                    last.focus();
+                }
+            } else if (active === last || !dialog.contains(active)) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+
+        // 任何关闭路径（close()、Escape、点击遮罩）后同步 aria-expanded，
+        // 并在菜单按钮存在、已连接且可见时把焦点还给按钮（对话框关闭时不再持有焦点）。
+        dialog.addEventListener('close', function() {
+            syncExpanded();
+            if (openBtn && openBtn.isConnected && openBtn.offsetParent !== null) {
+                openBtn.focus();
+            }
+        });
+    }
+
     // ===== Theme Functions =====
 
     /**
@@ -479,6 +566,7 @@
      */
     function init() {
         initEventListeners();
+        initNavDialog();
         initTheme();
         initLanguage();
         initImageErrorHandler();

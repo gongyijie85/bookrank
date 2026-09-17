@@ -26,7 +26,8 @@
         {% if book.isbn13 %}<div><span style="color:var(--text-secondary);">{{ _('ISBN') }}:</span> {{ book.isbn13 }}</div>{% endif %}
         {% if book.publication_date %}<div><span style="color:var(--text-secondary);">{{ _('出版日期') }}:</span> {{ book.publication_date }}</div>{% endif %}
         {% if book.category %}<div><span style="color:var(--text-secondary);">{{ _('分类') }}:</span> {{ book.category|category_name }}</div>{% endif %}
-        {% if book.page_count %}<div><span style="color:var(--text-secondary);">{{ _('页数') }}:</span> {{ book.page_count }}</div>{% endif %}
+        {% set _pages = book.page_count|positive_int_text %}
+        {% if _pages %}<div><span style="color:var(--text-secondary);">{{ _('页数') }}:</span> {{ _pages }}</div>{% endif %}
         {% if book.language %}<div><span style="color:var(--text-secondary);">{{ _('语言') }}:</span> {{ book.language|language_name }}</div>{% endif %}
         {% if book.price %}<div><span style="color:var(--text-secondary);">{{ _('价格') }}:</span> {{ book.price }}</div>{% endif %}
     </div>

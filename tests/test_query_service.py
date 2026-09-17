@@ -11,6 +11,11 @@ import pytest
 
 from app.models.new_book import NewBook, Publisher
 from app.services.new_book.query_service import NewBookQueryService
+from app.services.publisher_data import (
+    CATEGORY_EN_TO_ZH,
+    canonicalize_category,
+    category_alias_in_set,
+)
 
 
 @pytest.fixture
@@ -212,7 +217,7 @@ class TestNewBookQueryService:
         assert len(books) >= 1
 
     def test_get_categories(self, query_service, db):
-        """测试获取所有分类"""
+        """测试获取所有分类（audit08：英文原始值归并为规范中文选项）"""
         publisher = _seed_publisher(db)
         test_book = NewBook(
             publisher_id=publisher.id,
@@ -232,7 +237,202 @@ class TestNewBookQueryService:
         categories = query_service.get_categories()
 
         assert len(categories) >= 1
-        assert any(cat['name'] == 'Fiction' for cat in categories)
+        # 'Fiction' 与 '小说' 归并为同一规范选项 '小说'（audit08 同义项归一）
+        assert any(cat['name'] == '小说' for cat in categories)
+
+    def test_get_categories_groups_synonym_aliases(self, query_service, db):
+        """audit08：'Biography' 与 'Biography & Autobiography' 归并到 '传记' 并累计计数"""
+        publisher = _seed_publisher(db)
+        db.session.add_all(
+            [
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Bio A',
+                    author='A',
+                    isbn13='9780000000201',
+                    category='Biography',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Bio B',
+                    author='B',
+                    isbn13='9780000000202',
+                    category='Biography & Autobiography',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Bio C',
+                    author='C',
+                    isbn13='9780000000203',
+                    category='传记',
+                    is_displayable=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        categories = query_service.get_categories()
+        bio = next(cat for cat in categories if cat['name'] == '传记')
+        assert bio['count'] == 3
+
+    def test_category_filter_matches_alias_group(self, query_service, db):
+        """audit08：按规范分类 '传记' 过滤时，命中所有原始别名（无数据丢失）"""
+        publisher = _seed_publisher(db)
+        db.session.add_all(
+            [
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Bio A',
+                    author='A',
+                    isbn13='9780000000211',
+                    category='Biography',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Bio B',
+                    author='B',
+                    isbn13='9780000000212',
+                    category='Biography & Autobiography',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Bio C',
+                    author='C',
+                    isbn13='9780000000213',
+                    category='传记',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='Other',
+                    author='D',
+                    isbn13='9780000000214',
+                    category='Fiction',
+                    is_displayable=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        # 规范中文键
+        books, total = query_service.get_new_books(category='传记', days=365)
+        assert total == 3
+        assert {b.title for b in books} == {'Bio A', 'Bio B', 'Bio C'}
+
+        # 旧的原生英文 URL 仍命中同一别名组
+        books_en, total_en = query_service.get_new_books(category='Biography & Autobiography', days=365)
+        assert total_en == 3
+
+    def test_category_alias_expansion_covers_outside_new_four(self):
+        """audit08 数据丢失回归：未进"新增四词"但早已入库的英文键也要展开原值+规范值。
+
+        'Health & Fitness' 与 'General'/'general' 不在 browse 提交新增的那组同义词里，
+        靠 CATEGORY_EN_TO_ZH 派生别名组后，仍必须各自命中自己 + 规范中文显示键。
+        """
+        hf = category_alias_in_set('Health & Fitness')
+        assert '健康养生' in hf
+        assert 'Health & Fitness' in hf
+        # 规范键本身同样展开到同一组
+        assert category_alias_in_set('健康养生') == hf
+
+        gen = category_alias_in_set('General')
+        assert '综合' in gen
+        assert 'General' in gen
+        assert 'general' in gen
+
+    def test_category_alias_expansion_every_known_en_key_includes_original_and_canonical(self):
+        """audit08 数据丢失回归：对每个已知英文键，别名展开必须同时含原值 + 规范显示键。"""
+        for en, zh in CATEGORY_EN_TO_ZH.items():
+            expanded = set(category_alias_in_set(en))
+            assert en in expanded, f'{en!r} 的别名展开丢失原值'
+            assert zh in expanded, f'{en!r} 的别名展开丢失规范显示键 {zh!r}'
+            # 规范中文键展开后与英文键一致（同一组），保证中文/英文 URL 命中同一批记录
+            assert set(category_alias_in_set(zh)) == expanded, f'{zh!r} 与 {en!r} 别名组不一致'
+
+    def test_unknown_raw_category_stays_queryable(self):
+        """audit08：未知原生标签不进别名表，展开结果仅含自身，保证旧 URL 仍精确命中。"""
+        assert category_alias_in_set('Some Unknown Shelf') == ['Some Unknown Shelf']
+        assert canonicalize_category('Some Unknown Shelf') == 'Some Unknown Shelf'
+        # 已知英文键会归一为规范中文显示键
+        assert canonicalize_category('Health & Fitness') == '健康养生'
+        assert canonicalize_category('general') == '综合'
+
+    def test_get_categories_groups_and_sorts_popular_first(self, query_service, db):
+        """audit08：归并后按计数降序排列（热门分类在前），且不丢新四词之外的英文原始值。"""
+        publisher = _seed_publisher(db)
+        db.session.add_all(
+            [
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='H1',
+                    author='A',
+                    isbn13='9780000000301',
+                    category='Health & Fitness',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='H2',
+                    author='A',
+                    isbn13='9780000000302',
+                    category='健康养生',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='H3',
+                    author='A',
+                    isbn13='9780000000303',
+                    category='Health & Fitness',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='G1',
+                    author='A',
+                    isbn13='9780000000304',
+                    category='General',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='G2',
+                    author='A',
+                    isbn13='9780000000305',
+                    category='general',
+                    is_displayable=True,
+                ),
+                NewBook(
+                    publisher_id=publisher.id,
+                    title='F1',
+                    author='A',
+                    isbn13='9780000000306',
+                    category='Fiction',
+                    is_displayable=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        categories = query_service.get_categories()
+        by_name = {c['name']: c['count'] for c in categories}
+        assert by_name['健康养生'] == 3
+        assert by_name['综合'] == 2
+        assert by_name['小说'] == 1
+
+        # 计数从高到低：健康养生(3) > 综合(2) > 小说(1)
+        counts = [c['count'] for c in categories]
+        assert counts == sorted(counts, reverse=True)
+
+        # 旧英文 URL 过滤命中原记录，未发生数据丢失
+        books, total = query_service.get_new_books(category='Health & Fitness', days=365)
+        assert total == 3
+        books_gen, total_gen = query_service.get_new_books(category='general', days=365)
+        assert total_gen == 2
 
     def test_get_statistics(self, query_service, db):
         """测试获取统计数据"""

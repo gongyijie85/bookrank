@@ -244,6 +244,22 @@
 
 .browse-card-title a { color: inherit; text-decoration: none; }
 .browse-card-title a:hover { text-decoration: underline; }
+
+/* 封面链接：与书名链接指向同一详情路由；不作为可聚焦的第二个 Tab 停靠点 */
+.browse-card-media-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.browse-card-media-link:focus { outline: none; }
+
+.browse-card-category {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
 .browse-card-author {
     margin: 0;
     color: var(--text-secondary);
@@ -353,3 +369,113 @@
     .browse-card,
     .browse-tile { animation: none; transition: none; }
 }
+
+/* --- Derived charts: native methodology disclosure (audit11) --- */
+.rankings-methodology {
+    max-width: 72ch;
+    margin: 0 0 22px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+}
+
+.rankings-methodology > summary {
+    padding: 10px 14px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+
+.rankings-methodology[open] > summary {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.rankings-methodology > summary:hover { color: var(--text-primary); }
+.rankings-methodology > summary:focus-visible { outline: 2px solid var(--link-blue); outline-offset: -2px; }
+
+.rankings-methodology .rankings-note,
+.rankings-methodology .m-rankings-note {
+    margin: 0;
+    padding: 12px 14px 14px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+/* --- Derived charts: known-source cover/title links (audit11) --- */
+.cross-cover-link { display: inline-flex; }
+.cross-cover-link:hover { opacity: 0.9; }
+
+.cross-title a { color: inherit; text-decoration: none; }
+.cross-title a:hover { text-decoration: underline; }
+
+/* --- Collapsed curated/directory disclosure after results (audit02) --- */
+.browse-curated {
+    margin: 40px 0 0;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+}
+
+.browse-curated > summary {
+    padding: 14px 18px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+
+.browse-curated[open] > summary {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.browse-curated > summary:hover { color: var(--text-primary); }
+.browse-curated > summary:focus-visible { outline: 2px solid var(--link-blue); outline-offset: -2px; }
+
+.browse-curated .browse-directory { margin: 22px 18px 8px; }
+.browse-curated .awards-directory { margin: 22px 18px 8px; }
+.browse-curated .browse-section,
+.browse-curated .award-section { margin: 22px 18px 8px; }
+
+/* --- Selected-condition chips (audit02) --- */
+.browse-active-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-size: 12px;
+}
+
+.browse-active-filter-label {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+
+.filter-chip:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.filter-chip:focus-visible { outline: 2px solid var(--link-blue); outline-offset: -2px; }
+
+.filter-chip-x { color: var(--text-muted); }
+
+.filter-chip-clear {
+    color: var(--link-blue);
+    text-decoration: none;
+    margin-left: 4px;
+}
+
+.filter-chip-clear:hover { text-decoration: underline; }

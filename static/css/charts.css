@@ -36,27 +36,31 @@
 
 .charts-page .page-header::before { display: none; }
 .charts-kicker {
-    margin: 0 0 16px;
+    margin: 0 0 12px;
     color: var(--text-secondary);
-    /* 11px → 12px：正文字号下限（微型字距标签在 11px 下可读性不足） */
+    /* 小型品牌 kicker：主标题让位给当前语言的榜单名 */
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.2em;
+    text-transform: uppercase;
 }
 
 .charts-page .page-title {
     display: block;
-    margin: 0 0 14px;
+    margin: 0 0 12px;
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: clamp(40px, 5.4vw, 72px);
+    /* 主标题即榜单名：中文名偏长，尺寸从原品牌大标题收小，避免撑高首屏 */
+    font-size: clamp(30px, 3.6vw, 46px);
     font-weight: 700;
-    line-height: 1.08;
-    letter-spacing: -0.055em;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
 }
 
-.charts-page .page-title span { font-style: italic; font-weight: 400; }
-.charts-source { margin: 0 0 14px; font-size: 15px; color: var(--text-secondary); }
 .charts-page .page-subtitle { justify-content: center; flex-wrap: wrap; font-size: 12px; }
+
+/* 快速链接条（charts-sections）：首页已移除，但 awards / rankings 等派生页仍使用，
+   保留基础样式供这些页面消费（对首页不产生作用）。 */
 .charts-sections {
     display: flex;
     justify-content: center;
@@ -64,7 +68,6 @@
     margin-bottom: 24px;
     border-bottom: 1px solid var(--border-color);
 }
-
 .charts-sections a {
     padding: 16px 4px;
     color: var(--text-secondary);
@@ -72,7 +75,6 @@
     text-decoration: none;
     font-size: 14px;
 }
-
 .charts-sections a[aria-current],
 .charts-sections a:hover { color: var(--text-primary); border-bottom-color: var(--text-primary); }
 .charts-page a:focus-visible,
@@ -98,16 +100,85 @@
 .charts-page .search-input-wrapper,
 .charts-page .filter-input { width: 100%; max-width: none; }
 .charts-page .filter-actions .btn { min-height: 44px; border-radius: 4px; }
-.charts-page .export-actions-bar {
-    padding: 14px 0;
-    border: 0;
+.charts-page .home-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 10px 0;
+    margin-bottom: 12px;
     border-top: 1px solid var(--border-color);
-    border-radius: 0;
-    background: transparent;
-    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
 }
 
-.charts-page .export-buttons .btn { background: transparent; color: var(--text-secondary); border-color: var(--border-color); }
+.charts-page .home-toolbar .export-info strong {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.charts-page .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.charts-page .home-toolbar .export-buttons { display: inline-flex; align-items: center; gap: 8px; }
+.charts-page .home-toolbar .export-buttons .btn {
+    min-height: 34px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    font-size: 12px;
+    padding: 4px 12px;
+}
+.charts-page .home-toolbar .export-buttons .btn:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+.charts-page .home-toolbar .export-buttons .btn-icon-only { padding: 4px 8px; }
+
+/* 密度按钮仅在宽屏显示（窄屏不展示与当前布局不符的列数切换） */
+.charts-page .view-toggle.wide-only { display: none; }
+@media (min-width: 900px) {
+    .charts-page .view-toggle.wide-only { display: inline-flex; }
+}
+
+/* ---- 搜索 / 加载状态条 ---- */
+.charts-page .search-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+.charts-page .search-state .icon { flex-shrink: 0; }
+.charts-page .search-state-text { margin: 0; line-height: 1.5; }
+.charts-page .search-state-clear {
+    margin-left: auto;
+    color: var(--link-blue);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.charts-page .search-state.state-partial,
+.charts-page .search-state.state-failed {
+    border-color: var(--state-warning-border, #e8c37a);
+    background: var(--state-warning-tint, #fdf6ec);
+    color: var(--text-primary);
+}
+.charts-page .search-state.state-partial .icon,
+.charts-page .search-state.state-failed .icon { color: #b5812a; }
 .charts-page .books-grid.bestseller-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .charts-page .books-grid .card {
     display: flex;
@@ -199,6 +270,17 @@
     object-fit: contain;
     border-radius: 0;
     filter: drop-shadow(2px 4px 3px rgb(0 0 0 / 14%));
+}
+
+/* 精选三列首行三张卡：封面收短，让书名/作者/排名在 1366×768 首屏更早露出 */
+@media (min-width: 761px) {
+    .charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(-n+3) .card-image {
+        height: 196px;
+        padding: 14px 64px 8px;
+    }
+    .charts-page .books-grid.bestseller-grid:not([data-grid-view="compact"]) .card:nth-child(-n+3) .cover-frame {
+        height: 174px;
+    }
 }
 
 /* Legacy badges use !important; keep the override local to Charts. */
@@ -294,10 +376,19 @@
 .charts-page .quick-link-card { border-radius: 4px; background: var(--bg-card); }
 
 @media (max-width: 760px) {
-    .charts-page .main-content { padding: 88px 16px 32px; }
-    .charts-sections { gap: 16px; }
-    .charts-sections a { font-size: 12px; text-align: center; }
-    .charts-page .filter-group:first-child { width: 100%; }
+    .charts-page .main-content { padding: 68px 16px 32px; }
+    .charts-page .page-header { padding: 8px 0 12px; }
+    .charts-page .charts-kicker { display: none; }
+    /* 分类 + 搜索并排（min-width 0），操作按钮换行到下一行 44px 触控 */
+    .charts-page .filter-bar { flex-direction: row; align-items: flex-end; gap: 10px; }
+    .charts-page .filter-group,
+    .charts-page .filter-group.search-box { flex: 1 1 0; min-width: 0; }
+    .charts-page .filter-group:first-child { width: auto; }
+    .charts-page .filter-input,
+    .charts-page .filter-select { min-width: 0; }
+    .charts-page .filter-actions { flex: 1 0 100%; }
+    .charts-page .filter-actions .btn { min-height: 44px; }
+    .charts-page .home-toolbar .export-buttons .btn { min-height: 44px; }
     .charts-page .books-grid.bestseller-grid { grid-template-columns: 1fr; gap: 12px; }
     .charts-page .books-grid .card,
     .charts-page .books-grid .card:nth-child(n+4) { display: grid; grid-template-columns: 130px minmax(0, 1fr); align-items: center; }
@@ -320,6 +411,118 @@
     .charts-page .list-item-title { font-size: 18px; }
 }
 
+/* ============================================================
+   窄视口筛选栏（awards / new-books）
+   ============================================================
+   实况（390px）：.filter-group 被压到 37.7px，子控件却仍守着 120–136px 的
+   min-width，于是 publisher select 的 x = -32px、字段互相压盖；文档
+   scrollWidth 看着"正常"只是因为溢出部分被 body 裁掉了，并没有真的放得下。
+
+   这里的规则只作用于 .charts-page.awards-page / .charts-page.new-books-page：
+   - 控件换成两列栅格，并用 minmax(0, 1fr) 消掉 min-width 与 flex-shrink 的对抗；
+   - 搜索独占整行；
+   - 主控件（select / input / button）触控高度 ≥44px；
+   - 元信息与 chip 字号 13–14px（下限可读）。
+   首页（无 .awards-page/.new-books-page）不受影响，第一张卡的既有验收宽度不变。
+   ============================================================ */
+@media (max-width: 760px) {
+    .charts-page.awards-page .filter-bar,
+    .charts-page.new-books-page .filter-bar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: end;
+        gap: 10px 12px;
+    }
+
+    /* 每一列都必须能真正收缩；子控件的 min-width 是溢出与负 x 的根因 */
+    .charts-page.awards-page .filter-group,
+    .charts-page.new-books-page .filter-group {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        width: auto;
+        min-width: 0;
+        flex: initial;
+    }
+
+    .charts-page.awards-page .filter-group > label,
+    .charts-page.new-books-page .filter-group > label {
+        font-size: 13px;
+        white-space: normal;
+    }
+
+    /* 全宽搜索行：跨两列，避免与 select 挤在同一格里互相压盖 */
+    .charts-page.awards-page .filter-group.search-box,
+    .charts-page.new-books-page .filter-group.search-box,
+    .charts-page.new-books-page .search-box {
+        grid-column: 1 / -1;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .charts-page.awards-page .filter-select,
+    .charts-page.awards-page .filter-input,
+    .charts-page.new-books-page .filter-group select,
+    .charts-page.new-books-page .search-box input {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        flex: 1 1 auto;
+        min-height: 44px;
+    }
+
+    /* 搜索框内的放大镜图标绝对定位在 input 左侧，仍需给文本留出内边距 */
+    .charts-page.new-books-page .search-box input {
+        padding-left: 2.5rem;
+    }
+
+    .charts-page.awards-page .filter-actions,
+    .charts-page.new-books-page .filter-actions,
+    .charts-page.new-books-page .toolbar {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        width: 100%;
+        min-width: 0;
+        margin-left: 0;
+        justify-content: flex-start;
+    }
+
+    .charts-page.awards-page .filter-actions .btn,
+    .charts-page.new-books-page .filter-actions .btn,
+    .charts-page.new-books-page .toolbar .btn {
+        min-height: 44px;
+        flex: 1 1 auto;
+    }
+
+    /* 元信息与 chip 字号下限：13–14px（12px 在 390px 上已接近不可读） */
+    .charts-page.awards-page .filter-label,
+    .charts-page.awards-page .filter-group label,
+    .charts-page.new-books-page .filter-group label {
+        font-size: 13px;
+    }
+
+    .charts-page.new-books-page .browse-active-filter,
+    .charts-page.awards-page .browse-active-filter {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 13px;
+    }
+
+    .charts-page.new-books-page .filter-chip,
+    .charts-page.new-books-page .filter-chip-clear,
+    .charts-page.awards-page .filter-chip,
+    .charts-page.awards-page .filter-chip-clear {
+        font-size: 13px;
+        min-height: 34px;
+        display: inline-flex;
+        align-items: center;
+    }
+}
+
 /* Adaptive mobile template keeps its search, category rail and ranking data. */
 .mobile-charts-page { --color-primary: #1d1d1f; --color-primary-tint: #f0f0f2; background: #f7f7f8; }
 .mobile-charts-page .m-top-nav {
@@ -329,17 +532,16 @@
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    padding: 24px 20px 28px;
+    padding: 12px 20px 12px;
     margin: 0;
     text-align: center;
     justify-content: center;
 }
 
 .mobile-charts-page .m-top-nav-copy { align-items: center; min-width: 0; width: 100%; }
-.mobile-charts-page .m-top-nav-kicker { color: #666; font-size: 12px; }
-.mobile-charts-page .m-top-nav-title { color: #1d1d1f; font: 700 36px/1.15 Georgia, serif; letter-spacing: -0.05em; margin: 8px 0; }
-.mobile-charts-page .m-top-nav-title span { font-weight: 400; font-style: italic; }
-.mobile-charts-page .m-top-nav-subtitle { color: #666; font-size: 12px; }
+.mobile-charts-page .m-top-nav-kicker { color: #666; font-size: 10px; letter-spacing: 0.18em; }
+.mobile-charts-page .m-top-nav-title { color: #1d1d1f; font: 700 24px/1.2 Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif; letter-spacing: 0; margin: 4px 0; overflow-wrap: anywhere; }
+.mobile-charts-page .m-top-nav-subtitle { color: #666; font-size: 11px; }
 .mobile-charts-page .m-search-toggle { position: absolute; top: 0; right: 66px; width: 44px; height: 44px; color: #1d1d1f; background: #fff; border: 1px solid #dedee1; }
 .mobile-charts-page .m-cat-tab { border-radius: 3px; min-height: 44px; display: flex; align-items: center; }
 .mobile-charts-page .m-list-info { flex-wrap: wrap; font-size: 12px; }
@@ -358,7 +560,7 @@
 .mobile-charts-page .m-book-card:first-child { border-top: 3px solid #1d1d1f; }
 
 @media (max-width: 380px) {
-    .mobile-charts-page .m-top-nav-title { font-size: 32px; }
+    .mobile-charts-page .m-top-nav-title { font-size: 21px; }
     .mobile-charts-page .m-book-card { padding: 16px 10px; gap: 8px; }
     .mobile-charts-page .m-book-cover { width: 60px; height: 90px; }
 }
@@ -370,11 +572,12 @@
 }
 
 /* ---- 网格密度切换：精选三列（默认）/ 紧凑五列 ---- */
+/* 在 .home-toolbar 内右对齐，宽屏才显示（见顶部 .wide-only 规则） */
 .charts-page .view-toggle {
-    display: flex;
+    display: inline-flex;
     justify-content: center;
     gap: 8px;
-    margin: 0 0 12px;
+    margin: 0;
 }
 
 .charts-page .view-toggle .btn {
@@ -624,16 +827,16 @@
 }
 
 /* ---- 密度切换按钮收口 ---- */
-/* 容器不再是一条通栏灰带（.view-toggle 的底色/内距/圆角来自 index.css，这里复位） */
+/* 容器在 .home-toolbar 内：复位 index.css 的通栏灰带样式 */
 .charts-page .view-toggle {
     background: none;
     padding: 0;
     border-radius: 0;
 }
-/* 与其他控件同高（同页筛选按钮为 44px） */
+/* 与工具栏内导出按钮同高（34px 紧凑档），极简编辑风 */
 .charts-page .view-toggle .btn {
-    min-height: 44px;
-    border-radius: 4px;
+    min-height: 34px;
+    border-radius: 3px;
 }
 /* 未选中态：描边可见（原来描边色 = 旧容器底色，等于看不见） */
 .charts-page .view-toggle .btn[aria-pressed="false"] {

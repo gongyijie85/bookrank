@@ -3,12 +3,23 @@ from typing import Any
 
 from ...models.database import db
 from ...models.new_book import NewBook, Publisher
+from ..publisher_data import canonicalize_category, category_alias_in_set
 from .translation_pipeline import TranslationPipeline
 
 
 class NewBookQueryService:
     def __init__(self, translation_pipeline: TranslationPipeline) -> None:
         self._translation_pipeline = translation_pipeline
+
+    @staticmethod
+    def _canonicalize_category(raw: str | None) -> str:
+        """把原始存储/查询分类归一为规范显示键（委托给 publisher_data 单一真相源）。"""
+        return canonicalize_category(raw)
+
+    @staticmethod
+    def _category_alias_in_set(category: str | None) -> list[str]:
+        """把选中的分类（规范键或任一别名）展开为 SQL IN 别名集（委托给单一真相源）。"""
+        return category_alias_in_set(category)
 
     @staticmethod
     def _looks_like_isbn(text: str | None) -> bool:
@@ -49,7 +60,7 @@ class NewBookQueryService:
             query = query.filter(NewBook.publisher_id == publisher_id)
 
         if category:
-            query = query.filter(NewBook.category == category)
+            query = query.filter(NewBook.category.in_(self._category_alias_in_set(category)))  # type: ignore[attr-defined,union-attr]
 
         query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())  # type: ignore[attr-defined,union-attr]
 
@@ -99,7 +110,7 @@ class NewBookQueryService:
             query = query.filter(NewBook.publisher_id == publisher_id)
 
         if category:
-            query = query.filter(NewBook.category == category)
+            query = query.filter(NewBook.category.in_(self._category_alias_in_set(category)))  # type: ignore[attr-defined,union-attr]
 
         if days is not None:
             query = self._apply_publication_window(query, days)
@@ -112,7 +123,7 @@ class NewBookQueryService:
 
         return pagination.items, pagination.total
 
-    def get_categories(self) -> list[dict[str, str]]:
+    def get_categories(self) -> list[dict[str, Any]]:
         from sqlalchemy import func
 
         results = (
@@ -123,7 +134,16 @@ class NewBookQueryService:
             .all()
         )
 
-        return [{'name': r.category, 'count': r.count} for r in results]
+        # audit08：把原始存储分类（英文/中文）归并到规范选项并累计计数，
+        # 避免"传记"与"Biography & Autobiography"之类的同义项分流成两个选项。
+        grouped: dict[str, int] = {}
+        for r in results:
+            canonical = self._canonicalize_category(r.category)
+            grouped[canonical] = grouped.get(canonical, 0) + r.count
+
+        # 归并后计数不再与原始 GROUP BY 顺序一致，按计数从高到低排序（热门分类在前）。
+        ordered = sorted(grouped.items(), key=lambda item: (-item[1], item[0]))
+        return [{'name': name, 'count': count} for name, count in ordered]
 
     def get_statistics(self) -> dict[str, Any]:
         from sqlalchemy import func

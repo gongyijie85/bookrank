@@ -16,6 +16,11 @@ from ..utils.book_filters import get_category_update_frequency
 from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.ranking import classify_listing
+from ..utils.weekly_report_presentation import (
+    build_factual_summary,
+    has_placeholder_metric,
+    summary_conflicts_with_totals,
+)
 from .book_service import BookService
 from .list_snapshot_service import save_week_snapshot
 
@@ -135,12 +140,14 @@ class WeeklyReportService:
             # 生成报告标题
             title = f'{format_chinese_date(week_start)}-{format_chinese_date(week_end)} 畅销书周报'
 
-            # 生成AI摘要
-            if has_books:
-                summary = self._generate_ai_summary(analysis, week_start, week_end)
-            else:
-                summary = '本周暂无可用榜单数据。请检查 NYT API 配置或等待缓存刷新后重新生成。'
-            summary = _clean_double_brackets(summary)
+            # 公共摘要（audit04）：一律使用由已校验结构化总量构造的确定性事实摘要，
+            # 使新入库周报不可能携带未经校验的 AI 数值断言（占位字/冲突计数/漏检计数）。
+            # 私有 AI 摘要生成方法（_generate_ai_summary/_generate_default_summary）仅
+            # 保留给既有 API/测试兼容，不再写入存储的 report.summary。
+            totals_for_summary = {
+                k: analysis.get(k) for k in ('total_books', 'total_new', 'total_rising', 'total_falling')
+            }
+            summary = build_factual_summary(totals_for_summary, week_start, week_end)
 
             # 构建报告内容
             content = {
@@ -522,8 +529,15 @@ class WeeklyReportService:
                 prompt_markers = ['请为', '要求：', '基于以下分析结果', '语言流畅']
                 is_prompt_like = any(marker in ai_result for marker in prompt_markers)
 
-                if not is_prompt_like:
+                # audit04: 拒绝 X / XX 占位指标，以及与结构化权威总量冲突的计数断言。
+                totals = {k: analysis.get(k) for k in ('total_books', 'total_new', 'total_rising', 'total_falling')}
+                summary_conflicts = summary_conflicts_with_totals(ai_result, totals)
+
+                if not is_prompt_like and not has_placeholder_metric(ai_result) and not summary_conflicts:
                     return cast('str', ai_result.strip())
+
+                if has_placeholder_metric(ai_result) or summary_conflicts:
+                    logger.info('AI摘要含占位指标或与结构化计数冲突，使用格式化默认摘要')
 
             # AI 结果无效时使用格式化的默认摘要
             logger.info('AI摘要无效或包含prompt文本，使用格式化默认摘要')

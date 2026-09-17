@@ -142,6 +142,23 @@
     color: var(--text-muted, #a39e98);
 }
 
+/* audit10：全库收录总量 vs 当前筛选窗口口径 */
+.collection-total {
+    color: var(--text-primary, rgba(0, 0, 0, 0.95));
+    font-weight: 700;
+}
+
+.collection-window {
+    color: var(--text-muted, #a39e98);
+    font-weight: 500;
+}
+
+.collection-window::before {
+    content: '·';
+    margin: 0 0.5rem;
+    color: var(--text-muted, #a39e98);
+}
+
 /* 按钮样式 */
 .btn {
     display: inline-flex;
@@ -307,6 +324,15 @@
     overflow: hidden;
 }
 
+/* 封面链接：与书名链接指向同一详情路由；焦点样式交给标题链接，避免双重焦点圈 */
+.book-cover-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.book-cover-link:focus { outline: none; }
+
 .book-cover {
     width: 100%;
     height: 100%;
@@ -404,6 +430,12 @@
 .book-tag.tag-date {
     background: var(--new-books-accent-gold-pale, #fef3c7);
     color: var(--new-books-accent-gold-text, #92400e);
+}
+
+/* 未来出版日期（即将出版）：与已出版区分，颜色更偏"预告"蓝 */
+.book-tag.tag-date.tag-date-upcoming {
+    background: var(--new-books-accent-blue-pale, #f2f9ff);
+    color: var(--new-books-accent-blue-dark, #097fe8);
 }
 
 .book-tag.tag-new {
@@ -741,6 +773,11 @@
 }
 
 .charts-page.new-books-page .books-grid {
+    /* 覆盖 index.css 的 `.books-grid:not(.active) { display: none; }`：
+       SSR 与 AJAX 生成的网格都不带 .active 类，若不显式置回 grid 就会被误隐藏，
+       导致"有结果但页面空白只剩分页"。作用域限定新书页，不影响首页畅销榜的
+       .active 列表/网格视图切换。 */
+    display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 20px;
 }
@@ -843,6 +880,40 @@
 
 @media (max-width: 760px) {
     .charts-page.new-books-page .books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Narrow screens: keep the date/status badge visible and the title multi-line
+   (the legacy 480px rules hid .book-tags and clamped the title to one line). */
+@media (max-width: 760px) {
+    .new-books-page .book-card,
+    .new-books-page .book-info { min-width: 0; }
+
+    .new-books-page .book-title { -webkit-line-clamp: 3; }
+
+    .new-books-page .book-title a {
+        display: block;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .new-books-page .book-tags {
+        display: flex;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+
+    .new-books-page .book-tag.tag-date {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        max-width: 100%;
+        text-overflow: clip;
+    }
+}
+
+/* 320px-class screens: the 18px side padding leaves ~89px of text width, too
+   narrow for the date badge, so tighten it to buy back 12px per card. */
+@media (max-width: 360px) {
+    .new-books-page .book-info { padding: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -13,13 +13,21 @@
 <!-- Page Header -->
 <header class="page-header">
     <p class="charts-kicker">THE BOOKRANK EDIT</p>
-    <h1 class="page-title">
-        BookRank <span>Charts</span>
-    </h1>
-    <p class="charts-source" data-i18n="page_title_bestsellers">{{ _('纽约时报畅销书排行榜') }}</p>
+    <h1 class="page-title" data-i18n="page_title_bestsellers">{{ _('纽约时报畅销书排行榜') }}</h1>
     <p class="page-subtitle">
-        <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
-        <time datetime="{{ update_time if update_time else '' }}">{{ _('更新于:') }} {{ update_time if update_time else _('刚刚') }}</time>
+        {% if update_time %}
+        <span class="update-time-wrap">
+            <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
+            <time datetime="{{ update_time }}">{{ _('更新于:') }} {{ update_time }}</time>
+        </span>
+        {% else %}
+        {# 无时间戳时保留隐藏的 time 元素：JS 在分类更新拿到时间戳后可直接显示，
+           再次缺失时又隐藏（不再回退到 "刚刚"）。 #}
+        <span class="update-time-wrap" hidden>
+            <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg>
+            <time datetime=""></time>
+        </span>
+        {% endif %}
         <span id="monthly-list-hint"
               class="cache-badge monthly-badge"
               {% if update_frequency != 'monthly' %}hidden{% endif %}>
@@ -36,12 +44,6 @@
         {% endif %}
     </p>
 </header>
-
-<nav class="charts-sections" aria-label="{{ _('快速链接') }}">
-    <a href="{{ url_for('main.index') }}" aria-current="page" data-i18n="page_title_bestsellers">{{ _('纽约时报畅销书排行榜') }}</a>
-    <a href="{{ url_for('main.awards') }}" data-i18n="nav_awards">{{ _('获奖书单') }}</a>
-    <a href="{{ url_for('main.new_books') }}" data-i18n="nav_new_books">{{ _('新书速递') }}</a>
-</nav>
 
 <!-- Filter Bar -->
 <form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" data-i18n-aria-label="filter_options" action="{{ url_for('main.index') }}" method="get" id="filter-form">
@@ -76,7 +78,7 @@
     </div>
 
     <div class="filter-group search-box">
-        <label class="filter-label" for="search-input" data-i18n="filter_search">{{ _('搜索') }}</label>
+        <label class="filter-label" for="search-input" data-i18n="filter_search_scope">{{ _('搜索全部 NYT 分类') }}</label>
         <div class="search-input-wrapper">
             <input type="search"
                    class="filter-input"
@@ -85,7 +87,7 @@
                    placeholder="{{ _('搜索书名或作者...') }}"
                    data-i18n-placeholder="search_placeholder"
                    value="{{ search_query if search_query else '' }}"
-                   aria-label="{{ _('搜索书名或作者') }}"
+                   aria-label="{{ _('搜索全部 NYT 分类：书名或作者') }}"
                    autocomplete="off">
             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
             <button type="button" class="search-clear-btn" id="search-clear-btn" style="display: none;" aria-label="{{ _('清除搜索') }}" data-i18n-title="search_clear">
@@ -111,21 +113,52 @@
 
 </form>
 
-{% if books %}
-<div class="view-toggle" role="group" aria-label="{{ _('网格密度') }}" data-i18n-aria-label="grid_density">
-    <button type="button" class="btn btn-sm" id="grid-view-featured" aria-pressed="false" data-i18n="grid_view_featured">{{ _('精选三列') }}</button>
-    <button type="button" class="btn btn-sm" id="grid-view-compact" aria-pressed="false" data-i18n="grid_view_compact">{{ _('紧凑五列') }}</button>
-</div>
-
-<section class="export-actions-bar" aria-label="导出选项" data-i18n-aria-label="export_options">
-    <span class="export-info">{{ _('共') }} <strong>{{ books|length }}</strong> {{ _('本图书') }}</span>
-    <div class="export-buttons">
-        <button class="btn btn-primary btn-sm" id="btn-export-all" aria-label="{{ _('导出全部') }}" data-i18n="export_all">
-            <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
-            {{ _('导出全部') }}
-        </button>
-    </div>
+{# 搜索 / 加载状态条：empty 回显查询词并提供清除；partial 警告+可用结果；failed 重试并保留查询词；
+   data_load_failed 为单分类抓取失败（非搜索），同样提供重试。均在搜索框之下、结果之上。
+   带变量文案用完整 gettext 插值（%(...)s 命名占位）配合 data-i18n-params-*，
+   语言切换由 translations.js 的 applyPageTranslation 统一按语言重写。 #}
+{% if search_status == 'empty' %}
+<section class="search-state state-empty" role="status" aria-live="polite" data-search-state="empty">
+    <svg class="icon" width="20" height="20"><use href="#icon-search"/></svg>
+    <p class="search-state-text" data-i18n="search_no_results" data-i18n-params-query="{{ search_query }}">{{ _('未找到匹配「%(query)s」的图书', query=search_query) }}</p>
+    <a class="search-state-clear" href="{{ url_for('main.index', category=current_category) }}" data-i18n="search_clear">{{ _('清除搜索') }}</a>
 </section>
+{% elif search_status == 'partial' %}
+<section class="search-state state-partial" role="status" aria-live="polite" data-search-state="partial">
+    <svg class="icon" width="20" height="20"><use href="#icon-alert-triangle"/></svg>
+    <p class="search-state-text" data-i18n="search_partial" data-i18n-params-n="{{ search_unavailable_count }}">{{ _('部分分类暂时不可用，以下为可用结果（%(count)s 个分类未返回）', count=search_unavailable_count) }}</p>
+</section>
+{% elif search_status == 'failed' %}
+<section class="search-state state-failed" role="status" aria-live="polite" data-search-state="failed">
+    <svg class="icon" width="20" height="20"><use href="#icon-alert-triangle"/></svg>
+    <p class="search-state-text" data-i18n="search_failed">{{ _('搜索暂时不可用，请稍后重试') }}</p>
+    <a class="search-state-clear" href="{{ url_for('main.index', category=current_category, search=search_query) }}" data-i18n="search_retry">{{ _('重试') }}</a>
+</section>
+{% endif %}
+{% if data_load_failed %}
+<section class="search-state state-failed" role="status" aria-live="polite" data-search-state="load-failed">
+    <svg class="icon" width="20" height="20"><use href="#icon-alert-triangle"/></svg>
+    <p class="search-state-text" data-i18n="search_load_failed">{{ _('榜单加载失败，请稍后重试') }}</p>
+    <a class="search-state-clear" href="{{ url_for('main.index', category=current_category) }}" data-i18n="search_retry">{{ _('重试') }}</a>
+</section>
+{% endif %}
+
+{% if books %}
+<div class="home-toolbar" role="toolbar" aria-label="{{ _('结果工具条') }}" data-i18n-aria-label="home_toolbar">
+    <span class="export-info">{{ _('共') }} <strong>{{ books|length }}</strong> {{ _('本图书') }}</span>
+    <div class="toolbar-actions">
+        <div class="view-toggle wide-only" role="group" aria-label="{{ _('网格密度') }}" data-i18n-aria-label="grid_density">
+            <button type="button" class="btn btn-sm" id="grid-view-featured" aria-pressed="false" data-i18n="grid_view_featured">{{ _('精选三列') }}</button>
+            <button type="button" class="btn btn-sm" id="grid-view-compact" aria-pressed="false" data-i18n="grid_view_compact">{{ _('紧凑五列') }}</button>
+        </div>
+        <div class="export-buttons">
+            <button class="btn btn-sm" id="btn-export-all" aria-label="{{ _('导出全部') }}" data-i18n="export_all">
+                <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
+                {{ _('导出全部') }}
+            </button>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 <section class="books-grid bestseller-grid active" id="books-grid" data-grid-view="featured" aria-label="{{ _('图书网格视图') }}" data-i18n-aria-label="books_grid_view">
@@ -185,15 +218,10 @@
             <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
             {% endif %}
             <p class="card-author">{{ book.author or _('未知作者') }}</p>
-            {% if book.publisher or book.isbn13 or book.isbn10 or book.weeks_on_list %}
+            {% if book.publisher or book.weeks_on_list %}
             <p class="card-pub-isbn">
                 {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', _('未知'), _('未知出版社')) %}
                 <span class="card-pub-isbn-item publisher" title="{{ _('出版社') }}: {{ book.publisher }}">{{ book.publisher }}</span>
-                {% endif %}
-                {% if book.isbn13 %}
-                <span class="card-pub-isbn-item isbn" title="ISBN-13: {{ book.isbn13 }}">{{ book.isbn13 }}</span>
-                {% elif book.isbn10 %}
-                <span class="card-pub-isbn-item isbn" title="ISBN-10: {{ book.isbn10 }}">{{ book.isbn10 }}</span>
                 {% endif %}
                 {% if book.weeks_on_list %}<span class="card-pub-isbn-item weeks" title="{{ _('累计上榜周数') }}">{{ _('累计') }}{{ book.weeks_on_list }}{{ _('周') }}</span>{% endif %}
             </p>
@@ -210,7 +238,7 @@
     {% endfor %}
 </section>
 
-{% if not books %}
+{% if not books and not search_query %}
 <section class="empty-state" aria-label="{{ _('暂无数据') }}">
     <svg class="icon" width="48" height="48"><use href="#icon-inbox"/></svg>
     <h2>{{ _('暂无数据') }}</h2>
@@ -279,7 +307,9 @@
     window.APP_CONFIG = {
         defaultCover: '{{ url_for("static", filename="default-cover.png") }}',
         currentCategory: '{{ current_category }}',
-        monthlyCategories: {{ monthly_categories|tojson }}
+        monthlyCategories: {{ monthly_categories|tojson }},
+        searchQuery: {{ search_query|tojson }},
+        searchUnavailableCount: {{ search_unavailable_count|tojson }}
     };
 </script>
 <script nonce="{{ csp_nonce() }}">

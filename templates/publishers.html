@@ -14,24 +14,26 @@
 <!-- Masthead -->
 <header class="page-header">
     <p class="charts-kicker">PUBLISHER DIRECTORY</p>
-    <h1 class="page-title">
-        Publisher <span>Directory</span>
-    </h1>
+    <h1 class="page-title" data-i18n="nav_publishers">{{ _('出版社导航') }}</h1>
     <p class="charts-source" data-i18n="publishers_subtitle">{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</p>
     <p class="page-subtitle">
         {{ total_publishers }} {{ _('个网站') }} · {{ publishers_data|length }} {{ _('个分类') }}
     </p>
 </header>
 
-<!-- Category seal strip -->
-{# 目录数据是人工维护的静态表：category / description 只有中文源，英文在 *_en 字段。
-   这里按 locale 取值，英文页面不再回落到中文。 #}
+<!-- 目录数据是人工维护的静态表：category / description 只有中文源，英文在 *_en 字段。
+   这里按 locale 取值，英文页面不再回落到中文。 -->
 {% set is_en = get_locale() == 'en' %}
-<nav class="browse-seal-strip" aria-label="{{ _('分类速览') }}">
-    {% for cat in publishers_data %}
-    <a href="#cat-{{ loop.index }}">{{ cat.category_en if is_en else cat.category }}</a>
-    {% endfor %}
-</nav>
+
+<!-- Search (top, before directory, so users can jump straight to a publisher) -->
+<div class="publishers-search">
+    <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
+    <input type="search"
+           id="search-input"
+           aria-label="{{ _('搜索出版社') }}"
+           placeholder="{{ _('搜索出版社名称...') }}"
+           autocomplete="off">
+</div>
 
 <!-- Browse by category -->
 <section class="browse-directory" aria-label="{{ _('出版社分类') }}">
@@ -42,35 +44,6 @@
     </a>
     {% endfor %}
 </section>
-
-<!-- Per-category new arrivals shelves -->
-{% for section in publisher_sections %}
-<section class="browse-section" aria-label="{{ section.category_en if is_en else section.category }}">
-    <div class="browse-section-head">
-        <h2 class="browse-section-title">{{ section.category_en if is_en else section.category }}</h2>
-        <a class="browse-section-more" href="#cat-{{ section.index }}">{{ _('查看更多') }} &rarr;</a>
-    </div>
-    <div class="browse-rail-shell">
-        <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
-        <div class="browse-rail">
-            {% for book in section.books %}
-            <div class="browse-rail__item">{{ browse_book_card(book) }}</div>
-            {% endfor %}
-        </div>
-        <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
-    </div>
-</section>
-{% endfor %}
-
-<!-- Search -->
-<div class="publishers-search">
-    <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
-    <input type="search"
-           id="search-input"
-           aria-label="{{ _('搜索出版社') }}"
-           placeholder="{{ _('搜索出版社名称...') }}"
-           autocomplete="off">
-</div>
 
 <!-- Full listing -->
 <div id="publishers-container">
@@ -135,6 +108,30 @@
     </section>
     {% endfor %}
 </div>
+
+<!-- 精选新书书列：结果之后折叠，避免把结果和出版社列表向下推（audit02） -->
+{% if publisher_sections %}
+<details class="browse-curated" aria-label="{{ _('精选新书速览') }}">
+    <summary>{{ _('精选新书速览') }}</summary>
+    {% for section in publisher_sections %}
+    <section class="browse-section" aria-label="{{ section.category_en if is_en else section.category }}">
+        <div class="browse-section-head">
+            <h2 class="browse-section-title">{{ section.category_en if is_en else section.category }}</h2>
+            <a class="browse-section-more" href="#cat-{{ section.index }}">{{ _('查看更多') }} &rarr;</a>
+        </div>
+        <div class="browse-rail-shell">
+            <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
+            <div class="browse-rail">
+                {% for book in section.books %}
+                <div class="browse-rail__item">{{ browse_book_card(book) }}</div>
+                {% endfor %}
+            </div>
+            <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
+        </div>
+    </section>
+    {% endfor %}
+</details>
+{% endif %}
 
 <div id="no-results" class="publishers-no-results" hidden>
     <svg class="icon" width="48" height="48"><use href="#icon-search"/></svg>

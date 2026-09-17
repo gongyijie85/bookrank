@@ -532,6 +532,133 @@ class TestBookService:
         assert books[0].title == 'Cached Book'
         book_service._cache.set.assert_not_called()
 
+    def test_report_failures_raises_on_api_failure_without_stale(self, book_service):
+        """report_failures=True 且 API 失败且无过期缓存时，必须上抛而非伪装成空。"""
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = None
+        book_service._nyt_client.fetch_books.side_effect = APIException('NYT down')
+
+        with pytest.raises(APIException, match='NYT down'):
+            book_service.get_books_by_category('hardcover-fiction', report_failures=True)
+
+    def test_default_still_swallows_api_failure_without_stale(self, book_service):
+        """默认 report_failures=False 保持旧行为：无过期缓存时 API 失败返回空列表。"""
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = None
+        book_service._nyt_client.fetch_books.side_effect = APIException('NYT down')
+
+        books = book_service.get_books_by_category('hardcover-fiction')
+        assert books == []
+
+    def test_report_failures_preserves_stale_fallback(self, book_service):
+        """report_failures=True 时有过期缓存仍返回缓存（降级优先于上抛）。"""
+        cached_books = [
+            {
+                'id': '9780143127550',
+                'title': 'Cached Book',
+                'author': 'Cached Author',
+                'publisher': 'Test Publisher',
+                'cover': '',
+                'list_name': 'Test List',
+                'category_id': 'hardcover-fiction',
+                'category_name': 'Hardcover Fiction',
+                'rank': 1,
+                'weeks_on_list': 1,
+                'rank_last_week': '0',
+                'published_date': '2024-01-01',
+                'description': 'Test description',
+                'details': 'Test details',
+                'publication_dt': '2024-01-01',
+                'page_count': '200',
+                'language': 'English',
+                'buy_links': [],
+                'isbn13': '9780143127550',
+                'isbn10': '0143127550',
+                'price': '19.99',
+            }
+        ]
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = cached_books
+        book_service._nyt_client.fetch_books.side_effect = APIException('NYT down')
+
+        books = book_service.get_books_by_category('hardcover-fiction', report_failures=True)
+
+        assert len(books) == 1
+        assert books[0].title == 'Cached Book'
+
+    def test_report_failures_keeps_genuine_empty_success(self, book_service):
+        """report_failures=True 时「成功但空」仍是空列表，不因空数据误判失败。"""
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = None
+        book_service._nyt_client.fetch_books.return_value = {
+            'results': {'books': [], 'list_name': 'Hardcover Fiction', 'published_date': '2026-09-06'}
+        }
+
+        books = book_service.get_books_by_category('hardcover-fiction', report_failures=True)
+        assert books == []
+
+    def test_report_failures_raises_on_error_payload_without_stale(self, book_service):
+        """report_failures=True 时 NYT 错误载荷（非空数据）按失败处理并上抛。"""
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = None
+        book_service._nyt_client.fetch_books.return_value = {'error': 'rate_limit_exceeded'}
+
+        with pytest.raises(APIException, match='rate_limit_exceeded'):
+            book_service.get_books_by_category('hardcover-fiction', report_failures=True)
+
+    def test_report_failures_hydrates_stale_chinese_title_from_language_pack(self, book_service, tmp_path):
+        """report_failures=True 走过期缓存降级时，中文字段仍经语言包批量补齐。"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        pack_path.write_text(
+            json.dumps(
+                {
+                    'books': {
+                        '9780143127550': {
+                            'title_zh': '缓存书名',
+                            'description_zh': '缓存简介',
+                        }
+                    }
+                },
+                ensure_ascii=False,
+            ),
+            encoding='utf-8',
+        )
+        book_service._language_pack = BookLanguagePack(pack_path)
+        cached_books = [
+            {
+                'id': '9780143127550',
+                'title': 'Cached Book',
+                'author': 'Cached Author',
+                'publisher': 'Test Publisher',
+                'cover': '',
+                'list_name': 'Test List',
+                'category_id': 'hardcover-fiction',
+                'category_name': 'Hardcover Fiction',
+                'rank': 1,
+                'weeks_on_list': 1,
+                'rank_last_week': '0',
+                'published_date': '2024-01-01',
+                'description': 'Test description',
+                'details': 'Test details',
+                'publication_dt': '2024-01-01',
+                'page_count': '200',
+                'language': 'English',
+                'buy_links': [],
+                'isbn13': '9780143127550',
+                'isbn10': '0143127550',
+                'price': '19.99',
+            }
+        ]
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = cached_books
+        book_service._nyt_client.fetch_books.side_effect = APIException('NYT down')
+
+        books = book_service.get_books_by_category('hardcover-fiction', report_failures=True)
+
+        assert len(books) == 1
+        assert books[0].title_zh == '缓存书名'
+        assert books[0].description_zh == '缓存简介'
+
     def test_save_book_translation(self, book_service, db):
         """测试保存图书翻译"""
         # 执行测试

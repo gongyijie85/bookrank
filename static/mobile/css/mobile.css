@@ -377,6 +377,10 @@ img { max-width: 100%; display: block; }
     background: none;
     white-space: nowrap;
     transition: color 0.2s;
+    /* 分类 chip 是可点筛选控件，触控高度与主控件同口径（≥44px） */
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
 }
 
 .m-cat-tab.active {
@@ -1403,6 +1407,8 @@ img { max-width: 100%; display: block; }
     border-radius: var(--radius-md);
     padding: var(--space-3) var(--space-1);
     text-align: center;
+    /* 四列等宽网格：窄屏下单元内容不能撑破 1fr（历史英文 "Data pending" 曾溢到 398px） */
+    min-width: 0;
 }
 
 .m-report-hero-stat-value {
@@ -1410,12 +1416,37 @@ img { max-width: 100%; display: block; }
     font-size: var(--text-xl);
     font-weight: 700;
     line-height: 1;
+    /* 数值仍是视觉主体：字号/字重不变，只允许在极窄单元里收缩 */
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+/* 未知总量（"Data pending" / "数据待补全"）不是数值：降到 14px / line-height 1.3，
+   配合整词折行，让 "Data" 与 "pending" 各自成行而不是被 overflow-wrap:anywhere
+   拆成 "Data / pendi / ng"。已知数值不受影响，仍是 20px 的四列网格。 */
+.m-report-hero-stat-value.pending {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+    /* 整词折行：只有单词本身放不下时才在词内断开 */
+    overflow-wrap: break-word;
+    word-break: normal;
 }
 
 .m-report-hero-stat-label {
     font-size: var(--text-xs);
     opacity: 0.85;
     margin-top: 4px;
+    /* 标签（含历史英文 "Data pending"）折行而不是横向溢出 */
+    overflow-wrap: anywhere;
+}
+
+/* 320px 级窄屏：四列会把单元格压到 ~71px 以下，
+   14px 的 "pending" 也放不进一行，故退回两列以保留整词。 */
+@media (max-width: 360px) {
+    .m-report-hero-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .m-report-section {
@@ -1946,6 +1977,10 @@ html { scroll-behavior: smooth; }
     border-radius: var(--radius-full);
     background: var(--color-bg-elevated);
     line-height: 1.25;
+    /* 分类 chip 是页面上的可点筛选控件，触控高度与主控件同口径（≥44px） */
+    min-height: var(--touch-min, 44px);
+    display: inline-flex;
+    align-items: center;
 }
 
 .m-cat-tab.active {
@@ -1960,6 +1995,31 @@ html { scroll-behavior: smooth; }
     align-items: center;
     gap: var(--space-2);
     line-height: 1.45;
+}
+
+/* ===== 搜索 / 加载状态条（与桌面端同构） ===== */
+.m-search-state {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin: 0 var(--space-4) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+
+.m-search-state-text { flex: 1; min-width: 0; }
+
+.m-search-state-clear {
+    color: var(--color-primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 
 .m-ranking-guide {

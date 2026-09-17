@@ -235,7 +235,7 @@ class TestCrossCategorySearch:
         assert tabs_en, '移动端分类 tabs 未渲染'
         assert 'Hardcover Fiction' in tabs_en
         assert '精装小说' not in tabs_en
-        assert 'aria-label="Category"' in tabs_en  # 读屏语言也得跟随 locale
+        assert 'aria-label="Book categories"' in tabs_en  # 读屏语言也得跟随 locale
 
         zh = client.get('/?lang=zh', headers={'User-Agent': MOBILE_UA}).data.decode('utf-8')
         tabs_zh = _mobile_tabs(zh)

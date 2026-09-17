@@ -332,9 +332,33 @@ const categoryCache = {
 };
 
 /**
+ * 当前页面是否处于搜索 / 加载错误状态。
+ * 搜索是跨全部分类的临时视图：此时用下拉切换分类，旧输入框与状态条不会随
+ * AJAX 重绘而清除，必须整页跳转到仅分类的 URL 才能复位。
+ */
+function hasActiveSearchOrErrorState() {
+    if (window.APP_CONFIG && window.APP_CONFIG.searchQuery) return true;
+    return !!document.querySelector(
+        '.search-state[data-search-state="empty"],' +
+        '.search-state[data-search-state="partial"],' +
+        '.search-state[data-search-state="failed"],' +
+        '.search-state[data-search-state="load-failed"]'
+    );
+}
+
+/**
  * v0.9.55: 切换分类 - 优先走缓存，未命中才请求 API
  */
 async function changeCategory(category) {
+    // 从搜索/错误状态切换分类：整页跳转到仅分类的 URL（丢弃 search 参数），
+    // 使搜索输入框与状态条复位。首个切换即整页跳转，故本次页面加载内的
+    // APP_CONFIG.searchQuery 随即清空，不会把后续普通切换误判为搜索态。
+    if (hasActiveSearchOrErrorState()) {
+        const params = new URLSearchParams();
+        params.set('category', category);
+        window.location.href = window.location.pathname + '?' + params.toString();
+        return;
+    }
     if (category === window.currentCategory) return;
 
     // 命中缓存：本地已有数据 → 直接渲染，不显示 skeleton
@@ -589,13 +613,20 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
         selectEl.value = category;
     }
 
+    const timeWrap = document.querySelector('.page-subtitle .update-time-wrap');
     const timeEl = document.querySelector('.page-subtitle time');
-    if (timeEl) {
-        timeEl.setAttribute('datetime', updateTime || '');
-        var formattedTime = formatLocalTime(updateTime, lang);
-        timeEl.textContent = formattedTime
-            ? t('time_updated_at', lang, { time: formattedTime })
-            : t('time_just_now', lang);
+    if (timeWrap && timeEl) {
+        // 时间戳未知时绝不回退到 "刚刚"：只保留隐藏的 time 元素，
+        // 后续分类更新拿到真实时间戳后再显示；再次缺失则重新隐藏。
+        if (updateTime) {
+            timeEl.setAttribute('datetime', updateTime);
+            timeEl.textContent = t('time_updated_at', lang, { time: formatLocalTime(updateTime, lang) });
+            timeWrap.hidden = false;
+        } else {
+            timeEl.removeAttribute('datetime');
+            timeEl.textContent = '';
+            timeWrap.hidden = true;
+        }
     }
 
     updateMonthlyListHint(category, books, updateFrequency, listPublishedDate, lang);
@@ -643,10 +674,9 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                     <div class="card-content">
                     <h3 class="card-title" title="${esc(title)}">${esc(title)}</h3>
                     <p class="card-author">${esc(book.author)}</p>
-                    ${(book.publisher || book.isbn13 || book.isbn10 || book.weeks_on_list) ? `
+                    ${(book.publisher || book.weeks_on_list) ? `
                     <p class="card-pub-isbn">
                         ${book.publisher && ['Unknown', 'Unknown Publisher', '未知', '未知出版社'].indexOf(book.publisher) === -1 ? `<span class="card-pub-isbn-item publisher" title="${esc(t('book_publisher', lang))}: ${esc(book.publisher)}">${esc(book.publisher)}</span>` : ''}
-                        ${book.isbn13 ? `<span class="card-pub-isbn-item isbn" title="ISBN-13: ${esc(book.isbn13)}">${esc(book.isbn13)}</span>` : book.isbn10 ? `<span class="card-pub-isbn-item isbn" title="ISBN-10: ${esc(book.isbn10)}">${esc(book.isbn10)}</span>` : ''}
                         ${book.weeks_on_list ? `<span class="card-pub-isbn-item weeks" title="${esc(t('weeks_on_list', lang))}">${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                     </p>` : ''}
                     ${desc ? `<p class="card-desc">${esc(desc)}</p>` : ''}
@@ -657,7 +687,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
     }
 
 
-    const exportActions = document.querySelector('.export-actions-bar');
+    const exportActions = document.querySelector('.home-toolbar');
     if (exportActions) {
         const infoEl = exportActions.querySelector('.export-info');
         if (infoEl) {
@@ -668,10 +698,11 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
     }
 }
 
-window.addEventListener('popstate', function(e) {
-    if (e.state && e.state.category) {
-        changeCategory(e.state.category);
-    }
+window.addEventListener('popstate', function() {
+    // 前进/后退只还原 URL 状态，不再调用 changeCategory —— 它内部会 pushState
+    // 再次压入历史条目。整页重载当前 URL（浏览器已切到目标条目的地址）即可还原，
+    // 不会新增历史记录。
+    window.location.reload();
 });
 
 
@@ -819,6 +850,9 @@ window.addEventListener('languagechange', function(e) {
     if (typeof applyPageTranslation === 'function') {
         applyPageTranslation(lang);
     }
+
+    // 搜索状态条（empty/partial）走模板上的 data-i18n + data-i18n-params-*，
+    // 由 applyPageTranslation 统一按语言重写；无需单独的自定义函数。
 
     // 切换分类下拉框 option 文本（中英）
     if (typeof updateCategorySelectOptions === 'function') {

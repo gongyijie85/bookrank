@@ -11,6 +11,7 @@ from openpyxl.styles import Alignment, Font
 
 from ..utils.date_helpers import format_chinese_date
 from ..utils.error_handler import ErrorCategory, log_error
+from ..utils.weekly_report_presentation import prepare_report_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,43 @@ _SYSTEM_FONT_CANDIDATES = [
     Path('/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc'),
     Path('/System/Library/Fonts/PingFang.ttc'),
 ]
+
+# Excel 行高换算：11pt 字号下单行约 15 磅，CJK 字符按 2 个字符宽度计。
+_EXCEL_LINE_HEIGHT_POINTS = 15.0
+
+# A7:D7 / A9:D9 合并区域宽度的安全余量（字符宽度口径）：Excel 列宽换算与会话默认
+# 字体存在小数级误差，取整后可能多算一行、把行高撑得过高，留一点余量更贴近实际折行。
+_MERGED_WIDTH_ALLOWANCE = 2.0
+
+
+def excel_wrapped_row_height(
+    text: object,
+    column_width: float | None = None,
+    min_lines: int = 1,
+    max_lines: int = 40,
+) -> float | None:
+    """估算 Excel 单元格自动换行后所需的行高（磅）。
+
+    合并单元格里的自动换行不会自动撑高行高，默认单行高度会把换行后的文本在视觉上
+    裁掉。这里按列宽估算折行行数，给出足够行高。文本为空或列宽非法时返回 ``None``，
+    表示不设置行高（保持 Excel 默认行为）。跨列合并时传入合并区域各列列宽**之和**
+    （见 :meth:`ExportService.export_weekly_report_excel` 里的 ``merged_width``）。
+    """
+    if not isinstance(text, str) or not text.strip():
+        return None
+    try:
+        width = float(column_width) if column_width else 0.0
+    except (TypeError, ValueError):
+        return None
+    if width <= 0:
+        return None
+
+    lines = 0
+    for logical_line in text.split('\n'):
+        visual_width = sum(2 if ord(ch) > 0x2E7F else 1 for ch in logical_line)
+        lines += max(1, -(-visual_width // int(width)))  # ceil
+    lines = max(min_lines, min(lines, max_lines))
+    return round(lines * _EXCEL_LINE_HEIGHT_POINTS, 2)
 
 
 class ExportService:
@@ -83,16 +121,22 @@ class ExportService:
         pdf.multi_cell = _patched_multi_cell
         return pdf
 
-    def export_weekly_report_pdf(self, report) -> BytesIO | None:
+    def export_weekly_report_pdf(self, report, prepared: dict | None = None) -> BytesIO | None:
         """导出周报为PDF
 
         Args:
             report: 周报对象
+            prepared: 可选，presentation 准备数据（安全摘要 / 校验总量）。
+                缺省时自动用 prepare_report_presentation(report) 生成，绝不使用
+                未校验的 report.summary，也不改写 ORM 字段。
 
         Returns:
             BytesIO: PDF文件流
         """
         try:
+            if prepared is None:
+                prepared = prepare_report_presentation(report)
+
             # 创建PDF对象
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=15)
@@ -128,11 +172,35 @@ class ExportService:
             )
             pdf.ln(10)
 
-            # 摘要
+            # 本周指标（audit04：权威总量来自结构化 content，缺失标“数据待补全”）
+            # 展示值直接取 prepared 里已本地化的 total_*_display，绝不臆造为 0。
+            prepared_content = (prepared or {}).get('content') or {}
+            metric_lines = [
+                (
+                    f'上榜记录: {prepared_content.get("total_books_display", "")}'
+                    f' · 新书: {prepared_content.get("total_new_display", "")}'
+                    f' · 上升: {prepared_content.get("total_rising_display", "")}'
+                    f' · 下降: {prepared_content.get("total_falling_display", "")}'
+                )
+            ]
+            scope_label = prepared_content.get('scope_label')
+            if scope_label:
+                metric_lines.append(scope_label)
+            pdf.set_font(font_name, 'B', 12)
+            pdf.cell(0, 10, '本周指标', new_x='LMARGIN', new_y='NEXT', align='L')
+            pdf.set_font(font_name, '', 10)
+            # multi_cell 默认 new_x=RIGHT 会把光标留在右边距，导致下一行没有可渲染宽度
+            # （scope 行直接报 FPDFException）。显式回到左边界并换行。
+            for line in metric_lines:
+                pdf.multi_cell(0, 5, line, new_x='LMARGIN', new_y='NEXT')
+            pdf.ln(6)
+
+            # 摘要（audit04：一律使用确定性事实摘要，不展示/导出未校验的存储叙述）
+            summary = prepared.get('summary')
             pdf.set_font(font_name, 'B', 12)
             pdf.cell(0, 10, '本周概览', new_x='LMARGIN', new_y='NEXT', align='L')
             pdf.set_font(font_name, '', 10)
-            pdf.multi_cell(0, 5, report.summary)
+            pdf.multi_cell(0, 5, summary, new_x='LMARGIN', new_y='NEXT')
             pdf.ln(10)
 
             # 详细内容
@@ -208,16 +276,22 @@ class ExportService:
             log_error(ErrorCategory.UNKNOWN, f'PDF导出失败: {e!s}')
             return None
 
-    def export_weekly_report_excel(self, report) -> BytesIO | None:
+    def export_weekly_report_excel(self, report, prepared: dict | None = None) -> BytesIO | None:
         """导出周报为Excel
 
         Args:
             report: 周报对象
+            prepared: 可选，presentation 准备数据（安全摘要 / 校验总量）。
+                缺省时自动用 prepare_report_presentation(report) 生成，绝不使用
+                未校验的 report.summary，也不改写 ORM 字段。
 
         Returns:
             BytesIO: Excel文件流
         """
         try:
+            if prepared is None:
+                prepared = prepare_report_presentation(report)
+
             # 创建工作簿
             wb = Workbook()
             ws = wb.active
@@ -228,6 +302,9 @@ class ExportService:
             ws.column_dimensions['B'].width = 30
             ws.column_dimensions['C'].width = 20
             ws.column_dimensions['D'].width = 15
+            # A7:D7 / A9:D9 都是跨四列的合并单元格，自动换行按「四列合计宽度」折行。
+            # 只按 A 列宽度估行会严重高估行数、把行撑得过高（导出排版被撑坏）。
+            merged_width = sum(ws.column_dimensions[c].width for c in 'ABCD') + _MERGED_WIDTH_ALLOWANCE
 
             # 标题
             title_font = Font(bold=True, size=14)
@@ -243,18 +320,53 @@ class ExportService:
             ws['A3'].font = meta_font
             ws['A4'].font = meta_font
 
-            # 摘要
+            # 本周指标（audit04：权威总量来自结构化 content，缺失标“数据待补全”）
+            # 展示值直接取 prepared 里已本地化的 total_*_display，绝不臆造为 0。
+            prepared_content = (prepared or {}).get('content') or {}
+            scope_label = prepared_content.get('scope_label')
             summary_font = Font(bold=True, size=12)
-            ws['A6'] = '本周概览'
+            ws['A6'] = '本周指标'
             ws['A6'].font = summary_font
-            ws.merge_cells('A7:D7')
-            ws['A7'] = report.summary
+            ws.merge_cells('A6:D6')
+            metrics_text = (
+                f'上榜记录: {prepared_content.get("total_books_display", "")}'
+                f' · 新书: {prepared_content.get("total_new_display", "")}'
+                f' · 上升: {prepared_content.get("total_rising_display", "")}'
+                f' · 下降: {prepared_content.get("total_falling_display", "")}'
+            )
+            if scope_label:
+                metrics_text += f'\n{scope_label}'
+            ws['A7'] = metrics_text
+            ws['A7'].font = meta_font
             ws['A7'].alignment = Alignment(wrap_text=True, vertical='top')
+            ws.merge_cells('A7:D7')
+            # A7:D7 同样跨四列合并：scope_label 单独占一行，窄列宽会把结论行裁掉。
+            metrics_row_height = excel_wrapped_row_height(metrics_text, column_width=merged_width)
+            if metrics_row_height is not None:
+                ws.row_dimensions[7].height = metrics_row_height
 
-            # 详细内容
+            # 摘要（audit04：一律使用确定性事实摘要，不展示/导出未校验的存储叙述）
+            # A9:D9 跨四列合并，行高必须按四列合计宽度估算；只按 A 列宽度会高估行数、
+            # 把行撑得过高，破坏导出排版。
+            summary = prepared.get('summary')
+            ws['A8'] = '本周概览'
+            ws['A8'].font = summary_font
+            ws.merge_cells('A8:D8')
+            ws['A9'] = summary
+            ws['A9'].alignment = Alignment(wrap_text=True, vertical='top')
+            ws.merge_cells('A9:D9')
+            summary_row_height = excel_wrapped_row_height(summary, column_width=merged_width)
+            if summary_row_height is not None:
+                ws.row_dimensions[9].height = summary_row_height
+
+            # 详细内容：从预留的摘要/指标行之后开始。
+            # 标题占 A1、指标标题 A6 + 指标 A7、概览标题 A8 + 概览正文 A9，
+            # 因此表格必须从第 10 行起，否则会把 A9:D9 的事实摘要覆盖掉。
+            # row / header_font 定义在可选分支之外：content 缺失或只有推荐书籍时同样可用。
+            row = 10
+            header_font = Font(bold=True)
             if report.content:
                 content = json.loads(report.content)
-                row = 9
 
                 # 重要变化
                 if content.get('top_changes'):
@@ -263,7 +375,6 @@ class ExportService:
                     row += 1
 
                     # 表头
-                    header_font = Font(bold=True)
                     ws[f'A{row}'] = '书名'
                     ws[f'B{row}'] = '作者'
                     ws[f'C{row}'] = '类别'
@@ -310,12 +421,13 @@ class ExportService:
                         ws[f'C{row}'].alignment = Alignment(wrap_text=True, vertical='top')
                         row += 1
 
-            # 页脚
+            # 页脚（无表格内容时承接预留行，不会与摘要/指标重叠）
+            footer_row = max(row + 2, 11)
             footer_font = Font(size=8)
-            ws[f'A{row + 2}'] = f'© {report.report_date.year} BookRank - 纽约时报畅销书排行榜'
-            ws[f'A{row + 2}'].font = footer_font
-            ws.merge_cells(f'A{row + 2}:D{row + 2}')
-            ws[f'A{row + 2}'].alignment = Alignment(horizontal='center')
+            ws[f'A{footer_row}'] = f'© {report.report_date.year} BookRank - 纽约时报畅销书排行榜'
+            ws[f'A{footer_row}'].font = footer_font
+            ws.merge_cells(f'A{footer_row}:D{footer_row}')
+            ws[f'A{footer_row}'].alignment = Alignment(horizontal='center')
 
             # 输出到内存流
             buffer = BytesIO()

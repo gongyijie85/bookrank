@@ -106,20 +106,42 @@ class TestNewBookI18nKeys:
 class TestNewBookPoFiles:
     """msgid 完整性。"""
 
+    # 当前**实际**用户可见文案：完整句子（含具名占位符），不是已废弃的碎片拼接。
+    # 碎片（'搜索书名、作者、' / '当前结果' / '按出版日期筛选最近' / '天已出版图书'）
+    # 随着完整句 gettext 化已从模板移除，不得为了这个清单把废弃 UI 措辞复活。
     REQUIRED_MSGIDS = [
         '最近7天出版',
         '最近30天出版',
         '最近90天出版',
         '最近半年出版',
         '最近一年出版',
-        '搜索书名、作者、',
-        '当前结果',
-        '按出版日期筛选最近',
-        '天已出版图书',
+        # 搜索标签 / 占位符 / 结果区
+        '搜索新书',
+        '搜索书名或作者...',
+        '当前筛选结果',
+        # 完整筛选窗口与范围句（具名占位符必须保留）
+        '筛选窗口：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告 + 日期待确认的新发现书目',
+        '筛选范围：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告；含日期待确认的新发现书目',
+        # 全库收录计数句
+        '全库收录 %(books)s 本新书 · %(publishers)s 家出版社',
+        # 空态 / 错误态
         '当前出版时间范围暂无新书，可放宽时间范围或稍后刷新',
         '刷新',
         '尝试放宽出版时间范围或搜索其他关键词',
     ]
+
+    # 完整句必须带这些具名占位符（两侧目录都要保留）
+    REQUIRED_PLACEHOLDERS = {
+        '筛选窗口：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告 + 日期待确认的新发现书目': (
+            '%(days)s',
+            '%(preview)s',
+        ),
+        '筛选范围：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告；含日期待确认的新发现书目': (
+            '%(days)s',
+            '%(preview)s',
+        ),
+        '全库收录 %(books)s 本新书 · %(publishers)s 家出版社': ('%(books)s', '%(publishers)s'),
+    }
 
     def test_zh_po_has_required(self):
         pairs = _po_pairs(_read(ZH_PO))
@@ -135,6 +157,16 @@ class TestNewBookPoFiles:
             if v is None or v == '' or v == k:
                 problems.append(f'{k!r} -> {v!r}')
         assert not problems, f'en.po 未翻译的 msgid: {problems}'
+
+    def test_scope_and_count_sentences_keep_named_placeholders(self):
+        """两侧目录都必须原样保留完整句的具名占位符（翻译时丢参数 = 运行时报错）。"""
+        for po in (ZH_PO, EN_PO):
+            pairs = _po_pairs(_read(po))
+            for msgid, placeholders in self.REQUIRED_PLACEHOLDERS.items():
+                value = pairs.get(msgid)
+                assert value, f'{po.name} 缺少完整句 {msgid[:24]!r}'
+                for ph in placeholders:
+                    assert ph in value, f'{po.name} 的 {msgid[:24]!r} 丢了占位符 {ph}'
 
     def test_mo_files_recompiled(self):
         """.mo 必须与 .po 内容一致。
@@ -386,10 +418,14 @@ class TestNewBookDetailI18n:
 class TestApplyNewBooksLanguageNoMoreNoop:
     """v0.9.62 修复：applyNewBooksLanguage 末尾的 noop 死代码，必须触发实际重渲染。"""
 
-    def test_no_comment_only_ending(self):
-        """applyNewBooksLanguage 末尾不能只有注释（v0.9.58 的 noop 死代码）。"""
+    def test_function_body_calls_book_i18n_apply_language(self):
+        """函数体内必须真的调用 `BookI18n.applyLanguage(lang)`（v0.9.58 的 noop 死代码）。
+
+        不断言"末尾 300 字符"这种位置条件：函数现在还会更新徽标/chip 文案，
+        真实调用可以出现在中段。要求的是**函数体内**存在带 `lang` 实参的调用，
+        而不是注释里提了一句（注释行先剔除，避免靠写注释蒙混）。
+        """
         text = _read(TPL)
-        # 找到 applyNewBooksLanguage 函数体
         m = re.search(
             r'function\s+applyNewBooksLanguage\s*\([^)]*\)\s*\{(.+?)\n\}',
             text,
@@ -397,11 +433,10 @@ class TestApplyNewBooksLanguageNoMoreNoop:
         )
         assert m, 'applyNewBooksLanguage 函数未找到'
         body = m.group(1)
-        # 末尾 200 字符内必须有 BookI18n.applyLanguage 或 registerAll 的真实调用
-        tail = body[-300:]
-        assert 'BookI18n.applyLanguage' in tail, (
-            'applyNewBooksLanguage 末尾仍是 noop 死代码（C2 未修）。'
-            '需要调用 BookI18n.applyLanguage(lang) 让已加载的卡片标题/作者/简介实时切换。'
+        code = '\n'.join(line for line in body.splitlines() if not line.strip().startswith(('//', '/*', '*', '*/')))
+        assert re.search(r'BookI18n\.applyLanguage\(\s*lang\s*\)', code), (
+            'applyNewBooksLanguage 内没有真实的 BookI18n.applyLanguage(lang) 调用（C2 未修）。'
+            '需要它让已加载的卡片标题/作者/简介实时切换。'
         )
 
     def test_languagechange_handler_has_card_guard(self):

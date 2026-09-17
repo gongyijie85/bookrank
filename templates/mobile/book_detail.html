@@ -25,7 +25,13 @@
 {% set _detail_en = (book.details or '')|trim %}
 {% set _detail_zh = '' if _detail_zh in PLACEHOLDER_TEXTS else _detail_zh %}
 {% set _detail_en = '' if _detail_en in PLACEHOLDER_TEXTS else _detail_en %}
+{# 语言标记（'英文' 这类无信息量取值）也不算详情：与桌面端同口径，复用 api_helpers 的
+   公开判定（注入为 Jinja 全局 is_non_substantive_details），不再自带第二份清单。 #}
+{% set _detail_zh = '' if is_non_substantive_details(_detail_zh) else _detail_zh %}
+{% set _detail_en = '' if is_non_substantive_details(_detail_en) else _detail_en %}
 {% set detail_text = _detail_zh if _locale == 'zh' and _detail_zh else (_detail_en or _detail_zh) %}
+{# 页数：脏值（0 / '0' / None / 负数 / 布尔 / 小数 / 非数字串）统一归一化成空串，整行隐藏。 #}
+{% set _pages = book.page_count|positive_int_text %}
 
 <!-- 书籍封面 -->
 <section class="m-detail-cover-wrap">
@@ -50,8 +56,8 @@
         {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
         <span><strong>{{ _('出版日期') }}</strong>{{ book.publication_dt }}</span>
         {% endif %}
-        {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
-        <span><strong>{{ _('页数') }}</strong>{{ book.page_count }}</span>
+        {% if _pages %}
+        <span><strong>{{ _('页数') }}</strong>{{ _pages }}</span>
         {% endif %}
         {% if book.language and book.language not in ('Unknown', '', 'un') %}
         <span><strong>{{ _('语言') }}</strong>{{ book.language|language_name }}</span>
@@ -59,6 +65,11 @@
     </div>
 </section>
 
+{# 「详细信息」标签是否出现：只有元信息（出版社/ISBN/日期…）而没有一条**无信息量之外**的
+   details 正文时，标签页对用户没有价值，反而把「详情: 英文」这类语言标记当正文渲染。
+   这里与桌面端同口径：details 正文必须至少有一侧非空、且不是占位串/语言标记。
+   注意 data-isbn / data-book-index 等钩子保持在容器上，JS 懒加载行为不变。 #}
+{% set _has_details_tab = detail_text and detail_text not in PLACEHOLDER_TEXTS %}
 <!-- Tab 切换：图书简介 / 详细信息 -->
 <div class="m-detail-tabs-wrapper"
      data-isbn="{{ book.isbn13 or book.isbn10 or '' }}"
@@ -68,9 +79,11 @@
         <button class="m-tab-btn active" data-tab="description" role="tab" aria-selected="true" type="button">
             {{ _('图书简介') }}
         </button>
+        {% if _has_details_tab %}
         <button class="m-tab-btn" data-tab="details" role="tab" aria-selected="false" type="button">
             {{ _('详细信息') }}
         </button>
+        {% endif %}
     </div>
 
     <div class="m-tab-content">
@@ -88,6 +101,7 @@
         </div>
 
         <!-- 详细信息 -->
+        {% if _has_details_tab %}
         <div class="m-tab-panel" data-panel="details" role="tabpanel">
             <dl class="m-meta-list">
                 {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
@@ -99,8 +113,8 @@
                 {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
                 <div class="m-meta-row"><dt>{{ _('出版日期') }}</dt><dd>{{ book.publication_dt }}</dd></div>
                 {% endif %}
-                {% if book.page_count and book.page_count not in ('Unknown', 'N/A', '', '0') %}
-                <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ book.page_count }}</dd></div>
+                {% if _pages %}
+                <div class="m-meta-row"><dt>{{ _('页数') }}</dt><dd>{{ _pages }}</dd></div>
                 {% endif %}
                 {% if book.category_name %}
                 <div class="m-meta-row"><dt>{{ _('图书分类') }}</dt><dd>{{ book.category_name|bilingual(book.list_name) }}</dd></div>
@@ -125,6 +139,7 @@
             {# JS 懒加载的 Google Books 详细介绍会追加到这里 #}
             <div class="m-tab-panel-extra" data-source="google-books"></div>
         </div>
+        {% endif %}
     </div>
 </div>
 
