@@ -14,10 +14,12 @@
 
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
+{% set _rt_zh = report.title|report_title('zh') %}
+{% set _rt_en = report.title|report_title('en') %}
 {{ breadcrumbs([
-    {'label': _('首页'), 'url': url_for('main.index')},
-    {'label': _('畅销书周报'), 'url': url_for('main.weekly_reports')},
-    {'label': report.title, 'url': request.url}
+    {'label': _('首页'), 'key': 'nav_home', 'url': url_for('main.index')},
+    {'label': _('畅销书周报'), 'key': 'nav_weekly', 'url': url_for('main.weekly_reports')},
+    {'label': _rt_en if _locale == 'en' else _rt_zh, 'zh': _rt_zh, 'en': _rt_en, 'url': request.url}
 ], csp_nonce()) }}
 {% endblock %}
 

@@ -10,9 +10,9 @@
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
 {{ breadcrumbs([
-    {'label': _('首页'), 'url': url_for('main.index')},
-    {'label': _('新书速递'), 'url': url_for('main.new_books')},
-    {'label': book.title_zh|bilingual(book.title), 'url': request.url}
+    {'label': _('首页'), 'key': 'nav_home', 'url': url_for('main.index')},
+    {'label': _('新书速递'), 'key': 'nav_new_books', 'url': url_for('main.new_books')},
+    {'label': book.title_zh|bilingual(book.title), 'zh': book.title_zh or book.title, 'en': book.title, 'url': request.url}
 ], csp_nonce()) }}
 {% endblock %}
 
@@ -41,7 +41,7 @@
 
 <!-- 返回按钮 -->
 <div class="detail-nav">
-    <a href="{{ back_url }}" class="back-btn">
+    <a href="{{ back_url }}" class="back-btn" data-i18n="back">
         <svg class="icon" width="20" height="20"><use href="#icon-arrow-left"/></svg>
         {{ _('返回') }}
     </a>
