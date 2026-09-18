@@ -7,6 +7,12 @@ const source = readFileSync(new URL('../static/js/index.js', import.meta.url), '
 
 function renderer(view, overrides = {}) {
     const container = { innerHTML: '', addEventListener() {} };
+    // 切语言时 rerenderCurrentBooks() 优先读内存 booksData，为空才回落到 SSR 内嵌的
+    // `#initial-books-data`。夹具不给这个节点，语言重渲染路径就永远走不到（静默 return），
+    // 于是"重渲染后卡片是否还完整"这类断言全部变成空转。
+    const initialBooksNode = overrides.initialBooks
+        ? { textContent: JSON.stringify(overrides.initialBooks) }
+        : null;
     const appConfig = Object.assign(
         { defaultCover: '/static/default-cover.png', currentCategory: 'hardcover-fiction' },
         overrides.appConfig || {}
@@ -20,7 +26,7 @@ function renderer(view, overrides = {}) {
             location: { href: '', pathname: '/', reload() { this._reloaded = true; } },
         },
         document: {
-            getElementById: id => id === view ? container : null,
+            getElementById: id => (id === view ? container : (id === 'initial-books-data' ? initialBooksNode : null)),
             querySelector: () => null,
             addEventListener() {},
         },
@@ -128,4 +134,97 @@ test('popstate restores URL state by reloading instead of pushing again', () => 
     assert.equal(typeof popstate, 'function');
     popstate();
     assert.equal(context.window.location._reloaded, true);
+});
+
+// ---------------------------------------------------------------------------
+// 明文 ISBN：产品契约，别再删（#248 删过一次，用户问"卡片上 ISBN 怎么没了"才暴露）
+//
+// 卡片有两条渲染路径，两条都必须显示明文 ISBN：
+//   1) SSR —— templates/index.html 的 .card-pub-isbn-item.isbn（已有回归锁，
+//      见 tests/test_card_desc_and_details_render.py::TestCardShowsPlainIsbn）
+//   2) 客户端重渲染 —— 本文件的 updateBooksOnPage()。切语言（languagechange →
+//      rerenderCurrentBooks）与切换分类（/api/category-books）都走这条，
+//      SSR 里好好的 ISBN 会被它整块重写成"只有出版社"。
+//
+// data-isbn 属性和可见 ISBN **不能互相替代**：前者供 BookI18n 注册，
+// 用户在卡片上看不到它。
+// ---------------------------------------------------------------------------
+
+/** 该单测里所有卡片断言都基于同一个书对象，字段与 /api/category-books 的真实载荷一致。 */
+function isbnBook(overrides = {}) {
+    return {
+        rank: 1,
+        title: 'BURN OF THE EVERFLAME',
+        author: 'Penn Cole',
+        publisher: 'Atria',
+        isbn13: '9781668200223',
+        isbn10: '',
+        weeks_on_list: 1,
+        ...overrides,
+    };
+}
+
+test('language rerender keeps the plain ISBN visible on home cards', () => {
+    // 用户报的症状：首页卡片只有 "Penn Cole / Atria"，看不到 ISBN。
+    // SSR 与 #initial-books-data 都带 isbn13（线上实测），丢它的是这条客户端模板。
+    const books = [isbnBook()];
+    const { context, container } = renderer('books-grid', { initialBooks: books });
+    context.rerenderCurrentBooks('zh');
+    assert.match(container.innerHTML, /class="card-pub-isbn-item isbn"/);
+    assert.match(container.innerHTML, /9781668200223/);
+    assert.match(container.innerHTML, /ISBN-13: 9781668200223/);
+});
+
+test('category switch rerender keeps the plain ISBN visible too', () => {
+    // 同一条模板也服务于分类切换（AJAX 结果直接重绘），修一处必须两处都覆盖。
+    const { context, container } = renderer('books-grid');
+    context.updateBooksOnPage([isbnBook()], 'hardcover-fiction', null);
+    assert.match(container.innerHTML, /class="card-pub-isbn-item isbn"/);
+    assert.match(container.innerHTML, /9781668200223/);
+});
+
+test('isbn10 is used when isbn13 is missing', () => {
+    // 与 templates/index.html 的 {% if book.isbn13 %}…{% elif book.isbn10 %} 一致。
+    const { context, container } = renderer('books-grid');
+    context.updateBooksOnPage([isbnBook({ isbn13: '', isbn10: '0316608327' })], 'hardcover-fiction', null);
+    assert.match(container.innerHTML, /class="card-pub-isbn-item isbn"/);
+    assert.match(container.innerHTML, /0316608327/);
+    assert.match(container.innerHTML, /ISBN-10: 0316608327/);
+});
+
+test('a card with only an ISBN still shows the meta line', () => {
+    // 元信息行的入场条件也必须把 ISBN 算进去：出版社缺失但 ISBN 存在的书，
+    // 此前整块 <p class="card-pub-isbn"> 都不会输出，ISBN 自然也没了。
+    const { context, container } = renderer('books-grid');
+    context.updateBooksOnPage(
+        [isbnBook({ publisher: '', weeks_on_list: 0 })],
+        'hardcover-fiction',
+        null
+    );
+    assert.match(container.innerHTML, /<p class="card-pub-isbn">/);
+    assert.match(container.innerHTML, /class="card-pub-isbn-item isbn"/);
+    assert.match(container.innerHTML, /9781668200223/);
+});
+
+test('an unknown publisher does not suppress the ISBN', () => {
+    // 占位出版社被过滤掉时，ISBN 仍然要出现（两者是同一条行里的独立判断）。
+    const { context, container } = renderer('books-grid');
+    context.updateBooksOnPage(
+        [isbnBook({ publisher: 'Unknown Publisher' })],
+        'hardcover-fiction',
+        null
+    );
+    assert.doesNotMatch(container.innerHTML, /card-pub-isbn-item publisher/);
+    assert.match(container.innerHTML, /class="card-pub-isbn-item isbn"/);
+});
+
+test('cards without any identifier keep the meta line unchanged', () => {
+    // 反向用例：既无 ISBN 也无出版社、无周数时，不该凭空造出一个空的行。
+    const { context, container } = renderer('books-grid');
+    context.updateBooksOnPage(
+        [isbnBook({ publisher: '', isbn13: '', isbn10: '', weeks_on_list: 0 })],
+        'hardcover-fiction',
+        null
+    );
+    assert.doesNotMatch(container.innerHTML, /class="card-pub-isbn"/);
 });
