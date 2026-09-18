@@ -1,4 +1,4 @@
-.PHONY: lint format typecheck test check translations build-frontend i18n-drift check-covers
+.PHONY: lint format typecheck test check translations build-frontend i18n-drift check-covers check-lang
 
 lint:
 	ruff check app/ tests/
@@ -38,5 +38,12 @@ sync-wiki:
 # （见 .github/workflows/cover-monitor.yml；--attempts 1 会把冷缓存误报成故障）
 check-covers:
 	python scripts/check_cover_proxy.py
+
+# 语言切换自检：用真实浏览器把语言从 zh 切到 en，列出仍冻结在原语言的 chrome 文案。
+# 语言偏好存在 localStorage，切换是**就地改写** DOM（不重新请求），所以静态读模板看不出
+# 有没有生效 —— 必须真浏览器。需要 Chrome（可用环境变量 CHROME 指定路径）。
+#   make check-lang URL=https://bookrank-ckml.onrender.com/book/0?category=hardcover-fiction
+check-lang:
+	node scripts/check_lang_residue.mjs "$(URL)"
 
 check: lint typecheck test translations

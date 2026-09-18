@@ -9,11 +9,15 @@
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
 {% set _l = get_locale() %}
-{% set cat_label = (category_names_en.get(category, category) if _l != 'zh' else categories.get(category, category)) if categories else category %}
+{# 两侧取值都从**同一批** route 数据里取，保证 SSR 可见文本与 data-zh/data-en 不会分叉。
+   数据型文案（分类名、书名）没有字典键，只能走 data-zh/data-en 由客户端择一。 #}
+{% set cat_zh = categories.get(category, category) if categories else category %}
+{% set cat_en = category_names_en.get(category, category) if categories else category %}
+{% set cat_label = cat_en if _l != 'zh' else cat_zh %}
 {{ breadcrumbs([
-    {'label': _('首页'), 'url': url_for('main.index')},
-    {'label': cat_label, 'url': url_for('main.index', category=category)},
-    {'label': book.title_zh|bilingual(book.title), 'url': request.url}
+    {'label': _('首页'), 'key': 'nav_home', 'url': url_for('main.index')},
+    {'label': cat_label, 'zh': cat_zh, 'en': cat_en, 'url': url_for('main.index', category=category)},
+    {'label': book.title_zh|bilingual(book.title), 'zh': book.title_zh or book.title, 'en': book.title, 'url': request.url}
 ], csp_nonce()) }}
 {% endblock %}
 

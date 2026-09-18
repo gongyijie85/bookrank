@@ -8,8 +8,8 @@
 {% block breadcrumbs %}
 {% from '_breadcrumbs.html' import breadcrumbs %}
 {{ breadcrumbs([
-    {'label': _('首页'), 'url': url_for('main.index')},
-    {'label': _('关于我们'), 'url': url_for('main.about')}
+    {'label': _('首页'), 'key': 'nav_home', 'url': url_for('main.index')},
+    {'label': _('关于我们'), 'key': 'nav_about', 'url': url_for('main.about')}
 ], csp_nonce()) }}
 {% endblock %}
 

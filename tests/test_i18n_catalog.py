@@ -171,6 +171,106 @@ class TestClientDictionary:
             f'translations.js, so the raw key lands in the attribute: {missing}'
         )
 
+    def test_both_locales_define_the_same_keys(self) -> None:
+        """中英两侧键集必须一致：只补一侧时，另一侧的 `t(key)` 会静默回退到中文。"""
+        js = JS.read_text(encoding='utf-8')
+        zh_block = js.split('zh: {', 1)[1].split('en: {', 1)[0]
+        en_block = js.split('en: {', 1)[1].split('\n};', 1)[0]
+        zh_keys = set(re.findall(r"^\s*'([a-zA-Z0-9_]+)':", zh_block, re.M))
+        en_keys = set(re.findall(r"^\s*'([a-zA-Z0-9_]+)':", en_block, re.M))
+
+        assert zh_keys, '解析不出 zh 键集，本用例已失效'
+        assert zh_keys - en_keys == set(), f'缺少英文条目的键: {sorted(zh_keys - en_keys)}'
+        assert en_keys - zh_keys == set(), f'缺少中文条目的键: {sorted(en_keys - zh_keys)}'
+
+
+class TestChromeI18nHooks:
+    """chrome 里可见的文案都必须带**可被 applyPageTranslation 消费**的钩子。
+
+    语言偏好存在 localStorage：浏览器内切换语言时由 `applyPageTranslation()` **就地改写**
+    带钩子的元素（不重新请求）。所以没有钩子的可见文案会**冻结在 SSR 语言** ——
+    用户报的"切换语言后有一部分导航没有翻译"正是这个：面包屑三项 + 侧边栏「导航」整段
+    共 48 处（真实浏览器实测，见 .debug/probe_lang_residue.mjs）。
+
+    两类钩子：
+    - `data-i18n`：静态 chrome 文案（有字典键）；
+    - `data-zh` + `data-en`：数据型文案（分类名 / 书名 / 奖项名 / 周报标题），没有字典键。
+    """
+
+    HOOK = re.compile(r'data-i18n(?:-placeholder|-title|-aria-label)?=|data-zh=')
+
+    # 只挑**不依赖 DB 内容**的页面：/reports/weekly 需要周报数据 + 服务打桩，在全量运行时
+    # 会被上游用例的状态影响（实测单跑正常、全量下渲染成错误页 → 没有面包屑）。
+    # 数据型条目的覆盖交给下面的源码级不变量与宏渲染用例，两者都不依赖 fixture。
+    @pytest.mark.parametrize('path', ['/about', '/new-books'])
+    def test_breadcrumb_items_carry_a_translation_hook(self, client, path: str) -> None:
+        response = client.get(path)
+        assert response.status_code == 200, f'{path} -> {response.status_code}'
+        html = response.get_data(as_text=True)
+        items = re.findall(r'<li class="breadcrumb-item">(.*?)</li>', html, re.S)
+        assert items, f'{path} 渲染不出面包屑条目，本用例会退化成空转'
+        bare = [i.strip()[:140] for i in items if not self.HOOK.search(i)]
+        assert not bare, f'{path} 的面包屑条目缺翻译钩子，切语言后会冻结在 SSR 语言: {bare}'
+
+    def test_every_breadcrumb_item_declares_a_hook(self) -> None:
+        """所有调用点都必须给条目带钩子 —— 覆盖需要 fixture 的页面（周报详情、图书详情等）。
+
+        条目在本仓库里一律写成单行 dict，所以按行判定即可；新增跨行写法会在这里被拦下，
+        提示保持单行（或同步放宽本用例），不会静默漏检。
+        """
+        offenders: list[str] = []
+        for path in sorted(TEMPLATES.rglob('*.html')):
+            for lineno, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+                if "'label':" not in line:
+                    continue
+                if "'key':" in line:
+                    continue
+                if "'zh':" in line and "'en':" in line:
+                    continue
+                offenders.append(f'{path.name}:{lineno}: {line.strip()[:100]}')
+        assert not offenders, (
+            f'以下面包屑条目既没有 key（静态文案）也没有 zh/en（数据型文案），切换语言时会冻结在 SSR 语言：{offenders}'
+        )
+
+    def test_report_title_filter_localizes_the_standard_title(self, app) -> None:
+        """周报面包屑靠 `report_title` 过滤器产出两侧文案（标准标题才会被改写）。"""
+        localize = app.jinja_env.filters['report_title']
+        standard = '2026年09月14日-2026年09月20日 畅销书周报'
+        assert localize(standard, 'zh') == standard
+        english = localize(standard, 'en')
+        assert english != standard and '周报' not in english, f'en 侧未被本地化: {english!r}'
+        # 人工撰写的任意标题必须原样透传，不许猜
+        assert localize('自定义标题', 'en') == '自定义标题'
+
+    def test_breadcrumb_macro_emits_both_locale_variants(self, app) -> None:
+        """数据型条目必须同时产出 data-zh / data-en，客户端才能择一。"""
+        macro = app.jinja_env.get_template('_breadcrumbs.html').module
+        # nonce 必须显式传入：宏内 JSON-LD 用的 csp_nonce() 是 context processor，
+        # 直接调用宏时不在作用域内（与 _weekly_lang_sync.html 的同一约定）。
+        html = macro.breadcrumbs(
+            [
+                {'label': '首页', 'key': 'nav_home', 'url': '/'},
+                {'label': '精装小说', 'zh': '精装小说', 'en': 'Hardcover Fiction', 'url': '/?category=f'},
+                {'label': '永恒之火的燃烧', 'zh': '永恒之火的燃烧', 'en': 'BURN OF THE EVERFLAME', 'url': '/b'},
+            ],
+            'TESTNONCE',
+        )
+        assert 'data-i18n="nav_home"' in html
+        assert 'data-zh="精装小说"' in html and 'data-en="Hardcover Fiction"' in html
+        assert 'data-en="BURN OF THE EVERFLAME"' in html
+
+    def test_sidebar_default_block_labels_carry_a_hook(self) -> None:
+        """base.html 默认侧边栏里任何裸文案都会在切语言后冻结（「导航」整段曾如此）。"""
+        html = (TEMPLATES / 'base.html').read_text(encoding='utf-8')
+        assert '{% block sidebar %}' in html, '侧边栏 block 被改名，本用例需同步'
+        block = html.split('{% block sidebar %}', 1)[1].split('{% endblock %}', 1)[0]
+        bare = [
+            m.group(0)[:120]
+            for m in re.finditer(r'<(span|h3)\b([^>]*)>\s*\{\{[^}]+\}\}\s*</\1>', block)
+            if 'data-' not in m.group(2)
+        ]
+        assert not bare, f'侧边栏存在没有翻译钩子的可见文案: {bare}'
+
 
 class TestEnglishPageRendering:
     """Server-side check: these exact strings used to render (in Chinese) on English pages."""

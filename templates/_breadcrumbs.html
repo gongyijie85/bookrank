@@ -1,4 +1,15 @@
-{# 面包屑导航宏 + BreadcrumbList JSON-LD #}
+{# 面包屑导航宏 + BreadcrumbList JSON-LD
+
+   每个条目除 `label`（服务端按 SSR 语言择一渲染的可见文本）外，可选携带：
+   - `key`：静态 chrome 文案的字典键（如 'nav_home'），产出 `data-i18n`；
+   - `zh` / `en`：**数据型**文案的两侧取值（分类名、书名、奖项名、周报标题），
+     产出 `data-zh` / `data-en`。
+
+   为什么必须二选一给钩子：语言偏好存在 localStorage，浏览器内切换语言时由
+   `applyPageTranslation()` **就地改写**带钩子的元素（不重新请求）。没钩子的条目会
+   **冻结在 SSR 语言**——用户报的"切换语言后有一部分导航没翻译"就是面包屑这一行。
+   数据型文案没有、也不该有字典键，所以走 data-zh/data-en 这一支（见 static/js/translations.js）。
+   由 tests/test_i18n_catalog.py 的 TestChromeI18nHooks 钉住"每个条目都带钩子"。 #}
 {% macro breadcrumbs(items, nonce='') %}
 {% if items and items|length > 1 %}
 <nav class="breadcrumbs" aria-label="{{ _('面包屑导航') }}" data-i18n-aria-label="breadcrumbs_label">
@@ -6,9 +17,9 @@
         {% for item in items %}
         <li class="breadcrumb-item">
             {% if loop.last %}
-            <span class="breadcrumb-current" aria-current="page">{{ item.label }}</span>
+            <span class="breadcrumb-current" aria-current="page"{% if item.key %} data-i18n="{{ item.key }}"{% endif %}{% if item.zh is defined and item.en is defined %} data-zh="{{ item.zh }}" data-en="{{ item.en }}"{% endif %}>{{ item.label }}</span>
             {% else %}
-            <a href="{{ item.url }}">{{ item.label }}</a>
+            <a href="{{ item.url }}"{% if item.key %} data-i18n="{{ item.key }}"{% endif %}{% if item.zh is defined and item.en is defined %} data-zh="{{ item.zh }}" data-en="{{ item.en }}"{% endif %}>{{ item.label }}</a>
             {% endif %}
         </li>
         {% endfor %}

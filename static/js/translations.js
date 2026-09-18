@@ -20,6 +20,7 @@ const TRANSLATIONS = {
         'sidebar_about': '关于',
         'nav_bestsellers': '畅销书榜',
         'nav_publishers_guide': '出版社导航',
+        'nav_profile': '个人中心',
         'nav_home_brand': 'BookRank 首页',
         'main_nav': '主导航',
         'nav_menu': '菜单',
@@ -30,6 +31,7 @@ const TRANSLATIONS = {
         'lang_select': '语言选择',
         'lang_zh': '简体中文',
         'lang_en': 'English',
+        'lang_switched': '已切换到 {lang}',
         'lang_coming_soon': '更多语言即将支持',
         'theme_toggle': '切换主题',
         'toggle_theme': '切换明暗主题',
@@ -38,6 +40,7 @@ const TRANSLATIONS = {
         'notification_area': '通知提示',
         // 详情页
         'back_to_list': '返回榜单',
+        'back': '返回',
         'book_publisher': '出版社',
         'book_pub_date': '出版日期',
         'book_pages': '页数',
@@ -255,6 +258,7 @@ const TRANSLATIONS = {
         'sidebar_about': 'About',
         'nav_bestsellers': 'Bestsellers',
         'nav_publishers_guide': 'Publishers Guide',
+        'nav_profile': 'My Profile',
         'nav_home_brand': 'BookRank Home',
         'main_nav': 'Main Navigation',
         'nav_menu': 'Menu',
@@ -265,6 +269,7 @@ const TRANSLATIONS = {
         'lang_select': 'Language Selection',
         'lang_zh': '简体中文',
         'lang_en': 'English',
+        'lang_switched': 'Switched to {lang}',
         'lang_coming_soon': 'More languages coming soon',
         'theme_toggle': 'Toggle Theme',
         'toggle_theme': 'Toggle Dark/Light Theme',
@@ -273,6 +278,7 @@ const TRANSLATIONS = {
         'notification_area': 'Notifications',
         // Detail page
         'back_to_list': 'Back to list',
+        'back': 'Back',
         'book_publisher': 'Publisher',
         'book_pub_date': 'Published',
         'book_pages': 'Pages',
@@ -471,6 +477,33 @@ function t(key, lang = null, params = {}) {
 }
 
 /**
+ * 替换元素里的可见文本，保留图标等子元素。
+ *
+ * 单独抽出来是为了让 `data-i18n`（静态 chrome 文案）与 `data-zh/data-en`（数据型文案）
+ * 两条支路共用同一套替换语义 —— 否则"带图标时文本落在哪个节点"会各写一遍、各漏一遍。
+ * @param {Element} el - 目标元素
+ * @param {string} text - 新文本
+ */
+function setVisibleText(el, text) {
+    const textNode = Array.from(el.childNodes).find(
+        n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+    );
+    if (textNode) {
+        textNode.textContent = text;
+    } else if (!el.querySelector('svg, img, i')) {
+        el.textContent = text;
+    } else {
+        // 有图标时，找到第一个文本节点替换
+        for (let i = 0; i < el.childNodes.length; i++) {
+            if (el.childNodes[i].nodeType === Node.TEXT_NODE) {
+                el.childNodes[i].textContent = text;
+                break;
+            }
+        }
+    }
+}
+
+/**
  * 应用页面翻译
  * 查找所有带有 data-i18n 属性的元素并替换文本
  * @param {string} lang - 目标语言
@@ -489,23 +522,35 @@ function applyPageTranslation(lang) {
         const translated = t(key, lang, params);
         if (translated !== key) {
             // 保留子元素（如图标），只替换文本节点
-            const textNode = Array.from(el.childNodes).find(
-                n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
-            );
-            if (textNode) {
-                textNode.textContent = translated;
-            } else if (!el.querySelector('svg, img, i')) {
-                el.textContent = translated;
-            } else {
-                // 有图标时，找到第一个文本节点替换
-                for (let i = 0; i < el.childNodes.length; i++) {
-                    if (el.childNodes[i].nodeType === Node.TEXT_NODE) {
-                        el.childNodes[i].textContent = translated;
-                        break;
-                    }
-                }
-            }
+            setVisibleText(el, translated);
         }
+    });
+
+    // 双语属性：模板用 data-zh / data-en 同时携带两侧文案（服务端按 SSR 语言渲染可见文本），
+    // 客户端按用户偏好择一覆盖。
+    //
+    // 为什么必须有这一支：`data-i18n` 只能处理**静态 chrome 文案**（有字典键），
+    // 而分类名、书名、奖项名、周报标题这类**数据型**文案没有、也不该有字典键。它们此前
+    // 只靠服务端按 SSR 语言择一渲染，于是浏览器内切换语言时**冻结在原语言**
+    // （实测残留：面包屑三项 + 侧边栏导航段等共 48 处，用户报的就是这个）。
+    // 模板里的 data-zh/data-en 一直存在、却没有任何 JS 消费它 —— 这一支把该约定变成真机制，
+    // 顺带覆盖了所有已按此约定书写的模板（奖项详情、新书详情等 60+ 处）。
+    document.querySelectorAll('[data-zh][data-en]').forEach(el => {
+        const text = lang === 'zh' ? el.getAttribute('data-zh') : el.getAttribute('data-en');
+        if (text === null || text === '') return;
+        // 只有元素**自己**带文本节点时才替换。
+        //
+        // 这一条是硬要求，不是优化：模板里有容器把可见文案放在子元素里，例如
+        //   <div class="book-title" data-zh="…" data-en="…"><a href="…">书名</a></div>
+        // （_macros.html / awards.html / new_books.html 共 4 处）。若在这里直接
+        // setVisibleText，`el.textContent = text` 会把整个 <a> 子元素抹掉 ——
+        // 卡片上的书名链接就没了。容器内的文案由各自的页面级重渲染（applyNewBooksLanguage /
+        // BookI18n）负责，这里不越权。
+        const hasOwnText = Array.from(el.childNodes).some(
+            n => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+        );
+        if (!hasOwnText) return;
+        setVisibleText(el, text);
     });
 
     // 翻译 placeholder
@@ -571,7 +616,9 @@ function setGlobalLanguage(lang) {
 
     var langName = lang === 'zh' ? '\u7b80\u4f53\u4e2d\u6587' : 'English';
     if (typeof showToast === 'function') {
-        showToast('\u5df2\u5207\u6362\u5230 ' + langName, 'success');
+        // 提示语按**新**语言生成：此前是写死的中文前缀（"已切换到 English"），
+        // 于是切到英文后反倒弹出一句中文。
+        showToast(t('lang_switched', lang, { lang: langName }), 'success');
     }
 }
 
