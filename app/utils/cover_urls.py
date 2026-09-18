@@ -23,7 +23,7 @@ JS 侧用同名的 `window.BookRankCover.toSrc`（见 `static/js/base.js`），
 
 from __future__ import annotations
 
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urlparse, urlunparse
 
 #: 全站默认封面，同时也是所有封面回退链的终点。
 DEFAULT_COVER = '/static/default-cover.png'
@@ -91,6 +91,42 @@ def is_allowed_cover_host(url: str) -> bool:
     return any(hostname == host or hostname.endswith('.' + host) for host in ALLOWED_COVER_HOSTS)
 
 
+def normalize_cover_url(raw: object) -> str:
+    """把封面源地址规范成"可下载"的形态：`http://` 升级为 `https://`。
+
+    ## 为什么必须有这一步
+
+    封面有**两道门**，判据必须一致：
+
+    1. 代理白名单 `is_allowed_cover_host()` —— 只看 hostname，http/https 都放行；
+    2. 图片缓存下载守卫 `app/services/api_utils.py:_is_safe_image_url()` ——
+       额外要求 `scheme == 'https'`（SSRF 防护）。
+
+    Google Books API 的 `imageLinks.thumbnail` 默认就返回
+    `http://books.google.com/books/content?…&source=gbs_api`（注意 `source=gbs_api`）。
+    这类地址过了第一道门、被第二道门拒掉，而且拒绝发生在
+    `ImageCacheService._enqueue_prefetch()` **之前**：`/cover` 于是每次都 302 到
+    default-cover.png，**该封面永久显示占位图**，日志里只有一行 warning。
+
+    实测（2026-09-18，线上抽样 75 张封面）：5 张卡死，全部是 http 形态；
+    对应的 https 端点可用（200 / image/jpeg / 12–18KB）。所以升级 scheme 即可修复，
+    不需要放开守卫的 https 要求 —— 那是 SSRF 防护的一部分，越权放开的收益远小于风险。
+
+    只做 scheme 升级：不补默认值、不猜测、不改 path/query（Google Books 的查询串
+    一旦被改写就返回 400）。非 http 的值原样返回，交给调用方与守卫各自判断。
+    """
+    value = '' if raw is None else str(raw).strip()
+    if not value:
+        return ''
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return value
+    if parsed.scheme != 'http':
+        return value
+    return urlunparse(parsed._replace(scheme='https'))
+
+
 def cover_src(raw: object) -> str:
     """把封面值规范化为同源地址；空值返回空串。
 
@@ -102,7 +138,8 @@ def cover_src(raw: object) -> str:
         return ''
     if is_local_cover(value):
         return value
-    return f'{COVER_PROXY_PATH}?src={quote(value, safe="")}'
+    # 先升级 scheme 再包裹：否则下发的 src 是 http://…，会在下载守卫处被静默拒掉。
+    return f'{COVER_PROXY_PATH}?src={quote(normalize_cover_url(value), safe="")}'
 
 
 def cover_src_or_default(raw: object) -> str:

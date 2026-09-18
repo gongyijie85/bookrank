@@ -4,10 +4,13 @@
 图床）、covers.openlibrary.org 等境外域名，且这些域名也不在 CSP `img-src` 白名单内，
 封面因此一律退化成占位图。修复方式是把取图动作挪到服务端，浏览器只请求同源 /cover。
 
-这些用例刻意钉住三件容易回归的事：
+这些用例刻意钉住四件容易回归的事：
 1. 已经是同源路径的值不会被二次包裹（否则 /cover?src=/cover?src=… 无限套娃）；
 2. 非白名单域名不会被代理（代理的 src 由请求方控制，白名单是资源放大与 SSRF 的边界）；
-3. CSP 放行的每个图床域名都必须同时出现在代理白名单里，否则浏览器能直连但代理会拒绝。
+3. CSP 放行的每个图床域名都必须同时出现在代理白名单里，否则浏览器能直连但代理会拒绝；
+4. **白名单门与下载守卫必须一致**（`TestGateParity`）——两道门判据不同就会形成
+   「过了白名单、被守卫静默拒掉」的死角，且拒绝发生在"提交后台预取"之前，
+   表现是该封面**永久**显示占位图、日志里只有一行 warning。
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from urllib.parse import quote
 
 import pytest
 
+from app.services.api_utils import _is_safe_image_url
 from app.utils.cover_urls import (
     ALLOWED_COVER_HOSTS,
     COVER_PROXY_PATH,
@@ -25,10 +29,17 @@ from app.utils.cover_urls import (
     cover_src,
     cover_src_or_default,
     is_allowed_cover_host,
+    normalize_cover_url,
 )
 
 NYT_COVER = 'https://storage.googleapis.com/du-prd/books/images/9780593139134.jpg'
 OL_COVER = 'https://covers.openlibrary.org/b/isbn/9780143127550-L.jpg?default=false'
+
+#: Google Books API 的 `imageLinks.thumbnail` 默认就是这个 http:// 形态
+#: （注意 `source=gbs_api`），线上实测这类封面全部永久退化成占位图。
+GOOGLE_BOOKS_HTTP_COVER = (
+    'http://books.google.com/books/content?id=6c6fEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api'
+)
 
 
 class TestCoverSrc:
@@ -59,6 +70,84 @@ class TestCoverSrc:
         assert proxied.startswith(f'{COVER_PROXY_PATH}?src=')
         assert '?' not in proxied[len(f'{COVER_PROXY_PATH}?src=') :]
         assert OL_COVER not in proxied
+
+    def test_http_external_url_is_upgraded_before_proxying(self):
+        """http:// 封面必须在**进入代理参数之前**升级为 https。
+
+        否则下发的 src 是 http://…，代理把它交给图片缓存，而缓存的下载守卫
+        只允许 https —— 守卫会在"提交后台预取"之前返回占位图，这张封面就永久不显示了。
+        """
+        proxied = cover_src(GOOGLE_BOOKS_HTTP_COVER)
+        assert proxied.startswith(f'{COVER_PROXY_PATH}?src=https%3A%2F%2Fbooks.google.com%2F')
+        assert 'http%3A' not in proxied.replace('https%3A', '')
+
+
+class TestNormalizeCoverUrl:
+    """http → https 升级：Google Books 的 thumbnail 默认就是 http 形态。"""
+
+    def test_upgrades_http_keeping_path_and_query(self):
+        upgraded = normalize_cover_url(GOOGLE_BOOKS_HTTP_COVER)
+        assert upgraded.startswith('https://books.google.com/books/content?')
+        # 查询串里的 & 与 = 必须原样保留，否则 Google Books 会返回 400
+        assert 'id=6c6fEQAAQBAJ' in upgraded
+        assert 'source=gbs_api' in upgraded
+
+    def test_https_is_untouched(self):
+        assert normalize_cover_url(NYT_COVER) == NYT_COVER
+        assert normalize_cover_url(OL_COVER) == OL_COVER
+
+    @pytest.mark.parametrize('value', ['', '   ', None, '/static/default-cover.png', 'not-a-url'])
+    def test_non_http_values_pass_through(self, value):
+        """只做 scheme 升级，不猜、不补、不把非 URL 变成 URL。"""
+        assert normalize_cover_url(value) in ('', '/static/default-cover.png', 'not-a-url')
+
+    def test_idempotent(self):
+        once = normalize_cover_url(GOOGLE_BOOKS_HTTP_COVER)
+        assert normalize_cover_url(once) == once
+
+
+class TestGateParity:
+    """白名单门（cover_urls）与下载守卫（api_utils._is_safe_image_url）必须一致。
+
+    历史 bug：白名单只看 hostname，下载守卫额外要求 `scheme == 'https'`。
+    Google Books 返回的 `http://books.google.com/…&source=gbs_api` 因此**过了第一道门、
+    被第二道门静默拒掉**，而且拒绝发生在提交后台预取之前 —— 线上实测这类封面
+    反复请求也永远停在占位图（75 张抽样里 5 张，全部是 http 形态）。
+    """
+
+    @pytest.mark.parametrize('host', ALLOWED_COVER_HOSTS)
+    def test_whitelisted_host_survives_the_download_guard(self, host):
+        for url in (f'https://{host}/cover.jpg', f'http://{host}/cover.jpg'):
+            assert is_allowed_cover_host(url) is True
+            assert _is_safe_image_url(normalize_cover_url(url)) is True, (
+                f'{url} 过了白名单却过不了下载守卫，该封面会永久退化成占位图'
+            )
+
+    def test_real_world_google_books_thumbnail(self):
+        """线上抓到的真实卡住样本：http + source=gbs_api。"""
+        assert is_allowed_cover_host(GOOGLE_BOOKS_HTTP_COVER) is True
+        assert _is_safe_image_url(normalize_cover_url(GOOGLE_BOOKS_HTTP_COVER)) is True
+
+    def test_guard_still_rejects_unsafe_targets(self):
+        """升级 scheme 不能变成万能钥匙：内网/回环/link-local/非 443 端口仍须被守卫拦下。
+
+        注意两道门的**分工**：`_is_safe_image_url` 只管 SSRF（scheme + 目标地址），
+        主机白名单由 `is_allowed_cover_host` 负责。所以 `https://evil.example.com` 过守卫
+        是**正确**的，它必须被白名单拦下 —— 把这条也钉住，免得日后有人把两道门合并。
+        """
+        for url in (
+            'http://169.254.169.254/latest/meta-data/',
+            'http://localhost/cover.jpg',
+            'https://metadata.google.internal/x',
+            'https://internal.internal/x.jpg',
+            'https://example.com:8080/cover.jpg',
+            'ftp://books.google.com/x.jpg',
+        ):
+            assert _is_safe_image_url(normalize_cover_url(url)) is False, url
+
+        # 守卫放行但白名单必须拦住（资源放大 / 任意图片下载的边界）
+        assert _is_safe_image_url('https://evil.example.com/cover.jpg') is True
+        assert is_allowed_cover_host('https://evil.example.com/cover.jpg') is False
 
 
 class TestAllowedCoverHost:
