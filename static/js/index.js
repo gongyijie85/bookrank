@@ -603,6 +603,33 @@ function renderCoverWeeks(book, lang) {
             </span>`;
 }
 
+/**
+ * 卡片上的明文 ISBN。
+ *
+ * 首页卡片必须在页面上直接显示 ISBN —— 这是产品契约，曾被 #248 以"降噪"为由删除，
+ * 用户主动问"卡片上 ISBN 怎么没了"才暴露。SSR（templates/index.html）已恢复，
+ * 这里补的是**客户端重渲染**这条路：切语言（rerenderCurrentBooks）与切分类
+ * （/api/category-books）都会整块重写卡片，模板漏了 ISBN 就会把 SSR 里好好的
+ * ISBN 抹掉，curl 静态 HTML 看不出来。
+ *
+ * 优先级与 templates/index.html 的 `{% if book.isbn13 %}…{% elif book.isbn10 %}`
+ * 保持一致，标题属性也用同样的字面量 —— 不走 t()，避免与模板两侧语义分叉。
+ *
+ * 注意 data-isbn 属性**不能**替代这个 span：那是给 BookI18n 注册用的，
+ * 用户在卡片上看不到。
+ * @param {object} book - 图书数据（含 isbn13 / isbn10）
+ * @returns {string} ISBN span 的 HTML，无 ISBN 时为空串
+ */
+function renderCardIsbn(book) {
+    if (book.isbn13) {
+        return `<span class="card-pub-isbn-item isbn" title="ISBN-13: ${esc(book.isbn13)}">${esc(book.isbn13)}</span>`;
+    }
+    if (book.isbn10) {
+        return `<span class="card-pub-isbn-item isbn" title="ISBN-10: ${esc(book.isbn10)}">${esc(book.isbn10)}</span>`;
+    }
+    return '';
+}
+
 function updateBooksOnPage(books, category, updateTime, updateFrequency, listPublishedDate) {
     const isZh = currentLanguage === 'zh';
     const defaultCover = window.APP_CONFIG.defaultCover;
@@ -674,9 +701,10 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                     <div class="card-content">
                     <h3 class="card-title" title="${esc(title)}">${esc(title)}</h3>
                     <p class="card-author">${esc(book.author)}</p>
-                    ${(book.publisher || book.weeks_on_list) ? `
+                    ${(book.publisher || book.isbn13 || book.isbn10 || book.weeks_on_list) ? `
                     <p class="card-pub-isbn">
                         ${book.publisher && ['Unknown', 'Unknown Publisher', '未知', '未知出版社'].indexOf(book.publisher) === -1 ? `<span class="card-pub-isbn-item publisher" title="${esc(t('book_publisher', lang))}: ${esc(book.publisher)}">${esc(book.publisher)}</span>` : ''}
+                        ${renderCardIsbn(book)}
                         ${book.weeks_on_list ? `<span class="card-pub-isbn-item weeks" title="${esc(t('weeks_on_list', lang))}">${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                     </p>` : ''}
                     ${desc ? `<p class="card-desc">${esc(desc)}</p>` : ''}
