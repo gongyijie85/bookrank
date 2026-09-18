@@ -33,7 +33,9 @@ sync-wiki:
 
 # 封面可用性自检：请求线上 /cover，找出"永久停在占位图"的封面。
 # 国内不挂 VPN 的用户看到的就是这个结果（浏览器同样只请求本站 /cover）。
-# 退出码非 0 = 有封面不可用。默认打生产；本地起服务后加 --base http://127.0.0.1:5000。
+# 退出码非 0 = 有封面在代理侧永久不可用。默认打生产；本地起服务后加 --base http://127.0.0.1:5000。
+# 定时监控用更保守的参数：--attempts 3 --wait 6 --distinguish-upstream
+# （见 .github/workflows/cover-monitor.yml；--attempts 1 会把冷缓存误报成故障）
 check-covers:
 	python scripts/check_cover_proxy.py
 

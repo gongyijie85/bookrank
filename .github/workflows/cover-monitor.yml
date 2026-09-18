@@ -1,0 +1,137 @@
+name: Cover Availability Monitor
+
+# 为什么需要这个独立工作流
+#
+# `/cover` 同源代理是"国内能不能看到封面"的唯一入口，而它的故障形态**极其安静**：
+#   - SSR HTML 里永远只是 `/cover?src=…`，看起来完全正常；
+#   - 后台预取失败只留一行 warning 日志；
+#   - 前端 cover.js 会按 0.8/2/5/12s 重试，掩盖掉绝大多数瞬时问题，
+#     只有"后台预取从未入队"这一类才会**永久**停在占位图。
+# 2026-09-18 就是这么坏掉的：代理白名单与下载守卫判据不一致，Google Books 的
+# `http://…&source=gbs_api` 过了白名单被守卫拒掉，线上抽样 75 张里 5 张永久占位，
+# 直到用户报"封面加载不出来"才发现。
+#
+# 所以这里把"真机请求一次 /cover"变成**每天自动跑一次**的断言：
+# 封面是数据链路的终端产物，任何一环静默失效都会在这里显形。
+#
+# 刻意不并入 production-monitor.yml：那边是 5 分钟一轮的可用性探针，
+# 本项要抓 75 个封面、每个还要复探等待冷缓存收敛，节奏完全不同（每日一次）。
+# 拆成独立文件也避免为它改动正在运行的现网监控。
+
+on:
+  schedule:
+    # 02:23 UTC = 10:23 北京时间：避开整点，也避开 render 免费层冷启动高峰。
+    # GitHub 的 scheduled workflow 在负载高时会被延后，这是"每天一次的自检"，
+    # 不是 SLA 探针。
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # 仅用于查上一次运行的结论，做告警去重
+
+concurrency:
+  group: cover-availability-monitor
+  cancel-in-progress: false
+
+jobs:
+  cover-availability:
+    name: Check cover proxy availability
+    runs-on: ubuntu-latest
+    # 75 个封面 × 最多 3 次尝试 × 6s 等待，加上页面抓取；正常几分钟，冷启动期更久。
+    timeout-minutes: 20
+    env:
+      RENDER_BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
+      PRODUCTION_ALERT_WEBHOOK_URL: ${{ secrets.PRODUCTION_ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe cover availability
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="cover-check.log"
+
+          # 判据只看退出码：脚本本身是"代理侧有没有永久不可用的封面"的单一断言，
+          # 任何"拿不到结论"的情形（站点不可达、页面结构变化导致收不到封面源）
+          # 都让脚本非 0 退出 —— 宁可误报，绝不 fail-open。
+          state=healthy
+          if ! python3 scripts/check_cover_proxy.py \
+              --base "$RENDER_BASE_URL" \
+              --attempts 3 \
+              --wait 6 \
+              --distinguish-upstream | tee "$log"; then
+            state=critical
+          fi
+
+          # 进 GITHUB_OUTPUT / 注解前必须单行化并截断：封面 URL 来自站点 HTML，
+          # 换行可以伪造输出键或工作流命令（与 production-monitor.yml 的 one_line 同理）。
+          verdict="$(grep -m1 '^VERDICT:' "$log" | tr -d '\r\n' | cut -c1-200 || true)"
+          if [ -z "$verdict" ]; then
+            verdict="自检脚本未给出结论（站点不可达或页面结构变化），按故障处理"
+          fi
+
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          echo "message=$verdict" >> "$GITHUB_OUTPUT"
+          echo "state=$state | $verdict"
+
+          # 上游图床本身没有图的封面（stuck-upstream）只会打 ::warning::，不进通道：
+          # 那是数据问题，不是代理 bug，天天告警会把人吵到静音。
+          grep -m1 'VERDICT: WARN' "$log" >/dev/null 2>&1 && echo "::warning::$verdict" || true
+          [ "$state" = healthy ] || echo "::error::$verdict"
+
+      # 与 production-monitor.yml 同一套送达策略：只推 critical、按本作业名做跃迁去重、
+      # 通道缺失或推送失败都留 ::error::，保证"已判定但没通知到人"在红叉上看得见。
+      - name: Notify on critical
+        if: always() && steps.probe.outputs.state == 'critical'
+        continue-on-error: true
+        shell: bash
+        env:
+          MONITOR_JOB_NAME: Check cover proxy availability
+          PROBE_STATE: ${{ steps.probe.outputs.state || 'critical' }}
+          PROBE_MESSAGE: ${{ steps.probe.outputs.message || 'unknown' }}
+        run: |
+          set -euo pipefail
+          export PROBE_MESSAGE="[BookRank][cover-${PROBE_STATE}] ${PROBE_MESSAGE}"
+          if [[ -z "${PRODUCTION_ALERT_WEBHOOK_URL:-}" ]]; then
+            echo "::error::critical 已判定，但告警无法送达：仓库未配置 PRODUCTION_ALERT_WEBHOOK_URL secret。"
+            exit 0
+          fi
+
+          # 文件名与作业名在此写死：Actions API 用工作流文件名寻址，改名需同步这里。
+          # 去重按"本作业"而不是整轮运行：ready-and-latency / space-freshness /
+          # cover-availability 是三个独立故障域，共用运行结论会互相吞掉彼此的第一条告警。
+          prev_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/cover-monitor.yml/runs?per_page=10" \
+            --jq "[.workflow_runs[] | select(.id != ${GITHUB_RUN_ID} and .status == \"completed\")][0].id // empty" \
+            2>/dev/null || echo '')"
+          if [[ -n "$prev_run" ]]; then
+            prev_job="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${prev_run}/jobs" \
+              --jq ".jobs[] | select(.name == \"${MONITOR_JOB_NAME}\") | .conclusion" 2>/dev/null || echo '')"
+            case "$prev_job" in
+              failure | timed_out | cancelled)
+                echo "上一轮运行（${prev_run}）本作业结论已是 ${prev_job}，按同一故障处理，跳过重复推送。"
+                exit 0
+                ;;
+            esac
+          fi
+
+          payload="$(python3 - <<'PY'
+          import json
+          import os
+
+          run_link = (
+              f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}"
+              f"/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          )
+          print(json.dumps({
+              "msg_type": "text",
+              "content": {"text": os.environ['PROBE_MESSAGE'] + f". Run: {run_link}"},
+          }))
+          PY
+          )"
+          if ! curl --fail --silent --show-error --max-time 15 \
+            -H 'Content-Type: application/json' \
+            --data "$payload" "$PRODUCTION_ALERT_WEBHOOK_URL"; then
+            echo "::error::告警推送失败（webhook 不可达），本轮 critical 未通知到值班。"
+          fi

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services.api_utils import ImageCacheService, _safe_cache_set, create_session_with_retry
+from app.utils.error_handler import ErrorCategory
 
 #: Google Books API 的 `imageLinks.thumbnail` 默认返回这个 http:// 形态（注意 source=gbs_api）。
 #: 线上抽样 75 张封面里 5 张是它，且全部永久停在占位图 —— 见 test_cover_urls.py::TestGateParity。
@@ -252,6 +253,44 @@ class TestImageCachePrefetch:
         assert second == cached_path, 'https 写法必须命中 http 写法刚写入的同一个缓存键'
         assert seen == [https_form], 'http 与 https 两种写法应归一化为同一个下载 URL'
         assert list(service._memory_cache) == [https_form]
+
+    def test_whitelist_guard_conflict_is_recorded_as_error(self, service):
+        """白名单放行、守卫却拒 = 两道门判据不一致，必须进 ErrorTracker 而不是静默 warning。
+
+        这一支的历史代价：拒绝发生在 `_enqueue_prefetch()` **之前** → 后台预取永不入队 →
+        该封面**永久**停在占位图，而日志里只有一行 warning。线上抽样 75 张里 5 张这么坏掉，
+        没有任何指标能看出来 —— 所以这里既断言"记了 error"，也断言"不是只留 warning"。
+        """
+        with (
+            patch('app.services.api_utils._is_safe_image_url', return_value=False),
+            patch('app.services.api_utils.log_error') as mock_log_error,
+            patch('app.services.api_utils.logger') as mock_logger,
+        ):
+            result = service.get_cached_image_url(GOOGLE_BOOKS_HTTP_COVER, block=False)
+
+        assert result == '/static/default-cover.png'
+        assert mock_log_error.called, '两道门冲突必须记录到 ErrorTracker'
+        category, message = mock_log_error.call_args.args[:2]
+        assert category is ErrorCategory.API_CALL
+        assert '两道门判据不一致' in message
+        assert mock_log_error.call_args.kwargs.get('level') == 'error'
+        assert not mock_logger.warning.called, '这一支不该只留一行 warning'
+
+    def test_non_whitelisted_host_stays_a_plain_warning(self, service):
+        """反向用例：真正该拦的（非白名单主机）只记 warning，不污染错误统计。
+
+        否则错误统计会被"每天几万次正常的 SSRF 拦截"淹没，等于没有指标。
+        """
+        with (
+            patch('app.services.api_utils._is_safe_image_url', return_value=False),
+            patch('app.services.api_utils.log_error') as mock_log_error,
+            patch('app.services.api_utils.logger') as mock_logger,
+        ):
+            result = service.get_cached_image_url('https://evil.example.com/x.jpg', block=False)
+
+        assert result == '/static/default-cover.png'
+        assert not mock_log_error.called
+        assert mock_logger.warning.called
 
     def test_download_retries_transient_ssl_error(self, service):
         """NYT CDN 偶发 SSL EOF：首次失败、重试成功应回填缓存（#178 follow-up）。"""

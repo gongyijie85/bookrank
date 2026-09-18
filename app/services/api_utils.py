@@ -14,7 +14,7 @@ from requests.adapters import HTTPAdapter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from urllib3.util.retry import Retry
 
-from ..utils.cover_urls import normalize_cover_url
+from ..utils.cover_urls import is_allowed_cover_host, normalize_cover_url
 from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
@@ -195,7 +195,24 @@ class ImageCacheService:
                 logger.warning(f'Error checking cache file: {e}')
 
         if not _is_safe_image_url(original_url):
-            logger.warning(f'Blocked unsafe image URL (SSRF guard): {original_url}')
+            # 两种"被拒"性质完全不同，必须分开记，否则真 bug 会淹没在日志里：
+            #
+            # 1) 白名单也拦 → 正常的 SSRF 防护（非白名单主机 / 内网 / 非标准端口），
+            #    一行 warning 足够。
+            # 2) **白名单放行、守卫却拒** → 两道门判据不一致，一定是 bug。
+            #    致命的是拒绝发生在这里 —— `_enqueue_prefetch()` **之前** ——
+            #    后台预取永不入队，该封面**永久**停在占位图，用户只看到占位图，
+            #    日志里只有一行 warning（历史上就是这么坏了几个月）。
+            #    所以这一支走 log_error → 进 ErrorTracker，可在 admin 错误统计里
+            #    按类别计数，不必等用户报障。
+            if is_allowed_cover_host(original_url):
+                log_error(
+                    ErrorCategory.API_CALL,
+                    f'封面源两道门判据不一致：白名单放行但下载守卫拒绝，该封面将永久停在占位图 {original_url[:200]}',
+                    level='error',
+                )
+            else:
+                logger.warning(f'Blocked unsafe image URL (SSRF guard): {original_url}')
             return self._default_cover
 
         if not block:
