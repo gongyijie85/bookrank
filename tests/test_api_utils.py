@@ -9,6 +9,12 @@ import pytest
 
 from app.services.api_utils import ImageCacheService, _safe_cache_set, create_session_with_retry
 
+#: Google Books API 的 `imageLinks.thumbnail` 默认返回这个 http:// 形态（注意 source=gbs_api）。
+#: 线上抽样 75 张封面里 5 张是它，且全部永久停在占位图 —— 见 test_cover_urls.py::TestGateParity。
+GOOGLE_BOOKS_HTTP_COVER = (
+    'http://books.google.com/books/content?id=6c6fEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api'
+)
+
 
 class TestCreateSessionWithRetry:
     """测试 create_session_with_retry"""
@@ -85,7 +91,10 @@ class TestImageCacheService:
         service._cache_dir = Path('/tmp/test_cache')
 
         current_time = time.time()
-        service._memory_cache['http://example.com/cover.jpg'] = ('/cache/images/test.jpg', current_time)
+        # 内存缓存键是**归一化后**的 URL（http → https），见
+        # app/utils/cover_urls.py:normalize_cover_url。预置 http 形态的键不会命中，
+        # 生产侧写入时也一律用归一化后的值，两边保持一致。
+        service._memory_cache['https://example.com/cover.jpg'] = ('/cache/images/test.jpg', current_time)
 
         result = service.get_cached_image_url('http://example.com/cover.jpg')
         assert result == '/cache/images/test.jpg'
@@ -189,6 +198,60 @@ class TestImageCachePrefetch:
             result = service.get_cached_image_url('http://169.254.169.254/meta', block=False)
             assert result == '/static/default-cover.png'
             assert not mock_submit.called
+
+    def test_whitelisted_http_cover_is_prefetched(self, service):
+        """白名单域名的 http:// 封面必须进入预取，不能在守卫处被静默丢掉。
+
+        历史 bug：`_is_safe_image_url` 只允许 https，而白名单只校验 hostname，
+        两者判据不一致 —— Google Books API 的 `imageLinks.thumbnail` 默认就是
+        `http://books.google.com/…&source=gbs_api`，于是这类封面过了白名单、
+        被守卫拒掉，且拒绝发生在 `_enqueue_prefetch` **之前**：反复请求也永远停在占位图。
+        """
+        with patch('app.utils.service_helpers.submit_background_task') as mock_submit:
+            result = service.get_cached_image_url(GOOGLE_BOOKS_HTTP_COVER, block=False)
+
+        assert result == '/static/default-cover.png'
+        assert mock_submit.called, '白名单 http 封面必须提交后台预取'
+
+    def test_whitelisted_http_cover_downloads_over_https(self, service):
+        """升级为 https 后再下载：Google Books 的 https 端点可用（实测 200 / image/jpeg）。"""
+        seen: list[str] = []
+
+        def fake_download(url: str, ttl: int = 3600) -> str:
+            seen.append(url)
+            return '/cache/images/' + 'e' * 32 + '.jpg'
+
+        service._download_to_cache = fake_download  # type: ignore[method-assign]
+        with patch('app.utils.service_helpers.submit_background_task', side_effect=lambda fn: fn()):
+            service.get_cached_image_url(GOOGLE_BOOKS_HTTP_COVER, block=False)
+
+        assert seen == [GOOGLE_BOOKS_HTTP_COVER.replace('http://', 'https://', 1)]
+
+    def test_http_and_https_forms_share_one_cache_entry(self, service):
+        """同一张图的两种写法必须落到同一个缓存键，否则会重复下载两份。"""
+        seen: list[str] = []
+
+        def fake_download(url: str, ttl: int = 3600) -> str:
+            url = url.replace('http://', 'https://', 1)  # 真实实现也在入口归一化
+            seen.append(url)
+            path = '/cache/images/' + 'f' * 32 + '.jpg'
+            service._update_memory_cache(url, path, time.time())  # 与真实实现一致地回填
+            return path
+
+        service._download_to_cache = fake_download  # type: ignore[method-assign]
+        with patch('app.utils.service_helpers.submit_background_task', side_effect=lambda fn: fn()):
+            first = service.get_cached_image_url(GOOGLE_BOOKS_HTTP_COVER, block=False)
+            second = service.get_cached_image_url(
+                GOOGLE_BOOKS_HTTP_COVER.replace('http://', 'https://', 1), block=False
+            )
+
+        https_form = GOOGLE_BOOKS_HTTP_COVER.replace('http://', 'https://', 1)
+        cached_path = '/cache/images/' + 'f' * 32 + '.jpg'
+        # block=False 在 MISS 时一律先回占位图，真值由下次请求从（已回填的）缓存拿到
+        assert first == '/static/default-cover.png'
+        assert second == cached_path, 'https 写法必须命中 http 写法刚写入的同一个缓存键'
+        assert seen == [https_form], 'http 与 https 两种写法应归一化为同一个下载 URL'
+        assert list(service._memory_cache) == [https_form]
 
     def test_download_retries_transient_ssl_error(self, service):
         """NYT CDN 偶发 SSL EOF：首次失败、重试成功应回填缓存（#178 follow-up）。"""

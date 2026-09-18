@@ -8,6 +8,7 @@ fetch→cache→persist 链收敛到本模块；批编排（清单/延迟/统计
 import logging
 
 from ..models.schemas import AwardBook, db
+from ..utils.cover_urls import normalize_cover_url
 from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import ImageCacheService
 from .google_books_client import GoogleBooksClient
@@ -52,7 +53,12 @@ class CoverResolver:
             if not self._should_refresh_cover_source(cover_url):
                 return cover_url
 
-        fetched_cover = self._fetch_cover_for_book(book)
+        fetched = self._fetch_cover_for_book(book)
+        # 写入边界归一化：Google Books 的 `imageLinks.thumbnail` 默认是
+        # `http://books.google.com/…&source=gbs_api`，原样落库会让这张封面在
+        # `/cover` 的下载守卫处被永久拒掉（守卫只允许 https，且拒绝发生在
+        # 提交后台预取之前）。见 app/utils/cover_urls.py:normalize_cover_url。
+        fetched_cover = normalize_cover_url(fetched) if fetched else None
         if not fetched_cover:
             return cover_url or None
 

@@ -14,6 +14,7 @@ from requests.adapters import HTTPAdapter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from urllib3.util.retry import Retry
 
+from ..utils.cover_urls import normalize_cover_url
 from ..utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,14 @@ class ImageCacheService:
         if not original_url:
             return self._default_cover
 
+        # scheme 归一化必须发生在**所有**用到 original_url 的地方之前：缓存键（md5）、
+        # 下载请求、SSRF 守卫三者必须看同一个字符串。否则 Google Books 的
+        # http://…&source=gbs_api 会在守卫处被静默拒掉（守卫只允许 https），
+        # 而拒绝发生在 `_enqueue_prefetch()` 之前 —— 该封面永久停在占位图。
+        original_url = normalize_cover_url(original_url)
+        if not original_url:
+            return self._default_cover
+
         current_time = time.time()
         if original_url in self._memory_cache:
             cached_path, timestamp = self._memory_cache[original_url]
@@ -205,6 +214,9 @@ class ImageCacheService:
         NYT CDN 偶发 SSL 手部失败（SSLEOFError）——做 2 次短退避重试，
         降低瞬断导致的默认封面占位（#178 follow-up 实测 15 本中 3 本瞬断）。
         """
+        # 本方法也会被 `_enqueue_prefetch()` 与测试直接调用，入口再归一化一次
+        # （幂等），保证缓存文件名与 `get_cached_image_url()` 查的是同一个键。
+        original_url = normalize_cover_url(original_url)
         filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'  # type: ignore[arg-type]
         cache_path = self._cache_dir / filename
         relative_path = f'/cache/images/{filename}'

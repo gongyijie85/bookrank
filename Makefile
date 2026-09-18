@@ -1,4 +1,4 @@
-.PHONY: lint format typecheck test check translations build-frontend i18n-drift
+.PHONY: lint format typecheck test check translations build-frontend i18n-drift check-covers
 
 lint:
 	ruff check app/ tests/
@@ -30,5 +30,11 @@ build-frontend:
 # 同步 Code Wiki/ -> GitHub wiki（默认 dry-run；--push 实际推送）
 sync-wiki:
 	python scripts/sync_wiki.py
+
+# 封面可用性自检：请求线上 /cover，找出"永久停在占位图"的封面。
+# 国内不挂 VPN 的用户看到的就是这个结果（浏览器同样只请求本站 /cover）。
+# 退出码非 0 = 有封面不可用。默认打生产；本地起服务后加 --base http://127.0.0.1:5000。
+check-covers:
+	python scripts/check_cover_proxy.py
 
 check: lint typecheck test translations
