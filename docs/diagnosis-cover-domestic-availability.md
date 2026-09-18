@@ -114,7 +114,26 @@ python scripts/check_cover_proxy.py --base http://127.0.0.1:5000   # 打本地
 - Network 面板过滤 `Img`，**看不到任何对境外域名的请求**；若看到，说明有渲染路径绕过了
   `cover_src`，需要按 §"渲染路径要数全"继续排查。
 
-### 方式三：真机国内网络
+### 方式三：每日自动监控（已接入）
+
+`.github/workflows/cover-monitor.yml`（每日 02:23 UTC / 10:23 北京时间 + 手动触发）
+自动跑同一套断言：
+
+```bash
+python3 scripts/check_cover_proxy.py --base "$RENDER_BASE_URL" \
+  --attempts 3 --wait 6 --distinguish-upstream
+```
+
+- 退出码非 0（代理侧存在永久不可用的封面）→ 作业变红 + 走
+  `PRODUCTION_ALERT_WEBHOOK_URL` 告警，按作业名做跃迁去重（持续故障只推第一条）；
+- 只把「上游本身就没有图」判为 `::warning::` 注解，**不进告警通道**——
+  那是数据问题而非代理 bug，天天推会把人吵到静音，反而赔掉 critical 的送达率；
+- 刻意**不并入** `production-monitor.yml`（那边是 5 分钟一轮的可用性探针，
+  本项要抓 75 个封面还要等冷缓存收敛，节奏不同），避免为它改动正在运行的现网监控；
+- 任何"拿不到结论"的情形（站点不可达、页面结构变化导致收不到封面源）都判故障 ——
+  **宁可误报，绝不 fail-open**，这是该仓库监控的一贯约定。
+
+### 方式四：真机国内网络
 
 直接用未挂 VPN 的国内网络访问，观察新书速递 / 获奖书单页封面是否为占位图。
 首次访问（部署后缓存为空）允许先出现占位图再自动切换为真图；**停留 15 秒后仍为占位图**
@@ -128,8 +147,22 @@ python scripts/check_cover_proxy.py --base http://127.0.0.1:5000   # 打本地
 - `/cover` **不做同步回源**是硬要求而非优化：首页一屏 15 张封面，生产 workers=1 / threads=2，
   同步回源在上游变慢时会占满全部线程、拖垮整站。
 
-## 后续可做（未在本次范围）
+## 可观测性（本次补齐）
+
+这次不只是"改对一处判据"，还把这类**静默永久失效**变成了看得见的信号，三层：
+
+| 层 | 手段 | 失败时的表现 |
+| --- | --- | --- |
+| 代码 | 白名单放行却被下载守卫拒绝 = 两道门判据不一致 → `log_error(level='error')` 进 `ErrorTracker` | admin 错误统计可按类别计数，不再只是一行淹没在日志里的 warning |
+| 测试 | `tests/test_cover_urls.py::TestGateParity` 钉住两道门判据一致 | 有人放宽 / 合并某一侧，CI 立刻红 |
+| 线上 | `.github/workflows/cover-monitor.yml` 每日真机探测 `/cover` | 作业变红 + webhook 告警，不必等用户报障 |
+
+配套：`scripts/check_cover_proxy.py` 增加 `--attempts`（复探以消除冷缓存误报）与
+`--distinguish-upstream`（区分"代理坏"与"上游本就没有图"，前者 RED、后者仅 WARN）。
+注意 `--attempts 1` 会把部署后的冷缓存误报成故障，只适合冒烟测试。
+
+## 仍开放（未在本次范围）
 
 - 移动端首页卡片只有 JSON-LD 里的 `isbn`，从不显示明文 ISBN，与桌面端不一致（既有布局差异）。
-- 可考虑给"守卫拒绝"补一条**结构化指标**（当前仅 warning 日志），
-  让"被静默拒掉的封面比例"可观测，而不是等用户报障。
+- 封面缓存落在 Render 临时盘上，每次部署/重启后全量变冷（首屏必然先占位图再收敛）。
+  彻底解法是外部持久存储（对象存储 / 数据库 blob），收益与代价需要单独评估。
