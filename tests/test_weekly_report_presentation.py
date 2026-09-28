@@ -8,6 +8,9 @@ helper 不改写 ORM、content 缺省时从 report 解析、中英语言。
 from datetime import date, timedelta
 from types import SimpleNamespace
 
+import pytest
+
+from app.utils.date_helpers import parse_report_content
 from app.utils.weekly_report_presentation import (
     build_factual_summary,
     category_chart_distribution,
@@ -868,3 +871,102 @@ def test_english_chart_labels_are_json_encoded_for_real_catalog(client, app, db,
         return  # 无图表数据时该页不渲染图表块，跳过（seed 未提供 chart 数据）
     # 真实目录里 '本周排名' → "This week's rank"；必须编码为 JSON 字符串
     assert "label: 'This week's rank'" not in html, '裸单引号会让整段内联脚本语法错误'
+
+
+# ---------------------------------------------------------------------------
+# 合法 JSON 但顶层不是对象：旧数据不能拖垮列表，也不能把缺失总量写成 0
+# ---------------------------------------------------------------------------
+
+# _report() 会 json.dumps。这三个值落地后就是 '"broken"' / '[1]' / '1'。
+_NON_DICT_TOP_LEVELS = ('broken', [1], 1)
+_TOTAL_KEYS = ('total_books', 'total_new', 'total_rising', 'total_falling')
+
+
+def _assert_unknown_presentation(prepared: dict) -> None:
+    assert prepared['summary_source'] == 'derived'
+    for key in _TOTAL_KEYS:
+        assert prepared['totals'][key] is None
+        assert prepared['content'][key] is None
+        assert prepared['content'][f'{key}_known'] is False
+        assert prepared['content'][f'{key}_display'] == '数据待补全'
+    summary = prepared['summary']
+    assert '待补全' in summary
+    assert '共记录 0' not in summary
+    assert '0 条' not in summary
+    assert prepared['content']['category_chart']['available'] is False
+    assert prepared['content']['category_chart']['counts'] == []
+
+
+@pytest.mark.parametrize('payload', _NON_DICT_TOP_LEVELS)
+def test_non_dict_json_top_level_is_unknown_and_does_not_mutate_report(payload):
+    """详情路由的调用链：先 parse，再把结果显式传给 prepare。
+
+    字符串 / 数组 / 数字都是合法 JSON，但不是周报 content 对象。
+    缺失总量保持未知，存储的 summary/content 原样留下。
+    """
+    report = _report(summary='本周新上榜书籍10本。', content_dict=payload)
+    original_content = report.content
+    original_summary = report.summary
+    parsed = parse_report_content(report)
+
+    prepared_from_report = prepare_report_presentation(report, locale='zh')
+    prepared_from_parsed = prepare_report_presentation(report, content=parsed, locale='zh')
+
+    assert report.content == original_content
+    assert report.summary == original_summary
+    _assert_unknown_presentation(prepared_from_report)
+    _assert_unknown_presentation(prepared_from_parsed)
+
+
+def test_weekly_routes_survive_non_dict_report_alongside_a_valid_report(client, app, db, monkeypatch):
+    """列表循环没有按条隔离。一条顶层非对象的旧周报不能让整页 500，
+    旁边的正常周报仍显示权威总量；坏周报详情显示待补全而不是 0。
+    """
+    from unittest.mock import MagicMock
+
+    from app.models.schemas import WeeklyReport
+
+    monkeypatch.setitem(app.extensions, 'book_service', MagicMock())
+    _seed_report(app, db)
+    bad_dates: list[str] = []
+    raw_payloads = ('"broken"', '[1]', '1')
+    with app.app_context():
+        for offset, raw in enumerate(raw_payloads, start=1):
+            end = date.today() - timedelta(days=14 * offset)
+            report = WeeklyReport(
+                report_date=end,
+                week_start=end - timedelta(days=6),
+                week_end=end,
+                title=f'Broken {offset}',
+                summary='本周新上榜书籍10本。',
+                content=raw,
+            )
+            db.session.add(report)
+            bad_dates.append(end.strftime('%Y-%m-%d'))
+        db.session.commit()
+
+    listing = client.get('/reports/weekly?lang=zh')
+    assert listing.status_code == 200
+    body = listing.get_data(as_text=True)
+    assert 'Broken 1' in body
+    assert '20' in body
+    assert '3' in body
+    assert '待补全' in body
+    assert '共记录 0' not in body
+    assert '周报加载失败' not in body
+
+    for date_str in bad_dates:
+        detail = client.get(f'/reports/weekly/{date_str}?lang=zh')
+        assert detail.status_code == 200, date_str
+        detail_body = detail.get_data(as_text=True)
+        assert '数据待补全' in detail_body
+        assert '共记录 0' not in detail_body
+        assert '0 条' not in detail_body
+        assert '周报加载失败' not in detail_body
+        assert '10本' not in detail_body
+
+    with app.app_context():
+        for raw in raw_payloads:
+            stored = WeeklyReport.query.filter_by(content=raw).one()
+            assert stored.summary == '本周新上榜书籍10本。'
+            assert stored.content == raw

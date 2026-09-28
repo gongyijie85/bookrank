@@ -1,6 +1,5 @@
 import json
 from datetime import date, datetime
-from typing import cast
 
 
 def format_chinese_date(value: date) -> str:
@@ -27,10 +26,18 @@ def validate_date(date_str: str) -> tuple:
 
 
 def parse_report_content(report) -> dict | None:
+    """解析周报 content。只接受 JSON 对象；其它合法 JSON 视为缺失。
+
+    若内容的顶层为字符串、数组或数字，那些值不是字段映射。调用方若拿去
+    ``dict()`` / ``.get()`` 会抛错，一条这样的报告就能让周报列表整页失败。
+    这里返回 None，展示层按「总量未知」处理，不把缺失写成 0，也不改存储列。
+    """
     if not report or not report.content:
         return None
     try:
         content = json.loads(report.content) if isinstance(report.content, str) else report.content
     except (json.JSONDecodeError, TypeError):
         return None
-    return cast('dict | None', content)
+    if not isinstance(content, dict):
+        return None
+    return content
