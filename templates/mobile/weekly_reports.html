@@ -43,7 +43,7 @@
             <div class="m-report-week">W{{ report.week_end.strftime('%V') }}</div>
             <div class="m-report-main">
                 <h3 class="m-report-title">
-                    {% if report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
+                    {% if content.title_display %}{{ content.title_display }}{% elif report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
                 </h3>
                 <p class="m-report-sub">
                     {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}

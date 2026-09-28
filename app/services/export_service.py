@@ -1,6 +1,5 @@
 """导出服务"""
 
-import json
 import logging
 from io import BytesIO
 from pathlib import Path
@@ -9,7 +8,7 @@ from fpdf import FPDF
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 
-from ..utils.date_helpers import format_chinese_date
+from ..utils.date_helpers import format_chinese_date, parse_report_content
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.weekly_report_presentation import prepare_report_presentation
 
@@ -231,10 +230,9 @@ class ExportService:
             pdf.multi_cell(0, 5, summary, new_x='LMARGIN', new_y='NEXT')
             pdf.ln(10)
 
-            # 详细内容
-            if report.content:
-                content = json.loads(report.content)
-
+            # 详细内容。与列表/详情共用 parse_report_content：非对象或非法 JSON 视为没有明细。
+            content = parse_report_content(report)
+            if content:
                 # 重要变化
                 if content.get('top_changes'):
                     pdf.set_font(font_name, 'B', 12)
@@ -393,9 +391,9 @@ class ExportService:
             # row / header_font 定义在可选分支之外：content 缺失或只有推荐书籍时同样可用。
             row = 10
             header_font = Font(bold=True)
-            if report.content:
-                content = json.loads(report.content)
-
+            # 与 PDF 同一入口：非对象或非法 JSON 不再让整次导出失败。
+            content = parse_report_content(report)
+            if content:
                 # 重要变化
                 if content.get('top_changes'):
                     ws[f'A{row}'] = '重要变化'

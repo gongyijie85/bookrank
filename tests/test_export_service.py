@@ -550,3 +550,122 @@ class TestExportWeeklyReportExcel:
         assert height == expected_lines * 15.0
         # 不是被 A 列宽度撑出来的虚高行高。
         assert height < self._visual_width(metrics) // int(ws.column_dimensions['A'].width) * 15.0
+
+
+# 顶层不是对象的 content。直接调用与传入 prepared 都要能导出，且不把缺失总量写成 0。
+_NON_OBJECT_CONTENT = ('"broken"', '[1]', '1', 'true', 'null', 'not json{')
+
+
+def _report_with_raw_content(raw: str):
+    report = MagicMock()
+    report.title = 'Broken Content Report'
+    report.report_date = date(2024, 3, 3)
+    report.week_start = date(2024, 2, 26)
+    report.week_end = date(2024, 3, 3)
+    report.summary = 'stored narrative must stay'
+    report.content = raw
+    return report
+
+
+def _ascii_fallback(text: str) -> str:
+    """与 ExportService._safe_pdf_text 同一降级：缺中文字体时非 ASCII 变成 '?'。"""
+    return text.encode('ascii', 'replace').decode('ascii')
+
+
+def _pdf_texts(export_service, report, prepared=None):
+    texts: list[str] = []
+    original_cell = FPDF.cell
+    original_multi_cell = FPDF.multi_cell
+
+    def record_cell(self, *args, **kwargs):
+        if len(args) >= 3 and isinstance(args[2], str):
+            texts.append(args[2])
+        return original_cell(self, *args, **kwargs)
+
+    def record_multi_cell(self, *args, **kwargs):
+        if len(args) >= 3 and isinstance(args[2], str):
+            texts.append(args[2])
+        return original_multi_cell(self, *args, **kwargs)
+
+    with (
+        patch.object(FPDF, 'cell', record_cell),
+        patch.object(FPDF, 'multi_cell', record_multi_cell),
+    ):
+        result = export_service.export_weekly_report_pdf(report, prepared=prepared)
+
+    assert result is not None, 'PDF 导出返回 None'
+    payload = result.read()
+    assert payload.startswith(b'%PDF')
+    return texts
+
+
+def _assert_pdf_unknown_totals(texts, prepared):
+    pending = '数据待补全'
+    metric_prefix = '上榜记录:'
+    metric = next(
+        (text for text in texts if text.startswith(metric_prefix) or text.startswith(_ascii_fallback(metric_prefix))),
+        None,
+    )
+    assert metric is not None, '指标行没有写入 PDF'
+    assert pending in metric or _ascii_fallback(pending) in metric
+    assert ': 0' not in metric
+    summary = prepared['summary']
+    assert any(summary in text or _ascii_fallback(summary) in text for text in texts)
+    assert '• ' not in '\n'.join(texts)
+    for key in ('total_books', 'total_new', 'total_rising', 'total_falling'):
+        assert prepared['totals'][key] is None
+        assert prepared['content'][f'{key}_display'] == pending
+
+
+def _assert_excel_unknown_totals(ws, prepared):
+    metrics = str(ws['A7'].value)
+    summary = str(ws['A9'].value)
+    assert metrics.startswith('上榜记录: 数据待补全')
+    assert ': 0' not in metrics
+    assert summary == prepared['summary']
+    assert '待补全' in summary
+    assert '共记录 0' not in summary
+    assert '0 条' not in summary
+    column_a = [ws[f'A{row}'].value for row in range(1, 30)]
+    assert '重要变化' not in column_a
+    assert '推荐书籍' not in column_a
+    for key in ('total_books', 'total_new', 'total_rising', 'total_falling'):
+        assert prepared['totals'][key] is None
+        assert prepared['content'][f'{key}_display'] == '数据待补全'
+
+
+@pytest.mark.parametrize('raw', _NON_OBJECT_CONTENT)
+def test_direct_export_of_non_object_content_stays_valid(export_service, raw):
+    """不传 prepared：字符串/数组/数字/bool/null/非法 JSON 都不能让导出返回 None。"""
+    report = _report_with_raw_content(raw)
+    prepared = prepare_report_presentation(report, locale='zh')
+    original_summary = report.summary
+    original_content = report.content
+
+    texts = _pdf_texts(export_service, report)
+    _assert_pdf_unknown_totals(texts, prepared)
+
+    workbook = load_workbook(export_service.export_weekly_report_excel(report))
+    _assert_excel_unknown_totals(workbook.active, prepared)
+
+    assert report.summary == original_summary
+    assert report.content == original_content
+
+
+@pytest.mark.parametrize('raw', ('"broken"', 'not json{'))
+def test_prepared_export_of_non_object_content_stays_valid(export_service, raw):
+    """传入 prepared 时明细仍走同一解析入口，不因坏 JSON 丢掉已准备好的摘要。"""
+    report = _report_with_raw_content(raw)
+    prepared = prepare_report_presentation(report, locale='zh')
+    original_summary = report.summary
+    original_content = report.content
+
+    texts = _pdf_texts(export_service, report, prepared=prepared)
+    _assert_pdf_unknown_totals(texts, prepared)
+
+    result = export_service.export_weekly_report_excel(report, prepared=prepared)
+    assert result is not None
+    _assert_excel_unknown_totals(load_workbook(result).active, prepared)
+
+    assert report.summary == original_summary
+    assert report.content == original_content

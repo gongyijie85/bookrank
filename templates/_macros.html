@@ -5,14 +5,22 @@
 {# 新书速递卡片宏 #}
 {% macro new_book_card(book) %}
 {% set _l = get_locale() %}
-{% set display_title = book.title_zh or book.title %}
+{# 显示标题按 SSR 语言各取一侧：曾有 _l=en 时 alt/aria-label 仍固定中文书名。 #}
+{% set _title_zh = book.title_zh or book.title %}
+{% set _title_en = book.title or book.title_zh %}
+{% set display_title = _title_zh if _l == 'zh' else _title_en %}
 {% set _detail_url = url_for('main.new_book_detail', book_id=book.id) %}
 <div class="book-card" data-book-id="{{ book.id }}" data-isbn="{{ book.isbn13 or book.isbn10 or '' }}">
     {# 封面指向同一详情路由；收藏按钮不在此列（自带交互，不能套进链接）。 #}
     <a class="book-cover-link" href="{{ _detail_url }}" aria-label="{{ _('《') }}{{ display_title }}{{ _('》详情') }}" tabindex="-1">
     <div class="book-cover-wrapper">
         {% if book.cover_url %}
+        {# 封面 alt 双语留痕，与 new_books.html 的 applyCoverAlts 配套（切语言只按
+           data-cover-alt-* 属性换 alt）。zh 侧写死中文、en 侧写死英文：`_()` 会随
+           SSR 语言翻向另一侧，污染对侧载荷。#}
         <img src="{{ book.cover_url|cover_src_or_default }}" alt="{{ _('《') }}{{ display_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}" class="book-cover" loading="lazy"
+             data-cover-alt-zh="《{{ _title_zh }}》封面，作者 {{ book.author or '未知作者' }}"
+             data-cover-alt-en="&quot;{{ _title_en }}&quot; cover, author {{ book.author or 'Unknown author' }}"
              data-fallback="/static/default-cover.png">
         {% else %}
         <div class="book-cover-placeholder">

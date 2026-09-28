@@ -55,10 +55,10 @@
     </p>
 </header>
 
-<form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
+<form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" data-i18n-aria-label="nb_filter_bar_label" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
     <div class="filter-group">
         <label for="publisher-filter"><span data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</span>：</label>
-        <select id="publisher-filter" name="publisher" aria-label="{{ _('选择出版社') }}">
+        <select id="publisher-filter" name="publisher" aria-label="{{ _('选择出版社') }}" data-i18n-aria-label="nb_select_publisher_label">
             {# data-pub-name-zh 必须是**固定中文**：SSR=en 时 `_('全部出版社')` 会变成
                'All publishers'，写进 zh 槽位后 EN→ZH 就永远切不回中文。可见文案仍用
                当前语言的 gettext，双语载荷写死。 #}
@@ -74,7 +74,7 @@
 
     <div class="filter-group">
         <label for="category-filter"><span data-i18n="nb_filter_category_label">{{ _('分类') }}</span>：</label>
-        <select id="category-filter" name="category" aria-label="{{ _('选择分类') }}">
+        <select id="category-filter" name="category" aria-label="{{ _('选择分类') }}" data-i18n-aria-label="nb_select_category_label">
             <option value="" data-i18n="nb_filter_category_all">{{ _('全部分类') }}</option>
             {% for cat in categories %}
             {# value 仍是库里的规范存储键（筛选/URL 口径不变）；显示文本双语留痕，
@@ -88,7 +88,7 @@
 
     <div class="filter-group">
         <label for="days-filter"><span data-i18n="nb_filter_time_label">{{ _('时间') }}</span>：</label>
-        <select id="days-filter" name="days" aria-label="{{ _('选择时间范围') }}">
+        <select id="days-filter" name="days" aria-label="{{ _('选择时间范围') }}" data-i18n-aria-label="nb_select_time_range_label">
             <option value="7" {% if selected_days == 7 %}selected{% endif %} data-i18n="nb_time_7">{{ _('最近7天出版') }}</option>
             <option value="30" {% if selected_days == 30 %}selected{% endif %} data-i18n="nb_time_30">{{ _('最近30天出版') }}</option>
             <option value="90" {% if selected_days == 90 %}selected{% endif %} data-i18n="nb_time_90">{{ _('最近90天出版') }}</option>
@@ -103,11 +103,11 @@
     </div>
 
     <div class="filter-actions">
-        <button type="submit" class="btn btn-primary" id="btn-search" aria-label="{{ _('搜索') }}" data-i18n="nb_search_btn">
+        <button type="submit" class="btn btn-primary" id="btn-search" aria-label="{{ _('搜索') }}" data-i18n="nb_search_btn" data-i18n-aria-label="nb_search_btn">
             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
             {{ _('搜索') }}
         </button>
-        <button type="button" class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置') }}" data-i18n="nb_reset_btn">
+        <button type="button" class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置') }}" data-i18n="nb_reset_btn" data-i18n-aria-label="nb_reset_btn">
             <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
             {{ _('重置') }}
         </button>
@@ -128,7 +128,7 @@
 </form>
 
 {% if selected_publisher or selected_category or search_query %}
-<div class="browse-active-filter" id="active-filters" aria-label="{{ _('当前筛选条件') }}">
+<div class="browse-active-filter" id="active-filters" aria-label="{{ _('当前筛选条件') }}" data-i18n-aria-label="nb_active_filters_label">
     <span class="browse-active-filter-label">{{ _('已选条件') }}：</span>
     {% set _sel_pub = publishers | selectattr('id', 'equalto', selected_publisher) | first %}
     {% if selected_publisher %}
@@ -158,7 +158,7 @@
 </div>
 {% else %}
 {# 无筛选条件时容器仍存在：AJAX 选中筛选后由 syncFilterChrome 在此插入 chip #}
-<div class="browse-active-filter" id="active-filters" aria-label="{{ _('当前筛选条件') }}" hidden></div>
+<div class="browse-active-filter" id="active-filters" aria-label="{{ _('当前筛选条件') }}" data-i18n-aria-label="nb_active_filters_label" hidden></div>
 {% endif %}
 
 <div class="result-summary" id="result-summary" aria-live="polite">
@@ -387,6 +387,18 @@ function applyNewBooksLanguage(lang) {
 
     // 5. SSR 生成的 chip 文案：用同一份双语留痕重写文本（href 保持原样）。
     applyBilingualChips(lang);
+
+    // 6. 封面 alt：双语留痕在 <img data-cover-alt-*> 上，只换 alt 属性。
+    applyCoverAlts(lang);
+}
+
+/** 封面 alt 跟随运行时语言；src / 详情链接 / 结构一概不动（切语言不是筛选动作）。 */
+function applyCoverAlts(lang) {
+    const suffix = lang === 'zh' ? 'zh' : 'en';
+    document.querySelectorAll('img[data-cover-alt-zh]').forEach(function(el) {
+        const alt = el.getAttribute('data-cover-alt-' + suffix);
+        if (alt) el.setAttribute('alt', alt);
+    });
 }
 
 /** 按 data-cat-* / data-date-* / data-just-* 重写徽标文本，保留图标与其它兄弟节点。
@@ -793,8 +805,13 @@ function renderBookCard(book) {
         return '/cover?src=' + encodeURIComponent(value);
     };
     const coverUrl = coverToSrc(book.cover_url);
+    // 封面 alt 与标题同理跟随运行时语言：双语留痕写在 <img> 上，
+    // applyCoverAlts 在切语言时只换 alt 属性。
+    const coverAltEn = book.title || book.title_zh || '';
+    const coverAltZh = book.title_zh || book.title || '';
+    const coverAlt = currentLanguage === 'zh' ? coverAltZh : coverAltEn;
     const coverHtml = coverUrl
-        ? '<img src="' + esc(coverUrl) + '" alt="' + esc(book.title) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
+        ? '<img src="' + esc(coverUrl) + '" alt="' + esc(coverAlt) + '" data-cover-alt-zh="' + esc(coverAltZh) + '" data-cover-alt-en="' + esc(coverAltEn) + '" class="book-cover" loading="lazy" data-fallback="/static/default-cover.png">'
         : '<div class="book-cover-placeholder"><svg class="icon" style="width:3rem;height:3rem"><use href="#icon-book"/></svg></div>';
 
     const titleZh = book.title_zh || book.title;

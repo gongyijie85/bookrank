@@ -21,6 +21,7 @@ import vm from 'node:vm';
 
 const BOOK_I18N_PATH = new URL('../static/js/book-i18n.js', import.meta.url);
 const BASE_JS_PATH = new URL('../static/js/base.js', import.meta.url);
+const TRANSLATIONS_JS_PATH = new URL('../static/js/translations.js', import.meta.url);
 
 // ---------------------------------------------------------------------------
 // 1) 真实页面：现渲染的 Jinja 输出（tests/fixtures/render_new_books.py）
@@ -51,8 +52,8 @@ const pythonExe = process.env.PYTHON || 'python';
  */
 const RENDERER_FILE = decodeURIComponent(RENDERER_PATH.pathname).replace(/^\/([A-Za-z]:)/, '$1');
 
-function renderTemplate() {
-    const result = spawnSync(pythonExe, [RENDERER_FILE], {
+function renderTemplate(args = []) {
+    const result = spawnSync(pythonExe, [RENDERER_FILE, ...args], {
         cwd: new URL('..', import.meta.url),
         encoding: 'utf8',
         maxBuffer: 32 * 1024 * 1024,
@@ -100,6 +101,19 @@ class El {
     constructor(tag, attrs = {}, text = '') {
         this.tagName = String(tag).toUpperCase();
         this.attributes = { ...attrs };
+        // 真实 DOM 里 el.attributes 是可迭代的 NamedNodeMap（`for (const attr of
+        // el.attributes)` / `Array.from(el.attributes)`），translations.js 的
+        // applyPageTranslation 与页面脚本的 renderI18nSentence 都这样遍历取
+        // data-i18n-params-*；普通对象会直接抛 "not iterable"。产出的条目只需
+        // name/value 两个字段，与这两个消费方一致。
+        Object.defineProperty(this.attributes, Symbol.iterator, {
+            enumerable: false,
+            value: function* () {
+                for (const name of Object.keys(this)) {
+                    yield { name, value: String(this[name]) };
+                }
+            },
+        });
         this.childNodes = [];
         this.parentNode = null;
         this.style = {};
@@ -374,7 +388,7 @@ function parseHtml(html, doc) {
 // 3) 页面环境：history / fetch / 事件 / 真实渲染出的 DOM
 // ---------------------------------------------------------------------------
 
-function createPage() {
+function createPage({ appLang = 'en' } = {}) {
     const doc = new El('html');
     const body = new El('body');
     doc.appendChild(body);
@@ -443,7 +457,7 @@ function createPage() {
         location,
         history,
         localStorage,
-        __APP_LANG__: 'en',
+        __APP_LANG__: appLang,
         URL,
         URLSearchParams,
         Date,
@@ -531,9 +545,12 @@ class CustomEventShim {
 /**
  * 在 vm 里加载模板内联脚本。
  * `fetchImpl(url, init)` 返回一个 thenable/promise；测试据此控制响应先后。
+ * `appLang` 控制 window.__APP_LANG__（页面脚本 currentLanguage 的初值）。
+ * `withTranslations` 为真时加载真实 static/js/translations.js —— 语言标签一致性
+ * 用例必须走生产的 setGlobalLanguage / applyPageTranslation，而不是 window.t 桩。
  */
-function bootPage({ fetchImpl, withBookI18n = true } = {}) {
-    const page = createPage();
+function bootPage({ fetchImpl, withBookI18n = true, withTranslations = false, appLang = 'en' } = {}) {
+    const page = createPage({ appLang });
     const context = vm.createContext({
         window: page.windowObj,
         document: page.doc,
@@ -581,6 +598,13 @@ function bootPage({ fetchImpl, withBookI18n = true } = {}) {
                 context[name] = page.windowObj[name];
             }
         }
+    }
+    if (withTranslations) {
+        // 真实页面的 <script src=…translations.js> 外部脚本：在 vm 里加载同一份实现。
+        // 它的顶层函数声明（t / applyPageTranslation / setGlobalLanguage）会落进
+        // context 全局，末尾的 window.* 赋值也会覆盖 createPage 里的 t 桩 —— 语言
+        // 切换走的就是生产代码，不在测试里复刻任何翻译逻辑。
+        vm.runInContext(readFileSync(TRANSLATIONS_JS_PATH, 'utf8'), context);
     }
     vm.runInContext(pageScript, context);
     // 模板把筛选控件/按钮的事件绑定放在 DOMContentLoaded 里：真实浏览器解析完
@@ -1018,4 +1042,284 @@ test('过期请求的 finally 不得清掉更新请求的在途标志', async ()
     const container = page.doc.getElementById('books-container');
     assert.ok(container.textContent.includes('B Book'), '最新请求的结果未生效');
     assert.ok(!container.textContent.includes('A Book'), '过期响应覆盖了最新结果');
+});
+
+// ---------------------------------------------------------------------------
+// 6) 渲染器进程输出契约：stdout 恒为 UTF-8，与父环境编码无关
+// ---------------------------------------------------------------------------
+
+test('渲染器在显式非 UTF-8 父环境（GBK）下仍输出完整 UTF-8 HTML', () => {
+    // 复现的 Windows 缺陷：控制台代码页 / PYTHONIOENCODING 是 GBK 时，
+    // render_new_books.py 的 sys.stdout.write 在 U+2194（↔，位于模板内联脚本
+    // 注释，浏览器实际收到的 HTML 里一定有它）上抛 UnicodeEncodeError，
+    // exit 非 0、stdout 为空，整套页面测试挂在渲染前置步骤上。
+    // 这里**显式构造**坏环境，而不是依赖/修改全局环境：修复必须发生在渲染器
+    // 内部（自己声明 UTF-8），父环境干净不能成为通过理由。
+    const result = spawnSync(pythonExe, [RENDERER_FILE], {
+        cwd: new URL('..', import.meta.url),
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024,
+        env: {
+            ...process.env,
+            PYTHONIOENCODING: 'gbk',
+            PYTHONUTF8: '0',
+            PYTHONLEGACYWINDOWSSTDIO: '1',
+        },
+    });
+    assert.equal(
+        result.error,
+        undefined,
+        `无法启动模板渲染器（${pythonExe} ${RENDERER_FILE}）：${result.error && result.error.message}`,
+    );
+    assert.equal(
+        result.status,
+        0,
+        `GBK 父环境下渲染器失败（exit ${result.status}）：\n${result.stderr || ''}`,
+    );
+    assert.ok(
+        result.stdout && result.stdout.includes('↔'),
+        'UTF-8 输出契约被破坏：stdout 缺少 U+2194（写出被 GBK 编码中断，或未落到 UTF-8）',
+    );
+});
+
+// ---------------------------------------------------------------------------
+// 7) 语言切换的标签一致性：中文 SSR → EN → ZH（面包屑 / 辅助标签 / 封面 alt）
+//
+// Leader 在浏览器复现：中文 /new-books 选「商业」后切 English —— 主标题/卡片/选项
+// 都对，但可见面包屑停在「首页 / 新书速递」，搜索与筛选、选择出版社/分类/时间范围、
+// 搜索/重置、当前筛选条件、语言按钮的 aria-label 全是中文；异步加载的封面 alt 在
+// 中文态也一直是英文书名。这里跑真实模板 + 真实 translations.js 的完整切换链路。
+// ---------------------------------------------------------------------------
+
+/** 带封面图的单页响应（bookPayload 的 cover_url 为空串，走不进 <img> 分支）。 */
+function cardPayload(id, title, titleZh) {
+    return {
+        success: true,
+        data: {
+            books: [{
+                id,
+                title,
+                title_zh: titleZh,
+                author: 'Author',
+                isbn13: '978000000000' + id,
+                category: 'Business',
+                category_zh: '商业',
+                category_en: 'Business',
+                publisher_name: '出版社',
+                publisher_name_en: 'Publisher',
+                publication_date: '2020-01-01',
+                cover_url: '/cache/images/cover.jpg',
+            }],
+            pagination: { page: 1, pages: 1, total: 1, per_page: 20 },
+        },
+    };
+}
+
+/** id → 该语言下 aria-label 的期望值（文案是翻译字典的对外契约，不是实现细节）。 */
+const EN_ARIA_LABELS = {
+    'filter-form': 'Search and filters',
+    'publisher-filter': 'Select publisher',
+    'category-filter': 'Select category',
+    'days-filter': 'Select time range',
+    'btn-search': 'Search',
+    'btn-clear': 'Reset',
+    'active-filters': 'Current filters',
+    'lang-globe': 'Switch Language',
+};
+
+const ZH_ARIA_LABELS = {
+    'filter-form': '搜索与筛选',
+    'publisher-filter': '选择出版社',
+    'category-filter': '选择分类',
+    'days-filter': '选择时间范围',
+    'btn-search': '搜索',
+    'btn-clear': '重置',
+    'active-filters': '当前筛选条件',
+    'lang-globe': '切换语言',
+};
+
+test('中文 SSR → EN → ZH：面包屑与 aria-label 跟随语言，筛选/URL/历史/详情链接不变', async () => {
+    const { page, context } = bootPage({
+        appLang: 'zh',
+        withTranslations: true,
+        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(cardPayload(5, 'Volume One', '第一卷')) }),
+    });
+
+    // 用户动作：中文态选「商业」（fixture 以 identity gettext 渲染，即中文 SSR）。
+    page.selectFilter('category-filter', '商业');
+    await flush();
+    assert.equal(page.historyCalls.filter((c) => c.kind === 'push').length, 1, '筛选应恰好 push 一条历史');
+
+    // 语言菜单切 English —— 生产入口是 setGlobalLanguage（写偏好、重绘标签、派发事件）。
+    vm.runInContext('setGlobalLanguage("en")', context);
+    await flush();
+
+    const nav = page.doc.querySelector('nav.breadcrumbs');
+    assert.ok(nav, '页面缺少面包屑 nav');
+    assert.ok(
+        nav.textContent.includes('Home') && nav.textContent.includes('New Books'),
+        `面包屑未切英文：${nav.textContent}`,
+    );
+    assert.ok(
+        !nav.textContent.includes('首页') && !nav.textContent.includes('新书速递'),
+        `面包屑仍是中文：${nav.textContent}`,
+    );
+    for (const [id, label] of Object.entries(EN_ARIA_LABELS)) {
+        const el = page.doc.getElementById(id);
+        assert.ok(el, `缺少 #${id}`);
+        assert.equal(el.getAttribute('aria-label'), label, `#${id} 的 aria-label 未切英文`);
+    }
+
+    // 切回中文：面包屑与辅助标签必须一起回来（双语留痕完整，不冻结在任一侧）。
+    vm.runInContext('setGlobalLanguage("zh")', context);
+    await flush();
+    const backZh = page.doc.querySelector('nav.breadcrumbs').textContent;
+    assert.ok(
+        backZh.includes('首页') && backZh.includes('新书速递'),
+        `切回中文后面包屑未复原：${backZh}`,
+    );
+    for (const [id, label] of Object.entries(ZH_ARIA_LABELS)) {
+        const el = page.doc.getElementById(id);
+        assert.equal(el.getAttribute('aria-label'), label, `#${id} 的 aria-label 未随切回中文复原`);
+    }
+
+    // 切换语言不改状态：筛选值、URL、chip、历史记录、详情链接都保持原样。
+    assert.equal(page.doc.getElementById('category-filter').value, '商业', '语言切换改动了筛选状态');
+    assert.ok(
+        page.location.search.includes('category=%E5%95%86%E4%B8%9A'),
+        `语言切换改动了 URL：${page.location.search}`,
+    );
+    assert.equal(page.historyCalls.filter((c) => c.kind === 'push').length, 1, '语言切换新增了历史记录');
+    assert.equal(page.historyCalls.filter((c) => c.kind === 'replace').length, 0, '语言切换写了 replace 历史');
+    assert.equal(page.fetchCalls.length, 1, '语言切换重复发起了 API 请求');
+    assert.ok(
+        page.doc.getElementById('active-filters').querySelector('[data-chip-key="category"]'),
+        '语言切换后分类 chip 丢失',
+    );
+    const titleLink = page.doc.querySelector('#books-container .book-title a');
+    assert.ok(titleLink, '语言切换抹掉了书名链接');
+    assert.equal(titleLink.getAttribute('href'), '/new-book/5', '详情目标在语言切换中被改动');
+});
+
+test('封面 alt 跟随语言：中文态渲染、EN/ZH 往返切换', async () => {
+    const { page, context } = bootPage({
+        appLang: 'zh',
+        withTranslations: true,
+        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(cardPayload(9, 'Dune', '沙丘')) }),
+    });
+
+    page.selectFilter('category-filter', '商业');
+    await flush();
+
+    const img = page.doc.querySelector('#books-container img.book-cover');
+    assert.ok(img, '带封面 URL 的卡片没有渲染出 <img>');
+    assert.equal(img.getAttribute('alt'), '沙丘', '中文态封面 alt 用了英文书名');
+
+    vm.runInContext('setGlobalLanguage("en")', context);
+    await flush();
+    assert.equal(img.getAttribute('alt'), 'Dune', '切英文后封面 alt 未跟随');
+
+    vm.runInContext('setGlobalLanguage("zh")', context);
+    await flush();
+    assert.equal(img.getAttribute('alt'), '沙丘', '切回中文后封面 alt 未跟随');
+
+    // 切换只动 alt 属性：src 与卡片状态不受影响。
+    assert.equal(img.getAttribute('src'), '/cache/images/cover.jpg', '语言切换改动了封面 src');
+    assert.equal(page.historyCalls.filter((c) => c.kind === 'push').length, 1, '语言切换新增了历史记录');
+});
+
+// ---------------------------------------------------------------------------
+// 8) SSR 卡片封面 alt 跟随语言（Leader 审计 2026-09-28 缺口）
+//
+// new_book_card 宏曾把 display_title 固定为 `book.title_zh or book.title`：
+// _l=en 时 SSR 首屏的 alt/aria-label 仍是中文书名，且 <img> 上没有 applyCoverAlts
+// 需要的 data-cover-alt-* 双语留痕——切语言只能管到 AJAX 重渲的卡片。这里断言的
+// 是 fixture 现场调**真实宏**产出的卡片（tests/fixtures/render_new_books.py
+// --with-books），不是镜像模板。
+// ---------------------------------------------------------------------------
+
+/**
+ * 测试 DOM 桩在属性里不解码实体（浏览器在 HTML 解析期就解码了，真实浏览器里
+ * getAttribute 拿到的是 `"`），对比英文 alt 前先做同一份解码。
+ */
+function decodeEntities(value) {
+    return String(value)
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+}
+
+const SSR_ZH_ALT = '《沙丘》封面，作者 Author';
+const SSR_EN_ALT = '"Dune" cover, author Author';
+
+test('SSR 真实卡片：双语留痕随语言写全，EN/ZH 切换只改 alt、src/href 不动', async () => {
+    // —— zh SSR：初值 alt 与 data-cover-alt-* 留痕都在（留痕两侧写死，不随 SSR 语言翻）
+    const zhCard = renderTemplate(['--with-books', '--locale=zh']);
+    assert.ok(
+        zhCard.includes(`alt="${SSR_ZH_ALT}"`),
+        `zh SSR 初值 alt 不是中文书名+中文格式：${zhCard.slice(0, 400)}`,
+    );
+    assert.ok(
+        zhCard.includes(`data-cover-alt-zh="${SSR_ZH_ALT}"`),
+        'SSR <img> 缺少中文 alt 留痕（applyCoverAlts 切回 zh 无值可取）',
+    );
+    assert.ok(
+        zhCard.includes('data-cover-alt-en="&quot;Dune&quot; cover, author Author"'),
+        'SSR <img> 缺少英文 alt 留痕（applyCoverAlts 切 en 无值可取）',
+    );
+
+    // —— en SSR：显示标题槽必须已选英文书名（修复前 _l=en 也固定输出中文书名）。
+    //    fixture 的 gettext 是 identity（返回中文 msgid），所以这里断言的是**标题槽**
+    //    随 _l 选择，而不是完整句式。
+    const enCard = renderTemplate(['--with-books', '--locale=en']);
+    assert.ok(
+        enCard.includes('《Dune》封面，作者 Author'),
+        '_l=en 时 SSR 标题槽仍固定中文书名（display_title 未随语言选择）',
+    );
+    assert.ok(
+        !enCard.includes('alt="《沙丘》') && enCard.includes(`data-cover-alt-zh="${SSR_ZH_ALT}"`),
+        'en SSR 的 zh 留痕被语言带偏（留痕必须双侧写死，不随 SSR locale 翻转）',
+    );
+
+    // —— 行为级：真实宏卡片进页面，走生产 setGlobalLanguage → applyCoverAlts 链路。
+    const { page, context } = bootPage({
+        appLang: 'zh',
+        withTranslations: true,
+        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve({}) }),
+    });
+    const container = page.doc.getElementById('books-container');
+    container.innerHTML = zhCard;
+
+    const img = container.querySelector('img.book-cover');
+    assert.ok(img, 'SSR 卡片未解析出 <img class="book-cover">');
+    const coverLink = container.querySelector('a.book-cover-link');
+    const titleLink = container.querySelector('.book-title a');
+    assert.ok(coverLink, 'SSR 卡片缺少封面详情链接');
+    assert.ok(titleLink, 'SSR 卡片缺少书名链接');
+    const srcBefore = img.getAttribute('src');
+    const coverHrefBefore = coverLink.getAttribute('href');
+    const titleHrefBefore = titleLink.getAttribute('href');
+    assert.ok(srcBefore && coverHrefBefore && titleHrefBefore, 'SSR 卡片 src/href 缺失');
+
+    vm.runInContext('setGlobalLanguage("en")', context);
+    await flush();
+    assert.equal(decodeEntities(img.getAttribute('alt')), SSR_EN_ALT, '切英文后 SSR 封面 alt 未跟随');
+
+    vm.runInContext('setGlobalLanguage("zh")', context);
+    await flush();
+    assert.equal(img.getAttribute('alt'), SSR_ZH_ALT, '切回中文后 SSR 封面 alt 未复原');
+
+    // 切语言不是导航/筛选：src、两处详情 href、历史记录与 API 请求都不许动。
+    // fetch 计数为 0 同时钉住「SSR 卡片没被 AJAX 重渲悄悄替换掉」。
+    assert.equal(page.fetchCalls.length, 0, '语言切换改用 AJAX 重渲，测的已不是 SSR 卡片');
+    assert.equal(img.getAttribute('src'), srcBefore, '语言切换改动了封面 src');
+    assert.equal(coverLink.getAttribute('href'), coverHrefBefore, '语言切换改动了封面详情链接 href');
+    assert.equal(
+        container.querySelector('.book-title a').getAttribute('href'),
+        titleHrefBefore,
+        '语言切换改动了书名链接 href',
+    );
+    assert.equal(page.historyCalls.length, 0, '语言切换写了历史记录');
 });
