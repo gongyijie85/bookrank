@@ -370,7 +370,20 @@ function applyAnalyticsTheme() {
       }
     }
 
-    if (typeof chart.update === 'function') chart.update('none');
+    if (typeof chart.update === 'function') {
+      var hadOwnAnimation = Object.prototype.hasOwnProperty.call(options, 'animation');
+      var prevAnimation = options.animation;
+      try {
+        options.animation = false;
+        chart.update();
+      } finally {
+        if (!hadOwnAnimation) {
+          delete options.animation;
+        } else {
+          options.animation = prevAnimation;
+        }
+      }
+    }
   });
 }
 
