@@ -95,7 +95,8 @@
     {% for book in books %}
     {% set shown_title = (book.title_zh or book.title) if _locale == 'zh' else book.title %}
     {% set shown_award = (book.award_name|bilingual(book.award_name_en)) or _('未知') %}
-    <a href="/award-book/{{ book.id }}" class="m-card m-book-card">
+<div style="display:flex;align-items:center;gap:0.5rem;">
+    <a href="/award-book/{{ book.id }}" class="m-card m-book-card" style="flex:1;min-width:0;">
         <div class="m-book-cover">
             <img src="{{ (book.cover_local_path or book.cover_original_url)|cover_src_or_default }}"
                  alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
@@ -112,6 +113,28 @@
             </div>
         </div>
     </a>
+    <button type="button"
+            class="m-favorite-btn"
+            data-isbn="{{ book.isbn13 or '' }}"
+            aria-pressed="false"
+            {% if book.isbn13 %}
+            title="{{ _('收藏') }}"
+            aria-label="{{ _('收藏') }}"
+            {% elif get_locale() == 'zh' %}
+            title="ISBN缺失，无法收藏"
+            aria-label="ISBN缺失，无法收藏"
+            {% else %}
+            title="Missing ISBN; cannot favorite"
+            aria-label="Missing ISBN; cannot favorite"
+            {% endif %}
+            style="min-width:44px; min-height:44px; color:var(--neutral-700, currentColor); background-color:var(--neutral-100, transparent);"
+            {% if not book.isbn13 %}disabled{% endif %}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                  stroke="currentColor" stroke-width="1.5" fill="none"/>
+        </svg>
+    </button>
+</div>
     {% endfor %}
 </div>
 

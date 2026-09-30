@@ -81,7 +81,7 @@
                     </td>
                     {% else %}
                     <td>
-                        <div class="publisher-name">{{ pub.name }}</div>
+                        <div class="publisher-name publisher-link"><a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer">{{ pub.name }}</a></div>
                     </td>
                     <td>
                         <a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer" class="publisher-link">

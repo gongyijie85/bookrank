@@ -400,7 +400,7 @@ class ZhipuTranslationService:
         return prompts.get(field_type, prompts['text'])
 
     def _get_client(self):
-        """懒加载客户端（按 provider 选择 zhipuai / openai 兼容客户端）"""
+        """懒加载客户端（按 provider 选择 openai 兼容客户端）"""
         if self._client is None:
             if not self.api_key:
                 if self.provider == 'siliconflow':
@@ -420,18 +420,24 @@ class ZhipuTranslationService:
                     )
                     logger.info('硅基流动(Hunyuan-MT-7B)客户端初始化成功')
                 else:
-                    from zhipuai import ZhipuAI
+                    from openai import OpenAI
 
                     # 显式超时：SDK 默认超时过长（可达数百秒），后台批量同步时
                     # 单次翻译挂起会成倍放大（每本书 2 个字段×重试），必须封顶。
-                    self._client = ZhipuAI(api_key=self.api_key, timeout=60.0)
+                    # max_retries=3 对齐旧智谱 SDK 默认重试次数。
+                    self._client = OpenAI(
+                        api_key=self.api_key,
+                        base_url='https://open.bigmodel.cn/api/paas/v4/',
+                        timeout=60.0,
+                        max_retries=3,
+                    )
                     logger.info('智谱AI客户端初始化成功')
             except ImportError as e:
-                lib = 'openai' if self.provider == 'siliconflow' else 'zhipuai'
+                lib = 'openai'
                 logger.error(f'{lib}库未安装: {e}，请运行: pip install {lib}')
                 return None
             except (ConnectionError, TimeoutError, RuntimeError) as e:
-                lib = 'openai' if self.provider == 'siliconflow' else 'zhipuai'
+                lib = 'openai'
                 logger.error(f'{lib}库初始化失败: {e}，请运行: pip install {lib}')
                 return None
 

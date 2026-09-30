@@ -37,9 +37,13 @@
         <span class="awards-cover-year">{{ book.year }}</span>
         {% endif %}
         {% if not in_rail %}
+        {% set isbn = book.isbn13 or '' %}
         <button class="card-favorite btn-favorite"
-                data-book-id="{{ book.id }}"
-                aria-label="{{ _('收藏') }} {{ book.title }}"
+                data-isbn="{{ isbn }}"
+                data-book-id="{{ isbn }}"
+                {% if not isbn %}disabled{% endif %}
+                aria-label="{{ _('收藏') }} {{ book.title }}{% if not isbn %}{% if get_locale() == 'zh' %}（缺少 ISBN，无法收藏）{% else %} (missing ISBN, cannot favorite){% endif %}{% endif %}"
+                {% if not isbn %}title="{% if get_locale() == 'zh' %}该书缺少 ISBN，无法收藏{% else %}This book is missing an ISBN and cannot be favorited{% endif %}"{% endif %}
                 aria-pressed="false">
             <svg class="icon" width="18" height="18"><use href="#icon-heart"/></svg>
         </button>
@@ -477,8 +481,9 @@
             const favBtn = e.target.closest('.btn-favorite');
             if (favBtn) {
                 e.stopPropagation();
-                const bookId = favBtn.getAttribute('data-book-id');
-                if (typeof toggleFavorite === 'function') toggleFavorite(favBtn, bookId);
+                if (favBtn.disabled) return;
+                const isbn = favBtn.getAttribute('data-isbn');
+                if (typeof toggleFavorite === 'function') toggleFavorite(favBtn, isbn);
                 return;
             }
             // Native links keep their own navigation and modifier-click behavior.

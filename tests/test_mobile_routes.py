@@ -939,8 +939,12 @@ class TestMobileWeeklyParityAndCsp:
         assert 'm-report-hero' in body
         # 英雄区首格是权威「上榜记录」（原「总书数」措辞与 API 语义不符，已改名）。
         assert '上榜记录' in body
-        # 兜底目标取自 mobile.js 常量，模板只负责开关标记；两张封面图都应带上
-        assert body.count('data-cover-fallback') == 2
+        # 普通列表沿用图片兜底；推荐封面失败时改用中性文字占位。
+        assert body.count('data-cover-fallback') == 1
+        assert 'class="m-rec-img"' in body
+        assert 'class="m-rec-placeholder"' in body
+        assert '暂无封面' in body
+        assert '/cache/images/fav.jpg' in body
 
     def test_weekly_templates_have_no_csp_blocked_onerror(self) -> None:
         """移动端周报模板不得再使用内联 onerror（CSP 下永不执行）"""

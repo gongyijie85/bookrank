@@ -377,45 +377,220 @@
         }
     }
 
-    // ===== Favorite Functions =====
+// ===== Favorite Functions =====
+
+    /**
+     * Normalize an ISBN: strip spaces/hyphens, uppercase X.
+     * Accepts exactly 10 digits (last may be X) or exactly 13 digits. No checksum.
+     * @param {string} raw - Raw ISBN string
+     * @returns {string|null} Normalized ISBN or null if invalid/missing
+     */
+    function normalizeIsbn(raw) {
+        if (!raw || typeof raw !== 'string') return null;
+        const cleaned = raw.replace(/[\s-]/g, '').toUpperCase();
+        if (/^\d{9}[0-9X]$/.test(cleaned)) return cleaned;
+        if (/^\d{13}$/.test(cleaned)) return cleaned;
+        return null;
+    }
+
+    /**
+     * Get bilingual label for favorite button state
+     * @param {boolean} isActive - Whether the book is currently favorited
+     * @returns {string}
+     */
+    function getFavoriteLabel(isActive) {
+        const lang = getCurrentLang ? getCurrentLang() : 'zh';
+        if (lang === 'en') {
+            return isActive ? 'Remove from favorites' : 'Add to favorites';
+        }
+        return isActive ? '取消收藏' : '添加收藏';
+    }
+
+    // Module-level shared touchedButtons WeakSet so hydration never overwrites user mutations
+    const _touchedButtons = new WeakSet();
 
     /**
      * Toggle favorite status for a book
      * @param {HTMLElement} button - Favorite button element
-     * @param {string} bookId - Book ID
+     * @param {string} bookId - Book ID / ISBN
      */
     function toggleFavorite(button, bookId) {
         if (!button) return;
 
+        const normalized = normalizeIsbn(bookId);
+        if (!normalized) {
+            const lang = getCurrentLang && getCurrentLang() === 'en' ? 'en' : 'zh';
+            const msg = lang === 'en' ? 'Invalid ISBN' : 'ISBN 无效';
+            button.disabled = true;
+            button.title = msg;
+            button.setAttribute('aria-label', msg);
+            showToast(msg, 'error');
+            return;
+        }
+
+        // Pending guard: prevent duplicate requests for same ISBN across all peer buttons
+        const peers = document.querySelectorAll(`.btn-favorite[data-isbn]`);
+        let pendingPeer = false;
+        peers.forEach(btn => {
+            if (normalizeIsbn(btn.getAttribute('data-isbn')) === normalized && btn.dataset.pending === 'true') {
+                pendingPeer = true;
+            }
+        });
+        if (pendingPeer) return;
+
+        // Mark clicked button + ALL buttons of same normalized data-isbn as touched and pending
+        peers.forEach(btn => {
+            if (normalizeIsbn(btn.getAttribute('data-isbn')) === normalized) {
+                _touchedButtons.add(btn);
+                btn.dataset.pending = 'true';
+                btn.disabled = true;
+                btn.setAttribute('aria-busy', 'true');
+            }
+        });
+
         const isActive = button.classList.contains('active');
         const method = isActive ? 'DELETE' : 'POST';
-        const url = isActive ? `/api/favorites/${bookId}` : '/api/favorites';
+        const url = isActive ? `/api/favorites/${normalized}` : '/api/favorites';
 
         fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
-            body: method === 'POST' ? JSON.stringify({ isbn: bookId }) : undefined,
+            body: method === 'POST' ? JSON.stringify({ isbn: normalized }) : undefined,
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('HTTP error: ' + res.status);
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
-                button.classList.toggle('active');
-                const nowActive = button.classList.contains('active');
-                // 按钮里是 <svg class="icon"><use href="#icon-heart"/></svg>，没有 <i> 节点：
-                // 旧代码 querySelector('i') 恒为 null，实心图标从未换上过。
-                const iconUse = button.querySelector('use');
-                if (iconUse) {
-                    iconUse.setAttribute('href', nowActive ? '#icon-heart-filled' : '#icon-heart');
+                const nowActive = !isActive;
+                // Synchronize all same-ISBN buttons
+                peers.forEach(btn => {
+                    if (normalizeIsbn(btn.getAttribute('data-isbn')) !== normalized) return;
+                    if (nowActive) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                    const iconUse = btn.querySelector('use');
+                    if (iconUse) {
+                        iconUse.setAttribute('href', nowActive ? '#icon-heart-filled' : '#icon-heart');
+                    }
+                    btn.setAttribute('aria-pressed', nowActive ? 'true' : 'false');
+                    btn.title = getFavoriteLabel(nowActive);
+                    btn.setAttribute('aria-label', getFavoriteLabel(nowActive));
+                    btn.classList.add('heart-beat');
+                    setTimeout(() => btn.classList.remove('heart-beat'), 500);
+                });
+
+                // Update count from API response
+                const total = data.data && data.data.total;
+                if (typeof total === 'number') {
+                    const countEl = document.querySelector('[data-favorite-count]');
+                    if (countEl) countEl.textContent = String(total);
                 }
-                button.setAttribute('aria-pressed', nowActive ? 'true' : 'false');
-                button.classList.add('heart-beat');
-                setTimeout(() => button.classList.remove('heart-beat'), 500);
-                showToast(nowActive ? '已添加到收藏' : '已取消收藏', 'success');
+
+                const lang = getCurrentLang && getCurrentLang() === 'en' ? 'en' : 'zh';
+                const toastMsg = window.t
+                    ? window.t(nowActive ? 'favorite_add' : 'favorite_remove', lang)
+                    : (nowActive ? (lang === 'en' ? 'Added to favorites' : '已添加到收藏') : (lang === 'en' ? 'Removed from favorites' : '已取消收藏'));
+                showToast(toastMsg, 'success');
             } else {
-                showToast(data.message || '操作失败', 'error');
+                const lang = getCurrentLang && getCurrentLang() === 'en' ? 'en' : 'zh';
+                const errMsg = data.message || (lang === 'en' ? 'Operation failed' : '操作失败');
+                showToast(errMsg, 'error');
             }
         })
-        .catch(() => showToast('网络错误，请重试', 'error'));
+        .catch(() => {
+            const lang = getCurrentLang && getCurrentLang() === 'en' ? 'en' : 'zh';
+            showToast(lang === 'en' ? 'Network error, please retry' : '网络错误，请重试', 'error');
+        })
+        .finally(() => {
+            // Restore enabled valid peers
+            peers.forEach(btn => {
+                if (normalizeIsbn(btn.getAttribute('data-isbn')) !== normalized) return;
+                delete btn.dataset.pending;
+                btn.disabled = false;
+                btn.removeAttribute('aria-busy');
+            });
+        });
+    }
+
+    /**
+     * Hydrate favorite buttons from server data. Runs exactly once.
+     */
+    let _favHydrated = false;
+    function hydrateFavorites() {
+        if (_favHydrated) return;
+        const buttons = document.querySelectorAll('.btn-favorite');
+        if (buttons.length === 0) return;
+        _favHydrated = true;
+
+        // Disable invalid buttons immediately, before GET
+        buttons.forEach(btn => {
+            const rawIsbn = btn.getAttribute('data-isbn');
+            const normalized = normalizeIsbn(rawIsbn);
+            if (!normalized) {
+                btn.disabled = true;
+                const lang = getCurrentLang && getCurrentLang() === 'en' ? 'en' : 'zh';
+                const msg = lang === 'en' ? 'Invalid ISBN' : 'ISBN 无效';
+                btn.title = msg;
+                btn.setAttribute('aria-label', msg);
+            } else {
+                btn._normalizedIsbn = normalized;
+            }
+        });
+
+        fetch('/api/favorites', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('HTTP error: ' + res.status);
+            return res.json();
+        })
+        .then(data => {
+            if (!data.success) throw new Error('API failure');
+            const favList = (data.data && data.data.favorites) || [];
+            const byISBN = {};
+            favList.forEach(fav => {
+                const norm = normalizeIsbn(fav.isbn);
+                if (norm) byISBN[norm] = true;
+            });
+
+            buttons.forEach(btn => {
+                if (_touchedButtons.has(btn)) return;
+                const normalized = btn._normalizedIsbn;
+                if (!normalized) return;
+                const isActive = !!byISBN[normalized];
+                if (isActive) {
+                    btn.classList.add('active');
+                    const iconUse = btn.querySelector('use');
+                    if (iconUse) iconUse.setAttribute('href', '#icon-heart-filled');
+                    btn.setAttribute('aria-pressed', 'true');
+                    btn.title = getFavoriteLabel(true);
+                    btn.setAttribute('aria-label', getFavoriteLabel(true));
+                } else {
+                    btn.classList.remove('active');
+                    const iconUse = btn.querySelector('use');
+                    if (iconUse) iconUse.setAttribute('href', '#icon-heart');
+                    btn.setAttribute('aria-pressed', 'false');
+                    btn.title = getFavoriteLabel(false);
+                    btn.setAttribute('aria-label', getFavoriteLabel(false));
+                }
+            });
+
+            // Update count from GET total
+            const total = data.data && data.data.total;
+            if (typeof total === 'number') {
+                const countEl = document.querySelector('[data-favorite-count]');
+                if (countEl) countEl.textContent = String(total);
+            }
+        })
+        .catch(() => {
+            const lang = getCurrentLang && getCurrentLang() === 'en' ? 'en' : 'zh';
+            showToast(lang === 'en' ? 'Failed to load favorites' : '加载收藏失败', 'error');
+        });
     }
 
     // ===== Filter Functions =====
@@ -570,6 +745,7 @@
         initTheme();
         initLanguage();
         initImageErrorHandler();
+        hydrateFavorites();
         if (window.BookRankCover && typeof window.BookRankCover.bind === 'function') {
             window.BookRankCover.bind(document);
         }

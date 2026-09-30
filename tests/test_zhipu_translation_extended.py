@@ -13,7 +13,12 @@
 
 import json
 import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
+
+import httpx
+import pytest
+from openai import OpenAI as ActualOpenAI
 
 from app.services.zhipu_translation_service import (
     HybridTranslationService,
@@ -38,57 +43,173 @@ def _make_zhipu_service(api_key: str = 'test-key', app=None):
     return service, mock_client
 
 
+def _provider_app(provider: str, base_url: str | None = None) -> SimpleNamespace:
+    config = {'TRANSLATION_PROVIDER': provider}
+    if base_url is not None:
+        config['SILICONFLOW_BASE_URL'] = base_url
+    return SimpleNamespace(config=config)
+
+
 class TestGetClientErrorPaths:
     def test_import_error_returns_none(self):
-        service = ZhipuTranslationService(api_key='test-key')
-        service._client = None
-        with (
-            patch.dict('sys.modules', {'zhipuai': None}),
-            patch('builtins.__import__', side_effect=ImportError('No module')),
-        ):
-            result = service._get_client()
-            assert result is None
+        with patch.dict('os.environ', {}, clear=True):
+            service = ZhipuTranslationService(api_key='test-key', app=_provider_app('zhipu'))
+            service._client = None
+            with patch.dict('sys.modules', {'openai': None}):
+                assert service._get_client() is None
 
-    def test_connection_error_returns_none(self):
-        service = ZhipuTranslationService(api_key='test-key')
-        service._client = None
-        mock_zhipu_module = MagicMock()
-        mock_zhipu_module.ZhipuAI.side_effect = ConnectionError('Connection refused')
-        with patch.dict('sys.modules', {'zhipuai': mock_zhipu_module}):
-            result = service._get_client()
-            assert result is None
-
-    def test_runtime_error_returns_none(self):
-        service = ZhipuTranslationService(api_key='test-key')
-        service._client = None
-        mock_zhipu_module = MagicMock()
-        mock_zhipu_module.ZhipuAI.side_effect = RuntimeError('Init failed')
-        with patch.dict('sys.modules', {'zhipuai': mock_zhipu_module}):
-            result = service._get_client()
-            assert result is None
+    @pytest.mark.parametrize('exc_type', [ConnectionError, RuntimeError, TimeoutError])
+    def test_constructor_error_returns_none(self, exc_type):
+        with patch.dict('os.environ', {}, clear=True):
+            service = ZhipuTranslationService(api_key='test-key', app=_provider_app('zhipu'))
+            service._client = None
+            with patch('openai.OpenAI', side_effect=exc_type('init failed')):
+                assert service._get_client() is None
 
     def test_no_api_key_returns_none(self):
-        service = ZhipuTranslationService(api_key=None)
-        service._client = None
         with patch.dict('os.environ', {}, clear=True):
-            result = service._get_client()
-            assert result is None
+            service = ZhipuTranslationService(api_key=None, app=_provider_app('zhipu'))
+            assert service._get_client() is None
 
     def test_successful_client_creation(self):
-        service = ZhipuTranslationService(api_key='test-key')
-        service._client = None
-        mock_zhipu_module = MagicMock()
-        mock_client_instance = MagicMock()
-        mock_zhipu_module.ZhipuAI.return_value = mock_client_instance
-        with patch.dict('sys.modules', {'zhipuai': mock_zhipu_module}):
-            result = service._get_client()
-            assert result is mock_client_instance
-            assert service._client is mock_client_instance
+        with patch.dict('os.environ', {}, clear=True):
+            service = ZhipuTranslationService(api_key='test-key', app=_provider_app('zhipu'))
+            service._client = None
+            sentinel = MagicMock()
+            with patch('openai.OpenAI', return_value=sentinel) as mock_openai:
+                result = service._get_client()
+                assert result is sentinel
+                assert service._client is sentinel
+                mock_openai.assert_called_once_with(
+                    api_key='test-key',
+                    base_url='https://open.bigmodel.cn/api/paas/v4/',
+                    timeout=60.0,
+                    max_retries=3,
+                )
+                assert service._get_client() is sentinel
+                mock_openai.assert_called_once_with(
+                    api_key='test-key',
+                    base_url='https://open.bigmodel.cn/api/paas/v4/',
+                    timeout=60.0,
+                    max_retries=3,
+                )
 
     def test_cached_client_returned_directly(self):
         service, mock_client = _make_zhipu_service()
-        result = service._get_client()
-        assert result is mock_client
+        with patch('openai.OpenAI') as mock_openai:
+            assert service._get_client() is mock_client
+            mock_openai.assert_not_called()
+
+    def test_siliconflow_constructor_custom_base_url_keeps_sdk_retries(self):
+        custom_base = 'https://custom.siliconflow.example/v1'
+        with patch.dict('os.environ', {}, clear=True):
+            service = ZhipuTranslationService(
+                api_key='sf-synthetic-key',
+                app=_provider_app('siliconflow', custom_base),
+            )
+            service._client = None
+            sentinel = MagicMock()
+            with patch('openai.OpenAI', return_value=sentinel) as mock_openai:
+                assert service._get_client() is sentinel
+                mock_openai.assert_called_once_with(
+                    api_key='sf-synthetic-key',
+                    base_url=custom_base,
+                    timeout=60.0,
+                )
+                assert 'max_retries' not in mock_openai.call_args.kwargs
+
+
+class TestOpenAIChatCompletionTransport:
+    @pytest.mark.parametrize(
+        ('provider', 'api_key', 'base_url', 'expected_retries'),
+        [
+            ('zhipu', 'synthetic-zhipu-key', None, 3),
+            ('siliconflow', 'synthetic-sf-key', 'https://api.siliconflow.cn/v1', 2),
+        ],
+    )
+    def test_translate_posts_chat_completion(self, provider, api_key, base_url, expected_retries):
+        captured = {'n': 0, 'request': None, 'sdk': None, 'http': None}
+        real_openai = ActualOpenAI
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured['n'] += 1
+            captured['request'] = request
+            model_name = 'glm-4.7-flash' if provider == 'zhipu' else 'tencent/Hunyuan-MT-7B'
+            return httpx.Response(
+                200,
+                json={
+                    'id': 'chatcmpl-synthetic',
+                    'object': 'chat.completion',
+                    'created': 1700000000,
+                    'model': model_name,
+                    'choices': [
+                        {
+                            'index': 0,
+                            'message': {'role': 'assistant', 'content': '这是一本书。'},
+                            'finish_reason': 'stop',
+                        }
+                    ],
+                },
+            )
+
+        def factory(*args, **kwargs):
+            http_client = httpx.Client(transport=httpx.MockTransport(handler))
+            captured['http'] = http_client
+            client = real_openai(*args, **kwargs, http_client=http_client)
+            captured['sdk'] = client
+            return client
+
+        zhipuai_module = MagicMock()
+        zhipuai_module.ZhipuAI.return_value = None
+        service = None
+        try:
+            with (
+                patch.dict('os.environ', {}, clear=True),
+                patch.dict('sys.modules', {'zhipuai': zhipuai_module}),
+                patch('openai.OpenAI', side_effect=factory),
+            ):
+                service = ZhipuTranslationService(
+                    api_key=api_key,
+                    app=_provider_app(provider, base_url),
+                )
+                result = service.translate('A book.', field_type='text')
+            assert result == '这是一本书。'
+            request = captured['request']
+            if provider == 'zhipu':
+                expected_url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+                expected_messages = [
+                    {'role': 'system', 'content': service._get_prompt_for_field('text')},
+                    {'role': 'user', 'content': 'A book.'},
+                ]
+            else:
+                current_base = (service.base_url or 'https://api.siliconflow.cn/v1').rstrip('/')
+                expected_url = current_base + '/chat/completions'
+                expected_messages = [
+                    {
+                        'role': 'user',
+                        'content': service._build_hunyuan_prompt('A book.', 'zh', 'text', None),
+                    }
+                ]
+            assert request.method == 'POST'
+            assert str(request.url) == expected_url
+            assert request.headers['Authorization'] == f'Bearer {api_key}'
+            payload = json.loads(request.content)
+            assert payload['model'] == service.model
+            assert payload['messages'] == expected_messages
+            assert request.extensions['timeout'] == {
+                'connect': 60.0,
+                'read': 60.0,
+                'write': 60.0,
+                'pool': 60.0,
+            }
+            assert captured['sdk'].max_retries == expected_retries
+            assert captured['n'] == 1
+            zhipuai_module.ZhipuAI.assert_not_called()
+        finally:
+            if captured['sdk'] is not None:
+                captured['sdk'].close()
+            if captured['http'] is not None:
+                captured['http'].close()
 
 
 class TestGetCacheServiceErrorPaths:

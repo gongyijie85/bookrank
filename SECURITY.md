@@ -77,13 +77,9 @@ BookRank 使用 GitHub Private Vulnerability Reporting 接收安全漏洞报告�
 
 CI 已接入 `pip-audit`（`Dependency Vulnerability Audit` job），**已是 branch protection 的必需检查**。
 
-门禁语义为 **triage gate（例外登记）**：漏洞按公告 ID 逐一登记，
-**未登记的漏洞 → job 失败 → 阻塞合并**；已登记的说明已评估，仅在日志中输出
-`N ignored` 保持可见，**不会被静默吞掉**。例外清单维护在
-`.github/workflows/ci.yml` 的 `dependency-audit` job 中（与理由放在一起，便于评审）。
-
-**基线**：初次扫描 3 个包 / 12 条 → 升级 mistune 后 2 个包 / 11 条 → 移除 deep-translator 后
-**1 个包 / 10 条记录（pyjwt，对应 6 个不同公告 ID，pip-audit 存在重复计数；均不可达，见下）**。
+开发与生产依赖分别执行 `pip-audit`，不使用漏洞忽略参数。
+任一审计失败即阻塞合并；不把此前的例外登记当作当前安全检查通过的证据。
+命令维护在 `.github/workflows/ci.yml` 的 `dependency-audit` job 中。
 
 ### ✅ 已处理
 
@@ -111,32 +107,14 @@ OSV 原文（`https://osv.dev/vulnerability/PYSEC-2022-252`）：
 
 **结论**：已移除，并在 `requirements*.txt` 与模块 docstring 中写明原因，**在出现可信发布之前不要重新加入**。
 
-### ⚠️ pyjwt 2.8.0（10 条记录 / 6 个公告 ID）：无升级路径，且已验证**不可达**
+### 移除旧智谱 SDK 与 PyJWT 审计例外
 
-- **为何修不了**：由 `zhipuai==2.1.5.20250825` 锁定 `pyjwt>=2.8.0,<2.9.0`，
-  而 zhipuai 已是 PyPI 最新版；修复版本需 2.12+/2.13，与上游约束冲突。
-- **可达性分析（关键）**：本仓库代码**完全没有 import jwt**。
-  zhipuai 内部仅在 `zhipuai/core/_jwt_token.py:26` 调用 `jwt.encode(...)`
-  （生成调用智谱 API 的鉴权令牌），**从不执行 decode / 验签、不使用
-  `PyJWKClient`、不处理 `algorithms` 白名单**。
-- 而 OSV 上这些公告（含 4 条 HIGH）**全部位于解码/验签侧**：
+2026-09-30 的发布检查发现旧 `zhipuai` SDK 限制 `pyjwt>=2.8.0,<2.9.0`，
+无法解析到修复版本。项目改用已有的 `openai` 依赖连接
+[智谱官方 OpenAI 兼容接口](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)，
+并从开发、生产依赖中移除 `zhipuai`，同时删除此前的 PyJWT 忽略清单。
 
-  | 公告 | 等级 | 触发前提 | 本项目是否满足 |
-  |---|---|---|---|
-  | CVE-2026-32597（crit 头扩展） | HIGH | 解码并校验 token | ❌ 仅 encode |
-  | CVE-2017-11424 / CVE-2022-29217（密钥混淆） | HIGH | 验签时公钥格式处理 | ❌ 仅 encode |
-  | CVE-2026-48526（JWK 当 HMAC 密钥伪造 HS256） | HIGH | 解码时混用密钥族 | ❌ 仅 encode |
-  | CVE-2026-48522（PyJWKClient SSRF/file） | MODERATE | 使用 JWKS 客户端拉取密钥 | ❌ 未使用 |
-  | CVE-2026-48523（算法白名单绕过） | MODERATE | 用 PyJWK/PyJWKClient 解码 | ❌ 未使用 |
-  | CVE-2026-48524/48525、CVE-2025-45768 | MODERATE/LOW | 解码侧 DoS | ❌ 仅 encode |
-
-  📎 出处：<https://osv.dev/vulnerability/PYSEC-2026-120> 等（OSV / GHSA 记录）
-
-**结论**：当前评级为**不可达**（accepted risk）。一旦出现下列任一变化需重新评估：
-zhipuai 放宽 pyjwt 上限（应立即升级）、或引入任何 **JWT 校验/解码** 场景（届时必须先升级）。
-
-**跟踪动作**：
-
-- 关注 zhipuai 新版本是否放宽 `pyjwt` 上限，放宽后立即升级，并**把相应 ID 从 CI 的例外表中移除**。
-- **新增例外必须同时在本文件写明理由与重新评估触发条件**，否则不得加入 CI 例外表。
-- 未来若引入 JWT **校验/解码**场景，上述 4 条 HIGH 将由"不可达"变为可达，必须先升级 pyjwt 再落地。
+该变更保留智谱模型、密钥配置、60 秒超时与 SDK 的 3 次重试；硅基流动配置保持不变。
+翻译缓存、回退与业务重试仍沿用现有实现，不新增生产依赖。
+真实客户端配合本地 MockTransport 验证请求路径、Bearer 鉴权、模型、消息和响应解析；
+这些测试不代表真实供应商服务调用验收。

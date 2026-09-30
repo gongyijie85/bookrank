@@ -70,6 +70,7 @@
    这里与桌面端同口径：details 正文必须至少有一侧非空、且不是占位串/语言标记。
    注意 data-isbn / data-book-index 等钩子保持在容器上，JS 懒加载行为不变。 #}
 {% set _has_details_tab = detail_text and detail_text not in PLACEHOLDER_TEXTS %}
+{% if not _has_details_tab %}<p class="m-detail-empty">{% if get_locale() == 'zh' %}暂无更多信息{% else %}No further information{% endif %}</p>{% endif %}
 <!-- Tab 切换：图书简介 / 详细信息 -->
 <div class="m-detail-tabs-wrapper"
      data-isbn="{{ book.isbn13 or book.isbn10 or '' }}"

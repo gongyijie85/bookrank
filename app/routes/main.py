@@ -62,6 +62,35 @@ from ..utils.service_helpers import (
 
 main_bp = Blueprint('main', __name__)
 
+# 读者 HTML 入口才建立签名会话。main 上的 /api/* 与其它 API 蓝图不在此列。
+_READER_SESSION_ENDPOINTS = frozenset(
+    {
+        'main.index',
+        'main.book_detail',
+        'main.search_page',
+        'main.new_books',
+        'main.new_book_detail',
+        'main.awards',
+        'main.award_book_detail',
+        'main.publishers',
+        'main.profile',
+        'main.weekly_reports',
+        'main.weekly_report_detail',
+        'main.rankings',
+    }
+)
+
+
+@main_bp.before_request
+def _ensure_reader_signed_session() -> None:
+    """缺失时写入签名 session_id；已有签名 ID 保持不变。"""
+    if request.endpoint not in _READER_SESSION_ENDPOINTS:
+        return
+    from .api import get_session_id
+
+    get_session_id()
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -898,10 +927,29 @@ def openapi_spec():
     )
 
 
+_ABOUT_SOURCE_CRAWLERS = frozenset({'GoogleBooksCrawler', 'OpenLibraryCrawler'})
+
+
 @main_bp.route('/about')
 def about():
     """关于我们页面"""
-    return render_adaptive('about.html')
+    nyt_category_count = len(current_app.config['CATEGORIES'])
+    publisher_count = None
+    source_count = None
+    try:
+        publishers = get_new_book_modules().publisher_manager.get_publishers(active_only=True)
+        source_count = sum(1 for row in publishers if row.crawler_class in _ABOUT_SOURCE_CRAWLERS)
+        publisher_count = len(publishers) - source_count
+    except Exception as e:
+        logger.warning('关于页出版社统计不可用: %s', e)
+    return render_adaptive(
+        'about.html',
+        about_stats={
+            'nyt_category_count': nyt_category_count,
+            'publisher_count': publisher_count,
+            'source_count': source_count,
+        },
+    )
 
 
 def _resolve_new_books_publisher_ids(publishers_data: list[dict], db_publishers: list) -> dict[str, int]:
@@ -1195,12 +1243,17 @@ def book_detail(book_index):
     if book_index < 0 or book_index >= len(books_data):
         return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/')
 
-    book = books_data[book_index]
+    book = books_data[book_index].copy()
 
     isbn = book.get('isbn13') or book.get('isbn10')
     if isbn and validate_isbn(isbn):
         enrich_book_details(book, isbn)
         merge_or_translate_book(book, isbn)
+
+    book['description'] = strip_placeholder(book.get('description'))
+    book['details'] = strip_placeholder(book.get('details'))
+    book['description_zh'] = strip_placeholder(book.get('description_zh'))
+    book['details_zh'] = strip_placeholder(book.get('details_zh'))
 
     return render_adaptive(
         'book_detail.html',
@@ -1218,8 +1271,9 @@ def book_detail(book_index):
 def profile():
     """个人中心 - 收藏与搜索历史（移动端优先，匿名会话）"""
     from ..services.user_service import UserService
+    from .api import get_session_id
 
-    session_id = request.cookies.get('session_id', 'anonymous')
+    session_id = get_session_id()
     service = UserService()
     favorites = service.get_favorites(session_id)
     search_history = service.get_search_history(session_id, limit=10)
@@ -1419,7 +1473,9 @@ def weekly_report_detail(date):
             if not report:
                 return render_adaptive('error.html', message='周报不存在', back_url='/reports/weekly')
 
-        session_id = request.cookies.get('session_id', 'anonymous')
+        from .api import get_session_id
+
+        session_id = get_session_id()
         user_agent = request.user_agent.string[:500]
         ip_address = hash_client_ip()
 
@@ -1498,7 +1554,9 @@ def export_weekly_report(date):
         if not buffer:
             return render_adaptive('error.html', message=config['error_message'], back_url=f'/reports/weekly/{date}')
 
-        session_id = request.cookies.get('session_id', 'anonymous')
+        from .api import get_session_id
+
+        session_id = get_session_id()
         user_agent = request.user_agent.string[:500]
         ip_address = hash_client_ip()
 

@@ -145,6 +145,7 @@
                 <p class="detail-intro-empty" data-i18n="no_description">{{ _('暂无简介') }}</p>
                 {% endif %}
             </section>
+{% if not _has_details %}<p class="detail-intro-empty">{% if get_locale() == 'zh' %}暂无更多信息{% else %}No further information{% endif %}</p>{% endif %}
 
             <!-- 元信息定义列表（原为 7 张等高卡片，占满首屏） -->
             <dl class="detail-meta">
