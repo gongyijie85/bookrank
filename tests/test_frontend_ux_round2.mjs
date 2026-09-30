@@ -30,7 +30,7 @@ function harness(url = 'https://bookrank.test/awards?view=list&lang=en&page=4&pe
   const context = vm.createContext({ document, window, location: window.location, history, URL, URLSearchParams, console, showLoading() {}, setTimeout() {}, navigator: {}, sessionStorage: { getItem() { return null; }, setItem() {} } });
   return { document, window, ids, selectors, context, url: () => new URL(window.location.href) };
 }
-function scripts(html) { return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]); }
+function scripts(html) { return [...html.matchAll(/<script(?=[ \t\n\f\r/>])(?:[^>]*>)([\s\S]*?)<\/script(?=[ \t\n\f\r/>])[^>]*>/gi)].map(match => match[1]); }
 function run(script, h) { assert.ok(script, 'actual source script must exist'); vm.runInContext(script.replace(/\{\{\s*get_locale\(\)\s*\}\}/g, 'en').replace(/\{\{\s*_locale\s*\}\}/g, 'en'), h.context); h.document.fire('DOMContentLoaded'); }
 function awardsHarness(grid) {
   const h = harness();
@@ -98,6 +98,20 @@ test('awards real handler leaves native modifier links intact and delegates ISBN
 test('source script extractor handles upper/mixed case and never scripture tags', () => {
   const html = '<SCRIPT nonce="test">upper()</SCRIPT><script>lower()</script><ScRiPt>mixed()</sCrIpT><scripture>never()</scripture>';
   assert.deepEqual(scripts(html), ['upper()', 'lower()', 'mixed()']);
+});
+
+test('script extractor accepts actual HTML end-tag whitespace and ignored attributes', () => {
+  for (const closing of ['</script >', '</SCRIPT\t>', '</script\n>', '</script\f>', '</script\r>', '</script data-ignored="x">', '</script/>', '</script/ignored>']) {
+    assert.deepEqual(scripts('<ScRiPt nonce="test">body()' + closing), ['body()'], 'browser-tolerated closing tag: ' + JSON.stringify(closing));
+  }
+});
+
+test('script extractor rejects scripture/script-foo tag names at both boundaries', () => {
+  const html = '<script-foo>fake0()</script-foo><scripture>fake1()</scripture><script>good()</script-foo>body</scripture>end</script><script\t>last()</script >';
+  assert.deepEqual(scripts(html), ['good()</script-foo>body</scripture>end', 'last()']);
+  for (const fake of ['<script\u00a0>ignored()</script>', '<script\v>ignored()</script>', '<script nonce="x"</script>', '<script>ignored()</script\u00a0>']) {
+    assert.deepEqual(scripts(fake), [], 'only a complete tag with an HTML ASCII name boundary is a script: ' + JSON.stringify(fake));
+  }
 });
 
 test('mock rejects nonempty HTML sink rather than offering pretend sanitization; empty clears nodes', () => {
