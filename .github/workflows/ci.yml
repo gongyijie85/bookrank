@@ -176,33 +176,14 @@ jobs:
           pip install -r requirements.txt
           pip install pip-audit
 
-      # 例外登记表（triage gate）——本 job 为**必需检查**，未列入例外的漏洞会阻塞合并。
-      #
-      # 下列 6 个 pyjwt 公告经评估**在当前依赖图中不可达**，详见 SECURITY.md「依赖漏洞现状」：
-      #   1. 本仓库代码不 import jwt；
-      #   2. zhipuai 仅在 core/_jwt_token.py:26 调用 jwt.encode()（生成调用智谱 API 的
-      #      鉴权令牌），从不 decode / 验签，不使用 PyJWKClient；
-      #   3. 这些公告（含 4 条 HIGH）全部位于**解码/验签侧**；
-      #   4. 且 zhipuai 已将 pyjwt 锁定在 >=2.8.0,<2.9.0，修复版本（2.12+/2.13）无法安装。
-      #
-      # ⚠️ 维护约定：
-      #   - 新增例外必须同时在 SECURITY.md 写明理由与**重新评估的触发条件**；
-      #   - 一旦 zhipuai 放宽 pyjwt 上限，应立即升级并**从例外表中移除**这些 ID；
-      #   - 未来若引入任何 JWT **校验/解码**场景，这些 HIGH 将变为可达，必须先升级。
+      # 必需检查：开发与生产依赖分别审计；已移除旧 SDK 的 PyJWT 例外。
+      # 不忽略漏洞，也不因审计失败继续合并。
       - name: Audit Python dependencies
         run: |
-          IGNORES=(
-            --ignore-vuln PYSEC-2026-120
-            --ignore-vuln PYSEC-2025-183
-            --ignore-vuln PYSEC-2026-179
-            --ignore-vuln PYSEC-2026-175
-            --ignore-vuln PYSEC-2026-177
-            --ignore-vuln PYSEC-2026-178
-          )
           echo "=== requirements.txt（CI/开发） ==="
-          pip-audit -r requirements.txt --progress-spinner off --desc "${IGNORES[@]}"
+          pip-audit -r requirements.txt --progress-spinner off --desc
           echo "=== requirements-prod.txt（Render 部署集） ==="
-          pip-audit -r requirements-prod.txt --progress-spinner off --desc "${IGNORES[@]}"
+          pip-audit -r requirements-prod.txt --progress-spinner off --desc
 
   deploy:
     name: Deploy to Render & HuggingFace

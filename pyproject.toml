@@ -59,7 +59,6 @@ module = [
     "apscheduler.*",
     "mistune.*",
     "tenacity.*",
-    "zhipuai.*",
     "deep_translator.*",
     "fpdf.*",
     "openpyxl.*",
