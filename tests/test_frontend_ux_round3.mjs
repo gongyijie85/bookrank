@@ -42,6 +42,27 @@ function maxWidthCss(css, width) {
   }
   return blocks.join('\n');
 }
+
+test('home English filter labels can wrap under the actual shared stylesheet cascade', () => {
+  const result = render('index.html', { books: [], categories: { 'hardcover-fiction': '小说' }, current_category: 'hardcover-fiction', category_names_en: { 'hardcover-fiction': 'Hardcover Fiction' }, monthly_categories: [], search_query: '', search_unavailable_count: 0, is_cached: false, data_load_failed: false, search_partial: false }, '/?lang=en', 'en');
+  const labels = result.nodes.filter(node => node.tag === 'label' && hasClass(node, 'filter-label'));
+  assert.equal(labels.length, 2);
+  assert.ok(labels.some(node => node.attrs.for === 'search-input' && node.attrs['data-i18n'] === 'filter_search_scope'), 'the real search-scope label must use its English translation hook');
+  assert.ok(labels.every(node => ancestors(result, node).some(parent => hasClass(parent, 'filter-group'))), 'both competing selectors must match the real SSR labels');
+  const imports = [...source('static/css/app.entry.css').matchAll(/@import\s+['"]([^'"]+)['"]/g)].map(match => match[1]);
+  assert.ok(imports.indexOf('index.css') < imports.indexOf('new-books.css'), 'the shared new-books rule is loaded later');
+  const candidates = [];
+  for (const [order, imported] of imports.entries()) {
+    const css = source('static/css/' + imported);
+    for (const [selector, specificity] of [['.filter-label', 10], ['.filter-group label', 11]]) {
+      const value = ownerRule(css, selector).get('white-space');
+      if (value) candidates.push({ value: value.replace(/\s*!important\s*$/, ''), important: /!important\s*$/.test(value), specificity, order });
+    }
+  }
+  assert.ok(candidates.some(rule => rule.value === 'nowrap' && rule.specificity === 11), 'retain the actual later shared label conflict in the regression');
+  candidates.sort((a, b) => Number(a.important) - Number(b.important) || a.specificity - b.specificity || a.order - b.order);
+  assert.equal(candidates.at(-1).value, 'normal', 'winning declaration must allow the complete English label to wrap at 320px');
+});
 class Element {
   constructor() { this.attrs = new Map(); this.listeners = new Map(); this.textContent = ''; this.style = {}; this.dataset = {}; }
   setAttribute(name, value) { this.attrs.set(name, String(value)); }
