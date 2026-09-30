@@ -52,7 +52,7 @@ jobs:
       - name: Set up Python 3.13
         # tests/test_frontend_weekly_lang_sync.mjs 会 spawnSync python 渲染真实
         # Jinja2 模板；本 job 此前只有 Node，缺解释器/Jinja 会让前端用例直接报错。
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
@@ -128,7 +128,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: 'pip'
@@ -177,7 +177,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: 'pip'
