@@ -12,6 +12,23 @@
     <link rel="alternate" hreflang="zh-CN" href="{{ _canonical_path }}?lang=zh">
     <link rel="alternate" hreflang="en" href="{{ _canonical_path }}?lang=en">
     <link rel="alternate" hreflang="x-default" href="{{ _canonical_path }}">
+    <script nonce="{{ csp_nonce() }}">
+        (function () {
+            var theme = null;
+            try {
+                var stored = localStorage.getItem('theme');
+                if (stored === 'light' || stored === 'dark') {
+                    theme = stored;
+                }
+            } catch (e) {
+                // storage unavailable: ignore and fall back to system preference
+            }
+            if (!theme) {
+                theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
 
     {# Open Graph / Twitter Card / JSON-LD SEO（文案与桌面 base.html 同源，复用同一批 msgid） #}
@@ -57,6 +74,9 @@
 
     <main class="m-page">
         {# 顶部右上角语言切换 #}
+        <button class="m-theme-toggle-btn" id="m-theme-toggle" type="button" aria-label="{{ _('切换主题') }}" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
         <button class="m-lang-globe-btn" id="m-lang-globe" aria-label="{{ _('切换语言') }}" aria-expanded="false" aria-haspopup="true" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         </button>

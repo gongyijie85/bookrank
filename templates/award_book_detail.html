@@ -72,51 +72,6 @@ body.detail-page .main-content {
 }
 </script>
 
-<!-- Page Header -->
-<header class="page-header">
-    <button class="back-button" id="btn-back" aria-label="{{ _('返回') }}">
-        <svg class="icon" width="24" height="24"><use href="#icon-arrow-left"/></svg>
-    </button>
-    <h1 class="page-title"
-        data-en="{{ safe_title_en }}"
-        data-zh="{{ safe_title_zh }}">
-        {{ shown_title }}
-    </h1>
-</header>
-
-<!-- Book Detail Content -->
-<div class="book-detail-content">
-    <!-- 左侧：封面 + 购买链接 -->
-    <div class="detail-left-section">
-        <div class="detail-cover">
-            <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
-                 alt="{{ shown_title }} {{ _('封面') }}"
-                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
-        </div>
-
-        <!-- 购买链接 -->
-        {# 购买链接：迭代路由解析后的 buy_links（AwardBook.buy_links 是裸 JSON 文本列，
-           直接迭代字符串会得到单个字符，href 变成空/无效）。路由只做视图内解析，
-           不改写 ORM 原始列。 #}
-        {% if buy_links %}
-        <div class="detail-buy-links">
-            <h3>{{ _('购买链接') }}</h3>
-            <div class="buy-links-list">
-                {% for link in buy_links %}
-                <a href="{{ link.url }}" class="buy-link" target="_blank" rel="noopener noreferrer">
-                    <svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg>
-                    {{ link.name }}
-                </a>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- 右侧：书籍信息 -->
-    <div class="detail-info-section">
-        {# 标题已在 .page-header 的 h1 里出现过一次，这里不再重复一个大标题
-           （重复标题块只占首屏空间）。 #}
         {# 作者：真正缺失时用与全站卡片一致的本地化兜底（'未知作者' → 'Unknown'），
            不做任何推测/补齐。`award_books.author` 是 NOT NULL，故"缺"在库里表现为
            占位串（'Unknown' / 'N/A' / 空白）而非 NULL。
@@ -134,16 +89,64 @@ body.detail-page .main-content {
         {% set _author_en = _author or 'Unknown' %}
         {% set _shown_author = _author_en if _locale == 'en' else _author_zh %}
 
-        <!-- 简介：排在元信息之前，保证首屏能看到简介开头 -->
-        <div class="detail-intro">
-            {% if _shown_desc %}
-            <p class="detail-intro-text" data-en="{{ _desc_en }}" data-zh="{{ _desc_zh }}">{{ _shown_desc }}</p>
-            {% else %}
-            <p class="detail-intro-empty">{{ _('暂无简介') }}</p>
-            {% endif %}
+<!-- Page Header -->
+<header class="page-header">
+    <button class="back-button" id="btn-back" aria-label="{{ _('返回') }}">
+        <svg class="icon" width="24" height="24"><use href="#icon-arrow-left"/></svg>
+    </button>
+    <h1 class="page-title"
+        data-en="{{ safe_title_en }}"
+        data-zh="{{ safe_title_zh }}">
+        {{ shown_title }}
+    </h1>
+{% if other_title and other_title != shown_title %}<p class="other-title">{{ other_title }}</p>{% endif %}
             <p class="detail-author" data-en="{{ _author_en }}" data-zh="{{ _author_zh }}">{{ _shown_author }}</p>
+</header>
+<!-- Book Detail Content -->
+<div class="book-detail-content">
+    <!-- 左侧：封面 + 购买链接 -->
+    <div class="detail-left-section">
+        <div class="detail-cover">
+            <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+                 alt="{{ shown_title }} {{ _('封面') }}"
+                 data-fallback="{{ url_for('static', filename='default-cover.png') }}">
         </div>
 
+    </div>
+    <!-- 右侧：书籍信息 -->
+    <div class="detail-info-section">
+        <!-- 标签页：面板 id 用 panel-*，与按钮 id（tab-*）严格区分。
+             此前按钮与面板共用同一个 id，重复 id 既是无效 HTML，也让 switchTab
+             找面板时分不清按钮和面板。标签按钮与面板同为 _has_details 条件渲染，
+             没有实质详情时整块（按钮 + 面板）都不出现，不留空标签页。 -->
+        <div class="detail-tabs">
+            <button class="tab-btn active" id="tab-description" data-tab="description" type="button">
+                {{ _('图书简介') }}
+            </button>
+            {% if _has_details %}
+            <button class="tab-btn" id="tab-details" data-tab="details" type="button">
+                {{ _('详细信息') }}
+            </button>
+            {% endif %}
+        </div>
+
+        <!-- 标签页内容 -->
+        <div class="tab-content">
+            <!-- 简介 -->
+            <div class="tab-panel active" id="panel-description">
+                <p data-en="{{ _desc_en }}" data-zh="{{ _desc_zh }}">{{ _shown_desc or _('暂无简介') }}</p>
+            </div>
+
+            <!-- 详细信息：仅在确有实质内容时渲染 -->
+            {% if _has_details %}
+            <div class="tab-panel" id="panel-details">
+                <p id="detail-description">{{ _details }}</p>
+                <p id="detail-loading" style="display: none; color: var(--text-secondary); font-style: italic;">
+                    {{ _('正在获取详细介绍') }}...
+                </p>
+            </div>
+            {% endif %}
+        </div>
         <!-- 元信息：紧凑的定义列表（原为等高卡片网格，占掉首屏） -->
         {{ award_result_label(book.category|award_result_kind(book.award.wikidata_id if book.award else none)) }}
         <dl class="detail-meta">
@@ -191,38 +194,23 @@ body.detail-page .main-content {
             {% endif %}
         </dl>
 
-        <!-- 标签页：面板 id 用 panel-*，与按钮 id（tab-*）严格区分。
-             此前按钮与面板共用同一个 id，重复 id 既是无效 HTML，也让 switchTab
-             找面板时分不清按钮和面板。标签按钮与面板同为 _has_details 条件渲染，
-             没有实质详情时整块（按钮 + 面板）都不出现，不留空标签页。 -->
-        <div class="detail-tabs">
-            <button class="tab-btn active" id="tab-description" data-tab="description" type="button">
-                {{ _('图书简介') }}
-            </button>
-            {% if _has_details %}
-            <button class="tab-btn" id="tab-details" data-tab="details" type="button">
-                {{ _('详细信息') }}
-            </button>
-            {% endif %}
-        </div>
-
-        <!-- 标签页内容 -->
-        <div class="tab-content">
-            <!-- 简介 -->
-            <div class="tab-panel active" id="panel-description">
-                <p data-en="{{ _desc_en }}" data-zh="{{ _desc_zh }}">{{ _shown_desc or _('暂无简介') }}</p>
+        <!-- 购买链接 -->
+        {# 购买链接：迭代路由解析后的 buy_links（AwardBook.buy_links 是裸 JSON 文本列，
+           直接迭代字符串会得到单个字符，href 变成空/无效）。路由只做视图内解析，
+           不改写 ORM 原始列。 #}
+        {% if buy_links %}
+        <div class="detail-buy-links">
+            <h3>{{ _('购买链接') }}</h3>
+            <div class="buy-links-list">
+                {% for link in buy_links %}
+                <a href="{{ link.url }}" class="buy-link" target="_blank" rel="noopener noreferrer">
+                    <svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg>
+                    {{ link.name }}
+                </a>
+                {% endfor %}
             </div>
-
-            <!-- 详细信息：仅在确有实质内容时渲染 -->
-            {% if _has_details %}
-            <div class="tab-panel" id="panel-details">
-                <p id="detail-description">{{ _details }}</p>
-                <p id="detail-loading" style="display: none; color: var(--text-secondary); font-style: italic;">
-                    {{ _('正在获取详细介绍') }}...
-                </p>
-            </div>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
 </div>
 
@@ -711,6 +699,70 @@ body.detail-page .main-content {
         opacity: 1;
         transform: translateY(0);
     }
+}
+</style>
+<style nonce="{{ csp_nonce() }}">
+.page-header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.page-title {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.detail-author,
+.other-title {
+  grid-column: 2;
+  font-family: var(--font-sans);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.book-detail-content {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+}
+
+.detail-left-section {
+  width: 240px;
+  max-width: 100%;
+}
+
+.detail-cover img {
+  object-fit: contain;
+  box-shadow: none;
+}
+
+.detail-info-section {
+  min-width: 0;
+}
+
+.tab-btn,
+.buy-link,
+.back-button {
+  min-width: 44px;
+  min-height: 44px;
+  transform: none !important;
+}
+
+.related-book-title {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .book-detail-content {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 {% endblock %}

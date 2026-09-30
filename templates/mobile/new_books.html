@@ -28,6 +28,8 @@
 {% endif %}
 
 <!-- 简化筛选：出版社 / 分类 / 时间 -->
+<details class="m-advanced-filters">
+    <summary>{{ _('高级筛选') }}</summary>
 <form method="get" action="/new-books" class="m-filter-bar" style="padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;">
     <div style="display:flex;gap:0.5rem;">
         <select name="publisher" class="m-filter-select" style="flex:1;min-height:44px;" aria-label="{{ _('来源') }}" {% if publishers_unavailable %}disabled{% endif %}>
@@ -92,6 +94,34 @@
     </div>
     {% endif %}
 </form>
+</details>
+{% set _nb_status = selected_publication_status or 'all' %}
+{% set _nb_has_applied = selected_publisher or selected_category or (selected_days and selected_days != '') or (_nb_status not in ('', 'all')) or search_query %}
+{% if _nb_has_applied %}
+<div class="m-applied-filters">
+    <span class="m-applied-label">{{ _('已选条件') }}：</span>
+    {% if selected_publisher %}
+    {% set ns = namespace(pub_name=selected_publisher) %}
+    {% for pub in publishers %}
+    {% if pub.id == selected_publisher %}{% set ns.pub_name = pub.name|bilingual(pub.name_en) %}{% endif %}
+    {% endfor %}
+    <span class="m-applied-chip">{{ ns.pub_name }}</span>
+    {% endif %}
+    {% if selected_category %}
+    <span class="m-applied-chip">{{ selected_category|category_name }}</span>
+    {% endif %}
+    {% if selected_days and selected_days != '' %}
+    <span class="m-applied-chip">{{ _('最近 %(days)s 天', days=selected_days) }}</span>
+    {% endif %}
+    {% if _nb_status not in ('', 'all') %}
+    {% set _status_map = {'published': _('已出版'), 'upcoming': _('即将出版'), 'pending': _('日期待确认')} %}
+    <span class="m-applied-chip">{{ _status_map.get(_nb_status, _nb_status) }}</span>
+    {% endif %}
+    {% if search_query %}
+    <span class="m-applied-chip">{{ search_query }}</span>
+    {% endif %}
+</div>
+{% endif %}
 <a href="/api/new-books/export/csv?days={{ selected_days|urlencode }}&search={{ search_query|urlencode }}&publication_status={{ selected_publication_status|urlencode }}{% if selected_publisher %}&publisher_id={{ selected_publisher|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}" class="m-btn m-btn-outline" style="min-height:44px;">{{ _('当前筛选CSV（最多500本）') }}</a>
 
 {# 筛选窗口口径与桌面端共用**同一条** gettext 句子（含 %(days)s / %(preview)s 具名参数），

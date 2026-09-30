@@ -25,16 +25,6 @@
 {% set detail_text = '' if is_non_substantive_details(detail_text) else detail_text %}
 {% set _has_details_tab = detail_text %}
 
-<!-- 封面 -->
-<section class="m-detail-cover-wrap">
-    <div class="m-detail-cover">
-        <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
-             alt="{{ display_title }}"
-             width="130" height="175"
-             data-cover-fallback="">
-    </div>
-</section>
-
 {# 作者：真正缺失时用与全站卡片一致的本地化兜底（'未知作者' → 'Unknown'），不做任何推测/补齐。
    兜底文案两种语言各留一份（桌面端同口径）：只渲染当前 locale 的那份会让
    `mobile.js` applyLanguage 的 `[data-en][data-zh]` 重写把缺省标签焊死在初始语言上；
@@ -47,33 +37,25 @@
 {% set shown_author_en = _author or 'Unknown' %}
 {% set shown_author = shown_author_en if get_locale() == 'en' else shown_author_zh %}
 
-<!-- 标题区 -->
+
 <section class="m-detail-head">
-    <h1 class="m-detail-title">{{ display_title }}</h1>
+        <h1 class="m-detail-title">{{ display_title }}</h1>
     <p class="m-detail-author" data-en="{{ shown_author_en }}" data-zh="{{ shown_author_zh }}">{{ shown_author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %} · {{ book.publisher }}{% endif %}</p>
-    {% if book.award %}
-    <div class="m-detail-tags">
-        <span class="m-detail-tag">{{ book.award.name|bilingual(book.award.name_en) }}</span>
-        {% if book.year %}<span class="m-detail-tag accent">{{ book.year }}{{ _('年') }}</span>{% endif %}
-    </div>
+
+    {% if book.title and book.title != display_title %}
+    <p class="m-detail-original-title">{{ book.title }}</p>
     {% endif %}
-    <div class="m-detail-facts">
-        {{ award_result_label(book.category|award_result_kind(book.award.wikidata_id if book.award else none)) }}
-        {% if book.isbn13 or book.isbn10 %}
-        <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
-        {% endif %}
-        {% if book.publication_year %}
-        <span><strong>{{ _('出版年份') }}</strong>{{ book.publication_year }}</span>
-        {% endif %}
-        {% set shown_category = book.category|award_term %}
-        {% if shown_category %}
-        <span><strong>{{ _('类别') }}</strong>{{ shown_category }}</span>
-        {% endif %}
-        {% if book.rank %}
-        <span><strong>{{ _('排名') }}</strong>{{ book.rank }}</span>
-        {% endif %}
+</section>
+<!-- 封面 -->
+<section class="m-detail-cover-wrap">
+    <div class="m-detail-cover">
+        <img src="{{ url_for('main.award_book_cover', book_id=book.id) }}"
+             alt="{{ display_title }}"
+             width="130" height="175"
+             data-cover-fallback="">
     </div>
 </section>
+
 
 <!-- Tab 切换：图书简介 / 详细信息 -->
 <div class="m-detail-tabs-wrapper"
@@ -109,7 +91,8 @@
                没有实质 details 正文时整块不渲染（标签按钮同条件），ISBN/出版社跟着一起
                消失：用户既看不到这些真数据，也找不到入口。现在移出条件块、常驻简介之后，
                「详细信息」标签因此只承载真正的 details 正文，不会出现空标签页。 #}
-            <dl class="m-meta-list">
+            <div class="m-award-result">{{ award_result_label(book.category|award_result_kind(book.award.wikidata_id if book.award else none)) }}</div>
+<dl class="m-meta-list">
                 {% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher', '') %}
                 <div class="m-meta-row"><dt>{{ _('出版社') }}</dt><dd>{{ book.publisher }}</dd></div>
                 {% endif %}
@@ -151,6 +134,10 @@
     </div>
 </div>
 
+
+{% for link in buy_links %}
+<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="m-award-buy-link">{{ link.name }}</a>
+{% endfor %}
 {% if related_books %}
 <section class="m-related-books" aria-label="{{ _('相关奖项图书') }}">
     <h2 class="m-section-title">{{ _('相关奖项图书') }}</h2>
@@ -171,6 +158,38 @@
 </section>
 {% endif %}
 
+<style nonce="{{ csp_nonce() }}">
+.m-detail-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+
+.m-detail-author {
+  font-family: var(--font-body);
+}
+
+.m-award-buy-link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 16px;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+</style>
+<style nonce="{{ csp_nonce() }}">
+.m-page > .m-detail-head {
+  padding-top: 60px;
+}
+
+.m-page > .m-detail-head .m-detail-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+</style>
 {% endblock %}
 
 {% block structured_data %}

@@ -13,8 +13,17 @@
 ], csp_nonce()) }}
 {% endblock %}
 
+{% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+.profile-page .about-hero{padding:16px 0;margin-bottom:16px}
+.profile-page .page-title{font-family:var(--font-serif);font-size:32px;margin:0 0 8px;color:var(--text-primary)}
+.profile-page .page-subtitle,.profile-page .about-hero p{margin:0;color:var(--text-secondary)}
+
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="about-container">
+<div class="about-container profile-page">
     <section class="about-hero">
         <h1 class="page-title">
             <svg class="icon text-gold" width="28" height="28"><use href="#icon-book"/></svg>

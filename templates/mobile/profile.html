@@ -59,32 +59,34 @@
     <div class="m-book-list">
         {% for fav in favorites %}
         {% set _fav_href = fav.detail_url or url_for('main.index', search=fav.isbn, lang=get_locale()) %}
-        <a href="{{ _fav_href }}"
-           class="m-card m-book-card" data-href="{{ _fav_href }}">
-            <div class="m-book-cover">
-                <img src="{{ url_for('static', filename='default-cover.png') }}"
-                     alt="{{ fav.title_en if get_locale() == 'en' else (fav.title_zh or fav.title_en or fav.title or fav.isbn) }}"
-                     loading="lazy"
-                     width="60" height="80">
-            </div>
-            <div class="m-book-info">
-                <h3 class="m-book-title"
-                    data-profile-title-en="{{ fav.title_en }}"
-                    data-profile-title-zh="{{ fav.title_zh }}">{{ fav.title_en if get_locale() == 'en' else (fav.title_zh or fav.title_en or fav.title or fav.isbn) }}</h3>
-                {% if fav.isbn %}<p class="m-book-isbn">{{ fav.isbn }}</p>{% endif %}
-                {% if fav.author %}<p class="m-book-author">{{ fav.author }}</p>{% endif %}
-            </div>
+        <div class="m-card m-book-card">
+            <a href="{{ _fav_href }}"
+               class="m-profile-book-link" data-href="{{ _fav_href }}">
+                <div class="m-book-cover">
+                    <img src="{{ url_for('static', filename='default-cover.png') }}"
+                         alt="{{ fav.title_en if get_locale() == 'en' else (fav.title_zh or fav.title_en or fav.title or fav.isbn) }}"
+                         loading="lazy"
+                         width="60" height="80">
+                </div>
+                <div class="m-book-info">
+                    <h3 class="m-book-title"
+                        data-profile-title-en="{{ fav.title_en }}"
+                        data-profile-title-zh="{{ fav.title_zh }}">{{ fav.title_en if get_locale() == 'en' else (fav.title_zh or fav.title_en or fav.title or fav.isbn) }}</h3>
+                    {% if fav.isbn %}<p class="m-book-isbn">{{ fav.isbn }}</p>{% endif %}
+                    {% if fav.author %}<p class="m-book-author">{{ fav.author }}</p>{% endif %}
+                </div>
+            </a>
             <button class="m-fav-remove"
                     data-isbn="{{ fav.isbn }}"
                     type="button"
                     aria-label="{{ _('取消收藏') }}">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             </button>
-        </a>
+        </div>
         {% endfor %}
     </div>
-    {% else %}
-    <div class="m-empty" style="padding: var(--space-6) 0;">
+    {% endif %}
+    <div id="m-favorites-empty" class="m-empty" {% if favorites %}hidden{% endif %} style="padding: var(--space-6) 0;">
         <div class="m-empty-icon" style="width:48px;height:48px;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         </div>
@@ -98,7 +100,6 @@
         </form>
         <a href="{{ url_for('main.index', lang=get_locale()) }}">{{ _('发现图书') }}</a>
     </div>
-    {% endif %}
 </section>
 
 <!-- 搜索历史 -->

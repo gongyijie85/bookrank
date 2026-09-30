@@ -79,7 +79,7 @@
 
 <!-- 榜单信息 -->
 <div class="m-list-info">
-    {% if update_time %}{{ _('更新于') }} {{ update_time }} · {% endif %}{{ books|length }}{{ _('本') }}
+    {% if update_time %}{{ _('更新于') }} {{ update_time }} · {% endif %}{{ books|length }} {{ _('本') }}
     {% if is_cached %}<span class="m-cache-badge">{{ _('缓存') }}</span>{% endif %}
     {% if update_frequency == 'monthly' %}
         · <span class="m-monthly-badge">
@@ -150,6 +150,7 @@
             <h3 class="m-book-title" title="{{ book.title }}">
                 {% if _locale == 'zh' %}{{ book.title_zh or book.title }}{% else %}{{ book.title }}{% endif %}
             </h3>
+            {% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %}<p class="m-book-original-title">{{ book.title }}</p>{% endif %}
             <p class="m-book-author">{{ book.author }}</p>
 
             <div class="m-book-insights" aria-label="{{ _('排名数据') }}">
@@ -162,15 +163,15 @@
                     <strong>{{ book.weeks_on_list or 0 }}{% if _locale == 'zh' %}周{% else %} wk{% endif %}</strong>
                 </span>
                 {% if rank_change > 0 %}
-                <span class="m-book-rank-change up" aria-label="{{ _('上升') }}{{ rank_change }}{{ _('名') }}">↑{{ rank_change }}</span>
+                <span class="m-book-rank-change up" data-zh="↑ 上升 {{ rank_change }}" data-en="↑ Up {{ rank_change }}" aria-label="{{ _('上升 %(places)s 位', places=rank_change) }}">↑ {{ _('上升') }} {{ rank_change }}</span>
                 {% elif rank_change < 0 %}
-                <span class="m-book-rank-change down" aria-label="{{ _('下降') }}{{ rank_change|abs }}{{ _('名') }}">↓{{ rank_change|abs }}</span>
+                <span class="m-book-rank-change down" data-zh="↓ 下降 {{ rank_change|abs }}" data-en="↓ Down {{ rank_change|abs }}" aria-label="{{ _('下降 %(places)s 位', places=rank_change|abs) }}">↓ {{ _('下降') }} {{ rank_change|abs }}</span>
                 {% elif book.is_new %}
-                <span class="m-book-rank-change new">NEW</span>
+                <span class="m-book-rank-change new" data-zh="+ 新" data-en="+ NEW" aria-label="{% if _locale == 'zh' %}新书上榜{% else %}New on the list{% endif %}">{% if _locale == 'zh' %}+ 新{% else %}+ NEW{% endif %}</span>
                 {% elif book.is_returning %}
-                <span class="m-book-rank-change new">{% if _locale == 'zh' %}重返{% else %}RETURN{% endif %}</span>
-                {% else %}
-                <span class="m-book-rank-change stable">—</span>
+                <span class="m-book-rank-change returning" data-zh="↩ 重返" data-en="↩ RETURN" aria-label="{% if _locale == 'zh' %}重返榜单{% else %}Returning to the list{% endif %}">{% if _locale == 'zh' %}↩ 重返{% else %}↩ RETURN{% endif %}</span>
+                {% elif rank_change == 0 and book.previous_rank and book.previous_rank > 0 %}
+                <span class="m-book-rank-change stable" data-zh="— 持平" data-en="— Unchanged" aria-label="{% if _locale == 'zh' %}排名持平{% else %}Rank unchanged{% endif %}">{% if _locale == 'zh' %}— 持平{% else %}— Unchanged{% endif %}</span>
                 {% endif %}
             </div>
 

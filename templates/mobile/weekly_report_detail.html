@@ -1,4 +1,5 @@
 {% extends "mobile/base.html" %}
+{% set current_locale = get_locale() %}
 
 {% block title %}{{ report.title or _('周报') }} - BookRank{% endblock %}
 {% block og_title %}{{ report.title or _('周报') }} - BookRank{% endblock %}
@@ -24,7 +25,7 @@
 
 <!-- Hero 区：日期 + 周期 + 4 个数字卡片 -->
 <section class="m-report-hero">
-    <div class="m-report-hero-date">{{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }} · {{ _('第') }}{{ report.week_end.strftime('%V') }}{{ _('周') }}</div>
+    <div class="m-report-hero-date">{{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }} · {{ _('第 %(week)s 周', week=report.week_end.strftime('%V')) }}</div>
     <div class="m-report-hero-period">{{ report.title or _('周报') }}</div>
 
     {% if content %}
@@ -80,7 +81,17 @@
         {% else %}
         <span class="m-report-change-icon">·</span>
         {% endif %}
-        <span class="m-report-change-title">{{ (item.title_zh or item.title) | format_title }}</span>
+
+{% if current_locale == 'zh' and item.title_zh and item.title_zh != item.title %}
+<span class="m-report-change-title">
+    {{ item.title_zh | format_title }}
+    <small class="m-report-original-title">{{ item.title | format_title }}</small>
+</span>
+{% elif current_locale == 'en' %}
+<span class="m-report-change-title">{{ item.title | format_title }}</span>
+{% else %}
+<span class="m-report-change-title">{% if current_locale == 'en' %}{{ item.title | format_title }}{% else %}{{ (item.title_zh or item.title) | format_title }}{% endif %}</span>{% if current_locale == 'zh' and item.title_zh and item.title_zh != item.title %}<span class="m-report-original-title">{{ item.title | format_title }}</span>{% endif %}
+{% endif %}
         {% if rk > 0 %}
         <span class="m-report-change-rank">
             {% if rc and not is_unavailable and not is_new and (rk + rc) > 0 %}<span class="m-report-change-rank-prev">{{ rk + rc }}</span>{% endif %}{{ rk }}
@@ -90,8 +101,12 @@
         <span class="m-report-change-delta unavailable">{{ _('变化不可得') }}</span>
         {% elif is_new %}
         <span class="m-report-change-delta new">{{ _('新上榜') }}</span>
-        {% elif rc != 0 %}
-        <span class="m-report-change-delta">{{ '+' if rc > 0 }}{{ rc }}</span>
+        {% elif rc > 0 %}
+        <span class="m-report-change-delta">{{ _('上升 %(places)s 位', places=rc) }} ({{ '+' + rc|string }})</span>
+        {% elif rc < 0 %}
+        <span class="m-report-change-delta">{{ _('下降 %(places)s 位', places=(rc|abs)) }} ({{ rc|string }})</span>
+        {% else %}
+        <span class="m-report-change-delta">{{ _('无变化') }}</span>
         {% endif %}
     </div>
     {% endfor %}
@@ -107,12 +122,12 @@
         <div class="m-card m-book-card" data-href="/?search={{ (book.title or '') | urlencode }}">
             {% if book.cover %}
             <div class="m-book-cover">
-                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="60" height="80"
+                <img src="{{ book.cover|cover_src_or_default }}" alt="{% if current_locale == 'en' %}{{ book.title | format_title }}{% else %}{{ (book.title_zh or book.title) | format_title }}{% endif %}" loading="lazy" width="60" height="80"
                      data-cover-fallback="">
             </div>
             {% endif %}
             <div class="m-book-info">
-                <h3 class="m-book-title">{{ (book.title_zh or book.title) | format_title }}</h3>
+                <h3 class="m-book-title">{% if current_locale == 'en' %}{{ book.title | format_title }}{% else %}{{ (book.title_zh or book.title) | format_title }}{% endif %}</h3>{% if current_locale == 'zh' and book.title_zh and book.title_zh != book.title %}<span class="m-report-original-title">{{ book.title | format_title }}</span>{% endif %}
                 {% if book.author %}<p class="m-book-author">{{ book.author }}</p>{% endif %}
                 {% if book.category %}<p class="m-book-card-meta">{{ book.category }}</p>{% endif %}
             </div>
@@ -136,7 +151,7 @@
 {% endif %}
 {% if _cover %}
 <div class="m-report-rec-cover">
-  <img src="{{ _cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" loading="lazy" width="50" height="75" class="m-rec-img">
+  <img src="{{ _cover|cover_src }}" alt="{% if current_locale == 'en' %}{{ book.title | format_title }}{% else %}{{ (book.title_zh or book.title) | format_title }}{% endif %}" loading="lazy" width="50" height="75" class="m-rec-img">
   <span class="m-rec-placeholder" style="display:none;">{% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}</span>
 </div>
 {% else %}
@@ -145,17 +160,17 @@
 </div>
 {% endif %}
         <div class="m-report-rec-info">
-            <div class="m-report-rec-title">{{ (book.title_zh or book.title) | format_title }}</div>
+            <div class="m-report-rec-title">{% if current_locale == 'en' %}{{ book.title | format_title }}{% else %}{{ (book.title_zh or book.title) | format_title }}{% endif %}</div>{% if current_locale == 'zh' and book.title_zh and book.title_zh != book.title %}<div class="m-report-original-title">{{ book.title | format_title }}</div>{% endif %}
             {% if book.author %}<div class="m-report-rec-author">{{ book.author }}</div>{% endif %}
             <div class="m-report-rec-reason">
                 {% set reason_parts = [] %}
                 {% if book.category %}{% set _unused = reason_parts.append(book.category) %}{% endif %}
-                {% if book.rank %}{% set _unused = reason_parts.append(_('第') ~ book.rank ~ _('名')) %}{% endif %}
-                {% if book.weeks_on_list %}{% set _unused = reason_parts.append(_('在榜') ~ book.weeks_on_list ~ _('周')) %}{% endif %}
+                {% if book.rank %}{% set _unused = reason_parts.append(_('第 %(rank)s 名', rank=book.rank)) %}{% endif %}
+                {% if book.weeks_on_list %}{% set _unused = reason_parts.append(_('在榜 %(weeks)s 周', weeks=book.weeks_on_list)) %}{% endif %}
                 {% if book.is_new %}{% set _unused = reason_parts.append(_('新上榜')) %}{% endif %}
                 {% if book.rank_change is not none and book.rank_change is defined and not book.is_new %}
-                    {% if book.rank_change > 0 %}{% set _unused = reason_parts.append(_('上升') ~ book.rank_change ~ _('位')) %}
-                    {% elif book.rank_change < 0 %}{% set _unused = reason_parts.append(_('下降') ~ (book.rank_change | abs) ~ _('位')) %}
+                    {% if book.rank_change > 0 %}{% set _unused = reason_parts.append(_('上升 %(places)s 位', places=book.rank_change)) %}
+                    {% elif book.rank_change < 0 %}{% set _unused = reason_parts.append(_('下降 %(places)s 位', places=(book.rank_change | abs))) %}
                     {% else %}{% set _unused = reason_parts.append(_('无变化')) %}{% endif %}
                 {% elif book.rank_change is none or book.rank_change is undefined %}
                     {% set _unused = reason_parts.append(_('变化不可得')) %}

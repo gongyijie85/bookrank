@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const repo = process.env.ROUND2_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-function source(name) { return fs.readFileSync(path.join(repo, name), 'utf8').replace(/^\uFEFF/, ''); }
+function source(name) { return fs.readFileSync(path.join(repo, name), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n'); }
 class Element {
   constructor(value = '') { this.value = value; this.textContent = ''; this.hidden = false; this.style = {}; this.dataset = {}; this.listeners = new Map(); this.queries = new Map(); this.options = []; }
   addEventListener(type, fn) { const list = this.listeners.get(type) || []; list.push(fn); this.listeners.set(type, list); }
@@ -300,7 +300,9 @@ test('analytics daily chart uses UTC linear dates and preserves actual zero/gaps
   const html = source('templates/analytics_dashboard.html'); const actual = scripts(html).find(s => s.includes('function renderDailyChart'));
   const start = actual?.indexOf('        function renderDailyChart'); const end = actual?.indexOf('        function renderTopReports', start);
   assert.ok(start >= 0 && end > start, 'real daily renderer source must exist');
-  vm.runInContext("let dailyChart = null; const chartColors = {greenBorder:'#000',greenLight:'#eee'};\n" + actual.slice(start, end), h.context);
+  const helperStart = actual.indexOf('function analyticsText('); const helperEnd = actual.indexOf('function applyAnalyticsTheme(', helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart, 'real analytics locale helper must exist');
+  vm.runInContext(actual.slice(helperStart, helperEnd) + "\nlet dailyChart = null; const chartColors = {greenBorder:'#000',greenLight:'#eee'};\n" + actual.slice(start, end), h.context);
   h.context.rows = [{ date: '2026-10-02', count: 1 }, { date: '2026-09-29', count: 3 }, { date: '2026-09-30', count: 0 }];
   vm.runInContext('renderDailyChart(rows)', h.context); const config = configs[0]; assert.ok(config);
   assert.equal(config.options.scales.x?.type, 'linear'); const points = config.data.datasets[0].data;
@@ -311,7 +313,7 @@ test('analytics daily chart uses UTC linear dates and preserves actual zero/gaps
 });
 
 function renderJinja(fragment, context) {
-  const code = "import json,sys; from jinja2 import Environment; sys.stdout.reconfigure(encoding='utf-8'); sys.stdin.reconfigure(encoding='utf-8'); x=json.load(sys.stdin); e=Environment(); e.globals['_']=lambda s:s; e.filters['format_title']=lambda s:s; print(e.from_string(x['fragment']).render(**x['context']))";
+  const code = "import json,sys; from jinja2 import Environment; sys.stdout.reconfigure(encoding='utf-8'); sys.stdin.reconfigure(encoding='utf-8'); x=json.load(sys.stdin); e=Environment(); e.globals['_']=lambda s,**kwargs:s%kwargs if kwargs else s; e.filters['format_title']=lambda s:s; print(e.from_string(x['fragment']).render(**x['context']))";
   const result = spawnSync(process.env.PYTHON || 'python', ['-c', code], { input: JSON.stringify({ fragment, context }), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
   assert.equal(result.error, undefined); assert.equal(result.status, 0, result.stderr); assert.ok(result.stdout.trim());
   return result.stdout;
@@ -405,8 +407,11 @@ test('weekly comparison has no invented prior rank and magnitude is actual place
     { title: 'Stable', rank: 6, rank_change: 0 }, { title: 'Missing rank', rank: null, rank_change: 2 },
   ];
   const configs = [];
-  const context = vm.createContext({ reportContent: { top_changes: items }, chartColors: {}, document: { getElementById: id => ({ getContext: () => id }) }, Chart: function(id, config) { configs.push({ id, config }); } });
-  vm.runInContext(renderJinja(text.slice(start, end), {}), context);
+  const helperStart = text.indexOf('// Theme-aware chart helper');
+  const helperEnd = text.indexOf("// {{ _('排名变化柱状图') }}", helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart);
+  const context = vm.createContext({ reportContent: { top_changes: items }, chartColors: {}, document: { getElementById: id => ({ getContext: () => id }) }, Chart: function(id, config) { this.data=config.data;this.options=config.options;this.config=config;this.update=()=>{};configs.push({ id, config }); } });
+  vm.runInContext(renderJinja(text.slice(helperStart, helperEnd) + text.slice(start, end), {}), context);
   assert.equal(configs.length, 2);
   assert.deepEqual(Array.from(configs[0].config.data.datasets[1].data), [5, 2, null, null, 6, null]);
   assert.deepEqual(Array.from(configs[1].config.data.datasets[0].data), [2, 3, null, null, 0, null]);
@@ -446,8 +451,11 @@ test('weekly real chart blocks distinguish gain/loss/new/unknown/stable without 
     { title: 'Stable', rank_change: 0, is_new: false },
   ] };
   const configs = [];
-  const context = vm.createContext({ reportContent: content, chartColors: { green: 'green', red: 'red', gray: 'gray' }, document: { getElementById: id => ({ getContext: () => id }) }, Chart: function(id, config) { configs.push({ id, config }); } });
-  vm.runInContext(renderJinja(first + trend, {}), context);
+  const helperStart = text.indexOf('// Theme-aware chart helper');
+  const helperEnd = text.indexOf("// {{ _('排名变化柱状图') }}", helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart);
+  const context = vm.createContext({ reportContent: content, chartColors: { green: 'green', red: 'red', gray: 'gray' }, document: { getElementById: id => ({ getContext: () => id }) }, Chart: function(id, config) { this.data=config.data;this.options=config.options;this.config=config;this.update=()=>{};configs.push({ id, config }); } });
+  vm.runInContext(renderJinja(text.slice(helperStart, helperEnd) + first + trend, {}), context);
   assert.equal(configs.length, 2);
   for (const { config } of configs) {
     assert.equal(config.type, 'bar'); assert.equal(config.options.scales.y.beginAtZero, true);

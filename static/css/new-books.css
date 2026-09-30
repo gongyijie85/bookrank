@@ -160,7 +160,7 @@
 }
 
 /* 按钮样式 */
-.btn {
+.new-books-page .btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -177,34 +177,34 @@
     white-space: nowrap;
 }
 
-.btn:hover {
+.new-books-page .btn:hover {
     color: var(--text-primary, rgba(0, 0, 0, 0.95));
     border-color: var(--text-muted, #a39e98);
 }
 
-.btn-primary {
+.new-books-page .btn-primary {
     background: var(--new-books-accent-blue, #0075de);
     color: #ffffff;
     border-color: var(--new-books-accent-blue, #0075de);
 }
 
-.btn-primary:hover {
+.new-books-page .btn-primary:hover {
     background: var(--new-books-accent-blue-hover, #005bab);
     border-color: var(--new-books-accent-blue-hover, #005bab);
     color: #ffffff;
 }
 
-.btn-outline {
+.new-books-page .btn-outline {
     background: transparent;
     border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
     color: var(--text-secondary, #615d59);
 }
 
-.btn-outline:hover {
+.new-books-page .btn-outline:hover {
     background: var(--bg-tertiary, #f6f5f4);
 }
 
-.btn:disabled {
+.new-books-page .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
@@ -569,21 +569,21 @@
     background: var(--card-bg, #1e1e1e);
 }
 
-[data-theme="dark"] .btn {
+[data-theme="dark"] .new-books-page .btn {
     border-color: var(--border-color, rgba(255, 255, 255, 0.1));
 }
 
-[data-theme="dark"] .btn-primary {
+[data-theme="dark"] .new-books-page .btn-primary {
     background: var(--new-books-accent-blue-deep, #3b82f6);
     border-color: var(--new-books-accent-blue-deep, #3b82f6);
 }
 
-[data-theme="dark"] .btn-primary:hover {
+[data-theme="dark"] .new-books-page .btn-primary:hover {
     background: var(--new-books-accent-blue-deeper, #2563eb);
     border-color: var(--new-books-accent-blue-deeper, #2563eb);
 }
 
-[data-theme="dark"] .btn-outline:hover {
+[data-theme="dark"] .new-books-page .btn-outline:hover {
     background: var(--bg-tertiary, #2a2a2a);
 }
 
@@ -918,4 +918,29 @@
 
 @media (prefers-reduced-motion: reduce) {
     .new-books-page .book-card { animation: none; transition: none; transform: none; }
+}
+
+.new-books-page .btn {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+}
+.new-books-page .btn:active { transform: none; }
+.new-books-page .btn-primary,
+.new-books-page .btn-primary:hover {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+[data-theme="dark"] .new-books-page .btn-primary,
+[data-theme="dark"] .new-books-page .btn-primary:hover {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+/* Round3 full titles / controls */
+.new-books-page .book-tag.tag-category.tag-muted {
+    opacity: 1;
 }

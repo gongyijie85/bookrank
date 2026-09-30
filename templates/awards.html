@@ -262,7 +262,7 @@
     {% if has_prev %}
     <a href="{{ url_for('main.awards', page=_page - 1, **_base) }}" rel="prev" aria-label="{{ _('上一页') }}">&lsaquo;</a>
     {% else %}
-    <span class="is-disabled" aria-hidden="true">&lsaquo;</span>
+    <span class="is-disabled" aria-hidden="true" aria-disabled="true">&lsaquo;</span>
     {% endif %}
 
     {% for p in range(_from, _to) %}
@@ -276,7 +276,7 @@
     {% if has_next %}
     <a href="{{ url_for('main.awards', page=_page + 1, **_base) }}" rel="next" aria-label="{{ _('下一页') }}">&rsaquo;</a>
     {% else %}
-    <span class="is-disabled" aria-hidden="true">&rsaquo;</span>
+    <span class="is-disabled" aria-hidden="true" aria-disabled="true">&rsaquo;</span>
     {% endif %}
 </nav>
 {% endif %}

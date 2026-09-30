@@ -1156,3 +1156,160 @@
 .charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card-skeleton .skeleton-image {
     height: 168px;
 }
+
+/* Round3: compact serif journal header, token spacing/radius/border; no stripe or huge card frame. */
+.page-header {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 8px 0 12px;
+    margin-bottom: 16px;
+    position: static;
+    overflow: visible;
+}
+
+.page-header::before { display: none; }
+
+.page-title {
+    font-family: var(--font-serif);
+    font-size: clamp(24px, 2.6vw, 32px);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+    display: block;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+.page-subtitle {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.cache-badge {
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+/* Round3: filter bar uses existing radius token, 44px controls. */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.filter-group.search-box {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+}
+
+.filter-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.125px;
+    text-transform: uppercase;
+}
+
+.filter-select,
+.filter-input {
+    padding: 0.5rem 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    min-width: 140px;
+}
+
+.filter-select:hover {
+    border-color: var(--primary-color);
+}
+
+/* Round3: shared button baseline 44px + modest radius; primary black/white. */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    min-width: 44px;
+    white-space: nowrap;
+}
+
+.btn:hover {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: var(--bg-primary);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--bg-primary);
+    opacity: 0.88;
+}
+
+.btn-secondary {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+.btn-secondary:hover {
+    background: var(--gray-100);
+}
+
+.btn-icon {
+    padding: 0.375rem;
+    min-height: 44px;
+    min-width: 44px;
+}
+
+@media (max-width: 760px) {
+    .page-header { padding: 8px 0 12px; margin-bottom: 12px; }
+    .filter-bar { padding: 16px; }
+}
+
+@media(max-width:768px){body.charts-page .home-toolbar .toolbar-actions{flex:1 1 100%;width:100%}body.charts-page .home-toolbar .export-buttons{display:flex;flex-direction:column;width:100%;min-width:0;align-items:stretch;gap:.5rem}body.charts-page .home-toolbar .export-buttons #btn-export-all{flex:0 0 auto;width:100%;max-width:100%;min-height:44px;white-space:normal;overflow-wrap:anywhere}body.charts-page .home-toolbar .export-buttons .export-scope-note{width:100%;white-space:normal;overflow-wrap:anywhere}}

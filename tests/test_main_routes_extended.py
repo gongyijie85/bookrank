@@ -1487,7 +1487,8 @@ class TestIndexRoute:
             soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
             badge = soup.select_one('#books-grid .rank-change')
 
-            assert badge.get_text(strip=True) == 'RETURN'
+            assert badge.get_text(strip=True) == '↩ RETURN'
+            assert 'NEW' not in badge.get_text(strip=True)
         finally:
             with app.app_context():
                 app.extensions.pop('book_service', None)
@@ -1960,7 +1961,10 @@ class TestNewBooksPublisherNamesFollowLocale:
             client.get('/new-books?lang=en').get_data(as_text=True),
             'html.parser',
         )
-        names = [(e.get_text() or '').strip() for e in soup.select('.pub-name, .browse-section-title, option')]
+        names = [
+            e.get_text(strip=True)
+            for e in soup.select('.browse-section-title, select[name="publisher"] option[value="42"]')
+        ]
         assert 'Penguin Random House' in names, f'英文页出版社名仍是中文: {names[:8]}'
         assert '企鹅兰登' not in names
 
@@ -1971,8 +1975,12 @@ class TestNewBooksPublisherNamesFollowLocale:
             client.get('/new-books?lang=zh').get_data(as_text=True),
             'html.parser',
         )
-        names = [(e.get_text() or '').strip() for e in soup.select('.pub-name, .browse-section-title')]
+        names = [
+            e.get_text(strip=True)
+            for e in soup.select('.browse-section-title, select[name="publisher"] option[value="42"]')
+        ]
         assert '企鹅兰登' in names, f'中文页丢了中文出版社名: {names[:8]}'
+        assert 'Penguin Random House' not in names
 
 
 class TestAwardBuyLinksParsing:

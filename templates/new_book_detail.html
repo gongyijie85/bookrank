@@ -48,7 +48,18 @@
 </div>
 
 <!-- 书籍详情主区域 -->
-<div class="detail-container">
+<div class="detail-container new-book-detail-layout">
+    <!-- 标题区 -->
+    <div class="detail-header">
+        <h1 class="detail-title" data-en="{{ book.title }}" data-zh="{{ book.title_zh or book.title }}">
+            {{ book.title_zh|bilingual(book.title) }}
+        </h1>
+        {% if book.title_zh and book.title != book.title_zh and get_locale() == 'zh' %}
+        <p class="detail-title-en">{{ book.title }}</p>
+        {% endif %}
+        <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
+    </div>
+
     <!-- 左侧：封面 -->
     <div class="detail-cover-section">
         <div class="detail-cover">
@@ -60,33 +71,10 @@
             </div>
             {% endif %}
         </div>
-
-        <!-- 购买链接 -->
-        {% if book.get_buy_links() %}
-        <div class="buy-section">
-            {% for link in book.get_buy_links() %}
-            <a href="{{ link.url }}" class="buy-btn" target="_blank" rel="noopener noreferrer">
-                <svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg>
-                {{ link.name }}
-            </a>
-            {% endfor %}
-        </div>
-        {% endif %}
     </div>
 
     <!-- 右侧：信息 -->
     <div class="detail-info-section">
-        <!-- 标题区 -->
-        <div class="detail-header">
-            <h1 class="detail-title" data-en="{{ book.title }}" data-zh="{{ book.title_zh or book.title }}">
-                {{ book.title_zh|bilingual(book.title) }}
-            </h1>
-            {% if book.title_zh and book.title != book.title_zh and get_locale() == 'zh' %}
-            <p class="detail-title-en">{{ book.title }}</p>
-            {% endif %}
-            <p class="detail-author" data-en="{{ book.author }}" data-zh="{{ book.author }}">{{ book.author }}</p>
-        </div>
-
         <!-- 简介：提到元信息之前，保证首屏能看到简介开头 -->
         <div class="detail-description">
             <h2 class="desc-title" data-i18n="nb_detail_description_title">{{ _('图书简介') }}</h2>
@@ -140,6 +128,18 @@
             </div>
             {% endif %}
         </dl>
+
+        <!-- 购买链接 -->
+        {% if book.get_buy_links() %}
+        <div class="buy-section">
+            {% for link in book.get_buy_links() %}
+            <a href="{{ link.url }}" class="buy-btn" target="_blank" rel="noopener noreferrer">
+                <svg class="icon" width="16" height="16"><use href="#icon-external-link"/></svg>
+                {{ link.name }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -311,6 +311,45 @@
     }
 })();
 </script>
+<style nonce="{{ csp_nonce() }}">
+.new-book-detail-layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 24px;
+}
+.new-book-detail-layout .detail-header {
+    grid-column: 1 / -1;
+}
+.new-book-detail-layout .detail-cover-section {
+    max-width: 240px;
+}
+.new-book-detail-layout .detail-cover img {
+    object-fit: contain;
+    max-width: 100%;
+    height: 360px;
+}
+.new-book-detail-layout .detail-title {
+    font-family: var(--font-serif);
+    font-size: 32px;
+    max-width: 100%;
+    word-wrap: break-word;
+}
+.new-book-detail-layout .detail-info-section {
+    font-family: sans-serif;
+}
+.new-book-detail-layout .buy-btn {
+    min-width: 44px;
+    min-height: 44px;
+}
+.new-book-detail-layout .detail-meta dd {
+    word-wrap: break-word;
+}
+@media (max-width: 768px) {
+    .new-book-detail-layout {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 {% endblock %}
 
 {% block extra_css %}

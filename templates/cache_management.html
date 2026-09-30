@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}缓存管理 - BookRank{% endblock %}
+{% block title %}{{ _('缓存管理') }} - BookRank{% endblock %}
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce() }}">
@@ -173,21 +173,138 @@
         background: #fce4ec;
         color: #c2185b;
     }
+.cache-management-page {
+  font-family: var(--font-sans);
+}
+
+.cache-management-page h1 {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  margin: 0 0 8px;
+}
+
+.cache-management-page #translation-stats-container,
+.cache-management-page #api-stats-container {
+  display: grid;
+  gap: 16px;
+}
+
+.cache-management-page #translation-stats-container {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.cache-management-page #api-stats-container {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.cache-management-page .cache-stats > .cache-status-msg,
+.cache-management-page .cache-stats > .cache-retry-btn {
+  grid-column: 1 / -1;
+}
+
+.cache-management-page .cache-stats > .cache-retry-btn {
+  align-self: start;
+  justify-self: start;
+  height: 44px;
+  min-height: 44px;
+  min-width: 44px;
+  width: auto;
+}
+
+.cache-management-page .stat-card {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 16px;
+  box-shadow: none;
+}
+
+.cache-management-page .stat-value {
+  font-size: 24px;
+  color: var(--text-primary);
+}
+
+.cache-management-page .stat-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.cache-management-page .btn-warning,
+.cache-management-page .btn-danger {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+.cache-management-page .btn-warning:disabled,
+.cache-management-page .btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cache-management-page .cache-item {
+  color: var(--text-primary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .cache-management-page #translation-stats-container,
+  .cache-management-page #api-stats-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cache-management-page .tab-btn,
+.cache-management-page .btn,
+.cache-management-page input[type="number"] {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.cache-management-page .api-source-badge,
+.cache-management-page .api-source-badge.nyt,
+.cache-management-page .api-source-badge.google_books,
+.cache-management-page .api-source-badge.open_library {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.cache-management-page .cache-text.translated {
+  color: var(--text-primary);
+}
+
+.cache-management-page .cache-usage,
+.cache-management-page .cache-lang {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .cache-management-page .cache-item {
+    grid-template-columns: 1fr;
+  }
+
+  .cache-management-page .cache-item > * {
+    min-width: 0;
+    width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
 </style>
 {% endblock %}
 
-{% block content %}
+{% block content %}<div class="cache-management-page">
 <div class="page-header">
-    <h1><svg class="icon" width="24" height="24"><use href="#icon-database"/></svg> 缓存管理</h1>
-    <p class="page-description">统一管理翻译缓存和API缓存，提高系统性能</p>
+    <h1><svg class="icon" width="24" height="24"><use href="#icon-database"/></svg> <span data-zh="缓存管理" data-en="Cache Management">{{ _('缓存管理') }}</span></h1>
+    <p class="page-description"><span data-zh="统一管理翻译缓存和API缓存，提高系统性能" data-en="Manage translation cache and API cache centrally to improve system performance">{{ _('统一管理翻译缓存和API缓存，提高系统性能') }}</span></p>
 </div>
 
 <div class="tabs">
     <button class="tab-btn active" id="tab-translation">
-        <svg class="icon" width="18" height="18"><use href="#icon-language"/></svg> 翻译缓存
+        <svg class="icon" width="18" height="18"><use href="#icon-language"/></svg> <span data-zh="翻译缓存" data-en="Translation Cache">{{ _('翻译缓存') }}</span>
     </button>
     <button class="tab-btn" id="tab-api">
-        <svg class="icon" width="18" height="18"><use href="#icon-cloud"/></svg> API缓存
+        <svg class="icon" width="18" height="18"><use href="#icon-cloud"/></svg> <span data-zh="API缓存" data-en="API Cache">{{ _('API缓存') }}</span>
     </button>
 </div>
 
@@ -195,57 +312,57 @@
     <div id="translation-stats-container" class="cache-stats">
         <div class="stat-card">
             <div class="stat-value" id="trans-total-count">-</div>
-            <div class="stat-label">总缓存数</div>
+            <div class="stat-label"><span data-zh="总缓存数" data-en="Total Cache Entries">{{ _('总缓存数') }}</span></div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="trans-en-zh-count">-</div>
-            <div class="stat-label">英译中</div>
+            <div class="stat-label"><span data-zh="英译中" data-en="English to Chinese">{{ _('英译中') }}</span></div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="trans-zh-en-count">-</div>
-            <div class="stat-label">中译英</div>
+            <div class="stat-label"><span data-zh="中译英" data-en="Chinese to English">{{ _('中译英') }}</span></div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="trans-recent-count">-</div>
-            <div class="stat-label">24小时内新增</div>
+            <div class="stat-label"><span data-zh="24小时内新增" data-en="Added within 24 hours">{{ _('24小时内新增') }}</span></div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="trans-usage-count">-</div>
-            <div class="stat-label">总调用次数</div>
+            <div class="stat-label"><span data-zh="总调用次数" data-en="Total uses">{{ _('总调用次数') }}</span></div>
         </div>
     </div>
 
     <div class="section-header">
-        <h2><svg class="icon" width="20" height="20"><use href="#icon-history"/></svg> 最近翻译记录</h2>
+        <h2><svg class="icon" width="20" height="20"><use href="#icon-history"/></svg> <span data-zh="最近翻译记录" data-en="Recent Translation Records">{{ _('最近翻译记录') }}</span></h2>
         <button class="btn btn-outline" id="btn-load-translation">
-            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> 刷新
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> <span data-zh="刷新" data-en="Refresh">{{ _('刷新') }}</span>
         </button>
     </div>
 
     <div class="cache-list" id="translation-list">
         <div class="loading-state">
             <svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg>
-            <p>加载中...</p>
+            <p><span data-zh="加载中..." data-en="Loading...">{{ _('加载中...') }}</span></p>
         </div>
     </div>
 
     <div class="clear-form">
-        <h3><svg class="icon" width="20" height="20"><use href="#icon-trash"/></svg> 清理翻译缓存</h3>
+        <h3><svg class="icon" width="20" height="20"><use href="#icon-trash"/></svg> <span data-zh="清理翻译缓存" data-en="Clear Translation Cache">{{ _('清理翻译缓存') }}</span></h3>
         <div class="form-row">
             <div class="form-group">
-                <label for="trans-older-than">清理N天前的记录</label>
-                <input type="number" id="trans-older-than" min="1" max="365" placeholder="天数">
+                <label for="trans-older-than"><span data-zh="清理N天前的记录" data-en="Clear records older than N days">{{ _('清理N天前的记录') }}</span></label>
+                <input type="number" id="trans-older-than" min="1" max="365" placeholder="{{ _('天数') }}" data-placeholder-zh="天数" data-placeholder-en="days">
             </div>
             <div class="form-group">
-                <label for="trans-min-usage">使用次数少于</label>
-                <input type="number" id="trans-min-usage" min="0" max="1000" placeholder="次数">
+                <label for="trans-min-usage"><span data-zh="使用次数少于" data-en="Used fewer than">{{ _('使用次数少于') }}</span></label>
+                <input type="number" id="trans-min-usage" min="0" max="1000" placeholder="{{ _('次数') }}" data-placeholder-zh="次数" data-placeholder-en="times">
             </div>
             <div class="form-group">
                 <button class="btn btn-warning" id="btn-clear-translation" disabled aria-disabled="true">
-                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清理
+                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> <span data-zh="清理" data-en="Clear">{{ _('清理') }}</span>
                 </button>
                 <button class="btn btn-danger" id="btn-clear-all-translation" disabled aria-disabled="true">
-                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清空全部
+                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> <span data-zh="清空全部" data-en="Clear All">{{ _('清空全部') }}</span>
                 </button>
             </div>
         </div>
@@ -256,15 +373,15 @@
     <div id="api-stats-container" class="cache-stats">
         <div class="stat-card">
             <div class="stat-value" id="api-total-count">-</div>
-            <div class="stat-label">总缓存数</div>
+            <div class="stat-label"><span data-zh="总缓存数" data-en="Total Cache Entries">{{ _('总缓存数') }}</span></div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="api-expired-count">-</div>
-            <div class="stat-label">已过期</div>
+            <div class="stat-label"><span data-zh="已过期" data-en="Expired">{{ _('已过期') }}</span></div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="api-usage-count">-</div>
-            <div class="stat-label">总调用次数</div>
+            <div class="stat-label"><span data-zh="总调用次数" data-en="Total uses">{{ _('总调用次数') }}</span></div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="api-nyt-count">-</div>
@@ -281,36 +398,37 @@
     </div>
 
     <div class="section-header">
-        <h2><svg class="icon" width="20" height="20"><use href="#icon-history"/></svg> 最近API调用记录</h2>
+        <h2><svg class="icon" width="20" height="20"><use href="#icon-history"/></svg> <span data-zh="最近API调用记录" data-en="Recent API Call Records">{{ _('最近API调用记录') }}</span></h2>
         <button class="btn btn-outline" id="btn-load-api">
-            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> 刷新
+            <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg> <span data-zh="刷新" data-en="Refresh">{{ _('刷新') }}</span>
         </button>
     </div>
 
     <div class="cache-list" id="api-list">
         <div class="loading-state">
             <svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg>
-            <p>加载中...</p>
+            <p><span data-zh="加载中..." data-en="Loading...">{{ _('加载中...') }}</span></p>
         </div>
     </div>
 
     <div class="clear-form">
-        <h3><svg class="icon" width="20" height="20"><use href="#icon-trash"/></svg> 清理API缓存</h3>
+        <h3><svg class="icon" width="20" height="20"><use href="#icon-trash"/></svg> <span data-zh="清理API缓存" data-en="Clear API Cache">{{ _('清理API缓存') }}</span></h3>
         <div class="form-row">
             <div class="form-group">
-                <label for="api-older-than">清理N天前的记录</label>
-                <input type="number" id="api-older-than" min="1" max="365" placeholder="天数">
+                <label for="api-older-than"><span data-zh="清理N天前的记录" data-en="Clear records older than N days">{{ _('清理N天前的记录') }}</span></label>
+                <input type="number" id="api-older-than" min="1" max="365" placeholder="{{ _('天数') }}" data-placeholder-zh="天数" data-placeholder-en="days">
             </div>
             <div class="form-group">
                 <button class="btn btn-warning" id="btn-clear-api" disabled aria-disabled="true">
-                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清理
+                    <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> <span data-zh="清理" data-en="Clear">{{ _('清理') }}</span>
                 </button>
                 <button class="btn btn-danger" id="btn-clear-expired" disabled aria-disabled="true">
-                    <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg> 清理过期
+                    <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg> <span data-zh="清理过期" data-en="Clear Expired">{{ _('清理过期') }}</span>
                 </button>
             </div>
         </div>
     </div>
+</div>
 </div>
 {% endblock %}
 
@@ -369,8 +487,45 @@ function getDocumentLang() {
     return lang.startsWith('zh') ? 'zh' : 'en';
 }
 
+var msgStore = new WeakMap();
+
+function setNodeMessage(node, zhText, enText) {
+  if (!node) return;
+  var lang = getDocumentLang();
+  var text = lang === 'zh' ? zhText : enText;
+  msgStore.set(node, { zh: zhText, en: enText });
+  node.textContent = text;
+}
+
 function localizedMsg(zhText, enText) {
-    return getDocumentLang() === 'zh' ? zhText : enText;
+  return getDocumentLang() === 'zh' ? zhText : enText;
+}
+
+function refreshCacheLanguage() {
+  var nodes = document.querySelectorAll('.cache-status-msg, .cache-retry-btn, .loading-state p, .empty-state p');
+  for (var i = 0; i < nodes.length; i++) {
+    var entry = msgStore.get(nodes[i]);
+    if (!entry) continue;
+    var next = getDocumentLang() === 'zh' ? entry.zh : entry.en;
+    if (next !== undefined && next !== nodes[i].textContent) {
+      nodes[i].textContent = next;
+    }
+  }
+
+  var inputs = document.querySelectorAll('[data-placeholder-zh][data-placeholder-en]');
+  for (var j = 0; j < inputs.length; j++) {
+    var input = inputs[j];
+    var placeholder = getDocumentLang() === 'zh'
+      ? input.getAttribute('data-placeholder-zh')
+      : input.getAttribute('data-placeholder-en');
+    if (placeholder !== null) { input.setAttribute('placeholder', placeholder); }
+  }
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('languagechange', function () {
+    refreshCacheLanguage();
+  });
 }
 
 function appendStatusNear(containerId, message, kind, retryLoader) {
@@ -382,7 +537,11 @@ function appendStatusNear(containerId, message, kind, retryLoader) {
         statusEl.className = 'cache-status-msg';
         container.appendChild(statusEl);
     }
-    statusEl.textContent = message;
+    if (message && typeof message === 'object' && message.zh !== undefined) {
+        setNodeMessage(statusEl, message.zh, message.en);
+    } else {
+        statusEl.textContent = message;
+    }
     statusEl.dataset.kind = kind || '';
     // retry button
     let retryBtn = container.querySelector('.cache-retry-btn');
@@ -391,7 +550,7 @@ function appendStatusNear(containerId, message, kind, retryLoader) {
         retryBtn.type = 'button';
         retryBtn.className = 'btn btn-sm cache-retry-btn';
         retryBtn.style.minHeight = '44px';
-        retryBtn.textContent = localizedMsg('重试', 'Retry');
+        setNodeMessage(retryBtn, '重试', 'Retry');
         if (typeof retryLoader === 'function') {
             retryBtn.addEventListener('click', retryLoader);
         }
@@ -473,7 +632,7 @@ async function loadTranslationStats() {
         const result = await cacheRead('translation', '/api/translate/cache/stats', { method: 'GET' });
         // Test denial after awaited cacheRead BEFORE render/enable
         if (isCacheDenied('translation')) {
-            appendStatusNear('translation-stats-container', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'error', null);
+            appendStatusNear('translation-stats-container', {zh:'权限不足，无法查看或操作翻译缓存。',en:'Insufficient permissions to view or manage translation cache.'}, 'error', null);
             return;
         }
         if (result.data && result.data.cache) {
@@ -494,9 +653,9 @@ async function loadTranslationStats() {
         setCacheAuthorized('translation', false);
         disableClearButtonsForGroup('translation');
         if (error && (error.status === 401 || error.status === 403)) {
-            appendStatusNear('translation-stats-container', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'error', null);
+            appendStatusNear('translation-stats-container', {zh:'权限不足，无法查看或操作翻译缓存。',en:'Insufficient permissions to view or manage translation cache.'}, 'error', null);
         } else {
-            appendStatusNear('translation-stats-container', localizedMsg('加载翻译缓存统计失败：' + (error.message || ''), 'Failed to load translation cache stats: ' + (error.message || '')), 'error', loadTranslationStats);
+            appendStatusNear('translation-stats-container', {zh:'加载翻译缓存统计失败，请重试',en:'Failed to load translation cache stats. Please retry.'}, 'error', loadTranslationStats);
         }
     }
 }
@@ -510,7 +669,7 @@ async function loadTranslationRecords() {
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-state';
     const loadingP = document.createElement('p');
-    loadingP.textContent = localizedMsg('加载中...', 'Loading...');
+    setNodeMessage(loadingP, '加载中...', 'Loading...');
     loadingDiv.appendChild(loadingP);
     listEl.appendChild(loadingDiv);
 
@@ -519,7 +678,7 @@ async function loadTranslationRecords() {
         // denial race after await, before paint
         if (isCacheDenied('translation')) {
             listEl.textContent = '';
-            appendStatusNear('translation-list', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'unauthorized', null);
+            appendStatusNear('translation-list', {zh:'权限不足，无法查看或操作翻译缓存。',en:'Insufficient permissions to view or manage translation cache.'}, 'unauthorized', null);
             return;
         }
         if (!result.data || !Array.isArray(result.data.records)) {
@@ -531,7 +690,7 @@ async function loadTranslationRecords() {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'empty-state';
             const emptyP = document.createElement('p');
-            emptyP.textContent = localizedMsg('暂无翻译缓存记录', 'No translation cache records.');
+            setNodeMessage(emptyP, '暂无翻译缓存记录', 'No translation cache records.');
             emptyDiv.appendChild(emptyP);
             listEl.appendChild(emptyDiv);
             return;
@@ -565,10 +724,9 @@ async function loadTranslationRecords() {
         disableClearButtonsForGroup('translation');
         listEl.textContent = '';
         if (error && (error.status === 401 || error.status === 403)) {
-            appendStatusNear('translation-list', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'unauthorized', null);
+            appendStatusNear('translation-list', {zh:'权限不足，无法查看或操作翻译缓存。',en:'Insufficient permissions to view or manage translation cache.'}, 'unauthorized', null);
         } else {
-            const msg = localizedMsg('加载失败，请稍后重试', 'Failed to load translation cache records. Please retry.');
-            appendStatusNear('translation-list', msg, 'error', loadTranslationRecords);
+            appendStatusNear('translation-list', {zh:'加载失败，请稍后重试',en:'Failed to load translation cache records. Please retry.'}, 'error', loadTranslationRecords);
         }
     }
 }
@@ -614,7 +772,7 @@ async function clearAllTranslationCache() {
         showToast(localizedMsg('当前无权限执行此操作', 'Not authorized for this action'), 'warning');
         return;
     }
-    if (!confirm('确定要清空所有翻译缓存吗？此操作不可恢复！')) {
+    if (!confirm(localizedMsg('确定要清空所有翻译缓存吗？此操作不可恢复！','Clear all translation cache? This cannot be undone.'))) {
         return;
     }
     
@@ -646,7 +804,7 @@ async function loadAPIStats() {
         const result = await cacheRead('api', '/api/cache/stats', { method: 'GET' });
         // Test denial after awaited cacheRead BEFORE render/enable
         if (isCacheDenied('api')) {
-            appendStatusNear('api-stats-container', localizedMsg('权限不足，无法查看或操作API缓存。', 'Insufficient permissions to view or manage API cache.'), 'error', null);
+            appendStatusNear('api-stats-container', {zh:'权限不足，无法查看或操作API缓存。',en:'Insufficient permissions to view or manage API cache.'}, 'error', null);
             return;
         }
         if (result.data) {
@@ -668,9 +826,9 @@ async function loadAPIStats() {
         setCacheAuthorized('api', false);
         disableClearButtonsForGroup('api');
         if (error && (error.status === 401 || error.status === 403)) {
-            appendStatusNear('api-stats-container', localizedMsg('权限不足，无法查看或操作API缓存。', 'Insufficient permissions to view or manage API cache.'), 'error', null);
+            appendStatusNear('api-stats-container', {zh:'权限不足，无法查看或操作API缓存。',en:'Insufficient permissions to view or manage API cache.'}, 'error', null);
         } else {
-            appendStatusNear('api-stats-container', localizedMsg('加载API缓存统计失败：' + (error.message || ''), 'Failed to load API cache stats: ' + (error.message || '')), 'error', loadAPIStats);
+            appendStatusNear('api-stats-container', {zh:'加载API缓存统计失败，请重试',en:'Failed to load API cache stats. Please retry.'}, 'error', loadAPIStats);
         }
     }
 }
@@ -684,7 +842,7 @@ async function loadAPIRecords() {
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-state';
     const loadingP = document.createElement('p');
-    loadingP.textContent = localizedMsg('加载中...', 'Loading...');
+    setNodeMessage(loadingP, '加载中...', 'Loading...');
     loadingDiv.appendChild(loadingP);
     listEl.appendChild(loadingDiv);
 
@@ -693,7 +851,7 @@ async function loadAPIRecords() {
         // denial race after await, before paint
         if (isCacheDenied('api')) {
             listEl.textContent = '';
-            appendStatusNear('api-list', localizedMsg('权限不足，无法查看或管理 API 缓存。', 'Insufficient permissions to view or manage API cache.'), 'unauthorized', null);
+            appendStatusNear('api-list', {zh:'权限不足，无法查看或管理 API 缓存。',en:'Insufficient permissions to view or manage API cache.'}, 'unauthorized', null);
             return;
         }
         if (!result.data || !Array.isArray(result.data.records)) {
@@ -705,7 +863,7 @@ async function loadAPIRecords() {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'empty-state';
             const emptyP = document.createElement('p');
-            emptyP.textContent = localizedMsg('暂无API缓存记录', 'No API cache records.');
+            setNodeMessage(emptyP, '暂无API缓存记录', 'No API cache records.');
             emptyDiv.appendChild(emptyP);
             listEl.appendChild(emptyDiv);
             return;
@@ -739,10 +897,9 @@ async function loadAPIRecords() {
         disableClearButtonsForGroup('api');
         listEl.textContent = '';
         if (error && (error.status === 401 || error.status === 403)) {
-            appendStatusNear('api-list', localizedMsg('权限不足，无法查看或管理 API 缓存。', 'Insufficient permissions to view or manage API cache.'), 'unauthorized', null);
+            appendStatusNear('api-list', {zh:'权限不足，无法查看或管理 API 缓存。',en:'Insufficient permissions to view or manage API cache.'}, 'unauthorized', null);
         } else {
-            const msg = localizedMsg('加载失败，请稍后重试', 'Failed to load API cache records. Please retry.');
-            appendStatusNear('api-list', msg, 'error', loadAPIRecords);
+            appendStatusNear('api-list', {zh:'加载失败，请稍后重试',en:'Failed to load API cache records. Please retry.'}, 'error', loadAPIRecords);
         }
     }
 }

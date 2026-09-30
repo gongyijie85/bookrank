@@ -52,7 +52,7 @@ for (const view of ['books-grid']) {
         assert.match(container.innerHTML, /data-index="7"/);
         assert.match(container.innerHTML, /data-category="hardcover-nonfiction"/);
         assert.match(container.innerHTML, /card_rank_aria 8/);
-        assert.match(container.innerHTML, />\+2<\/span>/);
+        assert.match(container.innerHTML, />↑ Up 2<\/span>/);
         assert.match(container.innerHTML, /<h3[^>]*>A filtered book<\/h3>/);
         context.updateBooksOnPage([{ ...books[0], source_index: undefined }], 'hardcover-fiction', null);
         assert.match(container.innerHTML, /data-index="7"/);
@@ -62,9 +62,9 @@ for (const view of ['books-grid']) {
 test('returning books and unknown history are not marked as new', () => {
     const { context } = renderer('books-grid');
     assert.match(context.renderRankChange({ rank_last_week: '0', weeks_on_list: 84 }, 4, 'en', 'rank-change'), /RETURN/);
-    assert.match(context.renderRankChange({ rank_last_week: '0', weeks_on_list: 1 }, 4, 'en', 'rank-change'), /card_new_badge/);
+    assert.match(context.renderRankChange({ rank_last_week: '0', weeks_on_list: 1 }, 4, 'en', 'rank-change'), />\+ NEW<\/span>/);
     assert.equal(context.renderRankChange({ rank_last_week: 'Unknown', weeks_on_list: 12 }, 4, 'en', 'rank-change'), '');
-    assert.equal(context.renderRankChange({ previous_rank: 4 }, 4, 'en', 'rank-change'), '');
+    assert.match(context.renderRankChange({ previous_rank: 4 }, 4, 'en', 'rank-change'), />— Unchanged<\/span>/);
 });
 
 test('cover weeks badge is shown only for a positive history count', () => {

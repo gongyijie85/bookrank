@@ -202,19 +202,22 @@
             {% if book.previous_rank and book.previous_rank > 0 %}
                 {% set rank_change = book.previous_rank - current_rank %}
                 {% if rank_change > 0 %}
-                <span class="rank-change up" aria-label="{{ _('排名上升') }}{{ rank_change }}{{ _('名') }}">+{{ rank_change }}</span>
+                <span class="rank-change up" data-zh="↑ 上升 {{ rank_change }}" data-en="↑ Up {{ rank_change }}" aria-label="{{ _('上升 %(places)s 位', places=rank_change) }}">↑ {{ _('上升') }} {{ rank_change }}</span>
                 {% elif rank_change < 0 %}
-                <span class="rank-change down" aria-label="{{ _('排名下降') }}{{ rank_change|abs }}{{ _('名') }}">-{{ rank_change|abs }}</span>
+                <span class="rank-change down" data-zh="↓ 下降 {{ rank_change|abs }}" data-en="↓ Down {{ rank_change|abs }}" aria-label="{{ _('下降 %(places)s 位', places=rank_change|abs) }}">↓ {{ _('下降') }} {{ rank_change|abs }}</span>
+                {% elif rank_change == 0 %}
+                <span class="rank-change stable" data-zh="— 持平" data-en="— Unchanged" aria-label="{% if _locale == 'zh' %}排名持平{% else %}Rank unchanged{% endif %}">{% if _locale == 'zh' %}— 持平{% else %}— Unchanged{% endif %}</span>
                 {% endif %}
             {% elif book.is_new %}
-                <span class="rank-change new" aria-label="{{ _('新书上榜') }}">NEW</span>
+                <span class="rank-change new" data-zh="+ 新" data-en="+ NEW" aria-label="{{ _('新书上榜') }}">{% if _locale == 'zh' %}+ 新{% else %}+ NEW{% endif %}</span>
             {% elif book.is_returning %}
-                <span class="rank-change new" aria-label="{% if _locale == 'zh' %}重返榜单{% else %}Returning to the list{% endif %}">{% if _locale == 'zh' %}重返{% else %}RETURN{% endif %}</span>
+                <span class="rank-change returning" data-zh="↩ 重返" data-en="↩ RETURN" aria-label="{% if _locale == 'zh' %}重返榜单{% else %}Returning to the list{% endif %}">{% if _locale == 'zh' %}↩ 重返{% else %}↩ RETURN{% endif %}</span>
             {% endif %}
         </div>
         <div class="card-content">
             {% if _locale == 'zh' %}
             <h3 class="card-title" title="{{ book.title_zh or book.title }}">{{ book.title_zh or book.title }}</h3>
+            {% if book.title_zh and book.title_zh != book.title %}<p class="card-original-title">{{ book.title }}</p>{% endif %}
             {% else %}
             <h3 class="card-title" title="{{ book.title }}">{{ book.title }}</h3>
             {% endif %}

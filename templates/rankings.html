@@ -65,6 +65,69 @@
     {% endif %}
 {% endmacro %}
 
+{% block extra_css %}<style nonce="{{ csp_nonce() }}">
+@media (max-width: 768px) {
+    .publisher-table {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        overflow-x: visible;
+    }
+
+    .publisher-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .publisher-table tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .publisher-table tbody tr {
+        display: grid;
+        gap: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+    }
+
+    .publisher-table tbody th,
+    .publisher-table tbody td {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        text-align: left;
+    }
+
+    .publisher-table tbody th::before,
+    .publisher-table tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-secondary, inherit);
+    }
+
+    .publisher-table tbody .publisher-name,
+    .publisher-table tbody .publisher-books {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+}
+</style>{% endblock %}
+
 {% block content %}
 {% set _locale = get_locale() %}
 {% set nyt_failures = rankings_nyt_unavailable_count | default(0) %}
@@ -202,13 +265,13 @@
             <tbody>
                 {% for entry in publisher_entries %}
                 <tr>
-                    <th scope="row">{{ loop.index }}</th>
-                    <td class="publisher-name">{{ entry.name }}</td>
-                    <td><strong>{{ entry.book_count }}</strong></td>
-                    <td>{{ entry.category_count }}</td>
-                    <td>#{{ entry.best_rank }}</td>
-                    <td>{{ entry.total_weeks }}</td>
-                    <td class="publisher-books">
+                    <th scope="row" data-label="{{ _('排名') }}" data-label-zh="排名" data-label-en="Rank">{{ loop.index }}</th>
+                    <td class="publisher-name" data-label="{{ _('厂牌') }}" data-label-zh="厂牌" data-label-en="Publisher">{{ entry.name }}</td>
+                    <td data-label="{{ _('上榜本数') }}" data-label-zh="上榜本数" data-label-en="Books on list"><strong>{{ entry.book_count }}</strong></td>
+                    <td data-label="{{ _('覆盖分类') }}" data-label-zh="覆盖分类" data-label-en="Categories covered">{{ entry.category_count }}</td>
+                    <td data-label="{{ _('最高名次') }}" data-label-zh="最高名次" data-label-en="Best rank">#{{ entry.best_rank }}</td>
+                    <td data-label="{{ _('合计在榜周') }}" data-label-zh="合计在榜周" data-label-en="Total weeks on list">{{ entry.total_weeks }}</td>
+                    <td class="publisher-books" data-label="{{ _('代表作') }}" data-label-zh="代表作" data-label-en="Representative books">
                         {% for book in entry.books[:3] %}
                         <span>{{ book.title if _locale != 'zh' else (book.title_zh or book.title) }}</span>{% if not loop.last %}·{% endif %}
                         {% endfor %}
@@ -230,4 +293,38 @@
     </p>
 </section>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  function applyLang(lang) {
+    var isZh = (lang || '').toLowerCase().indexOf('zh') === 0;
+    var nodes = document.querySelectorAll('[data-label-zh][data-label-en]');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var zh = el.getAttribute('data-label-zh');
+      var en = el.getAttribute('data-label-en');
+      if (zh == null || en == null) continue;
+      el.setAttribute('data-label', isZh ? zh : en);
+    }
+  }
+
+  function currentLang() {
+    if (typeof window.__APP_LANG__ === 'string' && window.__APP_LANG__) {
+      return window.__APP_LANG__;
+    }
+    var htmlLang = document.documentElement.lang || document.body.lang;
+    if (htmlLang) return htmlLang;
+    return '';
+  }
+
+  window.addEventListener('languagechange', function (e) {
+    var lang = (e && e.detail && e.detail.language) || currentLang();
+    applyLang(lang);
+  });
+
+  applyLang(currentLang());
+})();
+</script>
 {% endblock %}
