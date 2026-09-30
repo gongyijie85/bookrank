@@ -30,10 +30,11 @@ function harness(url = 'https://bookrank.test/awards?view=list&lang=en&page=4&pe
   const context = vm.createContext({ document, window, location: window.location, history, URL, URLSearchParams, console, showLoading() {}, setTimeout() {}, navigator: {}, sessionStorage: { getItem() { return null; }, setItem() {} } });
   return { document, window, ids, selectors, context, url: () => new URL(window.location.href) };
 }
-function scripts(html) { return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(match => match[1]); }
+function scripts(html) { return [...html.matchAll(/<script(?=[ \t\n\f\r/>])(?:[^>]*>)([\s\S]*?)<\/script(?=[ \t\n\f\r/>])[^>]*>/gi)].map(match => match[1]); }
 function run(script, h) { assert.ok(script, 'actual source script must exist'); vm.runInContext(script.replace(/\{\{\s*get_locale\(\)\s*\}\}/g, 'en').replace(/\{\{\s*_locale\s*\}\}/g, 'en'), h.context); h.document.fire('DOMContentLoaded'); }
-function awardsHarness() {
+function awardsHarness(grid) {
   const h = harness();
+  if (grid) h.ids.set('books-grid', grid);
   for (const [id, value] of Object.entries({ 'award-select': 'Booker', 'year-select': '2026', 'category-select': 'winner', 'search-input': 'Rain', 'btn-apply': '', 'btn-clear': '' })) h.ids.set(id, new Element(value));
   const script = scripts(source('templates/awards.html')).find(s => s.includes('function applyFilters'));
   assert.ok(script, 'real awards script missing');
@@ -61,6 +62,64 @@ test('awards Clear removes filters but preserves view/lang', () => {
   assert.equal(p.get('view'), 'list'); assert.equal(p.get('lang'), 'en');
   for (const key of ['award', 'year', 'category', 'search']) assert.equal(p.has(key), false);
   assert.equal(p.get('page') || '1', '1');
+});
+
+test('awards actual delegated handler navigates only canonical positive safe integer IDs', () => {
+  for (const id of ['1', '42', '9007199254740991']) {
+    const grid = new Element(); const h = awardsHarness(grid); const origin = h.url();
+    const card = { getAttribute: name => name === 'data-award-book-id' ? id : null };
+    const target = { closest: selector => selector === '.card[data-award-book-id]' ? card : null };
+    grid.fire('click', { target });
+    assert.equal(h.url().pathname, '/award-book/' + Number(id)); assert.equal(h.url().searchParams.get('lang'), 'en');
+    assert.equal(h.url().searchParams.get('return_to'), origin.pathname + origin.search);
+  }
+});
+
+test('awards actual delegated handler rejects malformed, unsafe and markup/path IDs', () => {
+  for (const id of ['1\n', '1\r', '1\u2028', '1\u2029', '<img src=x onerror=alert(1)>', '../../evil', null, '', ' ', '0', '-1', 'NaN', 'Infinity', '1.5', '1e2', '10evil', '+10', '0x10', '9007199254740992']) {
+    const grid = new Element(); const h = awardsHarness(grid); const before = h.url().href;
+    const card = { getAttribute: name => name === 'data-award-book-id' ? id : null };
+    const target = { closest: selector => selector === '.card[data-award-book-id]' ? card : null };
+    grid.fire('click', { target }); assert.equal(h.url().href, before, 'invalid ID must never navigate: ' + String(id));
+  }
+});
+
+test('awards real handler leaves native modifier links intact and delegates ISBN favorite once', () => {
+  const grid = new Element(); const h = awardsHarness(grid); const before = h.url().href;
+  const anchor = {}; grid.fire('click', { ctrlKey: true, target: { closest: selector => selector === 'a[href]' ? anchor : null } });
+  assert.equal(h.url().href, before);
+  const calls = []; h.context.toggleFavorite = (button, isbn) => calls.push({ button, isbn });
+  const button = new Element(); button.dataset.isbn = '9780385550369'; button.disabled = false; let stops = 0;
+  const event = { target: { closest: selector => selector === '.btn-favorite' ? button : null }, stopPropagation() { stops++; } };
+  grid.fire('click', event); assert.equal(calls.length, 1); assert.equal(calls[0].button, button); assert.equal(calls[0].isbn, '9780385550369');
+  button.disabled = true; grid.fire('click', event); assert.equal(calls.length, 1); assert.equal(stops, 2); assert.equal(h.url().href, before);
+});
+
+test('source script extractor handles upper/mixed case and never scripture tags', () => {
+  const html = '<SCRIPT nonce="test">upper()</SCRIPT><script>lower()</script><ScRiPt>mixed()</sCrIpT><scripture>never()</scripture>';
+  assert.deepEqual(scripts(html), ['upper()', 'lower()', 'mixed()']);
+});
+
+test('script extractor accepts actual HTML end-tag whitespace and ignored attributes', () => {
+  for (const closing of ['</script >', '</SCRIPT\t>', '</script\n>', '</script\f>', '</script\r>', '</script data-ignored="x">', '</script/>', '</script/ignored>']) {
+    assert.deepEqual(scripts('<ScRiPt nonce="test">body()' + closing), ['body()'], 'browser-tolerated closing tag: ' + JSON.stringify(closing));
+  }
+});
+
+test('script extractor rejects scripture/script-foo tag names at both boundaries', () => {
+  const html = '<script-foo>fake0()</script-foo><scripture>fake1()</scripture><script>good()</script-foo>body</scripture>end</script><script\t>last()</script >';
+  assert.deepEqual(scripts(html), ['good()</script-foo>body</scripture>end', 'last()']);
+  for (const fake of ['<script\u00a0>ignored()</script>', '<script\v>ignored()</script>', '<script nonce="x"</script>', '<script>ignored()</script\u00a0>']) {
+    assert.deepEqual(scripts(fake), [], 'only a complete tag with an HTML ASCII name boundary is a script: ' + JSON.stringify(fake));
+  }
+});
+
+test('mock rejects nonempty HTML sink rather than offering pretend sanitization; empty clears nodes', () => {
+  const node = new DomNode('DIV'); const child = new DomNode('SPAN'); child.textContent = 'kept'; node.appendChild(child);
+  for (const value of ['<SCRIPT>alert(1)</SCRIPT>', '<scrip<script>is removed</script>t>alert(1)</script>', 'prefix<script', '<b>ordinary markup</b>']) {
+    assert.throws(() => { node.innerHTML = value; }, /DomNode\.innerHTML setter does not support nonempty HTML/); assert.equal(node.textContent, 'kept');
+  }
+  node.innerHTML = ''; assert.equal(node.textContent, ''); assert.equal(node.children.length, 0);
 });
 function publisherHarness(mobile) {
   const h = harness('https://bookrank.test/publishers?lang=en');
@@ -130,7 +189,12 @@ class DomNode extends Element {
   constructor(tag = 'DIV') { super(); this.tagName = tag.toUpperCase(); this.children = []; this.attributes = new Map(); this._text = ''; this.className = ''; this.disabled = false; this.classList = { add: name => { this.className += ' ' + name; }, remove: name => { this.className = this.className.split(/\s+/).filter(x => x !== name).join(' '); }, contains: name => this.className.split(/\s+/).includes(name) }; }
   set textContent(value) { this._text = String(value); if (this.children) this.children = []; }
   get textContent() { return this._text + (this.children || []).map(n => n.textContent).join(''); }
-  set innerHTML(value) { this.textContent = String(value).replace(/<[^>]*>/g, ''); }
+  set innerHTML(value) {
+    if (String(value).length > 0) {
+      throw new Error('DomNode.innerHTML setter does not support nonempty HTML. Use DOM node APIs (createElement, replaceChildren, textContent) instead.');
+    }
+    this.replaceChildren();
+  }
   get innerHTML() { return this.textContent; }
   appendChild(node) { node.parentElement = this; node.parentNode = this; this.children.push(node); return node; }
   append(...nodes) { for (const node of nodes) this.appendChild(node); }
