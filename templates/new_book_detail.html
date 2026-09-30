@@ -90,12 +90,13 @@
         <!-- 简介：提到元信息之前，保证首屏能看到简介开头 -->
         <div class="detail-description">
             <h2 class="desc-title" data-i18n="nb_detail_description_title">{{ _('图书简介') }}</h2>
-            <div class="desc-content">
+            <div class="desc-content is-collapsed" id="detail-description-wrapper">
                 <p id="detail-description"
                    data-en="{{ book.description or '' }}"
                    data-zh="{{ book.description_zh or book.description or '' }}"
                    data-no-desc-zh="{{ _('暂无简介') }}"
                    data-no-desc-en="{{ _('No description available') }}">{{ book.description_zh|bilingual(book.description) or _('暂无简介') }}</p>
+                <button type="button" id="toggle-detail-description" aria-controls="detail-description-wrapper" aria-expanded="false" style="display: none; min-height: 44px; background: var(--bg-secondary, #f5f5f5); color: var(--text-primary, #31302e); border: 1px solid var(--border-color, #ddd); border-radius: 4px; margin-top: 8px; cursor: pointer;">Read more</button>
             </div>
         </div>
 
@@ -217,6 +218,97 @@
     window.addEventListener('languagechange', function(e) {
         applyNewBookDetailLanguage(e.detail.language);
     });
+})();
+(function() {
+    function init() {
+        const wrapper = document.getElementById('detail-description-wrapper');
+        const btn = document.getElementById('toggle-detail-description');
+        if (!wrapper || !btn) return;
+
+        let lang = window.__APP_LANG__ || document.documentElement.getAttribute('data-lang') || 'zh';
+
+        function getLabel(isExpanded) {
+            if (lang === 'en') {
+                return isExpanded ? 'Show less' : 'Read more';
+            } else {
+                return isExpanded ? '收起' : '展开全文';
+            }
+        }
+
+        function syncUIState() {
+            const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+            btn.textContent = getLabel(isExpanded);
+        }
+
+        function detectOverflow() {
+            const wasCollapsed = wrapper.classList.contains('is-collapsed');
+            const wasExpandedAria = btn.getAttribute('aria-expanded') === 'true';
+
+            // Force collapsed state for measurement
+            wrapper.classList.add('is-collapsed');
+
+            const p = wrapper.querySelector('p');
+            if (!p) return;
+
+            // Measure scrollHeight vs clientHeight in collapsed state
+            // CSS: .desc-content.is-collapsed p {max-height:9.9em;overflow:hidden}
+            const hasOverflow = p.scrollHeight > p.clientHeight + 1;
+
+            if (hasOverflow) {
+                btn.style.display = '';
+                if (wasExpandedAria && !wasCollapsed) {
+                    // Was expanded before, restore expanded state
+                    wrapper.classList.remove('is-collapsed');
+                } else {
+                    // Keep collapsed (or it was already collapsed)
+                    wrapper.classList.add('is-collapsed');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+            } else {
+                btn.style.display = 'none';
+                wrapper.classList.remove('is-collapsed');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+
+            syncUIState();
+        }
+
+        btn.addEventListener('click', function() {
+            const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+            if (isExpanded) {
+                wrapper.classList.add('is-collapsed');
+                btn.setAttribute('aria-expanded', 'false');
+            } else {
+                wrapper.classList.remove('is-collapsed');
+                btn.setAttribute('aria-expanded', 'true');
+            }
+            syncUIState();
+        });
+
+        // Initial detection
+        requestAnimationFrame(detectOverflow);
+
+        // Re-detect on resize
+        window.addEventListener('resize', function() {
+            requestAnimationFrame(detectOverflow);
+        });
+
+        // Re-detect on language change (after existing handler updates text)
+        window.addEventListener('languagechange', function(e) {
+            if (e.detail && e.detail.language) {
+                lang = e.detail.language;
+            }
+            requestAnimationFrame(function() {
+                detectOverflow();
+            });
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();
 </script>
 {% endblock %}
@@ -437,10 +529,9 @@ body.detail-page .main-content {
     line-height: 1.65;
     color: var(--text-secondary, #31302e);
     margin: 0;
-    /* 首屏摘要：完整简介由下方「图书简介」区块承载 */
-    display: -webkit-box;
-    -webkit-line-clamp: 6;
-    -webkit-box-orient: vertical;
+}
+.desc-content.is-collapsed p {
+    max-height: 9.9em;
     overflow: hidden;
 }
 

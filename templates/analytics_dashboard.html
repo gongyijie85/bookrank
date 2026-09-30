@@ -203,7 +203,7 @@
         </div>
     </div>
 
-    <script nonce="{{ csp_nonce() }}">
+<script nonce="{{ csp_nonce() }}">
         // 图表颜色统一管理
         const chartColors = {
             green: 'rgba(75, 192, 192, 0.6)',
@@ -220,67 +220,192 @@
             greenLight: 'rgba(75, 192, 192, 0.2)',
         };
 
-        // 初始化图表
-        let viewsChart, behaviorChart, dailyChart;
+        let viewsChart = null;
+        let behaviorChart = null;
+        let dailyChart = null;
 
-        // 加载数据
-        async function loadData() {
+        function createPanelStatus(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return null;
+            let parent = canvas.parentElement || canvas.parentNode;
+            if (!parent) return null;
+            if (parent.tagName === 'TBODY' || parent.tagName === 'TABLE') {
+                parent = canvas.closest('.table-responsive') || canvas.closest('.card-body') || parent.parentElement;
+                if (!parent) return null;
+            }
+            let statusDiv = parent.querySelector(':scope > .panel-status');
+            if (!statusDiv) {
+                statusDiv = document.createElement('div');
+                statusDiv.className = 'panel-status';
+                statusDiv.setAttribute('role', 'status');
+                statusDiv.setAttribute('aria-live', 'polite');
+                statusDiv.style.minHeight = '44px';
+                statusDiv.style.display = 'flex';
+                statusDiv.style.alignItems = 'center';
+                statusDiv.style.justifyContent = 'center';
+                statusDiv.style.color = '#000';
+                statusDiv.style.backgroundColor = '#fff';
+                parent.appendChild(statusDiv);
+            }
+            return statusDiv;
+        }
+
+        function showLoading(statusDiv) {
+            if (!statusDiv) return;
+            statusDiv.textContent = '加载中...';
+        }
+
+        function showError(statusDiv, retryFn) {
+            if (!statusDiv) return;
+            statusDiv.textContent = '';
+            const errText = document.createTextNode('加载失败，请重试');
+            statusDiv.appendChild(errText);
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-sm btn-primary';
+            btn.textContent = '重试';
+            btn.style.minWidth = '44px';
+            btn.style.minHeight = '44px';
+            btn.style.marginLeft = '8px';
+            btn.addEventListener('click', () => {
+                btn.disabled = true;
+                retryFn();
+            });
+            statusDiv.appendChild(btn);
+        }
+
+        function hideStatus(statusDiv) {
+            if (!statusDiv) return;
+            statusDiv.textContent = '';
+        }
+
+        async function fetchJson(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('HTTP error: ' + response.status);
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error('API error: success=false');
+            }
+            return data;
+        }
+
+        async function loadViewsPanel() {
+            const statusDiv = createPanelStatus('viewsChart');
+            showLoading(statusDiv);
             try {
-                // 加载周报阅读统计
-                const viewsResponse = await fetch('/api/analytics/report-views?days=30');
-                const viewsData = await viewsResponse.json();
-                
-                // 加载用户行为统计
-                const behaviorResponse = await fetch('/api/analytics/user-behavior?days=30');
-                const behaviorData = await behaviorResponse.json();
-                
-                // 加载每日统计
-                const dailyResponse = await fetch('/api/analytics/daily-stats?days=30');
-                const dailyData = await dailyResponse.json();
-                
-                // 加载阅读量最高的周报
-                const topResponse = await fetch('/api/analytics/top-reports?limit=10');
-                const topData = await topResponse.json();
-                
-                // 加载会话统计
-                const sessionResponse = await fetch('/api/analytics/session-stats?days=30');
-                const sessionData = await sessionResponse.json();
-
-                if (viewsData.success && behaviorData.success && dailyData.success && topData.success && sessionData.success) {
-                    // 更新统计卡片
-                    document.getElementById('total-views').textContent = viewsData.data.total_views;
-                    document.getElementById('total-behaviors').textContent = behaviorData.data.total_behaviors;
-                    document.getElementById('session-count').textContent = sessionData.data.session_count;
-                    document.getElementById('avg-views').textContent = viewsData.data.average_views;
-
-                    // 渲染周报阅读量图表
-                    renderViewsChart(viewsData.data.view_stats);
-                    
-                    // 渲染用户行为图表
-                    renderBehaviorChart(behaviorData.data.behavior_stats);
-                    
-                    // 渲染每日统计图表
-                    renderDailyChart(dailyData.data.daily_stats);
-                    
-                    // 渲染阅读量最高的周报
-                    renderTopReports(topData.data);
+                const data = await fetchJson('/api/analytics/report-views?days=30');
+                if (!data.data || !Array.isArray(data.data.view_stats)) {
+                    throw new Error('Invalid payload shape');
                 }
-            } catch (error) {
-                console.error('加载数据失败:', error);
+                document.getElementById('total-views').textContent = String(data.data.total_views != null ? data.data.total_views : 0);
+                document.getElementById('avg-views').textContent = String(data.data.average_views != null ? data.data.average_views : 0);
+                hideStatus(statusDiv);
+                renderViewsChart(data.data.view_stats);
+            } catch (e) {
+                console.error('views panel error:', e);
+                showError(statusDiv, loadViewsPanel);
             }
         }
 
-        // 渲染周报阅读量图表
+        async function loadBehaviorPanel() {
+            const statusDiv = createPanelStatus('behaviorChart');
+            showLoading(statusDiv);
+            try {
+                const data = await fetchJson('/api/analytics/user-behavior?days=30');
+                if (!data.data || !Array.isArray(data.data.behavior_stats)) {
+                    throw new Error('Invalid payload shape');
+                }
+                document.getElementById('total-behaviors').textContent = String(data.data.total_behaviors != null ? data.data.total_behaviors : 0);
+                hideStatus(statusDiv);
+                renderBehaviorChart(data.data.behavior_stats);
+            } catch (e) {
+                console.error('behavior panel error:', e);
+                showError(statusDiv, loadBehaviorPanel);
+            }
+        }
+
+        async function loadDailyPanel() {
+            const statusDiv = createPanelStatus('dailyChart');
+            showLoading(statusDiv);
+            try {
+                const data = await fetchJson('/api/analytics/daily-stats?days=30');
+                if (!data.data || !Array.isArray(data.data.daily_stats)) {
+                    throw new Error('Invalid payload shape');
+                }
+                hideStatus(statusDiv);
+                renderDailyChart(data.data.daily_stats);
+            } catch (e) {
+                console.error('daily panel error:', e);
+                showError(statusDiv, loadDailyPanel);
+            }
+        }
+
+        async function loadTopReportsPanel() {
+            const tableBody = document.getElementById('top-reports-table');
+            if (!tableBody) return;
+            const statusDiv = createPanelStatus(tableBody.id);
+            showLoading(statusDiv);
+            try {
+                const data = await fetchJson('/api/analytics/top-reports?limit=10');
+                if (!Array.isArray(data.data)) {
+                    throw new Error('Invalid payload shape');
+                }
+                renderTopReports(data.data);
+                hideStatus(statusDiv);
+            } catch (e) {
+                console.error('top reports panel error:', e);
+                showError(statusDiv, loadTopReportsPanel);
+            }
+        }
+
+        async function loadSessionPanel() {
+            const sessionCard = document.getElementById('session-count');
+            let statusDiv = null;
+            if (sessionCard) {
+                const parent = sessionCard.closest('.metric-card') || sessionCard.parentElement;
+                if (parent) {
+                    statusDiv = createPanelStatus(sessionCard.id);
+                }
+            }
+            if (statusDiv) showLoading(statusDiv);
+            try {
+                const data = await fetchJson('/api/analytics/session-stats?days=30');
+                if (!data.data || data.data.session_count == null) {
+                    throw new Error('Invalid payload shape');
+                }
+                document.getElementById('session-count').textContent = String(data.data.session_count);
+                if (statusDiv) hideStatus(statusDiv);
+            } catch (e) {
+                console.error('session panel error:', e);
+                if (statusDiv) showError(statusDiv, loadSessionPanel);
+            }
+        }
+
         function renderViewsChart(data) {
-            const ctx = document.getElementById('viewsChart').getContext('2d');
-            
+            const canvas = document.getElementById('viewsChart');
+            if (!canvas) return;
+            if (typeof Chart === 'undefined') {
+                throw new Error('Chart library unavailable');
+            }
             if (viewsChart) {
                 viewsChart.destroy();
+                viewsChart = null;
             }
-            
+            if (!data || data.length === 0) {
+                const ctx = canvas.getContext('2d');
+                viewsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: '阅读量', data: [], backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                });
+                const statusDiv = createPanelStatus('viewsChart');
+                if (statusDiv) statusDiv.textContent = '暂无数据';
+                return;
+            }
+            const ctx = canvas.getContext('2d');
             const labels = data.map(item => item.date);
             const values = data.map(item => item.view_count);
-            
             viewsChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -305,17 +430,30 @@
             });
         }
 
-        // 渲染用户行为图表
         function renderBehaviorChart(data) {
-            const ctx = document.getElementById('behaviorChart').getContext('2d');
-            
+            const canvas = document.getElementById('behaviorChart');
+            if (!canvas) return;
+            if (typeof Chart === 'undefined') {
+                throw new Error('Chart library unavailable');
+            }
             if (behaviorChart) {
                 behaviorChart.destroy();
+                behaviorChart = null;
             }
-            
+            if (!data || data.length === 0) {
+                const ctx = canvas.getContext('2d');
+                behaviorChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: { labels: [], datasets: [{ data: [], backgroundColor: [chartColors.red, chartColors.blue, chartColors.yellow, chartColors.green, chartColors.purple], borderColor: [chartColors.redBorder, chartColors.blueBorder, chartColors.yellowBorder, chartColors.greenBorder, chartColors.purpleBorder], borderWidth: 1 }] },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+                const statusDiv = createPanelStatus('behaviorChart');
+                if (statusDiv) statusDiv.textContent = '暂无数据';
+                return;
+            }
+            const ctx = canvas.getContext('2d');
             const labels = data.map(item => item.event_type);
             const values = data.map(item => item.count);
-            
             behaviorChart = new Chart(ctx, {
                 type: 'pie',
                 data: {
@@ -346,17 +484,30 @@
             });
         }
 
-        // 渲染每日统计图表
         function renderDailyChart(data) {
-            const ctx = document.getElementById('dailyChart').getContext('2d');
-            
+            const canvas = document.getElementById('dailyChart');
+            if (!canvas) return;
+            if (typeof Chart === 'undefined') {
+                throw new Error('Chart library unavailable');
+            }
             if (dailyChart) {
                 dailyChart.destroy();
+                dailyChart = null;
             }
-            
+            if (!data || data.length === 0) {
+                const ctx = canvas.getContext('2d');
+                dailyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: '每日活动数', data: [], borderColor: chartColors.greenBorder, backgroundColor: chartColors.greenLight, tension: 0.4, fill: true }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                });
+                const statusDiv = createPanelStatus('dailyChart');
+                if (statusDiv) statusDiv.textContent = '暂无数据';
+                return;
+            }
+            const ctx = canvas.getContext('2d');
             const labels = data.map(item => item.date);
             const values = data.map(item => item.count);
-            
             dailyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -382,30 +533,57 @@
             });
         }
 
-        // 渲染阅读量最高的周报
         function renderTopReports(data) {
             const tableBody = document.getElementById('top-reports-table');
-            tableBody.innerHTML = '';
-            
-            if (data.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="4" class="text-center">暂无数据</td></tr>';
+            if (!tableBody) return;
+            while (tableBody.firstChild) {
+                tableBody.removeChild(tableBody.firstChild);
+            }
+            if (!data || data.length === 0) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 4;
+                cell.className = 'text-center';
+                cell.textContent = '暂无数据';
+                row.appendChild(cell);
+                tableBody.appendChild(row);
                 return;
             }
-            
             data.forEach(item => {
                 const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${esc(item.date)}</td>
-                    <td>${esc(item.title)}</td>
-                    <td>${item.view_count}</td>
-                    <td><a href="/reports/weekly/${esc(item.date)}" class="btn btn-sm btn-primary">查看</a></td>
-                `;
+
+                const dateCell = document.createElement('td');
+                dateCell.textContent = String(item.date || '');
+                row.appendChild(dateCell);
+
+                const titleCell = document.createElement('td');
+                titleCell.textContent = String(item.title || '');
+                row.appendChild(titleCell);
+
+                const viewCell = document.createElement('td');
+                const vc = Number(item.view_count);
+                viewCell.textContent = String(isFinite(vc) && vc >= 0 ? Math.floor(vc) : 0);
+                row.appendChild(viewCell);
+
+                const linkCell = document.createElement('td');
+                const a = document.createElement('a');
+                a.href = '/reports/weekly/' + encodeURIComponent(String(item.date || ''));
+                a.className = 'btn btn-sm btn-primary';
+                a.textContent = '查看';
+                linkCell.appendChild(a);
+                row.appendChild(linkCell);
+
                 tableBody.appendChild(row);
             });
         }
 
-        // 页面加载完成后加载数据
-        document.addEventListener('DOMContentLoaded', loadData);
+        document.addEventListener('DOMContentLoaded', function () {
+            loadViewsPanel();
+            loadBehaviorPanel();
+            loadDailyPanel();
+            loadTopReportsPanel();
+            loadSessionPanel();
+        });
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

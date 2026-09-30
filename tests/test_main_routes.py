@@ -1,11 +1,17 @@
 """主路由辅助函数测试"""
 
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+from app.models.new_book import Publisher
 from app.services.book_detail_service import (
     update_book_from_google_books,
 )
+from app.services.new_book.publisher_manager import PublisherManager
 from app.utils.api_helpers import validate_isbn as is_valid_isbn
 from app.utils.book_filters import (
     filter_books_by_publisher,
@@ -487,3 +493,134 @@ class TestMainRoutes:
     def test_book_detail_negative_index(self, client):
         response = client.get('/book/-1')
         assert response.status_code in (200, 404)
+
+
+def _capture_about_render(monkeypatch):
+    captured = {}
+
+    def _render(template, **kwargs):
+        captured['template'] = template
+        captured['kwargs'] = kwargs
+        return 'ok'
+
+    monkeypatch.setattr('app.routes.main.render_adaptive', _render)
+    return captured
+
+
+def _use_real_publisher_manager(monkeypatch):
+    monkeypatch.setattr(
+        'app.routes.main.get_new_book_modules',
+        lambda: SimpleNamespace(publisher_manager=PublisherManager()),
+    )
+
+
+class TestAboutStats:
+    def test_about_stats_partition_active_rows_one_query(self, app, db, monkeypatch):
+        monkeypatch.setitem(
+            app.config,
+            'CATEGORIES',
+            {'hardcover-fiction': {}, 'hardcover-nonfiction': {}, 'advice': {}},
+        )
+        assert 'memory' in str(db.engine.url)
+        db.session.query(Publisher).delete()
+        db.session.commit()
+        db.session.add_all(
+            [
+                Publisher(
+                    name='谷歌图书出版社',
+                    name_en='Google Books',
+                    crawler_class='PrhApiCrawler',
+                    is_active=True,
+                ),
+                Publisher(
+                    name='哈珀柯林斯',
+                    name_en='HarperCollins',
+                    crawler_class='HarperCollinsGoogleCrawler',
+                    is_active=True,
+                ),
+                Publisher(
+                    name='综合来源甲',
+                    name_en='Renamed Books Aggregator',
+                    crawler_class='GoogleBooksCrawler',
+                    is_active=True,
+                ),
+                Publisher(
+                    name='综合来源乙',
+                    name_en='Renamed Library Aggregator',
+                    crawler_class='OpenLibraryCrawler',
+                    is_active=True,
+                ),
+                Publisher(
+                    name='休眠出版社',
+                    name_en='Inactive House',
+                    crawler_class='SnsApiCrawler',
+                    is_active=False,
+                ),
+                Publisher(
+                    name='休眠来源',
+                    name_en='Inactive Source',
+                    crawler_class='GoogleBooksCrawler',
+                    is_active=False,
+                ),
+            ]
+        )
+        db.session.commit()
+        _use_real_publisher_manager(monkeypatch)
+        captured = _capture_about_render(monkeypatch)
+        selects = []
+
+        def _count_publisher_selects(conn, cursor, statement, parameters, context, executemany):
+            normalized = statement.lower()
+            if normalized.lstrip().startswith('select') and 'publishers' in normalized:
+                selects.append(statement)
+
+        event.listen(Engine, 'before_cursor_execute', _count_publisher_selects)
+        try:
+            response = app.test_client().get('/about')
+        finally:
+            event.remove(Engine, 'before_cursor_execute', _count_publisher_selects)
+
+        assert response.status_code == 200
+        assert captured['template'] == 'about.html'
+        assert captured['kwargs']['about_stats'] == {
+            'nyt_category_count': 3,
+            'publisher_count': 2,
+            'source_count': 2,
+        }
+        assert len(selects) == 1
+
+    def test_about_stats_empty_categories_and_publishers(self, app, db, monkeypatch):
+        monkeypatch.setitem(app.config, 'CATEGORIES', {})
+        _use_real_publisher_manager(monkeypatch)
+        captured = _capture_about_render(monkeypatch)
+
+        response = app.test_client().get('/about')
+
+        assert response.status_code == 200
+        assert captured['kwargs']['about_stats'] == {
+            'nyt_category_count': 0,
+            'publisher_count': 0,
+            'source_count': 0,
+        }
+
+    def test_about_stats_provider_failure_marks_counts_unavailable(self, app, db, monkeypatch):
+        monkeypatch.setitem(
+            app.config,
+            'CATEGORIES',
+            {'one': {}, 'two': {}, 'three': {}},
+        )
+
+        def _boom():
+            raise RuntimeError('publisher modules unavailable')
+
+        monkeypatch.setattr('app.routes.main.get_new_book_modules', _boom)
+        captured = _capture_about_render(monkeypatch)
+
+        response = app.test_client().get('/about')
+
+        assert response.status_code == 200
+        assert captured['kwargs']['about_stats'] == {
+            'nyt_category_count': 3,
+            'publisher_count': None,
+            'source_count': None,
+        }

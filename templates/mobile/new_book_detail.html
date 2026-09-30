@@ -44,11 +44,67 @@
 
     <section>
         <h2 style="font-size:1rem;font-weight:600;margin:0 0 0.5rem;">{{ _('图书简介') }}</h2>
-        <div style="font-size:0.92rem;line-height:1.65;color:var(--foreground);">
+        <div id="m-desc-content" class="m-desc-collapsed" style="font-size:0.92rem;line-height:1.65;color:var(--foreground);position:relative;">
             {% if _l=='zh' and book.description_zh %}{{ book.description_zh|sanitize_html|safe }}
             {% elif book.description %}{{ book.description|sanitize_html|safe }}
             {% else %}<p style="color:var(--text-secondary);">{{ _('暂无简介') }}</p>{% endif %}
         </div>
+        <button type="button" id="m-desc-toggle" aria-expanded="false" aria-controls="m-desc-content" style="display:none;margin-top:0.5rem;background:none;border:1px solid var(--foreground);color:var(--foreground);font-size:0.85rem;cursor:pointer;padding:0.5rem 0.75rem;min-height:44px;">{% if _l == 'en' %}Read more{% else %}展开全文{% endif %}</button>
     </section>
 </article>
+<script nonce="{{ csp_nonce() }}">
+(function(){
+    var desc = document.getElementById('m-desc-content');
+    var btn = document.getElementById('m-desc-toggle');
+    if (!desc || !btn) return;
+    var isEn = '{{ _l }}' === 'en';
+    var labelMore = isEn ? 'Read more' : '展开全文';
+    var labelLess = isEn ? 'Show less' : '收起';
+    function checkOverflow() {
+        var wasExpanded = btn.getAttribute('aria-expanded') === 'true';
+        // Measure in collapsed layout
+        desc.classList.add('m-desc-collapsed');
+        var overflow = desc.scrollHeight > desc.clientHeight + 1;
+        if (overflow) {
+            btn.style.display = '';
+            if (wasExpanded) {
+                desc.classList.remove('m-desc-collapsed');
+                btn.textContent = labelLess;
+                btn.setAttribute('aria-expanded', 'true');
+            } else {
+                btn.textContent = labelMore;
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        } else {
+            btn.style.display = 'none';
+            desc.classList.remove('m-desc-collapsed');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+    }
+    btn.addEventListener('click', function(){
+        var expanded = btn.getAttribute('aria-expanded') === 'true';
+        if (expanded) {
+            desc.classList.add('m-desc-collapsed');
+            btn.textContent = labelMore;
+            btn.setAttribute('aria-expanded', 'false');
+        } else {
+            desc.classList.remove('m-desc-collapsed');
+            btn.textContent = labelLess;
+            btn.setAttribute('aria-expanded', 'true');
+        }
+    });
+    requestAnimationFrame(checkOverflow);
+    window.addEventListener('resize', checkOverflow);
+    window.addEventListener('languagechange', function(e){
+        var lang = e.detail && e.detail.language ? e.detail.language : navigator.language;
+        isEn = lang.indexOf('en') === 0;
+        labelMore = isEn ? 'Read more' : '展开全文';
+        labelLess = isEn ? 'Show less' : '收起';
+        checkOverflow();
+    });
+})();
+</script>
+<style nonce="{{ csp_nonce() }}">
+.m-desc-collapsed{max-height:9em;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent);mask-image:linear-gradient(to bottom,#000 70%,transparent);}
+</style>
 {% endblock %}

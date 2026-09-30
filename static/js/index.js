@@ -174,24 +174,6 @@ function applySearch(query) {
 
 // ========== 收藏功能 ==========
 
-function toggleFavorite(btn, isbn) {
-    if (!isbn) return;
-    let favorites = JSON.parse(localStorage.getItem('bookrank_favorites') || '[]');
-    const index = favorites.indexOf(isbn);
-    if (index > -1) {
-        favorites.splice(index, 1);
-        btn.classList.remove('active');
-        btn.setAttribute('aria-pressed', 'false');
-        showToast('已取消收藏', 'info');
-    } else {
-        favorites.push(isbn);
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
-        showToast('已添加到收藏', 'success');
-    }
-    localStorage.setItem('bookrank_favorites', JSON.stringify(favorites));
-}
-
 // ========== 分享功能 ==========
 
 function shareBook(title, author) {
@@ -801,7 +783,7 @@ function handleCardClick(e) {
     if (favBtn) {
         e.stopPropagation();
         const isbn = favBtn.getAttribute('data-isbn');
-        if (typeof toggleFavorite === 'function') toggleFavorite(favBtn, isbn);
+        if (typeof window.toggleFavorite === 'function') window.toggleFavorite(favBtn, isbn);
         return;
     }
     const shareBtn = e.target.closest('.btn-share');

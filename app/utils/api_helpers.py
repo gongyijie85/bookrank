@@ -491,6 +491,7 @@ PLACEHOLDER_TEXTS = frozenset(
         'No summary available',
         'No detailed description available.',
         'No description available.',
+        'Flatiron TBD title to be revealed. author to be revealed TBD.',
         # 抓取侧中文
         '暂无简介',
         '暂无详细介绍',

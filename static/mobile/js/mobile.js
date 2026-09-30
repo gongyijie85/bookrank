@@ -325,7 +325,8 @@
                     '暂无详细描述',
                     'Unknown',
                     'N/A',
-                    'None'
+                    'None',
+                    'Flatiron TBD title to be revealed. author to be revealed TBD.'
                 ];
                 if (!details || PLACEHOLDERS.indexOf(details) !== -1) return;
                 // 渲染到 .m-tab-panel-extra
@@ -379,32 +380,251 @@
     }
 
     // ===== 4e. 取消收藏（模板只放 .m-fav-remove[data-isbn] 标记，内联脚本会被 CSP 屏蔽） =====
+    function normalizeIsbn(isbn) {
+        if (!isbn || typeof isbn !== 'string') return '';
+        var cleaned = isbn.replace(/[\s-]/g, '').toUpperCase();
+        if (/^\d{13}$/.test(cleaned) || /^\d{9}[\dX]$/.test(cleaned)) {
+            return cleaned;
+        }
+        return '';
+    }
+
+    function getMobileLang() {
+        var lang = document.documentElement.getAttribute('data-lang');
+        if (!lang && typeof SERVER_LANGUAGE !== 'undefined' && SERVER_LANGUAGE) {
+            lang = SERVER_LANGUAGE;
+        }
+        return lang || 'zh';
+    }
+
+    function isZhNow() {
+        return getMobileLang().indexOf('zh') === 0;
+    }
+
+    function favoriteLabels() {
+        var zh = isZhNow();
+        return {
+            add: zh ? '收藏' : 'Favorite',
+            remove: zh ? '已收藏' : 'Favorited',
+            addedToast: zh ? '已添加到收藏' : 'Added to favorites',
+            removedToast: zh ? '已从收藏移除' : 'Removed from favorites',
+            errorToast: zh ? '操作失败，请重试' : 'Operation failed, please retry',
+            invalidTitle: zh ? 'ISBN无效或缺失，无法收藏' : 'Invalid or missing ISBN; cannot favorite'
+        };
+    }
+
+    var pendingIsbns = new Set();
+    var touchedButtons = new WeakSet();
+    var initialGetStarted = false;
+
+    function sameIsbnPeers(normalizedIsbn) {
+        var peers = [];
+        var allBtns = document.querySelectorAll('.m-favorite-btn[data-isbn]');
+        for (var i = 0; i < allBtns.length; i++) {
+            var b = allBtns[i];
+            if (normalizeIsbn(b.getAttribute('data-isbn')) === normalizedIsbn) {
+                peers.push(b);
+            }
+        }
+        return peers;
+    }
+
+    function updateButtonState(btn, isFavorited) {
+        btn.setAttribute('aria-pressed', String(isFavorited));
+        var labels = favoriteLabels();
+        var text = isFavorited ? labels.remove : labels.add;
+        btn.title = text;
+        btn.setAttribute('aria-label', text);
+        var svg = btn.querySelector('svg');
+        if (svg) {
+            var path = svg.querySelector('path');
+            if (path) {
+                path.setAttribute('fill', isFavorited ? 'currentColor' : 'none');
+            }
+        }
+    }
+
+    function syncAllPeers(normalizedIsbn, isFavorited) {
+        var peers = sameIsbnPeers(normalizedIsbn);
+        for (var i = 0; i < peers.length; i++) {
+            updateButtonState(peers[i], isFavorited);
+        }
+    }
+
+    function setPeersDisabled(normalizedIsbn, disabled) {
+        var peers = sameIsbnPeers(normalizedIsbn);
+        for (var i = 0; i < peers.length; i++) {
+            peers[i].disabled = disabled;
+        }
+    }
+
+    function toggleMobileFavorite(btn) {
+        var rawIsbn = btn.getAttribute('data-isbn');
+        var normalized = normalizeIsbn(rawIsbn);
+        if (!normalized) {
+            btn.disabled = true;
+            var invalidLabels = favoriteLabels();
+            btn.title = invalidLabels.invalidTitle;
+            btn.setAttribute('aria-label', invalidLabels.invalidTitle);
+            return;
+        }
+        if (pendingIsbns.has(normalized)) return;
+
+        var peers = sameIsbnPeers(normalized);
+        for (var p = 0; p < peers.length; p++) {
+            touchedButtons.add(peers[p]);
+        }
+
+        pendingIsbns.add(normalized);
+        for (var d = 0; d < peers.length; d++) {
+            peers[d].setAttribute('aria-busy', 'true');
+        }
+        setPeersDisabled(normalized, true);
+
+        var isFavorited = btn.getAttribute('aria-pressed') === 'true';
+        var method = isFavorited ? 'DELETE' : 'POST';
+        var url;
+        var opts;
+        if (isFavorited) {
+            url = '/api/favorites/' + encodeURIComponent(normalized);
+            opts = { method: method };
+        } else {
+            url = '/api/favorites';
+            opts = {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isbn: normalized })
+            };
+        }
+
+        csrfFetch(url, opts)
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                if (!data || data.success !== true) throw new Error('API failure');
+                var newState = !isFavorited;
+                syncAllPeers(normalized, newState);
+                toast(newState ? favoriteLabels().addedToast : favoriteLabels().removedToast, 'success');
+            })
+            .catch(function () {
+                toast(favoriteLabels().errorToast, 'error');
+            })
+            .finally(function () {
+                pendingIsbns.delete(normalized);
+                var afterPeers = sameIsbnPeers(normalized);
+                for (var f = 0; f < afterPeers.length; f++) {
+                    afterPeers[f].removeAttribute('aria-busy');
+                }
+                setPeersDisabled(normalized, false);
+            });
+    }
+
+    function initMobileFavorites() {
+        var buttons = document.querySelectorAll('.m-favorite-btn[data-isbn]');
+        if (!buttons.length) return;
+
+        for (var i = 0; i < buttons.length; i++) {
+            var btn = buttons[i];
+            var rawIsbn = btn.getAttribute('data-isbn');
+            var normalized = normalizeIsbn(rawIsbn);
+            if (!normalized) {
+                btn.disabled = true;
+                var labels = favoriteLabels();
+                btn.title = labels.invalidTitle;
+                btn.setAttribute('aria-label', labels.invalidTitle);
+                continue;
+            }
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleMobileFavorite(this);
+            });
+        }
+
+        if (initialGetStarted) return;
+        initialGetStarted = true;
+
+        fetch('/api/favorites')
+            .then(function (r) {
+                if (!r.ok) throw new Error('GET failed');
+                return r.json();
+            })
+            .then(function (data) {
+                if (!data || data.success !== true) return;
+                var payload = data.data || {};
+                var favs = Array.isArray(payload.favorites) ? payload.favorites : [];
+                var favIsbns = new Set();
+                for (var j = 0; j < favs.length; j++) {
+                    var f = favs[j];
+                    if (f && f.isbn) {
+                        var norm = normalizeIsbn(String(f.isbn));
+                        if (norm) favIsbns.add(norm);
+                    }
+                }
+                for (var k = 0; k < buttons.length; k++) {
+                    var b = buttons[k];
+                    if (touchedButtons.has(b)) continue;
+                    var norm2 = normalizeIsbn(b.getAttribute('data-isbn'));
+                    if (norm2 && favIsbns.has(norm2)) {
+                        updateButtonState(b, true);
+                    }
+                }
+            })
+            .catch(function () { /* GET失败保持默认未收藏状态 */ });
+    }
+
     function initFavoriteRemove() {
         document.addEventListener('click', function (e) {
-            const btn = e.target.closest ? e.target.closest('.m-fav-remove') : null;
+            var btn = e.target.closest ? e.target.closest('.m-fav-remove') : null;
             if (!btn) return;
             e.preventDefault();
             e.stopPropagation();
-            const isbn = btn.getAttribute('data-isbn');
+            var isbn = btn.getAttribute('data-isbn');
             if (!isbn) return;
-            // 令牌一次性：csrfFetch 内部会在请求后清空缓存并在令牌失效时重试
-            csrfFetch('/api/favorites/' + encodeURIComponent(isbn), { method: 'DELETE' })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (data && data.success) {
-                        const card = btn.closest('.m-book-card');
-                        if (card) card.remove();
-                    }
-                })
-                .catch(function () { /* 失败保持原状，不误导用户已取消 */ });
-        });
-    }
+            var normalized = normalizeIsbn(isbn);
+            if (!normalized) return;
+            if (pendingIsbns.has(normalized)) return;
+            pendingIsbns.add(normalized);
+            btn.setAttribute('aria-busy', 'true');
+            btn.disabled = true;
 
-    // ===== 暴露 API =====
+            csrfFetch('/api/favorites/' + encodeURIComponent(normalized), { method: 'DELETE' })
+                .then(function (r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function (data) {
+                    if (!data || !data.success) throw new Error('API failure');
+                    var card = btn.closest('.m-book-card');
+                    if (card) card.remove();
+                    var remaining = document.querySelectorAll('#m-favorites .m-book-card').length;
+                    var countEl = document.querySelector('#m-favorites .m-section-count');
+                    if (countEl) countEl.textContent = '(' + remaining + ')';
+                    var statEl = document.querySelector('.m-profile-stat');
+                    if (statEl) {
+                        statEl.textContent = isZhNow()
+                            ? '已收藏 ' + remaining + ' 本'
+                            : 'Favorited ' + remaining + ' books';
+                    }
+                    toast(favoriteLabels().removedToast, 'success');
+                })
+                .catch(function () {
+                    toast(favoriteLabels().errorToast, 'error');
+                })
+                .finally(function () {
+                    pendingIsbns.delete(normalized);
+                    btn.removeAttribute('aria-busy');
+                    btn.disabled = false;
+                });
+        });
+    }    // ===== 暴露 API =====
     window.MobileApp = {
         getCsrfToken: getCsrfToken,
         csrfFetch: csrfFetch,
         toast: toast,
+        toggleFavorite: toggleMobileFavorite,
         getSessionId: function () {
             const m = document.cookie.match(/(?:^|; )session_id=([^;]*)/);
             return m ? m[1] : 'anonymous';
@@ -430,5 +650,6 @@
         initReportPolling();
         initShareButtons();
         initFavoriteRemove();
+        initMobileFavorites();
     });
 })();

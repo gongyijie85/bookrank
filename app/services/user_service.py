@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
+
 from ..models.database import db
 from ..models.schemas import BookMetadata, SearchHistory, UserCategory, UserFavorite, UserPreference, UserViewedBook
 from ..utils.error_handler import ErrorCategory, log_error
@@ -92,9 +94,16 @@ class UserService:
         existing = UserFavorite.query.filter_by(session_id=session_id, isbn=isbn).first()
         if existing:
             return existing.to_dict(), False
-        fav = UserFavorite(session_id=session_id, isbn=isbn)
-        db.session.add(fav)
-        db.session.commit()
+        try:
+            fav = UserFavorite(session_id=session_id, isbn=isbn)
+            db.session.add(fav)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            raced = UserFavorite.query.filter_by(session_id=session_id, isbn=isbn).first()
+            if raced is not None:
+                return raced.to_dict(), False
+            raise
         return fav.to_dict(), True
 
     def remove_favorite(self, session_id: str, isbn: str) -> bool:

@@ -28,8 +28,9 @@ import pytest
 from bs4 import BeautifulSoup
 
 from app.models.book import Book
-from app.services.book_detail_service import enrich_book_details
-from app.utils.api_helpers import is_placeholder_text, strip_placeholder
+from app.models.schemas import BookMetadata
+from app.services.book_detail_service import enrich_book_details, update_book_from_google_books
+from app.utils.api_helpers import PLACEHOLDER_TEXTS, is_placeholder_text, strip_placeholder
 
 #: 生产上 details 字段里存的占位串（实测取证）
 PROD_PLACEHOLDER = 'No detailed description available.'
@@ -255,3 +256,226 @@ class TestDetailPageShowsDetailsFromFallback:
         soup = BeautifulSoup(self._get(client, ''), 'html.parser')
 
         assert soup.find(id='tab-details') is None
+
+
+class TestNytPlaceholderPresentation:
+    """Flatiron 整句占位：精确命中才清空，合并后的展示副本再洗四个正文字段。"""
+
+    LITERAL = 'Flatiron TBD title to be revealed. author to be revealed TBD.'
+
+    def test_canonical_predicate_strips_exact_literal_only(self):
+        assert self.LITERAL in PLACEHOLDER_TEXTS
+        assert is_placeholder_text(self.LITERAL) is True
+        assert strip_placeholder(self.LITERAL) == ''
+        assert strip_placeholder(f'  {self.LITERAL}  ') == ''
+
+        assert is_placeholder_text('TBD') is False
+        assert strip_placeholder('TBD') == 'TBD'
+        assert is_placeholder_text('To Be Revealed') is False
+        assert strip_placeholder('To Be Revealed') == 'To Be Revealed'
+
+        narrative = 'The jacket says TBD and the notes say To Be Revealed, then the real plot begins.'
+        assert is_placeholder_text(narrative) is False
+        assert strip_placeholder(narrative) == narrative
+        assert is_placeholder_text(WORK_DESCRIPTION) is False
+
+    def test_enrich_calls_open_library_when_google_is_empty(self):
+        book = {'details': self.LITERAL, 'description': self.LITERAL}
+        fetch = MagicMock(return_value=WORK_DESCRIPTION)
+        google = MagicMock()
+        with (
+            patch('app.services.book_detail_service.fetch_google_books_details', google),
+            patch(
+                'app.services.book_detail_service.get_or_create_open_library_client',
+                return_value=MagicMock(fetch_work_description_by_isbn=fetch),
+            ),
+        ):
+            enrich_book_details(book, ISBN)
+
+        google.assert_called_once_with(book, ISBN)
+        fetch.assert_called_once_with(ISBN)
+        assert book['details'] == WORK_DESCRIPTION
+
+    @staticmethod
+    def _install_books(app, books):
+        previous = app.extensions.get('book_service')
+        service = MagicMock()
+        service.get_books_by_category.return_value = [MagicMock(to_dict=MagicMock(return_value=book)) for book in books]
+        service.get_cache_time.return_value = '2026-09-17'
+        service.get_latest_cache_time.return_value = '2026-09-17'
+        app.extensions['book_service'] = service
+        return previous
+
+    @staticmethod
+    def _restore_books(app, previous):
+        if previous is None:
+            app.extensions.pop('book_service', None)
+        else:
+            app.extensions['book_service'] = previous
+
+    def _render_book(self, app, source, open_library_text):
+        captured = {}
+
+        def _capture(template, **context):
+            captured['book'] = context['book']
+            return 'ok'
+
+        client = app.test_client()
+        with (
+            patch('app.services.book_detail_service.fetch_google_books_details'),
+            patch(
+                'app.services.book_detail_service.get_or_create_open_library_client',
+                return_value=MagicMock(fetch_work_description_by_isbn=MagicMock(return_value=open_library_text)),
+            ),
+            patch('app.routes.main.render_adaptive', side_effect=_capture),
+        ):
+            response = client.get('/book/0?category=hardcover-fiction')
+        assert response.status_code == 200
+        return captured['book']
+
+    def test_book_route_cleans_four_fields_after_merge_without_touching_source_or_db(self, app, db):
+        source = {
+            'title': 'STITCHED',
+            'author': 'Eli McCann',
+            'isbn13': ISBN,
+            'isbn10': '',
+            'description': self.LITERAL,
+            'details': self.LITERAL,
+        }
+        db.session.add(
+            BookMetadata(
+                isbn=ISBN,
+                title='STITCHED',
+                author='Eli McCann',
+                details=self.LITERAL,
+                title_zh='缝合',
+                description_zh=self.LITERAL,
+                details_zh=self.LITERAL,
+            )
+        )
+        db.session.commit()
+        previous = self._install_books(app, [source])
+        try:
+            presented = self._render_book(app, source, '')
+        finally:
+            self._restore_books(app, previous)
+
+        assert presented is not source
+        assert presented['description'] == ''
+        assert presented['details'] == ''
+        assert presented['description_zh'] == ''
+        assert presented['details_zh'] == ''
+        assert presented['title'] == 'STITCHED'
+        assert presented['title_zh'] == '缝合'
+        assert source['description'] == self.LITERAL
+        assert source['details'] == self.LITERAL
+        assert 'description_zh' not in source
+        assert 'details_zh' not in source
+
+        db.session.expire_all()
+        stored = db.session.query(BookMetadata).filter_by(isbn=ISBN).one()
+        assert stored.details == self.LITERAL
+        assert stored.description_zh == self.LITERAL
+        assert stored.details_zh == self.LITERAL
+        assert stored.title_zh == '缝合'
+        assert stored.title == 'STITCHED'
+        assert stored.author == 'Eli McCann'
+
+    def test_book_route_keeps_legitimate_titles_and_narrative(self, app, db):
+        narrative = 'The margin says TBD and the jacket says To Be Revealed, but the chapters are finished.'
+        description_zh = '页边写了 TBD，封面写了 To Be Revealed，正文已经写完。'
+        details_zh = '这是一段真实详情，里面出现 To Be Revealed 只是角色的台词。'
+        source = {
+            'title': 'To Be Revealed',
+            'author': 'Ada Lovelace',
+            'isbn13': ISBN,
+            'isbn10': '',
+            'description': narrative,
+            'details': narrative,
+        }
+        db.session.add(
+            BookMetadata(
+                isbn=ISBN,
+                title='To Be Revealed',
+                author='Ada Lovelace',
+                details=narrative,
+                title_zh='即将揭晓',
+                description_zh=description_zh,
+                details_zh=details_zh,
+            )
+        )
+        db.session.commit()
+        previous = self._install_books(app, [source])
+        try:
+            presented = self._render_book(app, source, 'unused open library text')
+        finally:
+            self._restore_books(app, previous)
+
+        assert presented is not source
+        assert presented['title'] == 'To Be Revealed'
+        assert presented['title_zh'] == '即将揭晓'
+        assert presented['description'] == narrative
+        assert presented['details'] == narrative
+        assert presented['description_zh'] == description_zh
+        assert presented['details_zh'] == details_zh
+        assert source['title'] == 'To Be Revealed'
+        assert source['description'] == narrative
+        assert source['details'] == narrative
+
+    def test_api_book_details_returns_existing_empty_fallback(self, app, db):
+        source = {
+            'title': 'TBD',
+            'author': 'Eli McCann',
+            'isbn13': ISBN,
+            'description': self.LITERAL,
+            'details': self.LITERAL,
+        }
+        previous = self._install_books(app, [source])
+        try:
+            client = app.test_client()
+            response = client.get(f'/api/book-details?book_index=0&isbn={ISBN}&category=hardcover-fiction')
+        finally:
+            self._restore_books(app, previous)
+
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload['data']['details'] == '暂无详细介绍'
+        assert source['details'] == self.LITERAL
+        assert source['description'] == self.LITERAL
+
+    def test_update_book_from_google_books_rejects_exact_placeholder(self):
+        translate = MagicMock()
+        kept = {
+            'title': 'To Be Revealed',
+            'title_zh': '即将揭晓',
+            'author': 'Ada',
+            'description': 'Keep this narrative.',
+            'description_zh': '保留这段叙述。',
+            'details': 'Keep this narrative.',
+        }
+        with patch('app.services.book_detail_service.translate_field_async', translate):
+            update_book_from_google_books(kept, {'details': self.LITERAL})
+        assert kept['details'] == 'Keep this narrative.'
+        assert kept['description'] == 'Keep this narrative.'
+        assert kept['description_zh'] == '保留这段叙述。'
+        assert kept['title'] == 'To Be Revealed'
+        assert kept['title_zh'] == '即将揭晓'
+        translate.assert_not_called()
+
+        narrative = 'A finished story whose margin note says TBD and whose draft title was To Be Revealed.'
+        accepted = {
+            'title': 'TBD',
+            'title_zh': '待定',
+            'author': 'Ada',
+            'description': '',
+            'description_zh': '已有简介',
+            'details': '',
+        }
+        with patch('app.services.book_detail_service.translate_field_async', translate):
+            update_book_from_google_books(accepted, {'details': narrative})
+        assert accepted['details'] == narrative
+        assert accepted['description'] == ''
+        assert accepted['description_zh'] == '已有简介'
+        assert accepted['title'] == 'TBD'
+        assert accepted['title_zh'] == '待定'
+        translate.assert_called_once_with(accepted, 'details', 'details_zh')

@@ -190,12 +190,11 @@
                         <ul class="changes-list">
                             {% for change in content.top_changes %}
                             <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}">
-                                {% if change.cover %}
-                                <img src="{{ change.cover|cover_src_or_default }}" alt="{{ change.title_zh or change.title }}" class="book-cover" width="50" height="75" loading="lazy"
-                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                                {% if change.cover and 'default-cover' not in change.cover %}
+                                <img src="{{ change.cover|cover_src }}" alt="{{ change.title_zh or change.title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
-                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                    {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
                                 <span class="change-title">{{ change.title | format_title }}</span>
@@ -227,12 +226,11 @@
                         <ul class="books-list">
                             {% for book in content.new_books %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
-                                {% if book.cover %}
-                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy"
-                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                                {% if book.cover and 'default-cover' not in book.cover %}
+                                <img src="{{ book.cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
-                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                    {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
                                 <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
@@ -256,12 +254,11 @@
                         <ul class="books-list">
                             {% for book in content.top_risers %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
-                                {% if book.cover %}
-                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy"
-                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                                {% if book.cover and 'default-cover' not in book.cover %}
+                                <img src="{{ book.cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
-                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                    {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
                                 <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
@@ -285,12 +282,11 @@
                         <ul class="books-list">
                             {% for book in content.longest_running %}
                             <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
-                                {% if book.cover %}
-                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy"
-                                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                                {% if book.cover and 'default-cover' not in book.cover %}
+                                <img src="{{ book.cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
-                                    <svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>
+                                    {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
                                 <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
@@ -322,13 +318,19 @@
                         <div class="recommendations-grid">
                             {% for book in content.featured_books %}
                             <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
-                                {% if book.cover %}
-                                <img src="{{ book.cover|cover_src_or_default }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="recommendation-cover" width="80" height="120" loading="lazy">
-                                {% else %}
-                                <div class="recommendation-cover-placeholder" title="{{ _('暂无封面') }}">
-                                    <svg class="icon" width="32" height="32"><use href="#icon-book"/></svg>
-                                </div>
-                                {% endif %}
+{% set _cover = '' %}
+{% if book.cover and 'default-cover' not in book.cover %}
+  {% set _cover = book.cover %}
+{% elif book.cover_url and 'default-cover' not in book.cover_url %}
+  {% set _cover = book.cover_url %}
+{% endif %}
+{% if _cover %}
+<img src="{{ _cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="recommendation-cover" width="72" height="108" loading="lazy">
+{% else %}
+<div class="recommendation-cover-placeholder" title="{% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}" style="width:72px;height:108px;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;">
+{% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
+</div>
+{% endif %}
                                 <div class="recommendation-header">
                                     <h4 class="recommendation-title">{{ (book.title_zh or book.title) | format_title }}</h4>
                                     <span class="recommendation-author">{{ book.author }}</span>
@@ -396,6 +398,9 @@
 {% endblock %}
 
 {% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+body.weekly-detail-page { contain: style; }
+</style>
 {# SSR 语言修正：只在偏好语言与服务端渲染语言不一致时按语言重新请求一次 #}
 {{ weekly_lang_sync(get_locale(), csp_nonce()) }}
 <style nonce="{{ csp_nonce() }}">
@@ -878,7 +883,7 @@
     }
 
     /* -- {{ _('弹窗') }} ({{ _('居中') }} + {{ _('移动端优化') }}) -- */
-    .modal-overlay {
+    .weekly-modal-overlay {
         position: fixed;
         top: 0;
         left: 0;
@@ -897,12 +902,12 @@
         padding: 1rem;
     }
 
-    .modal-overlay.active {
+    .weekly-modal-overlay.active {
         opacity: 1;
         visibility: visible;
     }
 
-    .modal-content {
+    .weekly-modal-panel {
         background: var(--n-white);
         border-radius: 16px;
         padding: 1.5rem;
@@ -917,11 +922,11 @@
         border: var(--n-whisper-border);
     }
 
-    .modal-overlay.active .modal-content {
+    .weekly-modal-overlay.active .weekly-modal-panel {
         transform: scale(1) translateY(0);
     }
 
-    .modal-header {
+    .weekly-modal-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -930,7 +935,7 @@
         border-bottom: var(--n-whisper-border);
     }
 
-    .modal-title {
+    .weekly-modal-title {
         margin: 0;
         font-size: 1.125rem;
         font-weight: 700;
@@ -938,7 +943,7 @@
         letter-spacing: -0.125px;
     }
 
-    .modal-close {
+    .weekly-modal-close {
         background: var(--n-warm-white);
         border: var(--n-whisper-border);
         color: var(--n-warm-gray-500);
@@ -955,19 +960,19 @@
         flex-shrink: 0;
     }
 
-    .modal-close:hover {
+    .weekly-modal-close:hover {
         background: var(--n-blue);
         color: var(--n-white);
         border-color: var(--n-blue);
     }
 
-    .modal-body {
+    .weekly-modal-body {
         line-height: 1.6;
         color: var(--n-warm-gray-500);
         font-size: 0.9375rem;
     }
 
-    .modal-body h4 {
+    .weekly-modal-body h4 {
         margin: 0 0 0.75rem 0;
         font-size: 1.125rem;
         font-weight: 700;
@@ -975,21 +980,21 @@
         letter-spacing: -0.125px;
     }
 
-    .modal-body p {
+    .weekly-modal-body p {
         margin: 0 0 0.625rem 0;
     }
 
-    .modal-body p strong {
+    .weekly-modal-body p strong {
         color: var(--n-black);
         font-weight: 600;
     }
 
-    .modal-body ul {
+    .weekly-modal-body ul {
         margin: 0 0 0.75rem 0;
         padding-left: 1.25rem;
     }
 
-    .modal-body li {
+    .weekly-modal-body li {
         margin-bottom: 0.375rem;
     }
 
@@ -1117,18 +1122,18 @@
             height: 260px;
         }
 
-        .modal-content {
+        .weekly-modal-panel {
             max-width: 100%;
             padding: 1.25rem;
             border-radius: 12px;
         }
 
-        .modal-overlay {
+        .weekly-modal-overlay {
             padding: 0.5rem;
             align-items: flex-end;
         }
 
-        .modal-content {
+        .weekly-modal-panel {
             max-height: 90vh;
             border-radius: 12px 12px 0 0;
         }
@@ -1213,16 +1218,16 @@
             height: 220px;
         }
 
-        .modal-content {
+        .weekly-modal-panel {
             padding: 1rem;
             max-height: 92vh;
         }
 
-        .modal-title {
+        .weekly-modal-title {
             font-size: 1rem;
         }
 
-        .modal-body {
+        .weekly-modal-body {
             font-size: 0.875rem;
         }
     }
@@ -1345,6 +1350,136 @@
         .tab-panel.active { animation: none; }
     }
 
+
+.weekly-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgba(0, 0, 0, 0.5);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.weekly-modal-overlay.active {
+    visibility: visible;
+    opacity: 1;
+}
+
+.weekly-modal-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    overflow: hidden;
+    min-height: 0;
+    width: 100%;
+    max-width: 600px;
+    background-color: var(--n-white, #fff);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.weekly-modal-header {
+    flex-shrink: 0;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--n-warm-gray-500, #eee);
+}
+
+.weekly-modal-title {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--n-black, #000);
+}
+
+.weekly-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--n-black, #000);
+    padding: 0.25rem;
+    line-height: 1;
+}
+
+.weekly-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1rem;
+}
+.book-cover {
+  width: 50px;
+  height: 75px;
+  max-width: 50px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.recommendation-cover {
+  width: 72px;
+  height: 108px;
+  max-width: 72px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.recommendation-cover-placeholder {
+  width: 72px;
+  height: 108px;
+  max-width: 72px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary, #f5f5f5);
+}
+.weekly-modal-panel {
+  padding: 0;
+  background: var(--bg-primary, var(--background, #fff));
+  color: var(--text-primary, var(--foreground, #000));
+}
+.weekly-modal-close {
+  min-width: 44px;
+  min-height: 44px;
+  color: inherit;
+  background: transparent;
+}
+
+        /* Native dialog reset: UA defaults (margin/border/padding) must not leak into the overlay layout */
+        .weekly-modal-overlay {
+            margin: 0;
+            border: 0;
+            padding:1rem;
+            box-sizing: border-box;
+            inset: 0;
+            width: 100vw;
+            height: 100dvh;
+            max-width: none;
+            max-height: none;
+            overflow: hidden;
+        }
+
+        @supports not (height: 100dvh) {
+            .weekly-modal-overlay {
+                height: 100vh;
+            }
+        }
+
+        /* Closed native dialogs must never paint; showModal()/close() drive visibility */
+        .weekly-modal-overlay:not([open]) {
+            display: none !important;
+        }
+
+        /* The overlay already dims full viewport at rgba(...,0.5); suppress the UA backdrop */
+        .weekly-modal-overlay::backdrop {
+            background: transparent;
+        }
 </style>
 {% endblock %}
 
@@ -1370,21 +1505,93 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // {{ _('书籍详情弹窗') }}
     const bookDetailBtns = document.querySelectorAll('.book-detail-btn');
-    const modalOverlay = document.createElement('div');
-    modalOverlay.className = 'modal-overlay';
+    const modalOverlay = document.createElement('dialog');
+    modalOverlay.className = 'weekly-modal-overlay';
+    modalOverlay.setAttribute('role', 'dialog');
+    modalOverlay.setAttribute('aria-modal', 'true');
+    modalOverlay.setAttribute('aria-labelledby', 'weekly-modal-title-id');
     modalOverlay.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">{{ _('书籍详情') }}</h3>
-                <button class="modal-close">&times;</button>
+        <div class="weekly-modal-panel">
+            <div class="weekly-modal-header">
+                <h3 id="weekly-modal-title-id" class="weekly-modal-title">{{ _('书籍详情') }}</h3>
+                <button type="button" class="weekly-modal-close" aria-label="{% if get_locale() == 'en' %}Close details{% else %}关闭详情{% endif %}" autofocus>&times;</button>
             </div>
-            <div class="modal-body"><p>{{ _('加载中') }}...</p></div>
+            <div class="weekly-modal-body" tabindex="0"><p>{{ _('加载中') }}...</p></div>
         </div>
     `;
     document.body.appendChild(modalOverlay);
 
-    const modalClose = modalOverlay.querySelector('.modal-close');
-    const modalBody = modalOverlay.querySelector('.modal-body');
+    const modalClose = modalOverlay.querySelector('.weekly-modal-close');
+    const modalBody = modalOverlay.querySelector('.weekly-modal-body');
+
+    let activeTrigger = null;
+    let oldBodyOverflow = '';
+
+    function openWeeklyModal(trigger) {
+        activeTrigger = trigger;
+        oldBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        modalOverlay.classList.add('active');
+        if (!modalOverlay.open) {
+            modalOverlay.showModal();
+        }
+    }
+
+    function closeWeeklyModal() {
+        modalOverlay.classList.remove('active');
+        if (modalOverlay.open) {
+            modalOverlay.close();
+        }
+        document.body.style.overflow = oldBodyOverflow;
+        if (activeTrigger) {
+            activeTrigger.focus();
+            activeTrigger = null;
+        }
+    }
+
+    // cancel fires on Escape before the dialog closes: route it through our own teardown
+    modalOverlay.addEventListener('cancel', function (e) {
+        e.preventDefault();
+        closeWeeklyModal();
+    });
+
+    // close fires after any native close (incl. external close()): cleanup only when
+    // the dialog is actually closed — closeWeeklyModal's !open guard breaks recursion
+    modalOverlay.addEventListener('close', function () {
+        if (!modalOverlay.open) {
+            modalOverlay.classList.remove('active');
+            document.body.style.overflow = oldBodyOverflow;
+            if (activeTrigger) {
+                activeTrigger.focus();
+                activeTrigger = null;
+            }
+        }
+    });
+
+    modalOverlay.addEventListener('keydown', (e) => {
+        if (!modalOverlay.classList.contains('active')) return;
+
+        if (e.key === 'Escape') {
+            closeWeeklyModal();
+            return;
+        }
+
+        if (e.key === 'Tab') {
+            const focusableElements = modalOverlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (focusableElements.length === 0) return;
+
+            const firstElement = focusableElements[0];
+            const lastElement = focusableElements[focusableElements.length - 1];
+
+            if (e.shiftKey && document.activeElement === firstElement) {
+                e.preventDefault();
+                lastElement.focus();
+            } else if (!e.shiftKey && document.activeElement === lastElement) {
+                e.preventDefault();
+                firstElement.focus();
+            }
+        }
+    });
 
     function buildBookDataMap() {
         if (!reportContent) return {};
@@ -1459,28 +1666,46 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // {{ _('封面图加载失败兜底') }}
-    document.querySelectorAll('.book-cover, .recommendation-cover').forEach(img => {
-        const parent = img.closest('[data-book-title]');
-        if (parent) {
-            const key = `${parent.dataset.bookTitle}|${parent.dataset.bookAuthor}`;
-            const book = bookDataMap[key];
-            if (book?.original_cover) {
-                img.addEventListener('error', function() {
-                    if (this.src !== book.original_cover) {
-                        this.src = book.original_cover;
-                    } else {
-                        this.style.display = 'none';
-                        const placeholder = document.createElement('div');
-                        placeholder.className = this.classList.contains('recommendation-cover') ? 'recommendation-cover-placeholder' : 'book-cover-placeholder';
-                        placeholder.title = {{ _('暂无封面')|tojson }};
-                        placeholder.innerHTML = '<svg class="icon" width="24" height="24"><use href="#icon-book"/></svg>';
-                        this.parentNode.insertBefore(placeholder, this);
-                    }
-                }, { once: false });
-            }
-        }
-    });
+(function () {
+  var zh = {{ (get_locale() == 'zh')|tojson }};
+  var noCoverText = zh ? '\u6682\u65e0\u5c01\u9762' : 'No cover';
 
+  function makePlaceholder(img) {
+    var isRec = img.classList.contains('recommendation-cover');
+    var placeholder = document.createElement('div');
+    placeholder.className = isRec ? 'recommendation-cover-placeholder' : 'book-cover-placeholder';
+    placeholder.setAttribute('title', noCoverText);
+    placeholder.textContent = noCoverText;
+    return placeholder;
+  }
+
+  function handleImgError(img) {
+    if (img.dataset.coverFailed === '1') return;
+    var parent = img.closest('[data-book-title]');
+    if (parent) {
+      var key = parent.dataset.bookTitle + '|' + parent.dataset.bookAuthor;
+      var book = bookDataMap[key];
+      if (book && book.original_cover && !book.original_cover.includes('default-cover')) {
+        if (img.dataset.triedOriginal !== '1') {
+          img.dataset.triedOriginal = '1';
+          img.src = book.original_cover;
+          return;
+        }
+      }
+    }
+    img.style.display = 'none';
+    var ph = makePlaceholder(img);
+    img.parentNode.insertBefore(ph, img);
+    img.dataset.coverFailed = '1';
+  }
+
+  document.querySelectorAll('.book-cover, .recommendation-cover').forEach(function (img) {
+    img.addEventListener('error', function () { handleImgError(this); });
+    if (img.complete && img.naturalWidth === 0) {
+      handleImgError(img);
+    }
+  });
+})();
     // XSS 防护：转义所有外部/DB 来源的文本后再拼 innerHTML
     function escHtml(str) {
         if (str === undefined || str === null) return '';
@@ -1507,12 +1732,12 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p><p>${escHtml({{ _('暂无更多详情数据')|tojson }})}</p>`;
             }
-            modalOverlay.classList.add('active');
+            openWeeklyModal(this);
         });
     });
 
-    modalClose.addEventListener('click', () => modalOverlay.classList.remove('active'));
-    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) modalOverlay.classList.remove('active'); });
+    modalClose.addEventListener('click', () => closeWeeklyModal());
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeWeeklyModal(); });
 
     // {{ _('图表渲染') }}
     if (reportContent) {
