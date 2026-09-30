@@ -1,5 +1,6 @@
 """Render current frontend templates with isolated display data for Node UX QA."""
 
+import ast
 import importlib
 import importlib.util
 import json
@@ -23,6 +24,24 @@ actual_utils = ModuleType('ux_qa_utils')
 actual_utils.__path__ = [str(root / 'app/utils')]
 sys.modules[actual_utils.__name__] = actual_utils
 reports = importlib.import_module('ux_qa_utils.weekly_report_presentation')
+# Load only the actual constant data and pure predicate, without importing API services.
+helper_path = root / 'app/utils/api_helpers.py'
+helper_tree = ast.parse(helper_path.read_text(encoding='utf8'), filename=str(helper_path))
+helper_globals = {}
+for name in ('PLACEHOLDER_TEXTS', '_NON_SUBSTANTIVE_DETAILS'):
+    assignment = next(
+        node
+        for node in helper_tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == name for target in node.targets)
+    )
+    assert isinstance(assignment.value, ast.Call)
+    assert isinstance(assignment.value.func, ast.Name) and assignment.value.func.id == 'frozenset'
+    helper_globals[name] = frozenset(ast.literal_eval(assignment.value.args[0]))
+predicate = next(
+    node for node in helper_tree.body if isinstance(node, ast.FunctionDef) and node.name == 'is_non_substantive_details'
+)
+exec(compile(ast.Module(body=[predicate], type_ignores=[]), str(helper_path), 'exec'), helper_globals)
 app = Flask(__name__, static_folder=str(root / 'static'))
 for endpoint, rule in [
     ('index', '/'),
@@ -52,9 +71,9 @@ env.globals.update(
     csp_nonce=lambda: 'QA-NONCE',
     dist_url=lambda value: value,
     now=lambda: datetime(2026, 9, 30),
-    PLACEHOLDER_TEXTS=[],
+    PLACEHOLDER_TEXTS=helper_globals['PLACEHOLDER_TEXTS'],
     split_volume_marker=lambda value: (value or '', ''),
-    is_non_substantive_details=lambda value: not value,
+    is_non_substantive_details=helper_globals['is_non_substantive_details'],
 )
 for name in ('price_display', 'award_result_kind', 'positive_int_text'):
     env.filters[name] = getattr(labels, name)

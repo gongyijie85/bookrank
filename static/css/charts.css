@@ -927,3 +927,16 @@
     .charts-page .main-content { padding: 68px 16px 32px; }
     .charts-page .page-header { padding: 8px 0 12px; margin-bottom: 12px; }
 }
+
+@media (max-width: 768px) {
+  nav.charts-sections.rankings-tabs {
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .charts-sections.rankings-tabs a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}

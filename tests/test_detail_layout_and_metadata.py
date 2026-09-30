@@ -772,3 +772,50 @@ class TestStructuredDataIntact:
                 assert data.get('author', {}).get('name') == 'Penn Cole'
                 return
         raise AssertionError('页面没有 @type=Book 的 ld+json')
+
+
+@pytest.mark.parametrize('ua', [DESKTOP_UA, MOBILE_UA])
+@pytest.mark.parametrize('lang', ['zh', 'en'])
+def test_nyt_description_without_details_has_no_misleading_empty(client, book_service, ua, lang):
+    html = _render_detail(
+        client,
+        book_service,
+        lang=lang,
+        ua=ua,
+        description='A substantive English introduction.',
+        description_zh='完整的中文图书简介。',
+        details='',
+        details_zh='',
+    )
+    soup = BeautifulSoup(html, 'html.parser')
+    main = soup.select_one('main')
+    assert main is not None
+    assert main.select('.detail-intro-empty, .m-detail-empty') == []
+    intro = main.select('.detail-intro-text, [data-panel="description"] .m-detail-text')
+    assert len(intro) == 1
+    expected = '完整的中文图书简介。' if lang == 'zh' else 'A substantive English introduction.'
+    assert intro[0].get_text(' ', strip=True) == expected
+
+
+@pytest.mark.parametrize('ua', [DESKTOP_UA, MOBILE_UA])
+@pytest.mark.parametrize('lang', ['zh', 'en'])
+@pytest.mark.parametrize('missing', ['', 'No detailed description available.'])
+def test_nyt_missing_intro_and_details_has_one_explicit_empty(client, book_service, ua, lang, missing):
+    html = _render_detail(
+        client,
+        book_service,
+        lang=lang,
+        ua=ua,
+        description=missing,
+        description_zh=missing,
+        details=missing,
+        details_zh=missing,
+    )
+    soup = BeautifulSoup(html, 'html.parser')
+    main = soup.select_one('main')
+    assert main is not None
+    empty = main.select('.detail-intro-empty, .m-detail-empty')
+    assert len(empty) == 1
+    assert empty[0].get_text(' ', strip=True)
+    assert 'No detailed description available.' not in main.get_text(' ', strip=True)
+    assert main.select('.detail-intro-text, [data-panel="description"] .m-detail-text') == []

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-01 01:26+0800\n"
+"POT-Creation-Date: 2026-10-01 03:02+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -643,7 +643,7 @@ msgstr ""
 #: templates/mobile/index.html:64 templates/mobile/new_books.html:81
 #: templates/mobile/search.html:3 templates/mobile/search.html:25
 #: templates/new_books.html:125 templates/new_books.html:127
-#: templates/weekly_reports.html:89
+#: templates/weekly_reports.html:99
 msgid "搜索"
 msgstr ""
 
@@ -832,7 +832,7 @@ msgstr ""
 #: templates/weekly_report_detail.html:21 templates/weekly_reports.html:5
 #: templates/weekly_reports.html:6 templates/weekly_reports.html:7
 #: templates/weekly_reports.html:13 templates/weekly_reports.html:24
-#: templates/weekly_reports.html:312
+#: templates/weekly_reports.html:322
 msgid "畅销书周报"
 msgstr ""
 
@@ -987,7 +987,7 @@ msgstr ""
 
 #: templates/cache_management.html:338 templates/cache_management.html:403
 #: templates/mobile/index.html:202 templates/mobile/new_books.html:196
-#: templates/new_books.html:246 templates/weekly_reports.html:197
+#: templates/new_books.html:246 templates/weekly_reports.html:207
 msgid "刷新"
 msgstr ""
 
@@ -1250,7 +1250,7 @@ msgstr ""
 #: templates/mobile/weekly_report_detail.html:45
 #: templates/mobile/weekly_reports.html:79
 #: templates/weekly_report_detail.html:88
-#: templates/weekly_report_detail.html:351 templates/weekly_reports.html:158
+#: templates/weekly_report_detail.html:351 templates/weekly_reports.html:168
 msgid "上升"
 msgstr ""
 
@@ -1265,7 +1265,7 @@ msgstr ""
 #: templates/mobile/weekly_report_detail.html:49
 #: templates/mobile/weekly_reports.html:82
 #: templates/weekly_report_detail.html:97
-#: templates/weekly_report_detail.html:352 templates/weekly_reports.html:164
+#: templates/weekly_report_detail.html:352 templates/weekly_reports.html:174
 msgid "下降"
 msgstr ""
 
@@ -1689,7 +1689,7 @@ msgstr ""
 #: templates/mobile/awards.html:52 templates/mobile/publishers.html:25
 #: templates/mobile/publishers.html:65 templates/mobile/weekly_reports.html:51
 #: templates/publishers.html:36 templates/publishers.html:141
-#: templates/weekly_reports.html:98
+#: templates/weekly_reports.html:108
 msgid "清除"
 msgstr ""
 
@@ -1893,7 +1893,7 @@ msgstr ""
 
 #: templates/mobile/weekly_report_detail.html:37
 #: templates/mobile/weekly_reports.html:70
-#: templates/weekly_report_detail.html:70 templates/weekly_reports.html:146
+#: templates/weekly_report_detail.html:70 templates/weekly_reports.html:156
 msgid "上榜记录"
 msgstr ""
 
@@ -1905,7 +1905,7 @@ msgstr ""
 #: templates/weekly_report_detail.html:210
 #: templates/weekly_report_detail.html:349
 #: templates/weekly_report_detail.html:1998
-#: templates/weekly_report_detail.html:2047 templates/weekly_reports.html:152
+#: templates/weekly_report_detail.html:2047 templates/weekly_reports.html:162
 msgid "新上榜"
 msgstr ""
 
@@ -2051,7 +2051,7 @@ msgstr ""
 msgid "暂无推荐理由"
 msgstr ""
 
-#: templates/weekly_report_detail.html:361 templates/weekly_reports.html:175
+#: templates/weekly_report_detail.html:361 templates/weekly_reports.html:185
 msgid "查看详情"
 msgstr ""
 
@@ -2187,9 +2187,9 @@ msgid "类别分布饼图"
 msgstr ""
 
 #: templates/mobile/weekly_reports.html:70
-#: templates/weekly_report_detail.html:2033 templates/weekly_reports.html:146
-#: templates/weekly_reports.html:152 templates/weekly_reports.html:158
-#: templates/weekly_reports.html:164
+#: templates/weekly_report_detail.html:2033 templates/weekly_reports.html:156
+#: templates/weekly_reports.html:162 templates/weekly_reports.html:168
+#: templates/weekly_reports.html:174
 msgid "条"
 msgstr ""
 
@@ -2247,102 +2247,102 @@ msgstr ""
 msgid "本周周报正在生成中（调用纽约时报 API），约 1-2 分钟后请刷新页面。"
 msgstr ""
 
-#: templates/mobile/weekly_reports.html:43 templates/weekly_reports.html:80
+#: templates/mobile/weekly_reports.html:43 templates/weekly_reports.html:90
 msgid "月份筛选"
 msgstr ""
 
 #: templates/mobile/awards.html:27 templates/mobile/weekly_reports.html:44
-#: templates/weekly_reports.html:82
+#: templates/weekly_reports.html:92
 msgid "全部"
 msgstr ""
 
 #: templates/mobile/weekly_reports.html:46
-#: templates/mobile/weekly_reports.html:55 templates/weekly_reports.html:84
+#: templates/mobile/weekly_reports.html:55 templates/weekly_reports.html:94
 #, python-format
 msgid "%(year)s 年 %(month)s 月"
 msgstr ""
 
-#: templates/mobile/weekly_reports.html:49 templates/weekly_reports.html:91
-#: templates/weekly_reports.html:92
+#: templates/mobile/weekly_reports.html:49 templates/weekly_reports.html:101
+#: templates/weekly_reports.html:102
 msgid "搜索周报"
 msgstr ""
 
-#: templates/mobile/weekly_reports.html:49 templates/weekly_reports.html:91
+#: templates/mobile/weekly_reports.html:49 templates/weekly_reports.html:101
 msgid "搜索周报标题或内容"
 msgstr ""
 
-#: templates/weekly_reports.html:128
+#: templates/weekly_reports.html:138
 msgid "至"
 msgstr ""
 
 #: templates/mobile/weekly_report_detail.html:18
-#: templates/weekly_reports.html:179
+#: templates/weekly_reports.html:189
 msgid "分享"
 msgstr ""
 
-#: templates/mobile/weekly_reports.html:98 templates/weekly_reports.html:187
+#: templates/mobile/weekly_reports.html:98 templates/weekly_reports.html:197
 msgid "没有匹配的周报"
 msgstr ""
 
-#: templates/weekly_reports.html:188
+#: templates/weekly_reports.html:198
 msgid "清除筛选"
 msgstr ""
 
-#: templates/weekly_reports.html:193
+#: templates/weekly_reports.html:203
 msgid "暂无周报"
 msgstr ""
 
-#: templates/weekly_reports.html:194
+#: templates/weekly_reports.html:204
 msgid "周报正在生成中"
 msgstr ""
 
-#: templates/weekly_reports.html:194
+#: templates/weekly_reports.html:204
 msgid "请稍后再试"
 msgstr ""
 
-#: templates/weekly_reports.html:207
+#: templates/weekly_reports.html:217
 msgid "关于周报"
 msgstr ""
 
-#: templates/weekly_reports.html:210
+#: templates/weekly_reports.html:220
 msgid "畅销书周报每周自动生成"
 msgstr ""
 
-#: templates/weekly_reports.html:210
+#: templates/weekly_reports.html:220
 msgid "总结纽约时报畅销书榜单的变化趋势、亮点书籍和值得关注的变动。"
 msgstr ""
 
-#: templates/weekly_reports.html:212
+#: templates/weekly_reports.html:222
 msgid "每周一更新上周周报"
 msgstr ""
 
-#: templates/weekly_reports.html:213
+#: templates/weekly_reports.html:223
 msgid "包含榜单变化分析"
 msgstr ""
 
-#: templates/weekly_reports.html:214
+#: templates/weekly_reports.html:224
 msgid "推荐值得关注的书籍"
 msgstr ""
 
-#: templates/weekly_reports.html:215
+#: templates/weekly_reports.html:225
 msgid "提供趋势分析和洞察"
 msgstr ""
 
-#: templates/weekly_reports.html:302
+#: templates/weekly_reports.html:312
 msgid "刷新中"
 msgstr ""
 
 #: templates/mobile/weekly_report_detail.html:16
-#: templates/weekly_reports.html:326
+#: templates/weekly_reports.html:336
 msgid "链接已复制到剪贴板"
 msgstr ""
 
-#: templates/weekly_reports.html:326
+#: templates/weekly_reports.html:336
 msgid "可以分享给朋友"
 msgstr ""
 
 #: templates/mobile/weekly_report_detail.html:17
-#: templates/weekly_reports.html:328
+#: templates/weekly_reports.html:338
 msgid "请复制以下链接"
 msgstr ""
 
