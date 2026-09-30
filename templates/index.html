@@ -87,10 +87,10 @@
                    placeholder="{{ _('搜索书名或作者...') }}"
                    data-i18n-placeholder="search_placeholder"
                    value="{{ search_query if search_query else '' }}"
-                   aria-label="{{ _('搜索全部 NYT 分类：书名或作者') }}"
+                   aria-label="{{ _('搜索全部 NYT 分类：书名或作者') }}" data-i18n-aria-label="home_search_all_label"
                    autocomplete="off">
             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
-            <button type="button" class="search-clear-btn" id="search-clear-btn" style="display: none;" aria-label="{{ _('清除搜索') }}" data-i18n-title="search_clear">
+            <button type="button" class="search-clear-btn" id="search-clear-btn" style="display: none;" aria-label="{{ _('清除搜索') }}" data-i18n-title="search_clear" data-i18n-aria-label="search_clear">
                 <svg class="icon" width="14" height="14"><use href="#icon-x"/></svg>
             </button>
         </div>
@@ -101,11 +101,11 @@
     </div>
 
     <div class="filter-actions">
-        <button type="submit" class="btn btn-primary" id="btn-search" aria-label="{{ _('搜索') }}" data-i18n="btn_search">
+        <button type="submit" class="btn btn-primary" id="btn-search" aria-label="{{ _('搜索') }}" data-i18n="btn_search" data-i18n-aria-label="btn_search">
             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
             {{ _('搜索') }}
         </button>
-        <button type="button" class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置') }}" data-i18n="btn_reset">
+        <button type="button" class="btn btn-secondary" id="btn-clear" aria-label="{{ _('重置') }}" data-i18n="btn_reset" data-i18n-aria-label="btn_reset">
             <svg class="icon" width="16" height="16"><use href="#icon-refresh"/></svg>
             {{ _('重置') }}
         </button>
@@ -152,11 +152,11 @@
             <button type="button" class="btn btn-sm" id="grid-view-compact" aria-pressed="false" data-i18n="grid_view_compact">{{ _('紧凑五列') }}</button>
         </div>
         <div class="export-buttons">
-            <button class="btn btn-sm" id="btn-export-all" aria-label="{{ _('导出全部 NYT 分类') }}" style="min-height:44px;">
+            <button class="btn btn-sm" id="btn-export-all" aria-label="{{ _('导出全部 NYT 分类') }}" data-i18n="home_export_all_nyt" data-i18n-aria-label="home_export_all_nyt" style="min-height:44px;">
                 <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
                 {{ _('导出全部 NYT 分类') }}
             </button>
-            <p class="export-scope-note" style="font-size:0.75rem;color:var(--text-secondary, #6b7280);margin-top:0.25rem;">{{ _('全部 NYT 分类导出独立于当前搜索与分类筛选。') }}</p>
+            <p class="export-scope-note" data-i18n="home_export_all_nyt_scope" style="font-size:0.75rem;color:var(--text-secondary, #6b7280);margin-top:0.25rem;">{{ _('全部 NYT 分类导出独立于当前搜索与分类筛选。') }}</p>
         </div>
     </div>
 </div>
@@ -289,12 +289,12 @@
 </script>
 {% endif %}
 
-<nav class="quick-link-section" aria-label="{{ _('快速链接') }}">
+<nav class="quick-link-section" aria-label="{{ _('快速链接') }}" data-i18n-aria-label="quick_links">
     <a href="{{ url_for('main.awards') }}" class="quick-link-card">
         <svg class="icon" width="32" height="32"><use href="#icon-trophy"/></svg>
         <div>
-            <h3>{{ _('查看国际图书奖项榜单') }}</h3>
-            <p>{{ _('诺贝尔文学奖、布克奖、普利策奖等') }}</p>
+            <h3 data-i18n="quick_awards_link">{{ _('查看国际图书奖项榜单') }}</h3>
+            <p data-i18n="quick_awards_desc">{{ _('诺贝尔文学奖、布克奖、普利策奖等') }}</p>
         </div>
         <svg class="icon" width="20" height="20"><use href="#icon-arrow-right"/></svg>
     </a>

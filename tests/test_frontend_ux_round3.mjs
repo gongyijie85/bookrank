@@ -589,3 +589,84 @@ test('live acceptance weekly decline SVG use resolves to one nonempty downward s
   const geometry = result.nodes.filter(node => node.ancestors.includes(result.nodes.indexOf(symbol)) && ['line', 'polyline', 'path'].includes(node.tag)); assert.ok(geometry.length >= 2);
   const head = geometry.find(node => node.tag === 'polyline'); assert.ok(head); const points = head.attrs.points.trim().split(/[ ,]+/).map(Number); assert.equal(points.length, 6); assert.ok(points.every(Number.isFinite)); assert.ok(points[3] > points[1] && points[3] > points[5], 'arrow head must point downward');
 });
+
+
+test('final weekly search SVG stays in its real centered button at narrow and wide widths', () => {
+  for (const locale of ['zh', 'en']) {
+    const report = { title: 'Report', report_date: '2026-09-27', week_start: '2026-09-21', week_end: '2026-09-27', content_data: { summary: '' } };
+    const result = render('weekly_reports.html', { reports: [report], report_sections: [{ year: 2026, month: 9, reports: [report] }], latest_report: report, is_generating: false }, '/reports/weekly?lang=' + locale, locale);
+    const button = result.nodes.find(node => node.tag === 'button' && hasClass(node, 'search-btn')); assert.ok(button); assert.ok(button.attrs['aria-label']); assert.equal(button.attrs.type, 'button');
+    const icon = result.nodes.find(node => node.tag === 'svg' && hasClass(node, 'icon') && node.ancestors.at(-1) === result.nodes.indexOf(button)); assert.ok(icon);
+    assert.ok(result.nodes.some(node => node.tag === 'use' && node.attrs.href === '#icon-search' && node.ancestors.includes(result.nodes.indexOf(icon))));
+    const symbol = result.nodes.find(node => node.tag === 'symbol' && node.attrs.id === 'icon-search'); assert.ok(symbol); assert.ok(result.nodes.some(node => ['path', 'line', 'circle'].includes(node.tag) && node.ancestors.includes(result.nodes.indexOf(symbol))));
+    const global = ownerRule(source('static/css/new-books.css'), '.search-box .icon'); assert.equal(global.get('position'), 'absolute', 'actual global positioning conflict remains scoped elsewhere');
+    const buttonRule = ownerRule(source('static/css/weekly.css'), '.weekly-page .search-btn'); assert.equal(buttonRule.get('display'), 'inline-flex'); assert.equal(buttonRule.get('align-items'), 'center'); assert.equal(buttonRule.get('justify-content'), 'center'); assert.ok(Number.parseFloat(buttonRule.get('width')) >= 44);
+    const css = result.nodes.filter(node => node.tag === 'style').map(node => node.text).join('\n'); assert.deepEqual(transformSync(css, { loader: 'css' }).warnings, []);
+    const selector = '.weekly-page .wr-filter-bar .search-btn .icon'; const base = ownerRule(css, selector);
+    assert.equal(base.get('position'), 'static', 'real icon must participate in its button flex layout rather than absolute global search-box layout'); assert.equal(base.get('transform'), 'none', 'global translateY offset must be cleared');
+    for (const width of [320, 390, 768, 1280]) {
+      const final = new Map([...base, ...ownerRule(maxWidthCss(css, width), selector)]);
+      assert.equal(final.get('position'), 'static', `${width}px: icon must stay inside button`); assert.equal(final.get('transform'), 'none');
+    }
+  }
+});
+
+
+test('final weekly actual details click renders facts and escapes text without stored marketing reason', () => {
+  for (const locale of ['zh', 'en']) for (const change of [2, -3]) {
+    const book = { title: 'Title <img src=x onerror=attack()>', title_zh: '中文书名', author: 'Author <script>attack()</script>', category: 'Fiction <b>untrusted</b>', rank: 4, rank_change: change, weeks_on_list: 7, reason: '不可证实营销断言', is_new: false };
+    const result = render('weekly_report_detail.html', { report: { title: 'Report', week_start: '2026-09-21', week_end: '2026-09-27', report_date: '2026-09-27', created_at: '2026-09-27T12:00:00' }, content: { top_changes: [], new_books: [], featured_books: [book] }, safe_summary: '' }, '/reports/weekly/2026-09-27?lang=' + locale, locale);
+    const card = result.nodes.find(node => hasClass(node, 'recommendation-card')); assert.ok(card);
+    const triggerNode = result.nodes.find(node => node.tag === 'button' && hasClass(node, 'book-detail-btn') && node.ancestors.includes(result.nodes.indexOf(card))); assert.ok(triggerNode);
+    const actual = scripts(result.html).find(script => script.includes('const reportContent =')); assert.ok(actual);
+    const contentStart = actual.indexOf('    const reportContent ='); const contentEnd = actual.indexOf('    const tabBtns =', contentStart);
+    const mapStart = actual.indexOf('    function buildBookDataMap()'); const mapEnd = actual.indexOf("    if (typeof BookI18n !== 'undefined' && reportContent)", mapStart);
+    const handlerStart = actual.indexOf('    function escHtml(str)'); const handlerEnd = actual.indexOf("    modalClose.addEventListener('click'", handlerStart);
+    assert.ok(contentStart >= 0 && contentEnd > contentStart && mapStart >= 0 && mapEnd > mapStart && handlerStart >= 0 && handlerEnd > handlerStart, 'all real rendering source sections must exist');
+    const handlers = new Map(); const trigger = { closest(selector) { assert.equal(selector, '.book-item, .change-item, .recommendation-card'); return { dataset: { bookTitle: card.attrs['data-book-title'], bookAuthor: card.attrs['data-book-author'] } }; }, addEventListener(name, fn) { handlers.set(name, fn); } };
+    const modalBody = { innerHTML: '' }; const opened = [];
+    // This fixture models the browser textContent-to-innerHTML encoding boundary; it is not a sanitizer.
+    const document = { createElement(tag) { assert.equal(tag, 'div'); return { textContent: '', get innerHTML() { const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }; return Array.from(this.textContent, char => entities[char] || char).join(''); } }; } };
+    const context = vm.createContext({ document, bookDetailBtns: [trigger], modalBody, openWeeklyModal: button => opened.push(button), fetch() { throw new Error('details rendering must not fetch'); } });
+    vm.runInContext(actual.slice(contentStart, contentEnd) + actual.slice(mapStart, mapEnd) + actual.slice(handlerStart, handlerEnd), context);
+    assert.ok(handlers.has('click')); handlers.get('click').call(trigger); assert.deepEqual(opened, [trigger]);
+    const html = modalBody.innerHTML;
+    assert.equal(html.includes(book.reason), false, 'unverifiable stored marketing assertion must never be in actual modal content');
+    assert.ok(html.includes('Title &lt;img src=x onerror=attack()&gt;')); assert.ok(html.includes('Author &lt;script&gt;attack()&lt;/script&gt;')); assert.ok(html.includes('Fiction &lt;b&gt;untrusted&lt;/b&gt;'));
+    assert.equal(html.includes('<img'), false); assert.equal(html.includes('<script'), false); assert.equal(html.includes('<b>untrusted'), false);
+    for (const fact of ['当前排名', '累计上榜周数', '排名变化', '类别', '4', '7', change > 0 ? '↑' : '↓', String(Math.abs(change))]) assert.ok(html.includes(fact), 'existing fact must remain: ' + fact);
+  }
+});
+
+
+test('final home real SSR controls switch visible text and accessible names both ways while retaining SVG', () => {
+  const result = render('index.html', { books: [{ ...sampleBook, publisher: 'Publisher', cover: '', _original_cover: '', previous_rank: 0, is_new: true }], categories: { fiction: '小说' }, current_category: 'fiction', category_names_en: { fiction: 'Fiction' }, monthly_categories: [], search_query: 'James', search_unavailable_count: 0, is_cached: false, data_load_failed: false, search_partial: false }, '/?lang=zh&search=James');
+  const elements = result.nodes.map(original => {
+    const attrs = { ...original.attrs }; const node = { nodeType: 1, tagName: original.tag, childNodes: [], getAttribute(name) { return attrs[name] ?? null; }, setAttribute(name, value) { attrs[name] = String(value); }, get attributes() { return Object.entries(attrs).map(([name, value]) => ({ name, value })); } };
+    Object.defineProperty(node, 'textContent', { get() { return node.childNodes.map(child => child.textContent).join(''); }, set(value) { node.childNodes = [{ nodeType: 3, textContent: String(value) }]; } });
+    node.querySelectorAll = selector => { const tags = selector.split(',').map(tag => tag.trim()); const matches = []; const visit = parent => { for (const child of parent.childNodes) if (child.nodeType === 1) { if (tags.includes(child.tagName)) matches.push(child); visit(child); } }; visit(node); return matches; };
+    node.querySelector = selector => node.querySelectorAll(selector)[0] || null;
+    return node;
+  });
+  result.nodes.forEach((original, index) => { const parent = original.ancestors.at(-1); if (parent !== undefined) elements[parent].childNodes.push(elements[index]); if (original.ownText) elements[index].childNodes.push({ nodeType: 3, textContent: original.ownText }); });
+  const byId = id => elements.find(node => node.getAttribute('id') === id);
+  const input = byId('search-input'); const search = byId('btn-search'); const reset = byId('btn-clear'); const clear = byId('search-clear-btn'); const exportButton = byId('btn-export-all');
+  const scope = elements.find(node => hasClass({ attrs: { class: node.getAttribute('class') } }, 'export-scope-note'));
+  const quick = elements.find(node => node.tagName === 'nav' && hasClass({ attrs: { class: node.getAttribute('class') } }, 'quick-link-section')); assert.ok(quick); const quickTitle = quick.querySelector('h3'); const quickDescription = quick.querySelector('p');
+  for (const node of [input, search, reset, clear, exportButton, scope, quickTitle, quickDescription]) assert.ok(node, 'actual target SSR node must exist');
+  const buttons = [search, reset, clear, exportButton]; const iconSnapshot = buttons.map(node => node.querySelectorAll('svg').map(svg => ({ svg, uses: svg.querySelectorAll('use').map(use => use.getAttribute('href')) })));
+  for (const icons of iconSnapshot) assert.ok(icons.length && icons.every(icon => icon.uses.length));
+  const hooks = { '[data-i18n]': ['data-i18n'], '[data-zh][data-en]': ['data-zh', 'data-en'], '[data-i18n-placeholder]': ['data-i18n-placeholder'], '[data-i18n-title]': ['data-i18n-title'], '[data-i18n-aria-label]': ['data-i18n-aria-label'] };
+  const document = { querySelectorAll(selector) { assert.ok(hooks[selector], 'existing translation selector is modeled explicitly: ' + selector); return elements.filter(node => hooks[selector].every(attr => node.getAttribute(attr) !== null)); }, querySelector: selector => selector === 'title[data-i18n]' ? elements.find(node => node.tagName === 'title' && node.getAttribute('data-i18n') !== null) || null : null };
+  const context = vm.createContext({ document, window: {}, Node: { TEXT_NODE: 3 }, localStorage: { getItem: () => 'zh' }, fetch() { throw new Error('language labels must not refetch'); } }); vm.runInContext(source('static/js/translations.js'), context);
+  const expected = {
+    en: ['Search all NYT categories: title or author', 'Search', 'Search', 'Reset', 'Reset', 'Clear search', 'Export all NYT categories', 'Export all NYT categories', 'All NYT categories are exported independently of the current search and category filters.', 'Quick Links', 'View international book awards', 'Nobel Prize in Literature, Booker Prize, Pulitzer Prize and more'],
+    zh: ['搜索全部 NYT 分类：书名或作者', '搜索', '搜索', '重置', '重置', '清除搜索', '导出全部 NYT 分类', '导出全部 NYT 分类', '全部 NYT 分类导出独立于当前搜索与分类筛选。', '快速链接', '查看国际图书奖项榜单', '诺贝尔文学奖、布克奖、普利策奖等'],
+  };
+  for (const lang of ['en', 'zh']) {
+    context.applyPageTranslation(lang);
+    const actual = [input.getAttribute('aria-label'), search.textContent.trim(), search.getAttribute('aria-label'), reset.textContent.trim(), reset.getAttribute('aria-label'), clear.getAttribute('aria-label'), exportButton.textContent.trim(), exportButton.getAttribute('aria-label'), scope.textContent.trim(), quick.getAttribute('aria-label'), quickTitle.textContent.trim(), quickDescription.textContent.trim()];
+    assert.deepEqual(actual, expected[lang], lang + ': all actual home text/aria must switch together'); assert.equal(input.getAttribute('value'), 'James');
+    buttons.forEach((node, index) => { const icons = node.querySelectorAll('svg'); assert.equal(icons.length, iconSnapshot[index].length); icons.forEach((icon, i) => { assert.equal(icon, iconSnapshot[index][i].svg); assert.deepEqual(icon.querySelectorAll('use').map(use => use.getAttribute('href')), iconSnapshot[index][i].uses); }); });
+  }
+});
