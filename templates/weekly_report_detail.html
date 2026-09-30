@@ -160,7 +160,8 @@
                     </div>
 
                     <div class="visualization-section">
-                        <h3 class="analysis-subheading">{{ _('排名变化趋势') }}</h3>
+                        <h3 class="analysis-subheading">{{ _('排名变化（上周名次－本周名次）') }}</h3>
+<p>{{ _('这里的“排名变化”就是上周名次减去本周名次的差值，单位是“位”，不是百分比，也不是评分：正数表示上升，负数表示下降，0 表示名次没变；新书或查不到上周名次的书无法比较，不计入。图表只统计本期周报列出的书籍，不拿全部书目当分母，也不涉及历史或年度稳定性判断。') }}</p>
                         <div class="chart-container">
                             <canvas id="trend-chart"></canvas>
                         </div>
@@ -174,7 +175,8 @@
                     </div>
 
                     <div class="visualization-section">
-                        <h3 class="analysis-subheading">{{ _('排名稳定性分析') }}</h3>
+                        <h3 class="analysis-subheading">{{ _('排名变化幅度（位）') }}</h3>
+<p>{{ _('雷达图展示每本书名次变化的绝对值：新书或没有可比较的上周名次时留空；名次确实没变时记为 0 位。') }}</p>
                         <div class="chart-container">
                             <canvas id="stability-chart"></canvas>
                         </div>
@@ -202,7 +204,11 @@
                                 <span class="change-category">{{ change.category }}</span>
                                 {{ monthly_badge(change) }}
                                 <span class="change-rank">
-                                    {% if change.rank_change > 0 %}
+                                    {% if change.rank_change is none or change.rank_change is undefined %}
+                                    <span class="rank-unknown">{{ _('变化不可得') }}</span>
+                                    {% elif change.is_new %}
+                                    <span class="rank-new">{{ _('新上榜') }}</span>
+                                    {% elif change.rank_change > 0 %}
                                     <span class="rank-up">↑ {{ change.rank_change }} {{ _('位') }}</span>
                                     {% elif change.rank_change < 0 %}
                                     <span class="rank-down">↓ {{ change.rank_change | abs }} {{ _('位') }}</span>
@@ -336,7 +342,19 @@
                                     <span class="recommendation-author">{{ book.author }}</span>
                                 </div>
                                 <div class="recommendation-reason">
-                                    <p>{{ book.reason }}</p>
+                                    {% set reason_parts = [] %}
+                                    {% if book.category %}{% set _unused = reason_parts.append(book.category) %}{% endif %}
+                                    {% if book.rank %}{% set _unused = reason_parts.append(_('第') ~ book.rank ~ _('名')) %}{% endif %}
+                                    {% if book.weeks_on_list %}{% set _unused = reason_parts.append(_('在榜') ~ book.weeks_on_list ~ _('周')) %}{% endif %}
+                                    {% if book.is_new %}{% set _unused = reason_parts.append(_('新上榜')) %}{% endif %}
+                                    {% if book.rank_change is not none and book.rank_change is defined and not book.is_new %}
+                                        {% if book.rank_change > 0 %}{% set _unused = reason_parts.append(_('上升') ~ book.rank_change ~ _('位')) %}
+                                        {% elif book.rank_change < 0 %}{% set _unused = reason_parts.append(_('下降') ~ (book.rank_change | abs) ~ _('位')) %}
+                                        {% else %}{% set _unused = reason_parts.append(_('无变化')) %}{% endif %}
+                                    {% elif book.rank_change is none or book.rank_change is undefined %}
+                                        {% set _unused = reason_parts.append(_('变化不可得')) %}
+                                    {% endif %}
+                                    {% if reason_parts %}<p>{{ reason_parts | join(' · ') }}</p>{% else %}<p>{{ _('暂无推荐理由') }}</p>{% endif %}
                                 </div>
                                 <button class="book-detail-btn">
                                     <svg class="icon" width="14" height="14"><use href="#icon-info"/></svg>
@@ -1754,16 +1772,26 @@ document.addEventListener('DOMContentLoaded', function() {
         // {{ _('排名变化柱状图') }}
         if (reportContent.top_changes?.length > 0) {
             const ctx = document.getElementById('top-changes-chart').getContext('2d');
-            const labels = reportContent.top_changes.map(i => i.title);
-            const data = reportContent.top_changes.map(i => i.rank_change);
-            const bgColors = data.map(c => c > 0 ? chartColors.green : c < 0 ? chartColors.red : chartColors.gray);
+            const NEW_LABEL = {{ _('新上榜')|tojson }};
+            const UNAVAILABLE_LABEL = {{ _('变化不可得')|tojson }};
+            const items = reportContent.top_changes;
+            const labels = items.map(i => i.is_new ? `${i.title} (${NEW_LABEL})` : (i.rank_change === null || i.rank_change === undefined) ? `${i.title} (${UNAVAILABLE_LABEL})` : i.title);
+            const data = items.map(i => (i.is_new || i.rank_change === null || i.rank_change === undefined) ? null : i.rank_change);
+            const bgColors = items.map(i => i.is_new || i.rank_change === null || i.rank_change === undefined ? chartColors.gray : i.rank_change > 0 ? chartColors.green : i.rank_change < 0 ? chartColors.red : chartColors.gray);
             new Chart(ctx, {
                 type: 'bar',
                 data: { labels, datasets: [{ label: {{ _('排名变化')|tojson }}, data, backgroundColor: bgColors, borderWidth: 1 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     scales: { y: { beginAtZero: true, title: { display: true, text: {{ (_('排名变化') ~ '（' ~ _('位') ~ '）')|tojson }} } } },
-                    plugins: { tooltip: { callbacks: { label: ctx => { const v = ctx.raw; const unit = {{ _('位')|tojson }}; return v > 0 ? `↑ ${v} ${unit}` : v < 0 ? `↓ ${Math.abs(v)} ${unit}` : {{ _('无变化')|tojson }}; } } } }
+                    plugins: { tooltip: { callbacks: { label: ctx => {
+                        const item = items[ctx.dataIndex];
+                        const unit = {{ _('位')|tojson }};
+                        if (item.is_new) return NEW_LABEL;
+                        if (item.rank_change === null || item.rank_change === undefined) return UNAVAILABLE_LABEL;
+                        const v = item.rank_change;
+                        return v > 0 ? `↑ +${v} ${unit}` : v < 0 ? `↓ -${Math.abs(v)} ${unit}` : {{ _('无变化')|tojson }};
+                    } } } }
                 }
             });
         }
@@ -1791,12 +1819,29 @@ document.addEventListener('DOMContentLoaded', function() {
             categoryCanvas.replaceWith(categoryMessage);
         }
 
-        // {{ _('排名变化趋势折线图') }}
+        // {{ _('排名变化趋势柱状图') }}
         if (reportContent.top_changes?.length > 0) {
+            const NEW_LABEL = {{ _('新上榜')|tojson }};
+            const UNAVAILABLE_LABEL = {{ _('变化不可得')|tojson }};
+            const items = reportContent.top_changes;
+            const labels = items.map(i => i.is_new ? `${i.title} (${NEW_LABEL})` : (i.rank_change === null || i.rank_change === undefined) ? `${i.title} (${UNAVAILABLE_LABEL})` : i.title);
+            const data = items.map(i => (i.is_new || i.rank_change === null || i.rank_change === undefined) ? null : i.rank_change);
+            const bgColors = items.map(i => i.is_new || i.rank_change === null || i.rank_change === undefined ? chartColors.gray : i.rank_change > 0 ? chartColors.green : i.rank_change < 0 ? chartColors.red : chartColors.gray);
             new Chart(document.getElementById('trend-chart').getContext('2d'), {
-                type: 'line',
-                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: {{ _('排名变化趋势')|tojson }}, data: reportContent.top_changes.map(i => i.rank_change), borderColor: chartColors.blueBorder, backgroundColor: 'rgba(54,162,235,0.1)', borderWidth: 2, tension: 0.3, fill: true }] },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: {{ (_('排名变化') ~ '（' ~ _('位') ~ '）')|tojson }} } } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
+                type: 'bar',
+                data: { labels, datasets: [{ label: {{ _('排名变化')|tojson }}, data, backgroundColor: bgColors, borderWidth: 1 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, title: { display: true, text: {{ (_('排名变化') ~ '（' ~ _('位') ~ '）')|tojson }} } } },
+                    plugins: { tooltip: { callbacks: { label: ctx => {
+                        const item = items[ctx.dataIndex];
+                        const unit = {{ _('位')|tojson }};
+                        if (item.is_new) return NEW_LABEL;
+                        if (item.rank_change === null || item.rank_change === undefined) return UNAVAILABLE_LABEL;
+                        const v = item.rank_change;
+                        return v > 0 ? `↑ +${v} ${unit}` : v < 0 ? `↓ -${Math.abs(v)} ${unit}` : {{ _('无变化')|tojson }};
+                    } } }, legend: { position: 'top' } }
+                }
             });
         }
 
@@ -1807,21 +1852,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: {
                     labels: reportContent.top_changes.map(i => i.title),
                     datasets: [
-                        { label: {{ _('本周排名')|tojson }}, data: reportContent.top_changes.map(i => i.rank || 0), backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 },
-                        { label: {{ _('上周排名')|tojson }}, data: reportContent.top_changes.map(i => Math.max(1, (i.rank || 0) + (i.rank_change || 0))), backgroundColor: chartColors.red, borderColor: chartColors.redBorder, borderWidth: 1 }
+                        { label: {{ _('本周排名')|tojson }}, data: reportContent.top_changes.map(i => (Number.isInteger(i.rank) && i.rank > 0) ? i.rank : null), backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 },
+                        { label: {{ _('上周排名')|tojson }}, data: reportContent.top_changes.map(i => {
+                            const prev = (i.is_new || !Number.isInteger(i.rank) || i.rank <= 0 || i.rank_change == null || !Number.isInteger(i.rank_change)) ? null : (i.rank + i.rank_change);
+                            return (prev != null && prev > 0) ? prev : null;
+                        }), backgroundColor: chartColors.red, borderColor: chartColors.redBorder, borderWidth: 1 }
                     ]
                 },
                 options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: {{ _('排名')|tojson }} }, reverse: true } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } }
             });
         }
 
-        // {{ _('排名稳定性雷达图') }}
+        // {{ _('排名变化幅度雷达图') }}
         if (reportContent.top_changes?.length > 0) {
-            const scores = reportContent.top_changes.map(i => Math.max(1, Math.min(100, (i.weeks_on_list || 1) * 10 - Math.abs(i.rank_change || 0) * 5)));
+            const magnitudes = reportContent.top_changes.map(i => {
+                if (i.is_new || !Number.isInteger(i.rank) || i.rank <= 0 || i.rank_change == null || !Number.isInteger(i.rank_change)) return null;
+                return Math.abs(i.rank_change);
+            });
             new Chart(document.getElementById('stability-chart').getContext('2d'), {
                 type: 'radar',
-                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: {{ _('排名稳定性评分')|tojson }}, data: scores, backgroundColor: 'rgba(75,192,192,0.2)', borderColor: chartColors.greenBorder, borderWidth: 2, pointBackgroundColor: chartColors.greenBorder }] },
-                options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 100, title: { display: true, text: {{ _('稳定性评分')|tojson }} } } } }
+                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: {{ _('排名变化幅度（位）')|tojson }}, data: magnitudes, backgroundColor: 'rgba(75,192,192,0.2)', borderColor: chartColors.greenBorder, borderWidth: 2, pointBackgroundColor: chartColors.greenBorder }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, title: { display: true, text: {{ _('排名变化幅度（位）')|tojson }} } } } }
             });
         }
     }

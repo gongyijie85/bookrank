@@ -2,12 +2,17 @@
 
 import json
 import re
+from datetime import UTC
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+import pytest
 from bs4 import BeautifulSoup
+from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.datastructures import MultiDict
 
 from app.models.book import Book
+from app.routes.main import _load_new_books_data, _parse_new_books_params
 
 
 def _make_book(**overrides):
@@ -305,8 +310,14 @@ class TestAwardsPage:
         mock_svc.get_distinct_years.return_value = []
         mock_svc.get_award_books.side_effect = Exception('DB error')
         MockAwardService.return_value = mock_svc
-        response = client.get('/awards')
+        mock_render = MagicMock(return_value='ok')
+        with patch('app.routes.main.render_adaptive', mock_render):
+            response = client.get('/awards')
         assert response.status_code == 200
+        _, kwargs = mock_render.call_args
+        assert kwargs['data_load_failed'] is True
+        assert kwargs['total_books'] is None
+        assert kwargs['total_pages'] is None
 
     @patch('app.services.award_book_service.AwardBookService')
     def test_awards_with_award_name_filter(self, MockAwardService, client):
@@ -314,14 +325,18 @@ class TestAwardsPage:
         mock_award.id = 1
         mock_award.name = 'TestAward'
         mock_award.name_en = 'Test Award'
+        mock_award.wikidata_id = None
         mock_award.description = 'desc'
         mock_award.book_count = 0
 
         mock_book = MagicMock()
         mock_book.id = 10
         mock_book.title = 'Test Title'
+        mock_book.title_zh = None
+        mock_book.display_title = 'Test Title'
         mock_book.author = 'Author'
         mock_book.description = 'desc'
+        mock_book.description_zh = None
         mock_book.details = 'details'
         mock_book.cover_local_path = None
         mock_book.cover_original_url = None
@@ -350,6 +365,8 @@ class TestAwardsPage:
         mock_award = MagicMock()
         mock_award.id = 1
         mock_award.name = 'TestAward'
+        mock_award.name_en = 'Test Award'
+        mock_award.wikidata_id = None
         mock_award.book_count = 0
 
         mock_book = MagicMock()
@@ -357,6 +374,7 @@ class TestAwardsPage:
         mock_book.title = 'Test Title'
         mock_book.author = 'Author'
         mock_book.description = 'desc'
+        mock_book.description_zh = None
         mock_book.details = 'details'
         mock_book.cover_local_path = None
         mock_book.cover_original_url = None
@@ -367,6 +385,7 @@ class TestAwardsPage:
         mock_book.year = 2024
         mock_book.category = 'Fiction'
         mock_book.title_zh = None
+        mock_book.display_title = 'Test Title'
         mock_book.award = mock_award
         mock_book.buy_links = []
 
@@ -383,6 +402,7 @@ class TestAwardsPage:
         assert response.status_code == 200
         html = response.get_data(as_text=True)
         assert 'Fiction' in html
+        assert 'Test Title' in html
 
         # category 参数应传给服务层查询方法
         _, kwargs = mock_svc.get_award_books.call_args
@@ -668,7 +688,7 @@ class TestNewBookDetail:
         mock_modules.query_service.get_book.return_value = None
         mock_get_modules.return_value = mock_modules
         response = client.get('/new-book/999')
-        assert response.status_code == 200
+        assert response.status_code == 404
 
     @patch('app.routes.main.submit_background_task')
     @patch('app.routes.main.get_service')
@@ -782,7 +802,7 @@ class TestAwardBookDetail:
         mock_svc.get_award_book_by_id.return_value = None
         MockAwardService.return_value = mock_svc
         response = client.get('/award-book/99999')
-        assert response.status_code == 200
+        assert response.status_code == 404
 
     @patch('app.routes.main.get_or_create_recommendation_service')
     @patch('app.services.award_book_service.AwardBookService')
@@ -901,7 +921,7 @@ class TestBookDetail:
         with app.app_context():
             app.extensions.pop('book_service', None)
         response = client.get('/book/0')
-        assert response.status_code == 200
+        assert response.status_code == 404
 
 
 class TestBookDetailsApi:
@@ -2035,3 +2055,541 @@ class TestAwardBuyLinksParsing:
         with app.app_context():
             stored = db.session.get(AwardBook, book_id)
             assert stored.buy_links == raw, '原始 buy_links 列必须逐字节保持不变'
+
+
+def _new_books_modules():
+    stats = {
+        'total_books': 0,
+        'total_publishers': 0,
+        'active_publishers': 0,
+        'recent_books_7d': 0,
+        'top_categories': [],
+    }
+    modules = MagicMock()
+    pm, qs = modules.publisher_manager, modules.query_service
+    pm.get_publishers.return_value = []
+    pm.get_publisher_book_counts.return_value = {}
+    qs.get_categories.return_value = []
+    qs.get_statistics.return_value = stats
+    qs.get_new_books.return_value = ([], 0)
+    qs.search_books.return_value = ([], 0)
+    return modules, stats
+
+
+@pytest.mark.parametrize(
+    'raw,expected,searching',
+    [
+        (None, 'all', False),
+        ('', 'all', False),
+        ('nope', 'all', True),
+        (' published ', 'published', False),
+        ('upcoming', 'upcoming', True),
+        (' pending ', 'pending', False),
+    ],
+)
+def test_new_books_publication_status_parse_and_query(app, raw, expected, searching):
+    args = {'search': 'q'} if searching else {'publisher': '1'}
+    if raw is not None:
+        args['publication_status'] = raw
+    with app.app_context(), patch('app.routes.main.get_sync_request_gate') as gate:
+        gate.return_value.seed_static_data.return_value = None
+        parsed = _parse_new_books_params(MultiDict(args))
+        assert parsed['selected_publication_status'] == expected
+        modules, _stats = _new_books_modules()
+        _load_new_books_data(modules, parsed)
+    query = modules.query_service.search_books if searching else modules.query_service.get_new_books
+    assert query.call_args.kwargs['publication_status'] == expected
+
+
+@pytest.mark.parametrize('mode', ['main', 'stats', 'counts', 'empty'])
+def test_new_books_load_failures_are_independent(app, mode):
+    params = {
+        'selected_publisher': 1,
+        'selected_category': '',
+        'selected_days': 30,
+        'search_query': '',
+        'page': 1,
+        'per_page': 20,
+        'view_mode': 'grid',
+        'selected_publication_status': 'published',
+    }
+    with app.app_context(), patch('app.routes.main.get_sync_request_gate') as gate:
+        gate.return_value.seed_static_data.return_value = None
+        modules, stats = _new_books_modules()
+        kept = [{'title': 'Kept'}]
+        if mode != 'empty':
+            modules.query_service.get_new_books.return_value = (kept, 1)
+        if mode == 'main':
+            modules.query_service.get_new_books.side_effect = SQLAlchemyError('books')
+        elif mode == 'stats':
+            modules.query_service.get_statistics.side_effect = SQLAlchemyError('stats')
+        elif mode == 'counts':
+            modules.publisher_manager.get_publisher_book_counts.side_effect = SQLAlchemyError('counts')
+        data = _load_new_books_data(modules, params)
+    ok_books = kept if mode in ('stats', 'counts') else []
+    ok_total = 1 if mode in ('stats', 'counts') else (None if mode == 'main' else 0)
+    assert data['books'] == ok_books
+    assert data['total'] == ok_total
+    assert data['total_pages'] == ok_total
+    assert data['data_load_failed'] is (mode == 'main')
+    assert data['stats'] is (None if mode == 'stats' else stats)
+    assert data['stats_unavailable'] is (mode == 'stats')
+    assert data['publisher_counts_unavailable'] is (mode == 'counts')
+    assert data['publisher_book_counts'] == (None if mode == 'counts' else {})
+
+
+@pytest.mark.parametrize(
+    'counts,searching,n_pubs',
+    [('pm', False, 2), ({}, True, 6), ('raise', False, 6), ('raise', True, 2)],
+)
+def test_publisher_sections_use_one_filtered_batch(app, db, counts, searching, n_pubs):
+    from datetime import date, datetime
+
+    from app.models.new_book import NewBook, Publisher
+    from app.services.new_book.query_service import NewBookQueryService
+
+    token, fixed = 'ZebraToken', datetime(2026, 9, 30, 8, 0, tzinfo=UTC)
+    pubs = [
+        Publisher(name=f'P{i}', name_en=f'E{i}', crawler_class='HouseCrawler', is_active=True) for i in range(n_pubs)
+    ]
+    db.session.add_all(pubs)
+    db.session.flush()
+    a, b = pubs[0], pubs[1]
+    specs = [
+        (a, f'{token} A', 'Fiction', date(2026, 9, 10)),
+        (b, f'{token} B1', 'Fiction', date(2026, 9, 11)),
+        (b, f'{token} B2', 'Fiction', date(2026, 9, 12)),
+        (a, f'{token} cat', 'Poetry', date(2026, 9, 12)),
+        (a, 'soon', 'Fiction', date(2026, 10, 10)),
+        (b, f'{token} old', 'Fiction', date(2020, 1, 1)),
+    ]
+    rows = [
+        NewBook(
+            publisher_id=pub.id,
+            title=title,
+            author='Ada',
+            isbn13=f'978100{i:07d}',
+            category=cat,
+            publication_date=day,
+            created_at=fixed,
+            is_displayable=True,
+        )
+        for i, (pub, title, cat, day) in enumerate(specs, start=1)
+    ]
+    db.session.add_all(rows)
+    db.session.commit()
+    params = {
+        'selected_publisher': None,
+        'selected_category': 'Fiction',
+        'selected_days': 30,
+        'search_query': token if searching else '',
+        'page': 1,
+        'per_page': 20,
+        'view_mode': 'grid',
+        'selected_publication_status': 'published',
+    }
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed
+
+    with (
+        app.app_context(),
+        patch('app.routes.main.get_sync_request_gate') as gate,
+        patch('app.services.new_book.query_service.datetime', FrozenDateTime),
+    ):
+        gate.return_value.seed_static_data.return_value = None
+        modules, _stats = _new_books_modules()
+        service = NewBookQueryService(MagicMock())
+        modules.query_service = service
+        service.get_new_books = MagicMock(wraps=service.get_new_books)
+        service.search_books = MagicMock(wraps=service.search_books)
+        modules.publisher_manager.get_publishers.return_value = pubs
+        pm = modules.publisher_manager
+        if counts == 'raise':
+            pm.get_publisher_book_counts.side_effect = SQLAlchemyError('counts')
+            expected_counts = None
+        elif counts == {}:
+            pm.get_publisher_book_counts.return_value = {}
+            expected_counts = {}
+        else:
+            expected_counts = {a.id: 999, b.id: 0}
+            pm.get_publisher_book_counts.return_value = expected_counts
+        data = _load_new_books_data(modules, params)
+    used = service.search_books if searching else service.get_new_books
+    idle = service.get_new_books if searching else service.search_books
+    second = used.call_args_list[1]
+    per_page = second.kwargs.get('per_page', second.args[2] if len(second.args) > 2 else None)
+    assert used.call_count == 2 and idle.call_count == 0 and per_page == 300
+    assert second.kwargs['category'] == 'Fiction'
+    assert second.kwargs['days'] == 30
+    assert second.kwargs['publication_status'] == 'published'
+    assert [part['publisher'].id for part in data['publisher_sections']] == [b.id, a.id]
+    assert [len(part['books']) for part in data['publisher_sections']] == [2, 1]
+    got = {book.id for part in data['publisher_sections'] for book in part['books']}
+    assert got == {book.id for book in data['books']} == {rows[0].id, rows[1].id, rows[2].id}
+    assert data['publisher_book_counts'] == expected_counts
+    assert data['publisher_counts_unavailable'] is (counts == 'raise')
+    assert data['publishers_unavailable'] is False
+    assert data['publisher_sections_unavailable'] is False
+    assert data['data_load_failed'] is False
+
+
+def test_publisher_kind_uses_exact_crawler_class(app):
+    from app.models.new_book import Publisher
+
+    specs = [
+        ('Renamed Books', 'GoogleBooksCrawler', 'provider'),
+        ('Open Shelf', 'OpenLibraryCrawler', 'provider'),
+        ('HarperCollins Google', 'HarperCollinsGoogleCrawler', 'publisher'),
+        ('City House', 'CityHouseCrawler', 'publisher'),
+    ]
+    pubs = []
+    for i, (name, crawler, _kind) in enumerate(specs, start=1):
+        pub = Publisher(name=name, name_en=f'{name} EN', crawler_class=crawler, is_active=True)
+        pub.id = i
+        pubs.append(pub)
+    params = {
+        'selected_publisher': None,
+        'selected_category': '',
+        'selected_days': 7,
+        'search_query': '',
+        'page': 1,
+        'per_page': 20,
+        'view_mode': 'grid',
+        'selected_publication_status': 'all',
+    }
+    with app.app_context(), patch('app.routes.main.get_sync_request_gate') as gate:
+        gate.return_value.seed_static_data.return_value = None
+        modules, _stats = _new_books_modules()
+        modules.publisher_manager.get_publishers.return_value = pubs
+        data = _load_new_books_data(modules, params)
+    assert data['publisher_kind'] == {i: kind for i, (*_rest, kind) in enumerate(specs, start=1)}
+    assert modules.query_service.get_new_books.call_count == 2
+    assert data['publishers_unavailable'] is False
+
+
+@pytest.mark.parametrize('mode', ['publishers', 'sections'])
+def test_publisher_and_section_failures_set_flags(app, mode):
+    from types import SimpleNamespace
+
+    from app.models.new_book import Publisher
+
+    kept = SimpleNamespace(id=5, title='Kept', author='Ada', publisher_id=4)
+    pub = Publisher(name='House', name_en='House', crawler_class='HouseCrawler', is_active=True)
+    pub.id = 4
+    params = {
+        'selected_publisher': None,
+        'selected_category': '',
+        'selected_days': 30,
+        'search_query': '',
+        'page': 1,
+        'per_page': 20,
+        'view_mode': 'grid',
+        'selected_publication_status': 'all',
+    }
+    with app.app_context(), patch('app.routes.main.get_sync_request_gate') as gate:
+        gate.return_value.seed_static_data.return_value = None
+        modules, _stats = _new_books_modules()
+        modules.publisher_manager.get_publishers.return_value = [pub]
+        if mode == 'publishers':
+            modules.publisher_manager.get_publishers.side_effect = SQLAlchemyError('publishers')
+            modules.query_service.get_new_books.return_value = ([kept], 1)
+        else:
+            modules.query_service.get_new_books.side_effect = [
+                ([kept], 1),
+                SQLAlchemyError('sections'),
+            ]
+        data = _load_new_books_data(modules, params)
+    assert data['books'] == [kept] and data['data_load_failed'] is False
+    assert data['publishers'] == ([] if mode == 'publishers' else [pub])
+    assert data['publishers_unavailable'] is (mode == 'publishers')
+    assert data['publisher_sections_unavailable'] is (mode == 'sections')
+    assert data['publisher_sections'] == []
+
+
+from sqlalchemy import event
+
+from app.models.schemas import Award, AwardBook
+from app.utils import ExternalAPIError
+
+
+def _norm_sql(statement):
+    return ' '.join(statement.lower().split())
+
+
+def _round2_sql_fault(mode, statement):
+    sql = _norm_sql(statement)
+    if mode == 'books':
+        return 'from award_books' in sql and 'group by' not in sql
+    if mode == 'counts':
+        return 'group by award_books.award_id' in sql
+    if mode == 'awards':
+        return ' from awards' in sql and ' where ' not in sql
+    if mode == 'selected':
+        return ' where ' in sql and 'awards.name' in sql
+    if mode == 'detail' or mode == 'awardfail':
+        return sql.startswith('select') and 'award_books' in sql
+    return False
+
+
+def _listen_sql(engine, mode):
+    def _before(conn, cursor, statement, parameters, context, executemany):
+        if _round2_sql_fault(mode, statement):
+            raise SQLAlchemyError('round2 SELECT unavailable')
+
+    event.listen(engine, 'before_cursor_execute', _before)
+    return _before
+
+
+def _capture_adaptive(monkeypatch):
+    captured = {}
+
+    def _render(template, **kwargs):
+        captured['template'] = template
+        captured.update(kwargs)
+        return 'captured'
+
+    monkeypatch.setattr('app.routes.main.render_adaptive', _render)
+    return captured
+
+
+@pytest.mark.parametrize('mode', ['books', 'counts', 'awards', 'selected', 'ok', 'empty'])
+def test_awards_real_sql_failure_versus_empty(mode, db, app, monkeypatch):
+    """Genuine SELECT faults stay distinct from a successful empty year."""
+    if mode != 'empty':
+        award = Award(name='Round2 Visible', wikidata_id='Q9')
+        db.session.add(award)
+        db.session.flush()
+        db.session.add(
+            AwardBook(
+                award_id=award.id,
+                title='Kept',
+                author='A',
+                year=2026,
+                isbn13='9782026000009',
+                is_displayable=True,
+            )
+        )
+        db.session.commit()
+    captured = _capture_adaptive(monkeypatch)
+    listener = _listen_sql(db.engine, mode) if mode in {'books', 'counts', 'awards', 'selected'} else None
+    try:
+        path = '/awards?year=2026'
+        if mode == 'selected':
+            path += '&award=Round2%20Visible'
+        resp = app.test_client().get(path)
+    finally:
+        if listener is not None:
+            event.remove(db.engine, 'before_cursor_execute', listener)
+    assert resp.status_code == 200 and resp.get_data(as_text=True) == 'captured'
+    failed = mode in {'books', 'selected'}
+    assert captured['data_load_failed'] is failed
+    assert captured['award_counts_unavailable'] is (mode == 'counts')
+    assert captured['awards_unavailable'] is (mode == 'awards')
+    if failed:
+        assert captured['total_books'] is None and captured['total_pages'] is None
+    elif mode == 'empty':
+        assert captured['books'] == [] and captured['total_books'] == 0 and captured['total_pages'] == 1
+    else:
+        assert [row['title'] for row in captured['books']] == ['Kept']
+        assert captured['total_books'] == 1 and captured['total_pages'] == 1
+    if mode == 'counts':
+        assert captured['awards'] and all(row.book_count is None for row in captured['awards'])
+    if mode == 'awards':
+        assert captured['awards'] == []
+
+
+@pytest.mark.parametrize('mode', ['fault', 'missing'])
+def test_award_book_unknown_real_sql_versus_missing(mode, db, app, monkeypatch):
+    captured = _capture_adaptive(monkeypatch)
+    listener = _listen_sql(db.engine, 'detail') if mode == 'fault' else None
+    try:
+        resp = app.test_client().get('/award-book/999?return_to=/awards%3Fyear%3D2026')
+    finally:
+        if listener is not None:
+            event.remove(db.engine, 'before_cursor_execute', listener)
+    assert captured['back_url'] == '/awards?year=2026'
+    if mode == 'fault':
+        assert resp.status_code == 500
+        message = captured['message']
+        assert '暂时无法加载' in message and '不存在' not in message
+    else:
+        assert resp.status_code == 404
+
+
+@pytest.mark.parametrize('mode', ['empty', 'nytfail', 'awardfail'])
+def test_rankings_empty_versus_nyt_and_award_faults(mode, db, app, monkeypatch):
+    categories = list(app.config['CATEGORIES'])
+    first = categories[0]
+
+    def _boundary(category, auto_translate=False, notify_refresh=False, report_failures=False):
+        if mode == 'nytfail' and category == first:
+            raise ExternalAPIError('offline', api_name='book_service')
+        return [], None
+
+    monkeypatch.setattr('app.routes.main._get_books_for_category', _boundary)
+    captured = _capture_adaptive(monkeypatch)
+    listener = _listen_sql(db.engine, 'awardfail') if mode == 'awardfail' else None
+    try:
+        resp = app.test_client().get('/rankings')
+    finally:
+        if listener is not None:
+            event.remove(db.engine, 'before_cursor_execute', listener)
+    assert resp.status_code == 200 and resp.get_data(as_text=True) == 'captured'
+    assert captured['rankings_nyt_unavailable_count'] == (1 if mode == 'nytfail' else 0)
+    assert captured['rankings_awards_unavailable'] is (mode == 'awardfail')
+    assert captured['cross_entries'] == []
+    assert captured['longevity_entries'] == []
+    assert captured['overlooked_entries'] == []
+    assert captured['publisher_entries'] == []
+
+
+@pytest.mark.parametrize('path', ['/reports/weekly', '/reports/weekly/2026-01-01'])
+@pytest.mark.parametrize('mode', ['fault', 'empty'])
+def test_weekly_report_read_routes(app, db, path, mode):
+    from sqlalchemy.exc import SQLAlchemyError
+
+    captured = {}
+
+    def render_adaptive(template, **kwargs):
+        captured['template'] = template
+        captured.update(kwargs)
+        return 'captured'
+
+    def listener(conn, cursor, statement, parameters, context, executemany):
+        sql = statement.lower()
+        if mode == 'fault' and sql.lstrip().startswith('select') and 'weekly_reports' in sql:
+            raise SQLAlchemyError('weekly SQL unavailable')
+
+    event.listen(db.engine, 'before_cursor_execute', listener)
+    try:
+        with (
+            patch('app.routes.main.get_service', return_value=MagicMock()),
+            patch('app.routes.main.render_adaptive', side_effect=render_adaptive),
+            patch(
+                'app.services.weekly_report_service.WeeklyReportService.get_or_trigger_current_week_report',
+                return_value=(None, False),
+            ),
+            patch('app.services.weekly_report_service.WeeklyReportService.record_report_view') as record,
+        ):
+            resp = app.test_client().get(path)
+    finally:
+        event.remove(db.engine, 'before_cursor_execute', listener)
+    if mode == 'fault':
+        assert resp.status_code == 500
+        assert captured['template'] == 'error.html'
+        assert captured['back_url'] == '/reports/weekly'
+        if path == '/reports/weekly':
+            assert captured['message'] == '周报加载失败，请稍后再试'
+        else:
+            assert captured['message'] == '周报加载失败，请稍后再试'
+        return
+    record.assert_not_called()
+    if path == '/reports/weekly':
+        assert resp.status_code == 200 and resp.get_data(as_text=True) == 'captured'
+        assert captured['reports'] == [] and captured['is_generating'] is False
+    else:
+        assert resp.status_code == 200
+        assert captured['template'] == 'error.html'
+        assert captured['message'] == '周报不存在'
+
+
+def test_load_new_books_data_sql_stays_flat_for_two_and_six_publishers(app, db, monkeypatch):
+    from datetime import datetime
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from sqlalchemy import event
+    from werkzeug.datastructures import ImmutableMultiDict
+
+    from app.models.new_book import NewBook, Publisher
+    from app.routes.main import _load_new_books_data, _parse_new_books_params, get_sync_request_gate
+    from app.services.new_book.publisher_manager import PublisherManager
+    from app.services.new_book.query_service import NewBookQueryService
+
+    monkeypatch.setattr(get_sync_request_gate(), 'seed_static_data', lambda *_args, **_kwargs: None)
+    pipeline = MagicMock()
+    modules = SimpleNamespace(
+        query_service=NewBookQueryService(pipeline),
+        publisher_manager=PublisherManager(),
+        translation_pipeline=pipeline,
+        sync_engine=MagicMock(),
+    )
+    params = _parse_new_books_params(
+        ImmutableMultiDict(
+            [
+                ('search', 'FlatSQL'),
+                ('category', 'Fiction'),
+                ('days', '30'),
+                ('publication_status', 'published'),
+                ('per_page', '50'),
+            ]
+        )
+    )
+
+    def _measure(n_pubs):
+        db.session.query(NewBook).delete()
+        db.session.query(Publisher).delete()
+        db.session.commit()
+        published = datetime.now(UTC).replace(tzinfo=None)
+        publishers = [
+            Publisher(name=f'FlatPub{i}', name_en=f'FlatPub{i}', crawler_class='FlatCrawler', is_active=True)
+            for i in range(n_pubs)
+        ]
+        db.session.add_all(publishers)
+        db.session.flush()
+        books = []
+        for index, pub in enumerate(publishers):
+            for copy in range(3 if index == 0 else 1):
+                books.append(
+                    NewBook(
+                        title='FlatSQL',
+                        author='Author',
+                        isbn13=f'978{n_pubs}{index:02d}{copy:07d}',
+                        publication_date=published,
+                        publisher_id=pub.id,
+                        category='Fiction',
+                    )
+                )
+        db.session.add_all(books)
+        db.session.commit()
+        db.session.remove()
+        sqls = []
+
+        def _collect(_conn, _cursor, statement, _parameters, _context, _executemany):
+            text = ' '.join(statement.lower().split())
+            if text.startswith('select'):
+                sqls.append(text)
+
+        event.listen(db.engine, 'before_cursor_execute', _collect)
+        try:
+            data = _load_new_books_data(modules, params)
+        finally:
+            event.remove(db.engine, 'before_cursor_execute', _collect)
+        db.session.remove()
+        return len(sqls), sqls, data
+
+    measured = {n_pubs: _measure(n_pubs) for n_pubs in (2, 6)}
+    assert measured[2][0] == measured[6][0] > 0
+    for n_pubs, (_total, sqls, data) in measured.items():
+        joins = [sql for sql in sqls if 'left outer join' in sql and 'publisher' in sql and 'new_book' in sql]
+        assert len(joins) == 2
+        for flag in (
+            'data_load_failed',
+            'stats_unavailable',
+            'publishers_unavailable',
+            'publisher_counts_unavailable',
+            'publisher_sections_unavailable',
+        ):
+            assert data[flag] is False
+        sections = data['publisher_sections']
+        assert len(sections) == n_pubs <= 6
+        assert [len(section['books']) for section in sections] == [3, *([1] * (n_pubs - 1))]
+        assert all(len(section['books']) <= 8 for section in sections)
+        main_isbns = {book.isbn13 for book in data['books']}
+        section_isbns = {book.isbn13 for section in sections for book in section['books']}
+        assert section_isbns == main_isbns
+        assert len(main_isbns) == n_pubs + 2
+    assert len(measured[2][1]) == len(measured[6][1])

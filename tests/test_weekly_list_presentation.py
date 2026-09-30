@@ -277,7 +277,7 @@ def test_card_data_title_matches_visible_title(app, db):
 # ---- 横向 rail ----
 
 
-def test_en_rail_uses_title_display_and_entry_counts(app, db):
+def test_en_cards_use_title_display_and_entry_counts_without_rail(app, db):
     sep = _make_report(db, STANDARD_TITLE, date(2026, 9, 21), date(2026, 9, 27), _content(), 'en')
     aug = _make_report(
         db,
@@ -289,12 +289,22 @@ def test_en_rail_uses_title_display_and_entry_counts(app, db):
     )
     html = _render(app, 'weekly_reports.html', [sep, aug], '/reports/weekly?lang=en')
 
-    rail = _texts(html, 'span', 'browse-report-title')
-    assert len(rail) == 2
-    assert STANDARD_TITLE_EN in rail
-    # 人工标题在 rail 也原样保留
-    assert CUSTOM_TITLE in rail
-    # rail 计数走条目口径（entries），不再出现「15 books」
+    # 冗余浏览侧栏(browse-report-title rail)已移除:结果集合只出现一次。
+    assert _texts(html, 'span', 'browse-report-title') == []
+
+    cards = _card_attrs(html)
+    assert len(cards) == 2, f'expected exactly one result collection with two cards, got {len(cards)}'
+
+    titles = _texts(html, 'h3', 'news-title')
+    # EN 显示标题走 title_display;人工标题原样保留。
+    assert STANDARD_TITLE_EN in titles
+    assert CUSTOM_TITLE in titles
+
+    months = _texts(html, 'span', 'news-month')
+    assert '09' in months and '08' in months
+    assert all('月' not in m for m in months)
+
+    # 条目口径计数保留:英文页显示 entries,不再出现 books。
     assert '15 entries' in html
     assert '15 books' not in html
 
@@ -357,7 +367,10 @@ def test_mobile_list_title_localized_and_entries_label(app, db):
 
     assert _texts(html, 'h3', 'm-report-title') == [STANDARD_TITLE_EN]
     assert 'Total books' not in html
-    assert '15List entries' in html
+    assert len(_texts(html, 'p', 'm-report-sub')) == 1
+    assert '15 entries' in _texts(html, 'p', 'm-report-sub')[0]
+    assert _texts(html, 'span', 'm-report-chip') == ['New on list 3', 'Rising 4', 'Falling 2']
+    assert '15 books' not in html
 
 
 def test_mobile_list_custom_title_preserved(app, db):

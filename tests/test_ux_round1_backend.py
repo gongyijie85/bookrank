@@ -51,15 +51,46 @@ def _presentation():
 
 
 @pytest.mark.parametrize(
-    'path',
-    ['/', '/book/0', '/search', '/reports/weekly', '/awards', '/new-books'],
+    ('path', 'has_book', 'expected_status'),
+    [
+        ('/', False, 200),
+        ('/book/0', True, 200),
+        ('/book/0', False, 404),
+        ('/search', False, 200),
+        ('/reports/weekly', False, 200),
+        ('/awards', False, 200),
+        ('/new-books', False, 200),
+    ],
 )
-def test_reader_entry_mints_distinct_signed_session_ids(app, db, path):
+def test_reader_entry_mints_distinct_signed_session_ids(app, db, path, has_book, expected_status):
     """两个独立客户端进入读者页，各自得到签名 session，且不采纳同一个明文 cookie。"""
+
+    def _books_for_category(*_args, **_kwargs):
+        if path == '/book/0' and has_book:
+            return (
+                [
+                    {
+                        'title': 'Fixture Title',
+                        'author': 'Fixture Author',
+                        'isbn13': '9780000000002',
+                        'isbn10': '0000000000',
+                        'description': 'Fixture description',
+                        'details': 'Fixture details',
+                    }
+                ],
+                None,
+            )
+        return ([], None)
+
+    def _identity(book, *_args, **_kwargs):
+        return book
+
     with (
         patch('app.routes.main.render_adaptive', return_value='ok'),
         patch('app.routes.main.get_service', return_value=MagicMock()),
-        patch('app.routes.main._get_books_for_category', return_value=([], None)),
+        patch('app.routes.main._get_books_for_category', side_effect=_books_for_category),
+        patch('app.routes.main.enrich_book_details', side_effect=_identity),
+        patch('app.routes.main.merge_or_translate_book', side_effect=_identity),
         patch('app.routes.main.get_new_book_modules', return_value=MagicMock()),
         patch('app.routes.main._load_new_books_data', return_value={}),
         patch('app.tasks.weekly_report_task.generate_weekly_report'),
@@ -72,8 +103,8 @@ def test_reader_entry_mints_distinct_signed_session_ids(app, db, path):
         response_a = client_a.get(path, follow_redirects=True)
         response_b = client_b.get(path, follow_redirects=True)
 
-    assert response_a.status_code == 200
-    assert response_b.status_code == 200
+    assert response_a.status_code == expected_status
+    assert response_b.status_code == expected_status
     sid_a = _signed_session_id(client_a)
     sid_b = _signed_session_id(client_b)
     assert sid_a and _HEX_SESSION.fullmatch(sid_a), sid_a

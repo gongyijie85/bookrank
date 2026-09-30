@@ -1,8 +1,10 @@
 """用户行为分析服务测试"""
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.schemas import UserBehavior, WeeklyReport
 from app.services.analytics_service import (
@@ -98,8 +100,55 @@ class TestGetDailyStats:
 
     def test_empty_db(self, app, db):
         with app.app_context():
+            today = datetime.now(UTC).date()
             result = get_daily_stats()
-            assert result['daily_stats'] == []
+            expected = [{'date': (today - timedelta(days=i)).isoformat(), 'count': 0} for i in range(29, -1, -1)]
+            assert result['daily_stats'] == expected
+            assert 'error' not in result
+
+    @pytest.mark.parametrize('empty', [True, False])
+    def test_fixed_utc_axis(self, app, db, monkeypatch, empty):
+        class Fixed(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 9, 30, 0, 5, tzinfo=UTC)
+
+        monkeypatch.setattr('app.services.analytics_service.datetime', Fixed)
+        with app.app_context():
+            if not empty:
+                stamps = (
+                    datetime(2026, 9, 27, 23, 59, tzinfo=UTC),
+                    datetime(2026, 9, 28, tzinfo=UTC),
+                    datetime(2026, 9, 30, 23, 59, tzinfo=UTC),
+                    datetime(2026, 10, 1, tzinfo=UTC),
+                )
+                for n, ts in enumerate(stamps):
+                    db.session.add(
+                        UserBehavior(session_id=f'w{n}', event_type='view', target_id='', target_type='', created_at=ts)
+                    )
+                db.session.commit()
+            result = get_daily_stats(days=3)
+        counts = (0, 0, 0) if empty else (1, 0, 1)
+        assert result['daily_stats'] == [
+            {'date': f'2026-09-{day:02d}', 'count': count} for day, count in zip((28, 29, 30), counts, strict=True)
+        ]
+        assert 'error' not in result
+
+    def test_sql_error_keeps_marker_without_zerofill(self, app, db):
+        def fail(conn, cursor, statement, parameters, context, executemany):
+            sql = str(statement).lower()
+            if 'select' in sql and ('user_behavior' in sql or 'weekly_report' in sql):
+                raise SQLAlchemyError('boom')
+
+        event.listen(db.engine, 'before_cursor_execute', fail)
+        try:
+            with app.app_context():
+                result = get_daily_stats(days=3)
+        finally:
+            event.remove(db.engine, 'before_cursor_execute', fail)
+            db.session.rollback()
+        assert result.get('error')
+        assert result['daily_stats'] == []
 
 
 class TestGetTopReports:

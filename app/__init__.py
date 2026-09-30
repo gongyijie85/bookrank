@@ -23,11 +23,13 @@ from .routes import admin_bp, analytics_bp, api_bp, health_bp, main_bp, new_book
 from .setup import shutdown_scheduler
 from .utils.api_helpers import PLACEHOLDER_TEXTS, is_non_substantive_details
 from .utils.book_labels import (
+    award_result_kind,
     award_term,
     bilingual,
     category_name,
     language_name,
     positive_int_text,
+    price_display,
     publication_state,
     publication_state_label,
 )
@@ -139,6 +141,8 @@ def create_app(config_name: str | None = None) -> Flask:
     # 空串，模板据此整行隐藏（见 app/utils/book_labels.positive_int_text）。此前各模板各自
     # 列举脏值字面量，改一处漏一处，详情页会渲染出「页数：0 页」。
     app.jinja_env.filters['positive_int_text'] = positive_int_text
+    app.jinja_env.filters['price_display'] = price_display
+    app.jinja_env.filters['award_result_kind'] = award_result_kind
 
     # 周报标题本地化：**只**改写服务层生成的标准标题（`2026年09月14日-2026年09月20日 畅销书周报`
     # 这类），任意人工/DB 标题原样透传。详情页 h1 早已走它（weekly_report_presentation），

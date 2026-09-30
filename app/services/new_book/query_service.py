@@ -48,6 +48,7 @@ class NewBookQueryService:
         days: int = 30,
         page: int = 1,
         per_page: int = 20,
+        publication_status: str = 'all',
     ) -> tuple[list[NewBook], int]:
         from sqlalchemy.orm import joinedload
 
@@ -62,6 +63,7 @@ class NewBookQueryService:
         if category:
             query = query.filter(NewBook.category.in_(self._category_alias_in_set(category)))  # type: ignore[attr-defined,union-attr]
 
+        query = self._apply_publication_status(query, publication_status)
         query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())  # type: ignore[attr-defined,union-attr]
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -86,6 +88,7 @@ class NewBookQueryService:
         publisher_id: int | None = None,
         category: str | None = None,
         days: int | None = None,
+        publication_status: str = 'all',
     ) -> tuple[list[NewBook], int]:
         from sqlalchemy.orm import joinedload
 
@@ -115,6 +118,7 @@ class NewBookQueryService:
         if days is not None:
             query = self._apply_publication_window(query, days)
 
+        query = self._apply_publication_status(query, publication_status)
         query = query.order_by(NewBook.publication_date.desc().nullslast(), NewBook.created_at.desc())  # type: ignore[attr-defined,union-attr]
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -243,3 +247,23 @@ class NewBookQueryService:
                 ),
             )
         )
+
+    @staticmethod
+    def _apply_publication_status(query: Any, publication_status: str):
+        """出版状态在分页前收窄。all 不追加条件。"""
+        if publication_status == 'all':
+            return query
+        today = datetime.now(UTC).date()
+        if publication_status == 'published':
+            return query.filter(  # type: ignore[union-attr,operator]
+                NewBook.publication_date.isnot(None),  # type: ignore[union-attr]
+                NewBook.publication_date <= today,  # type: ignore[operator]
+            )
+        if publication_status == 'upcoming':
+            return query.filter(  # type: ignore[union-attr,operator]
+                NewBook.publication_date.isnot(None),  # type: ignore[union-attr]
+                NewBook.publication_date > today,  # type: ignore[operator]
+            )
+        if publication_status == 'pending':
+            return query.filter(NewBook.publication_date.is_(None))  # type: ignore[union-attr]
+        return query

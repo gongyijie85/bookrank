@@ -639,7 +639,7 @@ class WeeklyReportService:
             )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取周报列表时出错: {e!s}')
-            return []
+            raise
 
     def get_report_by_date(self, report_date: date) -> WeeklyReport | None:
         """根据日期获取周报
@@ -657,7 +657,7 @@ class WeeklyReportService:
             )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据日期获取周报时出错: {e!s}')
-            return None
+            raise
 
     def get_report_by_week_end(self, week_end: date) -> WeeklyReport | None:
         """根据周结束日期获取周报
@@ -675,7 +675,7 @@ class WeeklyReportService:
             )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'根据周结束日期获取周报时出错: {e!s}')
-            return None
+            raise
 
     def get_latest_report(self) -> WeeklyReport | None:
         """获取最新周报
@@ -690,7 +690,7 @@ class WeeklyReportService:
             )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取最新周报时出错: {e!s}')
-            return None
+            raise
 
     def get_or_trigger_current_week_report(self) -> tuple[WeeklyReport | None, bool]:
         """获取"应当存在"的周报，缺失时后台异步补生成（应用层自愈机制）。

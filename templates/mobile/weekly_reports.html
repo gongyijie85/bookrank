@@ -31,15 +31,33 @@
 </div>
 
 {% if reports %}
+<style nonce="{{ csp_nonce() }}">
+.m-wr-filter-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 16px 12px}
+.m-wr-filter-bar select,.m-wr-filter-bar input{height:44px;min-width:44px;font-size:14px;border:1px solid var(--border-color,#ccc);border-radius:6px;background:var(--bg-primary,#fff);color:inherit;padding:0 10px}
+.m-wr-filter-count{font-size:.85em;color:var(--text-secondary,#666)}
+.m-wr-filter-clear{height:44px;padding:0 14px;border:1px solid var(--border-color,#ccc);background:transparent;color:inherit;border-radius:6px;cursor:pointer}
+.m-wr-no-results{padding:24px;text-align:center;color:var(--text-secondary,#666);display:none}
+</style>
+<div class="m-wr-filter-bar">
+    <select id="m-month-filter" aria-label="{{ _('月份筛选') }}">
+        <option value="">{{ _('全部') }}</option>
+        {% for section in report_sections %}
+        <option value="{{ section.year }}-{{ '%02d' % section.month }}">{{ _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) }}</option>
+        {% endfor %}
+    </select>
+    <input type="text" id="m-search-input" aria-label="{{ _('搜索周报') }}" placeholder="{{ _('搜索周报标题或内容') }}">
+    <span class="m-wr-filter-count" id="m-wr-filter-count"></span>
+    <button class="m-wr-filter-clear" id="m-wr-filter-clear" type="button">{{ _('清除') }}</button>
+</div>
 {# 月份分组沿用桌面列表页的 report_sections，路由已一并传入 #}
 {% for section in report_sections %}
 {% set month_label = _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) %}
-<section class="m-report-group" aria-label="{{ month_label }}">
+<section class="m-report-group" aria-label="{{ month_label }}" data-group-month="{{ section.year }}-{{ '%02d' % section.month }}">
     <h2 class="m-report-group-title">{{ month_label }}</h2>
     <div class="m-book-list">
         {% for report in section.reports %}
         {% set content = report.content_data or {} %}
-        <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-report-card">
+        <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-report-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-title="{% if content.title_display %}{{ content.title_display }}{% elif report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}" data-summary="{{ report.content_data.summary if report.content_data else '' }}">
             <div class="m-report-week">W{{ report.week_end.strftime('%V') }}</div>
             <div class="m-report-main">
                 <h3 class="m-report-title">
@@ -48,7 +66,7 @@
                 <p class="m-report-sub">
                     {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}
                     {% if content.total_books_known %}
-                    · {{ content.total_books_display }}{{ _('上榜记录') }}
+                    · {{ content.total_books_display }} {{ _('条') }} {{ _('上榜记录') }}
                     {% endif %}
                 </p>
                 {% if content.total_new_known or content.total_rising_known or content.total_falling_known %}
@@ -76,6 +94,62 @@
     </div>
 </section>
 {% endfor %}
+<div class="m-wr-no-results" id="m-wr-no-results">{{ _('没有匹配的周报') }}</div>
+<script nonce="{{ csp_nonce() }}">
+'use strict';
+document.addEventListener('DOMContentLoaded', function() {
+    var monthFilter = document.getElementById('m-month-filter');
+    var searchInput = document.getElementById('m-search-input');
+    var clearBtn = document.getElementById('m-wr-filter-clear');
+    var countEl = document.getElementById('m-wr-filter-count');
+    var noRes = document.getElementById('m-wr-no-results');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.m-report-card')).filter(function(c,i,a){return a.indexOf(c)===i});
+    var groups = Array.prototype.slice.call(document.querySelectorAll('.m-report-group'));
+    function getLocale() { return (document.documentElement.getAttribute('lang') || 'zh').slice(0,2); }
+
+    function apply(push) {
+        var mv = monthFilter.value;
+        var q = searchInput.value.trim().toLowerCase();
+        var vis = 0;
+        cards.forEach(function(c) {
+            var dm = c.getAttribute('data-month') || '';
+            var titleEl = c.querySelector('.m-report-title');
+            var summaryEl = c.querySelector('.m-report-summary');
+            var t = (titleEl ? titleEl.textContent : (c.getAttribute('data-title') || '')).toLowerCase();
+            var s = (summaryEl ? summaryEl.textContent : (c.getAttribute('data-summary') || '')).toLowerCase();
+            var ok = (!mv || dm === mv) && (!q || t.indexOf(q) !== -1 || s.indexOf(q) !== -1);
+            c.style.display = ok ? '' : 'none';
+            if (ok) vis++;
+        });
+        groups.forEach(function(g) {
+            var any = g.querySelector('.m-report-card:not([style*="display: none"])');
+            g.style.display = any ? '' : 'none';
+        });
+        if (countEl) countEl.textContent = getLocale() === 'en' ? vis + ' Matches in this list' : '当前列表匹配 ' + vis + ' 条';
+        if (noRes) noRes.style.display = vis === 0 ? 'block' : 'none';
+        if (push) {
+            var u = new URL(window.location.href);
+            if (mv) u.searchParams.set('month', mv); else u.searchParams.delete('month');
+            if (q) u.searchParams.set('search', searchInput.value.trim()); else u.searchParams.delete('search');
+            history.replaceState(null, '', u.toString());
+        }
+    }
+    function restore() {
+        var p = new URLSearchParams(window.location.search);
+        var m = p.get('month') || '', s = p.get('search') || '';
+        var valid = Array.prototype.some.call(monthFilter.options, function(o){ return o.value === m; });
+        monthFilter.value = valid ? m : '';
+        searchInput.value = s;
+        apply(false);
+    }
+    monthFilter.addEventListener('change', function(){ apply(true); });
+    searchInput.addEventListener('input', function(){ apply(true); });
+    clearBtn && clearBtn.addEventListener('click', function(){ monthFilter.value=''; searchInput.value=''; apply(true); });
+    window.addEventListener('popstate', restore);
+    window.addEventListener('languagechange', function(){ apply(false); });
+    restore();
+});
+</script>
 {% else %}
 <div class="m-empty">
     <div class="m-empty-icon">

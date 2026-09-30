@@ -133,10 +133,10 @@
                 <dd>{{ book.category|category_name }}</dd>
             </div>
             {% endif %}
-            {% if book.price %}
+            {% if book.price is not none and book.price|string|trim != '' %}
             <div class="detail-meta-row">
                 <dt>{{ _('价格') }}</dt>
-                <dd>{{ book.price }}</dd>
+                <dd><span class="book-price" data-price-raw="{{ book.price|e }}">{{ book.price|price_display(get_locale()) }}</span></dd>
             </div>
             {% endif %}
         </dl>

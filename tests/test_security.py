@@ -1,5 +1,7 @@
 """安全工具函数测试"""
 
+import pytest
+
 from app.utils.security import is_safe_redirect_url
 
 
@@ -35,3 +37,54 @@ class TestIsSafeRedirectUrl:
 
     def test_http_scheme(self):
         assert is_safe_redirect_url('http://example.com', allowed_hosts={'example.com'}) is True
+
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        '/new-books?search=https%3A%2F%2Fexample.com&lang=en&page=2',
+        '/awards?year=2026&lang=zh&view=list&page=3',
+        '/',
+        '/new-books?search=a%26b',
+    ],
+)
+def test_safe_return_path_retains_valid_local_path_and_query(value):
+    from app.utils.security import safe_return_path
+
+    assert safe_return_path(value, default='/awards') == value
+
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        None,
+        '',
+        '   ',
+        12,
+        '//evil.example/a',
+        'https://same.test/new-books',
+        'javascript:alert(1)',
+        '\\evil',
+        '/\\evil',
+        '/bad\npath',
+        '/bad\x00path',
+        '/bad\x7fpath',
+        '/%0d%0aevil',
+        '/%252f%252fevil',
+        '/%2f%2fevil',
+        '/%255cevil',
+        '/%5cevil',
+        '/%2Fevil',
+        '/%252Fevil',
+        '/%5Cevil',
+        '/%255Cevil',
+        '%2F%2Fevil',
+        '/safe#frag',
+        'relative',
+    ],
+)
+def test_safe_return_path_rejects_unsafe_and_keeps_allowed_host(value):
+    from app.utils.security import is_safe_redirect_url, safe_return_path
+
+    assert safe_return_path(value, default='/awards') == '/awards'
+    assert is_safe_redirect_url('https://example.com/page', allowed_hosts={'example.com'}) is True

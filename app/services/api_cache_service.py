@@ -288,7 +288,7 @@ class APICacheService:
             return cast('list[APICache]', query.order_by(APICache.last_used_at.desc()).limit(limit).all())
         except Exception as e:
             log_error(ErrorCategory.CACHE, f'获取最近缓存记录失败: {e}')
-            return []
+            raise
 
 
 _api_cache_service: APICacheService | None = None

@@ -17,7 +17,7 @@
     <h1 class="page-title" data-i18n="nav_publishers">{{ _('出版社导航') }}</h1>
     <p class="charts-source" data-i18n="publishers_subtitle">{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</p>
     <p class="page-subtitle">
-        {{ total_publishers }} {{ _('个网站') }} · {{ publishers_data|length }} {{ _('个分类') }}
+        {{ total_publishers }} {{ _('个目录条目') }} · {{ publishers_data|length }} {{ _('个分类') }}
     </p>
 </header>
 
@@ -33,7 +33,9 @@
            aria-label="{{ _('搜索出版社') }}"
            placeholder="{{ _('搜索出版社名称...') }}"
            autocomplete="off">
+    <button type="button" id="clear-search-btn">{{ _('清除') }}</button>
 </div>
+<p id="result-count" aria-live="polite">{{ total_publishers }} {{ _('个目录条目') }}</p>
 
 <!-- Browse by category -->
 <section class="browse-directory" aria-label="{{ _('出版社分类') }}">
@@ -111,10 +113,10 @@
 
 <!-- 精选新书书列：结果之后折叠，避免把结果和出版社列表向下推（audit02） -->
 {% if publisher_sections %}
-<details class="browse-curated" aria-label="{{ _('精选新书速览') }}">
+<details class="browse-curated" id="curated-books" aria-label="{{ _('精选新书速览') }}">
     <summary>{{ _('精选新书速览') }}</summary>
     {% for section in publisher_sections %}
-    <section class="browse-section" aria-label="{{ section.category_en if is_en else section.category }}">
+    <section class="browse-section" data-category-name="{{ (section.category ~ ' ' ~ section.category_en)|lower }}">
         <div class="browse-section-head">
             <h2 class="browse-section-title">{{ section.category_en if is_en else section.category }}</h2>
             <a class="browse-section-more" href="#cat-{{ section.index }}">{{ _('查看更多') }} &rarr;</a>
@@ -136,6 +138,7 @@
 <div id="no-results" class="publishers-no-results" hidden>
     <svg class="icon" width="48" height="48"><use href="#icon-search"/></svg>
     <p>{{ _('没有找到匹配的出版社') }}</p>
+    <button type="button" id="empty-clear-btn">{{ _('清除') }}</button>
 </div>
 
 {% endblock %}
@@ -147,29 +150,80 @@
         const input = document.getElementById('search-input');
         const groups = document.querySelectorAll('.publisher-group');
         const noResults = document.getElementById('no-results');
+        const resultCount = document.getElementById('result-count');
+        const clearBtn = document.getElementById('clear-search-btn');
+        const emptyClearBtn = document.getElementById('empty-clear-btn');
+        const curatedBooks = document.getElementById('curated-books');
+        let labelSite;
+
+        function getLocale() {
+            return (document.documentElement.lang || document.documentElement.getAttribute('data-lang') || 'zh').toLowerCase();
+        }
+
+        function updateLabel() {
+            labelSite = getLocale().startsWith('en') ? 'directory entries' : '个目录条目';
+        }
+
+        updateLabel();
+
+        function applyFilter() {
+            const term = input.value.toLowerCase().trim();
+            let visibleCount = 0;
+            let hasResults = false;
+
+            groups.forEach(function(group) {
+                let visible = 0;
+                group.querySelectorAll('tbody tr').forEach(function(row) {
+                    const hit = term === ''
+                        || (row.dataset.name || '').toLowerCase().includes(term)
+                        || (row.dataset.nameEn || '').toLowerCase().includes(term)
+                        || (row.dataset.description || '').toLowerCase().includes(term);
+                    row.hidden = !hit;
+                    if (hit) visible++;
+                });
+                group.hidden = visible === 0;
+                if (visible > 0) hasResults = true;
+                visibleCount += visible;
+            });
+
+            if (curatedBooks) {
+                if (term === '') {
+                    curatedBooks.hidden = false;
+                    curatedBooks.querySelectorAll('.browse-section').forEach(function(sec) {
+                        sec.style.display = '';
+                    });
+                } else {
+                    let relevant = false;
+                    curatedBooks.querySelectorAll('.browse-section').forEach(function(sec) {
+                        const catName = (sec.getAttribute('data-category-name') || '').toLowerCase();
+                        const match = catName.includes(term);
+                        sec.style.display = match ? '' : 'none';
+                        if (match) relevant = true;
+                    });
+                    curatedBooks.hidden = !relevant;
+                }
+            }
+
+            if (resultCount) {
+                resultCount.textContent = visibleCount + ' ' + labelSite;
+            }
+            if (noResults) noResults.hidden = hasResults;
+        }
 
         if (input) {
-            input.addEventListener('input', function() {
-                const term = input.value.toLowerCase().trim();
-                let hasResults = false;
-
-                groups.forEach(function(group) {
-                    let visible = 0;
-                    group.querySelectorAll('tbody tr').forEach(function(row) {
-                        const hit = term === ''
-                            || (row.dataset.name || '').toLowerCase().includes(term)
-                            || (row.dataset.nameEn || '').toLowerCase().includes(term)
-                            || (row.dataset.description || '').toLowerCase().includes(term);
-                        row.hidden = !hit;
-                        if (hit) visible++;
-                    });
-                    group.hidden = visible === 0;
-                    if (visible > 0) hasResults = true;
-                });
-
-                if (noResults) noResults.hidden = hasResults;
-            });
+            input.addEventListener('input', applyFilter);
         }
+
+        function handleClear() {
+            if (input) {
+                input.value = '';
+                applyFilter();
+                input.focus();
+            }
+        }
+
+        if (clearBtn) clearBtn.addEventListener('click', handleClear);
+        if (emptyClearBtn) emptyClearBtn.addEventListener('click', handleClear);
 
         document.querySelectorAll('.browse-rail-shell').forEach(function(shell) {
             const rail = shell.querySelector('.browse-rail');
@@ -181,6 +235,13 @@
                 });
             });
         });
+
+        window.addEventListener('languagechange', function() {
+            updateLabel();
+            applyFilter();
+        });
+
+        applyFilter();
     });
 </script>
 {% endblock %}

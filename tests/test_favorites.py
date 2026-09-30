@@ -391,3 +391,268 @@ class TestConcurrentFavoriteIdempotence:
         assert UserFavorite.query.filter_by(session_id=sid, isbn=isbn).count() == 0
         kept = UserFavorite.query.filter_by(session_id=other_sid, isbn=isbn).one()
         assert kept.id == other.id
+
+
+@pytest.mark.parametrize('locale', ['zh', 'en'])
+def test_profile_favorite_titles_resolve_award_new_and_unknown(app, db, locale):
+    from unittest.mock import patch
+    from urllib.parse import parse_qs, urlsplit
+
+    from app.models.new_book import NewBook, Publisher
+    from app.models.schemas import Award, AwardBook, BookMetadata, UserFavorite
+
+    award = Award(name='Prize')
+    pub = Publisher(name='House', name_en='House', crawler_class='HouseCrawler')
+    db.session.add_all([award, pub])
+    db.session.flush()
+    award_book = AwardBook(
+        award_id=award.id,
+        year=2026,
+        title='Award Title',
+        title_zh='奖项书名',
+        author='Award Author',
+        isbn13='9780306406157',
+        is_displayable=True,
+    )
+    new_book = NewBook(
+        publisher_id=pub.id,
+        title='New Title',
+        title_zh='新书书名',
+        author='New Author',
+        isbn10='0132350882',
+        isbn13='9780132350884',
+        is_displayable=True,
+        last_import_batch_id=None,
+    )
+    db.session.add_all(
+        [
+            award_book,
+            new_book,
+            BookMetadata(isbn='9780306406157', title='9780306406157', title_zh='', author=''),
+            UserFavorite(session_id='profile-source', isbn='9780306406157'),
+            UserFavorite(session_id='profile-source', isbn='0132350882'),
+            UserFavorite(session_id='profile-source', isbn='9780596007973'),
+        ]
+    )
+    db.session.commit()
+    award_id, new_id = award_book.id, new_book.id
+    captured = {}
+
+    def _capture(_template, **context):
+        captured.update(context)
+        return 'captured'
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['session_id'] = 'profile-source'
+    with patch('app.routes.main.render_adaptive', side_effect=_capture):
+        response = client.get('/profile', query_string={'lang': locale})
+    assert response.status_code == 200
+    rows = {row['isbn']: row for row in captured['favorites']}
+    award_row = rows['9780306406157']
+    new_row = rows['0132350882']
+    unknown = rows['9780596007973']
+    allowed = {'isbn', 'title_en', 'title_zh', 'title', 'author', 'detail_url'}
+    assert set(rows) == {'9780306406157', '0132350882', '9780596007973'}
+    assert allowed <= set(award_row)
+    assert allowed <= set(new_row)
+    assert allowed <= set(unknown)
+    zh = locale == 'zh'
+    assert (award_row['title_en'], award_row['title_zh'], award_row['title'], award_row['author']) == (
+        'Award Title',
+        '奖项书名',
+        '奖项书名' if zh else 'Award Title',
+        'Award Author',
+    )
+    assert (new_row['title_en'], new_row['title_zh'], new_row['title'], new_row['author']) == (
+        'New Title',
+        '新书书名',
+        '新书书名' if zh else 'New Title',
+        'New Author',
+    )
+    assert (unknown['title_en'], unknown['title_zh'], unknown['title'], unknown['author']) == (
+        '9780596007973',
+        '',
+        '9780596007973',
+        '',
+    )
+    award_url, new_url, unknown_url = (
+        urlsplit(award_row['detail_url']),
+        urlsplit(new_row['detail_url']),
+        urlsplit(unknown['detail_url']),
+    )
+    assert (award_url.path, new_url.path, unknown_url.path) == (
+        f'/award-book/{award_id}',
+        f'/new-book/{new_id}',
+        '/',
+    )
+    award_q, new_q, unknown_q = parse_qs(award_url.query), parse_qs(new_url.query), parse_qs(unknown_url.query)
+    assert award_q['lang'] == new_q['lang'] == unknown_q['lang'] == [locale]
+    assert award_q['return_to'] == new_q['return_to'] == [f'/profile?lang={locale}']
+    assert unknown_q['search'] == ['9780596007973']
+
+
+def test_profile_favorites_selects_flat_for_one_then_twenty(app, db, monkeypatch):
+    from sqlalchemy import event
+
+    from app.models.schemas import BookMetadata, UserFavorite
+
+    def _add(row):
+        db.session.add(row)
+        db.session.commit()
+        db.session.expire_all()
+        db.session.remove()
+
+    for i in range(20):
+        _add(BookMetadata(isbn=f'978100000{i:04d}', title=f'Title{i}', author=f'Author{i}', title_zh=f'书{i}'))
+    _add(UserFavorite(session_id='profile-batch', isbn='9781000000000'))
+    saved = tuple(db.session.query(BookMetadata.title, BookMetadata.author).order_by(BookMetadata.isbn).all())
+    db.session.remove()
+    box = {}
+
+    def _capture(_template, **kwargs):
+        box['favorites'] = kwargs['favorites']
+        return 'captured'
+
+    monkeypatch.setattr('app.routes.main.render_adaptive', _capture)
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['session_id'] = 'profile-batch'
+
+    def _measure():
+        seen = []
+
+        def _before(_conn, _cur, statement, _params, _ctx, _executemany):
+            if statement.lstrip()[:6].upper() == 'SELECT':
+                seen.append(1)
+
+        event.listen(db.engine, 'before_cursor_execute', _before)
+        try:
+            status = client.get('/profile?lang=en').status_code
+            length = len(box['favorites'])
+        finally:
+            event.remove(db.engine, 'before_cursor_execute', _before)
+        return status, len(seen), length
+
+    status_a, selects_a, length_a = _measure()
+    assert db.session.query(UserFavorite.isbn).filter_by(session_id='profile-batch').count() == 1
+    for i in range(1, 20):
+        _add(UserFavorite(session_id='profile-batch', isbn=f'978100000{i:04d}'))
+    status_b, selects_b, length_b = _measure()
+    assert db.session.query(UserFavorite.isbn).filter_by(session_id='profile-batch').count() == 20
+    again = tuple(db.session.query(BookMetadata.title, BookMetadata.author).order_by(BookMetadata.isbn).all())
+    assert (status_a, status_b, length_a, length_b, again) == (200, 200, 1, 20, saved)
+    assert 0 < selects_a <= 5 and selects_a == selects_b
+
+
+@pytest.mark.parametrize('locale', ['en', 'zh'])
+def test_profile_hides_undisplayable_sources_and_prefers_metadata(app, db, monkeypatch, locale):
+    """Hidden award/new rows stay ISBN fallbacks; visible metadata wins the same ISBN."""
+    from urllib.parse import parse_qs, urlsplit
+
+    from app.models.new_book import NewBook, Publisher
+    from app.models.schemas import Award, AwardBook, BookMetadata, UserFavorite
+
+    hidden_award_isbn = '9780143127550'
+    hidden_new_isbn = '9780063021426'
+    shared_isbn = '9780306406157'
+    sid = 'profile-hidden-display'
+
+    award = Award(name='Visibility Prize')
+    publisher = Publisher(
+        name='Visible House',
+        name_en='Visible House',
+        crawler_class='VisibleHouseCrawler',
+        is_active=True,
+        site_display_primary=True,
+    )
+    db.session.add_all([award, publisher])
+    db.session.flush()
+    db.session.add_all(
+        [
+            AwardBook(
+                award_id=award.id,
+                year=2026,
+                title='Hidden award',
+                title_zh='隐藏奖项',
+                author='Hidden Award Author',
+                isbn13=hidden_award_isbn,
+                is_displayable=False,
+            ),
+            NewBook(
+                publisher_id=publisher.id,
+                title='Hidden new',
+                title_zh='隐藏新书',
+                author='Hidden New Author',
+                isbn13=hidden_new_isbn,
+                is_displayable=False,
+                last_import_batch_id=None,
+            ),
+            AwardBook(
+                award_id=award.id,
+                year=2024,
+                title='Visible Award',
+                title_zh='可见奖项',
+                author='Visible Award Author',
+                isbn13=shared_isbn,
+                is_displayable=True,
+            ),
+            NewBook(
+                publisher_id=publisher.id,
+                title='Visible New',
+                title_zh='可见新书',
+                author='Visible New Author',
+                isbn13=shared_isbn,
+                is_displayable=True,
+                last_import_batch_id=None,
+            ),
+            BookMetadata(
+                isbn=shared_isbn,
+                title='Metadata Title',
+                title_zh='元数据书名',
+                author='Metadata Author',
+            ),
+            UserFavorite(session_id=sid, isbn=hidden_award_isbn),
+            UserFavorite(session_id=sid, isbn=hidden_new_isbn),
+            UserFavorite(session_id=sid, isbn=shared_isbn),
+        ]
+    )
+    db.session.commit()
+
+    captured = {}
+
+    def _capture(_template, **context):
+        captured.update(context)
+        return 'captured'
+
+    monkeypatch.setattr('app.routes.main.render_adaptive', _capture)
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['session_id'] = sid
+
+    response = client.get('/profile', query_string={'lang': locale})
+    assert response.status_code == 200
+    rows = {row['isbn']: row for row in captured['favorites']}
+
+    def _assert_isbn_homepage(row, isbn):
+        assert (row['title_en'], row['title_zh'], row['title'], row['author']) == (
+            isbn,
+            '',
+            isbn,
+            '',
+        )
+        parsed = urlsplit(row['detail_url'])
+        assert (parsed.scheme, parsed.netloc, parsed.path) == ('', '', '/')
+        query = parse_qs(parsed.query)
+        assert query['lang'] == [locale]
+        assert query['search'] == [isbn]
+
+    _assert_isbn_homepage(rows[hidden_award_isbn], hidden_award_isbn)
+    _assert_isbn_homepage(rows[hidden_new_isbn], hidden_new_isbn)
+    meta = rows[shared_isbn]
+    assert (meta['title_en'], meta['title_zh'], meta['author']) == (
+        'Metadata Title',
+        '元数据书名',
+        'Metadata Author',
+    )
+    assert meta['title'] == ('元数据书名' if locale == 'zh' else 'Metadata Title')

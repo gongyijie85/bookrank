@@ -99,17 +99,19 @@ class TestServerErrorPage:
 
 
 class TestOtherErrorPageCallers:
-    """`error.html` has ~17 callers (book missing, service unavailable, ...).
-
-    They pass no `heading`, so the generic one must still render — this guards the refactor
-    from leaving them with an empty `<h1>`.
-    """
+    """Known book failures get a specific heading; other callers keep a fallback."""
 
     def test_template_falls_back_when_no_heading_is_given(self, app) -> None:
         with app.test_request_context('/?lang=zh'):
-            html = render_template('error.html', message='书籍不存在', back_url='/')
+            html = render_template('error.html', message='其他错误', back_url='/')
         assert _heading(html) == '出错了'
-        assert '书籍不存在' in html
+        assert '其他错误' in html
+
+    def test_missing_book_uses_specific_heading_and_title(self, app) -> None:
+        with app.test_request_context('/?lang=zh'):
+            html = render_template('error.html', message='书籍不存在', back_url='/')
+        assert _heading(html) == '书籍不存在'
+        assert '书籍不存在' in _title(html)
 
     def test_explicit_heading_wins(self, app) -> None:
         with app.test_request_context('/?lang=zh'):

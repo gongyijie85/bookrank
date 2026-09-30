@@ -15,7 +15,7 @@
 
 {% block sidebar %}
 <div class="sidebar-section">
-    <h3 class="sidebar-title" data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</h3>
+    <h3 class="sidebar-title">{{ _('来源') }}</h3>
     <ul class="sidebar-menu">
         {% for pub in publishers %}
         <li class="sidebar-item">
@@ -30,7 +30,11 @@
                 <span class="pub-name"
                       data-pub-name-zh="{{ pub.name }}"
                       data-pub-name-en="{{ pub.name_en or pub.name }}">{{ pub.name|bilingual(pub.name_en) }}</span>
+                {% if not publisher_counts_unavailable and publisher_book_counts is not none %}
                 <span class="badge">{{ publisher_book_counts.get(pub.id, 0) }}</span>
+                {% elif publisher_counts_unavailable or publisher_book_counts is none %}
+                <span class="badge badge-muted" data-i18n="nb_count_unavailable">{{ _('数量暂不可用') }}</span>
+                {% endif %}
             </a>
         </li>
         {% endfor %}
@@ -39,6 +43,7 @@
 {% endblock %}
 
 {% block content %}
+{% set validview = request.args.get('view') if request.args.get('view') in ('grid', 'list') else none %}
 <header class="page-header">
     <p class="charts-kicker">NEW ARRIVALS</p>
     <h1 class="page-title" data-i18n="nav_new_books">{{ _('新书速递') }}</h1>
@@ -46,9 +51,15 @@
     <p class="page-subtitle">
         {# 整条句子 + 具名参数：切语言时 applyPageTranslation 按 data-i18n-params-* 重写，
            不再由「全库收录 / 本新书 / 家出版社」三段各自冻结在 SSR 语言上。 #}
-        <span class="collection-total" data-i18n="nb_collection_total"
+{% if stats_unavailable or stats is none %}
+        <span class="collection-total">{{ _('统计数据暂不可用') }}
+            <a href="{{ request.full_path }}">{{ _('重新加载') }}</a>
+        </span>
+{% else %}
+        <span class="collection-total" data-i18n="nb_collection_sources"
               data-i18n-params-books="{{ stats.total_books }}"
-              data-i18n-params-publishers="{{ stats.active_publishers }}">{{ _('全库收录 %(books)s 本新书 · %(publishers)s 家出版社', books=stats.total_books, publishers=stats.active_publishers) }}</span>
+              data-i18n-params-publishers="{{ stats.active_publishers }}">{{ _('全库收录 %(books)s 本新书 · %(publishers)s 个来源', books=stats.total_books, publishers=stats.active_publishers) }}</span>
+{% endif %}
         <span class="collection-window" data-i18n="nb_window_scope"
               data-i18n-params-days="{{ selected_days }}"
               data-i18n-params-preview="{{ future_preview_days }}">{{ _('筛选窗口：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告 + 日期待确认的新发现书目', days=selected_days, preview=future_preview_days) }}</span>
@@ -57,19 +68,45 @@
 
 <form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" data-i18n-aria-label="nb_filter_bar_label" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
     <div class="filter-group">
-        <label for="publisher-filter"><span data-i18n="nb_filter_publisher_label">{{ _('出版社') }}</span>：</label>
-        <select id="publisher-filter" name="publisher" aria-label="{{ _('选择出版社') }}" data-i18n-aria-label="nb_select_publisher_label">
-            {# data-pub-name-zh 必须是**固定中文**：SSR=en 时 `_('全部出版社')` 会变成
-               'All publishers'，写进 zh 槽位后 EN→ZH 就永远切不回中文。可见文案仍用
-               当前语言的 gettext，双语载荷写死。 #}
-            <option value="" data-i18n="nb_filter_publisher_all" data-pub-name-zh="全部出版社" data-pub-name-en="All publishers">{{ _('全部出版社') }}</option>
+        <label for="publisher-filter"><span data-i18n="nb_filter_source_label">{{ _('来源') }}</span>：</label>
+        <select id="publisher-filter" name="publisher" aria-label="{{ _('选择来源') }}" {% if publishers_unavailable %}disabled{% endif %}>
+            {# 双语载荷写死，可见文案走当前语言 gettext；optgroup 按后端 publisher_kind[pub.id] 字典精确分类，模板不自行判断名称/id。 #}
+            <option value=""
+                    {% if not selected_publisher %}selected{% endif %}
+                    data-pub-name-zh="所有来源"
+                    data-pub-name-en="All sources">{{ _('所有来源') }}</option>
+            {% set ns = namespace(pub=[], prov=[], other=[]) %}
             {% for pub in publishers %}
+              {% if publisher_kind.get(pub.id) == 'publisher' %}{% set ns.pub = ns.pub + [pub] %}
+              {% elif publisher_kind.get(pub.id) == 'provider' %}{% set ns.prov = ns.prov + [pub] %}
+              {% else %}{% set ns.other = ns.other + [pub] %}
+              {% endif %}
+            {% endfor %}
+            {% macro pub_option(pub) %}
             <option value="{{ pub.id }}"
                     {% if selected_publisher == pub.id %}selected{% endif %}
                     data-pub-name-zh="{{ pub.name }}"
                     data-pub-name-en="{{ pub.name_en }}">{{ pub.name|bilingual(pub.name_en) }}</option>
-            {% endfor %}
+            {% endmacro %}
+            {% if ns.pub %}
+            <optgroup label="{{ _('出版社') }}" data-source-group-zh="出版社" data-source-group-en="Publishers">
+                {% for pub in ns.pub %}{{ pub_option(pub) }}{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if ns.prov %}
+            <optgroup label="{{ _('数据提供方') }}" data-source-group-zh="数据提供方" data-source-group-en="Data providers">
+                {% for pub in ns.prov %}{{ pub_option(pub) }}{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if ns.other %}
+            <optgroup label="{{ _('未分类来源') }}" data-source-group-zh="未分类来源" data-source-group-en="Other sources">
+                {% for pub in ns.other %}{{ pub_option(pub) }}{% endfor %}
+            </optgroup>
+            {% endif %}
         </select>
+        {% if publishers_unavailable %}
+        <span class="publisher-unavailable-note" style="display:block;margin-top:6px;font-size:0.85rem;color:var(--foreground, #c0392b);">{{ _('来源目录暂不可用') }}</span>
+        {% endif %}
     </div>
 
     <div class="filter-group">
@@ -97,6 +134,15 @@
         </select>
     </div>
 
+    <div class="filter-group">
+        <label for="publication-status-filter" data-zh="出版状态" data-en="Publication status">{{ _('出版状态') }}</label>
+        <select name="publication_status" id="publication-status-filter" form="filter-form" style="min-height:44px;">
+            <option value="all" {% if selected_publication_status == 'all' %}selected{% endif %} data-zh="全部状态" data-en="All statuses">{{ _('全部状态') }}</option>
+            <option value="published" {% if selected_publication_status == 'published' %}selected{% endif %} data-zh="已出版" data-en="Published">{{ _('已出版') }}</option>
+            <option value="upcoming" {% if selected_publication_status == 'upcoming' %}selected{% endif %} data-zh="即将出版" data-en="Upcoming">{{ _('即将出版') }}</option>
+            <option value="pending" {% if selected_publication_status == 'pending' %}selected{% endif %} data-zh="日期待确认" data-en="Date pending">{{ _('日期待确认') }}</option>
+        </select>
+    </div>
     <div class="search-box">
         <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
         <input type="search" id="search-input" name="search" aria-label="{{ _('搜索新书') }}" data-i18n-aria-label="nb_search_label" data-i18n-placeholder="nb_search_placeholder" placeholder="{{ _('搜索书名或作者...') }}" value="{{ search_query }}">
@@ -116,7 +162,7 @@
     <div class="toolbar">
         <button type="button" class="btn btn-outline" id="btn-export" title="{{ _('导出') }}CSV">
             <svg class="icon" width="18" height="18"><use href="#icon-file-excel"/></svg>
-            <span class="hide-mobile" data-i18n="nb_export_btn">{{ _('导出') }}</span>
+            <span data-i18n="nb_export_current_csv">{{ _('当前筛选CSV（最多500本）') }}</span>
         </button>
         {% if config.get('ENABLE_PUBLIC_NEW_BOOK_SYNC') %}
         <button type="button" class="btn btn-primary" id="sync-btn">
@@ -127,14 +173,14 @@
     </div>
 </form>
 
-{% if selected_publisher or selected_category or search_query %}
+{% if selected_publisher or selected_category or search_query or selected_publication_status != 'all' %}
 <div class="browse-active-filter" id="active-filters" aria-label="{{ _('当前筛选条件') }}" data-i18n-aria-label="nb_active_filters_label">
     <span class="browse-active-filter-label">{{ _('已选条件') }}：</span>
     {% set _sel_pub = publishers | selectattr('id', 'equalto', selected_publisher) | first %}
     {% if selected_publisher %}
     {# 出版社 chip：文案双语留痕（data-chip-text-zh/en），切语言时 syncFilterChrome 会
        按当前语言重建整条 chip，不冻结 SSR 那一刻的 locale。 #}
-    <a class="filter-chip" href="/new-books?days={{ selected_days }}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" data-chip-key="publisher"
+    <a class="filter-chip" href="{{ url_for('main.new_books', days=selected_days, publication_status=selected_publication_status, lang=get_locale(), view=validview, per_page=per_page, category=selected_category, search=search_query) }}" data-chip-key="publisher"
        data-chip-text-zh="{{ (_sel_pub.name|bilingual(_sel_pub.name_en, 'zh')) if _sel_pub else selected_publisher }}"
        data-chip-text-en="{{ (_sel_pub.name|bilingual(_sel_pub.name_en, 'en')) if _sel_pub else selected_publisher }}"
        aria-label="{{ _('移除出版社筛选') }}">
@@ -142,7 +188,7 @@
     </a>
     {% endif %}
     {% if selected_category %}
-    <a class="filter-chip" href="/new-books?days={{ selected_days }}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" data-chip-key="category"
+    <a class="filter-chip" href="{{ url_for('main.new_books', days=selected_days, publication_status=selected_publication_status, lang=get_locale(), view=validview, per_page=per_page, publisher=selected_publisher, search=search_query) }}" data-chip-key="category"
        data-chip-text-zh="{{ selected_category|category_name('zh') }}"
        data-chip-text-en="{{ selected_category|category_name('en') }}"
        aria-label="{{ _('移除分类筛选：') }}{{ selected_category }}">
@@ -150,11 +196,11 @@
     </a>
     {% endif %}
     {% if search_query %}
-    <a class="filter-chip" href="/new-books?days={{ selected_days }}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}" data-chip-key="search" aria-label="{{ _('移除搜索：') }}{{ search_query }}">
+    <a class="filter-chip" href="{{ url_for('main.new_books', days=selected_days, publication_status=selected_publication_status, lang=get_locale(), view=validview, per_page=per_page, publisher=selected_publisher, category=selected_category) }}" data-chip-key="search" aria-label="{{ _('移除搜索：') }}{{ search_query }}">
         &ldquo;{{ search_query }}&rdquo; <span class="filter-chip-x" aria-hidden="true">&times;</span>
     </a>
     {% endif %}
-    <a class="filter-chip-clear" href="{{ url_for('main.new_books') }}" data-clear-all="1">{{ _('清除全部') }}</a>
+    <a class="filter-chip-clear" href="{{ url_for('main.new_books', lang=get_locale(), view=validview) }}" data-clear-all="1">{{ _('清除全部') }}</a>
 </div>
 {% else %}
 {# 无筛选条件时容器仍存在：AJAX 选中筛选后由 syncFilterChrome 在此插入 chip #}
@@ -162,7 +208,8 @@
 {% endif %}
 
 <div class="result-summary" id="result-summary" aria-live="polite">
-    <span><span data-i18n="nb_result_summary">{{ _('当前筛选结果') }}</span> <strong id="result-summary-count">{{ total }}</strong> <span data-i18n="nb_result_unit">{{ _('本') }}</span></span>
+    <span id="result-total-unavailable" style="display:{{ 'inline' if total is none else 'none' }}" data-i18n="nb_total_unavailable">{{ _('数量不可用') }}</span>
+    <span class="result-total-row" style="display:{{ 'none' if total is none else 'inline' }}"><span data-i18n="nb_result_summary">{{ _('当前筛选结果') }}</span> <strong id="result-summary-count">{% if total is none %}-{% else %}{{ total }}{% endif %}</strong> <span data-i18n="nb_result_unit">{{ _('本') }}</span></span>
     {# 筛选窗口口径 = **一整条** gettext 句子，带 %(days)s / %(preview)s 具名参数；
        桌面与移动端共用同一个 msgid，绝不再拆成多段片段拼接。 #}
     <span class="summary-muted" data-i18n="nb_filtered_by_date"
@@ -175,17 +222,22 @@
 <div id="sync-status" class="sync-status" hidden></div>
 
 <div id="books-container">
-{% if books %}
+{% if data_load_failed %}
+<div class="main-error" role="alert">
+    <p data-i18n="nb_load_failed">{{ _('数据加载失败') }}</p>
+    <a href="{{ request.full_path }}" class="btn btn-primary" data-i18n="nb_reload">{{ _('重新加载') }}</a>
+</div>
+{% elif books %}
 <div class="books-grid" id="books-grid">
     {% for book in books %}
     {{ new_book_card(book) }}
     {% endfor %}
 </div>
 
-{% if total_pages > 1 %}
+{% if total_pages is not none and total_pages > 1 %}
 <div class="pagination" id="pagination">
     {% if page > 1 %}
-    <a href="#" data-page="{{ page - 1 }}">
+    <a href="{{ url_for('main.new_books', page=page - 1, days=selected_days, publication_status=selected_publication_status, lang=get_locale(), view=validview, per_page=per_page, publisher=selected_publisher, category=selected_category, search=search_query) }}" data-page="{{ page - 1 }}">
         <svg class="icon" width="18" height="18"><use href="#icon-chevron-left"/></svg> {{ _('上一页') }}
     </a>
     {% else %}
@@ -196,14 +248,14 @@
         {% if p == page %}
         <span class="active">{{ p }}</span>
         {% elif p <= 3 or p > total_pages - 3 or (p >= page - 2 and p <= page + 2) %}
-        <a href="#" data-page="{{ p }}">{{ p }}</a>
+        <a href="{{ url_for('main.new_books', page=p, days=selected_days, publication_status=selected_publication_status, lang=get_locale(), view=validview, per_page=per_page, publisher=selected_publisher, category=selected_category, search=search_query) }}" data-page="{{ p }}">{{ p }}</a>
         {% elif p == 4 or p == total_pages - 3 %}
         <span>...</span>
         {% endif %}
     {% endfor %}
 
     {% if page < total_pages %}
-    <a href="#" data-page="{{ page + 1 }}">
+    <a href="{{ url_for('main.new_books', page=page + 1, days=selected_days, publication_status=selected_publication_status, lang=get_locale(), view=validview, per_page=per_page, publisher=selected_publisher, category=selected_category, search=search_query) }}" data-page="{{ page + 1 }}">
         {{ _('下一页') }} <svg class="icon" width="18" height="18"><use href="#icon-chevron-right"/></svg>
     </a>
     {% else %}
@@ -225,13 +277,14 @@
 </div>
 
 <!-- 分类目录与出版社精选书列：结果之后折叠，避免把筛选与结果向下推（audit02） -->
+<div id="curated-refresh-notice" hidden><a id="curated-refresh-link" href="{{ request.full_path }}" data-i18n="nb_curated_reload">{{ _('重新加载当前条件下的分类与来源书列') }}</a></div>
 <details class="browse-curated" aria-label="{{ _('分类目录与出版社精选') }}">
     <summary>{{ _('按分类浏览与出版社精选') }}</summary>
 
     {% if categories %}
     <section class="browse-directory" aria-label="{{ _('图书分类') }}">
         {% for cat in categories %}
-        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}"
+        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days, publisher=selected_publisher, publication_status=selected_publication_status, search=search_query, lang=get_locale(), view=(request.args.get('view') if request.args.get('view') in ('grid','list') else none)) }}"
            class="browse-tile"
            {% if selected_category == cat.name %}aria-current="page"{% endif %}>
             <span class="browse-tile-name">{{ cat.name|category_name }}</span>
@@ -241,12 +294,20 @@
     </section>
     {% endif %}
 
+    {% if publisher_sections_unavailable %}
+    <div class="browse-sections-alert" role="alert" style="margin:12px 0;padding:10px 14px;border-radius:8px;background:var(--background, #fdecea);color:var(--foreground, #c0392b);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <span>{{ _('出版社与数据来源书列暂不可用') }}</span>
+        <a href="{{ request.full_path }}" style="min-height:44px;display:inline-flex;align-items:center;">{{ _('重新加载') }}</a>
+    </div>
+    {% else %}
     {% for section in publisher_sections %}
     <section class="browse-section" aria-label="{{ section.publisher.name|bilingual(section.publisher.name_en) }}">
         <div class="browse-section-head">
-            <h2 class="browse-section-title">{{ section.publisher.name|bilingual(section.publisher.name_en) }}</h2>
+            <h2 class="browse-section-title">{{ section.publisher.name|bilingual(section.publisher.name_en) }}
+                {% if publisher_kind.get(section.publisher.id) == 'publisher' %}<span class="browse-section-kind" style="font-size:0.75rem;font-weight:normal;color:#7f8c8d;margin-left:8px;">{{ _('出版社') }}</span>{% elif publisher_kind.get(section.publisher.id) == 'provider' %}<span class="browse-section-kind" style="font-size:0.75rem;font-weight:normal;color:#7f8c8d;margin-left:8px;">{{ _('数据提供方') }}</span>{% else %}<span class="browse-section-kind" style="font-size:0.75rem;font-weight:normal;color:#7f8c8d;margin-left:8px;">{{ _('未分类来源') }}</span>{% endif %}
+            </h2>
             <a class="browse-section-more"
-               href="{{ url_for('main.new_books', publisher=section.publisher.id, days=selected_days) }}">{{ _('查看更多') }} &rarr;</a>
+               href="{{ url_for('main.new_books', publisher=section.publisher.id, category=selected_category, days=selected_days, search=search_query, publication_status=selected_publication_status, lang=get_locale(), view=request.args.get('view') if request.args.get('view') in ['grid', 'list'] else None) }}">{{ _('查看更多') }} &rarr;</a>
         </div>
         <div class="browse-rail-shell">
             <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
@@ -259,7 +320,7 @@
         </div>
     </section>
     {% endfor %}
-</details>
+    {% endif %}</details>
 {% endblock %}
 
 {% block extra_js %}
@@ -440,7 +501,7 @@ function debouncedSearch() {
  * 现在 URL 查询串就是真相：control → URL → (chips, count, results, pagination) 全部
  * 由同一份 state 派生，Back/Forward 走 popstate 恢复，且不产生新的历史记录。
  */
-const FILTER_KEYS = ['publisher', 'category', 'days', 'search'];
+const FILTER_KEYS = ['publisher', 'category', 'days', 'search', 'publication_status'];
 
 function getFilterElements() {
     return {
@@ -448,6 +509,7 @@ function getFilterElements() {
         category: document.getElementById('category-filter'),
         days: document.getElementById('days-filter'),
         search: document.getElementById('search-input'),
+        publication_status: document.getElementById('publication-status-filter'),
     };
 }
 
@@ -458,7 +520,14 @@ function readFilterState() {
     FILTER_KEYS.forEach(function(key) {
         const el = els[key];
         if (!el) return;
-        const value = (el.value || '').trim();
+        let value = (el.value || '').trim();
+        if (key === 'publication_status') {
+            // normalize invalid → all; omit when default
+            if (value !== 'published' && value !== 'upcoming' && value !== 'pending') {
+                value = 'all';
+            }
+            if (value === 'all') return;
+        }
         if (value) state[key] = value;
     });
     return state;
@@ -471,6 +540,12 @@ function buildQueryString(state, page) {
         if (state[key]) params.set(key, state[key]);
     });
     if (page && page > 1) params.set('page', String(page));
+    // preserve VALID URL lang in build/history/popstate/chip/reset
+    var lv = new URLSearchParams(window.location.search).get('lang');
+    if (lv === 'zh' || lv === 'en') params.set('lang', lv);
+    // preserve VALID URL view (grid/list only)
+    var vv = new URLSearchParams(window.location.search).get('view');
+    if (vv === 'grid' || vv === 'list') params.set('view', vv);
     return params.toString();
 }
 
@@ -479,7 +554,13 @@ function parseQueryString(queryString) {
     const params = new URLSearchParams(queryString || '');
     const state = {};
     FILTER_KEYS.forEach(function(key) {
-        const value = (params.get(key) || '').trim();
+        let value = (params.get(key) || '').trim();
+        if (key === 'publication_status') {
+            if (value !== 'published' && value !== 'upcoming' && value !== 'pending') {
+                value = 'all';
+            }
+            if (value === 'all') return;
+        }
         if (value) state[key] = value;
     });
     const parsedPage = parseInt(params.get('page') || '1', 10);
@@ -502,7 +583,8 @@ function syncControls(state) {
     FILTER_KEYS.forEach(function(key) {
         const el = els[key];
         if (!el) return;
-        const next = state[key] || '';
+        let next = state[key] || '';
+        if (key === 'publication_status' && !next) next = 'all';
         if (el.value !== next) el.value = next;
     });
     // chip 的 href 里 publisher 是"全部出版社"时是空串，控件必须跟着清空
@@ -530,6 +612,7 @@ const CHIP_LABEL_FALLBACKS = {
     publisher: '{{ _("移除出版社筛选") }}',
     category: '{{ _("移除分类筛选") }}',
     search: '{{ _("移除搜索") }}',
+    publication_status: '{{ _("移除出版状态筛选") }}',
 };
 
 /* 名字必须与 translations.js 的全局 `t` 区分开：浏览器里 `window` 就是全局对象，
@@ -588,6 +671,13 @@ function chipText(key, value) {
     if (key === 'publisher') return publisherDisplayName(value);
     if (key === 'category') return categoryDisplayName(value);
     if (key === 'search') return '\u201c' + value + '\u201d';
+    if (key === 'publication_status') {
+        var zh = currentLanguage === 'zh';
+        if (value === 'published') return zh ? '已出版' : 'Published';
+        if (value === 'upcoming') return zh ? '即将出版' : 'Upcoming';
+        if (value === 'pending') return zh ? '日期待确认' : 'Publication date pending';
+        return value;
+    }
     return value;
 }
 
@@ -659,6 +749,38 @@ function restoreFromUrl() {
     // 加载中也要能恢复：popstate 期间点 Back 必须立即接管（replace），
     // 旧请求的响应会被 reqId 判定为过期而丢弃。
     const parsed = parseQueryString(window.location.search.replace(/^\?/, ''));
+
+    // URL 里带的 lang 是权威来源：Back 到 ?lang=zh 时必须把界面语言切回中文，
+    // 否则 currentLanguage 仍停在 en、卡片保持英文。这里只做本地同步 + 就地重译，
+    // Sync current URL language to prefs (localStorage/cookie) and update badge without setter/event/history.
+    // 避免触发第二次 fetch（loadBooks 才是唯一一次数据加载）。
+    const urlLang = new URLSearchParams(window.location.search).get('lang') || '';
+    if (urlLang === 'zh' || urlLang === 'en') {
+        try { localStorage.setItem('app_language', urlLang); } catch (e) {}
+        try { localStorage.setItem('bookrank_language', urlLang); } catch (e) {}
+        try { document.cookie = 'lang=' + urlLang + ';path=/;max-age=31536000;SameSite=Lax'; } catch (e) {}
+        var _lc = document.getElementById('lang-current');
+        if (_lc) { _lc.textContent = (urlLang === 'zh') ? '中' : 'EN'; }
+        var _lz = document.getElementById('lang-opt-zh');
+        if (_lz && _lz.classList) { _lz.classList.toggle('active', urlLang === 'zh'); }
+        var _le = document.getElementById('lang-opt-en');
+        if (_le && _le.classList) { _le.classList.toggle('active', urlLang === 'en'); }
+        currentLanguage = urlLang;
+        try {
+            window.__APP_LANG__ = urlLang;
+        } catch (_e) {
+            /* 只读环境下的兜底，忽略即可 */
+        }
+        document.documentElement.setAttribute('lang', urlLang);
+        document.documentElement.setAttribute('data-lang', urlLang);
+        if (typeof applyPageTranslation === 'function') {
+            applyPageTranslation(urlLang);
+        }
+        if (typeof applyNewBooksLanguage === 'function') {
+            applyNewBooksLanguage(urlLang);
+        }
+    }
+
     syncControls(parsed.state);
     syncFilterChrome();
     loadBooks(buildQueryString(parsed.state, parsed.page), { replace: true });
@@ -712,7 +834,7 @@ function loadBooks(queryString, options) {
     const url = '/api/new-books?' + apiParams.toString();
 
     fetch(url, controller ? { signal: controller.signal } : undefined)
-        .then(response => response.json())
+        .then(response => { if (!response.ok) throw new Error('HTTP ' + response.status); return response.json(); })
         .then(data => {
             if (reqId !== loadSeq) return; // 已有更新的请求，丢弃过期响应
             if (!data.success) {
@@ -720,20 +842,35 @@ function loadBooks(queryString, options) {
             }
 
             currentPage = data.data.pagination.page;
-            renderBooks(data.data);
-            // chips / 数量 / 筛选窗口徽章都跟随 `state`，与卡片同一次更新。
-            syncFilterChrome();
             // 地址栏与 state 对齐。仅在用户主动改动时 pushState；Back/Forward 恢复与
             // 语言切换重绘只 replaceState —— 否则历史里会堆满同一条件的两条记录。
-            const historyUrl = '/new-books' + (requestState ? '?' + requestState : '');
+            // 先于 renderBooks 更新：卡片里的 return_to 才能拿到最新 URL，
+            // 不会把过期的 SSR/筛选语言或 query 记进返回链接。
+            var currentLang = new URLSearchParams(window.location.search).get('lang');
+            var requestParams = new URLSearchParams(requestState || '');
+            if (currentLang === 'zh' || currentLang === 'en') requestParams.set('lang', currentLang);
+            var reqStr = requestParams.toString();
+            const historyUrl = '/new-books' + (reqStr ? '?' + reqStr : '');
             if (opts.replace) {
                 window.history.replaceState({}, '', historyUrl);
             } else if (!sameQueryString(requestState)) {
                 window.history.pushState({}, '', historyUrl);
             }
+            renderBooks(data.data);
+            // chips / 数量 / 筛选窗口徽章都跟随 `state`，与卡片同一次更新。
+            syncFilterChrome();
+            var curatedDetails = document.querySelector('.browse-curated');
+            var refreshNotice = document.getElementById('curated-refresh-notice');
+            var refreshLink = document.getElementById('curated-refresh-link');
+            if (curatedDetails && refreshNotice && refreshLink) {
+                curatedDetails.style.display = 'none';
+                refreshLink.href = historyUrl;
+                refreshNotice.hidden = false;
+            }
         })
         .catch(error => {
             if (reqId !== loadSeq) return; // 过期请求的失败不得覆盖最新状态
+            updateResultSummary(null);
             container.innerHTML = '<div class="empty-state"><svg class="icon" width="48" height="48"><use href="#icon-alert-circle"/></svg>' +
                 '<h3>{{ _('加载失败') }}</h3><p>' + esc(error.message) + '</p>' +
                 '<button class="btn btn-outline" id="btn-retry" style="margin-top:1rem">{{ _('重试') }}</button></div>';
@@ -817,7 +954,7 @@ function renderBookCard(book) {
     const titleZh = book.title_zh || book.title;
     const titleDisplay = currentLanguage === 'zh' ? (titleZh || book.title || '{{ _('未知书名') }}') : (book.title || titleZh || '{{ _('Unknown Title') }}');
     const authorDisplay = book.author || '{{ _('未知作者') }}';
-    const detailUrl = '/new-book/' + book.id;
+    const detailUrl = '/new-book/' + book.id + '?lang=' + encodeURIComponent((function(){var l=new URLSearchParams(window.location.search).get('lang');if(l!=='zh'&&l!=='en')l=(window.__APP_LANG__==='zh'||window.__APP_LANG__==='en')?window.__APP_LANG__:'';if(!l&&typeof currentLanguage==='string'&&(currentLanguage==='zh'||currentLanguage==='en'))l=currentLanguage;return l||'en';})()) + '&return_to=' + encodeURIComponent(window.location.pathname + window.location.search);
 
     const pubNameZh = book.publisher_name || '{{ _('未知') }}';
     const pubNameEn = book.publisher_name_en || pubNameZh;
@@ -877,8 +1014,8 @@ function renderBookCard(book) {
         ? '<p class="book-isbn">' + esc(book.isbn13) + '</p>'
         : (book.isbn10 ? '<p class="book-isbn">' + esc(book.isbn10) + '</p>' : '');
 
-    const priceHtml = book.price
-        ? '<span class="book-price">' + esc(book.price) + '</span>'
+    const priceHtml = (book.price != null && String(book.price).trim() !== '')
+        ? '<span class="book-price" data-price-raw="' + esc(String(book.price)) + '">' + esc(BookI18n.formatPriceDisplay(book.price, currentLanguage)) + '</span>'
         : '';
     return '<div class="book-card" data-book-id="' + book.id + '" data-isbn="' + esc(book.isbn13 || book.isbn10 || '') + '">' +
         '<a class="book-cover-link" href="' + detailUrl + '" tabindex="-1">' +
@@ -897,7 +1034,7 @@ function renderPagination(pagination) {
     let html = '<div class="pagination" id="pagination">';
 
     if (page > 1) {
-        html += '<a href="#" data-page="' + (page - 1) + '"><svg class="icon" width="18" height="18"><use href="#icon-chevron-left"/></svg> {{ _('上一页') }}</a>';
+        html += '<a href="' + esc('/new-books?' + buildQueryString(readFilterState(), page - 1)) + '" data-page="' + (page - 1) + '"><svg class="icon" width="18" height="18"><use href="#icon-chevron-left"/></svg> {{ _('上一页') }}</a>';
     } else {
         html += '<span class="disabled"><svg class="icon" width="18" height="18"><use href="#icon-chevron-left"/></svg> {{ _('上一页') }}</span>';
     }
@@ -906,14 +1043,14 @@ function renderPagination(pagination) {
         if (p === page) {
             html += '<span class="active">' + p + '</span>';
         } else if (p <= 3 || p > totalPages - 3 || (p >= page - 2 && p <= page + 2)) {
-            html += '<a href="#" data-page="' + p + '">' + p + '</a>';
+            html += '<a href="' + esc('/new-books?' + buildQueryString(readFilterState(), p)) + '" data-page="' + p + '">' + p + '</a>';
         } else if (p === 4 || p === totalPages - 3) {
             html += '<span>...</span>';
         }
     }
 
     if (page < totalPages) {
-        html += '<a href="#" data-page="' + (page + 1) + '">{{ _('下一页') }} <svg class="icon" width="18" height="18"><use href="#icon-chevron-right"/></svg></a>';
+        html += '<a href="' + esc('/new-books?' + buildQueryString(readFilterState(), page + 1)) + '" data-page="' + (page + 1) + '">{{ _('下一页') }} <svg class="icon" width="18" height="18"><use href="#icon-chevron-right"/></svg></a>';
     } else {
         html += '<span class="disabled">{{ _('下一页') }} <svg class="icon" width="18" height="18"><use href="#icon-chevron-right"/></svg></span>';
     }
@@ -924,7 +1061,22 @@ function renderPagination(pagination) {
 
 function updateResultSummary(pagination) {
     const countEl = document.getElementById('result-summary-count');
-    if (countEl && pagination) countEl.textContent = pagination.total;
+    const rowEl = document.querySelector('.result-total-row');
+    const unknownEl = document.getElementById('result-total-unavailable');
+
+    if (pagination === null) {
+        // Explicit null: set unknown/dash/hide number+unit row/show unknown
+        if (countEl) countEl.textContent = '-';
+        if (rowEl) rowEl.style.display = 'none';
+        if (unknownEl) unknownEl.style.display = 'inline';
+    } else if (pagination && typeof pagination.total === 'number') {
+        // Real pagination.total number incl0: show row/hide unknown/update count
+        if (countEl) countEl.textContent = pagination.total;
+        if (rowEl) rowEl.style.display = 'inline';
+        if (unknownEl) unknownEl.style.display = 'none';
+    }
+    // No args (undefined): preserve current count because syncFilterChrome calls it
+
     // 筛选窗口口径（过去 days 天已出版 + 未来 preview 天预告 + 未标注日期的新发现）
     // 是 nb_filtered_by_date 的**整条**完整文案，随 days 变化重渲染，避免碎片拼出旧+新重复。
     const days = (document.getElementById('days-filter') || {}).value || '30';
@@ -959,11 +1111,10 @@ function renderI18nSentence(el, key, lang, days) {
 function publicationState(value) {
     if (!value) return 'pending';
     const iso = String(value).substring(0, 10);
-    const parsed = new Date(iso + 'T00:00:00');
+    const parsed = new Date(iso + 'T00:00:00Z');
     if (isNaN(parsed.getTime())) return 'pending';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return parsed.getTime() > today.getTime() ? 'upcoming' : 'published';
+    const today = new Date().toISOString().slice(0, 10);
+    return iso > today ? 'upcoming' : 'published';
 }
 
 function formatPublicationDate(value) {
@@ -972,16 +1123,14 @@ function formatPublicationDate(value) {
 }
 
 function exportExcel() {
-    const publisher = document.getElementById('publisher-filter').value;
-    const category = document.getElementById('category-filter').value;
-    const days = document.getElementById('days-filter').value;
-
-    let url = '/api/new-books/export/csv?';
-    if (publisher) url += 'publisher_id=' + publisher + '&';
-    if (category) url += 'category=' + encodeURIComponent(category) + '&';
-    if (days) url += 'days=' + days + '&';
-
-    window.location.href = url;
+    var state = readFilterState();
+    var params = new URLSearchParams();
+    if (state.publisher) params.set('publisher_id', state.publisher);
+    if (state.category) params.set('category', state.category);
+    if (state.days) params.set('days', state.days);
+    if (state.search) params.set('search', state.search);
+    if (state.publication_status) params.set('publication_status', state.publication_status);
+    window.location.href = '/api/new-books/export/csv?' + params.toString();
 }
 
 function syncNewBooks() {
@@ -1054,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('publisher-filter')?.addEventListener('change', applyFilter);
     document.getElementById('category-filter')?.addEventListener('change', applyFilter);
     document.getElementById('days-filter')?.addEventListener('change', applyFilter);
+    document.getElementById('publication-status-filter')?.addEventListener('change', applyFilter);
 
     // {{ _('搜索输入框事件绑定') }}
     document.getElementById('search-input')?.addEventListener('input', debouncedSearch);
@@ -1104,7 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = e.target.closest('.book-card[data-book-id]');
         if (!card) return;
         const bookId = card.getAttribute('data-book-id');
-        window.location.href = '/new-book/' + bookId;
+        window.location.href = '/new-book/' + bookId + '?lang=' + encodeURIComponent((function(){var l=new URLSearchParams(window.location.search).get('lang');if(l!=='zh'&&l!=='en')l=(window.__APP_LANG__==='zh'||window.__APP_LANG__==='en')?window.__APP_LANG__:'';if(!l&&typeof currentLanguage==='string'&&(currentLanguage==='zh'||currentLanguage==='en'))l=currentLanguage;return l||'en';})()) + '&return_to=' + encodeURIComponent(window.location.pathname + window.location.search);
     });
 
     // {{ _('分页事件委托') }}

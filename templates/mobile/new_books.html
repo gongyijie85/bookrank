@@ -16,21 +16,45 @@
 </nav>
 
 <!-- 统计条 -->
-{% if stats %}
+{% if stats_unavailable or not stats %}
+<div class="stats-unavailable" id="stats-unavailable">
+    <span data-i18n="nb_stats_unavailable">{{ _('统计数据暂不可用') }}</span>
+    <a href="{{ request.full_path }}" class="reload-hint" data-i18n="nb_reload_hint">{{ _('重新加载') }}</a>
+</div>
+{% elif stats %}
 <div class="m-list-info">
-    <span>{{ _('全库收录') }} {{ stats.total_books or total }} {{ _('本新书') }} · {{ stats.active_publishers or publishers|length }} {{ _('家出版社') }}</span>
+    <span>{{ _('全库收录 %(books)s 本新书 · %(publishers)s 个来源', books=stats.total_books, publishers=stats.active_publishers) }}</span>
 </div>
 {% endif %}
 
 <!-- 简化筛选：出版社 / 分类 / 时间 -->
 <form method="get" action="/new-books" class="m-filter-bar" style="padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;">
     <div style="display:flex;gap:0.5rem;">
-        <select name="publisher" class="m-filter-select" style="flex:1;min-height:44px;" aria-label="{{ _('出版社') }}">
-            <option value="">{{ _('全部出版社') }}</option>
+        <select name="publisher" class="m-filter-select" style="flex:1;min-height:44px;" aria-label="{{ _('来源') }}" {% if publishers_unavailable %}disabled{% endif %}>
+            <option value="" {% if not selected_publisher %}selected{% endif %}>{{ _('所有来源') }}</option>
+            {% set ns = namespace(pub=[], prov=[], other=[]) %}
             {% for pub in publishers %}
-            <option value="{{ pub.id }}" {% if selected_publisher == pub.id %}selected{% endif %}>{{ pub.name_en if _l=='en' and pub.name_en else pub.name }}</option>
+              {% if publisher_kind.get(pub.id) == 'publisher' %}{% set ns.pub = ns.pub + [pub] %}
+              {% elif publisher_kind.get(pub.id) == 'provider' %}{% set ns.prov = ns.prov + [pub] %}
+              {% else %}{% set ns.other = ns.other + [pub] %}
+              {% endif %}
             {% endfor %}
+            {% macro m_pub_option(pub) %}
+            <option value="{{ pub.id }}" {% if selected_publisher == pub.id %}selected{% endif %} data-pub-name-zh="{{ pub.name }}" data-pub-name-en="{{ pub.name_en }}">{{ pub.name_en if _l=='en' and pub.name_en else pub.name }}</option>
+            {% endmacro %}
+            {% if ns.pub %}
+            <optgroup label="{{ _('出版社') }}" data-source-group-zh="出版社" data-source-group-en="Publishers">{% for pub in ns.pub %}{{ m_pub_option(pub) }}{% endfor %}</optgroup>
+            {% endif %}
+            {% if ns.prov %}
+            <optgroup label="{{ _('数据提供方') }}" data-source-group-zh="数据提供方" data-source-group-en="Data providers">{% for pub in ns.prov %}{{ m_pub_option(pub) }}{% endfor %}</optgroup>
+            {% endif %}
+            {% if ns.other %}
+            <optgroup label="{{ _('未分类来源') }}" data-source-group-zh="未分类来源" data-source-group-en="Other sources">{% for pub in ns.other %}{{ m_pub_option(pub) }}{% endfor %}</optgroup>
+            {% endif %}
         </select>
+        {% if publishers_unavailable %}
+        <span style="display:block;margin-top:6px;font-size:0.85rem;color:var(--foreground, #c0392b);">{{ _('来源目录暂不可用') }}</span>
+        {% endif %}
         <select name="days" class="m-filter-select" style="min-height:44px;" aria-label="{{ _('时间') }}">
             <option value="7" {% if selected_days==7 %}selected{% endif %}>{{ _('最近7天') }}</option>
             <option value="30" {% if selected_days==30 %}selected{% endif %}>{{ _('最近30天') }}</option>
@@ -39,36 +63,58 @@
             <option value="365" {% if selected_days==365 %}selected{% endif %}>{{ _('最近一年') }}</option>
         </select>
     </div>
+    <input type="hidden" name="category" value="{{ selected_category or '' }}">
+    <input type="hidden" name="lang" value="{{ get_locale() }}">
+{% set valid_view = request.args.get('view') %}
+{% if valid_view == 'grid' or valid_view == 'list' %}<input type="hidden" name="view" value="{{ valid_view }}">{% endif %}
+    <div style="display:flex;gap:0.5rem;">
+        <select name="publication_status" class="m-filter-select" style="flex:1;min-height:44px;" aria-label="{{ _('状态') }}">
+            <option value="all" {% if selected_publication_status=='all' %}selected{% endif %}>{{ _('全部状态') }}</option>
+            <option value="published" {% if selected_publication_status=='published' %}selected{% endif %}>{{ _('已出版') }}</option>
+            <option value="upcoming" {% if selected_publication_status=='upcoming' %}selected{% endif %}>{{ _('即将出版') }}</option>
+            <option value="pending" {% if selected_publication_status=='pending' %}selected{% endif %}>{{ _('日期待确认') }}</option>
+        </select>
+    </div>
     <div style="display:flex;gap:0.5rem;">
         <input type="search" name="search" value="{{ search_query }}" placeholder="{{ _('搜索书名、作者') }}" class="m-filter-input" style="flex:1;min-height:44px;" aria-label="{{ _('搜索') }}">
         <button type="submit" class="m-btn m-btn-primary m-btn-sm" style="min-height:44px;">{{ _('筛选') }}</button>
-        <a href="/new-books" class="m-btn m-btn-outline m-btn-sm" style="min-height:44px;">{{ _('重置') }}</a>
+        <a href="{{ url_for('main.new_books', lang=get_locale(), **({'view': request.args.get('view')} if request.args.get('view') in ('grid','list') else {})) }}" class="m-btn m-btn-outline m-btn-sm" style="min-height:44px;">{{ _('重置') }}</a>
     </div>
     {% if categories %}
     <div class="m-cat-tabs-scroll no-scrollbar" style="display:flex;gap:0.5rem;overflow-x:auto;">
-        <a href="{{ url_for('main.new_books', days=selected_days) }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部分类') }}</a>
+        <a href="{{ url_for('main.new_books', days=selected_days, publisher=selected_publisher, publication_status=selected_publication_status, search=search_query, lang=get_locale(), view=(request.args.get('view') if request.args.get('view') in ('grid','list') else none)) }}" class="m-cat-tab {% if not selected_category %}active{% endif %}" data-cat-zh="全部分类" data-cat-en="All Categories">{{ _('全部分类') }}</a>
         {% for cat in categories %}
         {# 分类 chip 文案双语留痕（canonical category_name 两侧），href/value 口径不变 #}
-        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days) }}" class="m-cat-tab {% if selected_category == cat.name %}active{% endif %}"
+        <a href="{{ url_for('main.new_books', category=cat.name, days=selected_days, publisher=selected_publisher, publication_status=selected_publication_status, search=search_query, lang=get_locale(), view=(request.args.get('view') if request.args.get('view') in ('grid','list') else none)) }}" class="m-cat-tab {% if selected_category == cat.name %}active{% endif %}"
            data-cat-zh="{{ cat.name|category_name('zh') }}"
            data-cat-en="{{ cat.name|category_name('en') }}">{{ cat.name|category_name }}</a>
         {% endfor %}
     </div>
     {% endif %}
 </form>
+<a href="/api/new-books/export/csv?days={{ selected_days|urlencode }}&search={{ search_query|urlencode }}&publication_status={{ selected_publication_status|urlencode }}{% if selected_publisher %}&publisher_id={{ selected_publisher|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}" class="m-btn m-btn-outline" style="min-height:44px;">{{ _('当前筛选CSV（最多500本）') }}</a>
 
 {# 筛选窗口口径与桌面端共用**同一条** gettext 句子（含 %(days)s / %(preview)s 具名参数），
    不再拆成碎片各自翻译 —— 碎片拼接在另一种语言下语序必然错。结果计数保留在句首。 #}
 <div class="m-list-info">
+    {% if total is none %}
+    <span data-i18n="nb_total_unavailable">{{ _('数量不可用') }}</span>
+    {% else %}
     <span>{{ _('当前筛选结果') }} <strong>{{ total }}</strong> {{ _('本') }}</span> ·
+    {% endif %}
     {{ _('筛选范围：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告；含日期待确认的新发现书目', days=selected_days, preview=future_preview_days) }}
 </div>
 
-{% if books %}
+{% if data_load_failed %}
+<div class="main-error" role="alert">
+    <p data-i18n="nb_load_failed">{{ _('数据加载失败') }}</p>
+    <a href="{{ request.full_path }}" class="btn btn-primary" data-i18n="nb_reload">{{ _('重新加载') }}</a>
+</div>
+{% elif books %}
 <div class="m-book-list">
     {% for book in books %}
     {% set shown_title = book.title_zh|bilingual(book.title) %}
-    <a href="/new-book/{{ book.id }}" class="m-card m-book-card">
+    <a href="{{ url_for('main.new_book_detail', book_id=book.id, lang=get_locale(), return_to=request.full_path) }}" class="m-card m-book-card">
         <div class="m-book-cover">
             <img src="{{ book.cover_url|cover_src_or_default }}"
                  alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知') }}"
@@ -103,11 +149,12 @@
     {% endfor %}
 </div>
 
-{% if total_pages > 1 %}
+{% if total_pages is not none and total_pages > 1 %}
+{% set pv = request.args.get('view') %}
 <div class="m-pagination" style="display:flex;justify-content:center;gap:0.5rem;padding:1rem;">
-    {% if page > 1 %}<a href="/new-books?page={{ page-1 }}&days={{ selected_days }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>{% endif %}
-    <span class="m-page-info">{{ page }} / {{ total_pages }}</span>
-    {% if page < total_pages %}<a href="/new-books?page={{ page+1 }}&days={{ selected_days }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_publisher %}&publisher={{ selected_publisher }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>{% endif %}
+    {% if page > 1 %}<a href="{{ url_for('main.new_books', page=page-1, days=selected_days, category=selected_category, publisher=selected_publisher, publication_status=selected_publication_status, search=search_query, lang=get_locale(), **({'view': pv} if pv in ('grid','list') else {})) }}" class="m-btn m-btn-outline m-btn-sm" >{{ _('上一页') }}</a>{% endif %}
+    <span class="m-page-info" data-page-zh="{{ '%s / %s'|format(page, total_pages) }}" data-page-en="{{ '%s / %s'|format(page, total_pages) }}">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}<a href="{{ url_for('main.new_books', page=page+1, days=selected_days, category=selected_category, publisher=selected_publisher, publication_status=selected_publication_status, search=search_query, lang=get_locale(), **({'view': pv} if pv in ('grid','list') else {})) }}" class="m-btn m-btn-outline m-btn-sm" >{{ _('下一页') }}</a>{% endif %}
 </div>
 {% endif %}
 

@@ -15,22 +15,6 @@
 {% endblock %}
 
 {% block content %}
-{% macro report_rail_card(report) %}
-{% set content = report.content_data %}
-<a class="browse-report-card"
-   href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}">
-    <span class="browse-report-period">{{ report.week_start.strftime('%m/%d') }} &ndash; {{ report.week_end.strftime('%m/%d') }}</span>
-    <span class="browse-report-title">{{ content.title_display if content and content.title_display else report.title }}</span>
-    {% if content.total_books_known or content.total_new_known or content.total_rising_known or content.total_falling_known %}
-    <span class="browse-report-stats">
-        {% if content.total_books_known %}<span>{{ content.total_books_display }} {{ _('条') }}</span>{% endif %}
-        {% if content.total_new_known %}<span>{{ _('新上榜') }} {{ content.total_new_display }}</span>{% endif %}
-        {% if content.total_rising_known %}<span>{{ _('上升') }} {{ content.total_rising_display }}</span>{% endif %}
-        {% if content.total_falling_known %}<span>{{ _('下降') }} {{ content.total_falling_display }}</span>{% endif %}
-    </span>
-    {% endif %}
-</a>
-{% endmacro %}
 
 <header class="page-header">
     <p class="charts-kicker">{{ _('周报') }}</p>
@@ -76,55 +60,39 @@
 </script>
 {% endif %}
 
-{% if report_sections|length > 1 %}
-<nav class="browse-seal-strip" aria-label="{{ _('月份速览') }}">
-    {% for section in report_sections %}
-    <a href="#month-{{ section.year }}-{{ '%02d' % section.month }}">{{ section.year }}.{{ '%02d' % section.month }}</a>
-    {% endfor %}
-</nav>
 
-{% for section in report_sections %}
-{% set month_label = _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) %}
-<section class="browse-section" aria-label="{{ month_label }}">
-    <div class="browse-section-head">
-        <h2 class="browse-section-title">{{ month_label }}</h2>
-        <a class="browse-section-more" href="#month-{{ section.year }}-{{ '%02d' % section.month }}">{{ _('查看更多') }} &rarr;</a>
-    </div>
-    <div class="browse-rail-shell">
-        <button class="browse-rail-nav prev" type="button" aria-label="{{ _('向左滚动') }}">&#8249;</button>
-        <div class="browse-rail browse-rail--report">
-            {% for report in section.reports %}
-            <div class="browse-rail__item">{{ report_rail_card(report) }}</div>
-            {% endfor %}
-        </div>
-        <button class="browse-rail-nav next" type="button" aria-label="{{ _('向右滚动') }}">&#8250;</button>
-    </div>
-</section>
-{% endfor %}
-{% endif %}
 
+<style nonce="{{ csp_nonce() }}">
+.wr-filter-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:16px}
+.wr-filter-bar .form-select,.wr-filter-bar .form-input{height:44px;min-width:44px}
+.wr-filter-count{font-size:.9em;color:var(--text-secondary,#666)}
+.wr-filter-clear{height:44px;padding:0 14px;border:1px solid var(--border-color,#ccc);background:transparent;color:inherit;border-radius:6px;cursor:pointer}
+.wr-no-results{padding:24px;text-align:center;color:var(--text-secondary,#666);display:none}
+</style>
 <div class="content-section">
         <!-- 筛选和搜索功能 -->
         <div class="filter-section">
-            <div class="filter-controls">
+            <div class="filter-controls wr-filter-bar">
                 <div class="filter-group">
-                    <label for="date-filter">{{ _('日期筛选') }}</label>
-                    <select id="date-filter" class="form-select">
-                        <option value="all">{{ _('全部') }}</option>
-                        <option value="this-month">{{ _('本月') }}</option>
-                        <option value="last-month">{{ _('上月') }}</option>
-                        <option value="this-year">{{ _('今年') }}</option>
+                    <label for="month-filter">{{ _('月份筛选') }}</label>
+                    <select id="month-filter" class="form-select">
+                        <option value="">{{ _('全部') }}</option>
+                        {% for section in report_sections %}
+                        <option value="{{ section.year }}-{{ '%02d' % section.month }}">{{ _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="filter-group">
                     <label for="search-input">{{ _('搜索') }}</label>
                     <div class="search-box">
                         <input type="text" id="search-input" aria-label="{{ _('搜索周报') }}" placeholder="{{ _('搜索周报标题或内容') }}" class="form-input">
-                        <button class="search-btn">
+                        <button class="search-btn" type="button">
                             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
                         </button>
                     </div>
                 </div>
+                <span class="wr-filter-count" id="wr-filter-count"></span>
+                <button class="wr-filter-clear" id="wr-filter-clear" type="button">{{ _('清除') }}</button>
             </div>
         </div>
 
@@ -134,7 +102,7 @@
             {% for report in reports %}
             {# data-title 与卡片可见标题同源（title_display）：搜索 JS 读的是这个属性，
                若仍是 report.title，英文页搜「NYT」会漏掉显示为英文标题的卡片。 #}
-            <div class="report-card news-card" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.content_data.title_display if report.content_data and report.content_data.title_display else report.title }}" data-summary="{{ report.content_data.summary }}">
+            <div class="report-card news-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.content_data.title_display if report.content_data and report.content_data.title_display else report.title }}" data-summary="{{ report.content_data.summary | markdown | striptags | truncate(200) }}">
                 <!-- 日期徽章 -->
                 <div class="news-date-badge">
                     <span class="news-day">{{ report.report_date.strftime('%d') }}</span>
@@ -172,7 +140,7 @@
                             {% if content.total_books_known %}
                             <li>
                                 <svg class="icon" width="14" height="14"><use href="#icon-book"/></svg>
-                                {{ _('上榜记录') }}：{{ content.total_books_display }}
+                                {{ _('上榜记录') }}：{{ content.total_books_display }} {{ _('条') }}
                             </li>
                             {% endif %}
                             {% if content.total_new_known %}
@@ -212,6 +180,10 @@
             </div>
             {% endfor %}
         </div>
+        <div class="wr-no-results" role="status" aria-live="polite" style="display:none;">
+            <p>{{ _('没有匹配的周报') }}</p>
+            <button id="wr-empty-clear" class="wr-filter-clear" type="button" style="min-height:44px;">{{ _('清除筛选') }}</button>
+        </div>
         {% else %}
         <div class="empty-state">
             <svg class="icon" width="48" height="48"><use href="#icon-file-text"/></svg>
@@ -248,60 +220,79 @@
 <script nonce="{{ csp_nonce() }}">
 'use strict';
 document.addEventListener('DOMContentLoaded', function() {
-    const dateFilter = document.getElementById('date-filter');
+    const monthFilter = document.getElementById('month-filter');
     const searchInput = document.getElementById('search-input');
     const searchBtn = document.querySelector('.search-btn');
-    const reportCards = document.querySelectorAll('.report-card');
-    const refreshBtn = document.querySelector('.refresh-btn');
-    const shareBtns = document.querySelectorAll('.share-btn');
+    const clearBtn = document.getElementById('wr-filter-clear');
+    const countEl = document.getElementById('wr-filter-count');
+    const noResults = document.querySelector('.wr-no-results');
+    const reportCards = Array.from(document.querySelectorAll('.report-card'));
+    const refreshBtn = document.getElementById('refresh-btn');
+    const shareBtns = Array.from(document.querySelectorAll('.share-btn'));
 
-    function filterReports() {
-        const dateValue = dateFilter.value;
-        const searchValue = searchInput.value.toLowerCase();
-        const today = new Date();
-        const currentMonth = today.getMonth();
-        const currentYear = today.getFullYear();
-
-        reportCards.forEach(card => {
-            const cardDate = new Date(card.dataset.date);
-            const cardTitle = card.dataset.title.toLowerCase();
-            const cardSummary = card.dataset.summary.toLowerCase();
-            const cardMonth = cardDate.getMonth();
-            const cardYear = cardDate.getFullYear();
-
-            let dateMatch = true;
-            if (dateValue === 'this-month') {
-                dateMatch = (cardMonth === currentMonth && cardYear === currentYear);
-            } else if (dateValue === 'last-month') {
-                const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-                const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-                dateMatch = (cardMonth === lastMonth && cardYear === lastMonthYear);
-            } else if (dateValue === 'this-year') {
-                dateMatch = (cardYear === currentYear);
-            }
-
-            const searchMatch = cardTitle.includes(searchValue) || cardSummary.includes(searchValue);
-            card.style.display = (dateMatch && searchMatch) ? 'block' : 'none';
-        });
+    function getLocale() {
+        return (document.documentElement.getAttribute('lang') || 'zh').slice(0, 2);
     }
 
-    dateFilter.addEventListener('change', filterReports);
-    searchInput.addEventListener('input', filterReports);
-    searchBtn?.addEventListener('click', filterReports);
-    searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') filterReports();
-    });
-
-    document.querySelectorAll('.browse-rail-shell').forEach(function(shell) {
-        const rail = shell.querySelector('.browse-rail');
-        if (!rail) return;
-        shell.querySelectorAll('.browse-rail-nav').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const dir = btn.classList.contains('prev') ? -1 : 1;
-                rail.scrollBy({ left: dir * Math.max(rail.clientWidth - 80, 200), behavior: 'smooth' });
-            });
+    function applyFilters(push) {
+        const monthVal = monthFilter.value;
+        const q = searchInput.value.trim().toLowerCase();
+        let visible = 0;
+        reportCards.forEach(function(card) {
+            const dataMonth = card.getAttribute('data-month') || '';
+            const titleEl = card.querySelector('.news-title');
+            const summaryEl = card.querySelector('.news-summary');
+            const title = (titleEl ? titleEl.textContent : (card.getAttribute('data-title') || '')).toLowerCase();
+            const summary = (summaryEl ? summaryEl.textContent : (card.getAttribute('data-summary') || '')).toLowerCase();
+            const monthOk = !monthVal || dataMonth === monthVal;
+            const searchOk = !q || title.indexOf(q) !== -1 || summary.indexOf(q) !== -1;
+            const show = monthOk && searchOk;
+            card.style.display = show ? '' : 'none';
+            if (show) visible++;
         });
+        if (countEl) {
+            const locale = getLocale();
+            countEl.textContent = locale === 'en'
+                ? visible + ' Matches in this list'
+                : '当前列表匹配 ' + visible + ' 条';
+        }
+        if (noResults) noResults.style.display = visible === 0 ? 'block' : 'none';
+        if (push) {
+            const url = new URL(window.location.href);
+            if (monthVal) url.searchParams.set('month', monthVal); else url.searchParams.delete('month');
+            if (q) url.searchParams.set('search', searchInput.value.trim()); else url.searchParams.delete('search');
+            history.replaceState(null, '', url.toString());
+        }
+    }
+
+    function restoreFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const m = params.get('month') || '';
+        const s = params.get('search') || '';
+        const valid = monthFilter && Array.from(monthFilter.options).some(function(o){ return o.value === m; });
+        monthFilter.value = valid ? m : '';
+        searchInput.value = s;
+        applyFilters(false);
+    }
+
+    monthFilter.addEventListener('change', function(){ applyFilters(true); });
+    searchInput.addEventListener('input', function(){ applyFilters(true); });
+    searchBtn && searchBtn.addEventListener('click', function(){ applyFilters(true); });
+    searchInput.addEventListener('keypress', function(e){ if (e.key === 'Enter') applyFilters(true); });
+    clearBtn && clearBtn.addEventListener('click', function(){
+        monthFilter.value = '';
+        searchInput.value = '';
+        applyFilters(true);
     });
+    var emptyClearBtn = document.getElementById('wr-empty-clear');
+    if (emptyClearBtn) {
+        emptyClearBtn.addEventListener('click', function() {
+            if (clearBtn) clearBtn.click();
+        });
+    }
+    window.addEventListener('popstate', restoreFromURL);
+    window.addEventListener('languagechange', function(){ applyFilters(false); });
+    restoreFromURL();
 
     if (refreshBtn) {
         refreshBtn.addEventListener('click', function() {

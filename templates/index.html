@@ -145,17 +145,18 @@
 
 {% if books %}
 <div class="home-toolbar" role="toolbar" aria-label="{{ _('结果工具条') }}" data-i18n-aria-label="home_toolbar">
-    <span class="export-info">{{ _('共') }} <strong>{{ books|length }}</strong> {{ _('本图书') }}</span>
+    <span class="export-info">{{ _('当前结果') }} <strong>{{ books|length }}</strong> {{ _('本图书') }}</span>
     <div class="toolbar-actions">
         <div class="view-toggle wide-only" role="group" aria-label="{{ _('网格密度') }}" data-i18n-aria-label="grid_density">
             <button type="button" class="btn btn-sm" id="grid-view-featured" aria-pressed="false" data-i18n="grid_view_featured">{{ _('精选三列') }}</button>
             <button type="button" class="btn btn-sm" id="grid-view-compact" aria-pressed="false" data-i18n="grid_view_compact">{{ _('紧凑五列') }}</button>
         </div>
         <div class="export-buttons">
-            <button class="btn btn-sm" id="btn-export-all" aria-label="{{ _('导出全部') }}" data-i18n="export_all">
+            <button class="btn btn-sm" id="btn-export-all" aria-label="{{ _('导出全部 NYT 分类') }}" style="min-height:44px;">
                 <svg class="icon" width="16" height="16"><use href="#icon-download"/></svg>
-                {{ _('导出全部') }}
+                {{ _('导出全部 NYT 分类') }}
             </button>
+            <p class="export-scope-note" style="font-size:0.75rem;color:var(--text-secondary, #6b7280);margin-top:0.25rem;">{{ _('全部 NYT 分类导出独立于当前搜索与分类筛选。') }}</p>
         </div>
     </div>
 </div>
@@ -166,7 +167,7 @@
     {% set current_rank = book.rank or loop.index %}
     {% set source_index = book.source_index if book.source_index is defined else current_rank - 1 %}
     {% set detail_category = book.source_category if book.source_category is defined else current_category %}
-    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=detail_category) %}
+    {% set detail_url = url_for('main.book_detail', book_index=source_index, category=detail_category, lang=get_locale(), return_to=request.full_path) %}
     <article class="card card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
              data-index="{{ source_index }}"

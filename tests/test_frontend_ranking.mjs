@@ -23,7 +23,7 @@ function renderer(view, overrides = {}) {
         window: {
             APP_CONFIG: appConfig,
             addEventListener(type, fn) { this['_on' + type] = fn; },
-            location: { href: '', pathname: '/', reload() { this._reloaded = true; } },
+            location: { href: '', pathname: '/', search: '', reload() { this._reloaded = true; } },
         },
         document: {
             getElementById: id => (id === view ? container : (id === 'initial-books-data' ? initialBooksNode : null)),
@@ -110,9 +110,13 @@ test('category rerender leaves already-local cover paths unwrapped', () => {
 
 test('card navigation uses source category and leaves native links alone', () => {
     const { context } = renderer('books-grid');
+    context.window.location.search = '?lang=en&view=compact&search=rain&page=3';
     const card = { getAttribute: key => key === 'data-index' ? '7' : 'hardcover-nonfiction' };
     context.handleCardClick({ target: { closest: selector => selector.startsWith('.card[') ? card : null } });
-    assert.equal(context.window.location.href, '/book/7?category=hardcover-nonfiction');
+    const target = new URL(context.window.location.href, 'https://bookrank.test');
+    assert.equal(target.pathname, '/book/7');
+    assert.equal(target.searchParams.get('category'), 'hardcover-nonfiction');
+    assert.equal(target.searchParams.get('return_to'), '/?lang=en&view=compact&search=rain&page=3');
     context.window.location.href = '';
     context.handleCardClick({ target: { closest: selector => selector === 'a[href]' ? {} : null } });
     assert.equal(context.window.location.href, '');

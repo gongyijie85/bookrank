@@ -181,6 +181,10 @@
 
     function getSavedLanguage() {
         try {
+            const urlLang = new URL(window.location.href).searchParams.get('lang');
+            if (urlLang === 'en' || urlLang === 'zh') return urlLang;
+        } catch (e) { /* 忽略 URL 解析失败 */ }
+        try {
             const saved = localStorage.getItem(APP_LANG_STORAGE_KEY) || localStorage.getItem(LANG_STORAGE_KEY);
             if (saved === 'en' || saved === 'zh') return saved;
         } catch (e) { /* 忽略 localStorage 不可用 */ }
@@ -218,11 +222,21 @@
     function switchLanguage(lang) {
         lang = lang === 'en' ? 'en' : 'zh';
         setSavedLanguage(lang);
-        const next = window.location.pathname + window.location.search + window.location.hash;
+        const url = new URL(window.location.href);
+        url.searchParams.set('lang', lang);
+        const next = url.pathname + url.search + url.hash;
         window.location.href = '/set-language?lang=' + lang + '&next=' + encodeURIComponent(next);
     }
 
     function initLangSwitcher() {
+        // Sync language preference from URL query param before any early returns
+        const urlLang = new URL(window.location.href).searchParams.get('lang');
+        if (urlLang === 'zh' || urlLang === 'en') {
+          try { setSavedLanguage(urlLang); } catch (e) { /* 忽略浏览器偏好写入不可用 */ }
+          try {
+            document.cookie = `lang=${urlLang};path=/;max-age=31536000;SameSite=Lax`;
+          } catch (e) { /* 忽略浏览器偏好写入不可用 */ }
+        }
         const globe = document.getElementById('m-lang-globe');
         const dropdown = document.getElementById('m-lang-dropdown');
         if (!globe || !dropdown) return;

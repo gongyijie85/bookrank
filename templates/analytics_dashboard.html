@@ -97,7 +97,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="total-views">--</div>
-                        <div class="stat-label">总阅读量</div>
+                        <div class="stat-label">{{ _('近30天周报累计阅读量') }}</div>
                     </div>
                 </div>
             </div>
@@ -105,7 +105,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="total-behaviors">--</div>
-                        <div class="stat-label">总行为数</div>
+                        <div class="stat-label">{{ _('近30天用户行为事件数') }}</div>
                     </div>
                 </div>
             </div>
@@ -113,7 +113,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="session-count">--</div>
-                        <div class="stat-label">用户会话数</div>
+                        <div class="stat-label">{{ _('独立会话数（非人数）') }}</div>
                     </div>
                 </div>
             </div>
@@ -121,7 +121,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="avg-views">--</div>
-                        <div class="stat-label">平均阅读量</div>
+                        <div class="stat-label">{{ _('平均每份周报阅读量（按近30天周报数计）') }}</div>
                     </div>
                 </div>
             </div>
@@ -133,7 +133,7 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">周报阅读量趋势</h5>
+                        <h5 class="card-title">{{ _('周报阅读量趋势（近30天创建周报的累计阅读）') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="chart-container">
@@ -147,7 +147,7 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">用户行为分布</h5>
+                        <h5 class="card-title">{{ _('用户行为分布（近30天 UserBehavior 事件计数）') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="chart-container">
@@ -163,7 +163,7 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">每日活动趋势</h5>
+                        <h5 class="card-title">{{ _('每日活动趋势（近30天事件数，UTC）') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="chart-container" style="height: 400px;">
@@ -179,7 +179,7 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">阅读量最高的周报</h5>
+                        <h5 class="card-title">{{ _('阅读量最高的周报（全库累计 Top10）') }}</h5>
                     </div>
                     <div class="card-body">
                         <table class="table table-striped">
@@ -498,26 +498,30 @@
                 const ctx = canvas.getContext('2d');
                 dailyChart = new Chart(ctx, {
                     type: 'line',
-                    data: { labels: [], datasets: [{ label: '每日活动数', data: [], borderColor: chartColors.greenBorder, backgroundColor: chartColors.greenLight, tension: 0.4, fill: true }] },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                    data: { labels: [], datasets: [{ label: '每日活动数', data: [], borderColor: chartColors.greenBorder, backgroundColor: chartColors.greenLight, tension: 0, fill: true }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'linear' }, y: { beginAtZero: true } } }
                 });
                 const statusDiv = createPanelStatus('dailyChart');
                 if (statusDiv) statusDiv.textContent = '暂无数据';
                 return;
             }
+            const points = data
+                .map(function (item) {
+                    const ts = Date.parse(String(item.date).slice(0, 10) + 'T00:00:00Z');
+                    return { x: ts, y: Number(item.count) || 0 };
+                })
+                .sort(function (a, b) { return a.x - b.x; });
             const ctx = canvas.getContext('2d');
-            const labels = data.map(item => item.date);
-            const values = data.map(item => item.count);
             dailyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
                     datasets: [{
                         label: '每日活动数',
-                        data: values,
+                        data: points,
+                        parsing: false,
                         borderColor: chartColors.greenBorder,
                         backgroundColor: chartColors.greenLight,
-                        tension: 0.4,
+                        tension: 0,
                         fill: true
                     }]
                 },
@@ -525,8 +529,29 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
+                        x: {
+                            type: 'linear',
+                            ticks: {
+                                stepSize: 86400000,
+                                callback: function (value) {
+                                    const d = new Date(value);
+                                    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+                                }
+                            }
+                        },
                         y: {
                             beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: function (items) {
+                                    if (!items.length) return '';
+                                    const d = new Date(items[0].parsed.x);
+                                    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+                                }
+                            }
                         }
                     }
                 }

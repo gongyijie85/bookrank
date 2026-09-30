@@ -40,6 +40,7 @@ def build_env(locale: str = 'en') -> Environment:
     # 模板用到的过滤器/全局：原样返回，保持"渲染得出来"这一唯一职责。
     env.filters['category_name'] = lambda v, *a: v
     env.filters['language_name'] = lambda v, *a: v
+    env.filters['price_display'] = lambda v, *a: v
     env.filters['bilingual'] = lambda a, b, *rest: a
     env.filters['award_term'] = lambda v, *a: v
     env.filters['cover_src'] = lambda v: v
@@ -62,6 +63,7 @@ def build_env(locale: str = 'en') -> Environment:
     class _FakeRequest:
         url = 'http://local.test/new-books'
         url_root = 'http://local.test/'
+        host_url = 'http://local.test/'
         path = '/new-books'
         full_path = '/new-books'
         args: dict[str, str] = {}
@@ -73,10 +75,10 @@ def build_env(locale: str = 'en') -> Environment:
     return env
 
 
-def render(locale: str = 'en') -> str:
+def render(locale: str = 'en', template_name: str = 'new_books.html', **overrides) -> str:
     """按 `app/routes/main.py:_load_new_books_data` 的同一批变量渲染（空数据集）。"""
-    tpl = build_env(locale).get_template('new_books.html')
-    return tpl.render(
+    tpl = build_env(locale).get_template(template_name)
+    context = dict(
         page=1,
         total=0,
         total_pages=1,
@@ -90,6 +92,14 @@ def render(locale: str = 'en') -> str:
         # （value 就是规范中文键），不需要再写死一份显示文案。
         categories=[{'name': '商业', 'count': 1}, {'name': '小说', 'count': 1}],
         stats={'total_books': 0, 'active_publishers': 0},
+        selected_publication_status='all',
+        data_load_failed=False,
+        stats_unavailable=False,
+        publisher_counts_unavailable=False,
+        publisher_book_counts={},
+        publisher_kind={},
+        publishers_unavailable=False,
+        publisher_sections_unavailable=False,
         selected_publisher=None,
         selected_category=None,
         selected_days=30,
@@ -100,7 +110,11 @@ def render(locale: str = 'en') -> str:
         publisher_sections=[],
         category_alias_labels={'Business': '商业', 'Fiction': '小说'},
         publisher_labels={},
+        active_tab='new_books',
     )
+    context.update(overrides)
+    context['publisher_kind'] = {int(key): value for key, value in context['publisher_kind'].items()}
+    return tpl.render(**context)
 
 
 def _sample_book():
@@ -147,4 +161,6 @@ if __name__ == '__main__':
     if '--with-books' in args:
         sys.stdout.write(render_card(locale))
     else:
-        sys.stdout.write(render(locale))
+        context_arg = next((a.split('=', 1)[1] for a in args if a.startswith('--context=')), '{}')
+        template_name = 'mobile/new_books.html' if '--mobile' in args else 'new_books.html'
+        sys.stdout.write(render(locale, template_name, **__import__('json').loads(context_arg)))

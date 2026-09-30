@@ -4,6 +4,10 @@ import json
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+import pytest
+from sqlalchemy import event
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.models.book import Book
 
 
@@ -824,3 +828,32 @@ class TestApiInfoExtended:
         resp = client.get('/api/public/')
         data = json.loads(resp.data)
         assert 'documentation' in data['data']
+
+
+@pytest.mark.parametrize(
+    'path', ['/api/public/reports/weekly', '/api/public/reports/weekly/2099-01-01', '/api/public/reports/weekly/latest']
+)
+@pytest.mark.parametrize('mode', ['fault', 'empty'])
+def test_public_weekly_read_routes(app, db, path, mode):
+    def listener(conn, cursor, statement, parameters, context, executemany):
+        sql = statement.lower()
+        if mode == 'fault' and sql.lstrip().startswith('select') and 'weekly_reports' in sql:
+            raise SQLAlchemyError('weekly SQL unavailable')
+
+    event.listen(db.engine, 'before_cursor_execute', listener)
+    try:
+        with patch('app.routes.public_api.get_service', return_value=MagicMock()):
+            resp = app.test_client().get(path)
+    finally:
+        event.remove(db.engine, 'before_cursor_execute', listener)
+    data = json.loads(resp.data)
+    if mode == 'fault':
+        assert resp.status_code == 500 and data['success'] is False
+        return
+    if path.endswith('2099-01-01') or path.endswith('/latest'):
+        assert resp.status_code == 404 and data['success'] is False
+        assert data['message'] == ('No report available' if path.endswith('/latest') else 'Report not found')
+    else:
+        assert resp.status_code == 200 and data['success'] is True
+        assert data['data']['reports'] == []
+        assert data['data']['total'] == 0

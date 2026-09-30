@@ -8,6 +8,17 @@
 
 const TRANSLATIONS = {
     zh: {
+        'award_result_winner': '作品获奖',
+        'award_result_shortlisted': '作品入围',
+        'award_result_author_honor': '作者荣誉（非作品获奖）',
+        'award_result_unspecified': '奖项记录（结果未注明）',
+        'related_reason_same_author': '同作者',
+        'related_reason_same_award': '同奖项',
+        'related_reason_other_award': '其他奖项',
+        'nb_curated_reload': '重新加载当前条件下的分类与来源书列',
+        'nb_collection_sources': '全库收录 {books} 本新书 · {publishers} 个来源',
+        'nb_filter_source_label': '来源',
+        'nb_export_current_csv': '当前筛选CSV（最多500本）',
         // 导航
         'nav_home': '首页',
         'nav_awards': '获奖书单',
@@ -16,6 +27,19 @@ const TRANSLATIONS = {
         'nav_new_books': '新书速递',
         'nav_weekly': '畅销书周报',
         'nav_about': '关于我们',
+        'nav_favorites': '我的收藏',
+        'data_load_failed': '数据加载失败',
+        'nb_stats_unavailable': '统计数据暂不可用',
+        'nb_reload_hint': '重新加载',
+        'nb_total_unavailable': '数量不可用',
+        'nb_count_unavailable': '数量暂不可用',
+        'nb_reload': '重新加载',
+        'nb_publication_status': '出版状态',
+        'nb_status_all': '全部状态',
+        'nb_status_published': '已出版',
+        'nb_status_upcoming': '即将出版',
+        'nb_status_pending': '日期待确认',
+        'nb_chip_remove_publication_status': '移除出版状态筛选',
         'sidebar_nav': '导航',
         'sidebar_about': '关于',
         'nav_bestsellers': '畅销书榜',
@@ -236,6 +260,17 @@ const TRANSLATIONS = {
         'nb_collection_total': '全库收录 {books} 本新书 · {publishers} 家出版社',
     },
     en: {
+        'award_result_winner': 'Award winner',
+        'award_result_shortlisted': 'Shortlisted',
+        'award_result_author_honor': 'Author honor (not a work win)',
+        'award_result_unspecified': 'Award record (result unspecified)',
+        'related_reason_same_author': 'Same author',
+        'related_reason_same_award': 'Same award',
+        'related_reason_other_award': 'Other award',
+        'nb_curated_reload': 'Reload categories and source lists for the current filters',
+        'nb_collection_sources': '{books} new books from {publishers} sources',
+        'nb_filter_source_label': 'Source',
+        'nb_export_current_csv': 'Current filters CSV (max 500 books)',
         // Filters
         'filter_award_label': 'Award',
         'filter_award_all': 'All awards',
@@ -259,6 +294,19 @@ const TRANSLATIONS = {
         'nav_new_books': 'New Books',
         'nav_weekly': 'Weekly Reports',
         'nav_about': 'About',
+        'nav_favorites': 'My favorites',
+        'data_load_failed': 'Data loading failed',
+        'nb_stats_unavailable': 'Statistics temporarily unavailable',
+        'nb_reload_hint': 'Reload',
+        'nb_total_unavailable': 'Count unavailable',
+        'nb_count_unavailable': 'Count temporarily unavailable',
+        'nb_reload': 'Reload',
+        'nb_publication_status': 'Publication status',
+        'nb_status_all': 'All statuses',
+        'nb_status_published': 'Published',
+        'nb_status_upcoming': 'Upcoming',
+        'nb_status_pending': 'Publication date pending',
+        'nb_chip_remove_publication_status': 'Remove publication status filter',
         'sidebar_nav': 'Navigation',
         'sidebar_about': 'About',
         'nav_bestsellers': 'Bestsellers',
@@ -621,6 +669,14 @@ function setGlobalLanguage(lang) {
     if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
         try { BookI18n.applyLanguage(lang); } catch(e) { console.warn('BookI18n error:', e); }
     }
+
+    // 同步 __APP_LANG__，并把当前 URL 的 lang 查询参数对齐到新语言（不刷新页面）
+    window.__APP_LANG__ = lang;
+    try {
+        var url = new URL(window.location.href);
+        url.searchParams.set('lang', lang);
+        history.replaceState(null, '', url.toString());
+    } catch(e) { console.warn('replaceState lang param error:', e); }
 
     window.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } }));
 

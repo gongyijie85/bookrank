@@ -90,6 +90,8 @@
             {% endif %}
         </span>
     {% endif %}
+    <a href="/api/export/all" class="m-btn m-btn-outline m-export-link" style="margin-top:0.5rem;min-height:44px;">{{ _('导出全部 NYT 分类') }}</a>
+    <p class="m-export-scope-note" style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem;">{{ _('全部 NYT 分类导出独立于当前搜索与分类筛选。') }}</p>
 </div>
 
 {# 搜索 / 加载状态条（与桌面端同构）：empty 回显查询词并提供清除；partial 警告+可用结果；failed 重试。 #}
@@ -132,8 +134,8 @@
     {% set detail_category = book.source_category if book.source_category is defined else current_category %}
     {% set previous_rank = book.previous_rank or 0 %}
     {% set rank_change = previous_rank - current_rank if previous_rank else 0 %}
-    <a href="/book/{{ source_index }}?category={{ detail_category }}"
-       class="m-card m-book-card" data-href="/book/{{ source_index }}?category={{ detail_category }}"
+    <a href="{{ url_for('main.book_detail', book_index=source_index, category=detail_category, lang=get_locale(), return_to=request.full_path) }}"
+       class="m-card m-book-card" data-href="{{ url_for('main.book_detail', book_index=source_index, category=detail_category, lang=get_locale(), return_to=request.full_path) }}"
        aria-label="{% if _locale == 'zh' %}{{ _('第') }}{{ current_rank }}{{ _('名') }}，{{ book.title_zh or book.title }}{% if book.weeks_on_list %}，{{ _('累计上榜') }}{{ book.weeks_on_list }}{{ _('周') }}{% endif %}{% else %}Rank {{ current_rank }}, {{ book.title }}{% if book.weeks_on_list %}, {{ book.weeks_on_list }} weeks on list{% endif %}{% endif %}">
         <span class="m-rank-badge {% if current_rank > 3 %}small{% endif %}">{{ current_rank }}</span>
         <div class="m-book-cover">

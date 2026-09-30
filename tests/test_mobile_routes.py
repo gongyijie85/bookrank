@@ -5,9 +5,12 @@
 """
 
 import json
+import re
+from html import unescape
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
+from urllib.parse import parse_qs, urlsplit
 
 from app.models.book import Book
 
@@ -165,8 +168,12 @@ class TestMobileProfileRoute:
         # /set-language. Relying on the header alone makes this depend on test order.
         resp = client.get('/profile?lang=en', headers=EN_MOBILE_HEADERS)
         assert resp.status_code == 200
-        assert b'<span>My</span>' in resp.data
+        assert b'href="/profile"' in resp.data
         assert b'My Favorites' in resp.data
+        assert b'<form' in resp.data and b'action="/"' in resp.data
+        assert b'name="search"' in resp.data and b'type="search"' in resp.data
+        assert b'name="lang"' in resp.data and b'value="en"' in resp.data
+        assert b'href="/?lang=en"' in resp.data
 
 
 class TestDesktopProfileRoute:
@@ -198,30 +205,67 @@ class TestMobileAwardsRoute:
         assert resp.status_code == 200
         assert b'm-tabbar' in resp.data
 
-    @patch('app.services.award_book_service.AwardBookService')
-    def test_mobile_awards_filter_links_preserve_other_dimensions(self, MockAwardService, client) -> None:
-        """移动端奖项页,清除某一维度筛选的链接应完整保留其余两个维度"""
-        mock_award = MagicMock()
-        mock_award.id = 1
-        mock_award.name = 'TestAward'
-        mock_award.book_count = 0
-        mock_svc = MagicMock()
-        mock_svc.get_all_awards.return_value = [mock_award]
-        mock_svc.get_distinct_years.return_value = [2024]
-        mock_svc.get_distinct_categories.return_value = ['Fiction']
-        mock_svc.get_award_by_name.return_value = mock_award
-        mock_svc.get_award_books.return_value = ([], 0)
-        mock_svc.get_book_counts_by_award.return_value = {1: 0}
-        MockAwardService.return_value = mock_svc
+    def test_mobile_awards_filter_links_preserve_other_dimensions(self, client, db) -> None:
+        """真实筛选交集、应用表单与分页保留六维条件；应用重新从第一页开始。"""
+        from app.models.schemas import Award, AwardBook
 
-        resp = client.get('/awards?award=TestAward&year=2024&category=Fiction', headers={'User-Agent': MOBILE_UA})
+        award = Award(name='TestAward', name_en='Test Award')
+        other = Award(name='OtherAward')
+        db.session.add_all([award, other])
+        db.session.flush()
+        for index in range(31):
+            db.session.add(
+                AwardBook(
+                    award_id=award.id,
+                    year=2024,
+                    category='Fiction',
+                    title=f'The River {index:02d}',
+                    author='Known Author',
+                    isbn13=f'978000000{index:04d}',
+                    is_displayable=True,
+                )
+            )
+        for index, conditions in enumerate(
+            [
+                {'award_id': other.id},
+                {'year': 2023},
+                {'category': 'Poetry'},
+                {'title': 'A Different Story'},
+            ]
+        ):
+            data = dict(award_id=award.id, year=2024, category='Fiction', title='Decoy River')
+            data.update(conditions)
+            db.session.add(
+                AwardBook(**data, author='Known Author', isbn13=f'978000001{index:04d}', is_displayable=True)
+            )
+        db.session.commit()
+        query = 'award=TestAward&year=2024&category=Fiction&search=River&view=list&lang=zh'
+        resp = client.get(f'/awards?{query}&page=2&per_page=10', headers=ZH_MOBILE_HEADERS)
         assert resp.status_code == 200
         html = resp.get_data(as_text=True)
-
-        # "全部"（清除奖项）应保留 year 与 category
-        assert 'href="/awards?year=2024&amp;category=Fiction"' in html
-        # "全部类别"（清除类别）应保留 award 与 year
-        assert 'href="/awards?award=TestAward&amp;year=2024"' in html
+        assert '31 本图书' in html
+        assert html.count('class="m-card m-book-card"') == 10
+        assert 'Decoy River' not in html and 'A Different Story' not in html
+        form = re.search(r'<form\b[^>]*action="/awards"[^>]*>(.*?)</form>', html, re.S)
+        assert form is not None
+        form_html = form.group(1)
+        for value in ('TestAward', '2024', 'Fiction'):
+            assert re.search(rf'<option\b[^>]*value="{value}"[^>]*selected', form_html)
+        for name, value in [('search', 'River'), ('view', 'list'), ('lang', 'zh')]:
+            assert re.search(rf'<input\b[^>]*name="{name}"[^>]*value="{value}"', form_html)
+        assert 'name="page"' not in form_html
+        assert 'type="submit"' in form_html
+        pagination = re.search(r'<div class="m-pagination">(.*?)</div>', html, re.S)
+        assert pagination is not None
+        links = re.findall(r'href="([^"]+)"', pagination.group(1))
+        assert len(links) == 2
+        expected = parse_qs(query)
+        pages = set()
+        for href in links:
+            params = parse_qs(urlsplit(unescape(href)).query)
+            assert {key: params.get(key) for key in expected} == expected
+            pages.add(params['page'][0])
+        assert pages == {'1', '3'}
 
 
 class TestMobileSearchRoute:
@@ -310,10 +354,12 @@ class TestMobileAboutAndErrorRoute:
     def test_error_page_mobile_renders_mobile_template(self, mock_get_svc, client) -> None:
         """移动端 UA 访问不存在的书籍应渲染移动版错误页"""
         mock_get_svc.return_value = _mock_book_service([])  # 空书籍列表
-        resp = client.get('/book/0', headers={'User-Agent': MOBILE_UA})
-        assert resp.status_code == 200
+        resp = client.get('/book/0?lang=zh', headers={'User-Agent': MOBILE_UA})
+        assert resp.status_code == 404
         assert b'm-tabbar' in resp.data
         assert b'm-error-page' in resp.data
+        assert '书籍不存在'.encode() in resp.data
+        assert b'href="/" class="m-btn m-btn-outline"' in resp.data
 
 
 class TestMobileWeeklyReportDetailEnhanced:

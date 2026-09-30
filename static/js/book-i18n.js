@@ -223,7 +223,95 @@ var BookI18n = (function() {
         return attrEl || _findMetaValueByLabelKey('book_category');
     }
 
+    function formatPriceDisplay(value, lang) {
+        if (value === null || value === undefined) return '';
+        var raw = String(value);
+        if (raw.trim() === '') return '';
+        if (typeof value === 'boolean') return raw;
+        if (typeof value !== 'number' && !/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(String(value).trim())) {
+            return raw;
+        }
+        var trimmed = String(value).trim();
+        var suffix = (lang === 'zh') ? '（币种未确认）' : ' (currency unconfirmed)';
+        return trimmed + suffix;
+    }
+
+    // 把页面上所有指向本书详情页（/book/<digits>、/award-book/<digits>、
+    // /new-book/<digits>）的同源原生锚点的 return_to 同步为当前 pathname+search，
+    // href 与已存在的同名 data-href 一起更新；外链、SEO 链接、无关锚点一律不动。
+    function syncDetailReturnLinks() {
+        var sourceLang = null;
+        try {
+            var sl = new URL(window.location.href).searchParams.get('lang');
+            if (sl === 'zh' || sl === 'en') sourceLang = sl;
+        } catch (e) {
+            sourceLang = null;
+        }
+        if (!sourceLang && (window.__APP_LANG__ === 'zh' || window.__APP_LANG__ === 'en')) sourceLang = window.__APP_LANG__;
+        if (!sourceLang) {
+            var dl = document.documentElement.lang;
+            if (dl === 'zh' || dl === 'en') sourceLang = dl;
+        }
+        var refreshLink = document.getElementById('curated-refresh-link');
+        if (refreshLink) {
+            refreshLink.setAttribute('href', window.location.pathname + window.location.search);
+        }
+        var anchors = document.querySelectorAll('a[href]');
+        for (var i = 0; i < anchors.length; i++) {
+            var a = anchors[i];
+            var rawHref = a.getAttribute('href') || '';
+            if (!rawHref) continue;
+            var url;
+            try {
+                url = new URL(rawHref, window.location.origin);
+            } catch (e) {
+                continue;
+            }
+            if (url.origin !== window.location.origin) continue;
+            if (!/^\/(?:book|award-book|new-book)\/\d+$/.test(url.pathname)) continue;
+            var params = new URLSearchParams(url.search);
+            params.set('return_to', window.location.pathname + window.location.search);
+            if (sourceLang) {
+                params.set('lang', sourceLang);
+            }
+            url.search = params.toString();
+            var nextHref = url.pathname + (url.search ? url.search : '') + (url.hash || '');
+            a.setAttribute('href', nextHref);
+            var dataHref = a.getAttribute('data-href');
+            if (dataHref !== null) {
+                try {
+                    var du = new URL(dataHref, window.location.origin);
+                    if (du.origin === window.location.origin && du.pathname === url.pathname) {
+                        a.setAttribute('data-href', nextHref);
+                    }
+                } catch (e2) {
+                    /* data-href 非合法 URL：保持原样 */
+                }
+            }
+        }
+    }
+
+    function applyPresentationLanguage(lang) {
+        if (lang !== 'zh' && lang !== 'en') return;
+        syncDetailReturnLinks();
+        var nodes = document.querySelectorAll('[data-price-raw]');
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            node.textContent = formatPriceDisplay(node.getAttribute('data-price-raw'), lang);
+        }
+        var groups = document.querySelectorAll('optgroup[data-source-group-zh]');
+        for (var j = 0; j < groups.length; j++) {
+            var group = groups[j];
+            var labelAttr = (lang === 'zh') ? 'data-source-group-zh' : 'data-source-group-en';
+            var labelValue = group.getAttribute(labelAttr);
+            if (labelValue !== null) {
+                group.setAttribute('label', labelValue);
+            }
+        }
+    }
+
     function applyLanguage(lang) {
+        applyPresentationLanguage(lang);
         if (_store.size === 0) return;
 
         var hasDataIsbn = document.querySelectorAll('[data-isbn]').length > 0;
@@ -334,6 +422,11 @@ var BookI18n = (function() {
      */
     function applyPublisherLanguage(lang) {
         if (lang !== 'zh' && lang !== 'en') return;
+        applyPresentationLanguage(lang);
+        var filter = document.getElementById('publisher-filter');
+        if (filter) {
+            filter.setAttribute('aria-label', lang === 'zh' ? '选择来源' : 'Select source');
+        }
         var els = document.querySelectorAll('[data-pub-name-zh]');
         for (var i = 0; i < els.length; i++) {
             var el = els[i];
@@ -438,6 +531,15 @@ var BookI18n = (function() {
         }
     }
 
+window.addEventListener('popstate', syncDetailReturnLinks);
+    document.addEventListener('DOMContentLoaded', syncDetailReturnLinks);
+    window.addEventListener('languagechange', (e) => {
+      const lang = e && e.detail ? e.detail.language : null;
+      if (lang === 'zh' || lang === 'en') {
+        applyPresentationLanguage(lang);
+      }
+    });
+
     return {
         register: register,
         registerAll: registerAll,
@@ -446,6 +548,7 @@ var BookI18n = (function() {
         updateBatch: updateBatch,
         getMissingTranslations: getMissingTranslations,
         applyLanguage: applyLanguage,
+        formatPriceDisplay: formatPriceDisplay,
         applyPublisherLanguage: applyPublisherLanguage,
         applyBilingualBadges: applyBilingualBadges,
         clear: clear,

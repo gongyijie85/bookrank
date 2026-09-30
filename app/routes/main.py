@@ -40,12 +40,12 @@ from ..utils.book_filters import (
     get_category_update_frequency,
     sort_books,
 )
-from ..utils.book_labels import category_alias_labels, publisher_labels
+from ..utils.book_labels import award_result_kind, category_alias_labels, publisher_labels
 from ..utils.cover_urls import cached_filename_from_path, is_allowed_cover_host
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.ranking import classify_listing
-from ..utils.security import is_safe_redirect_url
+from ..utils.security import is_safe_redirect_url, safe_return_path
 from ..utils.template_resolver import render_adaptive
 from ..utils.weekly_report_presentation import prepare_report_presentation
 
@@ -505,6 +505,7 @@ def _shape_award_book(book) -> dict:
     raw_zh = quick_clean_translation(book.title_zh, 'title')
     title_zh = '' if AwardBook._looks_like_isbn(raw_zh or '') else (raw_zh or '')
 
+    award_wikidata_id = book.award.wikidata_id if book.award else None
     return {
         'id': book.id,
         'title': book.display_title,
@@ -526,6 +527,8 @@ def _shape_award_book(book) -> dict:
         'category': book.category,
         'award_name': book.award.name if book.award else '',
         'award_name_en': (book.award.name_en or '') if book.award else '',
+        'award_wikidata_id': award_wikidata_id,
+        'award_result_kind': award_result_kind(book.category, award_wikidata_id),
         'buy_links': book.buy_links,
     }
 
@@ -558,13 +561,17 @@ def _load_awards_data(award_service, params: dict) -> dict:
     years: list = []
     categories: list = []
     books_data: list = []
-    total_books = 0
+    total_books: int | None = 0
+    awards_unavailable = False
+    data_load_failed = False
+    award_counts_unavailable = False
 
     try:
         awards_list = award_service.get_all_awards()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'奖项列表查询失败: {e}', exc_info=True)
         awards_list = []
+        awards_unavailable = True
 
     try:
         years = award_service.get_distinct_years()
@@ -599,23 +606,35 @@ def _load_awards_data(award_service, params: dict) -> dict:
         for book in books:
             books_data.append(_shape_award_book(book))
 
-        book_counts = award_service.get_book_counts_by_award(displayable_only=True)
-        for award_item in awards_list:
-            award_item.book_count = book_counts.get(award_item.id, 0)
-
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获奖图书数据加载失败: {e}', exc_info=True)
         books_data = []
-        total_books = 0
+        total_books = None
+        data_load_failed = True
+
+    try:
+        book_counts = award_service.get_book_counts_by_award(displayable_only=True)
+        for award_item in awards_list:
+            award_item.book_count = book_counts.get(award_item.id, 0)
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'奖项计数查询失败: {e}', exc_info=True)
+        award_counts_unavailable = True
+        for award_item in awards_list:
+            award_item.book_count = None
 
     per_page = params['per_page']
     page = params['page']
-    total_pages = max(1, (total_books + per_page - 1) // per_page) if total_books else 1
+    if total_books is None:
+        total_pages = None
+    else:
+        total_pages = max(1, (total_books + per_page - 1) // per_page) if total_books else 1
 
     is_browsing = not (
         params['selected_award'] or params['selected_year'] or params['selected_category'] or params['search_query']
     )
-    award_sections = _build_award_sections(award_service, awards_list) if is_browsing else []
+    award_sections = (
+        [] if data_load_failed else (_build_award_sections(award_service, awards_list) if is_browsing else [])
+    )
 
     return {
         'awards': awards_list,
@@ -629,11 +648,14 @@ def _load_awards_data(award_service, params: dict) -> dict:
         'search_query': params['search_query'],
         'view_mode': params['view_mode'],
         'total_books': total_books,
+        'awards_unavailable': awards_unavailable,
+        'data_load_failed': data_load_failed,
+        'award_counts_unavailable': award_counts_unavailable,
         'page': page,
         'per_page': per_page,
         'total_pages': total_pages,
         'has_prev': page > 1,
-        'has_next': page < total_pages,
+        'has_next': total_pages is not None and page < total_pages,
     }
 
 
@@ -645,7 +667,7 @@ PUBLISHER_LEADERBOARD_LIMIT = 30
 LONGEVITY_LIMIT = 20
 
 
-def _load_recent_award_books(award_service, years: list[int]) -> list[dict]:
+def _load_recent_award_books(award_service, years: list[int], unavailable_years: list[int] | None = None) -> list[dict]:
     """逐年取可展示的获奖图书；不改 AwardBookService，避免影响其查询数回归测试。"""
     from ..models.schemas import AwardBook
 
@@ -660,9 +682,12 @@ def _load_recent_award_books(award_service, years: list[int]) -> list[dict]:
             )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'遗珠榜获奖数据加载失败 year={year}: {e}', level='warning')
+            if unavailable_years is not None:
+                unavailable_years.append(year)
             continue
         for book in books:
             raw_zh = quick_clean_translation(book.title_zh, 'title')
+            award_wikidata_id = book.award.wikidata_id if book.award else None
             records.append(
                 {
                     'id': book.id,
@@ -677,6 +702,8 @@ def _load_recent_award_books(award_service, years: list[int]) -> list[dict]:
                     'cover_original_url': book.cover_original_url,
                     'award_name': book.award.name if book.award else '',
                     'award_name_en': book.award.name_en if book.award else '',
+                    'award_wikidata_id': award_wikidata_id,
+                    'award_result_kind': award_result_kind(book.category, award_wikidata_id),
                 }
             )
     return records
@@ -700,7 +727,7 @@ def rankings():
         tab = 'cross'
 
     categories = current_app.config['CATEGORIES']
-    books_by_category = _fetch_all_category_books(categories)
+    books_by_category, nyt_failed_categories = _fetch_all_category_books_with_status(categories)
 
     cross_entries = [entry.to_dict() for entry in build_cross_list_entries(books_by_category)]
     longevity_entries = [entry.to_dict() for entry in build_longevity_entries(books_by_category, limit=LONGEVITY_LIMIT)]
@@ -729,7 +756,8 @@ def rankings():
 
     current_year = datetime.now(UTC).year
     award_years = list(range(current_year, current_year - OVERLOOKED_YEAR_SPAN, -1))
-    award_books = _load_recent_award_books(AwardBookService(), award_years)
+    unavailable_years: list[int] = []
+    award_books = _load_recent_award_books(AwardBookService(), award_years, unavailable_years)
     overlooked_entries = [entry.to_dict() for entry in build_overlooked_entries(award_books, books_by_category)]
 
     book_service = get_service('book_service')
@@ -746,6 +774,8 @@ def rankings():
         category_count=len(categories),
         category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
         update_time=update_time,
+        rankings_nyt_unavailable_count=len(nyt_failed_categories),
+        rankings_awards_unavailable=bool(unavailable_years),
         active_tab='rankings',
     )
 
@@ -787,6 +817,11 @@ def _parse_new_books_params(args) -> dict:
     if view_mode not in ['grid', 'list']:
         view_mode = 'grid'
 
+    raw_publication_status = args.get('publication_status', 'all')
+    selected_publication_status = 'all' if raw_publication_status is None else str(raw_publication_status).strip()
+    if selected_publication_status not in ('all', 'published', 'upcoming', 'pending'):
+        selected_publication_status = 'all'
+
     return {
         'selected_publisher': selected_publisher,
         'selected_category': selected_category,
@@ -795,6 +830,7 @@ def _parse_new_books_params(args) -> dict:
         'page': page,
         'per_page': 20,
         'view_mode': view_mode,
+        'selected_publication_status': selected_publication_status,
     }
 
 
@@ -805,17 +841,21 @@ def _load_new_books_data(modules, params: dict) -> dict:
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'新书静态数据兜底初始化失败: {e}', level='warning')
 
+    publishers_unavailable = False
     try:
         publishers = modules.publisher_manager.get_publishers(active_only=True)
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取出版社列表失败: {e}', level='warning')
         publishers = []
+        publishers_unavailable = True
 
+    publisher_counts_unavailable = False
     try:
         publisher_book_counts = modules.publisher_manager.get_publisher_book_counts()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取出版社图书计数失败: {e}')
-        publisher_book_counts = {}
+        publisher_book_counts = None
+        publisher_counts_unavailable = True
 
     try:
         categories = modules.query_service.get_categories()
@@ -823,17 +863,13 @@ def _load_new_books_data(modules, params: dict) -> dict:
         log_error(ErrorCategory.DB_QUERY, f'获取分类列表失败: {e}', level='warning')
         categories = []
 
+    stats_unavailable = False
     try:
         stats = modules.query_service.get_statistics()
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取统计数据失败: {e}', level='warning')
-        stats = {
-            'total_books': 0,
-            'total_publishers': 0,
-            'active_publishers': 0,
-            'recent_books_7d': 0,
-            'top_categories': [],
-        }
+        stats = None
+        stats_unavailable = True
 
     page = params['page']
     per_page = params['per_page']
@@ -841,7 +877,9 @@ def _load_new_books_data(modules, params: dict) -> dict:
     selected_category = params['selected_category']
     selected_days = params['selected_days']
     search_query = params['search_query']
+    selected_publication_status = params.get('selected_publication_status', 'all')
 
+    data_load_failed = False
     try:
         if search_query:
             books, total = modules.query_service.search_books(
@@ -851,6 +889,7 @@ def _load_new_books_data(modules, params: dict) -> dict:
                 publisher_id=selected_publisher,
                 category=selected_category if selected_category else None,
                 days=selected_days,
+                publication_status=selected_publication_status,
             )
         else:
             books, total = modules.query_service.get_new_books(
@@ -859,27 +898,42 @@ def _load_new_books_data(modules, params: dict) -> dict:
                 days=selected_days,
                 page=page,
                 per_page=per_page,
+                publication_status=selected_publication_status,
             )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取书籍数据失败: {e}', level='warning')
-        books, total = [], 0
+        books, total = [], None
+        data_load_failed = True
 
-    total_pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+    total_pages = None if total is None else (total + per_page - 1) // per_page if per_page > 0 else 0
 
     publisher_sections: list = []
-    is_browsing = not (selected_publisher or selected_category or search_query)
-    if is_browsing:
-        try:
-            publisher_sections = _build_new_book_publisher_sections(
-                modules, publishers, publisher_book_counts, selected_days
-            )
-        except Exception as e:
-            log_error(ErrorCategory.DB_QUERY, f'新书出版社书列加载失败: {e}', level='warning')
+    publisher_sections_unavailable = False
+    try:
+        publisher_sections = _build_new_book_publisher_sections(
+            modules,
+            publishers,
+            publisher_book_counts,
+            selected_days,
+            publisher_id=selected_publisher,
+            category=selected_category if selected_category else None,
+            search=search_query,
+            publication_status=selected_publication_status,
+        )
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'新书出版社书列加载失败: {e}', level='warning')
+        publisher_sections = []
+        publisher_sections_unavailable = True
 
     return {
         'publishers': publishers,
+        'publishers_unavailable': publishers_unavailable,
+        'publisher_kind': {
+            pub.id: ('provider' if pub.crawler_class in _ABOUT_SOURCE_CRAWLERS else 'publisher') for pub in publishers
+        },
         'publisher_book_counts': publisher_book_counts,
         'publisher_sections': publisher_sections,
+        'publisher_sections_unavailable': publisher_sections_unavailable,
         'categories': categories,
         'books': books,
         'stats': stats,
@@ -900,6 +954,10 @@ def _load_new_books_data(modules, params: dict) -> dict:
         'total': total,
         'total_pages': total_pages,
         'per_page': per_page,
+        'selected_publication_status': selected_publication_status,
+        'data_load_failed': data_load_failed,
+        'stats_unavailable': stats_unavailable,
+        'publisher_counts_unavailable': publisher_counts_unavailable,
         # audit10：日期窗口语义——过去 selected_days 天已出版，加未来 14 天预告窗口。
         # 与 query_service._apply_publication_window 的 future_grace_date 保持一致，
         # 供模板把"全库收录总量"与"当前筛选结果"以及窗口口径讲清楚。
@@ -1008,30 +1066,59 @@ def _build_publisher_sections(publishers_data: list, publisher_ids: dict, module
 
 
 def _build_new_book_publisher_sections(
-    modules, publishers: list, publisher_book_counts: dict, days: int, limit: int = 8, max_sections: int = 6
+    modules,
+    publishers: list,
+    publisher_book_counts: dict | None,
+    days: int,
+    limit: int = 8,
+    max_sections: int = 6,
+    *,
+    publisher_id=None,
+    category=None,
+    search: str = '',
+    publication_status: str = 'all',
 ) -> list:
     """按出版社聚合的新书书列。
 
-    沿用页面当前时间窗口，一次 get_new_books 查询 + Python 侧按 publisher_id 分桶，
-    避免逐出版社发查询；按各出版社新书数降序取前若干栏，窗口内无新书的出版社不出栏。
+    与主列表同一筛选做一次查询，再按活跃出版社分桶。排序用该筛选桶的完整本数，
+    截断栏数与每栏本数发生在排序之后。publisher_book_counts 只为旧签名保留。
     """
-    ranked = sorted(
-        (p for p in publishers if publisher_book_counts.get(p.id)),
-        key=lambda p: publisher_book_counts.get(p.id, 0),
-        reverse=True,
-    )[:max_sections]
-    wanted = {p.id: p for p in ranked}
-    if not wanted:
+    del publisher_book_counts
+    if not publishers:
         return []
 
-    books, _total = modules.query_service.get_new_books(days=days, page=1, per_page=300)
+    if search:
+        books, _total = modules.query_service.search_books(
+            search,
+            1,
+            300,
+            publisher_id=publisher_id,
+            category=category,
+            days=days,
+            publication_status=publication_status,
+        )
+    else:
+        books, _total = modules.query_service.get_new_books(
+            publisher_id=publisher_id,
+            category=category,
+            days=days,
+            page=1,
+            per_page=300,
+            publication_status=publication_status,
+        )
 
+    active = {p.id: p for p in publishers}
     buckets: dict[int, list] = defaultdict(list)
     for book in books:
-        if book.publisher_id in wanted and len(buckets[book.publisher_id]) < limit:
+        if book.publisher_id in active:
             buckets[book.publisher_id].append(book)
 
-    return [{'publisher': wanted[pid], 'books': buckets[pid]} for pid in wanted if buckets.get(pid)]
+    ranked = sorted(
+        (p for p in publishers if buckets.get(p.id)),
+        key=lambda p: len(buckets[p.id]),
+        reverse=True,
+    )[:max_sections]
+    return [{'publisher': p, 'books': buckets[p.id][:limit]} for p in ranked]
 
 
 @main_bp.route('/publishers')
@@ -1081,11 +1168,24 @@ def analytics_dashboard():
 @main_bp.route('/new-book/<int:book_id>')
 def new_book_detail(book_id):
     """新书详情页（异步翻译，不阻塞响应）"""
+    back_url = safe_return_path(request.args.get('return_to'), '/new-books')
     modules = get_new_book_modules()
-    book = modules.query_service.get_book(book_id)
+    try:
+        book = modules.query_service.get_book(book_id)
+    except Exception:
+        log_error(
+            ErrorCategory.DB_QUERY,
+            f'新书详情加载失败 book_id={book_id}',
+            exc_info=True,
+        )
+        return render_adaptive(
+            'error.html',
+            message='书籍暂时无法加载，请稍后再试',
+            back_url=back_url,
+        ), 500
 
     if not book:
-        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/new-books')
+        return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
 
     if not book.title_zh or not book.description_zh:
         translation_service = get_service('translation_service')
@@ -1101,7 +1201,7 @@ def new_book_detail(book_id):
 
             submit_background_task(translate_book_async)
 
-    return render_adaptive('new_book_detail.html', book=book, back_url=request.referrer or '/new-books')
+    return render_adaptive('new_book_detail.html', book=book, back_url=back_url)
 
 
 def _parse_award_buy_links(raw: Any) -> list[dict[str, str]]:
@@ -1157,16 +1257,29 @@ def award_book_detail(book_id):
     from ..models.schemas import AwardBook
     from ..services.award_book_service import AwardBookService
 
+    back_url = safe_return_path(request.args.get('return_to'), '/awards')
     award_service = AwardBookService()
-    book = award_service.get_award_book_by_id(book_id)
+    try:
+        book = award_service.get_award_book_by_id(book_id)
+    except Exception:
+        log_error(
+            ErrorCategory.DB_QUERY,
+            f'获奖图书详情加载失败 book_id={book_id}',
+            exc_info=True,
+        )
+        return render_adaptive(
+            'error.html',
+            message='获奖图书暂时无法加载，请稍后再试',
+            back_url=back_url,
+        ), 500
 
     if book:
         if not book.is_displayable:
             return render_adaptive(
                 'error.html',
                 message='该获奖图书已下架',
-                back_url=request.referrer or '/awards',
-            )
+                back_url=back_url,
+            ), 404
 
         # 清理 title 字段中的 ISBN 脏数据
         raw_title = (book.title or '').strip()
@@ -1218,10 +1331,10 @@ def award_book_detail(book_id):
             shown_desc=shown_desc,
             buy_links=buy_links,
             related_books=related_books,
-            back_url=request.referrer or '/awards',
+            back_url=back_url,
         )
     else:
-        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/awards')
+        return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
 
 
 @main_bp.route('/book/<int:book_index>')
@@ -1234,14 +1347,34 @@ def book_detail(book_index):
     if category not in categories:
         category = default_category
 
+    back_url = safe_return_path(request.args.get('return_to'), '/')
+
     try:
         books_data, _ = _get_books_for_category(category)
     except ExternalAPIError as e:
         e.log()
-        books_data = []
+        return render_adaptive(
+            'error.html',
+            message='榜单暂时无法加载，请稍后再试',
+            back_url=back_url,
+        ), 500
+    except Exception as exc:
+        error_category = (
+            ErrorCategory.DB_QUERY if type(exc).__module__.startswith('sqlalchemy') else ErrorCategory.API_CALL
+        )
+        log_error(
+            error_category,
+            f'分类榜单加载失败 category={category}: {exc}',
+            exc_info=True,
+        )
+        return render_adaptive(
+            'error.html',
+            message='书籍暂时无法加载，请稍后再试',
+            back_url=back_url,
+        ), 500
 
-    if book_index < 0 or book_index >= len(books_data):
-        return render_adaptive('error.html', message='书籍不存在', back_url=request.referrer or '/')
+    if not books_data or book_index < 0 or book_index >= len(books_data):
+        return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
 
     book = books_data[book_index].copy()
 
@@ -1262,7 +1395,7 @@ def book_detail(book_index):
         category=category,
         categories=categories,
         category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
-        back_url=request.referrer or '/?category=' + category,
+        back_url=back_url,
         active_tab='home',
     )
 
@@ -1270,25 +1403,148 @@ def book_detail(book_index):
 @main_bp.route('/profile')
 def profile():
     """个人中心 - 收藏与搜索历史（移动端优先，匿名会话）"""
+    from sqlalchemy import or_
+
+    from ..models.database import db
+    from ..models.new_book import NewBook
+    from ..models.schemas import AwardBook, BookMetadata
+    from ..services.new_book.query_service import NewBookQueryService
     from ..services.user_service import UserService
     from .api import get_session_id
+
+    def _real_title(*candidates: object) -> str:
+        for value in candidates:
+            if not isinstance(value, str):
+                continue
+            text = value.strip()
+            if not text or AwardBook._looks_like_isbn(text) or not strip_placeholder(text):
+                continue
+            return text
+        return ''
+
+    def _zh_title(*candidates: object) -> str:
+        for value in candidates:
+            if not isinstance(value, str):
+                continue
+            text = value.strip()
+            if not text or AwardBook._looks_like_isbn(text) or not strip_placeholder(text):
+                continue
+            cleaned = quick_clean_translation(text, 'title')
+            cleaned_text = cleaned.strip() if isinstance(cleaned, str) else ''
+            if not cleaned_text or AwardBook._looks_like_isbn(cleaned_text) or not strip_placeholder(cleaned_text):
+                continue
+            return cleaned_text
+        return ''
+
+    def _nonblank(value: object) -> str:
+        if not isinstance(value, str):
+            return ''
+        return value.strip()
 
     session_id = get_session_id()
     service = UserService()
     favorites = service.get_favorites(session_id)
     search_history = service.get_search_history(session_id, limit=10)
 
-    # 用 BookMetadata 富化收藏列表（补全书名/作者）
+    unique_isbns: list[str] = []
+    seen_isbns: set[str] = set()
     for fav in favorites:
-        isbn = fav.get('isbn', '')
-        if isbn:
-            meta = service.get_book_metadata(isbn)
-            if meta:
-                fav['title'] = meta.title_zh or meta.title
-                fav['author'] = meta.author
-            else:
-                fav['title'] = isbn
-                fav['author'] = ''
+        raw_isbn = fav.get('isbn') or ''
+        if raw_isbn and raw_isbn not in seen_isbns:
+            seen_isbns.add(raw_isbn)
+            unique_isbns.append(raw_isbn)
+
+    meta_by_isbn: dict[str, BookMetadata] = {}
+    award_by_isbn: dict[str, AwardBook] = {}
+    new_by_isbn: dict[str, NewBook] = {}
+    if unique_isbns:
+        for loaded_meta in (
+            db.session.query(BookMetadata)
+            .filter(BookMetadata.isbn.in_(unique_isbns))  # type: ignore[union-attr]
+            .all()
+        ):
+            isbn_key = loaded_meta.isbn
+            if isbn_key and isbn_key not in meta_by_isbn:
+                meta_by_isbn[isbn_key] = loaded_meta
+
+        for loaded_award in (
+            db.session.query(AwardBook)
+            .filter(
+                or_(
+                    AwardBook.isbn13.in_(unique_isbns),  # type: ignore[union-attr]
+                    AwardBook.isbn10.in_(unique_isbns),  # type: ignore[union-attr]
+                ),
+                AwardBook.is_displayable.is_(True),  # type: ignore[union-attr]
+            )
+            .order_by(AwardBook.id.asc())  # type: ignore[union-attr]
+            .all()
+        ):
+            for isbn_key in (loaded_award.isbn13, loaded_award.isbn10):
+                if isbn_key and isbn_key not in award_by_isbn:
+                    award_by_isbn[isbn_key] = loaded_award
+
+        new_query = NewBookQueryService._exclude_hidden_site_primary_books(
+            db.session.query(NewBook).filter(
+                or_(
+                    NewBook.isbn13.in_(unique_isbns),  # type: ignore[union-attr]
+                    NewBook.isbn10.in_(unique_isbns),  # type: ignore[union-attr]
+                ),
+                NewBook.is_displayable.is_(True),  # type: ignore[attr-defined]
+            )
+        )
+        for new_row in new_query.order_by(NewBook.id.asc()).all():  # type: ignore[attr-defined]
+            for isbn_key in (new_row.isbn13, new_row.isbn10):
+                if isbn_key and isbn_key not in new_by_isbn:
+                    new_by_isbn[isbn_key] = new_row
+
+    locale = str(get_locale() or 'zh')
+    profile_return = url_for('main.profile', lang=locale)
+    for fav in favorites:
+        raw_isbn = fav.get('isbn') or ''
+        meta = meta_by_isbn.get(raw_isbn)
+        award = award_by_isbn.get(raw_isbn)
+        new_row = new_by_isbn.get(raw_isbn)
+
+        title_en = _real_title(meta.title) if meta is not None else ''
+        if not title_en and award is not None:
+            title_en = _real_title(award.title)
+        if not title_en and new_row is not None:
+            title_en = _real_title(new_row.title)
+        if not title_en:
+            title_en = raw_isbn
+
+        title_zh = _zh_title(meta.title_zh) if meta is not None else ''
+        if not title_zh and award is not None:
+            title_zh = _zh_title(award.title_zh)
+        if not title_zh and new_row is not None:
+            title_zh = _zh_title(new_row.title_zh)
+
+        author = _nonblank(meta.author) if meta is not None else ''
+        if not author and award is not None:
+            author = _nonblank(award.author)
+        if not author and new_row is not None:
+            author = _nonblank(new_row.author)
+
+        fav['title_en'] = title_en
+        fav['title_zh'] = title_zh
+        fav['author'] = author
+        fav['title'] = title_en if locale == 'en' else (title_zh or title_en)
+        if award is not None:
+            fav['detail_url'] = url_for(
+                'main.award_book_detail',
+                book_id=award.id,
+                lang=locale,
+                return_to=profile_return,
+            )
+        elif new_row is not None:
+            fav['detail_url'] = url_for(
+                'main.new_book_detail',
+                book_id=new_row.id,
+                lang=locale,
+                return_to=profile_return,
+            )
+        else:
+            fav['detail_url'] = url_for('main.index', search=raw_isbn, lang=locale)
 
     return render_adaptive(
         'profile.html',
@@ -1402,8 +1658,16 @@ def weekly_reports():
         return render_adaptive('error.html', message='服务不可用', back_url='/')
 
     report_service = WeeklyReportService(book_service)
-    latest_report, is_generating = report_service.get_or_trigger_current_week_report()
-    reports = report_service.get_reports()
+    try:
+        latest_report, is_generating = report_service.get_or_trigger_current_week_report()
+        reports = report_service.get_reports()
+    except Exception as e:
+        log_error(ErrorCategory.DB_QUERY, f'周报加载失败: {e!s}', exc_info=True)
+        return render_adaptive(
+            'error.html',
+            message='周报加载失败，请稍后再试',
+            back_url='/reports/weekly',
+        ), 500
 
     for report in reports:
         report.content_data = prepare_report_presentation(report, locale=str(get_locale() or 'zh'))['content']

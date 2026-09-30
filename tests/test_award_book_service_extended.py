@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.models.schemas import Award, AwardBook, SystemConfig
 from app.services.award_book_service import AwardBookService
 
@@ -626,8 +628,8 @@ class TestQueryMethodsExceptionPaths:
     def test_get_all_awards_db_error(self, app, db, award_service):
         with app.app_context(), patch.object(Award, 'query') as mock_query:
             mock_query.all.side_effect = Exception('DB错误')
-            result = award_service.get_all_awards()
-            assert result == []
+            with pytest.raises(Exception, match='DB错误'):
+                award_service.get_all_awards()
 
     def test_get_award_by_id_db_error(self, app, db, award_service):
         with app.app_context(), patch('app.models.schemas.db.session') as mock_session:
@@ -638,27 +640,27 @@ class TestQueryMethodsExceptionPaths:
     def test_get_award_by_name_db_error(self, app, db, award_service):
         with app.app_context(), patch.object(Award, 'query') as mock_query:
             mock_query.filter_by.return_value.first.side_effect = Exception('DB错误')
-            result = award_service.get_award_by_name('test')
-            assert result is None
+            with pytest.raises(Exception, match='DB错误'):
+                award_service.get_award_by_name('test')
 
     def test_get_award_books_db_error(self, app, db, award_service):
         with app.app_context(), patch.object(AwardBook, 'query') as mock_query:
             mock_query.filter_by.return_value.filter_by.return_value = mock_query
             mock_query.count.side_effect = Exception('DB错误')
-            result = award_service.get_award_books()
-            assert result == ([], 0)
+            with pytest.raises(Exception, match='DB错误'):
+                award_service.get_award_books()
 
     def test_get_award_book_by_id_db_error(self, app, db, award_service):
         with app.app_context(), patch('app.models.schemas.db.session') as mock_session:
             mock_session.get.side_effect = Exception('DB错误')
-            result = award_service.get_award_book_by_id(1)
-            assert result is None
+            with pytest.raises(Exception, match='DB错误'):
+                award_service.get_award_book_by_id(1)
 
     def test_search_award_books_db_error(self, app, db, award_service):
         with app.app_context(), patch.object(AwardBook, 'query') as mock_query:
             mock_query.filter.return_value.count.side_effect = Exception('DB错误')
-            result = award_service.search_award_books('test')
-            assert result == ([], 0)
+            with pytest.raises(Exception, match='DB错误'):
+                award_service.search_award_books('test')
 
     def test_get_distinct_years_db_error(self, app, db, award_service):
         with app.app_context(), patch('app.models.schemas.db.session') as mock_session:
@@ -671,8 +673,8 @@ class TestQueryMethodsExceptionPaths:
     def test_get_book_counts_by_award_db_error(self, app, db, award_service):
         with app.app_context(), patch('app.models.schemas.db.session') as mock_session:
             mock_session.query.return_value.group_by.return_value.all.side_effect = Exception('DB错误')
-            result = award_service.get_book_counts_by_award()
-            assert result == {}
+            with pytest.raises(Exception, match='DB错误'):
+                award_service.get_book_counts_by_award()
 
     def test_find_award_book_by_isbn_db_error(self, app, db, award_service):
         with app.app_context(), patch.object(AwardBook, 'query') as mock_query:

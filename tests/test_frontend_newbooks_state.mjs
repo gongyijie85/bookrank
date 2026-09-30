@@ -120,7 +120,7 @@ class El {
         this.listeners = new Map();
         this._value = attrs.value !== undefined ? String(attrs.value) : '';
         this._text = text;
-        this.hidden = false;
+        this.hidden = Object.hasOwn(attrs, 'hidden');
         // document.documentElement.style.getPropertyValue/setPropertyValue（base.js 用）
         this.style = {
             _props: new Map(),
@@ -158,6 +158,8 @@ class El {
 
     get value() { return this._value; }
     set value(v) { this._value = v == null ? '' : String(v); }
+    get href() { return this.getAttribute('href'); }
+    set href(value) { this.setAttribute('href', String(value)); }
 
     get className() { return this.classList.value; }
     set className(v) {
@@ -423,6 +425,7 @@ function createPage({ appLang = 'en' } = {}) {
         href: 'http://local.test/new-books',
         search: '',
         origin: 'http://local.test',
+        pathname: '/new-books',
         reload() { location._reloaded = true; },
     };
 
@@ -439,9 +442,10 @@ function createPage({ appLang = 'en' } = {}) {
 
     function applyUrl(url) {
         if (url == null) return;
-        location.href = 'http://local.test' + url;
-        const q = url.indexOf('?');
-        location.search = q === -1 ? '' : url.slice(q);
+        const resolved = new URL(String(url), location.href);
+        location.href = resolved.href;
+        location.search = resolved.search;
+        location.pathname = resolved.pathname;
     }
 
     const store = new Map();
@@ -533,6 +537,19 @@ function bookPayload(id, title, { pages = 1, page = 1, total = 1 } = {}) {    re
         },
     };
 }
+test('AJAX cards preserve numeric zero/currency text and omit blank price through real language changes', async () => {
+    const payload = bookPayload(11, 'Price book');
+    const template = payload.data.books[0];
+    payload.data.books = [12.5, 'GBP 19.99', 0, '€14.00', '   '].map((price, index) => ({ ...template, id: 11 + index, isbn13: '978000000001' + index, price }));
+    const { page, context } = bootPage({ appLang: 'zh', withTranslations: true, fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: async () => payload }) });
+    page.selectFilter('category-filter', '商业'); await flush();
+    const prices = () => page.doc.querySelectorAll('#books-container .book-price').map(node => node.textContent);
+    assert.deepEqual(prices(), ['12.5（币种未确认）', 'GBP 19.99', '0（币种未确认）', '€14.00']);
+    for (const link of page.doc.querySelectorAll('#books-container .book-title a')) assertNativeDetailReturn(link, new URL(link.getAttribute('href'), page.location.href).pathname, page);
+    vm.runInContext("setGlobalLanguage('en')", context); await flush();
+    assert.deepEqual(prices(), ['12.5 (currency unconfirmed)', 'GBP 19.99', '0 (currency unconfirmed)', '€14.00']);
+    for (const link of page.doc.querySelectorAll('#books-container .book-title a')) assertNativeDetailReturn(link, new URL(link.getAttribute('href'), page.location.href).pathname, page);
+});
 
 /** CustomEvent 的最小实现（模板脚本用它派发 booklanguagechange）。 */
 class CustomEventShim {
@@ -642,9 +659,14 @@ function seedSsrCard(page, { isbn = '9780000000001', href = '/new-book/7', volum
     container.appendChild(card);
     return card;
 }
+function assertNativeDetailReturn(link, pathname, page) {
+    const target = new URL(link.getAttribute('href'), page.location.href);
+    assert.equal(target.pathname, pathname, '详情目标应保持同一本书');
+    assert.equal(target.searchParams.get('return_to'), page.location.pathname + page.location.search, '返回条件必须与当前页面一致');
+}
 
 test('BookI18n：首次 apply 语言不破坏书名链接与卷号兄弟节点', () => {
-    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ json: () => Promise.resolve({}) }) });
+    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) }) });
     const card = seedSsrCard(page);
 
     context.BookI18n.clear();
@@ -657,13 +679,13 @@ test('BookI18n：首次 apply 语言不破坏书名链接与卷号兄弟节点',
     assert.equal(titleEl.textContent.includes('第一卷'), true, '中文标题未应用');
     const link = titleEl.querySelector('a');
     assert.ok(link, 'applyLanguage 把书名 <a> 抹掉了（卡片不再可点）');
-    assert.equal(link.getAttribute('href'), '/new-book/7', '详情路由被破坏');
+    assertNativeDetailReturn(link, '/new-book/7', page);
     assert.equal(link.textContent, '第一卷', '内层链接文本未更新');
     assert.ok(titleEl.querySelector('.browse-card-volume'), '卷号兄弟节点被覆盖掉了');
 });
 
 test('BookI18n：EN→ZH→EN 连续切语言仍保住链接 href 与卷号', () => {
-    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ json: () => Promise.resolve({}) }) });
+    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) }) });
     const card = seedSsrCard(page, { href: '/new-book/42' });
     context.BookI18n.clear();
     context.BookI18n.register('9780000000001', {
@@ -675,14 +697,14 @@ test('BookI18n：EN→ZH→EN 连续切语言仍保住链接 href 与卷号', ()
         const titleEl = card.querySelector('.book-title');
         const link = titleEl.querySelector('a');
         assert.ok(link, `${lang}: 书名 <a> 丢失`);
-        assert.equal(link.getAttribute('href'), '/new-book/42', `${lang}: href 被改写`);
+        assertNativeDetailReturn(link, '/new-book/42', page);
         assert.ok(titleEl.querySelector('.browse-card-volume'), `${lang}: 卷号丢失`);
     }
     assert.equal(card.querySelector('.book-title a').textContent, 'Volume One', '切回 EN 后标题未复原');
 });
 
 test('BookI18n：详情页新布局 .detail-meta / .detail-meta-row 也能按 label 找到分类值', () => {
-    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ json: () => Promise.resolve({}) }) });
+    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) }) });
     const container = page.doc.getElementById('books-container');
     container.innerHTML = '';
     // 新版详情布局：.detail-meta > .detail-meta-row > dt.meta-label + dd.meta-value（无 data-cat-*）
@@ -708,7 +730,7 @@ test('BookI18n：详情页新布局 .detail-meta / .detail-meta-row 也能按 la
 });
 
 test('BookI18n：旧布局 .detail-meta-grid / .meta-card 行为不变', () => {
-    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ json: () => Promise.resolve({}) }) });
+    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) }) });
     const container = page.doc.getElementById('books-container');
     container.innerHTML = '';
     const detail = parseHtml(
@@ -738,7 +760,7 @@ test('BookI18n：旧布局 .detail-meta-grid / .meta-card 行为不变', () => {
 
 test('选中筛选：写 URL、加 chip、刷新计数与结果', async () => {
     const { page } = bootPage({
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(bookPayload(1, 'Business Book')) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(1, 'Business Book')) }),
     });
 
     page.selectFilter('category-filter', '商业');
@@ -755,7 +777,7 @@ test('选中筛选：写 URL、加 chip、刷新计数与结果', async () => {
 
 test('移除一个 chip 保留其余条件', async () => {
     const { page } = bootPage({
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(bookPayload(1, 'Book')) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(1, 'Book')) }),
     });
     page.selectFilter('category-filter', '商业');
     page.selectFilter('search-input', 'Title');
@@ -789,7 +811,7 @@ test('移除一个 chip 保留其余条件', async () => {
 
 test('Back/Forward：恢复控件/卡片/chips，且不新增历史记录', async () => {
     const { page } = bootPage({
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(bookPayload(2, 'Restored Book')) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(2, 'Restored Book')) }),
     });
 
     // 模拟浏览器 Back 到 ?days=180
@@ -810,7 +832,7 @@ test('AJAX 渲染的卡片保留明文 ISBN（#248 曾移除，用户要求恢�
     // 回归锁：新书速递的卡片有 SSR 与 AJAX 两条渲染路径，这里跑的是真实内联脚本产出的
     // 那一份。bookPayload 的 isbn13 是 '978000000000' + id，故 id=1 → '9780000000001'。
     const { page } = bootPage({
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(bookPayload(1, 'Business Book')) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(1, 'Business Book')) }),
     });
 
     page.selectFilter('category-filter', '商业');
@@ -825,7 +847,7 @@ test('AJAX 渲染的卡片保留明文 ISBN（#248 曾移除，用户要求恢�
 
 test('语言重绘不新增历史记录', async () => {
     const { page } = bootPage({
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(bookPayload(3, 'Lang Book')) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(3, 'Lang Book')) }),
     });
     const before = page.historyCalls.length;
     page.emit('languagechange', { language: 'zh' });
@@ -856,7 +878,7 @@ test('竞态：先发 A 后发 B 时，B 的状态胜出，A 的迟到响应不�
 
     /** 让一条挂起的 fetch 返回响应。 */
     const respond = (entry, payload) => {
-        entry.resolve({ json: () => Promise.resolve(payload) });
+        entry.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) });
     };
 
     // B 先返回：它是最新请求，应当胜出
@@ -893,7 +915,7 @@ test('竞态：过期请求的失败不得覆盖最新 UI', async () => {
     page.selectFilter('category-filter', '小说');
     assert.equal(deferred.length, 2, '第二个请求未发出');
 
-    deferred[1].resolve({ json: () => Promise.resolve(bookPayload(30, 'Latest Book')) });
+    deferred[1].resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(30, 'Latest Book')) });
     await flush();
 
     // 旧请求失败（被 abort 或网络错误）：不得把最新卡片换成错误态
@@ -907,7 +929,7 @@ test('竞态：过期请求的失败不得覆盖最新 UI', async () => {
 
 test('真实失败：最新请求失败仍渲染错误态与重试按钮（保留原有行为）', async () => {
     const { page } = bootPage({
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve({ success: false, message: 'boom' }) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: false, message: 'boom' }) }),
     });
 
     page.selectFilter('category-filter', '商业');
@@ -954,6 +976,7 @@ test('用户筛选请求在途时切语言：同一次用户动作只发一次�
 
     // 请求返回：这是同一个用户动作的响应 —— 内容按**当前**语言渲染，并 push 一条历史
     pending[0].resolve({
+        ok: true, status: 200,
         json: () => Promise.resolve({
             ...bookPayload(7, 'Volume One'),
             data: {
@@ -1004,7 +1027,7 @@ test('用户筛选请求在途时切语言：同一次用户动作只发一次�
     // 「被取代的在途请求必须被 abort」是下面那个真正重叠的 A/B 用例的职责。
     assert.notEqual(pending[1].init.signal, pending[0].init.signal, '两次请求复用了同一个 AbortSignal');
 
-    pending[1].resolve({ json: () => Promise.resolve(bookPayload(8, 'Newest Book')) });
+    pending[1].resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(8, 'Newest Book')) });
     await flush();
     assert.equal(page.context_isLoading(), false, '最新请求落定后 isLoading 未复位（被旧请求的 finally 抢先复位？）');
     assert.ok(
@@ -1027,7 +1050,7 @@ test('过期请求的 finally 不得清掉更新请求的在途标志', async ()
     // A 迟到返回：它的完成与 finally 都不得复位 B 的旗标 / 释放 B 的 controller
     const bSignal = pending[1].init.signal;
     assert.ok(bSignal, 'B 请求没有携带 AbortSignal');
-    pending[0].resolve({ json: () => Promise.resolve(bookPayload(10, 'A Book')) });
+    pending[0].resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(10, 'A Book')) });
     await flush();
     assert.equal(page.context_isLoading(), true, '过期请求的 finally 清掉了最新请求的 isLoading');
     // context_inFlight() 返回的是 AbortController（不是 signal）：只有比 signal 才是在问
@@ -1036,7 +1059,7 @@ test('过期请求的 finally 不得清掉更新请求的在途标志', async ()
     assert.ok(bController, '最新请求在途时 inFlightController 已被释放');
     assert.equal(bController.signal, bSignal, '过期请求的 finally 释放了最新请求的 controller');
 
-    pending[1].resolve({ json: () => Promise.resolve(bookPayload(20, 'B Book')) });
+    pending[1].resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(20, 'B Book')) });
     await flush();
     assert.equal(page.context_isLoading(), false, '最新请求落定后 isLoading 未复位');
     const container = page.doc.getElementById('books-container');
@@ -1118,7 +1141,7 @@ function cardPayload(id, title, titleZh) {
 /** id → 该语言下 aria-label 的期望值（文案是翻译字典的对外契约，不是实现细节）。 */
 const EN_ARIA_LABELS = {
     'filter-form': 'Search and filters',
-    'publisher-filter': 'Select publisher',
+    'publisher-filter': 'Select source',
     'category-filter': 'Select category',
     'days-filter': 'Select time range',
     'btn-search': 'Search',
@@ -1129,7 +1152,7 @@ const EN_ARIA_LABELS = {
 
 const ZH_ARIA_LABELS = {
     'filter-form': '搜索与筛选',
-    'publisher-filter': '选择出版社',
+    'publisher-filter': '选择来源',
     'category-filter': '选择分类',
     'days-filter': '选择时间范围',
     'btn-search': '搜索',
@@ -1142,7 +1165,7 @@ test('中文 SSR → EN → ZH：面包屑与 aria-label 跟随语言，筛选/U
     const { page, context } = bootPage({
         appLang: 'zh',
         withTranslations: true,
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(cardPayload(5, 'Volume One', '第一卷')) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(cardPayload(5, 'Volume One', '第一卷')) }),
     });
 
     // 用户动作：中文态选「商业」（fixture 以 identity gettext 渲染，即中文 SSR）。
@@ -1190,7 +1213,10 @@ test('中文 SSR → EN → ZH：面包屑与 aria-label 跟随语言，筛选/U
         `语言切换改动了 URL：${page.location.search}`,
     );
     assert.equal(page.historyCalls.filter((c) => c.kind === 'push').length, 1, '语言切换新增了历史记录');
-    assert.equal(page.historyCalls.filter((c) => c.kind === 'replace').length, 0, '语言切换写了 replace 历史');
+    const languageReplaces = page.historyCalls.filter(c => c.kind === 'replace');
+    assert.equal(languageReplaces.length, 2, '两次明确语言选择分别同步当前 URL');
+    assert.deepEqual(languageReplaces.map(c => new URL(c.url, page.location.origin).searchParams.get('lang')), ['en', 'zh']);
+    for (const call of languageReplaces) assert.equal(new URL(call.url, page.location.origin).searchParams.get('category'), '商业');
     assert.equal(page.fetchCalls.length, 1, '语言切换重复发起了 API 请求');
     assert.ok(
         page.doc.getElementById('active-filters').querySelector('[data-chip-key="category"]'),
@@ -1198,14 +1224,14 @@ test('中文 SSR → EN → ZH：面包屑与 aria-label 跟随语言，筛选/U
     );
     const titleLink = page.doc.querySelector('#books-container .book-title a');
     assert.ok(titleLink, '语言切换抹掉了书名链接');
-    assert.equal(titleLink.getAttribute('href'), '/new-book/5', '详情目标在语言切换中被改动');
+    assertNativeDetailReturn(titleLink, '/new-book/5', page);
 });
 
 test('封面 alt 跟随语言：中文态渲染、EN/ZH 往返切换', async () => {
     const { page, context } = bootPage({
         appLang: 'zh',
         withTranslations: true,
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve(cardPayload(9, 'Dune', '沙丘')) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(cardPayload(9, 'Dune', '沙丘')) }),
     });
 
     page.selectFilter('category-filter', '商业');
@@ -1287,7 +1313,7 @@ test('SSR 真实卡片：双语留痕随语言写全，EN/ZH 切换只改 alt、
     const { page, context } = bootPage({
         appLang: 'zh',
         withTranslations: true,
-        fetchImpl: () => Promise.resolve({ json: () => Promise.resolve({}) }),
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) }),
     });
     const container = page.doc.getElementById('books-container');
     container.innerHTML = zhCard;
@@ -1321,5 +1347,189 @@ test('SSR 真实卡片：双语留痕随语言写全，EN/ZH 切换只改 alt、
         titleHrefBefore,
         '语言切换改动了书名链接 href',
     );
-    assert.equal(page.historyCalls.length, 0, '语言切换写了历史记录');
+    assert.equal(page.historyCalls.filter(c => c.kind === 'push').length, 0, '语言切换不新增历史');
+    assert.equal(page.historyCalls.filter(c => c.kind === 'replace').length, 2, '两次明确选择同步 URL 语言');
+    const languageUrls = page.historyCalls.map(c => new URL(c.url, 'https://bookrank.test'));
+    assert.equal(languageUrls[0].searchParams.get('lang'), 'en');
+    assert.equal(languageUrls[1].searchParams.get('lang'), 'zh');
+    for (const url of languageUrls) { url.searchParams.delete('lang'); assert.equal(url.pathname, '/new-books'); assert.equal(url.search, ''); }
+});
+test('publication status participates in real filter, page and export API state', async () => {
+    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(bookPayload(81, 'Rain', { pages: 3 })) }) });
+    page.location.search = '?lang=en';
+    page.doc.getElementById('search-input').value = 'rain & snow';
+    page.selectFilter('publication-status-filter', 'upcoming'); await flush();
+    const query = new URL(page.fetchCalls.at(-1).url, page.location.origin).searchParams;
+    assert.equal(query.get('publication_status'), 'upcoming'); assert.equal(query.get('search'), 'rain & snow');
+    assert.equal(query.get('page') || '1', '1'); assert.equal(page.context_currentLanguage(), 'en');
+    vm.runInContext('goToPage(2)', context); await flush();
+    const pageQuery = new URL(page.fetchCalls.at(-1).url, page.location.origin).searchParams;
+    assert.equal(pageQuery.get('publication_status'), 'upcoming'); assert.equal(pageQuery.get('page'), '2'); assert.equal(pageQuery.get('lang'), 'en');
+    vm.runInContext('exportExcel()', context);
+    const exported = new URL(page.location.href, page.location.origin); assert.equal(exported.pathname, '/api/new-books/export/csv');
+    assert.equal(exported.searchParams.get('publication_status'), 'upcoming'); assert.equal(exported.searchParams.get('search'), 'rain & snow');
+    assert.equal(exported.searchParams.has('selected_publication_status'), false); assert.equal(exported.searchParams.has('publisher'), false);
+});
+test('publication status URL restore normalizes invalid values and keeps selected enum', () => {
+    const { page, context } = bootPage();
+    const valid = vm.runInContext("parseQueryString('publication_status=pending&page=3')", context);
+    assert.equal(valid.state.publication_status, 'pending'); assert.equal(valid.page, 3);
+    vm.runInContext("syncControls(parseQueryString('publication_status=pending').state)", context);
+    assert.equal(page.doc.getElementById('publication-status-filter').value, 'pending');
+    vm.runInContext("syncControls(parseQueryString('publication_status=garbage').state)", context);
+    assert.equal(page.doc.getElementById('publication-status-filter').value, 'all');
+});
+
+test('latest HTTP 500 marks result count unknown and success 0 restores real summary', async () => {
+    let succeed = false;
+    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve(succeed
+        ? { ok: true, status: 200, json: async () => ({ success: true, data: { books: [], pagination: { page: 1, pages: 1, total: 0, per_page: 20 } } }) }
+        : { ok: false, status: 500, json: async () => { throw new Error('must not parse failed HTTP response'); } }) });
+    page.selectFilter('category-filter', '商业'); await flush();
+    assert.equal(page.doc.getElementById('result-summary-count').textContent, '-');
+    assert.equal(page.doc.querySelector('.result-total-row').style.display, 'none');
+    assert.equal(page.doc.getElementById('result-total-unavailable').style.display, 'inline');
+    assert.equal(page.doc.getElementById('btn-retry').textContent, '重试');
+    assert.equal(page.doc.getElementById('books-container').textContent.includes('暂无匹配结果'), false);
+    succeed = true;
+    vm.runInContext('applyFilter()', context); await flush();
+    assert.equal(page.doc.getElementById('result-summary-count').textContent, '0');
+    assert.equal(page.doc.querySelector('.result-total-row').style.display, 'inline');
+    assert.equal(page.doc.getElementById('result-total-unavailable').style.display, 'none');
+    assert.equal(page.doc.getElementById('books-container').textContent.includes('暂无匹配结果'), true);
+});
+test('real SSR query-failure shape keeps count nodes and distinguishes stats failure from empty', () => {
+    const ctx = { data_load_failed: true, total: null, total_pages: null, stats: null, stats_unavailable: true };
+    const html = renderTemplate(['--context=' + JSON.stringify(ctx)]);
+    const root = new El('div'); root.innerHTML = html;
+    assert.equal(root.querySelector('#result-summary-count').textContent, '-');
+    assert.equal(root.querySelector('.result-total-row').getAttribute('style'), 'display:none');
+    assert.equal(root.querySelector('#result-total-unavailable').getAttribute('style'), 'display:inline');
+    assert.equal(root.querySelector('.main-error').textContent.includes('数据加载失败'), true);
+    assert.equal(root.querySelector('.empty-state'), null);
+    assert.equal(root.querySelector('.collection-total').textContent.includes('统计数据暂不可用'), true);
+    const good = new El('div'); good.innerHTML = renderTemplate(['--context=' + JSON.stringify({ total: 0, stats_unavailable: true, stats: null })]);
+    assert.equal(good.querySelector('#result-summary-count').textContent, '0');
+    assert.equal(good.querySelector('.main-error'), null);
+    assert.equal(good.querySelector('.empty-state').textContent.includes('暂无新书数据'), true);
+});
+test('mobile native CSV includes current search/status and never sends None publisher/category', () => {
+    const html = renderTemplate(['--mobile', '--context=' + JSON.stringify({ selected_publication_status: 'pending', search_query: 'rain & snow', selected_category: null, selected_publisher: null })]);
+    const root = new El('div'); root.innerHTML = html;
+    const anchors = root.querySelectorAll('a'); const anchor = anchors.find(a => (a.getAttribute('href') || '').startsWith('/api/new-books/export/csv?'));
+    assert.ok(anchor, 'actual mobile template must render native CSV link');
+    const url = new URL(anchor.getAttribute('href').replace(/&amp;/g, '&'), 'https://bookrank.test');
+    assert.equal(url.searchParams.has('publisher_id'), false); assert.equal(url.searchParams.has('category'), false);
+    assert.equal(url.searchParams.get('publication_status'), 'pending'); assert.equal(url.searchParams.get('search'), 'rain & snow');
+    assert.equal(anchor.textContent.includes('500'), true);
+});
+
+test('new-books filter/page/reset/history retains valid view and language', async () => {
+    const { page, context } = bootPage({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: async () => bookPayload(9, 'Book', { pages: 3 }) }) });
+    page.location.search = '?view=list&lang=en';
+    page.selectFilter('publication-status-filter', 'published'); await flush();
+    assert.equal(new URL(page.fetchCalls.at(-1).url, page.location.origin).searchParams.get('view'), 'list');
+    assert.equal(new URL(page.historyCalls.at(-1).url, page.location.origin).searchParams.get('view'), 'list');
+    vm.runInContext('goToPage(2)', context); await flush();
+    assert.equal(new URL(page.historyCalls.at(-1).url, page.location.origin).searchParams.get('view'), 'list');
+    vm.runInContext('resetFilters()', context); await flush();
+    const cleared = new URL(page.historyCalls.at(-1).url, page.location.origin);
+    assert.equal(cleared.searchParams.get('view'), 'list'); assert.equal(cleared.searchParams.get('lang'), 'en');
+    assert.equal(cleared.searchParams.has('publication_status'), false); assert.equal(cleared.searchParams.has('page'), false);
+    page.location.search = '?view=evil&lang=zh';
+    assert.equal(new URLSearchParams(vm.runInContext('buildQueryString({},1)', context)).has('view'), false);
+});
+
+for (const mobile of [false, true]) {
+  test((mobile ? 'mobile' : 'desktop') + ' real SSR source choices use backend publisher/provider grouping', () => {
+    const ctx = { publishers: [{ id: 10, name: '出版社甲', name_en: 'Publisher A' }, { id: 20, name: '图书数据乙', name_en: 'Provider B' }], publisher_kind: { 10: 'publisher', 20: 'provider' }, selected_publisher: 20 };
+    const root = new El('div'); root.innerHTML = renderTemplate([...(mobile ? ['--mobile'] : []), '--context=' + JSON.stringify(ctx)]);
+    const groups = root.querySelectorAll('optgroup');
+    assert.equal(groups.length, 2);
+    assert.equal(groups[0].getAttribute('label'), '出版社'); assert.equal(groups[1].getAttribute('label'), '数据提供方');
+    assert.equal(groups[1].querySelector('option').getAttribute('value'), '20');
+    assert.equal(groups[1].querySelector('option').hasAttribute('selected'), true);
+  });
+}
+test('SSR source-directory/section failures remain independent of valid successful empty main result', () => {
+  const root = new El('div'); root.innerHTML = renderTemplate(['--context=' + JSON.stringify({ publishers_unavailable: true, publisher_sections_unavailable: true })]);
+  assert.equal(root.querySelector('#publisher-filter').hasAttribute('disabled'), true);
+  assert.equal(root.querySelector('.publisher-unavailable-note').textContent, '来源目录暂不可用');
+  assert.equal(root.querySelector('.browse-sections-alert').textContent.includes('出版社与数据来源书列暂不可用'), true);
+  assert.equal(root.querySelector('#result-summary-count').textContent, '0');
+  assert.equal(root.querySelector('.empty-state').textContent.includes('暂无新书数据'), true);
+  assert.equal(root.querySelector('.main-error'), null);
+});
+test('real SSR source section retains book loop, native detail link and both scroll controls', () => {
+    const publisher = { id: 20, name: '数据来源', name_en: 'Provider' };
+    const book = { ...bookPayload(7, 'Real rail book').data.books[0], title_zh: '真实书列', publisher, price: null, isbn10: null, is_recently_published: false };
+    const ctx = { books: [book], total: 1, publishers: [publisher], publisher_kind: { 20: 'provider' }, publisher_sections: [{ publisher, books: [book] }] };
+    const root = new El('div'); root.innerHTML = renderTemplate(['--context=' + JSON.stringify(ctx)]);
+    const section = root.querySelector('.browse-section'); assert.ok(section);
+    assert.equal(section.querySelectorAll('.browse-rail__item').length, 1);
+    assert.equal(section.querySelector('.browse-card-title-link').textContent, 'Real rail book');
+    assert.ok(section.querySelector('.browse-card-media-link').getAttribute('href'));
+    assert.equal(section.querySelectorAll('.browse-rail-nav').length, 2);
+    assert.ok(section.textContent.includes('数据提供方'));
+});
+test('latest AJAX filter hides stale SSR curated books and offers current-condition native reload', async () => {
+    const { page } = bootPage({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: async () => bookPayload(81, 'Latest source book') }) });
+    const curated = page.doc.querySelector('.browse-curated'); assert.ok(curated);
+    const notice = page.doc.getElementById('curated-refresh-notice'); assert.ok(notice, '真实SSR必须含重新加载入口');
+    assert.equal(notice.hidden, true);
+    page.selectFilter('publication-status-filter', 'pending'); await flush();
+    assert.equal(curated.style.display, 'none'); assert.equal(notice.hidden, false);
+    const reload = new URL(page.doc.getElementById('curated-refresh-link').getAttribute('href'), page.location.href);
+    assert.equal(reload.pathname, '/new-books'); assert.equal(reload.searchParams.get('publication_status'), 'pending');
+    assert.equal(reload.search, page.location.search);
+});
+
+test('Back/Forward restores actual URL locale before one request and renders matching cards', async () => {
+    const payload = bookPayload(51, 'History book');
+    const { page, context } = bootPage({ appLang: 'en', withTranslations: true, fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: async () => payload }) });
+    const jar = new Map([['lang', 'en']]);
+    Object.defineProperty(page.doc, 'cookie', { get() { return [...jar].map(([key, value]) => key + '=' + value).join('; '); }, set(value) { const [pair] = value.split(';'); const [key, val] = pair.split('='); jar.set(key, val); } });
+    page.localStorage.setItem('app_language', 'en'); page.localStorage.setItem('bookrank_language', 'en');
+    const badge = page.doc.getElementById('lang-current'); assert.ok(badge, 'actual desktop base renders language badge'); badge.textContent = 'EN';
+    let languageEvents = 0; page.windowObj.addEventListener('languagechange', () => languageEvents++);
+    for (const lang of ['zh', 'en']) {
+        page.location.href = 'https://bookrank.test/new-books?lang=' + lang + '&publication_status=pending&view=list&page=3&search=rain';
+        page.location.search = new URL(page.location.href).search;
+        const beforeFetch = page.fetchCalls.length; const beforePush = page.historyCalls.filter(c => c.kind === 'push').length;
+        const beforeReplace = page.historyCalls.filter(c => c.kind === 'replace').length;
+        page.emit('popstate');
+        assert.equal(vm.runInContext('currentLanguage', context), lang, 'popped language must drive current render state');
+        assert.equal(page.windowObj.__APP_LANG__, lang);
+        assert.equal(jar.get('lang'), lang, 'history URL locale must become server preference for bare next-page navigation');
+        assert.equal(page.localStorage.getItem('app_language'), lang); assert.equal(page.localStorage.getItem('bookrank_language'), lang);
+        assert.equal(badge.textContent, lang === 'zh' ? '中' : 'EN');
+        await flush();
+        assert.equal(page.fetchCalls.length, beforeFetch + 1, 'history restoration must issue exactly one request');
+        assert.equal(page.historyCalls.filter(c => c.kind === 'push').length, beforePush);
+        assert.equal(page.historyCalls.filter(c => c.kind === 'replace').length, beforeReplace + 1, 'only existing result normalization may replace history');
+        assert.equal(languageEvents, 0, 'history locale synchronization must not dispatch languagechange');
+        assert.equal(new URL(page.fetchCalls.at(-1).url, page.location.href).searchParams.get('lang'), lang);
+        const link = page.doc.querySelector('#books-container .book-title a'); assert.ok(link);
+        assert.equal(link.textContent, lang === 'zh' ? 'History book·中' : 'History book');
+        const detail = new URL(link.getAttribute('href'), page.location.href);
+        assert.equal(detail.searchParams.get('lang'), lang);
+        assert.equal(new URL(detail.searchParams.get('return_to'), page.location.href).searchParams.get('lang'), lang);
+    }
+});
+
+test('history restore without valid URL locale leaves cookie/storage/badge preference intact', async () => {
+    for (const query of ['?lang=bad&search=rain', '?search=rain']) {
+        const payload = bookPayload(51, 'History book');
+        const { page, context } = bootPage({ appLang: 'en', withTranslations: true, fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: async () => payload }) });
+        const jar = new Map([['lang', 'en']]); const writes = [];
+        Object.defineProperty(page.doc, 'cookie', { get() { return 'lang=' + jar.get('lang'); }, set(value) { writes.push(value); jar.set('lang', value.split(';')[0].split('=')[1]); } });
+        page.localStorage.setItem('app_language', 'en'); page.localStorage.setItem('bookrank_language', 'en');
+        const badge = page.doc.getElementById('lang-current'); assert.ok(badge); badge.textContent = 'EN';
+        page.location.href = 'https://bookrank.test/new-books' + query; page.location.search = query;
+        const beforeFetch = page.fetchCalls.length; page.emit('popstate'); await flush();
+        assert.equal(vm.runInContext('currentLanguage', context), 'en'); assert.equal(page.windowObj.__APP_LANG__, 'en');
+        assert.equal(page.localStorage.getItem('app_language'), 'en'); assert.equal(page.localStorage.getItem('bookrank_language'), 'en');
+        assert.equal(jar.get('lang'), 'en'); assert.equal(writes.length, 0); assert.equal(badge.textContent, 'EN');
+        assert.equal(page.fetchCalls.length, beforeFetch + 1);
+    }
 });
