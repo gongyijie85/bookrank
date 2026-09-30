@@ -504,7 +504,14 @@
             if (e.target.closest('a[href]')) return;
             const card = e.target.closest('.card[data-award-book-id]');
             if (!card) return;
-            const bookId = card.getAttribute('data-award-book-id');
+            const rawBookId = card.getAttribute('data-award-book-id');
+            if (typeof rawBookId !== 'string' || !/^[0-9]+$/.test(rawBookId)) {
+              return;
+            }
+            const bookId = Number(rawBookId);
+            if (!Number.isSafeInteger(bookId) || bookId <= 0) {
+              return;
+            }
             window.location.href = '/award-book/' + bookId + '?lang=' + encodeURIComponent((function(){var l=new URLSearchParams(window.location.search).get('lang');if(l!=='zh'&&l!=='en')l=(window.__APP_LANG__==='zh'||window.__APP_LANG__==='en')?window.__APP_LANG__:'';if(!l&&typeof currentLanguage==='string'&&(currentLanguage==='zh'||currentLanguage==='en'))l=currentLanguage;return l||'en';})()) + '&return_to=' + encodeURIComponent(window.location.pathname + window.location.search);
         }
 
