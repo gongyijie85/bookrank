@@ -429,7 +429,7 @@ class AwardBookService:
             return cast('list[Award]', Award.query.all())
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取奖项列表失败: {e}')
-            return []
+            raise
 
     def get_award_by_id(self, award_id: int) -> Award | None:
         """根据 ID 获取奖项"""
@@ -445,7 +445,7 @@ class AwardBookService:
             return cast('Award | None', Award.query.filter_by(name=name).first())
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取奖项失败: {e}')
-            return None
+            raise
 
     def get_award_books(
         self,
@@ -494,7 +494,7 @@ class AwardBookService:
             return books, total
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'查询获奖图书失败: {e}')
-            return [], 0
+            raise
 
     def get_award_book_by_id(self, book_id: int) -> AwardBook | None:
         """根据 ID 获取获奖图书"""
@@ -502,7 +502,7 @@ class AwardBookService:
             return db.session.get(AwardBook, book_id)
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取获奖图书失败: {e}')
-            return None
+            raise
 
     def get_award_book_by_isbn(self, isbn: str) -> AwardBook | None:
         """根据 ISBN13/ISBN10 获取获奖图书"""
@@ -567,7 +567,7 @@ class AwardBookService:
             return books, total
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'搜索获奖图书失败: {e}')
-            return [], 0
+            raise
 
     def get_distinct_years(self, award_id: int | None = None) -> list[int]:
         """获取不重复的年份列表（可按奖项过滤）"""
@@ -604,7 +604,7 @@ class AwardBookService:
             return dict(query.all())
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'获取图书计数失败: {e}')
-            return {}
+            raise
 
     def find_award_book_by_isbn(self, isbn: str) -> AwardBook | None:
         """根据 ISBN 查找获奖图书"""

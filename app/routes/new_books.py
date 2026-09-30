@@ -211,10 +211,16 @@ def get_new_books():
                 publisher_id=publisher_id,
                 category=category,
                 days=days,
+                publication_status=query.publication_status,
             )
         else:
             books, total = modules.query_service.get_new_books(
-                publisher_id=publisher_id, category=category, days=days, page=page, per_page=per_page
+                publisher_id=publisher_id,
+                category=category,
+                days=days,
+                page=page,
+                per_page=per_page,
+                publication_status=query.publication_status,
             )
 
         return APIResponse.success(
@@ -268,6 +274,7 @@ def search_new_books():
             publisher_id=query.publisher_id,
             category=query.category,
             days=query.days,
+            publication_status=query.publication_status,
         )
 
         return APIResponse.success(
@@ -438,13 +445,25 @@ def export_csv():
         modules = get_new_book_modules()
         _ensure_static_seeded(modules)
 
-        books, _ = modules.query_service.get_new_books(
-            publisher_id=query.publisher_id,
-            category=query.category,
-            days=query.days,
-            page=1,
-            per_page=500,
-        )
+        if query.search:
+            books, _ = modules.query_service.search_books(
+                query.search,
+                page=1,
+                per_page=500,
+                publisher_id=query.publisher_id,
+                category=query.category,
+                days=query.days,
+                publication_status=query.publication_status,
+            )
+        else:
+            books, _ = modules.query_service.get_new_books(
+                publisher_id=query.publisher_id,
+                category=query.category,
+                days=query.days,
+                page=1,
+                per_page=500,
+                publication_status=query.publication_status,
+            )
 
         output = StringIO()
         writer = csv.writer(output)

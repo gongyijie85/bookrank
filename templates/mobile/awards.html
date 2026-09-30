@@ -1,4 +1,5 @@
 {% extends "mobile/base.html" %}
+{% from '_macros.html' import award_result_label, related_reason_label %}
 
 {% block title %}{{ _('图书奖项榜单') }} - BookRank{% endblock %}
 
@@ -7,96 +8,83 @@
     <div class="m-top-nav-copy">
         <span class="m-top-nav-kicker">{{ _('国际图书奖项榜单') }}</span>
         <h1 class="m-top-nav-title">{{ _('获奖书单') }}</h1>
-        <span class="m-top-nav-subtitle">{{ total_books }} {{ _('本图书') }} · {{ awards|length }} {{ _('个奖项') }}</span>
+        <span class="m-top-nav-subtitle">{% if data_load_failed %}{{ _('数据加载失败') }}{% elif total_books is not none %}{{ total_books }} {{ _('本图书') }}{% else %}{{ _('数量不可用') }}{% endif %} · {% if awards_unavailable|default(false) %}{{ _('奖项目录暂不可用') }}{% else %}{{ awards|length }} {{ _('个奖项') }}{% endif %}</span>
     </div>
 </nav>
 {% endblock %}
 
-{% macro awards_filter_url(award=none, year=none, category=none) %}
-{%- set _award = award if award is not none else selected_award -%}
-{%- set _year = year if year is not none else selected_year -%}
-{%- set _category = category if category is not none else selected_category -%}
-{%- set parts = [] -%}
-{%- if _award %}{% set _unused = parts.append('award=' ~ (_award | urlencode)) %}{% endif -%}
-{%- if _year %}{% set _unused = parts.append('year=' ~ _year) %}{% endif -%}
-{%- if _category %}{% set _unused = parts.append('category=' ~ (_category | urlencode)) %}{% endif -%}
-/awards{% if parts %}?{{ parts | join('&') }}{% endif %}
-{%- endmacro %}
-
 {% block content %}
 {% set _locale = get_locale() %}
 
-<!-- 奖项筛选（横向滑动） -->
-<section class="m-cat-tabs" aria-label="{{ _('奖项筛选') }}">
-    <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="{{ awards_filter_url(award='') }}" class="m-cat-tab {% if not selected_award %}active{% endif %}">{{ _('全部') }}</a>
-        {% for award in awards %}
-        <a href="{{ awards_filter_url(award=award.name) }}"
-           class="m-cat-tab {% if selected_award == award.name %}active{% endif %}">
-            {{ award.name|bilingual(award.name_en) }}
-            <span class="m-cat-tab-count">{{ award.book_count }}</span>
-        </a>
-        {% endfor %}
+<!-- F01: 单一紧凑筛选表单，显式「应用/清除」，不再即时跳转 -->
+<form method="get" action="/awards" class="m-awards-filter-form" aria-label="{{ _('奖项筛选') }}">
+    {% if request.args.get('view') %}<input type="hidden" name="view" value="{{ request.args.get('view') }}">{% endif %}
+    {% if request.args.get('lang') %}<input type="hidden" name="lang" value="{{ request.args.get('lang') }}">{% endif %}
+    <div class="m-awards-filter-grid">
+        <select name="award" aria-label="{{ _('奖项筛选') }}" {% if awards_unavailable|default(false) %}disabled{% endif %}>
+            <option value="">{{ _('全部') }}</option>
+            {% for award in awards %}
+            <option value="{{ award.name }}" {% if selected_award == award.name %}selected{% endif %}>{{ award.name|bilingual(award.name_en) }}</option>
+            {% endfor %}
+        </select>
+        {% if years %}
+        <select name="year" aria-label="{{ _('选择年份') }}">
+            <option value="">{{ _('全部年份') }}</option>
+            {% for year in years %}
+            <option value="{{ year }}" {% if selected_year|string == year|string %}selected{% endif %}>{{ year }}{{ _('年') }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% if categories %}
+        <select name="category" aria-label="{{ _('类别筛选') }}">
+            <option value="">{{ _('全部类别') }}</option>
+            {% for category in categories %}
+            <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category|award_term or category }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <input type="search" name="search" value="{{ search_query }}" aria-label="{{ _('搜索') }}" placeholder="{{ _('搜索') }}">
     </div>
-</section>
-
-<!-- 类别筛选（横向滑动） -->
-{% if categories %}
-<section class="m-cat-tabs" aria-label="{{ _('类别筛选') }}">
-    <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="{{ awards_filter_url(category='') }}" class="m-cat-tab {% if not selected_category %}active{% endif %}">{{ _('全部类别') }}</a>
-        {% for category in categories %}
-        <a href="{{ awards_filter_url(category=category) }}"
-           class="m-cat-tab {% if selected_category == category %}active{% endif %}">
-            {{ category|award_term or category }}
-        </a>
-        {% endfor %}
+    <div class="m-awards-filter-actions">
+        <button type="submit" class="m-btn m-btn-primary m-btn-sm">{{ _('应用') }}</button>
+        <a href="/awards{% if request.args.get('view') or request.args.get('lang') %}?{% set _p = [] %}{% if request.args.get('view') %}{% set _u = _p.append('view=' ~ (request.args.get('view')|urlencode)) %}{% endif %}{% if request.args.get('lang') %}{% set _u = _p.append('lang=' ~ (request.args.get('lang')|urlencode)) %}{% endif %}{{ _p|join('&') }}{% endif %}" class="m-btn m-btn-outline m-btn-sm">{{ _('清除') }}</a>
     </div>
-</section>
-{% endif %}
+</form>
 
-<!-- 年份筛选（下拉，缺失控件补齐，audit02） -->
-{% if years %}
-<section class="m-filter-row" aria-label="{{ _('年份筛选') }}" style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
-    <label class="m-filter-label" for="m-year-select" style="flex:0 0 auto;font-size:0.8125rem;color:var(--text-secondary, #615d59);">{{ _('年份') }}</label>
-    <select id="m-year-select" class="m-filter-select" aria-label="{{ _('选择年份') }}" style="flex:1;padding:0.5rem 0.75rem;border:1px solid var(--border-color, rgba(0,0,0,0.1));border-radius:8px;background:var(--bg-tertiary, #f6f5f4);font-size:0.875rem;">
-        <option value="">{{ _('全部年份') }}</option>
-        {% for year in years %}
-        <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}{{ _('年') }}</option>
-        {% endfor %}
-    </select>
-</section>
-<script nonce="{{ csp_nonce() }}">
-    (function(){
-        var sel = document.getElementById('m-year-select');
-        if (!sel) return;
-        var parts = [];
-        {% if selected_award %}parts.push('award=' + encodeURIComponent('{{ selected_award }}'));{% endif %}
-        {% if selected_category %}parts.push('category=' + encodeURIComponent('{{ selected_category }}'));{% endif %}
-        var base = '/awards' + (parts.length ? '?' + parts.join('&') : '');
-        sel.addEventListener('change', function(){
-            var sep = base.indexOf('?') === -1 ? '?' : '&';
-            window.location.href = this.value ? (base + sep + 'year=' + encodeURIComponent(this.value)) : base;
-        });
-    })();
-</script>
-{% endif %}
-
-<!-- 统计 -->
-{% if years %}
+<!-- 当前已应用条件 + 结果数（服务端上下文） -->
+{% set _applied = [] %}
+{% if selected_award %}{% set _u = _applied.append(selected_award) %}{% endif %}
+{% if selected_year %}{% set _u = _applied.append(selected_year|string ~ _('年')) %}{% endif %}
+{% if selected_category %}{% set _u = _applied.append(selected_category) %}{% endif %}
+{% if search_query %}{% set _u = _applied.append(_('“') ~ search_query ~ _('”')) %}{% endif %}
 <div class="m-list-info">
-    <span class="m-text-sm m-text-hint">{{ total_books }}{{ _('本') }}</span>
+    <span class="m-text-sm m-text-hint">
+        {% if _applied %}{{ _('已选条件') }}：{{ _applied|join(' · ') }} · {% endif %}
+        {% if data_load_failed %}
+            {{ _('数据加载失败') }}
+        {% elif total_books is not none %}
+            {{ total_books }} {{ _('本图书') }}
+        {% else %}
+            {{ _('数量不可用') }}
+        {% endif %}
+    </span>
 </div>
-{% endif %}
 
-<!-- 获奖图书列表 -->
-{% if books %}
+{% if data_load_failed %}
+<div class="m-empty">
+    <div class="m-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+    </div>
+    <p class="m-empty-title">{{ _('数据加载失败') }}</p>
+    <p class="m-empty-sub"><a href="{{ request.full_path }}">{{ _('重新加载') }}</a></p>
+</div>
+{% elif books %}
 <div class="m-book-list">
     {% for book in books %}
     {% set shown_title = (book.title_zh or book.title) if _locale == 'zh' else book.title %}
     {% set shown_award = (book.award_name|bilingual(book.award_name_en)) or _('未知') %}
 <div style="display:flex;align-items:center;gap:0.5rem;">
-    <a href="/award-book/{{ book.id }}" class="m-card m-book-card" style="flex:1;min-width:0;">
+    <a href="{{ url_for('main.award_book_detail', book_id=book.id, lang=get_locale(), return_to=request.full_path) }}" class="m-card m-book-card" style="flex:1;min-width:0;">
         <div class="m-book-cover">
             <img src="{{ (book.cover_local_path or book.cover_original_url)|cover_src_or_default }}"
                  alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知作者') }}"
@@ -109,6 +97,7 @@
             <p class="m-book-author">{{ book.author or _('未知作者') }}</p>
             <div class="m-badge-row">
                 <span class="m-badge m-badge-primary">{{ shown_award }}</span>
+                {{ award_result_label(book.category|award_result_kind(book.award_wikidata_id|default(none))) }}
                 {% if book.year %}<span class="m-badge m-badge-accent">{{ book.year }}</span>{% endif %}
             </div>
         </div>
@@ -138,20 +127,28 @@
     {% endfor %}
 </div>
 
-<!-- 分页 -->
-{% if total_pages > 1 %}
+<!-- 分页：保留全部已应用条件（award/year/category/search/view/lang），page 递增 -->
+{% if total_pages is not none and total_pages > 1 %}
+{% set _pg_parts = [] %}
+{% if selected_award %}{% set _u = _pg_parts.append('award=' ~ (selected_award|urlencode)) %}{% endif %}
+{% if selected_year %}{% set _u = _pg_parts.append('year=' ~ selected_year) %}{% endif %}
+{% if selected_category %}{% set _u = _pg_parts.append('category=' ~ (selected_category|urlencode)) %}{% endif %}
+{% if search_query %}{% set _u = _pg_parts.append('search=' ~ (search_query|urlencode)) %}{% endif %}
+{% if request.args.get('view') %}{% set _u = _pg_parts.append('view=' ~ (request.args.get('view')|urlencode)) %}{% endif %}
+{% if request.args.get('lang') %}{% set _u = _pg_parts.append('lang=' ~ (request.args.get('lang')|urlencode)) %}{% endif %}
+{% set _pg_base = '?' ~ (_pg_parts|join('&')) ~ ('&' if _pg_parts else '') %}
 <div class="m-pagination">
     {% if has_prev %}
-    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&category={{ selected_category or '' }}&page={{ page - 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>
+    <a href="{{ _pg_base }}page={{ page - 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('上一页') }}</a>
     {% endif %}
     <span class="m-text-sm m-text-hint">{{ page }} / {{ total_pages }}</span>
     {% if has_next %}
-    <a href="?award={{ selected_award|urlencode }}&year={{ selected_year or '' }}&category={{ selected_category or '' }}&page={{ page + 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>
+    <a href="{{ _pg_base }}page={{ page + 1 }}" class="m-btn m-btn-outline m-btn-sm">{{ _('下一页') }}</a>
     {% endif %}
 </div>
 {% endif %}
 
-{% else %}
+{% elif not data_load_failed %}
 <div class="m-empty">
     <div class="m-empty-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>

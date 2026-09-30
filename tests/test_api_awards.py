@@ -5,6 +5,8 @@
 """
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.schemas import Award, AwardBook
 
@@ -246,3 +248,53 @@ class TestAdminAwardFixEndpoints:
             headers=admin_headers,
         )
         assert response.status_code == 405
+
+
+def _raise_on_award_select(conn, cursor, statement, parameters, context, executemany):
+    sql = statement.lower() if isinstance(statement, str) else str(statement).lower()
+    if sql.lstrip().startswith('select') and ('award_books' in sql or 'awards' in sql):
+        raise SQLAlchemyError('round2 award SQL unavailable')
+
+
+@pytest.mark.parametrize(
+    'path',
+    [
+        '/api/awards',
+        '/api/award-books',
+        '/api/award-books/999',
+        '/api/award-books/search?keyword=missing',
+    ],
+)
+def test_award_read_endpoints_select_fault_returns_500(client, db, app, path):
+    with app.app_context():
+        engine = db.engine
+        event.listen(engine, 'before_cursor_execute', _raise_on_award_select)
+        try:
+            response = client.get(path)
+            assert response.status_code == 500
+            assert response.get_json()['success'] is False
+        finally:
+            event.remove(engine, 'before_cursor_execute', _raise_on_award_select)
+
+
+def test_empty_award_reads_keep_original_envelopes(client, db, app):
+    awards = client.get('/api/awards')
+    assert awards.status_code == 200
+    awards_body = awards.get_json()
+    assert awards_body['success'] is True
+    assert awards_body['data']['awards'] == []
+
+    listing = client.get('/api/award-books')
+    assert listing.status_code == 200
+    listing_body = listing.get_json()
+    assert listing_body['success'] is True
+    assert listing_body['data']['books'] == []
+
+    search = client.get('/api/award-books/search?keyword=missing')
+    assert search.status_code == 200
+    search_body = search.get_json()
+    assert search_body['success'] is True
+    assert search_body['data']['books'] == []
+
+    detail = client.get('/api/award-books/999')
+    assert detail.status_code == 404

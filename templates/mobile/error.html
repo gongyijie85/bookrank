@@ -1,15 +1,31 @@
 {% extends "mobile/base.html" %}
 
-{% block title %}{{ _('出错') }} - BookRank{% endblock %}
-{% block og_title %}{{ _('出错') }} - BookRank{% endblock %}
-{% block tw_title %}{{ _('出错') }} - BookRank{% endblock %}
+{% set known_map = {
+  '书籍不存在': [_('书籍不存在'), _('书籍不存在')],
+  '该获奖图书已下架': [_('该获奖图书已下架'), _('该获奖图书已下架')],
+  '书籍暂时无法加载，请稍后再试': [_('暂时无法加载'), _('书籍暂时无法加载，请稍后再试')],
+  '获奖图书暂时无法加载，请稍后再试': [_('暂时无法加载'), _('获奖图书暂时无法加载，请稍后再试')],
+  '榜单暂时无法加载，请稍后再试': [_('暂时无法加载'), _('榜单暂时无法加载，请稍后再试')],
+  '周报加载失败，请稍后再试': [_('暂时无法加载'), _('周报加载失败，请稍后再试')]
+} %}
+{% if message in known_map %}
+  {% set display_heading = known_map[message][0] %}
+  {% set display_message = known_map[message][1] %}
+{% else %}
+  {% set display_heading = heading or _('出错了') %}
+  {% set display_message = message %}
+{% endif %}
+
+{% block title %}{{ display_heading }} - BookRank{% endblock %}
+{% block og_title %}{{ display_heading }} - BookRank{% endblock %}
+{% block tw_title %}{{ display_heading }} - BookRank{% endblock %}
 
 {% block header %}
 <header class="m-header">
     <a href="/" class="m-header-btn" aria-label="{{ _('首页') }}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 14 15 14 15 21"/></svg>
     </a>
-    <span class="m-header-title">{{ _('出错了') }}</span>
+    <span class="m-header-title">{{ display_heading }}</span>
     <div class="m-header-placeholder"></div>
 </header>
 {% endblock %}
@@ -19,11 +35,17 @@
     <div class="m-error-icon" aria-hidden="true">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
     </div>
-    <h1 class="m-error-title">{{ _('出错了') }}</h1>
-    <p class="m-error-message m-text-hint">{{ message }}</p>
+    <h1 class="m-error-title">{{ display_heading }}</h1>
+    <p class="m-error-message m-text-hint">{{ display_message }}</p>
     <div class="m-error-actions">
-        {% if back_url %}
-        <a href="{{ back_url }}" class="m-btn m-btn-outline">{{ _('返回') }}</a>
+        {% if back_url and back_url.startswith('/new-books') %}
+        <a href="{{ back_url }}" class="m-btn m-btn-outline">{{ _('返回新书列表') }}</a>
+        {% elif back_url and back_url.startswith('/awards') %}
+        <a href="{{ back_url }}" class="m-btn m-btn-outline">{{ _('返回获奖书单') }}</a>
+        {% elif back_url and back_url != '/' %}
+        <a href="{{ back_url }}" class="m-btn m-btn-outline">{{ _('返回来源页面') }}</a>
+        {% else %}
+        <a href="/" class="m-btn m-btn-outline">{{ _('返回首页') }}</a>
         {% endif %}
         <a href="/" class="m-btn m-btn-primary">{{ _('首页') }}</a>
     </div>

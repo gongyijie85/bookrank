@@ -1,4 +1,5 @@
 {% extends "mobile/base.html" %}
+{% from '_macros.html' import award_result_label, related_reason_label %}
 
 {% block title %}{{ _('更多榜单') }} - BookRank{% endblock %}
 
@@ -17,7 +18,7 @@
     {% if entries %}
     <div class="m-book-list">
         {% for entry in entries %}
-        {% set detail_url = url_for('main.book_detail', book_index=entry.source_index, category=entry.source_category) if entry.source_category else none %}
+        {% set detail_url = url_for('main.book_detail', book_index=entry.source_index, category=entry.source_category, lang=get_locale(), return_to=request.full_path) if entry.source_category else none %}
         <div class="m-card m-book-card">
             <div class="m-book-cover">
                 {% if detail_url %}<a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ entry.title }}{{ _('》封面') }}">{% endif %}
@@ -39,7 +40,7 @@
                 <ul class="m-cross-chips">
                     {% for listing in entry.listings %}
                     <li>
-                        <a href="{{ url_for('main.index', category=listing.category_id) }}">
+                        <a href="{{ url_for('main.index', category=listing.category_id, lang=_locale) }}">
                             {% if _locale == 'zh' %}{{ listing.category_name }}{% else %}{{ category_names_en.get(listing.category_id, listing.category_name) }}{% endif %}
                             #{{ listing.rank }}
                         </a>
@@ -60,38 +61,53 @@
 
 {% block content %}
 {% set _locale = get_locale() %}
+{% set nyt_failures = rankings_nyt_unavailable_count | default(0) %}
+{% set awards_failed = rankings_awards_unavailable | default(false) %}
+{% set any_failure = (nyt_failures | int > 0) or (tab == 'overlooked' and awards_failed) %}
 
 <section class="m-cat-tabs" aria-label="{{ _('榜单切换') }}">
     <div class="m-cat-tabs-scroll no-scrollbar">
-        <a href="{{ url_for('main.rankings', tab='cross') }}" class="m-cat-tab {% if tab == 'cross' %}active{% endif %}">
+        <a href="{{ url_for('main.rankings', tab='cross', lang=_locale) }}" class="m-cat-tab {% if tab == 'cross' %}active{% endif %}">
             {{ _('跨榜现象级') }}<span class="m-cat-tab-count">{{ cross_entries | length }}</span>
         </a>
-        <a href="{{ url_for('main.rankings', tab='longevity') }}" class="m-cat-tab {% if tab == 'longevity' %}active{% endif %}">
+        <a href="{{ url_for('main.rankings', tab='longevity', lang=_locale) }}" class="m-cat-tab {% if tab == 'longevity' %}active{% endif %}">
             {{ _('长销常青榜') }}<span class="m-cat-tab-count">{{ longevity_entries | length }}</span>
         </a>
-        <a href="{{ url_for('main.rankings', tab='overlooked') }}" class="m-cat-tab {% if tab == 'overlooked' %}active{% endif %}">
+        <a href="{{ url_for('main.rankings', tab='overlooked', lang=_locale) }}" class="m-cat-tab {% if tab == 'overlooked' %}active{% endif %}">
             {{ _('遗珠榜') }}<span class="m-cat-tab-count">{{ overlooked_entries | length }}</span>
         </a>
-        <a href="{{ url_for('main.rankings', tab='publishers') }}" class="m-cat-tab {% if tab == 'publishers' %}active{% endif %}">
+        <a href="{{ url_for('main.rankings', tab='publishers', lang=_locale) }}" class="m-cat-tab {% if tab == 'publishers' %}active{% endif %}">
             {{ _('厂牌榜') }}<span class="m-cat-tab-count">{{ publisher_entries | length }}</span>
         </a>
     </div>
 </section>
 
+{% if any_failure %}
+<div class="m-rankings-alert" role="status">
+  <p>{{ _('部分来源暂时无法读取，以下结果仅基于可正常读取的来源；如需重试请刷新页面。') }}</p>
+  {% if tab == 'overlooked' and nyt_failures | int > 0 %}
+  <p>{{ _('未出现仅指可读取分类，来源不完整，暂无法核对全部分类') }}</p>
+  {% endif %}
+  {% if tab == 'overlooked' and awards_failed %}
+  <p>{{ _('部分奖项年份记录暂不可读取') }}</p>
+  {% endif %}
+  <a href="{{ request.full_path }}">{{ _('重新加载') }}</a>
+</div>
+{% endif %}
 {% if tab == 'cross' %}
-<details class="rankings-methodology"><summary>{{ _('口径说明') }}</summary><p class="m-rankings-note">{{ _('同一本书在不同分类榜上常用不同 ISBN，这里按归一化书名与作者匹配，统计它同时进入了几个分类榜。') }}</p></details>
-{{ entry_rows(cross_entries, category_names_en, _locale, _('本周没有跨榜的书'), _('当前各分类榜之间没有重叠书目，或榜单数据尚未同步。')) }}
+<p class="m-rankings-note">{{ _('按归一化书名与作者匹配，统计同一作品同时进入的分类榜数量；排序依次为分类数降序、最高名次升序、合计在榜周数降序、书名升序，至少进入 %(min)s 个分类且不封顶。', min=2) }}</p>
+{{ entry_rows(cross_entries, category_names_en, _locale, _('暂无法完整读取榜单') if any_failure else _('本周没有跨榜的书'), _('部分来源暂不可读取，当前结果无法完整核对。') if any_failure else _('当前各分类榜之间没有重叠书目，或榜单数据尚未同步。')) }}
 
 {% elif tab == 'longevity' %}
-<details class="rankings-methodology"><summary>{{ _('口径说明') }}</summary><p class="m-rankings-note">{{ _('按同一部作品在各分类榜的合计在榜周数排序。口径是当前在榜的累计周数，不是本年度累计。') }}</p></details>
-{{ entry_rows(longevity_entries, category_names_en, _locale, _('暂无长销书'), _('榜单数据尚未同步，或本次未取到在榜周数。')) }}
+<p class="m-rankings-note">{{ _('按当前在榜记录的合计在榜周数降序、最高名次升序、书名升序排列，取前 %(top)s 名；这是当前累计而非年度历史。', top=20) }}</p>
+{{ entry_rows(longevity_entries, category_names_en, _locale, _('暂无法完整读取榜单') if any_failure else _('暂无长销书'), _('部分来源暂不可读取，当前结果无法完整核对。') if any_failure else _('榜单数据尚未同步，或本次未取到在榜周数。')) }}
 
 {% elif tab == 'overlooked' %}
-<details class="rankings-methodology"><summary>{{ _('口径说明') }}</summary><p class="m-rankings-note">{{ _('近年拿过国际图书大奖、却没有出现在任何纽约时报畅销榜上的书。') }}</p></details>
+<p class="m-rankings-note">{{ _('奖项记录覆盖 %(years)s 年，与当前纽约时报分类榜快照按归一化书名与作者比对；按最新记录年份降序、记录数降序、书名升序排列。', years=award_years|join('、')) }}{% if nyt_failures > 0 %} {{ _('未出现仅指可读取分类，来源不完整，暂无法核对全部分类。') }}{% endif %}{% if awards_failed %} {{ _('部分奖项年份记录暂不可读取。') }}{% endif %}</p>
 {% if overlooked_entries %}
 <div class="m-book-list">
     {% for entry in overlooked_entries %}
-    <a href="{{ url_for('main.award_book_detail', book_id=entry.id) }}" class="m-card m-book-card">
+    <a href="{{ url_for('main.award_book_detail', book_id=entry.id, lang=get_locale(), return_to=request.full_path) }}" class="m-card m-book-card">
         {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
         <div class="m-book-cover">
             <img src="{{ (entry.cover_local_path or entry.cover_original_url)|cover_src_or_default }}"
@@ -105,6 +121,7 @@
                 <span class="m-badge m-badge-primary">
                     {% if _locale == 'zh' %}{{ award.award_name or award.award_name_en }}{% else %}{{ award.award_name_en or award.award_name }}{% endif %}
                     {{ award.year }}
+                    {{ award_result_label(award.category|award_result_kind(award.wikidata_id|default(none))) }}
                 </span>
                 {% endfor %}
             </div>
@@ -113,14 +130,20 @@
     {% endfor %}
 </div>
 {% else %}
-<div class="m-empty">
-    <p class="m-empty-title">{{ _('暂无遗珠') }}</p>
-    <p class="m-empty-sub">{{ _('近年获奖图书都已在畅销榜上，或奖项数据尚未同步。') }}</p>
-</div>
+<section class="empty-state">
+  <h2>{{ _('暂无法完整读取榜单') if any_failure else _('暂无遗珠') }}</h2>
+  {% if any_failure %}
+  <p>{{ _('部分来源暂不可读取，当前结果无法完整核对。') }}</p>
+  {% else %}
+  <p>{{ _('在当前读取范围内未发现候选书目。') }}</p>
+  {% endif %}
+</section>
 {% endif %}
 
 {% else %}
-<details class="rankings-methodology"><summary>{{ _('口径说明') }}</summary><p class="m-rankings-note">{{ _('按上榜本数排序。出版社名取自榜单原始署名，仅合并五大集团本名，子品牌仍各自计列。') }}</p></details>
+    <p class="m-rankings-note">
+        {{ _('按上榜本数降序、最高名次升序、分类数降序、名称升序排列，取前 %(top)s 名；出版社名取自榜单原始署名，仅对五大出版集团做规范化合并。', top=30) }}
+    </p>
 {% if publisher_entries %}
 <div class="m-publisher-list">
     {% for entry in publisher_entries %}
@@ -140,8 +163,8 @@
 </div>
 {% else %}
 <div class="m-empty">
-    <p class="m-empty-title">{{ _('暂无数据') }}</p>
-    <p class="m-empty-sub">{{ _('榜单数据尚未同步，或本次未取到出版社信息。') }}</p>
+    <p class="m-empty-title">{{ _('暂无法完整读取榜单') if any_failure else _('暂无数据') }}</p>
+    <p class="m-empty-sub">{{ _('部分来源暂不可读取，当前结果无法完整核对。') if any_failure else _('榜单数据尚未同步，或本次未取到出版社信息。') }}</p>
 </div>
 {% endif %}
 {% endif %}

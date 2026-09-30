@@ -64,10 +64,16 @@
 <section class="m-report-section">
     <h2 class="m-report-section-title">{{ _('Top 5 排名变化') }}</h2>
     {% for item in content.top_changes[:5] %}
-    {% set rc = item.rank_change or 0 %}
+    {% set rc = item.rank_change %}
     {% set rk = item.rank or 0 %}
+    {% set is_unavailable = rc is none or rc is undefined %}
+    {% set is_new = item.is_new %}
     <div class="m-report-change-item">
-        {% if rc > 0 %}
+        {% if is_unavailable %}
+        <span class="m-report-change-icon unknown">?</span>
+        {% elif is_new %}
+        <span class="m-report-change-icon new">★</span>
+        {% elif rc > 0 %}
         <span class="m-report-change-icon up">↑</span>
         {% elif rc < 0 %}
         <span class="m-report-change-icon down">↓</span>
@@ -77,10 +83,14 @@
         <span class="m-report-change-title">{{ (item.title_zh or item.title) | format_title }}</span>
         {% if rk > 0 %}
         <span class="m-report-change-rank">
-            {% if rc and (rk + rc) > 0 %}<span class="m-report-change-rank-prev">{{ rk + rc }}</span>{% endif %}{{ rk }}
+            {% if rc and not is_unavailable and not is_new and (rk + rc) > 0 %}<span class="m-report-change-rank-prev">{{ rk + rc }}</span>{% endif %}{{ rk }}
         </span>
         {% endif %}
-        {% if rc %}
+        {% if is_unavailable %}
+        <span class="m-report-change-delta unavailable">{{ _('变化不可得') }}</span>
+        {% elif is_new %}
+        <span class="m-report-change-delta new">{{ _('新上榜') }}</span>
+        {% elif rc != 0 %}
         <span class="m-report-change-delta">{{ '+' if rc > 0 }}{{ rc }}</span>
         {% endif %}
     </div>
@@ -137,9 +147,21 @@
         <div class="m-report-rec-info">
             <div class="m-report-rec-title">{{ (book.title_zh or book.title) | format_title }}</div>
             {% if book.author %}<div class="m-report-rec-author">{{ book.author }}</div>{% endif %}
-            {% if book.reason or book.description %}
-            <div class="m-report-rec-reason">{{ book.reason or book.description }}</div>
-            {% endif %}
+            <div class="m-report-rec-reason">
+                {% set reason_parts = [] %}
+                {% if book.category %}{% set _unused = reason_parts.append(book.category) %}{% endif %}
+                {% if book.rank %}{% set _unused = reason_parts.append(_('第') ~ book.rank ~ _('名')) %}{% endif %}
+                {% if book.weeks_on_list %}{% set _unused = reason_parts.append(_('在榜') ~ book.weeks_on_list ~ _('周')) %}{% endif %}
+                {% if book.is_new %}{% set _unused = reason_parts.append(_('新上榜')) %}{% endif %}
+                {% if book.rank_change is not none and book.rank_change is defined and not book.is_new %}
+                    {% if book.rank_change > 0 %}{% set _unused = reason_parts.append(_('上升') ~ book.rank_change ~ _('位')) %}
+                    {% elif book.rank_change < 0 %}{% set _unused = reason_parts.append(_('下降') ~ (book.rank_change | abs) ~ _('位')) %}
+                    {% else %}{% set _unused = reason_parts.append(_('无变化')) %}{% endif %}
+                {% elif book.rank_change is none or book.rank_change is undefined %}
+                    {% set _unused = reason_parts.append(_('变化不可得')) %}
+                {% endif %}
+                {% if reason_parts %}{{ reason_parts | join(' · ') }}{% else %}{{ _('暂无推荐理由') }}{% endif %}
+            </div>
         </div>
     </div>
     {% endfor %}

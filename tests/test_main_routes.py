@@ -487,8 +487,11 @@ class TestMainRoutes:
         assert response.status_code == 200
 
     def test_book_detail_invalid_index(self, client):
-        response = client.get('/book/99999')
-        assert response.status_code == 200
+        from unittest.mock import patch
+
+        with patch('app.routes.main._get_books_for_category', return_value=([], None)):
+            response = client.get('/book/99999')
+        assert response.status_code == 404
 
     def test_book_detail_negative_index(self, client):
         response = client.get('/book/-1')
@@ -624,3 +627,111 @@ class TestAboutStats:
             'publisher_count': None,
             'source_count': None,
         }
+
+    _DETAIL_SPECS = (
+        ('book', '/book/0', '/', 'book_detail.html'),
+        ('award', '/award-book/1', '/awards', 'award_book_detail.html'),
+        ('new', '/new-book/1', '/new-books', 'new_book_detail.html'),
+    )
+
+    def _arm_detail(self, monkeypatch, route, mode):
+        from sqlalchemy.exc import SQLAlchemyError
+
+        box = {}
+
+        def _render(template, **context):
+            box['template'] = template
+            box['context'] = context
+            return 'captured'
+
+        monkeypatch.setattr('app.routes.main.render_adaptive', _render)
+
+        def _fail_or(book):
+            if mode == 'failure':
+                raise SQLAlchemyError('db down')
+            return None if mode == 'missing' else book
+
+        if route == 'book':
+
+            def _books(_category):
+                if mode == 'failure':
+                    from app.utils import ExternalAPIError
+
+                    raise ExternalAPIError(api_name='nyt', message='unavailable')
+                row = {'title': 'NYT Title', 'author': 'NYT Author', 'isbn13': ''}
+                return ([] if mode == 'missing' else [row]), None
+
+            monkeypatch.setattr('app.routes.main._get_books_for_category', _books)
+        elif route == 'award':
+            from app.models.schemas import AwardBook
+
+            book = AwardBook(
+                award_id=1,
+                year=2024,
+                title='Award Title',
+                author='Award Author',
+                title_zh='获奖书名',
+                description='Award description',
+                description_zh='获奖简介',
+                is_displayable=True,
+            )
+            monkeypatch.setattr(
+                'app.services.award_book_service.AwardBookService.get_award_book_by_id',
+                lambda _self, _book_id: _fail_or(book),
+            )
+            rec = MagicMock()
+            rec.get_similarity_recommendations.return_value = {'recommendations': []}
+            monkeypatch.setattr('app.routes.main.get_or_create_recommendation_service', lambda: rec)
+        else:
+            from app.models.new_book import NewBook
+
+            book = NewBook(
+                publisher_id=1,
+                title='New Title',
+                author='New Author',
+                title_zh='新书书名',
+                description='New description',
+                description_zh='新书简介',
+            )
+            monkeypatch.setattr(
+                'app.routes.main.get_new_book_modules',
+                lambda: SimpleNamespace(query_service=SimpleNamespace(get_book=lambda _id: _fail_or(book))),
+            )
+        return box
+
+    def test_detail_primary_load_status_and_fallback(self, app, db, monkeypatch):
+        expect = {'ok': 200, 'missing': 404, 'failure': 500}
+        for route, path, fallback, ok_template in self._DETAIL_SPECS:
+            for mode, status in expect.items():
+                box = self._arm_detail(monkeypatch, route, mode)
+                response = app.test_client().get(path, headers={'Referer': 'https://evil.example/ignored'})
+                assert response.status_code == status
+                assert box['template'] == (ok_template if mode == 'ok' else 'error.html')
+                assert box['context']['back_url'] == fallback
+        assert db is not None
+
+    def test_detail_return_to_safe_query_ignores_referrer(self, app, db, monkeypatch):
+        safe = '/new-books?search=https%3A%2F%2Fexample.com&lang=en&view=list&page=2'
+        values = (
+            safe,
+            'https://evil.example/phish',
+            '//evil.example/phish',
+            '/\\evil.example',
+            '/ok\n',
+            '/%2F%2Fevil.example',
+            '/%252F%252Fevil.example',
+            None,
+        )
+        for route, path, fallback, ok_template in self._DETAIL_SPECS:
+            for value in values:
+                box = self._arm_detail(monkeypatch, route, 'ok')
+                query = {} if value is None else {'return_to': value}
+                response = app.test_client().get(
+                    path,
+                    query_string=query,
+                    headers={'Referer': 'https://evil.example/ignored'},
+                )
+                assert response.status_code == 200
+                assert box['template'] == ok_template
+                assert box['context']['back_url'] == (safe if value == safe else fallback)
+        assert db is not None

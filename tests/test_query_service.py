@@ -32,6 +32,66 @@ def _seed_publisher(db) -> Publisher:
     return publisher
 
 
+_FROZEN_AT = datetime(2026, 9, 30, 0, 5, tzinfo=UTC)
+
+
+class _FrozenDateTime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        if tz is None:
+            return _FROZEN_AT.replace(tzinfo=None)
+        return _FROZEN_AT.astimezone(tz)
+
+
+def _freeze_query_clock(monkeypatch):
+    import app.services.new_book.query_service as query_module
+
+    monkeypatch.setattr(query_module, 'datetime', _FrozenDateTime)
+
+
+def _add_publisher(db, name, *, site_display_primary=True):
+    publisher = Publisher(
+        name=name,
+        name_en=name,
+        crawler_class='FixtureCrawler',
+        site_display_primary=site_display_primary,
+    )
+    db.session.add(publisher)
+    db.session.flush()
+    return publisher
+
+
+def _add_book(
+    db,
+    publisher,
+    isbn,
+    *,
+    title,
+    publication_date,
+    created_at,
+    category='Fiction',
+    is_displayable=True,
+    batch_id=None,
+):
+    book = NewBook(
+        publisher_id=publisher.id,
+        title=title,
+        author='Author',
+        isbn13=isbn,
+        category=category,
+        publication_date=publication_date,
+        created_at=created_at,
+        is_displayable=is_displayable,
+        last_import_batch_id=batch_id,
+    )
+    db.session.add(book)
+    return book
+
+
+def _isbn_set(books):
+    return {book.isbn13 for book in books}
+
+
 class TestNewBookQueryService:
     def test_get_new_books(self, query_service, db):
         """测试获取新书列表"""
@@ -446,3 +506,258 @@ class TestNewBookQueryService:
         assert 'active_publishers' in stats
         assert 'recent_books_7d' in stats
         assert 'top_categories' in stats
+
+    @pytest.mark.parametrize(
+        ('status', 'expected'),
+        [
+            (
+                'all',
+                {
+                    '9780000000401',
+                    '9780000000402',
+                    '9780000000403',
+                    '9780000000404',
+                    '9780000000405',
+                    '9780000000406',
+                },
+            ),
+            ('published', {'9780000000401', '9780000000402'}),
+            ('upcoming', {'9780000000403', '9780000000404'}),
+            ('pending', {'9780000000405', '9780000000406'}),
+        ],
+    )
+    def test_publication_status_exact_sets_inside_window(self, query_service, db, monkeypatch, status, expected):
+        """四种 publication_status 在默认 30 天窗口内命中精确 ISBN 集。"""
+        _freeze_query_clock(monkeypatch)
+        publisher = _add_publisher(db, 'Status Press')
+        today = _FROZEN_AT.date()
+        stamped = datetime(2026, 9, 1, tzinfo=UTC)
+        specs = [
+            ('9780000000401', today, stamped),
+            ('9780000000402', today - timedelta(days=30), stamped),
+            ('9780000000403', today + timedelta(days=1), stamped),
+            ('9780000000404', today + timedelta(days=14), stamped),
+            ('9780000000405', None, datetime(2026, 8, 31, tzinfo=UTC)),
+            ('9780000000406', None, datetime(2026, 9, 30, 23, 59, 59, tzinfo=UTC)),
+        ]
+        for isbn, published_on, created_at in specs:
+            _add_book(
+                db,
+                publisher,
+                isbn,
+                title=f'Title {isbn}',
+                publication_date=published_on,
+                created_at=created_at,
+            )
+        db.session.commit()
+
+        books, total = query_service.get_new_books(publication_status=status)
+        assert _isbn_set(books) == expected
+        assert total == len(expected)
+
+    def test_publication_status_excludes_rows_outside_list_window(self, query_service, db, monkeypatch):
+        """列表窗口仍排除过旧已出版和超过预告 14 天的书。"""
+        _freeze_query_clock(monkeypatch)
+        publisher = _add_publisher(db, 'Window Press')
+        today = _FROZEN_AT.date()
+        created_at = datetime(2026, 9, 1, tzinfo=UTC)
+        _add_book(
+            db,
+            publisher,
+            '9780000000411',
+            title='In published',
+            publication_date=today,
+            created_at=created_at,
+        )
+        _add_book(
+            db,
+            publisher,
+            '9780000000412',
+            title='In upcoming',
+            publication_date=today + timedelta(days=14),
+            created_at=created_at,
+        )
+        _add_book(
+            db,
+            publisher,
+            '9780000000413',
+            title='Old published',
+            publication_date=today - timedelta(days=31),
+            created_at=created_at,
+        )
+        _add_book(
+            db,
+            publisher,
+            '9780000000414',
+            title='Far upcoming',
+            publication_date=today + timedelta(days=15),
+            created_at=created_at,
+        )
+        db.session.commit()
+
+        all_books, all_total = query_service.get_new_books(publication_status='all')
+        assert all_total == 2
+        assert _isbn_set(all_books) == {'9780000000411', '9780000000412'}
+
+        published, published_total = query_service.get_new_books(publication_status='published')
+        assert published_total == 1
+        assert _isbn_set(published) == {'9780000000411'}
+
+        upcoming, upcoming_total = query_service.get_new_books(publication_status='upcoming')
+        assert upcoming_total == 1
+        assert _isbn_set(upcoming) == {'9780000000412'}
+
+    def test_pending_created_at_cutoff_is_half_open(self, query_service, db, monkeypatch):
+        """待确认出版日的发现时间是 [cutoff 零点, 次日零点)。"""
+        _freeze_query_clock(monkeypatch)
+        publisher = _add_publisher(db, 'Pending Press')
+        edges = [
+            ('9780000000420', datetime(2026, 8, 30, 23, 59, 59, tzinfo=UTC)),
+            ('9780000000421', datetime(2026, 8, 31, 0, 0, 0, tzinfo=UTC)),
+            ('9780000000422', datetime(2026, 9, 30, 23, 59, 59, tzinfo=UTC)),
+            ('9780000000423', datetime(2026, 10, 1, 0, 0, 0, tzinfo=UTC)),
+        ]
+        for isbn, created_at in edges:
+            _add_book(
+                db,
+                publisher,
+                isbn,
+                title='Pending',
+                publication_date=None,
+                created_at=created_at,
+            )
+        db.session.commit()
+
+        books, total = query_service.get_new_books(publication_status='pending')
+        assert total == 2
+        assert _isbn_set(books) == {'9780000000421', '9780000000422'}
+
+    def test_search_status_days_none_keeps_dates_explicit_days_restricts(self, query_service, db, monkeypatch):
+        """搜索 days 默认不限日期；传入 days 后使用同一出版窗口。"""
+        _freeze_query_clock(monkeypatch)
+        publisher = _add_publisher(db, 'Search Press')
+        today = _FROZEN_AT.date()
+        created_at = datetime(2026, 9, 15, tzinfo=UTC)
+        _add_book(
+            db,
+            publisher,
+            '9780000000431',
+            title='Probe Old',
+            publication_date=today - timedelta(days=400),
+            created_at=created_at,
+        )
+        _add_book(
+            db,
+            publisher,
+            '9780000000432',
+            title='Probe Future',
+            publication_date=today + timedelta(days=200),
+            created_at=created_at,
+        )
+        _add_book(
+            db,
+            publisher,
+            '9780000000433',
+            title='Probe Current',
+            publication_date=today,
+            created_at=created_at,
+        )
+        _add_book(
+            db,
+            publisher,
+            '9780000000434',
+            title='Probe Pending',
+            publication_date=None,
+            created_at=datetime(2020, 1, 1, tzinfo=UTC),
+        )
+        db.session.commit()
+
+        published, published_total = query_service.search_books('Probe', publication_status='published')
+        assert published_total == 2
+        assert _isbn_set(published) == {'9780000000431', '9780000000433'}
+
+        upcoming, upcoming_total = query_service.search_books('Probe', publication_status='upcoming')
+        assert upcoming_total == 1
+        assert _isbn_set(upcoming) == {'9780000000432'}
+
+        pending, pending_total = query_service.search_books('Probe', publication_status='pending')
+        assert pending_total == 1
+        assert _isbn_set(pending) == {'9780000000434'}
+
+        limited, limited_total = query_service.search_books('Probe', days=30, publication_status='published')
+        assert limited_total == 1
+        assert _isbn_set(limited) == {'9780000000433'}
+
+        far, far_total = query_service.search_books('Probe', days=30, publication_status='upcoming')
+        assert far_total == 0
+        assert far == []
+
+    def test_status_scope_filters_before_pagination(self, query_service, db, monkeypatch):
+        """范围条件与状态在分页前生效，total 是全量而不是当前页。"""
+        _freeze_query_clock(monkeypatch)
+        primary = _add_publisher(db, 'Primary Press', site_display_primary=True)
+        other = _add_publisher(db, 'Other Press')
+        hidden = _add_publisher(db, 'Hidden Press', site_display_primary=False)
+        today = _FROZEN_AT.date()
+        created_at = datetime(2026, 9, 20, tzinfo=UTC)
+        rows = [
+            (primary, '9780000000441', 'Health & Fitness', today, True, None),
+            (primary, '9780000000442', '健康养生', today - timedelta(days=1), True, None),
+            (primary, '9780000000443', 'Health & Fitness', today - timedelta(days=2), True, None),
+            (primary, '9780000000444', 'Health & Fitness', None, True, None),
+            (primary, '9780000000445', 'Health & Fitness', today, False, None),
+            (other, '9780000000446', 'Health & Fitness', today, True, None),
+            (hidden, '9780000000447', 'Health & Fitness', today, True, 'site-batch'),
+            (primary, '9780000000448', 'Fiction', today, True, None),
+        ]
+        for publisher, isbn, category, published_on, displayable, batch_id in rows:
+            _add_book(
+                db,
+                publisher,
+                isbn,
+                title='Combo Shelf',
+                category=category,
+                publication_date=published_on,
+                created_at=created_at,
+                is_displayable=displayable,
+                batch_id=batch_id,
+            )
+        db.session.commit()
+
+        page1, total = query_service.get_new_books(
+            publisher_id=primary.id,
+            category='Health & Fitness',
+            publication_status='published',
+            page=1,
+            per_page=2,
+        )
+        page2, total_page2 = query_service.get_new_books(
+            publisher_id=primary.id,
+            category='健康养生',
+            publication_status='published',
+            page=2,
+            per_page=2,
+        )
+        assert total == 3
+        assert total_page2 == 3
+        assert len(page1) == 2
+        assert len(page2) == 1
+        assert _isbn_set(page1) == {'9780000000441', '9780000000442'}
+        assert _isbn_set(page1) | _isbn_set(page2) == {
+            '9780000000441',
+            '9780000000442',
+            '9780000000443',
+        }
+
+        searched, search_total = query_service.search_books(
+            'Combo Shelf',
+            publisher_id=primary.id,
+            category='健康养生',
+            publication_status='published',
+            page=1,
+            per_page=2,
+        )
+        assert search_total == 3
+        assert len(searched) == 2
+        assert _isbn_set(searched) == {'9780000000441', '9780000000442'}
+        query_service._translation_pipeline._hydrate_language_pack.assert_called()

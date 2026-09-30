@@ -9,7 +9,7 @@
     <div class="m-top-nav-copy">
         <span class="m-top-nav-kicker">{{ _('汇集全球知名出版社与图书行业网站，点击即可访问') }}</span>
         <h1 class="m-top-nav-title">{{ _('出版社导航') }}</h1>
-        <span class="m-top-nav-subtitle">{{ total_publishers }} {{ _('个网站') }} · {{ publishers_data|length }} {{ _('个分类') }}</span>
+        <span class="m-top-nav-subtitle">{{ total_publishers }} {{ _('个目录条目') }} · {{ publishers_data|length }} {{ _('个分类') }}</span>
     </div>
 </nav>
 {% endblock %}
@@ -22,7 +22,9 @@
            aria-label="{{ _('搜索出版社') }}"
            placeholder="{{ _('搜索出版社名称...') }}" autocomplete="off"
            style="flex:1;min-height:44px;padding:0.5rem 0.75rem;border:1px solid var(--border-color, rgba(0,0,0,0.1));border-radius:8px;background:var(--bg-tertiary, #f6f5f4);font-size:0.875rem;">
+    <button type="button" id="m-clear-search-btn" style="margin-left:0.5rem;">{{ _('清除') }}</button>
 </div>
+<p id="m-result-count" aria-live="polite" style="padding:0 0.75rem;margin-bottom:0.5rem;">{{ total_publishers }} {{ _('个目录条目') }}</p>
 <nav class="m-publisher-anchors no-scrollbar" aria-label="{{ _('出版社导航') }}">
     {% for cat in publishers_data %}
     <a href="#publisher-cat-{{ loop.index }}" class="m-publisher-anchor">{{ cat.category_en if is_en else cat.category }}</a>
@@ -58,13 +60,35 @@
 </section>
 {% endfor %}
 
+<div id="m-no-results" class="m-publishers-no-results" hidden style="padding:1rem;text-align:center;">
+    <p>{{ _('没有找到匹配的出版社') }}</p>
+    <button type="button" id="m-empty-clear-btn">{{ _('清除') }}</button>
+</div>
+
 <script nonce="{{ csp_nonce() }}">
     (function(){
         var input = document.getElementById('m-publisher-search');
-        if (!input) return;
-        input.addEventListener('input', function(){
+        var clearBtn = document.getElementById('m-clear-search-btn');
+        var emptyClearBtn = document.getElementById('m-empty-clear-btn');
+        var resultCount = document.getElementById('m-result-count');
+        var noResults = document.getElementById('m-no-results');
+        var sections = document.querySelectorAll('.m-publisher-category');
+        var totalCards = document.querySelectorAll('.m-publisher-card').length;
+        var labelSite;
+
+        function getLocale() {
+            return (document.documentElement.lang || document.documentElement.getAttribute('data-lang') || 'zh').toLowerCase();
+        }
+
+        function updateLabel() {
+            labelSite = getLocale().startsWith('en') ? 'directory entries' : '个目录条目';
+        }
+
+        updateLabel();
+
+        function applyFilter() {
             var term = (input.value || '').toLowerCase().trim();
-            var sections = document.querySelectorAll('.m-publisher-category');
+            var visibleCount = 0;
             var any = false;
             sections.forEach(function(section){
                 var cards = section.querySelectorAll('.m-publisher-card');
@@ -76,10 +100,38 @@
                     card.style.display = hit ? '' : 'none';
                     if (hit) visible++;
                 });
-                section.style.display = visible ? '' : 'none';
-                if (visible) any = true;
+                section.style.display = visible > 0 ? '' : 'none';
+                if (visible > 0) any = true;
+                visibleCount += visible;
             });
+
+            if (resultCount) {
+                resultCount.textContent = visibleCount + ' ' + labelSite;
+            }
+            if (noResults) noResults.hidden = any;
+        }
+
+        if (input) {
+            input.addEventListener('input', applyFilter);
+        }
+
+        function handleClear() {
+            if (input) {
+                input.value = '';
+                applyFilter();
+                input.focus();
+            }
+        }
+
+        if (clearBtn) clearBtn.addEventListener('click', handleClear);
+        if (emptyClearBtn) emptyClearBtn.addEventListener('click', handleClear);
+
+        window.addEventListener('languagechange', function() {
+            updateLabel();
+            applyFilter();
         });
+
+        applyFilter();
     })();
 </script>
 {% endblock %}

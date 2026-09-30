@@ -412,3 +412,266 @@ class TestStatistics30d:
             assert stats['recent_books_30d'] >= stats['recent_books_7d']
             assert stats['recent_books_30d'] == 0  # 空库
             assert stats['recent_books_7d'] == 0
+
+
+def _seed_probe_books(db):
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.new_book import NewBook, Publisher
+
+    publisher = Publisher(name='Probe', name_en='Probe', crawler_class='ProbeCrawler')
+    db.session.add(publisher)
+    db.session.flush()
+    today = datetime(2026, 9, 30, 0, 5, tzinfo=UTC).date()
+    created = datetime(2026, 9, 30, 0, 5, tzinfo=UTC)
+    for isbn, publication_date in (
+        ('9780000000001', today),
+        ('9780000000002', today + timedelta(days=1)),
+        ('9780000000003', None),
+        ('9780000000004', today + timedelta(days=200)),
+        ('9780000000005', today - timedelta(days=400)),
+    ):
+        db.session.add(
+            NewBook(
+                publisher_id=publisher.id,
+                title='Probe',
+                author='Probe',
+                isbn13=isbn,
+                publication_date=publication_date,
+                created_at=created,
+                is_displayable=True,
+            )
+        )
+    db.session.commit()
+
+
+def _wire_probe_query(monkeypatch):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from app.routes import new_books as routes
+    from app.services.new_book.query_service import NewBookQueryService
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 9, 30, 0, 5, tzinfo=tz)
+
+    monkeypatch.setattr('app.services.new_book.query_service.datetime', FrozenDateTime)
+    service = NewBookQueryService(MagicMock())
+    monkeypatch.setattr(routes, 'get_new_book_modules', lambda: SimpleNamespace(query_service=service))
+    monkeypatch.setattr(routes, '_ensure_static_seeded', lambda _modules: None)
+
+
+_WINDOW = {
+    'all': {'9780000000001', '9780000000002', '9780000000003'},
+    'published': {'9780000000001'},
+    'upcoming': {'9780000000002'},
+    'pending': {'9780000000003'},
+}
+_OPEN = {
+    'all': {'9780000000001', '9780000000002', '9780000000003', '9780000000004', '9780000000005'},
+    'published': {'9780000000001', '9780000000005'},
+    'upcoming': {'9780000000002', '9780000000004'},
+    'pending': {'9780000000003'},
+}
+
+
+class TestPublicationStatusApi:
+    @pytest.mark.parametrize('mode', ('list', 'list_search', 'search'))
+    @pytest.mark.parametrize('status', ('all', 'published', 'upcoming', 'pending'))
+    def test_forwards_publication_status(self, client, db, monkeypatch, mode, status):
+        _wire_probe_query(monkeypatch)
+        _seed_probe_books(db)
+        if mode == 'search':
+            path = f'/api/new-books/search?keyword=Probe&publication_status={status}'
+        elif mode == 'list_search':
+            path = f'/api/new-books?search=Probe&publication_status={status}'
+        else:
+            path = f'/api/new-books?publication_status={status}'
+        response = client.get(path)
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        books = data['books']
+        expected = _OPEN[status] if mode == 'search' else _WINDOW[status]
+        assert {book['isbn13'] for book in books} == expected
+        pagination = data['pagination']
+        assert pagination['total'] == len(expected)
+        per_page = pagination['per_page']
+        assert pagination['pages'] == (pagination['total'] + per_page - 1) // per_page
+        if mode == 'search':
+            assert all('is_recently_published' not in book for book in books)
+
+    @pytest.mark.parametrize(
+        'path',
+        (
+            '/api/new-books?publication_status=bogus',
+            '/api/new-books/search?keyword=Probe&publication_status=bogus',
+        ),
+    )
+    def test_invalid_publication_status_is_422(self, client, path):
+        response = client.get(path)
+        assert response.status_code == 422
+        assert response.get_json()['success'] is False
+
+    @pytest.mark.parametrize('publication_status', ('published', 'upcoming', 'pending'))
+    def test_export_csv_matches_list_search_and_status(self, client, db, monkeypatch, publication_status):
+        import csv
+        from datetime import UTC, datetime, timedelta
+
+        from app.models.new_book import NewBook, Publisher
+        from app.routes.new_books import get_sync_request_gate
+
+        _wire_probe_query(monkeypatch)
+        _seed_probe_books(db)
+        publisher = db.session.query(Publisher).filter_by(name='Probe').one()
+        today = datetime(2026, 9, 30, tzinfo=UTC).date()
+        when = {'published': today, 'upcoming': today + timedelta(days=1), 'pending': None}[publication_status]
+        slot = ('published', 'upcoming', 'pending').index(publication_status) + 1
+        db.session.add(
+            NewBook(
+                publisher_id=publisher.id,
+                title='Noise',
+                author='Other',
+                isbn13=f'978000000001{slot}',
+                publication_date=when,
+                created_at=datetime(2026, 9, 30, 0, 5, tzinfo=UTC),
+                is_displayable=True,
+            )
+        )
+        db.session.commit()
+        params = {'search': 'Probe', 'publication_status': publication_status}
+        get_sync_request_gate().reset()
+        listed = client.get('/api/new-books', query_string=params)
+        assert listed.status_code == 200
+        api_isbns = [book['isbn13'] for book in listed.get_json()['data']['books']]
+        get_sync_request_gate().reset()
+        exported = client.get('/api/new-books/export/csv', query_string=params)
+        assert exported.status_code == 200
+        assert exported.data.startswith(b'\xef\xbb\xbf')
+        parsed = list(csv.reader(exported.data.decode('utf-8-sig').splitlines()))
+        assert len(parsed[0]) == 14
+        assert parsed[0][6] == 'ISBN-13'
+        csv_isbns = [row[6] for row in parsed[1:] if row]
+        assert csv_isbns == api_isbns
+        assert set(csv_isbns) == _WINDOW[publication_status]
+
+    def test_export_csv_select_new_books_error_is_500(self, client, db, monkeypatch):
+        from sqlalchemy import event
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from app.routes.new_books import get_sync_request_gate
+
+        def fail_new_books_select(conn, cursor, statement, parameters, context, executemany):
+            sql = statement.lower().lstrip()
+            if sql.startswith('select') and 'new_books' in sql:
+                raise SQLAlchemyError('select new_books failed')
+
+        _wire_probe_query(monkeypatch)
+        event.listen(db.engine, 'before_cursor_execute', fail_new_books_select)
+        try:
+            get_sync_request_gate().reset()
+            response = client.get('/api/new-books/export/csv')
+            assert response.status_code == 500
+            assert response.get_json()['success'] is False
+        finally:
+            event.remove(db.engine, 'before_cursor_execute', fail_new_books_select)
+
+    def test_export_csv_probe_formula_guard_matches_api_then_429(self, client, db, monkeypatch):
+        import csv
+        from datetime import datetime, timedelta
+        from io import StringIO
+
+        from app.models.new_book import NewBook, Publisher
+        from app.routes.new_books import get_sync_request_gate
+
+        _wire_probe_query(monkeypatch)
+        today = datetime(2026, 9, 30, 0, 0, 0)
+        publisher = Publisher(name='=House', name_en='House', crawler_class='HouseCrawler')
+        db.session.add(publisher)
+        db.session.flush()
+        rows = [
+            NewBook(
+                title=f'=Probe {i}',
+                author='+Author',
+                title_zh='@中文',
+                description='\tinjected',
+                price='-9',
+                isbn13=f'978{i:010d}',
+                publication_date=today,
+                created_at=today + timedelta(seconds=i),
+                publisher_id=publisher.id,
+                category='Fiction',
+            )
+            for i in range(510)
+        ]
+        rows.extend(
+            NewBook(
+                title=f'=Probe upcoming {j}',
+                author='+Author',
+                title_zh='@中文',
+                description='\tinjected',
+                price='-9',
+                isbn13=f'979{j:010d}',
+                publication_date=today + timedelta(days=40),
+                created_at=today + timedelta(days=40, seconds=j),
+                publisher_id=publisher.id,
+                category='Fiction',
+            )
+            for j in range(5)
+        )
+        rows.append(
+            NewBook(
+                title='Noise',
+                author='+Author',
+                title_zh='@中文',
+                description='\tinjected',
+                price='-9',
+                isbn13='9781000000000',
+                publication_date=today,
+                created_at=today,
+                publisher_id=publisher.id,
+                category='Fiction',
+            )
+        )
+        db.session.add_all(rows)
+        db.session.commit()
+        expected = [f'978{i:010d}' for i in range(509, -1, -1)]
+        found = []
+        page_sizes = []
+        for page in range(1, 12):
+            response = client.get(
+                '/api/new-books',
+                query_string={'search': 'Probe', 'publication_status': 'published', 'per_page': 50, 'page': page},
+            )
+            assert response.status_code == 200
+            body = response.get_json()
+            assert body['success'] is True
+            assert body['data']['pagination']['total'] == 510
+            assert body['data']['pagination']['pages'] == 11
+            chunk = body['data']['books']
+            found.extend(book['isbn13'] for book in chunk)
+            page_sizes.append(len(chunk))
+        assert page_sizes == [50] * 10 + [10]
+        assert found == expected
+        export_qs = {'search': 'Probe', 'publication_status': 'published'}
+        get_sync_request_gate().reset()
+        exported = client.get('/api/new-books/export/csv', query_string=export_qs)
+        assert exported.status_code == 200
+        assert exported.data.startswith(b'\xef\xbb\xbf')
+        assert exported.mimetype == 'text/csv'
+        assert 'attachment' in exported.headers['Content-Disposition']
+        decoded = list(csv.reader(StringIO(exported.data.decode('utf-8-sig'))))
+        assert len(decoded[0]) == 14
+        assert len(decoded) == 501
+        assert [row[6] for row in decoded[1:]] == expected[:500]
+        first = decoded[1]
+        assert first[0].startswith("'=Probe")
+        assert first[2] == "'+Author"
+        assert first[8] == "'-9"
+        assert first[3] == "'=House"
+        assert first[1] == "'@中文"
+        assert first[11] == "'\tinjected"
+        limited = client.get('/api/new-books/export/csv', query_string=export_qs)
+        assert limited.status_code == 429
+        assert limited.get_json()['success'] is False

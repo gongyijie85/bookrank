@@ -14,7 +14,9 @@ tests/test_language_labels.py 钉住 —— 只比键集合不比值的 parity �
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import re
+from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from flask_babel import get_locale
 
@@ -78,6 +80,30 @@ def language_name(value: object, locale: str | None = None) -> str:
     return text
 
 
+_BARE_NUMERIC = re.compile(r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\Z')
+
+
+def price_display(value: object, locale: str | None = None) -> str:
+    """裸金额按 locale 标「币种未确认」；已带币种的原文原样返回。"""
+    if isinstance(value, bool):
+        return str(value)
+    if value is None:
+        return ''
+    active = locale or str(get_locale() or 'zh')
+    suffix = ' (currency unconfirmed)' if active.startswith('en') else '（币种未确认）'
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return ''
+        if _BARE_NUMERIC.fullmatch(text):
+            return text + suffix
+        return value
+    if isinstance(value, (int, float, Decimal)):
+        return str(value) + suffix
+    text = str(value).strip()
+    return '' if not text else text if not _BARE_NUMERIC.fullmatch(text) else text + suffix
+
+
 def bilingual(zh: object, en: object, locale: str | None = None) -> str:
     """双语字段择一，另一侧兜底：中文侧为 `zh or en`，英文侧为 `en or zh`。
 
@@ -129,6 +155,40 @@ def award_term(value: object, locale: str | None = None) -> str:
     if active.startswith('en'):
         return _AWARD_TERM_ZH_TO_EN.get(text, '')
     return text
+
+
+_WINNER_WORD = re.compile(r'(?<![A-Za-z])winner(?![A-Za-z])', re.IGNORECASE)
+_SHORTLIST_WORD = re.compile(
+    r'(?<![A-Za-z])(?:shortlisted|shortlist|longlisted|longlist)(?![A-Za-z])',
+    re.IGNORECASE,
+)
+_NEGATED_WINNER = re.compile(
+    r'未获奖|未得奖|(?<![A-Za-z])(?:not\s+a\s+winner|not\s+winner|non-winner|no\s+winner)(?![A-Za-z])',
+    re.IGNORECASE,
+)
+
+_NEGATED_SHORTLIST = re.compile(
+    r'未入围|(?<![A-Za-z])not\s+shortlisted(?![A-Za-z])',
+    re.IGNORECASE,
+)
+
+
+def award_result_kind(category: object, award_wikidata_id: object = None) -> str:
+    """获奖结果枚举：Q37922 优先为 author_honor，否则只认显式获奖/入围词。"""
+    if award_wikidata_id is not None and str(award_wikidata_id) == 'Q37922':
+        return 'author_honor'
+    text = '' if category is None else str(category)
+    cleaned = _NEGATED_WINNER.sub(' ', text)
+    positive_winner = ('获奖' in cleaned) or bool(_WINNER_WORD.search(cleaned))
+    short_text = _NEGATED_SHORTLIST.sub(' ', text)
+    positive_short = ('入围' in short_text) or bool(_SHORTLIST_WORD.search(short_text))
+    if positive_winner and positive_short:
+        return 'unspecified'
+    if positive_winner:
+        return 'winner'
+    if positive_short:
+        return 'shortlisted'
+    return 'unspecified'
 
 
 _CATEGORY_ZH_TO_EN: dict[str, str] | None = None
@@ -248,7 +308,7 @@ def publication_state(value: object, today: date | None = None) -> str:
     parsed = _as_date(value)
     if parsed is None:
         return DATE_STATE_PENDING
-    reference = today or date.today()
+    reference = today or datetime.now(UTC).date()
     return DATE_STATE_PUBLISHED if parsed <= reference else DATE_STATE_UPCOMING
 
 

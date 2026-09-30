@@ -26,6 +26,8 @@ def get_report_views():
     """获取周报阅读统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
     stats = get_report_view_stats(days)
+    if stats.get('error'):
+        return APIResponse.error(str(stats.get('error')), 500)
     return APIResponse.success(data=stats)
 
 
@@ -35,6 +37,8 @@ def get_user_behavior():
     """获取用户行为统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
     stats = get_user_behavior_stats(days)
+    if stats.get('error'):
+        return APIResponse.error(str(stats.get('error')), 500)
     return APIResponse.success(data=stats)
 
 
@@ -44,6 +48,8 @@ def get_daily_stats():
     """获取每日统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
     stats = fetch_daily_stats(days)
+    if stats.get('error'):
+        return APIResponse.error(str(stats.get('error')), 500)
     return APIResponse.success(data=stats)
 
 
@@ -62,4 +68,6 @@ def get_session_stats():
     """获取用户会话统计数据"""
     days = _clamp(request.args.get('days', 30, type=int), 1, 365)
     stats = get_user_session_stats(days)
+    if stats.get('error'):
+        return APIResponse.error(str(stats.get('error')), 500)
     return APIResponse.success(data=stats)

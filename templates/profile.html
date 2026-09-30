@@ -29,7 +29,12 @@
         <ul class="data-sources">
             {% for fav in favorites %}
             <li class="source-card">
-                <h3>{{ fav.title }}</h3>
+                <h3>
+                    <a href="{{ fav.detail_url or url_for('main.index', search=fav.isbn, lang=get_locale()) }}"
+                       data-profile-title-en="{{ fav.title_en }}"
+                       data-profile-title-zh="{{ fav.title_zh }}">{{ fav.title_en if get_locale() == 'en' else (fav.title_zh or fav.title_en or fav.title or fav.isbn) }}</a>
+                </h3>
+                {% if fav.isbn %}<p class="isbn">{{ fav.isbn }}</p>{% endif %}
                 {% if fav.author %}<p>{{ fav.author }}</p>{% endif %}
             </li>
             {% endfor %}
@@ -37,6 +42,13 @@
         {% else %}
         <p class="about-text">{{ _('暂无收藏') }}</p>
         <p class="about-text">{{ _('浏览书籍时点击收藏按钮即可添加') }}</p>
+        <form action="/" method="get" style="display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-4);flex-wrap:wrap;">
+            <input type="hidden" name="lang" value="{{ get_locale() }}">
+            <label for="profile-search-input" class="sr-only">{{ _('搜索图书') }}</label>
+            <input id="profile-search-input" type="search" name="search" class="input" aria-label="{{ _('搜索图书') }}" style="min-height:44px;flex:1;">
+            <button type="submit" class="btn btn-primary" style="min-height:44px;">{{ _('搜索图书') }}</button>
+        </form>
+        <a href="{{ url_for('main.index', lang=get_locale()) }}">{{ _('发现图书') }}</a>
         {% endif %}
     </section>
 
@@ -56,4 +68,22 @@
         {% endif %}
     </section>
 </div>
+<script nonce="{{ csp_nonce() }}">
+window.addEventListener('languagechange', function (e) {
+    var lang = e && e.detail ? e.detail.language : '';
+    if (lang !== 'zh' && lang !== 'en') {
+        return;
+    }
+    var nodes = document.querySelectorAll('[data-profile-title-en]');
+    for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        var next = lang === 'en'
+            ? node.getAttribute('data-profile-title-en')
+            : node.getAttribute('data-profile-title-zh');
+        if (next !== null && next !== '') {
+            node.textContent = next;
+        }
+    }
+});
+</script>
 {% endblock %}

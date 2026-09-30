@@ -6,6 +6,7 @@
 """
 
 import re
+from datetime import UTC
 from pathlib import Path
 
 from app.config import Config
@@ -174,3 +175,93 @@ def test_award_templates_route_names_through_the_filters():
         assert not leaked, f'{rel} 仍有整行裸输出的中文字段: {leaked}'
     awards = (TEMPLATES / 'awards.html').read_text(encoding='utf-8')
     assert '{{ award.country' not in awards, '国家未经 award_term 直接输出'
+
+
+def test_price_display_hides_blanks_and_marks_bare_amounts(app):
+    from decimal import Decimal
+
+    from app.utils.book_labels import price_display
+
+    assert price_display(None, 'zh') == ''
+    assert price_display('', 'en') == ''
+    assert price_display('  \t', 'en') == ''
+    assert price_display(0, 'zh') == '0（币种未确认）'
+    assert price_display(0, 'en') == '0 (currency unconfirmed)'
+    assert price_display(2.5, 'zh') == '2.5（币种未确认）'
+    assert price_display(Decimal('0'), 'en') == '0 (currency unconfirmed)'
+    assert price_display('24.50', 'en') == '24.50 (currency unconfirmed)'
+    for raw in ('$24.99', 'USD 24.99', 'EUR 18,50', 'JPY 1200', '￥88.00'):
+        assert price_display(raw, 'en') == raw
+        assert price_display(raw, 'zh') == raw
+    with app.test_request_context('/?lang=zh'):
+        assert price_display(0) == '0（币种未确认）'
+    with app.test_request_context('/?lang=en'):
+        assert price_display(0) == '0 (currency unconfirmed)'
+    rendered = app.jinja_env.from_string('{{ value|price_display("en") }}').render(value=0)
+    assert rendered == '0 (currency unconfirmed)'
+    assert app.jinja_env.filters['price_display'] is price_display
+
+
+def test_award_result_kind_is_explicit_status_enum(app):
+    from app.utils.book_labels import award_result_kind
+
+    assert award_result_kind('小说 (获奖)') == 'winner'
+    assert award_result_kind('Fiction (Winner)') == 'winner'
+    assert award_result_kind('小说 (入围)') == 'shortlisted'
+    assert award_result_kind('Fiction (Shortlist)') == 'shortlisted'
+    assert award_result_kind('Longlist') == 'shortlisted'
+    assert award_result_kind('Fiction') == 'unspecified'
+    assert award_result_kind(None) == 'unspecified'
+    assert award_result_kind('unknown shelf') == 'unspecified'
+    assert award_result_kind('Winnerish') == 'unspecified'
+    assert award_result_kind('诺贝尔文学奖') == 'unspecified'
+    assert award_result_kind('Fiction (Winner)', 'Q37922') == 'author_honor'
+    assert award_result_kind('小说 (获奖)', 'Q37922') == 'author_honor'
+    assert app.jinja_env.filters['award_result_kind'] is award_result_kind
+
+
+def test_publication_state_follows_utc_date_not_local_today(monkeypatch):
+    from datetime import date as real_date
+    from datetime import datetime as real_datetime
+
+    from app.utils import book_labels as labels
+
+    class FrozenDateTime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 9, 29, 23, 59, tzinfo=UTC)
+
+    class FrozenDate(real_date):
+        @classmethod
+        def today(cls):
+            return real_date(2026, 9, 30)
+
+    monkeypatch.setattr(labels, 'datetime', FrozenDateTime)
+    monkeypatch.setattr(labels, 'date', FrozenDate)
+    assert labels.publication_state(FrozenDate(2026, 9, 30)) == 'upcoming'
+    assert labels.publication_state(FrozenDate(2026, 9, 29)) == 'published'
+    assert labels.publication_state(None) == 'pending'
+    assert labels.publication_state(FrozenDate(2026, 9, 30), today=real_date(2026, 9, 30)) == 'published'
+
+
+def test_award_result_kind_rejects_negated_and_conflicting_winners():
+    from app.utils.book_labels import award_result_kind as kind
+
+    assert kind('未获奖') == 'unspecified'
+    assert kind('not winner') == 'unspecified'
+    assert kind('Fiction (Shortlisted, not winner)') == 'shortlisted'
+    assert kind('Fiction (Winner, Shortlist)') == 'unspecified'
+    assert kind('未获奖 (入围)') == 'shortlisted'
+    assert kind('Winner') == 'winner'
+    assert kind('Shortlist') == 'shortlisted'
+    assert kind('未获奖', 'Q37922') == 'author_honor'
+    assert kind('Fiction (Winner, Shortlist)', 'Q37922') == 'author_honor'
+
+
+def test_award_result_kind_rejects_negated_shortlist_phrases():
+    from app.utils.book_labels import award_result_kind as kind
+
+    assert kind('未入围') == 'unspecified'
+    assert kind('not shortlisted') == 'unspecified'
+    assert kind('未入围', 'Q37922') == 'author_honor'
+    assert kind('not shortlisted', 'Q37922') == 'author_honor'

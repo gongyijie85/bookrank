@@ -320,14 +320,17 @@ def build_overlooked_entries(
             },
         )
         record['latest_year'] = max(int(record['latest_year']), year)
-        record['awards'].append(
-            {
-                'award_name': str(book.get('award_name') or ''),
-                'award_name_en': str(book.get('award_name_en') or ''),
-                'year': year,
-                'category': str(book.get('category') or ''),
-            }
-        )
+        award_item = {
+            'award_name': str(book.get('award_name') or ''),
+            'award_name_en': str(book.get('award_name_en') or ''),
+            'year': year,
+            'category': str(book.get('category') or ''),
+        }
+        if 'award_wikidata_id' in book:
+            award_item['wikidata_id'] = book.get('award_wikidata_id')
+        if 'award_result_kind' in book:
+            award_item['award_result_kind'] = book.get('award_result_kind')
+        record['awards'].append(award_item)
 
     entries: list[OverlookedEntry] = []
     for record in grouped.values():

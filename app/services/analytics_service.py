@@ -122,8 +122,9 @@ def get_daily_stats(days: int = 30) -> dict[str, Any]:
             每日统计数据
     """
     try:
-        end_date = datetime.now(UTC)
-        start_date = end_date - timedelta(days=days)
+        today_midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = today_midnight - timedelta(days=days - 1)
+        end_exclusive = today_midnight + timedelta(days=1)
 
         logger.info(f'查询每日统计，时间范围: {days}天')
 
@@ -131,15 +132,21 @@ def get_daily_stats(days: int = 30) -> dict[str, Any]:
             db.session.query(
                 func.date(UserBehavior.created_at).label('date'), func.count(UserBehavior.id).label('count')
             )
-            .filter(UserBehavior.created_at >= start_date)
+            .filter(UserBehavior.created_at >= start_date, UserBehavior.created_at < end_exclusive)
             .group_by(func.date(UserBehavior.created_at))
             .order_by(func.date(UserBehavior.created_at))
             .all()
         )
 
-        daily_list = []
+        counts_by_date = {}
         for date, count in daily_stats:
-            daily_list.append({'date': date.isoformat() if hasattr(date, 'isoformat') else date, 'count': count})
+            key = date.isoformat() if hasattr(date, 'isoformat') else date
+            counts_by_date[str(key)[:10]] = count
+
+        daily_list = []
+        for offset in range(days):
+            day = (start_date + timedelta(days=offset)).date().isoformat()
+            daily_list.append({'date': day, 'count': counts_by_date.get(day, 0)})
 
         logger.info(f'每日统计完成: {len(daily_list)}天数据')
 
@@ -184,7 +191,7 @@ def get_top_reports(limit: int = 10) -> list[dict[str, Any]]:
         return top_list
     except SQLAlchemyError as e:
         logger.error(f'查询热门周报失败: {e}')
-        return []
+        raise
 
 
 def get_user_session_stats(days: int = 30) -> dict[str, Any]:

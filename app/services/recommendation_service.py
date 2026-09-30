@@ -401,28 +401,82 @@ class RecommendationService:
 
     def _recommend_similar_books(self, target_book: AwardBook, limit: int) -> dict[str, Any]:
         """推荐与目标图书相似的书籍"""
-        # 构建相似度查询条件
-        conditions = []
+        from sqlalchemy import String, case, cast, func, or_
 
-        # 同一奖项
-        conditions.append(AwardBook.award_id == target_book.award_id)
+        target_author = (target_book.author or '').strip().lower()
+        target_isbn13 = (getattr(target_book, 'isbn13', None) or '').strip()
+        target_isbn10 = (getattr(target_book, 'isbn10', None) or '').strip()
+        blocked_isbns = [value for value in (target_isbn13, target_isbn10) if value]
 
-        # 同一分类
-        if target_book.category:
-            conditions.append(AwardBook.category == target_book.category)
+        def _priority():
+            same_award = AwardBook.award_id == target_book.award_id
+            if target_author:
+                author_match = func.lower(func.trim(AwardBook.author)) == target_author
+                return case((author_match, 0), (same_award, 1), else_=2)
+            return case((same_award, 1), else_=2)
 
-        # 同一时期（±2年）
-        if target_book.year:
-            conditions.append(AwardBook.year.between(target_book.year - 2, target_book.year + 2))
+        def _isbn_key(column):
+            return func.nullif(func.trim(cast(column, String)), '')
 
-        # 排除目标图书本身
-        query = AwardBook.query.filter(
-            AwardBook.id != target_book.id, AwardBook.is_displayable.is_(True), db.or_(*conditions)
+        filters = [
+            AwardBook.id != target_book.id,
+            AwardBook.is_displayable.is_(True),  # type: ignore[union-attr]
+        ]
+        if blocked_isbns:
+            norm13 = _isbn_key(AwardBook.isbn13)
+            norm10 = _isbn_key(AwardBook.isbn10)
+            filters.append(or_(norm13.is_(None), norm13.notin_(blocked_isbns)))
+            filters.append(or_(norm10.is_(None), norm10.notin_(blocked_isbns)))
+
+        canonical_isbn = func.coalesce(
+            _isbn_key(AwardBook.isbn13),
+            _isbn_key(AwardBook.isbn10),
+            cast(AwardBook.id, String),
+        )
+        inner_priority = _priority()
+        ranked = (
+            AwardBook.query.with_entities(
+                AwardBook.id.label('candidate_id'),
+                func.row_number()
+                .over(
+                    partition_by=canonical_isbn,
+                    order_by=(
+                        inner_priority.asc(),
+                        AwardBook.year.desc(),  # type: ignore[union-attr]
+                        AwardBook.rank.asc(),  # type: ignore[union-attr]
+                        AwardBook.id.asc(),
+                    ),
+                )
+                .label('rn'),
+            )
+            .filter(*filters)
+            .subquery()
+        )
+        outer_priority = _priority()
+        books = (
+            AwardBook.query.join(ranked, AwardBook.id == ranked.c.candidate_id)
+            .filter(ranked.c.rn == 1)
+            .order_by(
+                outer_priority.asc(),
+                AwardBook.year.desc(),  # type: ignore[union-attr]
+                AwardBook.rank.asc(),  # type: ignore[union-attr]
+                AwardBook.id.asc(),
+            )
+            .limit(limit)
+            .all()
         )
 
-        books = query.order_by(AwardBook.year.desc(), AwardBook.rank.asc()).limit(limit).all()
-
-        recommendations = [self._format_award_book(book) for book in books]
+        recommendations = []
+        for book in books:
+            item = self._format_award_book(book)
+            book_author = (book.author or '').strip().lower()
+            if target_author and book_author == target_author:
+                item['related_reason'] = 'same_author'
+            elif book.award_id == target_book.award_id:
+                item['related_reason'] = 'same_award'
+            else:
+                item['related_reason'] = 'other_award'
+            recommendations.append(item)
 
         return {
             'recommendations': recommendations,

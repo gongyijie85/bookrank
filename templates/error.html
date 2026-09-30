@@ -1,5 +1,21 @@
 {% extends "base.html" %}
 
+{% set known_map = {
+  '书籍不存在': [_('书籍不存在'), _('书籍不存在')],
+  '该获奖图书已下架': [_('该获奖图书已下架'), _('该获奖图书已下架')],
+  '书籍暂时无法加载，请稍后再试': [_('暂时无法加载'), _('书籍暂时无法加载，请稍后再试')],
+  '获奖图书暂时无法加载，请稍后再试': [_('暂时无法加载'), _('获奖图书暂时无法加载，请稍后再试')],
+  '榜单暂时无法加载，请稍后再试': [_('暂时无法加载'), _('榜单暂时无法加载，请稍后再试')],
+  '周报加载失败，请稍后再试': [_('暂时无法加载'), _('周报加载失败，请稍后再试')]
+} %}
+{% if message in known_map %}
+  {% set display_heading = known_map[message][0] %}
+  {% set display_message = known_map[message][1] %}
+{% else %}
+  {% set display_heading = heading or _('出错了') %}
+  {% set display_message = message %}
+{% endif %}
+
 {# 404 不应被搜索引擎收录，否则爬虫会把错误页当成站点内容、稀释权重。
    其余错误页（书籍不存在、服务不可用等）保持默认的 index, follow。 #}
 {% block robots %}{% if noindex %}<meta name="robots" content="noindex, nofollow">{% else %}<meta name="robots" content="index, follow">{% endif %}{% endblock %}
@@ -7,7 +23,7 @@
 {# heading 由调用方显式给出，<title> 与 <h1> 共用同一个值，语义必然一致。
    未传 heading 的调用点（main.py 里十余处 render_adaptive('error.html', ...)）
    回退到通用的「出错了」+ 各自的 message，行为与改动前一致。 #}
-{% block title %}{{ heading or _('出错了') }} - BookRank{% endblock %}
+{% block title %}{{ display_heading }} - BookRank{% endblock %}
 
 {% block content %}
 <div class="error-page">
@@ -15,13 +31,30 @@
         <div class="error-icon">
             <svg class="icon" width="64" height="64"><use href="#icon-x-circle"/></svg>
         </div>
-        <h1>{{ heading or _('出错了') }}</h1>
-        <p class="error-message">{{ message }}</p>
+        <h1>{{ display_heading }}</h1>
+        <p class="error-message">{{ display_message }}</p>
         <div class="error-actions">
+            {% if back_url and back_url.startswith('/new-books') %}
             <a href="{{ back_url }}" class="btn btn-primary">
                 <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
-                {{ _('返回') }}
+                {{ _('返回新书列表') }}
             </a>
+            {% elif back_url and back_url.startswith('/awards') %}
+            <a href="{{ back_url }}" class="btn btn-primary">
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
+                {{ _('返回获奖书单') }}
+            </a>
+            {% elif back_url and back_url != '/' %}
+            <a href="{{ back_url }}" class="btn btn-primary">
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
+                {{ _('返回来源页面') }}
+            </a>
+            {% else %}
+            <a href="/" class="btn btn-primary">
+                <svg class="icon" width="16" height="16"><use href="#icon-arrow-left"/></svg>
+                {{ _('返回首页') }}
+            </a>
+            {% endif %}
             <a href="/" class="btn btn-secondary">
                 <svg class="icon" width="16" height="16"><use href="#icon-home"/></svg>
                 {{ _('首页') }}

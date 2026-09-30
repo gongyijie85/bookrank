@@ -360,3 +360,90 @@ class TestOverlookedEntries:
 
     def test_skips_records_without_title(self):
         assert build_overlooked_entries([_award('', 'Author')], {}) == []
+
+    def test_real_award_rows_expose_wikidata_id_and_result_kind(self, app, db):
+        from app.models.schemas import Award, AwardBook
+        from app.routes.main import _load_recent_award_books, _shape_award_book
+        from app.services.award_book_service import AwardBookService
+
+        nobel = Award(name='real honors', wikidata_id='Q37922')
+        lookalike = Award(name='Nobel like name', wikidata_id='Q99999')
+        db.session.add_all([nobel, lookalike])
+        db.session.flush()
+
+        nobel_isbn = '9780306406157'
+        look_isbn = '9781861972712'
+        nobel_book = AwardBook(
+            award_id=nobel.id,
+            title='Honor Bound',
+            author='Ada Honor',
+            isbn13=nobel_isbn,
+            year=2026,
+            category='Fiction',
+            rank=1,
+            is_displayable=True,
+        )
+        look_book = AwardBook(
+            award_id=lookalike.id,
+            title='Lookalike Tale',
+            author='Bea Generic',
+            isbn13=look_isbn,
+            year=2026,
+            category='Fiction',
+            rank=1,
+            is_displayable=True,
+        )
+        db.session.add_all([nobel_book, look_book])
+        db.session.commit()
+
+        service = AwardBookService(app=app)
+        nobel_shaped = _shape_award_book(db.session.get(AwardBook, nobel_book.id))
+        look_shaped = _shape_award_book(db.session.get(AwardBook, look_book.id))
+        assert nobel_shaped['award_wikidata_id'] == 'Q37922'
+        assert nobel_shaped['award_result_kind'] == 'author_honor'
+        assert look_shaped['award_wikidata_id'] == 'Q99999'
+        assert look_shaped['award_result_kind'] == 'unspecified'
+
+        loaded = _load_recent_award_books(service, [2026])
+        by_isbn = {row['isbn13']: row for row in loaded}
+        assert by_isbn[nobel_isbn]['award_wikidata_id'] == 'Q37922'
+        assert by_isbn[nobel_isbn]['award_result_kind'] == 'author_honor'
+        assert by_isbn[nobel_isbn]['award_name'] == 'real honors'
+        assert by_isbn[nobel_isbn]['year'] == 2026
+        assert by_isbn[nobel_isbn]['category'] == 'Fiction'
+        assert by_isbn[look_isbn]['award_wikidata_id'] == 'Q99999'
+        assert by_isbn[look_isbn]['award_result_kind'] == 'unspecified'
+        assert by_isbn[look_isbn]['award_name'] == 'Nobel like name'
+        assert by_isbn[look_isbn]['year'] == 2026
+        assert by_isbn[look_isbn]['category'] == 'Fiction'
+
+        entries = build_overlooked_entries(loaded, {})
+        assert [entry.title for entry in entries] == ['Honor Bound', 'Lookalike Tale']
+        assert [entry.award_count for entry in entries] == [1, 1]
+        honor = entries[0].awards[0]
+        generic = entries[1].awards[0]
+        assert honor['wikidata_id'] == 'Q37922'
+        assert honor['award_result_kind'] == 'author_honor'
+        assert honor['award_name'] == 'real honors'
+        assert honor['year'] == 2026
+        assert honor['category'] == 'Fiction'
+        assert generic['wikidata_id'] == 'Q99999'
+        assert generic['award_result_kind'] == 'unspecified'
+        assert generic['award_name'] == 'Nobel like name'
+        assert generic['year'] == 2026
+        assert generic['category'] == 'Fiction'
+
+    def test_overlooked_legacy_award_dict_keeps_four_keys(self):
+        entries = build_overlooked_entries([_award('Legacy Title', 'Legacy Author')], {})
+
+        assert len(entries) == 1
+        assert entries[0].award_count == 1
+        award = entries[0].awards[0]
+        assert award == {
+            'award_name': '布克奖',
+            'award_name_en': 'Booker Prize',
+            'year': 2026,
+            'category': '小说',
+        }
+        assert 'wikidata_id' not in award
+        assert 'award_result_kind' not in award

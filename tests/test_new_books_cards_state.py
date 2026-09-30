@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, date, datetime, timedelta
+from html import unescape
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -118,7 +120,10 @@ class TestSharedCardDetailLink:
         with app.app_context():
             ids = _seed_books(db)
 
-        html = client.get('/new-books').get_data(as_text=True)
+        source_path = '/new-books?lang=en&view=list&publication_status=all'
+        response = client.get(source_path)
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
 
         for label, book_id in ids.items():
             card = re.search(
@@ -133,8 +138,11 @@ class TestSharedCardDetailLink:
             title = re.search(r'<div class="book-title"[^>]*>\s*<a href="([^"]+)"', block)
             assert cover, f'{label}: 封面缺少详情链接'
             assert title, f'{label}: 书名缺少详情链接'
-            assert cover.group(1) == expected, f'{label}: 封面链接指向 {cover.group(1)}'
-            assert title.group(1) == expected, f'{label}: 书名链接指向 {title.group(1)}'
+            cover_url = unescape(cover.group(1))
+            assert cover_url == unescape(title.group(1)), f'{label}: 封面与书名链接不同'
+            parsed = urlsplit(cover_url)
+            assert parsed.path == expected, f'{label}: 封面链接指向 {cover_url}'
+            assert parse_qs(parsed.query) == {'lang': ['en'], 'return_to': [source_path]}
 
     def test_no_nested_interactive_elements_in_cards(self, app, db, client):
         """封面/书名是链接，但不得互相嵌套（会吃掉点击目标）。"""
@@ -188,10 +196,19 @@ class TestSharedCardDetailLink:
 
     def test_mobile_newbooks_card_links_to_detail_route(self, app, db):
         with app.app_context():
-            _seed_books(db)
+            ids = _seed_books(db)
 
-        html = _mobile_html(app)
-        assert re.search(r'<a href="/new-book/\d+" class="m-card m-book-card">', html), '移动端新书卡片未指向详情路由'
+        source_path = '/new-books?lang=en&view=list&publication_status=all'
+        response = app.test_client().get(
+            source_path,
+            headers={'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15'},
+        )
+        assert response.status_code == 200
+        cards = BeautifulSoup(response.get_data(as_text=True), 'html.parser').select('a.m-card.m-book-card')
+        assert len(cards) == len(ids)
+        assert {urlsplit(card['href']).path for card in cards} == {f'/new-book/{value}' for value in ids.values()}
+        for card in cards:
+            assert parse_qs(urlsplit(card['href']).query) == {'lang': ['en'], 'return_to': [source_path]}
 
 
 class TestBookI18nTitleLinkPreservation:
@@ -534,7 +551,7 @@ class TestBilingualPayload:
         html = app.test_client().get('/new-books').get_data(as_text=True)
         option = re.search(r'<option value=""[^>]*data-pub-name-zh="([^"]*)"', html)
         assert option, '「全部出版社」选项缺 data-pub-name-zh'
-        assert option.group(1) == '全部出版社', f'EN 页 zh 槽位被英文污染: {option.group(1)}'
+        assert option.group(1) == '所有来源', f'EN 页 zh 槽位被英文污染: {option.group(1)}'
 
     def test_mobile_zh_slots_are_chinese(self, app, db):
         with app.app_context():

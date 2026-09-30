@@ -646,7 +646,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             const rank = Number(book.rank) || index + 1;
             const sourceIndex = book.source_index ?? rank - 1;
             const sourceCategory = book.source_category || category;
-            const detailUrl = `/book/${encodeURIComponent(sourceIndex)}?category=${encodeURIComponent(sourceCategory)}`;
+            const detailUrl = `/book/${encodeURIComponent(sourceIndex)}?category=${encodeURIComponent(sourceCategory)}&lang=${encodeURIComponent((function(){var l=new URLSearchParams(window.location.search).get('lang');if(l!=='zh'&&l!=='en')l=(window.__APP_LANG__==='zh'||window.__APP_LANG__==='en')?window.__APP_LANG__:'';if(!l&&typeof currentLanguage==='string'&&(currentLanguage==='zh'||currentLanguage==='en'))l=currentLanguage;return l||'en';})())}&return_to=${encodeURIComponent(window.location.pathname + window.location.search)}`;
             const cover = book.cover && book.cover !== defaultCover
                 ? book.cover
                 : (book._original_cover || defaultCover);
@@ -800,7 +800,7 @@ function handleCardClick(e) {
     if (!card) return;
     const index = card.getAttribute('data-index');
     const category = card.getAttribute('data-category') || window.currentCategory || window.APP_CONFIG.currentCategory;
-    window.location.href = `/book/${encodeURIComponent(index)}?category=${encodeURIComponent(category)}`;
+    window.location.href = `/book/${encodeURIComponent(index)}?category=${encodeURIComponent(category)}&lang=${encodeURIComponent((function(){var l=new URLSearchParams(window.location.search).get('lang');if(l!=='zh'&&l!=='en')l=(window.__APP_LANG__==='zh'||window.__APP_LANG__==='en')?window.__APP_LANG__:'';if(!l&&typeof currentLanguage==='string'&&(currentLanguage==='zh'||currentLanguage==='en'))l=currentLanguage;return l||'en';})())}&return_to=${encodeURIComponent(window.location.pathname + window.location.search)}`;
 }
 
 if (booksGrid) booksGrid.addEventListener('click', handleCardClick);

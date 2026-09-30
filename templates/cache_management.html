@@ -192,7 +192,7 @@
 </div>
 
 <div id="translation-tab" class="tab-content active">
-    <div class="cache-stats">
+    <div id="translation-stats-container" class="cache-stats">
         <div class="stat-card">
             <div class="stat-value" id="trans-total-count">-</div>
             <div class="stat-label">总缓存数</div>
@@ -241,10 +241,10 @@
                 <input type="number" id="trans-min-usage" min="0" max="1000" placeholder="次数">
             </div>
             <div class="form-group">
-                <button class="btn btn-warning" id="btn-clear-translation">
+                <button class="btn btn-warning" id="btn-clear-translation" disabled aria-disabled="true">
                     <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清理
                 </button>
-                <button class="btn btn-danger" id="btn-clear-all-translation">
+                <button class="btn btn-danger" id="btn-clear-all-translation" disabled aria-disabled="true">
                     <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清空全部
                 </button>
             </div>
@@ -253,7 +253,7 @@
 </div>
 
 <div id="api-tab" class="tab-content">
-    <div class="cache-stats">
+    <div id="api-stats-container" class="cache-stats">
         <div class="stat-card">
             <div class="stat-value" id="api-total-count">-</div>
             <div class="stat-label">总缓存数</div>
@@ -302,10 +302,10 @@
                 <input type="number" id="api-older-than" min="1" max="365" placeholder="天数">
             </div>
             <div class="form-group">
-                <button class="btn btn-warning" id="btn-clear-api">
+                <button class="btn btn-warning" id="btn-clear-api" disabled aria-disabled="true">
                     <svg class="icon" width="16" height="16"><use href="#icon-trash"/></svg> 清理
                 </button>
-                <button class="btn btn-danger" id="btn-clear-expired">
+                <button class="btn btn-danger" id="btn-clear-expired" disabled aria-disabled="true">
                     <svg class="icon" width="16" height="16"><use href="#icon-clock"/></svg> 清理过期
                 </button>
             </div>
@@ -329,57 +329,255 @@ function switchTab(tab) {
     }
 }
 
+const _cacheGroupState = {
+    translation: { authorized: false, denied: false },
+    api: { authorized: false, denied: false }
+};
+
+function setCacheAuthorized(group, bool) {
+    if (_cacheGroupState[group]) {
+        // Never enable after denial latch
+        if (_cacheGroupState[group].denied) return;
+        _cacheGroupState[group].authorized = !!bool;
+    }
+}
+
+function groupStateStatus(group) {
+    const st = _cacheGroupState[group];
+    if (!st) return 'unknown';
+    if (st.denied) return 'denied';
+    if (st.authorized) return 'authorized';
+    return 'pending';
+}
+
+function isCacheDenied(group) {
+    const st = _cacheGroupState[group];
+    return !!(st && st.denied);
+}
+
+function latchDenied(group) {
+    const st = _cacheGroupState[group];
+    if (st) {
+        st.denied = true;
+        st.authorized = false;
+    }
+    disableClearButtonsForGroup(group);
+}
+
+function getDocumentLang() {
+    const lang = (document.documentElement.lang || '').toLowerCase();
+    return lang.startsWith('zh') ? 'zh' : 'en';
+}
+
+function localizedMsg(zhText, enText) {
+    return getDocumentLang() === 'zh' ? zhText : enText;
+}
+
+function appendStatusNear(containerId, message, kind, retryLoader) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    let statusEl = container.querySelector('.cache-status-msg');
+    if (!statusEl) {
+        statusEl = document.createElement('p');
+        statusEl.className = 'cache-status-msg';
+        container.appendChild(statusEl);
+    }
+    statusEl.textContent = message;
+    statusEl.dataset.kind = kind || '';
+    // retry button
+    let retryBtn = container.querySelector('.cache-retry-btn');
+    if (kind === 'error' && typeof retryLoader === 'function' && !retryBtn) {
+        retryBtn = document.createElement('button');
+        retryBtn.type = 'button';
+        retryBtn.className = 'btn btn-sm cache-retry-btn';
+        retryBtn.style.minHeight = '44px';
+        retryBtn.textContent = localizedMsg('重试', 'Retry');
+        if (typeof retryLoader === 'function') {
+            retryBtn.addEventListener('click', retryLoader);
+        }
+        container.appendChild(retryBtn);
+    } else if (kind !== 'error' && retryBtn) {
+        retryBtn.remove();
+    }
+}
+
+function clearStatusNear(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const statusEl = container.querySelector('.cache-status-msg');
+    if (statusEl) statusEl.remove();
+    const retryBtn = container.querySelector('.cache-retry-btn');
+    if (retryBtn) retryBtn.remove();
+}
+
+function resetStatsToDash(ids) {
+    ids.forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '—';
+    });
+}
+
+function disableClearButtonsForGroup(group) {
+    let selectors = [];
+    if (group === 'translation') {
+        selectors = ['#btn-clear-translation', '#btn-clear-all-translation'];
+    } else if (group === 'api') {
+        selectors = ['#btn-clear-api', '#btn-clear-expired'];
+    }
+    selectors.forEach(function(sel) {
+        const btn = document.querySelector(sel);
+        if (btn) {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+        }
+    });
+}
+
+function enableClearButton(btnId) {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+        btn.disabled = false;
+        btn.removeAttribute('aria-disabled');
+    }
+}
+
+async function cacheRead(group, url, options) {
+    if (isCacheDenied(group)) {
+        throw Object.assign(new Error(localizedMsg('权限已被拒绝', 'Permission denied')), { status: 403 });
+    }
+    const response = await fetch(url, options);
+    // Recheck latched state after await
+    if (isCacheDenied(group)) {
+        throw Object.assign(new Error(localizedMsg('权限已被拒绝', 'Permission denied')), { status: 403 });
+    }
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            latchDenied(group);
+            throw Object.assign(new Error(localizedMsg('未授权访问', 'Unauthorized')), { status: response.status });
+        }
+        throw Object.assign(new Error(localizedMsg('请求失败', 'Request failed')), { status: response.status });
+    }
+    const result = await response.json();
+    if (!result.success) {
+        throw Object.assign(new Error(result.message || localizedMsg('响应异常', 'Bad response')), { status: response.status });
+    }
+    return result;
+}
+
 async function loadTranslationStats() {
+    const statIds = ['trans-total-count', 'trans-en-zh-count', 'trans-zh-en-count', 'trans-recent-count', 'trans-usage-count'];
+    resetStatsToDash(statIds);
+    clearStatusNear('translation-stats-container');
+    disableClearButtonsForGroup('translation');
     try {
-        const response = await fetch('/api/translate/cache/stats');
-        const result = await response.json();
-        
-        if (result.success && result.data.cache) {
+        const result = await cacheRead('translation', '/api/translate/cache/stats', { method: 'GET' });
+        // Test denial after awaited cacheRead BEFORE render/enable
+        if (isCacheDenied('translation')) {
+            appendStatusNear('translation-stats-container', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'error', null);
+            return;
+        }
+        if (result.data && result.data.cache) {
             const cache = result.data.cache;
-            document.getElementById('trans-total-count').textContent = cache.total_count || 0;
-            document.getElementById('trans-en-zh-count').textContent = cache.en_to_zh_count || 0;
-            document.getElementById('trans-zh-en-count').textContent = cache.zh_to_en_count || 0;
-            document.getElementById('trans-recent-count').textContent = cache.recent_24h_count || 0;
-            document.getElementById('trans-usage-count').textContent = cache.total_usage_count || 0;
+            document.getElementById('trans-total-count').textContent = cache.total_count != null ? cache.total_count : '—';
+            document.getElementById('trans-en-zh-count').textContent = cache.en_to_zh_count != null ? cache.en_to_zh_count : '—';
+            document.getElementById('trans-zh-en-count').textContent = cache.zh_to_en_count != null ? cache.zh_to_en_count : '—';
+            document.getElementById('trans-recent-count').textContent = cache.recent_24h_count != null ? cache.recent_24h_count : '—';
+            document.getElementById('trans-usage-count').textContent = cache.total_usage_count != null ? cache.total_usage_count : '—';
+            setCacheAuthorized('translation', true);
+            enableClearButton('btn-clear-translation');
+            enableClearButton('btn-clear-all-translation');
+        } else {
+            // Invalid missing data is failure, not silent pending
+            throw new Error(localizedMsg('数据格式无效', 'Invalid data format'));
         }
     } catch (error) {
-        console.error('加载翻译缓存统计失败:', error);
+        setCacheAuthorized('translation', false);
+        disableClearButtonsForGroup('translation');
+        if (error && (error.status === 401 || error.status === 403)) {
+            appendStatusNear('translation-stats-container', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'error', null);
+        } else {
+            appendStatusNear('translation-stats-container', localizedMsg('加载翻译缓存统计失败：' + (error.message || ''), 'Failed to load translation cache stats: ' + (error.message || '')), 'error', loadTranslationStats);
+        }
     }
 }
 
 async function loadTranslationRecords() {
     const listEl = document.getElementById('translation-list');
-    listEl.innerHTML = '<div class="loading-state"><svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg><p>加载中...</p></div>';
-    
+    if (!listEl) return;
+    clearStatusNear('translation-list');
+    // loading state
+    listEl.textContent = '';
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-state';
+    const loadingP = document.createElement('p');
+    loadingP.textContent = localizedMsg('加载中...', 'Loading...');
+    loadingDiv.appendChild(loadingP);
+    listEl.appendChild(loadingDiv);
+
     try {
-        const response = await fetch('/api/translate/cache/recent?limit=30');
-        const result = await response.json();
-        
-        if (result.success && result.data.records && result.data.records.length > 0) {
-            let html = '';
-            result.data.records.forEach(record => {
-                html += `
-                    <div class="cache-item">
-                        <div class="cache-text source">${esc(record.source_text)}</div>
-                        <div class="cache-text translated">${esc(record.translated_text)}</div>
-                        <div>
-                            <span class="cache-lang">${record.source_lang} → ${record.target_lang}</span>
-                        </div>
-                        <div class="cache-usage">${record.usage_count}次</div>
-                    </div>
-                `;
-            });
-            listEl.innerHTML = html;
-        } else {
-            listEl.innerHTML = '<div class="empty-state"><p>暂无翻译缓存记录</p></div>';
+        const result = await cacheRead('translation', '/api/translate/cache/recent?limit=30', { method: 'GET' });
+        // denial race after await, before paint
+        if (isCacheDenied('translation')) {
+            listEl.textContent = '';
+            appendStatusNear('translation-list', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'unauthorized', null);
+            return;
         }
+        if (!result.data || !Array.isArray(result.data.records)) {
+            throw Object.assign(new Error(localizedMsg('响应格式无效', 'Invalid response')), { status: 500 });
+        }
+        const records = result.data.records;
+        if (records.length === 0) {
+            listEl.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            const emptyP = document.createElement('p');
+            emptyP.textContent = localizedMsg('暂无翻译缓存记录', 'No translation cache records.');
+            emptyDiv.appendChild(emptyP);
+            listEl.appendChild(emptyDiv);
+            return;
+        }
+        listEl.textContent = '';
+        records.forEach(function(record) {
+            const item = document.createElement('div');
+            item.className = 'cache-item';
+            const src = document.createElement('div');
+            src.className = 'cache-text source';
+            src.textContent = record.source_text != null ? String(record.source_text) : '';
+            item.appendChild(src);
+            const tr = document.createElement('div');
+            tr.className = 'cache-text translated';
+            tr.textContent = record.translated_text != null ? String(record.translated_text) : '';
+            item.appendChild(tr);
+            const langWrap = document.createElement('div');
+            const langSpan = document.createElement('span');
+            langSpan.className = 'cache-lang';
+            langSpan.textContent = (record.source_lang || '') + ' → ' + (record.target_lang || '');
+            langWrap.appendChild(langSpan);
+            item.appendChild(langWrap);
+            const usage = document.createElement('div');
+            usage.className = 'cache-usage';
+            usage.textContent = (record.usage_count != null ? String(record.usage_count) : '0') + localizedMsg('次', '');
+            item.appendChild(usage);
+            listEl.appendChild(item);
+        });
     } catch (error) {
-        console.error('加载翻译缓存记录失败:', error);
-        listEl.innerHTML = '<div class="error-state"><p>加载失败，请稍后重试</p></div>';
+        setCacheAuthorized('translation', false);
+        disableClearButtonsForGroup('translation');
+        listEl.textContent = '';
+        if (error && (error.status === 401 || error.status === 403)) {
+            appendStatusNear('translation-list', localizedMsg('权限不足，无法查看或操作翻译缓存。', 'Insufficient permissions to view or manage translation cache.'), 'unauthorized', null);
+        } else {
+            const msg = localizedMsg('加载失败，请稍后重试', 'Failed to load translation cache records. Please retry.');
+            appendStatusNear('translation-list', msg, 'error', loadTranslationRecords);
+        }
     }
 }
 
 async function clearTranslationCache() {
+    if (!_cacheGroupState.translation.authorized) {
+        showToast(localizedMsg('当前无权限执行此操作', 'Not authorized for this action'), 'warning');
+        return;
+    }
     const olderThan = document.getElementById('trans-older-than').value;
     const minUsage = document.getElementById('trans-min-usage').value;
     
@@ -393,105 +591,167 @@ async function clearTranslationCache() {
     }
     
     try {
-        const response = await fetch('/api/translate/cache/clear', {
+        const result = await cacheRead('translation', '/api/translate/cache/clear', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body)
         });
-        const result = await response.json();
-        
-        if (result.success) {
-            showToast(result.message, 'success');
-            loadTranslationStats();
-            loadTranslationRecords();
-        } else {
-            showToast(result.message || '清理失败', 'error');
-        }
+        showToast(result.message, 'success');
+        loadTranslationStats();
+        loadTranslationRecords();
     } catch (error) {
-        console.error('清理翻译缓存失败:', error);
-        showToast('清理失败，请稍后重试', 'error');
+        if (error && (error.status === 401 || error.status === 403)) {
+            latchDenied('translation');
+            showToast(localizedMsg('权限已被撤销，请刷新页面重新获取。', 'Permission revoked. Please refresh the page.'), 'error');
+        } else {
+            showToast(error.message || localizedMsg('清理失败，请稍后重试', 'Clear failed, please retry later'), 'error');
+        }
     }
 }
 
 async function clearAllTranslationCache() {
+    if (!_cacheGroupState.translation.authorized) {
+        showToast(localizedMsg('当前无权限执行此操作', 'Not authorized for this action'), 'warning');
+        return;
+    }
     if (!confirm('确定要清空所有翻译缓存吗？此操作不可恢复！')) {
         return;
     }
     
     try {
-        const response = await fetch('/api/translate/cache/clear', {
+        const result = await cacheRead('translation', '/api/translate/cache/clear', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({})
         });
-        const result = await response.json();
-        
-        if (result.success) {
-            showToast(result.message, 'success');
-            loadTranslationStats();
-            loadTranslationRecords();
-        } else {
-            showToast(result.message || '清空失败', 'error');
-        }
+        showToast(result.message, 'success');
+        loadTranslationStats();
+        loadTranslationRecords();
     } catch (error) {
-        console.error('清空翻译缓存失败:', error);
-        showToast('清空失败，请稍后重试', 'error');
+        if (error && (error.status === 401 || error.status === 403)) {
+            latchDenied('translation');
+            showToast(localizedMsg('权限已被撤销，请刷新页面重新获取。', 'Permission revoked. Please refresh the page.'), 'error');
+        } else {
+            showToast(error.message || localizedMsg('清空失败，请稍后重试', 'Clear all failed, please retry later'), 'error');
+        }
     }
 }
 
 async function loadAPIStats() {
+    const statIds = ['api-total-count', 'api-expired-count', 'api-usage-count', 'api-nyt-count', 'api-gb-count', 'api-ol-count'];
+    resetStatsToDash(statIds);
+    clearStatusNear('api-stats-container');
+    disableClearButtonsForGroup('api');
     try {
-        const response = await fetch('/api/cache/stats');
-        const result = await response.json();
-        
-        if (result.success && result.data) {
+        const result = await cacheRead('api', '/api/cache/stats', { method: 'GET' });
+        // Test denial after awaited cacheRead BEFORE render/enable
+        if (isCacheDenied('api')) {
+            appendStatusNear('api-stats-container', localizedMsg('权限不足，无法查看或操作API缓存。', 'Insufficient permissions to view or manage API cache.'), 'error', null);
+            return;
+        }
+        if (result.data) {
             const cache = result.data;
-            document.getElementById('api-total-count').textContent = cache.total_count || 0;
-            document.getElementById('api-expired-count').textContent = cache.expired_count || 0;
-            document.getElementById('api-usage-count').textContent = cache.total_usage_count || 0;
-            document.getElementById('api-nyt-count').textContent = cache.nyt_count || 0;
-            document.getElementById('api-gb-count').textContent = cache.google_books_count || 0;
-            document.getElementById('api-ol-count').textContent = cache.open_library_count || 0;
+            document.getElementById('api-total-count').textContent = cache.total_count != null ? cache.total_count : '—';
+            document.getElementById('api-expired-count').textContent = cache.expired_count != null ? cache.expired_count : '—';
+            document.getElementById('api-usage-count').textContent = cache.total_usage_count != null ? cache.total_usage_count : '—';
+            document.getElementById('api-nyt-count').textContent = cache.nyt_count != null ? cache.nyt_count : '—';
+            document.getElementById('api-gb-count').textContent = cache.google_books_count != null ? cache.google_books_count : '—';
+            document.getElementById('api-ol-count').textContent = cache.open_library_count != null ? cache.open_library_count : '—';
+            setCacheAuthorized('api', true);
+            enableClearButton('btn-clear-api');
+            enableClearButton('btn-clear-expired');
+        } else {
+            // Invalid missing data is failure, not silent pending
+            throw new Error(localizedMsg('数据格式无效', 'Invalid data format'));
         }
     } catch (error) {
-        console.error('加载API缓存统计失败:', error);
+        setCacheAuthorized('api', false);
+        disableClearButtonsForGroup('api');
+        if (error && (error.status === 401 || error.status === 403)) {
+            appendStatusNear('api-stats-container', localizedMsg('权限不足，无法查看或操作API缓存。', 'Insufficient permissions to view or manage API cache.'), 'error', null);
+        } else {
+            appendStatusNear('api-stats-container', localizedMsg('加载API缓存统计失败：' + (error.message || ''), 'Failed to load API cache stats: ' + (error.message || '')), 'error', loadAPIStats);
+        }
     }
 }
 
 async function loadAPIRecords() {
     const listEl = document.getElementById('api-list');
-    listEl.innerHTML = '<div class="loading-state"><svg class="icon icon-spin" width="24" height="24"><use href="#icon-spinner"/></svg><p>加载中...</p></div>';
-    
+    if (!listEl) return;
+    clearStatusNear('api-list');
+    // loading state
+    listEl.textContent = '';
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-state';
+    const loadingP = document.createElement('p');
+    loadingP.textContent = localizedMsg('加载中...', 'Loading...');
+    loadingDiv.appendChild(loadingP);
+    listEl.appendChild(loadingDiv);
+
     try {
-        const response = await fetch('/api/cache/recent?limit=30');
-        const result = await response.json();
-        
-        if (result.success && result.data.records && result.data.records.length > 0) {
-            let html = '';
-            result.data.records.forEach(record => {
-                const badgeClass = record.api_source.replace('_', '-');
-                html += `
-                    <div class="cache-item">
-                        <div class="cache-text source">${esc(record.request_key)}</div>
-                        <div class="cache-text translated">状态: ${record.status_code}</div>
-                        <div>
-                            <span class="api-source-badge ${badgeClass}">${record.api_source}</span>
-                        </div>
-                        <div class="cache-usage">${record.usage_count}次</div>
-                    </div>
-                `;
-            });
-            listEl.innerHTML = html;
-        } else {
-            listEl.innerHTML = '<div class="empty-state"><p>暂无API缓存记录</p></div>';
+        const result = await cacheRead('api', '/api/cache/recent?limit=30', { method: 'GET' });
+        // denial race after await, before paint
+        if (isCacheDenied('api')) {
+            listEl.textContent = '';
+            appendStatusNear('api-list', localizedMsg('权限不足，无法查看或管理 API 缓存。', 'Insufficient permissions to view or manage API cache.'), 'unauthorized', null);
+            return;
         }
+        if (!result.data || !Array.isArray(result.data.records)) {
+            throw Object.assign(new Error(localizedMsg('响应格式无效', 'Invalid response')), { status: 500 });
+        }
+        const records = result.data.records;
+        if (records.length === 0) {
+            listEl.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            const emptyP = document.createElement('p');
+            emptyP.textContent = localizedMsg('暂无API缓存记录', 'No API cache records.');
+            emptyDiv.appendChild(emptyP);
+            listEl.appendChild(emptyDiv);
+            return;
+        }
+        listEl.textContent = '';
+        records.forEach(function(record) {
+            const item = document.createElement('div');
+            item.className = 'cache-item';
+            const src = document.createElement('div');
+            src.className = 'cache-text source';
+            src.textContent = record.request_key != null ? String(record.request_key) : '';
+            item.appendChild(src);
+            const status = document.createElement('div');
+            status.className = 'cache-text translated';
+            status.textContent = localizedMsg('状态: ', 'Status: ') + (record.status_code != null ? String(record.status_code) : '');
+            item.appendChild(status);
+            const badgeWrap = document.createElement('div');
+            const badge = document.createElement('span');
+            badge.className = 'api-source-badge';
+            badge.textContent = record.api_source != null ? String(record.api_source) : '';
+            badgeWrap.appendChild(badge);
+            item.appendChild(badgeWrap);
+            const usage = document.createElement('div');
+            usage.className = 'cache-usage';
+            usage.textContent = (record.usage_count != null ? String(record.usage_count) : '0') + localizedMsg('次', '');
+            item.appendChild(usage);
+            listEl.appendChild(item);
+        });
     } catch (error) {
-        console.error('加载API缓存记录失败:', error);
-        listEl.innerHTML = '<div class="error-state"><p>加载失败，请稍后重试</p></div>';
+        setCacheAuthorized('api', false);
+        disableClearButtonsForGroup('api');
+        listEl.textContent = '';
+        if (error && (error.status === 401 || error.status === 403)) {
+            appendStatusNear('api-list', localizedMsg('权限不足，无法查看或管理 API 缓存。', 'Insufficient permissions to view or manage API cache.'), 'unauthorized', null);
+        } else {
+            const msg = localizedMsg('加载失败，请稍后重试', 'Failed to load API cache records. Please retry.');
+            appendStatusNear('api-list', msg, 'error', loadAPIRecords);
+        }
     }
 }
 
 async function clearAPICache() {
+    if (!_cacheGroupState.api.authorized) {
+        showToast(localizedMsg('当前无权限执行此操作', 'Not authorized for this action'), 'warning');
+        return;
+    }
     const olderThan = document.getElementById('api-older-than').value;
     
     const body = {};
@@ -503,44 +763,44 @@ async function clearAPICache() {
     }
     
     try {
-        const response = await fetch('/api/cache/clear', {
+        const result = await cacheRead('api', '/api/cache/clear', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body)
         });
-        const result = await response.json();
-        
-        if (result.success) {
-            showToast(result.message, 'success');
-            loadAPIStats();
-            loadAPIRecords();
-        } else {
-            showToast(result.message || '清理失败', 'error');
-        }
+        showToast(result.message, 'success');
+        loadAPIStats();
+        loadAPIRecords();
     } catch (error) {
-        console.error('清理API缓存失败:', error);
-        showToast('清理失败，请稍后重试', 'error');
+        if (error && (error.status === 401 || error.status === 403)) {
+            latchDenied('api');
+            showToast(localizedMsg('权限已被撤销，请刷新页面重新获取。', 'Permission revoked. Please refresh the page.'), 'error');
+        } else {
+            showToast(error.message || localizedMsg('清理失败，请稍后重试', 'Clear failed, please retry later'), 'error');
+        }
     }
 }
 
 async function clearExpiredCache() {
+    if (!_cacheGroupState.api.authorized) {
+        showToast(localizedMsg('当前无权限执行此操作', 'Not authorized for this action'), 'warning');
+        return;
+    }
     try {
-        const response = await fetch('/api/cache/clear-expired', {
+        const result = await cacheRead('api', '/api/cache/clear-expired', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
-        const result = await response.json();
-        
-        if (result.success) {
-            showToast(result.message, 'success');
-            loadAPIStats();
-            loadAPIRecords();
-        } else {
-            showToast(result.message || '清理失败', 'error');
-        }
+        showToast(result.message, 'success');
+        loadAPIStats();
+        loadAPIRecords();
     } catch (error) {
-        console.error('清理过期缓存失败:', error);
-        showToast('清理失败，请稍后重试', 'error');
+        if (error && (error.status === 401 || error.status === 403)) {
+            latchDenied('api');
+            showToast(localizedMsg('权限已被撤销，请刷新页面重新获取。', 'Permission revoked. Please refresh the page.'), 'error');
+        } else {
+            showToast(error.message || localizedMsg('清理失败，请稍后重试', 'Clear failed, please retry later'), 'error');
+        }
     }
 }
 

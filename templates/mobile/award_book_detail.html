@@ -1,4 +1,5 @@
 {% extends "mobile/base.html" %}
+{% from '_macros.html' import award_result_label, related_reason_label %}
 
 {% block title %}{{ shown_title }} - BookRank{% endblock %}
 {% block og_title %}{{ shown_title }} - BookRank{% endblock %}
@@ -57,6 +58,7 @@
     </div>
     {% endif %}
     <div class="m-detail-facts">
+        {{ award_result_label(book.category|award_result_kind(book.award.wikidata_id if book.award else none)) }}
         {% if book.isbn13 or book.isbn10 %}
         <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
         {% endif %}
@@ -121,7 +123,7 @@
                 <div class="m-meta-row"><dt>{{ _('奖项') }}</dt><dd>{{ book.award.name|bilingual(book.award.name_en) }}</dd></div>
                 {% endif %}
                 {% if book.year %}
-                <div class="m-meta-row"><dt>{{ _('获奖年份') }}</dt><dd>{{ book.year }}</dd></div>
+                <div class="m-meta-row"><dt>{{ _('记录年份') }}</dt><dd>{{ book.year }}</dd></div>
                 {% endif %}
                 {% set dl_category = book.category|award_term %}
                 {% if dl_category %}
@@ -150,18 +152,19 @@
 </div>
 
 {% if related_books %}
-<section class="m-related-books" aria-label="{{ _('相关获奖图书') }}">
-    <h2 class="m-section-title">{{ _('相关获奖图书') }}</h2>
+<section class="m-related-books" aria-label="{{ _('相关奖项图书') }}">
+    <h2 class="m-section-title">{{ _('相关奖项图书') }}</h2>
     <div class="m-related-books-scroll no-scrollbar">
         {% for related in related_books %}
         {% set related_title = related.title_zh|bilingual(related.title) %}
-        <a href="{{ url_for('main.award_book_detail', book_id=related.id) }}" class="m-related-book-card">
+        <a href="{{ url_for('main.award_book_detail', book_id=related.id, lang=get_locale(), return_to=request.full_path) }}" class="m-related-book-card">
             <div class="m-related-book-cover">
                 <img src="{{ related.cover_url|cover_src_or_default }}"
                      alt="{{ related_title }}" loading="lazy"
                      data-cover-fallback="">
             </div>
             <div class="m-related-book-title">{{ related_title }}</div>
+            {{ related_reason_label(related.related_reason) }}
         </a>
         {% endfor %}
     </div>

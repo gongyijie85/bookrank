@@ -9,7 +9,7 @@
 {% set _title_zh = book.title_zh or book.title %}
 {% set _title_en = book.title or book.title_zh %}
 {% set display_title = _title_zh if _l == 'zh' else _title_en %}
-{% set _detail_url = url_for('main.new_book_detail', book_id=book.id) %}
+{% set _detail_url = url_for('main.new_book_detail', book_id=book.id, lang=get_locale(), return_to=request.full_path) %}
 <div class="book-card" data-book-id="{{ book.id }}" data-isbn="{{ book.isbn13 or book.isbn10 or '' }}">
     {# 封面指向同一详情路由；收藏按钮不在此列（自带交互，不能套进链接）。 #}
     <a class="book-cover-link" href="{{ _detail_url }}" aria-label="{{ _('《') }}{{ display_title }}{{ _('》详情') }}" tabindex="-1">
@@ -58,8 +58,8 @@
                 {{ pub_name }}
             </span>
             {% endif %}
-            {% if book.price %}
-            <span class="book-price">{{ book.price }}</span>
+            {% if book.price is not none and book.price|string|trim != '' %}
+            <span class="book-price" data-price-raw="{{ book.price|e }}">{{ book.price|price_display(get_locale()) }}</span>
             {% endif %}
         </div>
         <div class="book-tags">
@@ -139,7 +139,7 @@
 {# title 属性保留完整书名（含卷号），供 hover 查看 #}
 {% set full_title = (display_stem ~ ' ' ~ volume_marker).strip() if volume_marker else display_stem %}
 {% set pub_name = ((book.publisher.name_en or book.publisher.name) if _l == 'en' else book.publisher.name) if book.publisher else '' %}
-{% set _browse_detail_url = url_for('main.new_book_detail', book_id=book.id) %}
+{% set _browse_detail_url = url_for('main.new_book_detail', book_id=book.id, lang=get_locale(), return_to=request.full_path) %}
 <article class="browse-card">
     {# 封面与书名指向同一详情路由；收藏按钮是独立交互，不在此链接内。 #}
     <a class="browse-card-media-link" href="{{ _browse_detail_url }}" aria-label="{{ _('《') }}{{ full_title }}{{ _('》详情') }}" tabindex="-1">
@@ -188,3 +188,32 @@
     </div>
 </article>
 {% endmacro %}
+
+{# 奖项结果标签：仅由后端 Jinja 过滤器 award_result_kind(category, wikidata_id) 判定，
+   # 绝不按名次/年份/Fiction/奖项名推断。SSR gettext 直出中文，同时带固定 data-en/data-zh
+   # 供移动端语言切换事件使用（不引入任何 JS 分类器）。 #}
+{% macro award_result_label(kind) -%}
+{%- set _i18n = {
+    'winner':        ('award_result_winner',        _('作品获奖'),            'Award winner',      '作品获奖'),
+    'shortlisted':   ('award_result_shortlisted',   _('作品入围'),            'Shortlisted',       '作品入围'),
+    'author_honor':  ('award_result_author_honor',  _('作者荣誉（非作品获奖）'), 'Author honor (not a work win)',      '作者荣誉（非作品获奖）'),
+    'unspecified':   ('award_result_unspecified',   _('奖项记录（结果未注明）'), 'Award record (result unspecified)', '奖项记录（结果未注明）')
+} -%}
+{%- if kind in _i18n -%}
+{%- set _key, _zh, _en, _zh2 = _i18n[kind] -%}
+<span class="award-result" data-i18n="{{ _key }}" data-en="{{ _en }}" data-zh="{{ _zh2 }}">{{ _zh }}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{# 关联原因标签：仅认同作者/同奖项/其他奖项三个精确枚举；未知 reason 不输出任何东西。 #}
+{% macro related_reason_label(reason) -%}
+{%- set _i18n = {
+    'same_author': ('related_reason_same_author', _('同作者'), 'Same author', '同作者'),
+    'same_award':  ('related_reason_same_award',  _('同奖项'), 'Same award',  '同奖项'),
+    'other_award': ('related_reason_other_award', _('其他奖项'), 'Other award', '其他奖项')
+} -%}
+{%- if reason in _i18n -%}
+{%- set _key, _zh, _en, _zh2 = _i18n[reason] -%}
+<span class="related-reason" data-i18n="{{ _key }}" data-en="{{ _en }}" data-zh="{{ _zh2 }}">{{ _zh }}</span>
+{%- endif -%}
+{%- endmacro %}

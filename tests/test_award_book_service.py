@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.schemas import Award, AwardBook, SystemConfig
 from app.services.award_book_service import AwardBookService
@@ -281,3 +283,41 @@ class TestRefreshAwardBooks:
             award_service.wikidata_client.get_all_award_books.return_value = {}
             result = award_service.refresh_award_books(force=True)
             assert result['total_awards'] > 0
+
+
+def _raise_on_award_select(conn, cursor, statement, parameters, context, executemany):
+    sql = statement.lower() if isinstance(statement, str) else str(statement).lower()
+    if sql.lstrip().startswith('select') and ('award_books' in sql or 'awards' in sql):
+        raise SQLAlchemyError('round2 award SQL unavailable')
+
+
+@pytest.mark.parametrize(
+    ('method_name', 'kwargs'),
+    [
+        ('get_all_awards', {}),
+        ('get_award_by_name', {'name': 'missing'}),
+        ('get_award_books', {}),
+        ('get_award_book_by_id', {'book_id': 999}),
+        ('search_award_books', {'keyword': 'missing'}),
+        ('get_book_counts_by_award', {}),
+    ],
+)
+def test_read_methods_propagate_actual_sql_error(app, db, award_service, method_name, kwargs):
+    with app.app_context():
+        engine = db.engine
+        event.listen(engine, 'before_cursor_execute', _raise_on_award_select)
+        try:
+            with pytest.raises(SQLAlchemyError, match='round2 award SQL unavailable'):
+                getattr(award_service, method_name)(**kwargs)
+        finally:
+            event.remove(engine, 'before_cursor_execute', _raise_on_award_select)
+
+
+def test_read_methods_success_empty(app, db, award_service):
+    with app.app_context():
+        assert award_service.get_all_awards() == []
+        assert award_service.get_award_by_name('missing') is None
+        assert award_service.get_award_books() == ([], 0)
+        assert award_service.get_award_book_by_id(999) is None
+        assert award_service.search_award_books('missing') == ([], 0)
+        assert award_service.get_book_counts_by_award() == {}

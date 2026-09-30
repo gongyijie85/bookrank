@@ -4,6 +4,10 @@ import json
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+import pytest
+from sqlalchemy import event
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.models.book import Book
 from app.models.schemas import WeeklyReport
 from app.services.weekly_report_service import (
@@ -952,8 +956,8 @@ class TestGetReportByDate:
             service = WeeklyReportService(mock_bs)
             with patch.object(WeeklyReport, 'query') as mock_query:
                 mock_query.filter.return_value.first.side_effect = Exception('db err')
-                result = service.get_report_by_date(date(2026, 1, 1))
-                assert result is None
+                with pytest.raises(Exception, match='db err'):
+                    service.get_report_by_date(date(2026, 1, 1))
 
 
 class TestGetReportByWeekEnd:
@@ -982,8 +986,8 @@ class TestGetReportByWeekEnd:
             service = WeeklyReportService(mock_bs)
             with patch.object(WeeklyReport, 'query') as mock_query:
                 mock_query.filter.return_value.first.side_effect = Exception('db err')
-                result = service.get_report_by_week_end(date(2026, 1, 1))
-                assert result is None
+                with pytest.raises(Exception, match='db err'):
+                    service.get_report_by_week_end(date(2026, 1, 1))
 
 
 class TestGetLatestReport:
@@ -1013,8 +1017,8 @@ class TestGetLatestReport:
             service = WeeklyReportService(mock_bs)
             with patch.object(WeeklyReport, 'query') as mock_query:
                 mock_query.order_by.return_value.first.side_effect = Exception('db err')
-                result = service.get_latest_report()
-                assert result is None
+                with pytest.raises(Exception, match='db err'):
+                    service.get_latest_report()
 
 
 class TestRecordReportView:
@@ -1133,8 +1137,8 @@ class TestGetReportsException:
             service = WeeklyReportService(mock_bs)
             with patch.object(WeeklyReport, 'query') as mock_query:
                 mock_query.order_by.return_value.limit.return_value.all.side_effect = Exception('db err')
-                result = service.get_reports()
-                assert result == []
+                with pytest.raises(Exception, match='db err'):
+                    service.get_reports()
 
 
 class TestGenerateReportWithBooks:
@@ -1313,3 +1317,43 @@ class TestCollectSnapshotRows:
 
             assert data['books'] == []
             assert data['snapshot_rows'] == []
+
+
+def _raise_on_weekly_select(conn, cursor, statement, parameters, context, executemany):
+    if statement.lstrip()[:6].upper() == 'SELECT' and 'weekly_reports' in statement.lower():
+        raise SQLAlchemyError('weekly SQL unavailable')
+
+
+@pytest.mark.parametrize(
+    ('method', 'args'),
+    [
+        ('get_reports', ()),
+        ('get_report_by_date', (date(2099, 1, 1),)),
+        ('get_report_by_week_end', (date(2099, 1, 1),)),
+        ('get_latest_report', ()),
+    ],
+)
+def test_weekly_reads_select_fault_propagates(app, db, method, args):
+    with app.app_context():
+        service = WeeklyReportService(MagicMock())
+        event.listen(db.engine, 'before_cursor_execute', _raise_on_weekly_select)
+        try:
+            with pytest.raises(SQLAlchemyError, match='weekly SQL unavailable'):
+                getattr(service, method)(*args)
+        finally:
+            event.remove(db.engine, 'before_cursor_execute', _raise_on_weekly_select)
+
+
+@pytest.mark.parametrize(
+    ('method', 'args', 'expected'),
+    [
+        ('get_reports', (), []),
+        ('get_report_by_date', (date(2099, 1, 1),), None),
+        ('get_report_by_week_end', (date(2099, 1, 1),), None),
+        ('get_latest_report', (), None),
+    ],
+)
+def test_weekly_reads_empty(app, db, method, args, expected):
+    with app.app_context():
+        service = WeeklyReportService(MagicMock())
+        assert getattr(service, method)(*args) == expected

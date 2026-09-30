@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros.html' import award_result_label, related_reason_label %}
 
 {% block og_title %}{% if selected_award %}{{ selected_award }} - {% endif %}{{ _('国际图书奖项榜单 - BookRank') }}{% endblock %}
 {% block twitter_title %}{% if selected_award %}{{ selected_award }} - {% endif %}{{ _('国际图书奖项榜单 - BookRank') }}{% endblock %}
@@ -15,7 +16,7 @@
 
 {# 书卡：横向书列与主列表共用。书列不带 data-isbn，避免与主列表重复注册翻译 #}
 {% macro award_book_card(book, in_rail=false) %}
-{% set detail_url = url_for('main.award_book_detail', book_id=book.id) %}
+{% set detail_url = url_for('main.award_book_detail', book_id=book.id, lang=get_locale(), return_to=request.full_path) %}
 {% set shown_title = (book.title_zh or book.title_en or book.title) if _l == 'zh' else (book.title_en or book.title) %}
 {% set shown_award = (book.award_name|bilingual(book.award_name_en)) or _('未知') %}
 <article class="card card-animate"
@@ -52,6 +53,7 @@
 
     <div class="card-content">
         <span class="card-award-tag">{{ shown_award }}</span>
+        {{ award_result_label(book.category|award_result_kind(book.award_wikidata_id|default(none))) }}
         <h3 class="card-title"
             {% if not in_rail %}
             title="{{ book.title_en or book.title }}"
@@ -84,11 +86,15 @@
     <h1 class="page-title" data-i18n="nav_awards">{{ _('获奖书单') }}</h1>
     <p class="charts-source" data-i18n="page_title_awards">{{ _('国际图书奖项榜单') }}</p>
     <p class="page-subtitle">
-        {% if selected_award %}
+        {% if selected_award and not awards_unavailable|default(false) and not data_load_failed %}
             {% set selected_award_obj = awards | selectattr('name', 'equalto', selected_award) | first %}
             {{ (selected_award_obj.name|bilingual(selected_award_obj.name_en)) if selected_award_obj else selected_award }} {{ _('获奖图书展示') }}{% if selected_year %} · {{ selected_year }}{{ _('年') }}{% endif %}
         {% else %}
-            {{ _('汇集全球最具影响力的图书奖项') }} · {{ total_books }} {{ _('本图书') }} · {{ awards|length }} {{ _('个奖项') }}
+            {% if data_load_failed %}
+                {{ _('数据加载失败') }}
+            {% else %}
+                {{ _('汇集全球最具影响力的图书奖项') }} · {% if total_books is not none %}{{ total_books }} {{ _('本图书') }}{% else %}{{ _('数量不可用') }}{% endif %} · {% if awards_unavailable|default(false) %}{{ _('奖项目录暂不可用') }}{% else %}{{ awards|length }} {{ _('个奖项') }}{% endif %}
+            {% endif %}
         {% endif %}
     </p>
 </header>
@@ -117,7 +123,7 @@
 <section class="filter-bar" aria-label="{{ _('筛选选项') }}">
     <div class="filter-group">
         <label class="filter-label" for="award-select" data-i18n="filter_award_label">{{ _('奖项') }}</label>
-        <select class="filter-select" id="award-select" aria-label="{{ _('奖项') }}">
+        <select class="filter-select" id="award-select" aria-label="{{ _('奖项') }}" {% if awards_unavailable|default(false) %}disabled{% endif %}>
             <option value="" data-i18n="filter_award_all">{{ _('全部奖项') }}</option>
             {% for award in awards %}
             <option value="{{ award.name }}" {% if selected_award == award.name %}selected{% endif %}>
@@ -181,35 +187,45 @@
 
 <!-- Results -->
 {% if not is_browsing %}
+{% set _fp = {'award': selected_award, 'year': selected_year, 'category': selected_category, 'search': search_query} %}
+{% macro _chip_href(drop_key) -%}
+{%- set parts = [] -%}
+{%- for k in ['award', 'year', 'category', 'search'] if k != drop_key and _fp[k] %}
+{%- set _u = parts.append(k ~ '=' ~ (_fp[k]|string|urlencode)) -%}
+{%- endfor -%}
+{%- if request.args.get('view') %}{% set _u = parts.append('view=' ~ (request.args.get('view')|urlencode)) %}{% endif -%}
+{%- if request.args.get('lang') %}{% set _u = parts.append('lang=' ~ (request.args.get('lang')|urlencode)) %}{% endif -%}
+/awards{% if parts %}?{{ parts | join('&') }}{% endif %}
+{%- endmacro -%}
 <div class="awards-active-filter" aria-label="{{ _('当前筛选条件') }}">
     <span class="awards-active-filter-label">{{ _('已选条件') }}：</span>
     {% if selected_award %}
-    <a class="filter-chip" href="{{ chip_url(award='') }}" aria-label="{{ _('移除奖项筛选：') }}{{ selected_award }}">
+    <a class="filter-chip" href="{{ _chip_href('award') }}" aria-label="{{ _('移除奖项筛选：') }}{{ selected_award }}">
         {{ selected_award }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
     </a>
     {% endif %}
     {% if selected_year %}
-    <a class="filter-chip" href="{{ chip_url(year='') }}" aria-label="{{ _('移除年份筛选：') }}{{ selected_year }}{{ _('年') }}">
+    <a class="filter-chip" href="{{ _chip_href('year') }}" aria-label="{{ _('移除年份筛选：') }}{{ selected_year }}{{ _('年') }}">
         {{ selected_year }}{{ _('年') }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
     </a>
     {% endif %}
     {% if selected_category %}
-    <a class="filter-chip" href="{{ chip_url(category='') }}" aria-label="{{ _('移除类别筛选：') }}{{ selected_category }}">
+    <a class="filter-chip" href="{{ _chip_href('category') }}" aria-label="{{ _('移除类别筛选：') }}{{ selected_category }}">
         {{ selected_category }} <span class="filter-chip-x" aria-hidden="true">&times;</span>
     </a>
     {% endif %}
     {% if search_query %}
-    <a class="filter-chip" href="{{ chip_url(search='') }}" aria-label="{{ _('移除搜索：') }}{{ search_query }}">
+    <a class="filter-chip" href="{{ _chip_href('search') }}" aria-label="{{ _('移除搜索：') }}{{ search_query }}">
         &ldquo;{{ search_query }}&rdquo; <span class="filter-chip-x" aria-hidden="true">&times;</span>
     </a>
     {% endif %}
-    <a class="filter-chip-clear" href="{{ url_for('main.awards') }}">{{ _('清除全部') }}</a>
+    <a class="filter-chip-clear" href="/awards{% if request.args.get('view') or request.args.get('lang') %}?{% set _p = [] %}{% if request.args.get('view') %}{% set _u = _p.append('view=' ~ (request.args.get('view')|urlencode)) %}{% endif %}{% if request.args.get('lang') %}{% set _u = _p.append('lang=' ~ (request.args.get('lang')|urlencode)) %}{% endif %}{{ _p|join('&') }}{% endif %}">{{ _('清除全部') }}</a>
 </div>
 {% endif %}
 
 <div class="awards-results-head">
     <h2 class="awards-results-title">{{ _('获奖图书') }}</h2>
-    <span class="awards-results-count">{{ total_books }} {{ _('本图书') }}</span>
+    <span class="awards-results-count">{% if total_books is not none %}{{ total_books }} {{ _('本图书') }}{% else %}{{ _('数量不可用') }}{% endif %}</span>
 </div>
 
 <!-- Books Grid View -->
@@ -220,7 +236,13 @@
 </section>
 
 <!-- Empty State -->
-{% if not books %}
+{% if data_load_failed %}
+<section class="empty-state" aria-label="{{ _('数据加载失败') }}">
+    <svg class="icon" width="48" height="48"><use href="#icon-inbox"/></svg>
+    <h2 data-i18n="data_load_failed">{{ _('数据加载失败') }}</h2>
+    <p><a href="{{ request.full_path }}">{{ _('重新加载') }}</a></p>
+</section>
+{% elif not books %}
 <section class="empty-state" aria-label="{{ _('暂无数据') }}">
     <svg class="icon" width="48" height="48"><use href="#icon-inbox"/></svg>
     <h2 data-i18n="no_data">{{ _('暂无数据') }}</h2>
@@ -229,9 +251,9 @@
 {% endif %}
 
 <!-- Pagination -->
-{% if total_pages > 1 %}
+{% if total_pages is not none and total_pages > 1 %}
 {% set _page = page %}
-{% set _filters = {'award': selected_award, 'year': selected_year, 'category': selected_category, 'search': search_query} %}
+{% set _filters = {'award': selected_award, 'year': selected_year, 'category': selected_category, 'search': search_query, 'view': request.args.get('view'), 'lang': request.args.get('lang'), 'per_page': request.args.get('per_page')} %}
 {% set _base = {} %}
 {% for key, val in _filters.items() if val %}{% set _unused = _base.update({key: val}) %}{% endfor %}
 {% set _from = [1, _page - 2]|max %}
@@ -273,7 +295,7 @@
             {% set shown_country = award.country|award_term %}
             {% set _tile_meta %}{{ shown_country }}{% if award.established_year %}{{ ' · ' if shown_country else '' }}{{ award.established_year }}{% endif %}{% endset %}
             {% if _tile_meta.strip() %}<span class="award-tile-meta">{{ _tile_meta }}</span>{% endif %}
-            <span class="award-tile-count">{{ award.book_count }} {{ _('本图书') }}</span>
+            <span class="award-tile-count">{% if award_counts_unavailable|default(false) or award.book_count is none %}{{ _('数量暂不可用') }}{% else %}{{ award.book_count }} {{ _('本图书') }}{% endif %}</span>
         </a>
         {% endfor %}
     </section>
@@ -463,15 +485,7 @@
             }
         });
 
-        document.getElementById('award-select')?.addEventListener('change', function() {
-            changeAward(this.value);
-        });
-        document.getElementById('year-select')?.addEventListener('change', function() {
-            changeYear(this.value);
-        });
-        document.getElementById('category-select')?.addEventListener('change', function() {
-            changeCategory(this.value);
-        });
+        // F01: 控件在「应用」前保持草稿状态，不再即时跳转。
         document.getElementById('btn-apply')?.addEventListener('click', applyFilters);
         document.getElementById('btn-clear')?.addEventListener('click', clearFilters);
 
@@ -491,7 +505,7 @@
             const card = e.target.closest('.card[data-award-book-id]');
             if (!card) return;
             const bookId = card.getAttribute('data-award-book-id');
-            window.location.href = '/award-book/' + bookId;
+            window.location.href = '/award-book/' + bookId + '?lang=' + encodeURIComponent((function(){var l=new URLSearchParams(window.location.search).get('lang');if(l!=='zh'&&l!=='en')l=(window.__APP_LANG__==='zh'||window.__APP_LANG__==='en')?window.__APP_LANG__:'';if(!l&&typeof currentLanguage==='string'&&(currentLanguage==='zh'||currentLanguage==='en'))l=currentLanguage;return l||'en';})()) + '&return_to=' + encodeURIComponent(window.location.pathname + window.location.search);
         }
 
         if (booksGrid) booksGrid.addEventListener('click', handleCardClick);
@@ -523,31 +537,7 @@
         });
     });
 
-    // Change award filter
-    function changeAward(award) {
-        showLoading('加载中...');
-        const year = document.getElementById('year-select').value;
-        const category = document.getElementById('category-select').value;
-        navigateWithFilters({ award, year, category });
-    }
-
-    // Change year filter
-    function changeYear(year) {
-        showLoading('加载中...');
-        const award = document.getElementById('award-select').value;
-        const category = document.getElementById('category-select').value;
-        navigateWithFilters({ award, year, category });
-    }
-
-    // Change category filter
-    function changeCategory(category) {
-        showLoading('加载中...');
-        const award = document.getElementById('award-select').value;
-        const year = document.getElementById('year-select').value;
-        navigateWithFilters({ award, year, category });
-    }
-
-    // Apply filters
+    // F01: 仅「应用」读取全部控件后一次性跳转；page 重置为 1，保留 view/lang/per_page。
     function applyFilters() {
         const award = document.getElementById('award-select').value;
         const year = document.getElementById('year-select').value;
@@ -560,11 +550,16 @@
 
     // 统一按筛选条件拼接 URL 并跳转（奖项/年份/类别/搜索为交集关系）
     function navigateWithFilters({ award, year, category, search }) {
+        const current = new URLSearchParams(window.location.search);
         const params = [];
         if (award) params.push(`award=${encodeURIComponent(award)}`);
         if (year) params.push(`year=${year}`);
         if (category) params.push(`category=${encodeURIComponent(category)}`);
         if (search) params.push(`search=${encodeURIComponent(search)}`);
+        ['view', 'lang', 'per_page'].forEach(function(key) {
+            const val = current.get(key);
+            if (val) params.push(`${key}=${encodeURIComponent(val)}`);
+        });
 
         let url = '/awards';
         if (params.length > 0) {
@@ -574,10 +569,16 @@
         window.location.href = url;
     }
 
-    // Clear filters
+    // Clear filters：回到无筛选首页，page=1，保留 view/lang
     function clearFilters() {
         showLoading('重置中...');
-        window.location.href = '/awards';
+        const current = new URLSearchParams(window.location.search);
+        const params = [];
+        ['view', 'lang'].forEach(function(key) {
+            const val = current.get(key);
+            if (val) params.push(`${key}=${encodeURIComponent(val)}`);
+        });
+        window.location.href = '/awards' + (params.length ? '?' + params.join('&') : '');
     }
 
     // Search on Enter key
@@ -585,6 +586,7 @@
     if (searchInput) {
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
+                e.preventDefault();
                 applyFilters();
             }
         });

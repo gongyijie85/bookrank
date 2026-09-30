@@ -108,3 +108,55 @@ class TestParseQueryArgsHelper:
         args = MultiDict({})
         req = parse_query_args(NewBookListQuery, args)
         assert req.days == 30
+
+
+@pytest.mark.parametrize(
+    ('model_cls', 'kwargs', 'expected_days'),
+    [
+        (NewBookListQuery, {}, 30),
+        (NewBookSearchQuery, {'keyword': 'python'}, None),
+        (NewBookExportQuery, {}, 30),
+    ],
+)
+def test_publication_status_defaults_keep_original_days(model_cls, kwargs, expected_days):
+    req = model_cls(**kwargs)
+    assert req.publication_status == 'all'
+    assert req.days == expected_days
+    if model_cls is NewBookExportQuery:
+        assert req.search == ''
+
+
+@pytest.mark.parametrize('model_cls', [NewBookListQuery, NewBookSearchQuery, NewBookExportQuery])
+@pytest.mark.parametrize('status', ['all', 'published', 'upcoming', 'pending'])
+def test_allowed_publication_statuses(model_cls, status):
+    kwargs = {'publication_status': status}
+    if model_cls is NewBookSearchQuery:
+        kwargs['keyword'] = 'python'
+    assert model_cls(**kwargs).publication_status == status
+
+
+@pytest.mark.parametrize('model_cls', [NewBookListQuery, NewBookSearchQuery, NewBookExportQuery])
+@pytest.mark.parametrize('status', ['not-a-status', ''])
+def test_illegal_publication_status_rejected(model_cls, status):
+    kwargs = {'publication_status': status}
+    if model_cls is NewBookSearchQuery:
+        kwargs['keyword'] = 'python'
+    with pytest.raises(ValidationError):
+        model_cls(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ('model_cls', 'raw_status', 'expected', 'extra'),
+    [
+        (NewBookListQuery, '  published  ', 'published', {}),
+        (NewBookSearchQuery, ' upcoming ', 'upcoming', {'keyword': 'python'}),
+        (NewBookExportQuery, ' pending ', 'pending', {'search': '  isle  '}),
+    ],
+)
+def test_parse_strips_status_and_export_search(model_cls, raw_status, expected, extra):
+    req = parse_query_args(model_cls, MultiDict({'publication_status': raw_status, **extra}))
+    assert req.publication_status == expected
+    if model_cls is NewBookExportQuery:
+        assert req.search == 'isle'
+        with pytest.raises(ValidationError):
+            NewBookExportQuery(search='x' * 101)

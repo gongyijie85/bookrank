@@ -34,8 +34,7 @@ NB_KEYS = [
     'nb_header_subtitle',
     'nb_total_new_books_suffix',
     'nb_publishers_suffix',
-    'nb_filter_publisher_label',
-    'nb_filter_publisher_all',
+    'nb_filter_source_label',
     'nb_filter_category_label',
     'nb_filter_category_all',
     'nb_filter_time_label',
@@ -45,7 +44,7 @@ NB_KEYS = [
     'nb_time_180',
     'nb_time_365',
     'nb_search_placeholder',
-    'nb_export_btn',
+    'nb_export_current_csv',
     'nb_sync_btn',
     'nb_result_summary',
     'nb_result_unit',
@@ -123,7 +122,7 @@ class TestNewBookPoFiles:
         '筛选窗口：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告 + 日期待确认的新发现书目',
         '筛选范围：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告；含日期待确认的新发现书目',
         # 全库收录计数句
-        '全库收录 %(books)s 本新书 · %(publishers)s 家出版社',
+        '全库收录 %(books)s 本新书 · %(publishers)s 个来源',
         # 空态 / 错误态
         '当前出版时间范围暂无新书，可放宽时间范围或稍后刷新',
         '刷新',
@@ -140,7 +139,7 @@ class TestNewBookPoFiles:
             '%(days)s',
             '%(preview)s',
         ),
-        '全库收录 %(books)s 本新书 · %(publishers)s 家出版社': ('%(books)s', '%(publishers)s'),
+        '全库收录 %(books)s 本新书 · %(publishers)s 个来源': ('%(books)s', '%(publishers)s'),
     }
 
     def test_zh_po_has_required(self):
@@ -201,7 +200,7 @@ class TestNewBooksTemplate:
     def test_filter_labels_have_data_i18n(self):
         text = _read(TPL)
         for sel, attr in [
-            ('#publisher-filter', 'data-i18n="nb_filter_publisher_label"'),
+            ('#publisher-filter', 'data-i18n="nb_filter_source_label"'),
             ('#category-filter', 'data-i18n="nb_filter_category_label"'),
             ('#days-filter', 'data-i18n="nb_filter_time_label"'),
         ]:
@@ -211,7 +210,6 @@ class TestNewBooksTemplate:
     def test_filter_options_have_data_i18n(self):
         text = _read(TPL)
         for key in [
-            'nb_filter_publisher_all',
             'nb_filter_category_all',
             'nb_time_7',
             'nb_time_30',
@@ -220,6 +218,10 @@ class TestNewBooksTemplate:
             'nb_time_365',
         ]:
             assert f'data-i18n="{key}"' in text, f'缺 {key} data-i18n'
+        all_sources = re.search(r'<option value=""[^>]*data-pub-name-zh="所有来源"[^>]*>', text, re.S)
+        assert all_sources
+        assert 'data-pub-name-en="All sources"' in all_sources.group(0)
+        assert "{{ _('所有来源') }}" in text
 
     def test_search_input_placeholder_i18n(self):
         text = _read(TPL)
@@ -228,8 +230,14 @@ class TestNewBooksTemplate:
 
     def test_export_sync_buttons_have_data_i18n(self):
         text = _read(TPL)
-        assert 'data-i18n="nb_export_btn"' in text
+        assert 'data-i18n="nb_export_current_csv"' in text
         assert 'data-i18n="nb_sync_btn"' in text
+        zh_section, en_section = _read(TR_SRC).split('en:', 1)
+        for section, expected in ((zh_section, '当前筛选'), (en_section, 'current filters')):
+            pairs = dict(re.findall(r"'([^']+)':\s*'([^']*)'", section))
+            label = pairs['nb_export_current_csv']
+            assert expected in label.lower()
+            assert 'CSV' in label and '500' in label
 
     def test_result_summary_has_data_i18n(self):
         text = _read(TPL)
@@ -330,19 +338,20 @@ class TestNewBookPageClientI18n:
 
     def test_zh_page_has_data_i18n_attrs(self, client):
         """中文 SSR：应包含新书页所有 data-i18n 属性。"""
-        response = client.get('/new-books')
-        if response.status_code != 200:
-            pytest.skip(f'页面状态非 200：{response.status_code}')
+        response = client.get('/new-books?lang=zh')
+        assert response.status_code == 200
         body = response.get_data(as_text=True)
         for key in [
             'nb_header_subtitle',
-            'nb_filter_publisher_label',
+            'nb_filter_source_label',
             'nb_time_30',
-            'nb_export_btn',
+            'nb_export_current_csv',
             'nb_result_summary',
             'nb_filtered_by_date',
         ]:
             assert f'data-i18n="{key}"' in body, f'页面缺 {key}'
+        assert '当前筛选CSV（最多500本）' in body
+        assert '所有来源' in body
 
     def test_publisher_sidebar_has_bilingual_data(self, client):
         response = client.get('/new-books')

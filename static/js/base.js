@@ -814,6 +814,8 @@
      * Current UI language: saved preference, else browser detection
      */
     function getCurrentLang() {
+        var urlLang = new URLSearchParams(window.location.search).get('lang');
+        if (urlLang === 'zh' || urlLang === 'en') { return urlLang; }
         var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
         var browserLang = navigator.language || navigator.userLanguage || '';
         var defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
