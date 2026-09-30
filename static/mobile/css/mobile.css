@@ -1936,7 +1936,7 @@ html { scroll-behavior: smooth; }
 .m-top-nav-subtitle {
     font-size: var(--text-xs);
     line-height: 1.45;
-    color: rgba(255, 255, 255, 0.78);
+    color: var(--color-text-inverse);
     text-wrap: pretty;
 }
 
