@@ -492,3 +492,100 @@ test('real home export button and scope note occupy separate responsive rows wit
     assert.equal(caption.get('width'), '100%'); assert.equal(caption.get('white-space'), 'normal');
   }
 });
+
+function acceptanceNyt(mobile, fields = {}, locale = 'zh') {
+  const book = { ...sampleBook, title: 'DEAD BEAT', title_zh: '亡者之歌', author: 'Leigh Bardugo', publisher: 'Publisher', cover: '', _original_cover: '', description: 'Only English introduction.', description_zh: '唯一中文简介。', details: '', details_zh: '', ...fields };
+  const back = '/?category=hardcover-fiction&lang=' + locale + '&view=compact&page=2';
+  return render((mobile ? 'mobile/' : '') + 'book_detail.html', { book, book_index: 0, category: 'hardcover-fiction', categories: { 'hardcover-fiction': '小说' }, category_names_en: { 'hardcover-fiction': 'Hardcover Fiction' }, back_url: back }, '/book/0?category=hardcover-fiction&lang=' + locale, locale);
+}
+for (const mobile of [false, true]) {
+  test(`live acceptance ${mobile ? 'mobile' : 'desktop'} NYT keeps one bilingual intro without contradictory missing-details notice`, () => {
+    for (const locale of ['zh', 'en']) {
+      const result = acceptanceNyt(mobile, {}, locale); const content = result.nodes.filter(node => isContentNode(result, node));
+      assert.equal(content.some(node => node.ownText.trim() === '暂无更多信息' || node.ownText.trim() === 'No further information'), false);
+      assert.equal(content.filter(node => node.tag === 'p' && node.ownText.trim() === (locale === 'zh' ? '唯一中文简介。' : 'Only English introduction.')).length, 1);
+      assert.equal(content.filter(node => hasClass(node, mobile ? 'm-detail-empty' : 'detail-intro-empty')).length, 0);
+      assert.equal(content.some(node => node.tag === 'button' && node.attrs['data-tab'] === 'details'), false);
+      assert.ok(content.some(node => node.ownText.includes(sampleBook.isbn13)), 'visible ISBN retained');
+      assert.ok(content.some(node => node.tag === 'a' && node.attrs.href === '/?category=hardcover-fiction&lang=' + locale + '&view=compact&page=2'), 'safe return target retained');
+      if (!mobile) {
+        const intro = content.find(node => hasClass(node, 'detail-intro-text')); assert.equal(intro.attrs['data-intro-zh'], '唯一中文简介。'); assert.equal(intro.attrs['data-intro-en'], 'Only English introduction.');
+        assert.ok(content.some(node => node.tag === 'button' && node.attrs['data-toggle-original'] === 'desc'), 'original-language toggle retained');
+        assert.ok(content.some(node => node.attrs.id === 'desc-en' && hasClass(node, 'lang-toggle-content') && node.text === 'Only English introduction.'));
+      }
+    }
+  });
+  test(`live acceptance ${mobile ? 'mobile' : 'desktop'} NYT empty and canonical placeholder fields produce one specific empty state`, () => {
+    const cases = [
+      { description: '', description_zh: '', details: '', details_zh: '' },
+      { description: 'No summary available.', description_zh: '暂无简介', details: 'No detailed description available.', details_zh: '暂无详细描述' },
+      { description: null, description_zh: null, details: '英文', details_zh: '- 英文' },
+    ];
+    for (const fields of cases) for (const locale of ['zh', 'en']) {
+      const result = acceptanceNyt(mobile, fields, locale); const content = result.nodes.filter(node => isContentNode(result, node));
+      const empty = content.filter(node => hasClass(node, mobile ? 'm-detail-empty' : 'detail-intro-empty'));
+      assert.equal(empty.length, 1, `${locale}: missing/placeholder data must have exactly one empty state`); assert.ok(empty[0].text.trim());
+      assert.ok(['暂无简介', '暂无更多信息', 'No introduction available', 'No further information'].includes(empty[0].text.trim()), 'missing message must be specific');
+      assert.equal(content.some(node => node.tag === 'button' && node.attrs['data-tab'] === 'details'), false);
+      assert.equal(content.some(node => hasClass(node, 'detail-intro-text') || hasClass(node, 'm-detail-text')), false);
+      for (const literal of ['No summary available.', 'No detailed description available.', '暂无详细描述', '- 英文']) assert.equal(content.some(node => node.ownText.trim() === literal), false, 'actual placeholder/noise text cannot be shown');
+    }
+  });
+}
+test('live acceptance NYT original title and empty-state small text use the readable shared theme role', () => {
+  const result = acceptanceNyt(false, { description: '', description_zh: '' });
+  assert.ok(result.nodes.some(node => hasClass(node, 'detail-title-en') && node.text === 'DEAD BEAT'));
+  const styles = result.nodes.filter(node => node.tag === 'style');
+  for (const style of styles) assert.deepEqual(transformSync(style.text, { loader: 'css' }).warnings, [], 'actual rendered CSS must parse without warnings');
+  const css = styles.map(node => node.text).join('\n');
+  for (const selector of ['.detail-title-en', '.detail-intro-empty']) assert.equal(ownerRule(css, selector).get('color'), 'var(--text-secondary)', selector);
+});
+
+test('live acceptance rankings real four-tab navigation starts at the reachable edge on narrow screens', () => {
+  for (const tab of ['cross', 'longevity', 'overlooked', 'publishers']) {
+    const result = render('rankings.html', { tab, category_count: 5, cross_entries: [], longevity_entries: [], overlooked_entries: [], publisher_entries: [], award_years: [2026], category_names_en: {}, update_time: '2026-09-30' }, '/rankings?tab=' + tab + '&lang=zh');
+    const nav = result.nodes.find(node => node.tag === 'nav' && hasClass(node, 'charts-sections') && hasClass(node, 'rankings-tabs')); assert.ok(nav);
+    const links = result.nodes.filter(node => node.tag === 'a' && node.ancestors.at(-1) === result.nodes.indexOf(nav)); assert.equal(links.length, 4);
+    assert.deepEqual(links.map(node => new URL(node.attrs.href, 'https://bookrank.test').searchParams.get('tab')), ['cross', 'longevity', 'overlooked', 'publishers']);
+    assert.equal(links.find(node => node.attrs['aria-current'] === 'page').attrs.href, '/rankings?tab=' + tab + '&lang=zh');
+  }
+  const css = source('static/css/charts.css');
+  assert.deepEqual(transformSync(css, { loader: 'css' }).warnings, [], 'actual charts stylesheet must parse');
+  assert.equal(ownerRule(maxWidthCss(css, 1280), 'nav.charts-sections.rankings-tabs').size, 0, 'wide layout unchanged');
+  assert.equal(ownerRule(css, '.charts-sections').get('justify-content'), 'center', 'original wide alignment retained');
+  for (const width of [320, 390, 768]) {
+    const rules = maxWidthCss(css, width); const nav = ownerRule(rules, 'nav.charts-sections.rankings-tabs'); const link = ownerRule(rules, '.charts-sections.rankings-tabs a');
+    const alignment = nav.get('justify-content') || ownerRule(css, '.charts-sections').get('justify-content');
+    assert.equal(alignment, 'flex-start', `${width}px: center alignment creates unreachable negative scroll overflow`);
+    assert.equal(nav.get('overflow-x'), 'auto'); assert.equal(nav.get('flex-wrap'), 'nowrap');
+    assert.ok(link.get('flex') === '0 0 auto' || link.get('flex-shrink') === '0'); assert.equal(link.get('white-space'), 'nowrap');
+  }
+});
+
+test('live acceptance weekly real filter groups search count and clear have independent narrow rows', () => {
+  const report = { title: 'Report', report_date: '2026-09-27', week_start: '2026-09-21', week_end: '2026-09-27', content_data: { summary: '' } };
+  const result = render('weekly_reports.html', { reports: [report], report_sections: [{ year: 2026, month: 9, reports: [report] }], latest_report: report, is_generating: false }, '/reports/weekly?lang=zh');
+  const bar = result.nodes.find(node => hasClass(node, 'filter-controls') && hasClass(node, 'wr-filter-bar')); assert.ok(bar);
+  const groups = result.nodes.filter(node => hasClass(node, 'filter-group') && node.ancestors.at(-1) === result.nodes.indexOf(bar)); assert.equal(groups.length, 2);
+  const month = result.nodes.find(node => node.attrs.id === 'month-filter'); const search = result.nodes.find(node => node.attrs.id === 'search-input'); assert.ok(ancestors(result, month).includes(groups[0])); assert.ok(ancestors(result, search).includes(groups[1]));
+  for (const id of ['wr-filter-count', 'wr-filter-clear']) assert.equal(result.nodes.find(node => node.attrs.id === id).ancestors.at(-1), result.nodes.indexOf(bar));
+  const css = result.nodes.filter(node => node.tag === 'style').map(node => node.text).join('\n');
+  assert.deepEqual(transformSync(css, { loader: 'css' }).warnings, [], 'actual weekly rendered style must parse');
+  assert.equal(ownerRule(maxWidthCss(css, 1280), '.weekly-page .filter-controls.wr-filter-bar').size, 0, 'wide filter unchanged');
+  for (const width of [320, 390, 768]) {
+    const rules = maxWidthCss(css, width); const row = ownerRule(rules, '.weekly-page .filter-controls.wr-filter-bar'); const group = ownerRule(rules, '.weekly-page .filter-controls.wr-filter-bar>.filter-group'); const box = ownerRule(rules, '.weekly-page .wr-filter-bar .search-box'); const input = ownerRule(rules, '.weekly-page .wr-filter-bar .search-box .form-input');
+    assert.equal(row.get('display'), 'grid', `${width}px: wrapped flex groups collide with intrinsic search width`); assert.equal(row.get('grid-template-columns'), 'minmax(0,1fr)');
+    assert.equal(group.get('min-width'), '0'); assert.equal(group.get('width'), '100%'); assert.equal(box.get('min-width'), '0'); assert.equal(box.get('width'), '100%'); assert.equal(box.get('position'), 'static'); assert.equal(box.get('transform'), 'none');
+    assert.equal(input.get('min-width'), '0'); assert.ok(input.get('flex')); assert.equal(ownerRule(rules, '.weekly-page .wr-filter-bar .search-btn').get('flex'), '0 0 44px');
+  }
+});
+
+test('live acceptance weekly decline SVG use resolves to one nonempty downward symbol in actual SSR', () => {
+  const result = render('weekly_report_detail.html', { report: { title: 'Report', week_start: '2026-09-21', week_end: '2026-09-27', report_date: '2026-09-27', created_at: '2026-09-27T12:00:00' }, content: { total_falling_display: 2, top_changes: [], new_books: [], featured_books: [] }, safe_summary: '' }, '/reports/weekly/2026-09-27?lang=zh');
+  const uses = result.nodes.filter(node => node.tag === 'use' && node.attrs.href === '#icon-arrow-down'); assert.ok(uses.length);
+  const symbols = result.nodes.filter(node => node.tag === 'symbol' && node.attrs.id === 'icon-arrow-down'); assert.equal(symbols.length, 1, 'referenced decline icon must exist once in rendered sprite');
+  const symbol = symbols[0]; const up = result.nodes.find(node => node.tag === 'symbol' && node.attrs.id === 'icon-arrow-up'); assert.ok(up);
+  for (const attr of ['viewbox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin']) assert.equal(symbol.attrs[attr], up.attrs[attr]);
+  const geometry = result.nodes.filter(node => node.ancestors.includes(result.nodes.indexOf(symbol)) && ['line', 'polyline', 'path'].includes(node.tag)); assert.ok(geometry.length >= 2);
+  const head = geometry.find(node => node.tag === 'polyline'); assert.ok(head); const points = head.attrs.points.trim().split(/[ ,]+/).map(Number); assert.equal(points.length, 6); assert.ok(points.every(Number.isFinite)); assert.ok(points[3] > points[1] && points[3] > points[5], 'arrow head must point downward');
+});

@@ -71,6 +71,16 @@
 .wr-filter-clear{height:44px;padding:0 14px;border:1px solid var(--border-color,#ccc);background:transparent;color:inherit;border-radius:6px;cursor:pointer}
 .wr-no-results{padding:24px;text-align:center;color:var(--text-secondary,#666);display:none}
 .weekly-page .news-actions .btn { min-height: 44px; }
+@media (max-width:768px){
+.weekly-page .filter-controls.wr-filter-bar{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.weekly-page .filter-controls.wr-filter-bar>.filter-group{min-width:0;width:100%}
+.weekly-page .wr-filter-bar .search-box{width:100%;min-width:0;position:static;transform:none;display:flex;align-items:center}
+.weekly-page .wr-filter-bar .search-box .form-input{min-width:0;width:0;flex:1 1 auto}
+.weekly-page .wr-filter-bar .search-btn{flex:0 0 44px;min-height:44px;min-width:44px}
+.weekly-page .wr-filter-bar .form-select{width:100%;min-width:0}
+.weekly-page .wr-filter-bar .wr-filter-count{min-width:0}
+.weekly-page .wr-filter-bar .wr-filter-clear{min-width:0}
+}
 </style>
 <div class="content-section">
         <!-- 筛选和搜索功能 -->
