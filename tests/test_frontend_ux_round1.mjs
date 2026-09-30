@@ -588,12 +588,13 @@ test('weekly report inline CSS has dedicated modal classes, fixed overlay + inte
 // Analytics: execute the standalone template script with real table/tbody structure.
 function analyticsFixture() {
   const nodes = new Map();
+  const created = [];
   const matches = (node, selector) => selector.startsWith('.')
     ? (node.className || '').split(/\s+/).includes(selector.slice(1))
     : node.tagName === selector.toUpperCase();
   function el(tag, id = '') {
     const node = {
-      tagName: tag.toUpperCase(), id, className: '', style: {}, children: [],
+      tagName: tag.toUpperCase(), id, className: '', style: {}, children: [], dataset: {},
       parentElement: null, parentNode: null, listeners: {}, attrs: {}, disabled: false,
       get textContent() { return this.children.length ? this.children.map(x => x.textContent).join('') : (this.text || ''); },
       set textContent(value) { this.children = []; this.text = String(value); },
@@ -619,6 +620,7 @@ function analyticsFixture() {
       getContext() { return {}; },
     };
     Object.defineProperty(node, 'innerHTML', { set() { throw new Error('unsafe innerHTML'); } });
+    created.push(node);
     if (id) nodes.set(id, node);
     return node;
   }
@@ -631,6 +633,7 @@ function analyticsFixture() {
   let ready;
   const document = {
     getElementById: id => nodes.get(id), createElement: el,
+    querySelectorAll: selector => created.filter(node => matches(node, selector)),
     createTextNode: text => ({ textContent: text }),
     addEventListener: (type, fn) => { if (type === 'DOMContentLoaded') ready = fn; },
   };
@@ -814,11 +817,12 @@ test('weekly actual Tab handler cycles close and scroll body; Escape restores tr
 test('mobile profile remove preserves counts on failure and updates both after confirmed success', async () => {
   const source = readFileSync(process.env.MOBILE_JS_PATH || 'static/mobile/js/mobile.js', 'utf8');
   const section = extractSection(source, '    function normalizeIsbn', '    // ===== 暴露 API =====');
-  const count={textContent:'(2)'}, stat={textContent:'已收藏 2 本'}, cards=[{},{}], api={}, toasts=[], calls=[];
+  const count={textContent:'(2)'}, stat={textContent:'已收藏 2 本'}, cards=[{},{}], api={}, toasts=[], calls=[], empty={hidden:true};
   const btn=createEl('button', {'data-isbn':'9780306406157'});
   const card=cards[0]; card.remove=()=>cards.splice(cards.indexOf(card),1); btn.closest=()=>card;
   let click, resolveRequest;
   const document={documentElement:{getAttribute:()=> 'zh'},
+    getElementById:id=>id==='m-favorites-empty'?empty:null,
     addEventListener:(type,fn)=>{if(type==='click')click=fn;},
     querySelectorAll:selector=>selector==='#m-favorites .m-book-card'?cards:[],
     querySelector:selector=>selector==='#m-favorites .m-section-count'?count:selector==='.m-profile-stat'?stat:null};
@@ -831,5 +835,5 @@ test('mobile profile remove preserves counts on failure and updates both after c
   assert.equal(cards.length,2); assert.equal(count.textContent,'(2)'); assert.equal(stat.textContent,'已收藏 2 本'); assert.equal(btn.disabled,false); assert.equal(toasts[0].type,'error');
   click(event); assert.equal(calls.length,2); assert.equal(calls[1].url,'/api/favorites/9780306406157'); assert.equal(calls[1].opts.body,undefined);
   resolveRequest(response({success:true,message:'removed'})); await flushPromises();
-  assert.equal(cards.length,1); assert.equal(count.textContent,'(1)'); assert.equal(stat.textContent,'已收藏 1 本'); assert.equal(toasts.at(-1).type,'success');
+  assert.equal(cards.length,1); assert.equal(count.textContent,'(1)'); assert.equal(stat.textContent,'已收藏 1 本'); assert.equal(toasts.at(-1).type,'success'); assert.equal(empty.hidden,true,'one favorite remains, reusable empty state stays hidden');
 });

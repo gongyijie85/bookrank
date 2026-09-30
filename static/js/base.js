@@ -5,8 +5,6 @@
     'use strict';
 
     // ===== DOM Elements =====
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggle = document.getElementById('sidebar-toggle');
     const loadingOverlay = document.getElementById('loading-overlay');
     const toastContainer = document.getElementById('toast-container');
     const themeToggle = document.getElementById('theme-toggle');
@@ -133,7 +131,7 @@
         toast.innerHTML = `
             <svg class="icon" width="20" height="20" style="flex-shrink: 0;"><use href="#${iconClass}"/></svg>
             <span>${esc(message)}</span>
-            <button class="toast-close" aria-label="关闭提示">
+            <button class="toast-close" aria-label="${getCurrentLang() === 'en' ? 'Close notification' : '关闭提示'}">
                 <svg class="icon" width="16" height="16"><use href="#icon-x"/></svg>
             </button>
         `;
@@ -178,35 +176,6 @@
                 toast.parentNode.removeChild(toast);
             }
         }, 300);
-    }
-
-    // ===== Sidebar Functions =====
-
-    /**
-     * Toggle sidebar on mobile
-     */
-    function toggleSidebar() {
-        if (!sidebar || !sidebarToggle) return;
-        sidebar.classList.toggle('open');
-        sidebarToggle.setAttribute(
-            'aria-expanded',
-            sidebar.classList.contains('open')
-        );
-    }
-
-    /**
-     * Close sidebar when clicking outside on mobile
-     */
-    function handleClickOutside(event) {
-        if (!sidebar || !sidebarToggle) return;
-
-        const isMobile = window.innerWidth <= 1024;
-        const isOutside = !sidebar.contains(event.target) && !sidebarToggle.contains(event.target);
-
-        if (isMobile && isOutside && sidebar.classList.contains('open')) {
-            sidebar.classList.remove('open');
-            sidebarToggle.setAttribute('aria-expanded', 'false');
-        }
     }
 
     // ===== 窄屏全局导航对话框（native <dialog>）=====
@@ -646,16 +615,6 @@
      * Initialize all event listeners
      */
     function initEventListeners() {
-        // Sidebar toggle
-        if (sidebarToggle) {
-            sidebarToggle.addEventListener('click', toggleSidebar);
-            sidebarToggle.setAttribute('aria-label', '切换侧边栏');
-            sidebarToggle.setAttribute('aria-expanded', 'false');
-        }
-
-        // Click outside to close sidebar
-        document.addEventListener('click', handleClickOutside);
-
         // Keyboard events
         document.addEventListener('keydown', handleKeydown);
 

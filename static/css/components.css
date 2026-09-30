@@ -2390,3 +2390,194 @@
     margin-right: 8px;
     color: var(--border-color);
 }
+
+/* Round3 V01 — neutral primary/link/badge across light/dark/auto-dark */
+
+:root {
+    --primary-color: var(--text-primary);
+    --primary-light: var(--bg-tertiary);
+    --primary-dark: var(--text-secondary);
+    --primary-gradient: var(--text-primary);
+    --link-blue: var(--text-primary);
+    --badge-bg: var(--bg-tertiary);
+    --badge-text: var(--text-primary);
+    --text-muted: var(--text-secondary);
+}
+
+[data-theme="dark"] {
+    --primary-color: var(--text-primary);
+    --primary-light: var(--bg-tertiary);
+    --primary-dark: var(--text-secondary);
+    --primary-gradient: var(--text-primary);
+    --link-blue: var(--text-primary);
+    --badge-bg: var(--bg-tertiary);
+    --badge-text: var(--text-primary);
+    --text-muted: var(--text-secondary);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --primary-color: var(--text-primary);
+        --primary-light: var(--bg-tertiary);
+        --primary-dark: var(--text-secondary);
+        --primary-gradient: var(--text-primary);
+        --link-blue: var(--text-primary);
+        --badge-bg: var(--bg-tertiary);
+        --badge-text: var(--text-primary);
+        --text-muted: var(--text-secondary);
+    }
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: var(--bg-primary);
+}
+
+.btn,
+.btn-icon,
+.card-favorite,
+.lang-btn,
+.modal-close,
+.view-toggle .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+}
+
+.btn-sm {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.btn,
+.card,
+.card-favorite,
+.translate-btn,
+.btn:active,
+.card:active,
+.card-favorite:hover,
+.translate-btn:hover {
+    transform: none !important;
+}
+
+.card,
+.card:hover,
+.card:focus-visible {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+}
+
+.card-pub-isbn-item {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* UX round 3: favorite + translate token-safe overrides (higher specificity) */
+[data-theme="dark"] .card-favorite,
+:root:not([data-theme="light"]) .card-favorite,
+.card-favorite {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .card-favorite.active,
+:root:not([data-theme="light"]) .card-favorite.active,
+.card-favorite.active,
+[data-theme="dark"] .card-favorite:hover,
+:root:not([data-theme="light"]) .card-favorite:hover,
+.card-favorite:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+[data-theme="dark"] .card-favorite .fa-heart,
+:root:not([data-theme="light"]) .card-favorite .fa-heart,
+.card-favorite .fa-heart {
+  color: inherit;
+}
+
+[data-theme="dark"] .btn-translate,
+:root:not([data-theme="light"]) .btn-translate,
+.btn-translate {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+[data-theme="dark"] .btn-translate:hover,
+:root:not([data-theme="light"]) .btn-translate:hover,
+.btn-translate:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Round3 full titles / controls */
+.card-title {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  white-space: normal;
+  word-break: break-word;
+  font-family: var(--font-serif, Georgia, "Times New Roman", serif);
+}
+
+.list-item-title {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+  font-family: var(--font-serif, Georgia, "Times New Roman", serif);
+}
+
+.browse-card-title-link {
+  display: inline;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  white-space: normal;
+  word-break: break-word;
+  font-family: var(--font-serif, Georgia, "Times New Roman", serif);
+}
+
+.card-pub-isbn-item.isbn {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-all;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+body.weekly-detail-page .tab-btn {
+  min-height: 44px;
+}
+
+/* Round3 full titles / controls */
+.card-original-title,
+.book-original-title {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+body.charts-page .card-title,
+body.charts-page .list-item-title {
+  display: block;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+}

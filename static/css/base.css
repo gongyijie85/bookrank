@@ -1243,3 +1243,79 @@ a.list-item-image {
 .card-title a:focus {
     text-decoration: underline;
 }
+
+/* Round3 V01 — book-journal typography, neutral theme roles, color-scheme */
+
+:root {
+    --font-serif: Georgia, 'Times New Roman', 'Songti SC', 'STSong', SimSun, serif;
+}
+
+html {
+    color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]) {
+        color-scheme: dark;
+    }
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+[data-theme="light"] {
+    color-scheme: light;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+}
+
+/* V03: main content centered at 1400px with 32px gutters (16px mobile). */
+.main-content {
+    width: min(1400px, 100%);
+    margin: 0 auto;
+    padding-left: 32px;
+    padding-right: 32px;
+    padding-top: calc(var(--top-nav-height) + var(--spacing-md));
+    transition: none;
+}
+@media (max-width: 1199px) {
+    .main-content {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}
+body:has(> .breadcrumbs) .main-content {
+    padding-top: var(--spacing-md);
+}
+
+.top-nav .nav-link, .top-nav .lang-globe-btn, #theme-toggle, .nav-menu-btn, body #clear-search-btn, body #empty-clear-btn {
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: none;
+}
+
+.top-nav .btn-icon#theme-toggle{min-width:44px;width:44px;height:44px;min-height:44px}.lang-dropdown .lang-option{min-height:44px;min-width:44px}@media(min-width:901px){.top-nav .nav-menu-btn{display:none}}@media(max-width:900px){.top-nav .nav-menu-btn{display:inline-flex;min-height:44px;min-width:44px}}
+
+/* Round3 computed counterexamples */
+#grid-view-featured,
+#grid-view-compact {
+    min-height: 44px;
+}
+
+.new-books-page #publisher-filter,
+.new-books-page #category-filter,
+.new-books-page #days-filter,
+.new-books-page #search-input {
+    min-height: 44px;
+}
+
+.report-card-actions .btn {
+    min-height: 44px;
+}

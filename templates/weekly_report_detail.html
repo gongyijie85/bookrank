@@ -148,14 +148,14 @@
                             {{ _('数据可视化') }}
                         </h2>
                         <div class="chart-container">
-                            <canvas id="top-changes-chart"></canvas>
+                            <canvas id="top-changes-chart" role="img" aria-label="{{ _('本周排名变化图') }}"></canvas>
                         </div>
                     </div>
 
                     <div class="visualization-section">
                         <h3 class="analysis-subheading">{{ _('书籍类别分布') }}</h3>
                         <div class="chart-container">
-                            <canvas id="category-chart"></canvas>
+                            <canvas id="category-chart" role="img" aria-label="{{ _('分类条目分布图') }}"></canvas>
                         </div>
                     </div>
 
@@ -163,14 +163,14 @@
                         <h3 class="analysis-subheading">{{ _('排名变化（上周名次－本周名次）') }}</h3>
 <p>{{ _('这里的“排名变化”就是上周名次减去本周名次的差值，单位是“位”，不是百分比，也不是评分：正数表示上升，负数表示下降，0 表示名次没变；新书或查不到上周名次的书无法比较，不计入。图表只统计本期周报列出的书籍，不拿全部书目当分母，也不涉及历史或年度稳定性判断。') }}</p>
                         <div class="chart-container">
-                            <canvas id="trend-chart"></canvas>
+                            <canvas id="trend-chart" role="img" aria-label="{{ _('排名变化趋势图') }}"></canvas>
                         </div>
                     </div>
 
                     <div class="visualization-section">
                         <h3 class="analysis-subheading">{{ _('周榜对比') }}</h3>
                         <div class="chart-container">
-                            <canvas id="week-comparison-chart"></canvas>
+                            <canvas id="week-comparison-chart" role="img" aria-label="{{ _('本周与上周排名对比图') }}"></canvas>
                         </div>
                     </div>
 
@@ -178,7 +178,7 @@
                         <h3 class="analysis-subheading">{{ _('排名变化幅度（位）') }}</h3>
 <p>{{ _('雷达图展示每本书名次变化的绝对值：新书或没有可比较的上周名次时留空；名次确实没变时记为 0 位。') }}</p>
                         <div class="chart-container">
-                            <canvas id="stability-chart"></canvas>
+                            <canvas id="stability-chart" role="img" aria-label="{{ _('排名变化幅度图') }}"></canvas>
                         </div>
                     </div>
                 </div>
@@ -607,6 +607,10 @@ body.weekly-detail-page { contain: style; }
 
     .report-summary-content p {
         margin: 0 0 1rem 0;
+    }
+
+    .weekly-detail-page .tab-panel p {
+        color: var(--text-secondary);
     }
 
     /* -- {{ _('标签页') }} -- */
@@ -1769,6 +1773,225 @@ document.addEventListener('DOMContentLoaded', function() {
             redBorder: 'rgba(255, 99, 132, 1)',
         };
 
+// Theme-aware chart helper: reads CSS custom properties from the live document
+// root so charts follow the active theme. When running under a VM without a real
+// DOM (no document.documentElement / getComputedStyle), fall back to neutral role
+// values instead of throwing.
+function readThemeRole(name, fallback) {
+    try {
+        if (typeof document === 'undefined' || !document.documentElement || typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+            return fallback;
+        }
+        const raw = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+        const value = (raw || '').trim();
+        return value.length > 0 ? value : fallback;
+    } catch (_e) {
+        return fallback;
+    }
+}
+
+const NEUTRAL_ROLES = {
+    textPrimary: '#1f2937',
+    textSecondary: '#4b5563',
+    textMuted: '#9ca3af',
+    borderColor: '#d1d5db',
+    bgSecondary: '#f3f4f6',
+};
+
+function currentThemeRoles() {
+    return {
+        textPrimary: readThemeRole('--text-primary', NEUTRAL_ROLES.textPrimary),
+        textSecondary: readThemeRole('--text-secondary', NEUTRAL_ROLES.textSecondary),
+        textMuted: readThemeRole('--text-muted', NEUTRAL_ROLES.textMuted),
+        borderColor: readThemeRole('--border-color', NEUTRAL_ROLES.borderColor),
+        bgSecondary: readThemeRole('--bg-secondary', NEUTRAL_ROLES.bgSecondary),
+    };
+}
+
+const weeklyCharts = [];
+
+function createWeeklyChart(ctx, config) {
+    const chart = new Chart(ctx, config);
+    weeklyCharts.push(chart);
+    applyWeeklyChartTheme(chart);
+    return chart;
+}
+
+function applyWeeklyChartTheme(chart) {
+    const roles = currentThemeRoles();
+
+    // Guard: chart.config must exist and be a plain object. In Chart.js 4.x,
+    // chart.options is a resolved Proxy (createResolver); reading/cloning it
+    // triggers _scriptable recursion / t.startsWith errors. Only touch the raw
+    // plain object at chart.config.options.
+    if (!chart || !chart.config || typeof chart.config !== 'object') {
+        return;
+    }
+
+    // Use ONLY the raw config options object; never assign to chart.options.
+    let options = chart.config.options;
+    if (!options || typeof options !== 'object') {
+        options = {};
+        chart.config.options = options;
+    }
+
+    // Legend: labels + ticks use textPrimary; grid uses borderColor.
+    options.plugins = options.plugins || {};
+    options.plugins.legend = options.plugins.legend || {};
+    options.plugins.legend.labels = options.plugins.legend.labels || {};
+    options.plugins.legend.labels.color = roles.textPrimary;
+
+    // Scales: ticks/grid/title colors for every existing scale; radar-specific
+    // pointLabels + angleLines (create option objects even if currently missing).
+    if (options.scales && typeof options.scales === 'object') {
+        Object.keys(options.scales).forEach((key) => {
+            const scale = options.scales[key];
+            if (!scale || typeof scale !== 'object') {
+                return;
+            }
+            scale.ticks = scale.ticks || {};
+            scale.ticks.color = roles.textSecondary;
+            scale.grid = scale.grid || {};
+            scale.grid.color = roles.borderColor;
+            if (scale.title && typeof scale.title === 'object') {
+                scale.title.color = roles.textPrimary;
+            }
+            if (Array.isArray(scale.pointLabels)) {
+                scale.pointLabels.forEach((pl) => {
+                    if (pl && typeof pl === 'object') {
+                        pl.color = roles.textSecondary;
+                    }
+                });
+            } else {
+                scale.pointLabels = scale.pointLabels || {};
+                scale.pointLabels.color = roles.textSecondary;
+            }
+            scale.angleLines = scale.angleLines || {};
+            scale.angleLines.color = roles.borderColor;
+        });
+    }
+
+    // Datasets: border textPrimary; bg by series index — first textPrimary,
+    // second textSecondary. Array bg alternates textPrimary/textSecondary/muted
+    // preserving length. Radar fill bgSecondary but border+points textPrimary.
+    const datasets = (chart.data && Array.isArray(chart.data.datasets)) ? chart.data.datasets : [];
+    datasets.forEach((ds, idx) => {
+        if (!ds || typeof ds !== 'object') {
+            return;
+        }
+        const isRadar = ds.type === 'radar' || (chart.config && chart.config.type === 'radar');
+        const primaryBg = idx === 0 ? roles.textPrimary : roles.textSecondary;
+
+        if (isRadar) {
+            if (Array.isArray(ds.backgroundColor)) {
+                ds.backgroundColor = ds.backgroundColor.map(() => roles.bgSecondary);
+            } else if (ds.backgroundColor !== undefined) {
+                ds.backgroundColor = roles.bgSecondary;
+            }
+            if (Array.isArray(ds.borderColor)) {
+                ds.borderColor = ds.borderColor.map(() => roles.textPrimary);
+            } else if (ds.borderColor !== undefined) {
+                ds.borderColor = roles.textPrimary;
+            }
+            if (Array.isArray(ds.pointBackgroundColor)) {
+                ds.pointBackgroundColor = ds.pointBackgroundColor.map(() => roles.textPrimary);
+            } else if (ds.pointBackgroundColor !== undefined) {
+                ds.pointBackgroundColor = roles.textPrimary;
+            }
+            if (Array.isArray(ds.pointBorderColor)) {
+                ds.pointBorderColor = ds.pointBorderColor.map(() => roles.textPrimary);
+            } else if (ds.pointBorderColor !== undefined) {
+                ds.pointBorderColor = roles.textPrimary;
+            }
+        } else {
+            if (Array.isArray(ds.backgroundColor)) {
+                ds.backgroundColor = ds.backgroundColor.map((_, i) => {
+                    const mod = i % 3;
+                    if (mod === 0) return roles.textPrimary;
+                    if (mod === 1) return roles.textSecondary;
+                    return roles.textMuted;
+                });
+            } else if (ds.backgroundColor !== undefined) {
+                ds.backgroundColor = primaryBg;
+            }
+            if (Array.isArray(ds.borderColor)) {
+                ds.borderColor = ds.borderColor.map(() => roles.textPrimary);
+            } else if (ds.borderColor !== undefined) {
+                ds.borderColor = roles.textPrimary;
+            }
+            if (Array.isArray(ds.pointBackgroundColor)) {
+                ds.pointBackgroundColor = ds.pointBackgroundColor.map(() => primaryBg);
+            } else if (ds.pointBackgroundColor !== undefined) {
+                ds.pointBackgroundColor = primaryBg;
+            }
+            if (Array.isArray(ds.pointBorderColor)) {
+                ds.pointBorderColor = ds.pointBorderColor.map(() => roles.textPrimary);
+            } else if (ds.pointBorderColor !== undefined) {
+                ds.pointBorderColor = roles.textPrimary;
+            }
+        }
+    });
+
+    if (typeof chart.update === 'function') {
+        chart.update('none');
+    }
+}
+
+function refreshAllWeeklyCharts() {
+    weeklyCharts.forEach(applyWeeklyChartTheme);
+}
+
+if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.documentElement) {
+    const themeObserver = new MutationObserver(refreshAllWeeklyCharts);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
+// Canvas accessible names follow the active UI language. Reads window.__APP_LANG__
+// when valid, else html[data-lang], else zh. Only aria-label is set — no structural
+// or numeric changes.
+const WEEKLY_CHART_LABELS = {
+    'top-changes-chart': { zh: '本周排名变化图', en: 'Weekly rank changes' },
+    'category-chart': { zh: '分类条目分布图', en: 'Category entry distribution' },
+    'trend-chart': { zh: '排名变化趋势图', en: 'Rank change trend' },
+    'week-comparison-chart': { zh: '本周与上周排名对比图', en: 'Current and previous week ranks' },
+    'stability-chart': { zh: '排名变化幅度图', en: 'Rank change magnitude' },
+};
+
+function resolveWeeklyLang() {
+    let lang = null;
+    if (typeof window !== 'undefined' && typeof window.__APP_LANG__ === 'string') {
+        const candidate = window.__APP_LANG__.toLowerCase().split('-')[0];
+        if (candidate === 'zh' || candidate === 'en') {
+            lang = candidate;
+        }
+    }
+    if (!lang && typeof document !== 'undefined' && document.documentElement) {
+        const attr = (document.documentElement.getAttribute('data-lang') || '').toLowerCase().split('-')[0];
+        if (attr === 'zh' || attr === 'en') {
+            lang = attr;
+        }
+    }
+    return lang || 'zh';
+}
+
+function syncWeeklyCanvasNames() {
+    if (typeof document === 'undefined') {
+        return;
+    }
+    const lang = resolveWeeklyLang();
+    Object.keys(WEEKLY_CHART_LABELS).forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && typeof el.setAttribute === 'function') {
+            el.setAttribute('aria-label', WEEKLY_CHART_LABELS[id][lang] || WEEKLY_CHART_LABELS[id].zh);
+        }
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('languagechange', syncWeeklyCanvasNames);
+}
+syncWeeklyCanvasNames();
+
         // {{ _('排名变化柱状图') }}
         if (reportContent.top_changes?.length > 0) {
             const ctx = document.getElementById('top-changes-chart').getContext('2d');
@@ -1778,7 +2001,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const labels = items.map(i => i.is_new ? `${i.title} (${NEW_LABEL})` : (i.rank_change === null || i.rank_change === undefined) ? `${i.title} (${UNAVAILABLE_LABEL})` : i.title);
             const data = items.map(i => (i.is_new || i.rank_change === null || i.rank_change === undefined) ? null : i.rank_change);
             const bgColors = items.map(i => i.is_new || i.rank_change === null || i.rank_change === undefined ? chartColors.gray : i.rank_change > 0 ? chartColors.green : i.rank_change < 0 ? chartColors.red : chartColors.gray);
-            new Chart(ctx, {
+            createWeeklyChart(ctx, {
                 type: 'bar',
                 data: { labels, datasets: [{ label: {{ _('排名变化')|tojson }}, data, backgroundColor: bgColors, borderWidth: 1 }] },
                 options: {
@@ -1803,8 +2026,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // 同一本书在多个分类榜单里的出现重复计数。
         const categoryChart = reportContent.category_chart;
         if (categoryChart && categoryChart.available === true && categoryChart.counts.length > 0) {
-            const palette = ['rgba(255,99,132,0.6)','rgba(54,162,235,0.6)','rgba(255,206,86,0.6)','rgba(75,192,192,0.6)','rgba(153,102,255,0.6)','rgba(255,159,64,0.6)','rgba(199,199,199,0.6)','rgba(83,102,255,0.6)'];
-            new Chart(document.getElementById('category-chart').getContext('2d'), {
+            const palette = [NEUTRAL_ROLES.bgSecondary, NEUTRAL_ROLES.bgSecondary, NEUTRAL_ROLES.bgSecondary, NEUTRAL_ROLES.bgSecondary, NEUTRAL_ROLES.bgSecondary, NEUTRAL_ROLES.bgSecondary, NEUTRAL_ROLES.bgSecondary, NEUTRAL_ROLES.bgSecondary];
+            createWeeklyChart(document.getElementById('category-chart').getContext('2d'), {
                 type: 'doughnut',
                 data: { labels: categoryChart.labels, datasets: [{ data: categoryChart.counts, backgroundColor: palette.slice(0, categoryChart.labels.length), borderWidth: 1 }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: ctx => { const total = ctx.dataset.data.reduce((a, b) => a + b, 0); const unit = {{ _('条')|tojson }}; return `${ctx.label}: ${ctx.raw}${unit} (${total > 0 ? Math.round(ctx.raw / total * 100) : 0}%)`; } } } } }
@@ -1827,7 +2050,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const labels = items.map(i => i.is_new ? `${i.title} (${NEW_LABEL})` : (i.rank_change === null || i.rank_change === undefined) ? `${i.title} (${UNAVAILABLE_LABEL})` : i.title);
             const data = items.map(i => (i.is_new || i.rank_change === null || i.rank_change === undefined) ? null : i.rank_change);
             const bgColors = items.map(i => i.is_new || i.rank_change === null || i.rank_change === undefined ? chartColors.gray : i.rank_change > 0 ? chartColors.green : i.rank_change < 0 ? chartColors.red : chartColors.gray);
-            new Chart(document.getElementById('trend-chart').getContext('2d'), {
+            createWeeklyChart(document.getElementById('trend-chart').getContext('2d'), {
                 type: 'bar',
                 data: { labels, datasets: [{ label: {{ _('排名变化')|tojson }}, data, backgroundColor: bgColors, borderWidth: 1 }] },
                 options: {
@@ -1847,7 +2070,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // {{ _('周榜对比图') }}
         if (reportContent.top_changes?.length > 0) {
-            new Chart(document.getElementById('week-comparison-chart').getContext('2d'), {
+            createWeeklyChart(document.getElementById('week-comparison-chart').getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: reportContent.top_changes.map(i => i.title),
@@ -1869,9 +2092,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (i.is_new || !Number.isInteger(i.rank) || i.rank <= 0 || i.rank_change == null || !Number.isInteger(i.rank_change)) return null;
                 return Math.abs(i.rank_change);
             });
-            new Chart(document.getElementById('stability-chart').getContext('2d'), {
+            createWeeklyChart(document.getElementById('stability-chart').getContext('2d'), {
                 type: 'radar',
-                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: {{ _('排名变化幅度（位）')|tojson }}, data: magnitudes, backgroundColor: 'rgba(75,192,192,0.2)', borderColor: chartColors.greenBorder, borderWidth: 2, pointBackgroundColor: chartColors.greenBorder }] },
+                data: { labels: reportContent.top_changes.map(i => i.title), datasets: [{ label: {{ _('排名变化幅度（位）')|tojson }}, data: magnitudes, backgroundColor: readThemeRole('--bg-secondary', NEUTRAL_ROLES.bgSecondary), borderColor: chartColors.greenBorder, borderWidth: 2, pointBackgroundColor: chartColors.greenBorder }] },
                 options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, title: { display: true, text: {{ _('排名变化幅度（位）')|tojson }} } } } }
             });
         }

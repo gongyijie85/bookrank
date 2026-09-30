@@ -33,16 +33,17 @@
 {% if reports %}
 <style nonce="{{ csp_nonce() }}">
 .m-wr-filter-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 16px 12px}
-.m-wr-filter-bar select,.m-wr-filter-bar input{height:44px;min-width:44px;font-size:14px;border:1px solid var(--border-color,#ccc);border-radius:6px;background:var(--bg-primary,#fff);color:inherit;padding:0 10px}
-.m-wr-filter-count{font-size:.85em;color:var(--text-secondary,#666)}
-.m-wr-filter-clear{height:44px;padding:0 14px;border:1px solid var(--border-color,#ccc);background:transparent;color:inherit;border-radius:6px;cursor:pointer}
-.m-wr-no-results{padding:24px;text-align:center;color:var(--text-secondary,#666);display:none}
+.m-wr-filter-bar select,.m-wr-filter-bar input{height:44px;min-width:44px;font-size:14px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-elevated);color:inherit;padding:0 10px}
+.m-wr-filter-count{font-size:.85em;color:var(--color-text-secondary)}
+.m-wr-filter-clear{height:44px;padding:0 14px;border:1px solid var(--color-border);background:transparent;color:inherit;border-radius:6px;cursor:pointer}
+.m-wr-no-results{padding:24px;text-align:center;color:var(--color-text-secondary);display:none}
 </style>
+{% set english_months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] %}
 <div class="m-wr-filter-bar">
     <select id="m-month-filter" aria-label="{{ _('月份筛选') }}">
         <option value="">{{ _('全部') }}</option>
         {% for section in report_sections %}
-        <option value="{{ section.year }}-{{ '%02d' % section.month }}">{{ _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) }}</option>
+        <option value="{{ section.year }}-{{ '%02d' % section.month }}">{% if get_locale() == 'en' %}{{ english_months[section.month - 1] }} {{ section.year }}{% else %}{{ _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) }}{% endif %}</option>
         {% endfor %}
     </select>
     <input type="text" id="m-search-input" aria-label="{{ _('搜索周报') }}" placeholder="{{ _('搜索周报标题或内容') }}">
@@ -51,7 +52,7 @@
 </div>
 {# 月份分组沿用桌面列表页的 report_sections，路由已一并传入 #}
 {% for section in report_sections %}
-{% set month_label = _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) %}
+{% set month_label = english_months[section.month - 1] ~ ' ' ~ section.year if get_locale() == 'en' else _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) %}
 <section class="m-report-group" aria-label="{{ month_label }}" data-group-month="{{ section.year }}-{{ '%02d' % section.month }}">
     <h2 class="m-report-group-title">{{ month_label }}</h2>
     <div class="m-book-list">
@@ -66,7 +67,7 @@
                 <p class="m-report-sub">
                     {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}
                     {% if content.total_books_known %}
-                    · {{ content.total_books_display }} {{ _('条') }} {{ _('上榜记录') }}
+                    {% if get_locale() == 'en' %}· {{ content.total_books_display }} {{ _('上榜记录')|lower }}{% else %}· {{ content.total_books_display }} {{ _('条') }} {{ _('上榜记录') }}{% endif %}
                     {% endif %}
                 </p>
                 {% if content.total_new_known or content.total_rising_known or content.total_falling_known %}

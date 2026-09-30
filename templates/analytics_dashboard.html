@@ -1,95 +1,49 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>数据统计 - BookRank</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <style nonce="{{ csp_nonce() }}">
-        body {
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
-            background-color: #f8f9fa;
-        }
-        .dashboard-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .card {
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-        .card-header {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
-        }
-        .stat-card {
-            text-align: center;
-            padding: 20px;
-        }
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #007bff;
-        }
-        .stat-label {
-            font-size: 14px;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-        .chart-container {
-            position: relative;
-            height: 300px;
-            margin-top: 20px;
-        }
-        .nav-link {
-            color: #007bff;
-        }
-        .nav-link.active {
-            font-weight: bold;
-        }
-        .loading {
-            text-align: center;
-            padding: 50px;
-            color: #6c757d;
-        }
-    </style>
-</head>
-<body>
-    <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container">
-            <a class="navbar-brand" href="/">BookRank</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">首页</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/new-books">新书速递</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/awards">图书奖项</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/analytics">数据统计</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/reports/weekly">畅销书周报</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% extends "base.html" %}
+{% block title %}{{ _('数据统计仪表盘') }} - BookRank{% endblock %}
+{% block extra_css %}<style nonce="{{ csp_nonce() }}">.dashboard-container{width:min(1400px,100%);margin:0 auto;padding:0;}
+.dashboard-container h1{font-family:var(--font-serif);font-size:32px;margin:0 0 16px;color:var(--text-primary);}
+.dashboard-container .row{display:grid;gap:16px;}
+.dashboard-container .row.mb-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+.dashboard-container .row:not(.mb-4){grid-template-columns:repeat(2,minmax(0,1fr));}
+.dashboard-container .row>.col-md-12{grid-column:1/-1;}
+.dashboard-container .card{border:1px solid var(--border-color);box-shadow:none;background:var(--bg-primary);margin-bottom:16px;}
+.dashboard-container .card-header{background:var(--bg-secondary);padding:12px;border-bottom:1px solid var(--border-color);}
+.dashboard-container .card-body{padding:16px;font-family:var(--font-sans);min-width:0;}
+.dashboard-container .stat-value{font-size:24px;color:var(--text-primary);}
+.dashboard-container .stat-label{font-size:14px;color:var(--text-secondary);}
+.dashboard-container table{width:100%;border-collapse:collapse;table-layout:fixed;}
+.dashboard-container th,.dashboard-container td{white-space:normal;overflow-wrap:anywhere;padding:8px;border:1px solid var(--border-color);}
+.dashboard-container .chart{height:280px;position:relative;}
+.dashboard-container .panel-status{color:var(--text-primary)!important;background:var(--bg-primary)!important;}
+.dashboard-container button{min-height:44px;color:var(--text-primary);background:transparent;border:1px solid var(--text-primary);}
+.dashboard-container button.primary{color:var(--bg-primary);background:var(--text-primary);border:1px solid var(--text-primary);}
+@media (max-width:768px){.dashboard-container .row.mb-4,.dashboard-container .row:not(.mb-4){grid-template-columns:1fr;}.dashboard-container .row.stats-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width:360px){.dashboard-container .row.stats-row{grid-template-columns:repeat(2,minmax(0,1fr));}}.dashboard-container .chart-container {
+  position: relative;
+  height: 280px;
+}
 
+.dashboard-container .btn {
+  min-width: 44px;
+  min-height: 44px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+}
+
+@media (max-width: 768px) {
+  .dashboard-container .row.mb-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+</style>{% endblock %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- 仪表盘内容 -->
     <div class="dashboard-container">
-        <h1 class="mb-4">数据统计仪表盘</h1>
+        <h1 class="mb-4"><span data-zh="数据统计仪表盘" data-en="Data Statistics Dashboard">{{ _('数据统计仪表盘') }}</span></h1>
         
         <!-- 统计卡片 -->
         <div class="row mb-4">
@@ -97,7 +51,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="total-views">--</div>
-                        <div class="stat-label">{{ _('近30天周报累计阅读量') }}</div>
+                        <div class="stat-label"><span data-zh="近30天周报累计阅读量" data-en="Cumulative views of weekly reports created in the last 30 days">{{ _('近30天周报累计阅读量') }}</span></div>
                     </div>
                 </div>
             </div>
@@ -105,7 +59,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="total-behaviors">--</div>
-                        <div class="stat-label">{{ _('近30天用户行为事件数') }}</div>
+                        <div class="stat-label"><span data-zh="近30天用户行为事件数" data-en="User Behavior Events in Last 30 Days">{{ _('近30天用户行为事件数') }}</span></div>
                     </div>
                 </div>
             </div>
@@ -113,7 +67,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="session-count">--</div>
-                        <div class="stat-label">{{ _('独立会话数（非人数）') }}</div>
+                        <div class="stat-label"><span data-zh="独立会话数（非人数）" data-en="Unique Sessions (not users)">{{ _('独立会话数（非人数）') }}</span></div>
                     </div>
                 </div>
             </div>
@@ -121,7 +75,7 @@
                 <div class="card stat-card">
                     <div class="card-body">
                         <div class="stat-value" id="avg-views">--</div>
-                        <div class="stat-label">{{ _('平均每份周报阅读量（按近30天周报数计）') }}</div>
+                        <div class="stat-label"><span data-zh="平均每份周报阅读量（按近30天周报数计）" data-en="Average Views per Weekly Report (based on report count in the last 30 days)">{{ _('平均每份周报阅读量（按近30天周报数计）') }}</span></div>
                     </div>
                 </div>
             </div>
@@ -133,11 +87,11 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">{{ _('周报阅读量趋势（近30天创建周报的累计阅读）') }}</h5>
+                        <h5 class="card-title"><span data-zh="周报阅读量趋势（近30天创建周报的累计阅读）" data-en="Weekly Report View Trend (cumulative views of reports created in the last 30 days)">{{ _('周报阅读量趋势（近30天创建周报的累计阅读）') }}</span></h5>
                     </div>
                     <div class="card-body">
                         <div class="chart-container">
-                            <canvas id="viewsChart"></canvas>
+                            <canvas id="viewsChart" role="img" aria-label="{{ _('周报累计阅读量趋势图') }}"></canvas>
                         </div>
                     </div>
                 </div>
@@ -147,11 +101,11 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">{{ _('用户行为分布（近30天 UserBehavior 事件计数）') }}</h5>
+                        <h5 class="card-title"><span data-zh="用户行为分布（近30天 UserBehavior 事件计数）" data-en="User Behavior Distribution (UserBehavior event count in the last 30 days)">{{ _('用户行为分布（近30天 UserBehavior 事件计数）') }}</span></h5>
                     </div>
                     <div class="card-body">
                         <div class="chart-container">
-                            <canvas id="behaviorChart"></canvas>
+                            <canvas id="behaviorChart" role="img" aria-label="{{ _('用户行为事件分布图') }}"></canvas>
                         </div>
                     </div>
                 </div>
@@ -163,11 +117,11 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">{{ _('每日活动趋势（近30天事件数，UTC）') }}</h5>
+                        <h5 class="card-title"><span data-zh="每日活动趋势（近30天事件数，UTC）" data-en="Daily Activity Trend (event count in the last 30 days, UTC)">{{ _('每日活动趋势（近30天事件数，UTC）') }}</span></h5>
                     </div>
                     <div class="card-body">
                         <div class="chart-container" style="height: 400px;">
-                            <canvas id="dailyChart"></canvas>
+                            <canvas id="dailyChart" role="img" aria-label="{{ _('每日活动趋势图（UTC）') }}"></canvas>
                         </div>
                     </div>
                 </div>
@@ -179,21 +133,21 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title">{{ _('阅读量最高的周报（全库累计 Top10）') }}</h5>
+                        <h5 class="card-title"><span data-zh="阅读量最高的周报（全库累计 Top10）" data-en="Top 10 Weekly Reports by Views (full library cumulative)">{{ _('阅读量最高的周报（全库累计 Top10）') }}</span></h5>
                     </div>
                     <div class="card-body">
                         <table class="table table-striped">
                             <thead>
                                 <tr>
-                                    <th>日期</th>
-                                    <th>标题</th>
-                                    <th>阅读量</th>
-                                    <th>操作</th>
+                                    <th><span data-zh="日期" data-en="Date">{{ _('日期') }}</span></th>
+                                    <th><span data-zh="标题" data-en="Title">{{ _('标题') }}</span></th>
+                                    <th><span data-zh="阅读量" data-en="Views">{{ _('阅读量') }}</span></th>
+                                    <th><span data-zh="操作" data-en="Actions">{{ _('操作') }}</span></th>
                                 </tr>
                             </thead>
                             <tbody id="top-reports-table">
                                 <tr>
-                                    <td colspan="4" class="text-center">加载中...</td>
+                                    <td colspan="4" class="text-center"><span data-zh="加载中..." data-en="Loading...">{{ _('加载中...') }}</span></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -223,6 +177,222 @@
         let viewsChart = null;
         let behaviorChart = null;
         let dailyChart = null;
+// === Analytics theme + i18n helpers (insert after `const chartColors = {...}` and
+//     `let viewsChart, behaviorChart, dailyChart;` declarations) ===
+
+function analyticsText(key) {
+  var lang = null;
+  if (typeof window !== 'undefined') {
+    var appLang = window.__APP_LANG__;
+    if (appLang === 'zh' || appLang === 'en') {
+      lang = appLang;
+    }
+  }
+  if (!lang && typeof document !== 'undefined' && document.documentElement) {
+    var dataLang = document.documentElement.getAttribute('data-lang');
+    var htmlLang = document.documentElement.getAttribute('lang');
+    var candidate = dataLang || htmlLang || '';
+    if (String(candidate).toLowerCase().indexOf('zh') === 0) {
+      lang = 'zh';
+    } else if (String(candidate).toLowerCase().indexOf('en') === 0) {
+      lang = 'en';
+    }
+  }
+  if (!lang) lang = 'zh';
+
+  var DICT = {
+    zh: {
+      loading: '加载中...',
+      failed: '加载失败，请重试',
+      retry: '重试',
+      empty: '暂无数据',
+      view: '查看',
+      views: '阅读量',
+      daily: '每日活动数',
+      cumulativeWeeklyReportViews: '周报累计阅读量',
+      userBehaviorEventDistribution: '用户行为事件分布',
+      dailyUserBehaviorEvents: '每日用户行为事件数'
+    },
+    en: {
+      loading: 'Loading...',
+      failed: 'Failed to load. Please retry.',
+      retry: 'Retry',
+      empty: 'No data available',
+      view: 'View',
+      views: 'Views',
+      daily: 'Daily events',
+      cumulativeWeeklyReportViews: 'Cumulative weekly report views',
+      userBehaviorEventDistribution: 'User behavior event distribution',
+      dailyUserBehaviorEvents: 'Daily user behavior events'
+    }
+  };
+
+  var table = DICT[lang] || DICT.zh;
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : key;
+}
+
+function refreshAnalyticsLanguage() {
+  var viewsEl = document.getElementById('viewsChart');
+  if (viewsEl) { viewsEl.setAttribute('aria-label', analyticsText('cumulativeWeeklyReportViews')); }
+  var behaviorEl = document.getElementById('behaviorChart');
+  if (behaviorEl) { behaviorEl.setAttribute('aria-label', analyticsText('userBehaviorEventDistribution')); }
+  var dailyEl = document.getElementById('dailyChart');
+  if (dailyEl) { dailyEl.setAttribute('aria-label', analyticsText('dailyUserBehaviorEvents')); }
+
+  if (typeof viewsChart !== 'undefined' && viewsChart && viewsChart.data && viewsChart.data.datasets && viewsChart.data.datasets[0]) {
+    viewsChart.data.datasets[0].label = analyticsText('views');
+    if (typeof viewsChart.update === 'function') { viewsChart.update('none'); }
+  }
+  if (typeof dailyChart !== 'undefined' && dailyChart && dailyChart.data && dailyChart.data.datasets && dailyChart.data.datasets[0]) {
+    dailyChart.data.datasets[0].label = analyticsText('daily');
+    if (typeof dailyChart.update === 'function') { dailyChart.update('none'); }
+  }
+
+  var panels = document.querySelectorAll('.panel-status');
+  for (var i = 0; i < panels.length; i++) {
+    var panel = panels[i];
+    var kind = panel.dataset.statusKind;
+    if (kind === 'loading') {
+      panel.textContent = analyticsText('loading');
+    } else if (kind === 'empty') {
+      panel.textContent = analyticsText('empty');
+    } else if (kind === 'error' && typeof panel.analyticsRetry === 'function') {
+      showError(panel, panel.analyticsRetry);
+    }
+  }
+
+  var textNodes = document.querySelectorAll('[data-analytics-text]');
+  for (var j = 0; j < textNodes.length; j++) {
+    var node = textNodes[j];
+    var key = node.dataset.analyticsText;
+    if (key) { node.textContent = analyticsText(key); }
+  }
+}
+
+function applyAnalyticsTheme() {
+  if (typeof document === 'undefined' || !document.documentElement) {
+    return; // old test VM without a real DOM root
+  }
+  if (typeof getComputedStyle !== 'function') {
+    return;
+  }
+
+  var styles = getComputedStyle(document.documentElement);
+  function cssVar(name) {
+    var raw = styles.getPropertyValue(name);
+    return raw ? String(raw).trim() : '';
+  }
+
+  var primary = cssVar('--text-primary');
+  var secondary = cssVar('--text-secondary');
+  var muted = cssVar('--text-muted');
+  var border = cssVar('--border-color');
+  var bgSecondary = cssVar('--bg-secondary');
+  var bgTertiary = cssVar('--bg-tertiary');
+
+  // Mutate the ACTUAL chartColors keys in place (no new/unused keys).
+  if (primary) {
+    chartColors.blue = primary;
+    chartColors.green = primary;
+  }
+  if (secondary) chartColors.red = secondary;
+  if (muted) chartColors.gray = muted;
+  if (border) chartColors.yellow = border;
+  if (bgTertiary) chartColors.purple = bgTertiary;
+  if (bgSecondary) chartColors.greenLight = bgSecondary;
+  if (primary) {
+    Object.keys(chartColors).forEach(function (k) {
+      if (/Border$/.test(k)) chartColors[k] = primary;
+    });
+  }
+
+  if (typeof Chart !== 'undefined' && Chart.defaults) {
+    if (primary) Chart.defaults.color = primary;
+    if (border) Chart.defaults.borderColor = border;
+  }
+
+  var liveCharts = [viewsChart, behaviorChart, dailyChart];
+
+  liveCharts.forEach(function (chart) {
+    // Use raw config.options instead of resolved proxy to avoid RangeError on assignment
+    var options = chart && chart.config && chart.config.options;
+    if (!options) return;
+
+    // Legend labels: create missing options.plugins.legend.labels objects.
+    options.plugins = options.plugins || {};
+    options.plugins.legend = options.plugins.legend || {};
+    options.plugins.legend.labels = options.plugins.legend.labels || {};
+    if (primary) options.plugins.legend.labels.color = primary;
+
+    // Scales: for each EXISTING axis, ensure ticks/grid objects exist.
+    var scales = options.scales;
+    if (scales) {
+      Object.keys(scales).forEach(function (axisKey) {
+        var axis = scales[axisKey];
+        if (!axis) return;
+        axis.ticks = axis.ticks || {};
+        axis.grid = axis.grid || {};
+        if (primary) axis.ticks.color = primary;
+        if (border) axis.grid.color = border;
+        if (axis.title && primary) axis.title.color = primary;
+        // type / zero / UTC callback values are preserved untouched.
+      });
+    }
+
+    // Recolor actual datasets (never touch numeric arrays).
+    var datasets = chart.data && chart.data.datasets;
+    if (datasets && datasets.length) {
+      if (chart === behaviorChart) {
+        var palette = [primary, secondary, muted, border, bgTertiary].filter(Boolean);
+        if (palette.length) {
+          datasets.forEach(function (ds) {
+            if (Array.isArray(ds.backgroundColor)) {
+              ds.backgroundColor = palette.slice();
+            } else {
+              ds.backgroundColor = palette[0];
+            }
+            if (Array.isArray(ds.borderColor)) {
+              ds.borderColor = palette.slice();
+            } else {
+              ds.borderColor = palette[0];
+            }
+          });
+        }
+      } else {
+        datasets.forEach(function (ds) {
+          if (chart === dailyChart && bgSecondary) {
+            ds.backgroundColor = bgSecondary;
+          } else if (primary) {
+            ds.backgroundColor = primary;
+          }
+          if (primary) ds.borderColor = primary;
+        });
+      }
+    }
+
+    if (typeof chart.update === 'function') chart.update('none');
+  });
+}
+
+// Guarded setup: apply once before initial renders, then react to theme/i18n changes.
+if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
+  var __analyticsThemeObserver = new MutationObserver(function () {
+    applyAnalyticsTheme();
+  });
+  __analyticsThemeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme']
+  });
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('languagechange', function () {
+    refreshAnalyticsLanguage();
+  });
+}
+refreshAnalyticsLanguage();
+
+applyAnalyticsTheme();
 
         function createPanelStatus(canvasId) {
             const canvas = document.getElementById(canvasId);
@@ -252,17 +422,19 @@
 
         function showLoading(statusDiv) {
             if (!statusDiv) return;
-            statusDiv.textContent = '加载中...';
+            statusDiv.dataset.statusKind = 'loading';
+            statusDiv.textContent = analyticsText('loading');
         }
 
         function showError(statusDiv, retryFn) {
             if (!statusDiv) return;
+            statusDiv.dataset.statusKind = 'error';
             statusDiv.textContent = '';
-            const errText = document.createTextNode('加载失败，请重试');
+            const errText = document.createTextNode(analyticsText('failed'));
             statusDiv.appendChild(errText);
             const btn = document.createElement('button');
             btn.className = 'btn btn-sm btn-primary';
-            btn.textContent = '重试';
+            btn.textContent = analyticsText('retry');
             btn.style.minWidth = '44px';
             btn.style.minHeight = '44px';
             btn.style.marginLeft = '8px';
@@ -271,10 +443,13 @@
                 retryFn();
             });
             statusDiv.appendChild(btn);
+            statusDiv.analyticsRetry = retryFn;
         }
 
         function hideStatus(statusDiv) {
             if (!statusDiv) return;
+            delete statusDiv.dataset.statusKind;
+            delete statusDiv.analyticsRetry;
             statusDiv.textContent = '';
         }
 
@@ -396,11 +571,14 @@
                 const ctx = canvas.getContext('2d');
                 viewsChart = new Chart(ctx, {
                     type: 'bar',
-                    data: { labels: [], datasets: [{ label: '阅读量', data: [], backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 }] },
+                    data: { labels: [], datasets: [{ label: analyticsText('views'), data: [], backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 }] },
                     options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
                 });
                 const statusDiv = createPanelStatus('viewsChart');
-                if (statusDiv) statusDiv.textContent = '暂无数据';
+                if (statusDiv) {
+            statusDiv.textContent = analyticsText('empty');
+            statusDiv.dataset.statusKind = 'empty';
+        }
                 return;
             }
             const ctx = canvas.getContext('2d');
@@ -411,7 +589,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: '阅读量',
+                        label: analyticsText('views'),
                         data: values,
                         backgroundColor: chartColors.blue,
                         borderColor: chartColors.blueBorder,
@@ -448,7 +626,10 @@
                     options: { responsive: true, maintainAspectRatio: false }
                 });
                 const statusDiv = createPanelStatus('behaviorChart');
-                if (statusDiv) statusDiv.textContent = '暂无数据';
+                if (statusDiv) {
+            statusDiv.textContent = analyticsText('empty');
+            statusDiv.dataset.statusKind = 'empty';
+        }
                 return;
             }
             const ctx = canvas.getContext('2d');
@@ -498,11 +679,14 @@
                 const ctx = canvas.getContext('2d');
                 dailyChart = new Chart(ctx, {
                     type: 'line',
-                    data: { labels: [], datasets: [{ label: '每日活动数', data: [], borderColor: chartColors.greenBorder, backgroundColor: chartColors.greenLight, tension: 0, fill: true }] },
+                    data: { labels: [], datasets: [{ label: analyticsText('daily'), data: [], borderColor: chartColors.greenBorder, backgroundColor: chartColors.greenLight, tension: 0, fill: true }] },
                     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'linear' }, y: { beginAtZero: true } } }
                 });
                 const statusDiv = createPanelStatus('dailyChart');
-                if (statusDiv) statusDiv.textContent = '暂无数据';
+                if (statusDiv) {
+            statusDiv.textContent = analyticsText('empty');
+            statusDiv.dataset.statusKind = 'empty';
+        }
                 return;
             }
             const points = data
@@ -516,7 +700,7 @@
                 type: 'line',
                 data: {
                     datasets: [{
-                        label: '每日活动数',
+                        label: analyticsText('daily'),
                         data: points,
                         parsing: false,
                         borderColor: chartColors.greenBorder,
@@ -569,7 +753,8 @@
                 const cell = document.createElement('td');
                 cell.colSpan = 4;
                 cell.className = 'text-center';
-                cell.textContent = '暂无数据';
+                cell.dataset.analyticsText = 'empty';
+                cell.textContent = analyticsText('empty');
                 row.appendChild(cell);
                 tableBody.appendChild(row);
                 return;
@@ -594,7 +779,8 @@
                 const a = document.createElement('a');
                 a.href = '/reports/weekly/' + encodeURIComponent(String(item.date || ''));
                 a.className = 'btn btn-sm btn-primary';
-                a.textContent = '查看';
+                a.dataset.analyticsText = 'view';
+                a.textContent = analyticsText('view');
                 linkCell.appendChild(a);
                 row.appendChild(linkCell);
 
@@ -610,7 +796,4 @@
             loadSessionPanel();
         });
     </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}

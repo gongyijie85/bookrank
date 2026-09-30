@@ -558,18 +558,30 @@ function renderRankChange(book, rank, lang, className) {
     const previous = Number(book.previous_rank ?? book.rank_last_week ?? 0);
     if (previous > 0) {
         const change = previous - rank;
-        if (!change) return '';
+        if (change === 0) {
+            const label = lang === 'zh' ? '排名持平' : 'Rank unchanged';
+            const text = lang === 'zh' ? '— 持平' : '— Unchanged';
+            return `<span class="${className} stable" data-zh="— 持平" data-en="— Unchanged" aria-label="${esc(label)}">${text}</span>`;
+        }
         const direction = change > 0 ? 'up' : 'down';
-        const label = t(change > 0 ? 'card_rank_up_aria' : 'card_rank_down_aria', lang, { n: Math.abs(change) });
-        return `<span class="${className} ${direction}" aria-label="${esc(label)}">${change > 0 ? '+' : ''}${change}</span>`;
+        const abs = Math.abs(change);
+        const label = t(change > 0 ? 'card_rank_up_aria' : 'card_rank_down_aria', lang, { n: abs });
+        const visible = lang === 'zh'
+            ? `${change > 0 ? '↑' : '↓'} ${change > 0 ? '上升' : '下降'} ${abs}`
+            : `${change > 0 ? '↑' : '↓'} ${change > 0 ? 'Up' : 'Down'} ${abs}`;
+        const dZh = change > 0 ? `↑ 上升 ${abs}` : `↓ 下降 ${abs}`;
+        const dEn = change > 0 ? `↑ Up ${abs}` : `↓ Down ${abs}`;
+        return `<span class="${className} ${direction}" data-zh="${esc(dZh)}" data-en="${esc(dEn)}" aria-label="${esc(label)}">${visible}</span>`;
     }
     const weeks = Number(book.weeks_on_list) || 0;
     if (book.is_new ?? (previous === 0 && weeks === 1)) {
-        return `<span class="${className} new" aria-label="${esc(t('card_new_aria', lang))}">${esc(t('card_new_badge', lang))}</span>`;
+        const badge = lang === 'zh' ? '+ 新' : '+ NEW';
+        return `<span class="${className} new" data-zh="+ 新" data-en="+ NEW" aria-label="${esc(t('card_new_aria', lang))}">${badge}</span>`;
     }
     if (book.is_returning ?? (previous === 0 && weeks > 1)) {
         const label = lang === 'zh' ? '重返榜单' : 'Returning to the list';
-        return `<span class="${className} new" aria-label="${label}">${lang === 'zh' ? '重返' : 'RETURN'}</span>`;
+        const badge = lang === 'zh' ? '↩ 重返' : '↩ RETURN';
+        return `<span class="${className} returning" data-zh="↩ 重返" data-en="↩ RETURN" aria-label="${esc(label)}">${badge}</span>`;
     }
     return '';
 }
@@ -682,6 +694,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                     </div>
                     <div class="card-content">
                     <h3 class="card-title" title="${esc(title)}">${esc(title)}</h3>
+          ${isZh && book.title_zh && book.title && book.title_zh !== book.title ? `<p class="card-original-title">${esc(book.title)}</p>` : ''}
                     <p class="card-author">${esc(book.author)}</p>
                     ${(book.publisher || book.isbn13 || book.isbn10 || book.weeks_on_list) ? `
                     <p class="card-pub-isbn">

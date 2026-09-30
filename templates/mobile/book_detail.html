@@ -33,6 +33,12 @@
 {# 页数：脏值（0 / '0' / None / 负数 / 布尔 / 小数 / 非数字串）统一归一化成空串，整行隐藏。 #}
 {% set _pages = book.page_count|positive_int_text %}
 
+<section class="m-detail-head">
+    <h1 class="m-detail-title">{{ display_title }}</h1>
+    <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %} · {{ book.publisher }}{% endif %}</p>
+    {% if book.title != display_title %}<p class="m-detail-original-title">{{ book.title }}</p>{% endif %}
+</section>
+
 <!-- 书籍封面 -->
 <section class="m-detail-cover-wrap">
     <div class="m-detail-cover">
@@ -42,26 +48,6 @@
              width="120" height="160"
              data-original="{{ book._original_cover|cover_src }}"
              data-cover-fallback="">
-    </div>
-</section>
-
-<!-- 书籍主要信息 -->
-<section class="m-detail-head">
-    <h1 class="m-detail-title">{{ display_title }}</h1>
-    <p class="m-detail-author">{{ book.author }}{% if book.publisher and book.publisher not in ('Unknown', 'Unknown Publisher') %} · {{ book.publisher }}{% endif %}</p>
-    <div class="m-detail-facts">
-        {% if book.isbn13 or book.isbn10 %}
-        <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
-        {% endif %}
-        {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
-        <span><strong>{{ _('出版日期') }}</strong>{{ book.publication_dt }}</span>
-        {% endif %}
-        {% if _pages %}
-        <span><strong>{{ _('页数') }}</strong>{{ _pages }}</span>
-        {% endif %}
-        {% if book.language and book.language not in ('Unknown', '', 'un') %}
-        <span><strong>{{ _('语言') }}</strong>{{ book.language|language_name }}</span>
-        {% endif %}
     </div>
 </section>
 
@@ -144,6 +130,45 @@
     </div>
 </div>
 
+<!-- 书籍主要信息 -->
+<section class="m-detail-info-section">
+
+    <div class="m-detail-facts">
+        {% if book.isbn13 or book.isbn10 %}
+        <span><strong>{{ _('ISBN') }}</strong>{{ book.isbn13 or book.isbn10 }}</span>
+        {% endif %}
+        {% if book.publication_dt and book.publication_dt not in ('Unknown', 'N/A', '') %}
+        <span><strong>{{ _('出版日期') }}</strong>{{ book.publication_dt }}</span>
+        {% endif %}
+        {% if _pages %}
+        <span><strong>{{ _('页数') }}</strong>{{ _pages }}</span>
+        {% endif %}
+        {% if book.language and book.language not in ('Unknown', '', 'un') %}
+        <span><strong>{{ _('语言') }}</strong>{{ book.language|language_name }}</span>
+        {% endif %}
+    </div>
+</section>
+
+{% if book.buy_links %}
+<div class="m-buy-links">
+  {% for link in book.buy_links %}
+  <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="m-external-link">{{ link.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+<style nonce="{{ csp_nonce() }}">
+.m-detail-title{font-family:var(--font-display);font-size:24px;white-space:normal;overflow-wrap:anywhere}.m-detail-author{font-family:var(--font-body)}.m-detail-info-section{overflow-wrap:anywhere}.m-external-link{min-width:44px;min-height:44px;display:inline-flex;align-items:center;padding:8px 12px;border:1px solid var(--color-border);color:var(--color-text-primary);background:var(--color-bg)}
+</style>
+<style nonce="{{ csp_nonce() }}">
+.m-page > .m-detail-head {
+  padding-top: 60px;
+}
+
+.m-page > .m-detail-head .m-detail-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+</style>
 {% endblock %}
 
 {% block structured_data %}

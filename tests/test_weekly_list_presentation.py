@@ -233,9 +233,10 @@ def test_en_list_card_title_month_and_stats_match_detail(app, db):
 
     # 卡片标题走 title_display，与详情页一致
     assert _texts(html, 'h3', 'news-title') == [STANDARD_TITLE_EN]
-    # 月份徽标不再出现中文「09月」
-    assert '09月' not in html
-    assert _texts(html, 'span', 'news-month') == ['09']
+    # 只检查可见月份；data-zh 保留中文供原地语言切换使用。
+    months = _texts(html, 'span', 'news-month')
+    assert months == ['Sep']
+    assert all('月' not in month for month in months)
     # 统计口径：与详情同为 List entries，绝不出现 Total books / "15 books"
     assert 'Total books' not in html
     assert '15 books' not in html
@@ -301,7 +302,7 @@ def test_en_cards_use_title_display_and_entry_counts_without_rail(app, db):
     assert CUSTOM_TITLE in titles
 
     months = _texts(html, 'span', 'news-month')
-    assert '09' in months and '08' in months
+    assert months == ['Sep', 'Aug']
     assert all('月' not in m for m in months)
 
     # 条目口径计数保留:英文页显示 entries,不再出现 books。
@@ -368,7 +369,9 @@ def test_mobile_list_title_localized_and_entries_label(app, db):
     assert _texts(html, 'h3', 'm-report-title') == [STANDARD_TITLE_EN]
     assert 'Total books' not in html
     assert len(_texts(html, 'p', 'm-report-sub')) == 1
-    assert '15 entries' in _texts(html, 'p', 'm-report-sub')[0]
+    subtitle = _texts(html, 'p', 'm-report-sub')[0]
+    assert '15 list entries' in subtitle
+    assert subtitle.count('entries') == 1
     assert _texts(html, 'span', 'm-report-chip') == ['New on list 3', 'Rising 4', 'Falling 2']
     assert '15 books' not in html
 

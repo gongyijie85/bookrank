@@ -524,11 +524,11 @@
 }
 
 /* Adaptive mobile template keeps its search, category rail and ranking data. */
-.mobile-charts-page { --color-primary: #1d1d1f; --color-primary-tint: #f0f0f2; background: #f7f7f8; }
+.mobile-charts-page { background: var(--color-bg); }
 .mobile-charts-page .m-top-nav {
     position: relative;
     background: transparent;
-    color: #1d1d1f;
+    color: var(--color-text-primary);
     border: 0;
     border-radius: 0;
     box-shadow: none;
@@ -539,25 +539,27 @@
 }
 
 .mobile-charts-page .m-top-nav-copy { align-items: center; min-width: 0; width: 100%; }
-.mobile-charts-page .m-top-nav-kicker { color: #666; font-size: 10px; letter-spacing: 0.18em; }
-.mobile-charts-page .m-top-nav-title { color: #1d1d1f; font: 700 24px/1.2 Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif; letter-spacing: 0; margin: 4px 0; overflow-wrap: anywhere; }
-.mobile-charts-page .m-top-nav-subtitle { color: #666; font-size: 11px; }
-.mobile-charts-page .m-search-toggle { position: absolute; top: 0; right: 66px; width: 44px; height: 44px; color: #1d1d1f; background: #fff; border: 1px solid #dedee1; }
+.mobile-charts-page .m-top-nav-kicker { color: var(--color-text-secondary); font-size: 10px; letter-spacing: 0.18em; }
+.mobile-charts-page .m-top-nav-title { color: var(--color-text-primary); font: 700 24px/1.2 var(--font-display), Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif; letter-spacing: 0; margin: 4px 0; overflow-wrap: anywhere; }
+.mobile-charts-page .m-top-nav-subtitle { color: var(--color-text-secondary); font-size: 11px; }
+.mobile-charts-page .m-search-toggle { position: absolute; top: 0; right: 66px; width: 44px; height: 44px; color: var(--color-text-primary); background: var(--color-bg-elevated); border: 1px solid var(--color-border); }
 .mobile-charts-page .m-cat-tab { border-radius: 3px; min-height: 44px; display: flex; align-items: center; }
 .mobile-charts-page .m-list-info { flex-wrap: wrap; font-size: 12px; }
-.mobile-charts-page .m-ranking-guide-dot { background: #0071e3; box-shadow: none; }
+.mobile-charts-page .m-ranking-guide-dot { background: var(--color-text-primary); box-shadow: none; }
 .mobile-charts-page .m-book-list { gap: 12px; }
 .mobile-charts-page .m-book-card { border-radius: 3px; box-shadow: none; padding: 20px 14px; gap: 12px; }
 .mobile-charts-page .m-rank-badge,
-.mobile-charts-page .m-rank-badge.small { background: transparent; color: #1d1d1f; border: 0; box-shadow: none; font: 400 32px/1 Georgia, serif; width: 28px; flex-shrink: 0; }
+.mobile-charts-page .m-rank-badge.small { background: transparent; color: var(--color-text-primary); border: 0; box-shadow: none; font: 400 32px/1 var(--font-display), Georgia, serif; width: 28px; flex-shrink: 0; }
 .mobile-charts-page .m-book-cover { width: 72px; height: 108px; border-radius: 0; background: transparent; box-shadow: none; }
 .mobile-charts-page .m-book-cover img { width: 100%; height: 100%; object-fit: contain; border-radius: 0; }
-.mobile-charts-page .m-book-title { font-family: Georgia, 'Songti SC', SimSun, serif; font-size: 17px; }
+.mobile-charts-page .m-book-title { font-family: var(--font-display), Georgia, 'Songti SC', SimSun, serif; font-size: 17px; }
 .mobile-charts-page .m-book-card-desc { -webkit-line-clamp: 2; }
 .mobile-charts-page .m-book-insights { flex-wrap: wrap; }
-.mobile-charts-page .m-book-insight strong { color: #0066cc; }
+.mobile-charts-page .m-book-insight { color: var(--color-text-secondary); }
+.mobile-charts-page .m-book-insight strong { color: var(--color-text-primary); }
+.mobile-charts-page .m-export-scope-note { color: var(--color-text-secondary); }
 .mobile-charts-page .m-book-info { min-width: 0; }
-.mobile-charts-page .m-book-card:first-child { border-top: 3px solid #1d1d1f; }
+.mobile-charts-page .m-book-card:first-child { border-top: 3px solid var(--color-text-primary); }
 
 @media (max-width: 380px) {
     .mobile-charts-page .m-top-nav-title { font-size: 21px; }
@@ -855,4 +857,73 @@
    761–1023px 之间补回两列，避免卡片被挤到约 230px 宽。 */
 @media (min-width: 761px) and (max-width: 1023px) {
     .charts-page .books-grid.bestseller-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Round3: charts main content width + gutters and modest top-nav offset. */
+.charts-page .main-content {
+    width: min(1400px, 100%);
+    margin: 0 auto;
+    padding: 88px 32px 48px;
+    background: transparent;
+}
+
+.charts-page .page-header {
+    padding: 8px 0 12px;
+    margin: 0 0 16px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: center;
+}
+
+.charts-page .page-header::before { display: none; }
+
+.charts-page .page-title {
+    display: block;
+    margin: 0 0 8px;
+    font-family: var(--font-serif);
+    font-size: clamp(24px, 2.6vw, 32px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+}
+
+.charts-page .page-subtitle {
+    justify-content: center;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.charts-page a:focus-visible,
+.charts-page button:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 4px;
+}
+
+.charts-page .filter-bar {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.charts-page .filter-select,
+.charts-page .filter-input {
+    background: var(--bg-card);
+    min-height: 44px;
+    border-radius: 8px;
+}
+
+.charts-page .filter-actions .btn {
+    min-height: 44px;
+    border-radius: 8px;
+}
+
+@media (max-width: 760px) {
+    .charts-page .main-content { padding: 68px 16px 32px; }
+    .charts-page .page-header { padding: 8px 0 12px; margin-bottom: 12px; }
 }

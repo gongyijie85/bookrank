@@ -15,6 +15,8 @@
 {% endblock %}
 
 {% block content %}
+{% set month_names_en = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'} %}
+{% set news_month_en = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'} %}
 
 <header class="page-header">
     <p class="charts-kicker">{{ _('周报') }}</p>
@@ -68,6 +70,7 @@
 .wr-filter-count{font-size:.9em;color:var(--text-secondary,#666)}
 .wr-filter-clear{height:44px;padding:0 14px;border:1px solid var(--border-color,#ccc);background:transparent;color:inherit;border-radius:6px;cursor:pointer}
 .wr-no-results{padding:24px;text-align:center;color:var(--text-secondary,#666);display:none}
+.weekly-page .news-actions .btn { min-height: 44px; }
 </style>
 <div class="content-section">
         <!-- 筛选和搜索功能 -->
@@ -78,7 +81,7 @@
                     <select id="month-filter" class="form-select">
                         <option value="">{{ _('全部') }}</option>
                         {% for section in report_sections %}
-                        <option value="{{ section.year }}-{{ '%02d' % section.month }}">{{ _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) }}</option>
+                        <option value="{{ section.year }}-{{ '%02d' % section.month }}" data-en="{{ month_names_en[section.month] }} {{ section.year }}" data-zh="{{ section.year }} 年 {{ section.month }} 月">{% if _locale == 'en' %}{{ month_names_en[section.month] }} {{ section.year }}{% else %}{{ _('%(year)s 年 %(month)s 月', year=section.year, month=section.month) }}{% endif %}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -86,7 +89,7 @@
                     <label for="search-input">{{ _('搜索') }}</label>
                     <div class="search-box">
                         <input type="text" id="search-input" aria-label="{{ _('搜索周报') }}" placeholder="{{ _('搜索周报标题或内容') }}" class="form-input">
-                        <button class="search-btn" type="button">
+                        <button class="search-btn" type="button" aria-label="{{ _('搜索周报') }}">
                             <svg class="icon" width="16" height="16"><use href="#icon-search"/></svg>
                         </button>
                     </div>
@@ -107,7 +110,7 @@
                 <div class="news-date-badge">
                     <span class="news-day">{{ report.report_date.strftime('%d') }}</span>
                     {# 月份徽标按语言渲染：英文不再出现中文「月」字 #}
-                    <span class="news-month">{% if _locale == 'en' %}{{ report.report_date.strftime('%m') }}{% else %}{{ report.report_date.strftime('%m月') }}{% endif %}</span>
+                    <span class="news-month" data-en="{{ news_month_en[report.report_date.month] }}" data-zh="{{ report.report_date.strftime('%m月') }}">{% if _locale == 'en' %}{{ news_month_en[report.report_date.month] }}{% else %}{{ report.report_date.strftime('%m月') }}{% endif %}</span>
                 </div>
                 
                 <!-- 新闻卡片内容 -->

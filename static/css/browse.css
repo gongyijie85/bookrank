@@ -216,13 +216,14 @@
     gap: 0.25rem;
 }
 
-/* 书名本体：仍然限 3 行，保护栅格高度不被超长书名撑破 */
+/* 书名本体：完整显示并自然换行 */
 .browse-card-title-link {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    min-width: 0;
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* 卷号徽标（#030 / Volume 2 / 第1卷）

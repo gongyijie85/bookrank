@@ -56,7 +56,7 @@ for (const mobile of [false, true]) test(`profile ${mobile ? 'mobile' : 'desktop
     const fav = { isbn: '9780385550369', title: locale === 'en' ? 'James' : '詹姆斯', title_en: 'James', title_zh: '詹姆斯', author: 'Percival Everett', detail_url: '/award-book/31?lang=' + locale + '&return_to=%2Fprofile%3Flang%3D' + locale };
     const result = render(mobile ? 'mobile/profile.html' : 'profile.html', { favorites: [fav], search_history: [], reading_history: [] }, { locale, url: '/profile?lang=' + locale });
     const title = result.nodes.find(n => Object.hasOwn(n.attrs, 'data-profile-title-en')); assert.ok(title); assert.equal(title.text.trim(), fav.title);
-    const link = mobile ? result.nodes.find(n => hasClass(n, 'm-book-card')) : title; assert.equal(link.attrs.href, fav.detail_url);
+    const link = mobile ? result.nodes.find(n => n.tag === 'a' && hasClass(n, 'm-profile-book-link')) : title; assert.ok(link); assert.equal(link.attrs.href, fav.detail_url);
     assert.ok(result.nodes.some(n => n.tag === 'p' && n.text.trim() === fav.isbn));
     assert.equal(result.html.includes('/?search=%E8%A9%B9'), false);
   }

@@ -75,27 +75,27 @@
                 {% set nb_publisher_id = new_books_publisher_ids.get(pub.name_en) %}
                 <tr data-name="{{ pub.name }}" data-name-en="{{ pub.name_en }}" data-description="{{ pub.description_en if is_en else pub.description }}">
                     {% if is_en %}
-                    <td>
+                    <td data-label-zh="中文名称" data-label-en="Website">
                         <a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer" class="publisher-link">
                             {{ pub.name_en }}
                             <svg class="icon" width="14" height="14"><use href="#icon-external-link"/></svg>
                         </a>
                     </td>
                     {% else %}
-                    <td>
+                    <td data-label-zh="中文名称" data-label-en="Chinese Name">
                         <div class="publisher-name publisher-link"><a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer">{{ pub.name }}</a></div>
                     </td>
-                    <td>
+                    <td data-label-zh="英文名称" data-label-en="English Name">
                         <a href="{{ pub.url }}" target="_blank" rel="noopener noreferrer" class="publisher-link">
                             {{ pub.name_en }}
                             <svg class="icon" width="14" height="14"><use href="#icon-external-link"/></svg>
                         </a>
                     </td>
                     {% endif %}
-                    <td>
+                    <td data-label-zh="核心定位" data-label-en="Core focus">
                         <span class="publisher-description">{{ pub.description_en if is_en else pub.description }}</span>
                     </td>
-                    <td>
+                    <td data-label-zh="新书速递" data-label-en="New books">
                         {% if nb_publisher_id %}
                         <a href="{{ url_for('main.new_books', publisher=nb_publisher_id) }}" class="publisher-newbooks-link">
                             {{ _('查看新书') }}
@@ -243,5 +243,34 @@
 
         applyFilter();
     });
+</script>
+<script nonce="{{ csp_nonce() }}">
+(function() {
+    function applyLabels(e) {
+        var lang = (e && e.detail && e.detail.language) || window.__APP_LANG__ || document.documentElement.lang || 'zh';
+        var rows = document.querySelectorAll('.publishers-page .publishers-table tbody tr');
+        for (var i = 0; i < rows.length; i++) {
+            var tds = rows[i].querySelectorAll('td');
+            for (var j = 0; j < tds.length; j++) {
+                var td = tds[j];
+                var label = '';
+                if (lang === 'en') {
+                    label = td.getAttribute('data-label-en') || td.getAttribute('data-label-zh') || '';
+                } else {
+                    label = td.getAttribute('data-label-zh') || td.getAttribute('data-label-en') || '';
+                }
+                td.setAttribute('data-label', label);
+            }
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyLabels);
+    } else {
+        applyLabels();
+    }
+
+    window.addEventListener('languagechange', applyLabels);
+})();
 </script>
 {% endblock %}

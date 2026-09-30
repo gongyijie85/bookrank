@@ -17,6 +17,8 @@
 {% set _locale = get_locale() %}
 
 <!-- F01: 单一紧凑筛选表单，显式「应用/清除」，不再即时跳转 -->
+<details class="m-advanced-filters">
+    <summary>{{ _('高级筛选') }}</summary>
 <form method="get" action="/awards" class="m-awards-filter-form" aria-label="{{ _('奖项筛选') }}">
     {% if request.args.get('view') %}<input type="hidden" name="view" value="{{ request.args.get('view') }}">{% endif %}
     {% if request.args.get('lang') %}<input type="hidden" name="lang" value="{{ request.args.get('lang') }}">{% endif %}
@@ -50,6 +52,7 @@
         <a href="/awards{% if request.args.get('view') or request.args.get('lang') %}?{% set _p = [] %}{% if request.args.get('view') %}{% set _u = _p.append('view=' ~ (request.args.get('view')|urlencode)) %}{% endif %}{% if request.args.get('lang') %}{% set _u = _p.append('lang=' ~ (request.args.get('lang')|urlencode)) %}{% endif %}{{ _p|join('&') }}{% endif %}" class="m-btn m-btn-outline m-btn-sm">{{ _('清除') }}</a>
     </div>
 </form>
+</details>
 
 <!-- 当前已应用条件 + 结果数（服务端上下文） -->
 {% set _applied = [] %}

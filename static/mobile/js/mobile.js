@@ -614,13 +614,15 @@
                     var card = btn.closest('.m-book-card');
                     if (card) card.remove();
                     var remaining = document.querySelectorAll('#m-favorites .m-book-card').length;
+                    var emptyEl = document.getElementById('m-favorites-empty');
+                    if (emptyEl) emptyEl.hidden = (remaining !== 0);
                     var countEl = document.querySelector('#m-favorites .m-section-count');
                     if (countEl) countEl.textContent = '(' + remaining + ')';
                     var statEl = document.querySelector('.m-profile-stat');
                     if (statEl) {
                         statEl.textContent = isZhNow()
                             ? '已收藏 ' + remaining + ' 本'
-                            : 'Favorited ' + remaining + ' books';
+                            : 'Saved ' + remaining + ' books';
                     }
                     toast(favoriteLabels().removedToast, 'success');
                 })
@@ -650,6 +652,76 @@
         fetchBookDetails: fetchBookDetails,
     };
 
+    // ===== 主题切换（与桌面端共用 localStorage key 'theme'） =====
+    function getStoredTheme() {
+        try {
+            var stored = localStorage.getItem('theme');
+            return (stored === 'light' || stored === 'dark') ? stored : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function systemPrefersDark() {
+        return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+
+    function resolveTheme() {
+        var stored = getStoredTheme();
+        if (stored) return stored;
+        return systemPrefersDark() ? 'dark' : 'light';
+    }
+
+    function applyResolvedTheme() {
+        var theme = resolveTheme();
+        document.documentElement.setAttribute('data-theme', theme);
+        updateThemeToggle(theme);
+    }
+
+    function updateThemeLabel() {
+        var btn = document.getElementById('m-theme-toggle');
+        if (!btn) return;
+        var lang = getSavedLanguage();
+        btn.setAttribute('aria-label', lang === 'en' ? 'Toggle theme' : '切换主题');
+    }
+
+    function updateThemeToggle(theme) {
+        var btn = document.getElementById('m-theme-toggle');
+        if (!btn) return;
+        btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+    }
+
+    function initMobileTheme() {
+        applyResolvedTheme();
+        updateThemeLabel();
+        window.addEventListener('languagechange', updateThemeLabel);
+
+        var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        if (mq) {
+            var onSystemChange = function () {
+                if (!getStoredTheme()) applyResolvedTheme();
+            };
+            if (typeof mq.addEventListener === 'function') {
+                mq.addEventListener('change', onSystemChange);
+            } else if (typeof mq.addListener === 'function') {
+                mq.addListener(onSystemChange);
+            }
+        }
+
+        var btn = document.getElementById('m-theme-toggle');
+        if (btn) {
+            btn.addEventListener('click', function () {
+                var current = document.documentElement.getAttribute('data-theme') || resolveTheme();
+                var next = current === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', next);
+                updateThemeToggle(next);
+                try {
+                    localStorage.setItem('theme', next);
+                } catch (e) { /* storage unavailable */ }
+            });
+        }
+    }
+
     // ===== DOM Ready 初始化 =====
     function ready(fn) {
         if (document.readyState !== 'loading') fn();
@@ -657,6 +729,7 @@
     }
 
     ready(function () {
+        initMobileTheme();
         initLangSwitcher();
         initDetailTabs();
         initMobileSearchToggle();

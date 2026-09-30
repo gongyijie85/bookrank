@@ -686,15 +686,20 @@ class TestAwardBookDetailsTabHonesty:
     def test_desktop_synopsis_precedes_metadata_and_has_no_repeated_title(self, client, db):
         """简介排在元信息之前，且不再有一个重复书名的标题块占首屏。"""
         soup = BeautifulSoup(self._render(client, db, DESKTOP_UA), 'html.parser')
-        order = [id(n) for n in soup.select('.detail-intro, .detail-meta, .detail-tabs')]
+        order = [id(n) for n in soup.select('.detail-tabs, #panel-description, .detail-meta')]
         intro, meta, tabs = (
-            soup.select_one('.detail-intro'),
+            soup.select_one('#panel-description'),
             soup.select_one('.detail-meta'),
             soup.select_one('.detail-tabs'),
         )
         assert intro is not None and meta is not None and tabs is not None
-        assert order == [id(intro), id(meta), id(tabs)], '顺序应为 简介 → 元信息 → 标签页'
-        assert soup.select_one('#panel-description') is not None
+        assert order == [id(tabs), id(intro), id(meta)], '简介标签和唯一正文应在元信息之前'
+        synopsis = intro.select_one('p[data-en][data-zh]')
+        assert synopsis is not None and synopsis.get_text(strip=True) == 'A test description.'
+        assert len(soup.select('#panel-description')) == 1
+        assert soup.select_one('.detail-intro') is None, '首屏不应另行重复简介正文'
+        assert soup.get_text().count('A test description.') == 1
+        assert len(soup.select('h1.page-title')) == 1
         assert soup.select_one('.detail-header-info') is None, '重复的标题块应已移除'
         for row in soup.select('.detail-meta-row'):
             assert row.find('dt') is not None and row.find('dd') is not None

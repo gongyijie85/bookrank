@@ -21,6 +21,7 @@ import re
 from pathlib import Path
 
 import pytest
+from bs4 import BeautifulSoup
 
 ROOT = Path(__file__).resolve().parent.parent
 EN_PO = ROOT / 'translations' / 'en' / 'LC_MESSAGES' / 'messages.po'
@@ -259,17 +260,25 @@ class TestChromeI18nHooks:
         assert 'data-zh="精装小说"' in html and 'data-en="Hardcover Fiction"' in html
         assert 'data-en="BURN OF THE EVERFLAME"' in html
 
-    def test_sidebar_default_block_labels_carry_a_hook(self) -> None:
-        """base.html 默认侧边栏里任何裸文案都会在切语言后冻结（「导航」整段曾如此）。"""
-        html = (TEMPLATES / 'base.html').read_text(encoding='utf-8')
-        assert '{% block sidebar %}' in html, '侧边栏 block 被改名，本用例需同步'
-        block = html.split('{% block sidebar %}', 1)[1].split('{% endblock %}', 1)[0]
-        bare = [
-            m.group(0)[:120]
-            for m in re.finditer(r'<(span|h3)\b([^>]*)>\s*\{\{[^}]+\}\}\s*</\1>', block)
-            if 'data-' not in m.group(2)
-        ]
-        assert not bare, f'侧边栏存在没有翻译钩子的可见文案: {bare}'
+    @pytest.mark.parametrize('locale', ['zh', 'en'])
+    def test_primary_navigation_retains_routes_and_translation_hooks(self, client, locale: str) -> None:
+        """侧栏移除后，桌面主导航和窄屏菜单仍保留全部读者入口及翻译钩子。"""
+        response = client.get(f'/?lang={locale}')
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+        assert soup.select_one('#sidebar, #sidebar-toggle') is None
+        nav = soup.select_one('.top-nav')
+        menu = soup.select_one('dialog#site-nav-dialog')
+        assert nav is not None and menu is not None
+        expected = {'/', '/rankings', '/awards', '/publishers', '/new-books', '/reports/weekly', '/profile'}
+        links = nav.select('.nav-links a.nav-link')
+        assert {link.get('href') for link in links} == expected
+        assert len(links) == len(expected)
+        assert expected <= {link.get('href') for link in menu.select('a[href]')}
+        for link in links:
+            label = link.select_one('span[data-i18n]')
+            assert label is not None and label.get_text(strip=True)
+            assert label.get('data-i18n')
 
 
 class TestEnglishPageRendering:
