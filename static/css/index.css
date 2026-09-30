@@ -1232,6 +1232,7 @@
     color: var(--text-secondary);
     letter-spacing: 0.125px;
     text-transform: uppercase;
+    white-space: normal !important;
 }
 
 .filter-select,

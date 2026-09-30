@@ -42,6 +42,56 @@ function maxWidthCss(css, width) {
   }
   return blocks.join('\n');
 }
+
+test('home English filter labels can wrap under the actual shared stylesheet cascade', () => {
+  const result = render('index.html', { books: [], categories: { 'hardcover-fiction': '小说' }, current_category: 'hardcover-fiction', category_names_en: { 'hardcover-fiction': 'Hardcover Fiction' }, monthly_categories: [], search_query: '', search_unavailable_count: 0, is_cached: false, data_load_failed: false, search_partial: false }, '/?lang=en', 'en');
+  const labels = result.nodes.filter(node => node.tag === 'label' && hasClass(node, 'filter-label'));
+  assert.equal(labels.length, 2);
+  assert.ok(labels.some(node => node.attrs.for === 'search-input' && node.attrs['data-i18n'] === 'filter_search_scope'), 'the real search-scope label must use its English translation hook');
+  assert.ok(labels.every(node => ancestors(result, node).some(parent => hasClass(parent, 'filter-group'))), 'both competing selectors must match the real SSR labels');
+  const imports = [...source('static/css/app.entry.css').matchAll(/@import\s+['"]([^'"]+)['"]/g)].map(match => match[1]);
+  assert.ok(imports.indexOf('index.css') < imports.indexOf('new-books.css'), 'the shared new-books rule is loaded later');
+  const candidates = [];
+  for (const [order, imported] of imports.entries()) {
+    const css = source('static/css/' + imported);
+    for (const [selector, specificity] of [['.filter-label', 10], ['.filter-group label', 11]]) {
+      const value = ownerRule(css, selector).get('white-space');
+      if (value) candidates.push({ value: value.replace(/\s*!important\s*$/, ''), important: /!important\s*$/.test(value), specificity, order });
+    }
+  }
+  assert.ok(candidates.some(rule => rule.value === 'nowrap' && rule.specificity === 11), 'retain the actual later shared label conflict in the regression');
+  candidates.sort((a, b) => Number(a.important) - Number(b.important) || a.specificity - b.specificity || a.order - b.order);
+  assert.equal(candidates.at(-1).value, 'normal', 'winning declaration must allow the complete English label to wrap at 320px');
+});
+test('mobile rankings actual hero metadata has readable contrast in both existing themes', () => {
+  for (const tab of ['cross', 'longevity', 'overlooked', 'publishers']) {
+    const result = render('mobile/rankings.html', { tab, category_count: 13, cross_entries: [], longevity_entries: [], overlooked_entries: [], publisher_entries: [], award_years: [2026], category_names_en: {} }, '/rankings?tab=' + tab + '&lang=en', 'en');
+    for (const name of ['m-top-nav-kicker', 'm-top-nav-subtitle']) {
+      const label = result.nodes.find(node => hasClass(node, name)); assert.ok(label?.text.trim());
+      assert.ok(ancestors(result, label).some(node => hasClass(node, 'm-top-nav')));
+    }
+  }
+  const css = source('static/mobile/css/mobile.css');
+  const foreground = ownerRule(css, '.m-top-nav-kicker,.m-top-nav-subtitle').get('color'); assert.ok(foreground);
+  const background = ownerRule(css, '.m-top-nav').get('background'); assert.ok(background);
+  const stops = [...background.matchAll(/var\((--[\w-]+)\)/g)].map(match => match[1]); assert.equal(stops.length, 2);
+  const darkSelector = transformSync(':root[data-theme="dark"]{color:red}', { loader: 'css', minifyWhitespace: true }).code.split('{')[0];
+  const color = (value, tokens) => {
+    const variable = value.match(/^var\((--[\w-]+)\)$/); if (variable) return color(tokens.get(variable[1]), tokens);
+    if (value.startsWith('#')) { let hex = value.slice(1); if (hex.length === 3) hex = [...hex].map(char => char + char).join(''); assert.equal(hex.length, 6); return [0, 2, 4].map(offset => Number.parseInt(hex.slice(offset, offset + 2), 16)).concat(1); }
+    const rgba = value.match(/^rgba?\(([^)]+)\)$/); assert.ok(rgba, value); const channels = rgba[1].split(',').map(Number); return channels.length === 3 ? [...channels, 1] : channels;
+  };
+  const luminance = channels => channels.slice(0, 3).reduce((sum, channel, index) => { const value = channel / 255; return sum + [0.2126, 0.7152, 0.0722][index] * (value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4); }, 0);
+  for (const theme of ['light', 'dark']) {
+    const tokens = new Map([...ownerRule(css, ':root'), ...(theme === 'dark' ? ownerRule(css, darkSelector) : [])]);
+    const front = color(foreground, tokens);
+    for (const stop of stops) {
+      const back = color(tokens.get(stop), tokens); const rendered = front.slice(0, 3).map((channel, index) => channel * front[3] + back[index] * (1 - front[3]));
+      const first = luminance(rendered), second = luminance(back); const ratio = (Math.max(first, second) + .05) / (Math.min(first, second) + .05);
+      assert.ok(ratio >= 4.5, `${theme}: real hero metadata contrast ${ratio.toFixed(3)} must reach 4.5 at both actual gradient stops`);
+    }
+  }
+});
 class Element {
   constructor() { this.attrs = new Map(); this.listeners = new Map(); this.textContent = ''; this.style = {}; this.dataset = {}; }
   setAttribute(name, value) { this.attrs.set(name, String(value)); }
