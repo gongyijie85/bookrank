@@ -1749,8 +1749,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const weeksHtml = book.weeks_on_list ? `<p><strong>${escHtml({{ _('累计上榜周数')|tojson }})}：</strong>${escHtml(book.weeks_on_list)} ${escHtml({{ _('周')|tojson }})}</p>` : '';
                 const rankHtml = book.rank ? `<p><strong>${escHtml({{ _('当前排名')|tojson }})}：</strong>${escHtml({{ _('第')|tojson }})} ${escHtml(book.rank)} ${escHtml({{ _('名')|tojson }})}</p>` : '';
                 const categoryHtml = book.category ? `<p><strong>${escHtml({{ _('类别')|tojson }})}：</strong>${escHtml(book.category)}</p>` : '';
-                const reasonHtml = book.reason ? `<p><strong>${escHtml({{ _('推荐理由')|tojson }})}：</strong>${escHtml(book.reason)}</p>` : '';
-                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}${reasonHtml}`;
+                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}`;
             } else {
                 modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p><p>${escHtml({{ _('暂无更多详情数据')|tojson }})}</p>`;
             }
