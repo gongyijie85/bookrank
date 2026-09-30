@@ -392,6 +392,26 @@ test('actual desktop toast close name follows current valid URL language',()=>{
   }
 });
 
+test('shared notification close has an unconditional 44px touch target', () => {
+  const rule = ownerRule(source('static/css/components.css'), '.toast-close');
+  for (const dimension of ['min-width', 'min-height']) {
+    assert.ok(Number.parseFloat(rule.get(dimension)) >= 44, `${dimension} must preserve a 44px hit area, including icon-only notifications`);
+  }
+  assert.equal(rule.get('flex-shrink'), '0', 'a long message cannot shrink the close target');
+});
+
+test('shared notification owner stays within the viewport and allows message wrapping', () => {
+  const css = source('static/css/components.css');
+  const container = ownerRule(css, '.toast-container');
+  assert.equal(container.get('position'), 'fixed', 'feedback cannot be appended below a long list');
+  assert.equal(container.get('pointer-events'), 'none', 'the notification container cannot intercept other controls');
+  const bound = `${container.get('width') || ''} ${container.get('max-width') || ''}`;
+  assert.ok(/100vw|100%/.test(bound), 'the container must have a viewport-relative width bound');
+  assert.equal(ownerRule(css, '.toast').get('pointer-events'), 'auto', 'visible notification controls must remain operable');
+  const message = new Map([...ownerRule(css, '.toast span'), ...ownerRule(css, '.toast > span')]);
+  assert.ok(['anywhere', 'break-word'].includes(message.get('overflow-wrap')), 'long API error text must wrap inside a narrow viewport');
+});
+
 test('mobile home real badges preserve new/returning priority and never label unknown as unchanged',()=>{
   const cases=[{previous_rank:5,rank:3,is_new:false,is_returning:false},{previous_rank:2,rank:5,is_new:false,is_returning:false},{previous_rank:3,rank:3,is_new:false,is_returning:false},{previous_rank:0,rank:2,is_new:true,is_returning:false},{previous_rank:0,rank:4,is_new:false,is_returning:true},{previous_rank:0,rank:8,is_new:false,is_returning:false}];
   const books=cases.map((b,i)=>({...sampleBook,...b,id:i+1,title:'Book '+i,title_zh:'图书'+i,publisher:'Publisher'}));
