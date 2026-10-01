@@ -93,7 +93,9 @@ test('mobile rankings actual hero metadata has readable contrast in both existin
   }
 });
 class Element {
-  constructor() { this.attrs = new Map(); this.listeners = new Map(); this.textContent = ''; this.style = {}; this.dataset = {}; }
+  constructor() { this.attrs = new Map(); this.listeners = new Map(); this.textContent = ''; this.style = {}; this.dataset = {}; this.children = []; }
+  appendChild(node) { this.children.push(node); return node; }
+  replaceChildren(...nodes) { this.children = nodes; }
   setAttribute(name, value) { this.attrs.set(name, String(value)); }
   getAttribute(name) { return this.attrs.get(name) ?? null; }
   removeAttribute(name) { this.attrs.delete(name); }
@@ -105,6 +107,7 @@ class Element {
 function mobileThemeFixture(saved, systemDark) {
   const document = new Element(); const html = new Element(); html.setAttribute('data-lang', 'en'); document.documentElement = html;
   document.readyState = 'loading'; document.cookie = ''; document.body = new Element(); document.createElement = () => new Element();
+  document.createElementNS = () => new Element();
   const button = source('templates/mobile/base.html').includes('id="m-theme-toggle"') ? new Element() : null;
   document.getElementById = id => id === 'm-theme-toggle' ? button : null;
   const values = new Map(saved ? [['theme', saved]] : []); const localStorage = { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) };
