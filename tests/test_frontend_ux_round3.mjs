@@ -250,7 +250,19 @@ function analyticsThemeFixture() {
   const table=new Node();table.id='top-reports-table';table.tagName='TBODY';canvas.set(table.id,table);
   document.getElementById=id=>canvas.get(id)||null; document.createElement=()=>new Node(); document.createTextNode=text=>({textContent:text});
   let requests=0;
-  class Chart {static defaults={}; constructor(_ctx,config){this.data=config.data;this.options=config.options;this.config=config;this.updates=0;charts.push(this);} update(){this.updates++;} destroy(){}}
+  class Chart {
+    static defaults={};
+    constructor(_ctx,config){this.data=config.data;this.options=config.options;this.config=config;this.updates=0;this.updateModes=[];this.elementOptions=this.data.datasets.map(ds=>({backgroundColor:structuredClone(ds.backgroundColor),borderColor:structuredClone(ds.borderColor)}));charts.push(this);}
+    update(mode){
+      this.updates++;this.updateModes.push(mode);
+      this.animationStartedDuringUpdate=mode!=='none'&&mode!=='resize'&&this.config.options.animation!==false;
+      // Chart.js 4.4 BarController uses shared element options. The 'none' mode
+      // skips refreshing that shared object even after raw dataset colors change.
+      // This behavior is independently reproduced with the actual CDN UMD build.
+      if(this.config.type!=='bar'||mode!=='none')this.elementOptions=this.data.datasets.map(ds=>({backgroundColor:structuredClone(ds.backgroundColor),borderColor:structuredClone(ds.borderColor)}));
+    }
+    destroy(){}
+  }
   class MutationObserver {constructor(callback){observers.push(callback);} observe(){}}
   const roles=()=>html.getAttribute('data-theme')==='dark'?{'--text-primary':'#eeeeee','--text-secondary':'#bbbbbb','--text-muted':'#aaaaaa','--border-color':'#555555','--bg-primary':'#111111','--bg-secondary':'#222222','--bg-tertiary':'#333333'}:{'--text-primary':'#111111','--text-secondary':'#555555','--text-muted':'#666666','--border-color':'#cccccc','--bg-primary':'#ffffff','--bg-secondary':'#f5f5f5','--bg-tertiary':'#eeeeee'};
   const ctx=vm.createContext({document,window,MutationObserver,Chart,URL,Date,Intl,console,getComputedStyle:()=>({getPropertyValue:key=>roles()[key]||''}),fetch:()=>{requests++;throw new Error('theme/language must not request data');}});
@@ -276,6 +288,23 @@ test('analytics actual live theme never reads or writes resolved options proxies
   f.html.setAttribute('data-theme','dark');f.ctx.applyAnalyticsTheme();f.html.setAttribute('data-theme','light');f.ctx.applyAnalyticsTheme();
   assert.equal(reads,0);assert.equal(writes,0);assert.equal(f.charts.length,3);assert.equal(JSON.stringify(f.charts.map(c=>c.data.datasets.map(d=>d.data))),before);assert.equal(f.requests(),0);
   for(const c of f.charts)assert.equal(c.config.options.plugins.legend.labels.color,'#111111');assert.equal(f.charts[2].config.options.scales.x.type,'linear');
+});
+
+test('analytics actual theme refreshes shared bar element colors without animation or changing data/instances',()=>{
+  const f=analyticsThemeFixture();vm.runInContext("renderViewsChart([{date:'2026-09-30',view_count:4},{date:'2026-09-29',view_count:2}]);renderBehaviorChart([{event_type:'view',count:2}]);renderDailyChart([{date:'2026-09-30',count:2}]);",f.ctx);
+  const before=JSON.stringify(f.charts.map(c=>c.data.datasets.map(d=>d.data)));const bar=f.charts[0];const originalData=bar.data.datasets[0].data;
+  for(const [theme,color,animation] of [['dark','#eeeeee'],['light','#111111',{duration:80}],['dark','#eeeeee',undefined]]){
+    if(theme==='light'||bar.updates>0)bar.config.options.animation=animation;
+    const hadAnimation=Object.hasOwn(bar.config.options,'animation');const originalAnimation=bar.config.options.animation;
+    f.html.setAttribute('data-theme',theme);f.ctx.applyAnalyticsTheme();
+    assert.equal(bar.data.datasets[0].backgroundColor,color,'raw dataset color must follow the theme');
+    assert.equal(bar.elementOptions[0].backgroundColor,color,'visible bar element must refresh its shared background color');
+    assert.equal(bar.elementOptions[0].borderColor,color,'visible bar element must refresh its shared border color');
+    assert.equal(bar.animationStartedDuringUpdate,false,'visible theme recoloring must happen without animation');
+    assert.equal(Object.hasOwn(bar.config.options,'animation'),hadAnimation,'original absent or present animation option must be preserved');
+    assert.equal(bar.config.options.animation,originalAnimation,'unrelated animation settings must be restored');
+  }
+  assert.equal(f.charts.length,3);assert.equal(bar.data.datasets[0].data,originalData);assert.equal(JSON.stringify(f.charts.map(c=>c.data.datasets.map(d=>d.data))),before);assert.equal(f.requests(),0);
 });
 
 test('analytics real language event refreshes canvas accessible names and an existing retry panel without requesting data',()=>{
