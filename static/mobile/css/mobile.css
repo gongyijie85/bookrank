@@ -1789,13 +1789,13 @@ img { max-width: 100%; display: block; }
     top: calc(var(--safe-top) + 8px);
     right: var(--space-4);
     z-index: 100;
-    width: 40px;
-    height: 40px;
-    border: none;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--color-border);
     background: var(--color-bg-elevated);
     color: var(--color-primary);
-    border-radius: var(--radius-full);
-    box-shadow: var(--shadow-card);
+    border-radius: var(--radius-sm);
+    box-shadow: none;
     display: flex;
     align-items: center;
     justify-content: center;

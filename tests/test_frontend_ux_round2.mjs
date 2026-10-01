@@ -477,6 +477,7 @@ function mobileInitialization(url, stored, cookieLang, server) {
   for (const node of menuButtons.concat([dropdown, h.ids.get('m-lang-globe')])) node.classList.toggle = (name, force) => { const on = force === undefined ? !node.classList.contains(name) : force; if (on) node.classList.add(name); else node.classList.remove(name); return on; };
   h.document.documentElement = new DomNode('html'); h.document.documentElement.setAttribute('data-lang', server); h.document.documentElement.setAttribute('lang', server === 'en' ? 'en' : 'zh-CN');
   h.document.readyState = 'loading'; h.document.body = new DomNode('body'); h.document.createElement = tag => new DomNode(tag);
+  h.document.createElementNS = (_namespace, tag) => new DomNode(tag);
   const values = new Map([['app_language', stored], ['bookrank_language', stored]]); const jar = new Map([['lang', cookieLang], ['unrelated_preference', 'unchanged']]); const writes = [];
   Object.defineProperty(h.document, 'cookie', { get() { return [...jar].map(([key, value]) => key + '=' + value).join('; '); }, set(value) { writes.push(value); const [pair] = value.split(';'); const equal = pair.indexOf('='); jar.set(pair.slice(0, equal), pair.slice(equal + 1)); } });
   h.context.localStorage = { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) };
