@@ -543,7 +543,7 @@
 .mobile-charts-page .m-top-nav-title { color: var(--color-text-primary); font: 700 24px/1.2 var(--font-display), Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif; letter-spacing: 0; margin: 4px 0; overflow-wrap: anywhere; }
 .mobile-charts-page .m-top-nav-subtitle { color: var(--color-text-secondary); font-size: 11px; }
 .mobile-charts-page .m-home-nav { padding-top: 64px; }
-.mobile-charts-page .m-search-toggle { position: absolute; top: 8px; right: calc(var(--space-4) + 104px); width: 44px; height: 44px; color: var(--color-text-primary); background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.mobile-charts-page .m-search-toggle { position: fixed; top: calc(var(--safe-top) + 8px); right: calc(var(--space-4) + 104px); z-index: 100; width: 44px; height: 44px; color: var(--color-text-primary); background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .mobile-charts-page .m-cat-tab { border-radius: 3px; min-height: 44px; display: flex; align-items: center; }
 .mobile-charts-page .m-list-info { flex-wrap: wrap; font-size: 12px; }
 .mobile-charts-page .m-ranking-guide-dot { background: var(--color-text-primary); box-shadow: none; }
