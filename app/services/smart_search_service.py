@@ -12,8 +12,9 @@ import re
 from typing import Any
 
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 
-from ..models.new_book import NewBook
+from ..models.new_book import NewBook, Publisher
 from ..models.schemas import AwardBook, SearchHistory, db
 from ..utils.error_handler import ErrorCategory, log_error
 
@@ -55,55 +56,66 @@ class SmartSearchService:
         Returns:
             搜索结果字典
         """
-        try:
-            keyword = self._sanitize_keyword(keyword)
-            if not keyword:
-                return self._empty_search_result()
+        keyword = self._sanitize_keyword(keyword)
+        if not keyword:
+            return self._empty_search_result()
 
-            limit = min(max(1, limit), 100)
-            offset = max(0, offset)
+        limit = min(max(1, limit), 100)
+        offset = max(0, offset)
 
-            award_query = AwardBook.query.filter(AwardBook.is_displayable.is_(True))  # type: ignore[attr-defined]
-            award_query = self._apply_award_search_conditions(award_query, keyword, search_type)
-            if year:
-                award_query = award_query.filter(AwardBook.year == year)
-            if award_id:
-                award_query = award_query.filter(AwardBook.award_id == award_id)
+        award_query = AwardBook.query.filter(AwardBook.is_displayable.is_(True))  # type: ignore[attr-defined]
+        award_query = self._apply_award_search_conditions(award_query, keyword, search_type)
+        if year:
+            award_query = award_query.filter(AwardBook.year == year)
+        if award_id:
+            award_query = award_query.filter(AwardBook.award_id == award_id)
 
-            award_total = award_query.count()
+        new_book_query = NewBook.query.filter(NewBook.is_displayable.is_(True))  # type: ignore[attr-defined]
+        new_book_query = self._apply_new_book_search_conditions(new_book_query, keyword, search_type)
+
+        award_total = award_query.count()
+        new_book_total = new_book_query.count()
+        total = award_total + new_book_total
+
+        award_results = []
+        if offset < award_total:
+            award_limit = min(limit, award_total - offset)
             award_books = (
-                award_query.order_by(AwardBook.year.desc(), AwardBook.rank.asc()).offset(offset).limit(limit).all()
+                award_query.options(joinedload(AwardBook.award))  # type: ignore[arg-type]
+                .order_by(AwardBook.year.desc(), AwardBook.rank.asc(), AwardBook.id.asc())
+                .offset(offset)
+                .limit(award_limit)
+                .all()
             )
             award_results = [self._format_book(b) for b in award_books]
 
-            new_book_query = NewBook.query.filter(NewBook.is_displayable.is_(True))  # type: ignore[attr-defined]
-            new_book_query = self._apply_new_book_search_conditions(new_book_query, keyword, search_type)
-            new_book_total = new_book_query.count()
+        remaining = limit - len(award_results)
+        new_offset = max(0, offset - award_total)
+        new_book_results = []
+        if remaining > 0 and new_offset < new_book_total:
             new_book_books = (
-                new_book_query.order_by(NewBook.publication_date.desc().nullslast())  # type: ignore[union-attr,attr-defined]
-                .offset(offset)
-                .limit(limit)
+                new_book_query.options(joinedload(NewBook.publisher))  # type: ignore[arg-type]
+                .order_by(
+                    NewBook.publication_date.desc().nullslast(),  # type: ignore[union-attr,attr-defined]
+                    NewBook.id.asc(),  # type: ignore[attr-defined]
+                )
+                .offset(new_offset)
+                .limit(remaining)
                 .all()
             )
             new_book_results = [self._format_new_book(b) for b in new_book_books]
 
-            all_results = award_results + new_book_results
-            total = award_total + new_book_total
+        all_results = award_results + new_book_results
+        suggestions = self._generate_suggestions(keyword, search_type)
 
-            suggestions = self._generate_suggestions(keyword, search_type)
-
-            return {
-                'results': all_results,
-                'total': total,
-                'keyword': keyword,
-                'search_type': search_type,
-                'suggestions': suggestions[:5],
-                'pagination': {'limit': limit, 'offset': offset, 'has_more': offset + limit < total},
-            }
-
-        except Exception as e:
-            log_error(ErrorCategory.API_CALL, f'搜索失败: {e}')
-            return self._empty_search_result()
+        return {
+            'results': all_results,
+            'total': total,
+            'keyword': keyword,
+            'search_type': search_type,
+            'suggestions': suggestions[:5],
+            'pagination': {'limit': limit, 'offset': offset, 'has_more': offset + limit < total},
+        }
 
     def _sanitize_keyword(self, keyword: str) -> str:
         """
@@ -150,6 +162,15 @@ class SmartSearchService:
         if search_type in ('all', 'author'):
             conditions.append(NewBook.author.ilike(f'%{escaped_keyword}%'))  # type: ignore[attr-defined]
         if search_type in ('all', 'publisher'):
+            conditions.append(
+                NewBook.publisher.has(  # type: ignore[attr-defined]
+                    or_(
+                        Publisher.name.ilike(f'%{escaped_keyword}%'),  # type: ignore[attr-defined]
+                        Publisher.name_en.ilike(f'%{escaped_keyword}%'),  # type: ignore[attr-defined]
+                    )
+                )
+            )
+        if search_type == 'all':
             conditions.append(NewBook.isbn13.ilike(f'%{escaped_keyword}%'))  # type: ignore[union-attr,attr-defined]
         return query.filter(or_(*conditions)) if conditions else query
 

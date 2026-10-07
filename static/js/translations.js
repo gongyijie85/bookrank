@@ -104,6 +104,7 @@ const TRANSLATIONS = {
         'cache_badge': '缓存数据',
         'filter_options': '筛选选项',
         'search_history': '搜索历史',
+        'search_books': '图书结果',
         // 搜索状态条
         'search_no_results': '未找到匹配「{query}」的图书',
         'search_partial': '部分分类暂时不可用，以下为可用结果（{n} 个分类未返回）',
@@ -377,6 +378,7 @@ const TRANSLATIONS = {
         'cache_badge': 'Cached',
         'filter_options': 'Filter Options',
         'search_history': 'Search History',
+        'search_books': 'Book Results',
         // Search state banners
         'search_no_results': 'No books found for "{query}"',
         'search_partial': 'Some categories are temporarily unavailable. Showing available results ({n} categories did not respond)',
@@ -532,7 +534,30 @@ const TRANSLATIONS = {
  * @returns {string} 翻译后的文本
  */
 function t(key, lang = null, params = {}) {
-    const currentLang = lang || localStorage.getItem('app_language') || 'zh';
+    let currentLang = lang;
+    if (currentLang !== 'zh' && currentLang !== 'en') {
+        let saved = null;
+        try {
+            saved = localStorage.getItem('app_language');
+        } catch (e) {
+            // 隐私模式或禁用存储：忽略已保存偏好
+        }
+        if (saved === 'zh' || saved === 'en') {
+            currentLang = saved;
+        } else {
+            const htmlLang = document.documentElement.lang || '';
+            const urlLang = new URLSearchParams(window.location.search).get('lang');
+            if (htmlLang === 'zh' || htmlLang === 'zh-CN') {
+                currentLang = 'zh';
+            } else if (htmlLang === 'en') {
+                currentLang = 'en';
+            } else if (urlLang === 'zh' || urlLang === 'en') {
+                currentLang = urlLang;
+            } else {
+                currentLang = 'zh';
+            }
+        }
+    }
     const dict = TRANSLATIONS[currentLang] || TRANSLATIONS['zh'];
     let text = dict[key] || TRANSLATIONS['zh'][key] || key;
 
@@ -656,8 +681,13 @@ function applyPageTranslation(lang) {
 function setGlobalLanguage(lang) {
     if (!['zh', 'en'].includes(lang)) return;
 
-    localStorage.setItem('app_language', lang);
-    localStorage.setItem('bookrank_language', lang);
+    // 存储可能被隐私模式或配额限制拒绝写入；捕获异常后继续执行其余 DOM/cookie/history 逻辑，保证语言切换功能可用
+    try {
+        localStorage.setItem('app_language', lang);
+        localStorage.setItem('bookrank_language', lang);
+    } catch(e) {
+        console.warn('localStorage write denied:', e);
+    }
 
     // 同步 html lang，便于屏幕阅读器正确发音
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';

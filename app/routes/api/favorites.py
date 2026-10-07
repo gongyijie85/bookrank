@@ -3,7 +3,7 @@ from typing import cast
 from flask import session
 
 from ...services.user_service import UserService
-from ...utils.api_helpers import APIResponse, csrf_protect, rate_limit
+from ...utils.api_helpers import APIResponse, csrf_protect, rate_limit, validate_isbn
 from ...utils.error_handler import ErrorCategory, log_error
 
 
@@ -36,9 +36,14 @@ def register_favorite_routes(bp):
         try:
             from flask import request
 
-            data = request.get_json(silent=True) or {}
-            isbn = (data.get('isbn') or '').strip()
-            if not isbn or len(isbn) not in (10, 13):
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                return APIResponse.error('ISBN格式无效', 400)
+            raw_isbn = data.get('isbn')
+            if not isinstance(raw_isbn, str):
+                return APIResponse.error('ISBN格式无效', 400)
+            isbn = raw_isbn.strip()
+            if len(isbn) not in (10, 13) or not validate_isbn(isbn):
                 return APIResponse.error('ISBN格式无效', 400)
 
             sid = _get_session_id()

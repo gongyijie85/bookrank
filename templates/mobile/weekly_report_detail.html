@@ -1,9 +1,10 @@
 {% extends "mobile/base.html" %}
 {% set current_locale = get_locale() %}
+{% set displayed_report_title = content.title_display if content and content.title_display else (report.title or _('周报')) %}
 
-{% block title %}{{ report.title or _('周报') }} - BookRank{% endblock %}
-{% block og_title %}{{ report.title or _('周报') }} - BookRank{% endblock %}
-{% block tw_title %}{{ report.title or _('周报') }} - BookRank{% endblock %}
+{% block title %}{{ displayed_report_title }} - BookRank{% endblock %}
+{% block og_title %}{{ displayed_report_title }} - BookRank{% endblock %}
+{% block tw_title %}{{ displayed_report_title }} - BookRank{% endblock %}
 
 {% block header %}
 <header class="m-header">
@@ -12,7 +13,7 @@
     </a>
     <span class="m-header-title">{{ _('周报详情') }}</span>
     <button type="button" class="m-header-btn" data-share-url="{{ request.url }}"
-            data-share-title="{{ report.title or _('周报') }}"
+            data-share-title="{{ displayed_report_title }}"
             data-share-copied="{{ _('链接已复制到剪贴板') }}"
             data-share-prompt="{{ _('请复制以下链接') }}"
             aria-label="{{ _('分享') }}">
@@ -26,7 +27,7 @@
 <!-- Hero 区：日期 + 周期 + 4 个数字卡片 -->
 <section class="m-report-hero">
     <div class="m-report-hero-date">{{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }} · {{ _('第 %(week)s 周', week=report.week_end.strftime('%V')) }}</div>
-    <div class="m-report-hero-period">{{ report.title or _('周报') }}</div>
+    <div class="m-report-hero-period">{{ displayed_report_title }}</div>
 
     {% if content %}
     <div class="m-report-hero-stats">

@@ -200,3 +200,48 @@ test('data-zh/data-en 的元素带图标时保留图标', () => {
     assert.equal(withIcon.childNodes.length, 2, '图标子元素必须保留');
     assert.equal(withIcon.childNodes[0].tagName, 'SVG');
 });
+
+test('global language selection and translation keep updating DOM when storage reads or writes are denied', () => {
+    for (const readDenied of [true, false]) {
+        const element = { lang: 'en', getAttribute(name) { return name === 'lang' ? this.lang : null; } };
+        const label = { textContent: '' }; const events = [];
+        const location = { hostname: 'bookrank.example', href: 'https://bookrank.example/', search: '' };
+        const context = vm.createContext({
+            console, URL, URLSearchParams,
+            localStorage: { getItem() { if (readDenied) throw new Error('Storage read denied'); return 'en'; }, setItem() { throw new Error('Storage write denied'); } },
+            document: { documentElement: element, querySelectorAll: () => [], querySelector: () => null, getElementById: id => id === 'lang-current' ? label : null },
+            window: { location, dispatchEvent(event) { events.push(event); } },
+            history: { replaceState(_state, _title, value) { location.href = value; location.search = new URL(value).search; } },
+            CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+        });
+        vm.runInContext(source, context);
+        assert.equal(vm.runInContext("t('search_history')", context), 'Search History');
+        assert.doesNotThrow(() => vm.runInContext("setGlobalLanguage('zh')", context));
+        assert.equal(element.lang, 'zh-CN'); assert.equal(label.textContent, '中'); assert.equal(events.at(-1).detail.language, 'zh');
+        assert.match(location.search, /lang=zh/);
+    }
+});
+
+test('desktop theme controls can toggle twice despite denied storage reads or writes', () => {
+    const baseSource = readFileSync(new URL('../static/js/base.js', import.meta.url), 'utf8');
+    const start = baseSource.indexOf('// ===== Theme Functions ====='); const end = baseSource.indexOf('// ===== Favorite Functions =====', start);
+    assert.ok(start >= 0 && end > start);
+    const langStart = baseSource.indexOf('    function getCurrentLang()'); const langEnd = baseSource.indexOf('    /**', langStart + 5);
+    assert.ok(langStart >= 0 && langEnd > langStart);
+    for (const readDenied of [true, false]) {
+        const attrs = new Map([['data-theme', 'light'], ['lang', 'zh-CN']]); const handlers = {};
+        const element = { lang: 'zh-CN', getAttribute: name => attrs.get(name) || null, setAttribute: (name, value) => attrs.set(name, value) };
+        const button = { querySelector: () => null, setAttribute() {}, addEventListener(name, callback) { handlers[name] = callback; } };
+        const context = vm.createContext({
+            console, URLSearchParams,
+            localStorage: { getItem() { if (readDenied) throw new Error('Storage read denied'); return 'light'; }, setItem() { throw new Error('Storage write denied'); } },
+            document: { documentElement: element }, themeToggle: button,
+            window: { location: { search: '' }, matchMedia: () => ({ matches: false }), t: () => 'Theme changed' }, navigator: { language: 'en' }, showToast() {},
+        });
+        vm.runInContext(baseSource.slice(start, end) + '\n' + baseSource.slice(langStart, langEnd), context);
+        assert.equal(vm.runInContext('getCurrentLang()', context), 'zh');
+        assert.doesNotThrow(() => vm.runInContext('initTheme()', context));
+        handlers.click(); assert.equal(attrs.get('data-theme'), 'dark');
+        handlers.click(); assert.equal(attrs.get('data-theme'), 'light');
+    }
+});

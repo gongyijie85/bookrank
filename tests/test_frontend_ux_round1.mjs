@@ -353,6 +353,9 @@ test('index loaded after favorite VM does not override API favorite (toggleFavor
   sandbox.window.toggleFavorite = api.toggleFavorite;
   sandbox.window.addEventListener = () => {};
   sandbox.window.APP_CONFIG = {};
+  // Whole-page initialization also reads standard browser URL context.
+  sandbox.URLSearchParams = URLSearchParams;
+  sandbox.window.location = { search: '', pathname: '/' };
 
   // localStorage mock MUST be assigned before the source runs so any init-time
   // read/write hits it. getItem returns null (no cached favorites), setItem tracks writes.

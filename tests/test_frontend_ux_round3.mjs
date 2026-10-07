@@ -18,6 +18,58 @@ function render(name, context = {}, url = '/?lang=zh', locale = 'zh') {
   return JSON.parse(result.stdout);
 }
 const hasClass = (node, name) => (node.attrs.class || '').split(/\s+/).includes(name);
+
+test('empty weekly real refresh button binds a click, disables itself and reloads once after feedback', () => {
+  const result = render('weekly_reports.html', { reports: [], report_sections: [], latest_report: null, is_generating: false }, '/reports/weekly?lang=en', 'en');
+  const nodes = result.nodes.map(node => ({ ...node, listeners: {}, style: {}, value: '', options: [], addEventListener(type, fn) { this.listeners[type] = fn; }, getAttribute(name) { return this.attrs[name] || null; } }));
+  const refresh = nodes.find(node => node.tag === 'button' && hasClass(node, 'refresh-btn')); assert.ok(refresh);
+  const code = scripts(result.html).find(script => script.includes("const refreshBtn = document.getElementById('refresh-btn')")); assert.ok(code);
+  let ready; let reloads = 0; const timers = [];
+  vm.runInNewContext(code, {
+    console, URLSearchParams, URL,
+    document: { documentElement: { getAttribute: () => 'en' }, getElementById: id => nodes.find(node => node.attrs.id === id) || null, querySelector: selector => nodes.find(node => hasClass(node, selector.slice(1))) || null, querySelectorAll: () => [], addEventListener(type, callback) { if (type === 'DOMContentLoaded') ready = callback; } },
+    window: { location: { href: 'https://bookrank.example/reports/weekly?lang=en', search: '?lang=en' }, addEventListener() {} },
+    history: { replaceState() {} }, location: { reload() { reloads++; } }, setTimeout(callback, delay) { timers.push({ callback, delay }); }, navigator: {},
+  });
+  ready();
+  assert.equal(refresh.attrs.type, 'button');
+  assert.equal(typeof refresh.listeners.click, 'function', 'the visible button must have its real handler');
+  refresh.listeners.click.call(refresh);
+  assert.equal(refresh.disabled, true); assert.equal(reloads, 0); assert.equal(timers.length, 1); assert.equal(timers[0].delay, 1000);
+  timers[0].callback(); assert.equal(reloads, 1);
+});
+
+test('real desktop language bootstrap survives denied storage reads and writes', () => {
+  for (const [url, locale] of [['/reports/weekly?lang=en', 'en'], ['/reports/weekly', 'zh']]) {
+    const result = render('weekly_reports.html', { reports: [], report_sections: [], latest_report: null, is_generating: false }, url, locale);
+    const code = scripts(result.html).find(script => script.includes('var serverLang') && script.includes('var userLang')); assert.ok(code);
+    const label = { textContent: '' }; const element = { lang: '' }; let translated;
+    const denied = () => { throw Object.assign(new Error('Storage denied'), { name: 'SecurityError' }); };
+    assert.doesNotThrow(() => vm.runInNewContext(code, {
+      URLSearchParams, localStorage: { getItem: denied, setItem: denied },
+      window: { location: { search: new URL(url, 'https://bookrank.example').search, hostname: 'bookrank.example' } },
+      document: { documentElement: element, getElementById: id => id === 'lang-current' ? label : null },
+      applyPageTranslation(lang) { translated = lang; },
+    }));
+    assert.equal(element.lang, locale === 'zh' ? 'zh-CN' : 'en'); assert.equal(translated, locale); assert.equal(label.textContent, locale === 'zh' ? '中' : 'EN');
+  }
+});
+
+test('mobile homepage real book card displays the supplied ISBN as readable metadata', () => {
+  for (const identifiers of [{ isbn13: '9780525556657', isbn10: '' }, { isbn13: '', isbn10: '0525556656' }, { isbn13: '', isbn10: '' }]) {
+    const book = { ...identifiers, rank: 1, source_index: 0, title: 'Fixture Book', title_zh: '', author: 'Fixture Writer', publisher: 'Fixture Publisher', cover: '/static/default-cover.png', weeks_on_list: 1 };
+    const result = render('mobile/index.html', { books: [book], categories: { 'hardcover-fiction': '小说' }, current_category: 'hardcover-fiction', category_names_en: {}, monthly_categories: [], search_query: '', search_unavailable_count: 0, data_load_failed: false }, '/?lang=en', 'en');
+    const card = result.nodes.find(node => node.tag === 'a' && hasClass(node, 'm-book-card')); assert.ok(card);
+    const expected = identifiers.isbn13 || identifiers.isbn10;
+    if (expected) {
+      assert.ok(card.text.includes(expected), 'ISBN must be visible text in the actual card, not only URL/structured-data attributes');
+      const metadata = result.nodes.find(node => hasClass(node, 'm-book-card-meta') && node.text.includes(expected)); assert.ok(metadata);
+      assert.ok(ancestors(result, metadata).includes(card));
+    } else {
+      assert.doesNotMatch(card.text, /ISBN/);
+    }
+  }
+});
 const ancestors = (result, node) => node.ancestors.map(index => result.nodes[index]);
 // Inspect the actual unconditional owner rule; browser geometry is accepted independently.
 function ownerRule(css, selector) {

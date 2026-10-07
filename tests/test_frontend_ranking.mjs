@@ -232,3 +232,80 @@ test('cards without any identifier keep the meta line unchanged', () => {
     );
     assert.doesNotMatch(container.innerHTML, /class="card-pub-isbn"/);
 });
+
+function suggestionPage({ lang = 'en', query = 'John', history = [], initialBooks = [], windowBooks, deniedStorage = false, urlLang = lang, htmlLang = lang } = {}) {
+    const suggestions = { innerHTML: '', style: {}, addEventListener() {} };
+    const search = { value: query };
+    const documentElement = { lang: htmlLang === 'zh' ? 'zh-CN' : htmlLang, getAttribute(name) { return name === 'lang' ? this.lang : null; } };
+    const context = vm.createContext({
+        console, URLSearchParams,
+        localStorage: { getItem(key) {
+            if (deniedStorage) throw Object.assign(new Error('Storage denied'), { name: 'SecurityError' });
+            return key === 'bookrank_search_history' ? JSON.stringify(history) : lang;
+        } },
+        window: { APP_CONFIG: { currentCategory: 'hardcover-fiction', defaultCover: '/static/default-cover.png' }, booksData: windowBooks, addEventListener() {}, location: { pathname: '/', search: urlLang ? '?lang=' + urlLang : '', href: 'https://bookrank.example/' } },
+        document: { documentElement, getElementById: id => id === 'search-suggestions' ? suggestions : id === 'search-input' ? search : id === 'initial-books-data' ? { textContent: JSON.stringify(initialBooks) } : null, querySelector: () => null, addEventListener() {} },
+        esc: value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'),
+    });
+    vm.runInContext(readFileSync(new URL('../static/js/translations.js', import.meta.url), 'utf8'), context);
+    vm.runInContext(source, context);
+    return { context, suggestions, search };
+}
+
+test('search suggestions translate real book and history headings in English and Chinese', () => {
+    const books = [{ title: 'John at Home', title_zh: '约翰的家', author: 'A Writer' }];
+    for (const lang of ['en', 'zh']) {
+        const { context, suggestions, search } = suggestionPage({ lang, windowBooks: books, history: [{ query: 'A saved search' }] });
+        vm.runInContext('renderSearchSuggestions()', context);
+        const headings = [...suggestions.innerHTML.matchAll(/class="suggestions-header">([^<]+)</g)].map(match => match[1]);
+        assert.equal(headings.length, 2);
+        if (lang === 'en') {
+            assert.match(headings[0], /book.*results/i);
+            assert.equal(headings[1], 'Search History');
+            assert.doesNotMatch(suggestions.innerHTML, /图书结果|搜索历史/);
+        } else {
+            assert.deepEqual(headings, ['图书结果', '搜索历史']);
+        }
+        search.value = '';
+        vm.runInContext('renderSearchSuggestions()', context);
+        assert.match(suggestions.innerHTML, lang === 'en' ? /Search History/ : /搜索历史/);
+    }
+});
+
+test('SSR books provide search suggestions before any category AJAX request, limited to five', () => {
+    const { context, suggestions } = suggestionPage({ initialBooks: Array.from({ length: 7 }, (_, i) => ({ title: 'John ' + i, author: 'Writer' })) });
+    vm.runInContext('renderSearchSuggestions()', context);
+    assert.equal(suggestions.style.display, 'block');
+    assert.equal([...suggestions.innerHTML.matchAll(/class="suggestion-item"/g)].length, 5);
+    assert.match(suggestions.innerHTML, /John 0/);
+    assert.doesNotMatch(suggestions.innerHTML, /John 5|John 6/);
+});
+
+test('homepage source initializes and renders with denied storage using valid URL or HTML language', () => {
+    for (const [urlLang, htmlLang, expected] of [['en', 'zh', 'en'], ['', 'zh', 'zh'], ['invalid', 'en', 'en']]) {
+        const { context, suggestions } = suggestionPage({ deniedStorage: true, urlLang, htmlLang, initialBooks: [{ title: 'John', author: 'Writer' }] });
+        assert.equal(vm.runInContext('currentLanguage', context), expected);
+        vm.runInContext('renderSearchSuggestions()', context);
+        assert.match(suggestions.innerHTML, /John/);
+    }
+});
+
+for (const mode of ['search', 'cache', 'fetch']) {
+    test(`category navigation keeps valid language and view in the ${mode} path`, async () => {
+        const { context } = renderer('books-grid', { appConfig: { searchQuery: mode === 'search' ? 'rain' : '' } });
+        context.window.location.search = '?lang=en&view=compact&search=rain&page=3';
+        let destination = '';
+        context.window.history = { pushState(_state, _title, url) { destination = url; } };
+        context.fetch = async () => ({ ok: true, json: async () => ({ success: true, data: { books: [], update_time: null, update_frequency: 'weekly', list_published_date: null } }) });
+        if (mode === 'cache') {
+            vm.runInContext("categoryCache.set('business-books', [{ title: 'Cached book', author: 'Writer' }], null, 'weekly', null)", context);
+        }
+        await context.changeCategory('business-books');
+        const url = new URL(context.window.location.href || destination, 'https://bookrank.example');
+        assert.equal(url.searchParams.get('category'), 'business-books', mode);
+        assert.equal(url.searchParams.get('lang'), 'en', mode);
+        assert.equal(url.searchParams.get('view'), 'compact', mode);
+        assert.equal(url.searchParams.has('search'), false, mode + ': category switch retains existing search reset behavior');
+        assert.equal(url.searchParams.has('page'), false, mode + ': page starts over with the new category');
+    });
+}
