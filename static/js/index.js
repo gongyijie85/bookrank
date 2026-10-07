@@ -379,6 +379,12 @@ async function changeCategory(category) {
             BookI18n.clear();
             BookI18n.registerAll(cachedBooks);
         }
+        const params = new URLSearchParams();
+        params.set('category', category);
+        if (isZhEn(keepLang)) { params.set('lang', keepLang); }
+        if (isValidView(keepView)) { params.set('view', keepView); }
+        const newUrl = window.location.pathname + '?' + params.toString();
+        window.history.pushState({ category }, '', newUrl);
         updateBooksOnPage(
             cachedBooks,
             category,
@@ -386,12 +392,6 @@ async function changeCategory(category) {
             cached.updateFrequency,
             cached.listPublishedDate
         );
-        const params = new URLSearchParams();
-        params.set('category', category);
-        if (isZhEn(keepLang)) { params.set('lang', keepLang); }
-        if (isValidView(keepView)) { params.set('view', keepView); }
-        const newUrl = window.location.pathname + '?' + params.toString();
-        window.history.pushState({ category }, '', newUrl);
         if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
             BookI18n.applyLanguage('zh');
         }
@@ -439,14 +439,14 @@ async function changeCategory(category) {
             BookI18n.registerAll(books);
         }
 
-        updateBooksOnPage(books, category, apiData.update_time, apiData.update_frequency, apiData.list_published_date);
-
         const params = new URLSearchParams();
         params.set('category', category);
         if (isZhEn(keepLang)) { params.set('lang', keepLang); }
         if (isValidView(keepView)) { params.set('view', keepView); }
         const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({ category }, '', newUrl);
+
+        updateBooksOnPage(books, category, apiData.update_time, apiData.update_frequency, apiData.list_published_date);
 
         hideLoading();
 

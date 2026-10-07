@@ -309,3 +309,89 @@ for (const mode of ['search', 'cache', 'fetch']) {
         assert.equal(url.searchParams.has('page'), false, mode + ': page starts over with the new category');
     });
 }
+
+function browserHistory(context, search) {
+    const pushes = [];
+    context.window.location.search = search;
+    context.window.location.href = 'https://bookrank.example/' + search;
+    context.window.history = {
+        pushState(_state, _title, target) {
+            const url = new URL(target, context.window.location.href);
+            context.window.location.href = url.href;
+            context.window.location.pathname = url.pathname;
+            context.window.location.search = url.search;
+            pushes.push(url.pathname + url.search);
+        },
+    };
+    return pushes;
+}
+
+function renderedDetailUrl(container) {
+    const link = container.innerHTML.match(/<a class="card-link" href="([^"]+)"/);
+    assert.ok(link, 'the actual dynamic card must contain its native detail link');
+    return new URL(link[1].replaceAll('&amp;', '&'), 'https://bookrank.example');
+}
+
+for (const mode of ['cache', 'fetch']) {
+    for (const search of ['?lang=en&view=compact', '?category=hardcover-fiction&lang=en&view=compact&search=rain&page=3']) {
+        test(`dynamic ${mode} cards return to the selected category from ${search}`, async () => {
+            const { context, container } = renderer('books-grid');
+            const pushes = browserHistory(context, search);
+            const books = [isbnBook({ title: 'ATOMIC HABITS' })];
+            context.fetch = async () => ({ ok: true, json: async () => ({ success: true, data: { books } }) });
+            if (mode === 'cache') {
+                context.cachedBooks = books;
+                vm.runInContext("categoryCache.set('business-books', cachedBooks, null, 'weekly', null)", context);
+            }
+
+            await context.changeCategory('business-books');
+
+            const detail = renderedDetailUrl(container);
+            const back = new URL(detail.searchParams.get('return_to'), 'https://bookrank.example');
+            assert.equal(back.searchParams.get('category'), 'business-books');
+            assert.equal(back.searchParams.get('lang'), 'en');
+            assert.equal(back.searchParams.get('view'), 'compact');
+            assert.equal(back.searchParams.has('search'), false, 'category switches keep the existing search reset');
+            assert.equal(back.searchParams.has('page'), false, 'category switches keep the existing page reset');
+            assert.equal(detail.searchParams.get('lang'), 'en');
+            assert.equal(detail.searchParams.get('category'), 'business-books');
+            assert.equal(detail.searchParams.get('return_to'), context.window.location.pathname + context.window.location.search);
+            assert.deepEqual(pushes, ['/?category=business-books&lang=en&view=compact']);
+        });
+    }
+}
+
+test('dynamic search cards retain the full current return context without replacing the source category', () => {
+    const { context, container } = renderer('books-grid');
+    const search = '?category=hardcover-fiction&lang=en&view=compact&search=rain&page=3';
+    const pushes = browserHistory(context, search);
+    context.updateBooksOnPage([isbnBook({ source_index: 7, source_category: 'hardcover-nonfiction' })], 'hardcover-fiction', null);
+    const detail = renderedDetailUrl(container);
+    assert.equal(detail.pathname, '/book/7');
+    assert.equal(detail.searchParams.get('category'), 'hardcover-nonfiction');
+    assert.equal(detail.searchParams.get('return_to'), '/' + search);
+    assert.deepEqual(pushes, []);
+});
+
+test('failed category requests leave the current URL and history unchanged', async () => {
+    const { context } = renderer('books-grid');
+    const pushes = browserHistory(context, '?category=hardcover-fiction&lang=en&view=compact');
+    const before = context.window.location.href;
+    const originalGet = context.document.getElementById;
+    context.document.getElementById = id => id === 'category-select' ? { value: 'hardcover-fiction' } : originalGet(id);
+    context.document.querySelectorAll = () => [];
+    context.console = { ...console, error() {} };
+    context.showToast = () => {};
+    context.fetch = async () => ({ ok: false });
+    await context.changeCategory('business-books');
+    assert.equal(context.window.location.href, before);
+    assert.deepEqual(pushes, []);
+});
+
+test('popstate reloads the restored category context without adding a history entry', () => {
+    const { context } = renderer('books-grid');
+    const pushes = browserHistory(context, '?category=business-books&lang=en&view=compact');
+    context.window._onpopstate();
+    assert.equal(context.window.location._reloaded, true);
+    assert.deepEqual(pushes, []);
+});

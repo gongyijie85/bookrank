@@ -25,7 +25,7 @@
 {% block content %}
 
 <!-- Hero 区：日期 + 周期 + 4 个数字卡片 -->
-<section class="m-report-hero">
+<section class="m-report-hero" style="padding-top: var(--btn-height);">
     <div class="m-report-hero-date">{{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }} · {{ _('第 %(week)s 周', week=report.week_end.strftime('%V')) }}</div>
     <div class="m-report-hero-period">{{ displayed_report_title }}</div>
 

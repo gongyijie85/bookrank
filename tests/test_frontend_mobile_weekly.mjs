@@ -57,6 +57,39 @@ test('mobile weekly real intro reserves the fixed 44px controls row without exce
   // This source/SSR spacing contract is not a browser geometry or real-device test.
 });
 
+for (const width of [320, 390]) {
+  test(`mobile weekly detail hero date clears the fixed controls row at ${width}px`, () => {
+    const result = render('mobile/weekly_report_detail.html', { report, content: { title_display: 'Weekly Bestseller Report & Snapshot' }, safe_summary: '' });
+    const hero = result.nodes.find(node => hasClass(node, 'm-report-hero')); assert.ok(hero);
+    const date = result.nodes.find(node => hasClass(node, 'm-report-hero-date')); assert.ok(date);
+    assert.match(date.text, /09\.21 - 09\.27/);
+    assert.ok(result.nodes.some(node => node.attrs.id === 'm-theme-toggle'));
+    assert.ok(result.nodes.some(node => node.attrs.id === 'm-lang-globe'));
+    const css = readFileSync(path.join(repo, 'static/mobile/css/mobile.css'), 'utf8');
+    const root = rules(css, ':root');
+    const numeric = value => {
+      let resolved = value;
+      for (let depth = 0; depth < 8 && resolved.includes('var('); depth++) resolved = resolved.replace(/var\((--[\w-]+)\)/g, (_, name) => { assert.ok(root.has(name)); return root.get(name); });
+      resolved = resolved.replace(/env\([^)]*\)/g, '0px').replace(/calc\(/g, '(').replace(/px/g, '');
+      assert.match(resolved, /^[\d.\s()+*/-]+$/); return vm.runInNewContext(resolved);
+    };
+    const heroStyles = new Map([...rules(css, '.m-report-hero'), ...rules(result.nodes.filter(node => node.tag === 'style').map(node => node.text).join('\n'), '.m-report-hero'), ...rules('.m-report-hero{' + (hero.attrs.style || '') + '}', '.m-report-hero')]);
+    const paddingTop = numeric(heroStyles.get('padding-top') || heroStyles.get('padding').split(' ')[0]);
+    const marginTop = numeric(heroStyles.get('margin-top') || heroStyles.get('margin').split(' ')[0]);
+    const headerHeight = numeric(rules(css, '.m-header').get('height'));
+    const dateTop = headerHeight + marginTop + paddingTop;
+    for (const selector of ['.m-theme-toggle-btn', '.m-lang-globe-btn']) {
+      const control = rules(css, selector);
+      const controlBottom = numeric(control.get('top')) + numeric(control.get('height'));
+      assert.equal(numeric(control.get('height')), 44);
+      assert.equal(numeric(control.get('width')), 44);
+      assert.ok(dateTop >= controlBottom + numeric(root.get('--space-2')), `${width}px: date starts below the controls plus existing 8px gap (${dateTop} < ${controlBottom + numeric(root.get('--space-2'))})`);
+    }
+    assert.ok(paddingTop <= numeric(root.get('--btn-height')) + numeric(root.get('--space-2')), 'reserve only the necessary controls row');
+    // Actual-template/CSS spacing contract at both supported widths; browser geometry is checked separately.
+  });
+}
+
 test('mobile weekly month and keyword still filter the same rendered report cards', () => {
   const other = { ...report, title: 'Older title', week_start: '2026-08-24', week_end: '2026-08-30', report_date: '2026-08-30', content_data: { title_display: 'August Report', summary: 'Older summary' } };
   const result = render('mobile/weekly_reports.html', { reports: [report, other], latest_report: report, report_sections: [{ year: 2026, month: 9, reports: [report] }, { year: 2026, month: 8, reports: [other] }], is_generating: false });
