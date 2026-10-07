@@ -23,7 +23,7 @@
             <div class="m-book-cover">
                 {% if detail_url %}<a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ entry.title }}{{ _('》封面') }}">{% endif %}
                 <img src="{{ entry.cover|cover_src_or_default }}"
-                     alt="" loading="lazy" width="60" height="80">
+                     alt="" loading="lazy" width="60" height="80" data-cover-fallback="">
                 {% if detail_url %}</a>{% endif %}
             </div>
             <div class="m-book-info">
@@ -111,7 +111,7 @@
         {% set main_title = entry.title if _locale != 'zh' else (entry.title_zh or entry.title) %}
         <div class="m-book-cover">
             <img src="{{ (entry.cover_local_path or entry.cover_original_url)|cover_src_or_default }}"
-                 alt="{{ _('《') }}{{ main_title }}{{ _('》封面，作者 ') }}{{ entry.author }}" loading="lazy" width="60" height="80">
+                 alt="{{ _('《') }}{{ main_title }}{{ _('》封面，作者 ') }}{{ entry.author }}" loading="lazy" width="60" height="80" data-cover-fallback="">
         </div>
         <div class="m-book-info">
             <h3 class="m-book-title">{{ main_title }}</h3>

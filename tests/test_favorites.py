@@ -27,6 +27,104 @@ def _set_session(client, session_id: str | None = None):
             sess.pop('session_id', None)
 
 
+@pytest.mark.parametrize(
+    'payload',
+    [
+        {'isbn': 'ABCDEFGHIJ'},
+        {'isbn': '1234567890123'},
+        {'isbn': 9780306406157},
+        {'isbn': True},
+        {'isbn': ['9780306406157']},
+        {'isbn': {'value': '9780306406157'}},
+        {'isbn': '978-0-306-40615-7'},
+        {'isbn': '0 8044 2957  x'},
+        ['9780306406157'],
+        '9780306406157',
+    ],
+)
+def test_favorite_invalid_payload_is_400_without_write_with_real_csrf(app, db, monkeypatch, payload):
+    from app.models.schemas import UserFavorite
+
+    client = app.test_client()
+    _set_session(client, 'invalid-favorite-audit')
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    token = client.get('/api/csrf-token').get_json()['data']['csrf_token']
+    response = client.post('/api/favorites', json=payload, headers={'X-CSRF-Token': token})
+    assert response.status_code == 400
+    assert response.get_json()['success'] is False
+    assert UserFavorite.query.count() == 0
+
+
+@pytest.mark.parametrize(
+    ('submitted', 'stored'),
+    [
+        (' 9780306406157 ', '9780306406157'),
+        (' 080442957x ', '080442957x'),
+        ('0 8044 2957 x', '0 8044 2957 x'),
+    ],
+)
+def test_favorite_existing_formats_strip_only_and_are_idempotent(app, db, monkeypatch, submitted, stored):
+    from app.models.schemas import UserFavorite
+
+    client = app.test_client()
+    _set_session(client, 'existing-format-favorite-audit')
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    responses = []
+    for value in (submitted, stored):
+        token = client.get('/api/csrf-token').get_json()['data']['csrf_token']
+        responses.append(client.post('/api/favorites', json={'isbn': value}, headers={'X-CSRF-Token': token}))
+    assert [response.status_code for response in responses] == [201, 200]
+    assert [response.get_json()['data']['isbn'] for response in responses] == [stored, stored]
+    assert UserFavorite.query.filter_by(session_id='existing-format-favorite-audit', isbn=stored).count() == 1
+    assert client.get(f'/api/favorites/check/{stored}').get_json()['data']['is_favorited'] is True
+    token = client.get('/api/csrf-token').get_json()['data']['csrf_token']
+    assert client.delete(f'/api/favorites/{stored}', headers={'X-CSRF-Token': token}).status_code == 200
+    assert client.get(f'/api/favorites/check/{stored}').get_json()['data']['is_favorited'] is False
+    assert UserFavorite.query.filter_by(session_id='existing-format-favorite-audit').count() == 0
+
+
+@pytest.mark.parametrize('preexisting', [False, True])
+def test_favorite_lowercase_x_keeps_check_delete_and_legacy_row_with_real_csrf(app, db, monkeypatch, preexisting):
+    from app.models.schemas import UserFavorite
+
+    isbn = '080442957x'
+    sid = 'lowercase-favorite-audit'
+    if preexisting:
+        db.session.add(UserFavorite(session_id=sid, isbn=isbn))
+        db.session.commit()
+    client = app.test_client()
+    _set_session(client, sid)
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    token = client.get('/api/csrf-token').get_json()['data']['csrf_token']
+    added = client.post('/api/favorites', json={'isbn': isbn}, headers={'X-CSRF-Token': token})
+    assert added.status_code == (200 if preexisting else 201)
+    assert added.get_json()['data']['isbn'] == isbn
+    assert client.get(f'/api/favorites/check/{isbn}').get_json()['data']['is_favorited'] is True
+    assert UserFavorite.query.filter_by(session_id=sid).count() == 1
+    token = client.get('/api/csrf-token').get_json()['data']['csrf_token']
+    removed = client.delete(f'/api/favorites/{isbn}', headers={'X-CSRF-Token': token})
+    assert removed.status_code == 200
+    assert client.get(f'/api/favorites/check/{isbn}').get_json()['data']['is_favorited'] is False
+    assert UserFavorite.query.filter_by(session_id=sid).count() == 0
+
+
+def test_favorite_write_keeps_single_use_csrf_and_signed_identity(app, db, monkeypatch):
+    from app.models.schemas import UserFavorite
+
+    client = app.test_client()
+    _set_session(client, 'csrf-favorite-audit')
+    client.set_cookie('session_id', 'forged-other-reader')
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    payload = {'isbn': '9780306406157'}
+    assert client.post('/api/favorites', json=payload).status_code == 403
+    token = client.get('/api/csrf-token').get_json()['data']['csrf_token']
+    headers = {'X-CSRF-Token': token}
+    assert client.post('/api/favorites', json=payload, headers=headers).status_code == 201
+    assert client.post('/api/favorites', json=payload, headers=headers).status_code == 403
+    assert UserFavorite.query.filter_by(session_id='csrf-favorite-audit', isbn=payload['isbn']).count() == 1
+    assert UserFavorite.query.filter_by(session_id='forged-other-reader').count() == 0
+
+
 class TestGetFavorites:
     """GET /api/favorites"""
 

@@ -550,7 +550,14 @@
             var serverLang = '{{ get_locale() }}';
             var urlLang = new URLSearchParams(window.location.search).get('lang');
             if (urlLang !== 'zh' && urlLang !== 'en') { urlLang = null; }
-            var userLang = urlLang || localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+            var savedLang = null;
+            try {
+                savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+            } catch (e) {
+                // 隐私模式或禁用存储：忽略已保存偏好
+            }
+            if (savedLang !== 'zh' && savedLang !== 'en') { savedLang = null; }
+            var userLang = urlLang || savedLang;
 
             var host = window.location.hostname;
             var cookieDomain = (host && host !== 'localhost' && host.includes('.')) ? host : '';
@@ -560,8 +567,12 @@
             }
 
             var finalLang = userLang || serverLang;
-            localStorage.setItem('app_language', finalLang);
-            localStorage.setItem('bookrank_language', finalLang);
+            try {
+                localStorage.setItem('app_language', finalLang);
+                localStorage.setItem('bookrank_language', finalLang);
+            } catch (e) {
+                // 隐私模式或禁用存储：跳过写入偏好
+            }
 
             // 同步 html lang 属性，便于屏幕阅读器和 SEO
             document.documentElement.lang = finalLang === 'zh' ? 'zh-CN' : 'en';

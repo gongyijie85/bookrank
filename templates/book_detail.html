@@ -926,7 +926,24 @@ body.detail-page .main-content {
         }
 
         // 根据用户偏好自动切换
-        var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        var savedLang = null;
+        try {
+          var urlLang = new URLSearchParams(window.location.search).get('lang');
+          if (urlLang === 'en' || urlLang === 'zh') {
+            savedLang = urlLang;
+          } else {
+            var stored = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+            if (stored === 'en' || stored === 'zh') {
+              savedLang = stored;
+            }
+          }
+        } catch (e) {}
+        if (!savedLang) {
+          var htmlLang = document.documentElement.lang;
+          if (htmlLang === 'en' || htmlLang === 'zh' || htmlLang === 'zh-CN') {
+            savedLang = htmlLang === 'zh-CN' ? 'zh' : htmlLang;
+          }
+        }
         if (savedLang === 'en') {
             switchDetailLang('en');
         }

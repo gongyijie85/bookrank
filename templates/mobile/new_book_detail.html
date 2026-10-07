@@ -41,9 +41,10 @@
         {% if book.price is not none and book.price|string|trim != '' %}<div><span style="color:var(--text-secondary);">{{ _('价格') }}:</span> <span class="book-price" data-price-raw="{{ book.price|e }}">{{ book.price|price_display(get_locale()) }}</span></div>{% endif %}
     </div>
 
-    {% if book.buy_links %}
+    {% set _buy_links = book.get_buy_links() %}
+    {% if _buy_links %}
     <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;margin-bottom:1rem;" class="no-scrollbar">
-        {% for link in book.buy_links %}
+        {% for link in _buy_links %}
         {% if link.url %}
         <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="m-btn m-btn-outline m-btn-sm" style="white-space:nowrap;">{{ link.name or _('购买') }}</a>
         {% endif %}

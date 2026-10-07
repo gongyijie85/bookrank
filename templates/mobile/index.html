@@ -182,6 +182,10 @@
             {% if book.language and book.language not in ('Unknown', '', 'un') %}{% set ns.parts = ns.parts + [book.language|language_name] %}{% endif %}
             {% if ns.parts %}<p class="m-book-card-meta">{{ ns.parts|join(' · ') }}</p>{% endif %}
 
+            {# ISBN 元数据行：优先 isbn13，否则 isbn10；仅当通过 is_valid_isbn 校验时输出，无新增 gettext key #}
+            {% set _isbn_value = book.isbn13 or book.isbn10 %}
+            {% if _isbn_value and _isbn_value|is_valid_isbn %}<p class="m-book-card-meta">ISBN {{ _isbn_value }}</p>{% endif %}
+
             {# 描述预览（80 字截断） #}
             {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
             {% if desc and desc not in PLACEHOLDER_TEXTS %}

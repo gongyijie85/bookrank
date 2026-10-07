@@ -278,7 +278,16 @@
      * Get saved theme from localStorage
      */
     function getSavedTheme() {
-        return localStorage.getItem('theme');
+        try {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark' || theme === 'light') {
+                return theme;
+            }
+        } catch (e) {
+            // ignore storage errors
+        }
+        const domTheme = document.documentElement.getAttribute('data-theme');
+        return (domTheme === 'dark' || domTheme === 'light') ? domTheme : null;
     }
 
     /**
@@ -295,7 +304,11 @@
         updateThemeToggleIcon(theme === 'dark');
 
         // Save preference
-        localStorage.setItem('theme', theme);
+        try {
+            localStorage.setItem('theme', theme);
+        } catch (e) {
+            // ignore storage errors
+        }
     }
 
     /**
@@ -318,7 +331,8 @@
      * Toggle between light and dark theme
      */
     function toggleTheme() {
-        const currentTheme = getSavedTheme() || getSystemTheme();
+        const domTheme = document.documentElement.getAttribute('data-theme');
+        const currentTheme = (domTheme === 'dark' || domTheme === 'light') ? domTheme : (getSavedTheme() || getSystemTheme());
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         const lang = getCurrentLang();
 
@@ -775,10 +789,18 @@
     function getCurrentLang() {
         var urlLang = new URLSearchParams(window.location.search).get('lang');
         if (urlLang === 'zh' || urlLang === 'en') { return urlLang; }
-        var savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        var savedLang = null;
+        try {
+            savedLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+        } catch (e) {
+            // 隐私模式或禁用存储：忽略已保存偏好
+        }
+        if (savedLang === 'zh' || savedLang === 'en') { return savedLang; }
+        var htmlLang = document.documentElement.lang || '';
+        if (htmlLang === 'zh' || htmlLang === 'zh-CN') { return 'zh'; }
+        if (htmlLang === 'en') { return 'en'; }
         var browserLang = navigator.language || navigator.userLanguage || '';
-        var defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
-        return savedLang || defaultLang;
+        return browserLang.startsWith('zh') ? 'zh' : 'en';
     }
 
     /**

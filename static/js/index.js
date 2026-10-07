@@ -23,7 +23,21 @@ let currentCategory = '';
 })();
 
 // 语言控制变量（统一读取：app_language 优先，兼容旧 bookrank_language 键）
-let currentLanguage = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language') || 'en';
+let currentLanguage = (function () {
+    const urlLang = new URLSearchParams(window.location.search).get('lang');
+    if (urlLang === 'zh' || urlLang === 'en') { return urlLang; }
+    let saved = null;
+    try {
+        saved = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
+    } catch (e) {
+        // 隐私模式或禁用存储：忽略已保存偏好
+    }
+    if (saved === 'zh' || saved === 'en') { return saved; }
+    const htmlLang = document.documentElement.lang || '';
+    if (htmlLang === 'zh' || htmlLang === 'zh-CN') { return 'zh'; }
+    if (htmlLang === 'en') { return 'en'; }
+    return 'en';
+})();
 
 /**
  * 封面地址规范化。优先用 cover.js 挂上的 BookRankCover.toSrc；
@@ -87,7 +101,7 @@ function renderSearchSuggestions() {
     }
 
     if (query) {
-        const books = window.booksData || [];
+        const books = (Array.isArray(booksData) && booksData.length > 0) ? booksData : (window.booksData || []);
         const results = books.filter(book => {
             const searchStr = `${book.title} ${book.title_zh || ''} ${book.author} ${book.description || ''}`.toLowerCase();
             return searchStr.includes(query.toLowerCase());
@@ -100,7 +114,7 @@ function renderSearchSuggestions() {
 
         let html = '';
         if (results.length > 0) {
-            html += '<div class="suggestions-header">图书结果</div>';
+            html += `<div class="suggestions-header">${esc(t('search_books', currentLanguage))}</div>`;
             html += '<ul class="suggestions-list">';
             results.forEach(book => {
                 const title = currentLanguage === 'zh' ? (book.title_zh || book.title) : book.title;
@@ -114,7 +128,7 @@ function renderSearchSuggestions() {
         }
 
         if (history.length > 0) {
-            html += '<div class="suggestions-header">搜索历史</div>';
+            html += `<div class="suggestions-header">${esc(t('search_history', currentLanguage))}</div>`;
             html += '<ul class="suggestions-list">';
             history.slice(0, 5).forEach(item => {
                 html += `
@@ -130,7 +144,7 @@ function renderSearchSuggestions() {
         suggestionsEl.innerHTML = html;
         suggestionsEl.style.display = 'block';
     } else if (history.length > 0) {
-        let html = '<div class="suggestions-header">搜索历史</div>';
+        let html = `<div class="suggestions-header">${esc(t('search_history', currentLanguage))}</div>`;
         html += '<ul class="suggestions-list">';
         history.slice(0, 10).forEach(item => {
             html += `
@@ -332,12 +346,21 @@ function hasActiveSearchOrErrorState() {
  * v0.9.55: 切换分类 - 优先走缓存，未命中才请求 API
  */
 async function changeCategory(category) {
+    // 保留当前有效的 lang/view 上下文；fresh URLSearchParams 仍会丢弃 search/page 等其它过滤条件
+    const currentParams = new URLSearchParams(window.location.search);
+    const keepLang = currentParams.get('lang');
+    const keepView = currentParams.get('view');
+    const isZhEn = v => v === 'zh' || v === 'en';
+    const isValidView = v => v === 'grid' || v === 'list' || v === 'compact';
+
     // 从搜索/错误状态切换分类：整页跳转到仅分类的 URL（丢弃 search 参数），
     // 使搜索输入框与状态条复位。首个切换即整页跳转，故本次页面加载内的
     // APP_CONFIG.searchQuery 随即清空，不会把后续普通切换误判为搜索态。
     if (hasActiveSearchOrErrorState()) {
         const params = new URLSearchParams();
         params.set('category', category);
+        if (isZhEn(keepLang)) { params.set('lang', keepLang); }
+        if (isValidView(keepView)) { params.set('view', keepView); }
         window.location.href = window.location.pathname + '?' + params.toString();
         return;
     }
@@ -365,6 +388,8 @@ async function changeCategory(category) {
         );
         const params = new URLSearchParams();
         params.set('category', category);
+        if (isZhEn(keepLang)) { params.set('lang', keepLang); }
+        if (isValidView(keepView)) { params.set('view', keepView); }
         const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({ category }, '', newUrl);
         if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
@@ -418,6 +443,8 @@ async function changeCategory(category) {
 
         const params = new URLSearchParams();
         params.set('category', category);
+        if (isZhEn(keepLang)) { params.set('lang', keepLang); }
+        if (isValidView(keepView)) { params.set('view', keepView); }
         const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({ category }, '', newUrl);
 

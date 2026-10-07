@@ -21,7 +21,7 @@
 </div>
 {% endif %}
 
-<div class="m-report-intro">
+<div class="m-report-intro" style="padding-top: calc(var(--btn-height) + var(--space-2));">
     <p class="m-report-intro-count">
         {{ reports|length }} {{ _('期') }}
         {% if latest_report and latest_report.week_end %}

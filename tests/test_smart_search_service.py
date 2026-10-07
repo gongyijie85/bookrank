@@ -19,7 +19,8 @@ from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.smart_search_service import SmartSearchService
 
@@ -33,6 +34,7 @@ def _make_flask_query(results=None, count_val=0):
     """创建模拟 Flask-SQLAlchemy 查询链的 Mock"""
     q = Mock()
     q.filter.return_value = q
+    q.options.return_value = q
     q.count.return_value = count_val
     q.order_by.return_value = q
     q.offset.return_value = q
@@ -209,27 +211,27 @@ class TestSearch:
             patch.object(
                 service,
                 '_apply_award_search_conditions',
-                return_value=Mock(filter=Mock(return_value=Mock(count=Mock(return_value=0)))),
+                return_value=_make_flask_query([], count_val=0),
             ),
             patch.object(
                 service,
                 '_apply_new_book_search_conditions',
-                return_value=Mock(filter=Mock(return_value=Mock(count=Mock(return_value=0)))),
+                return_value=_make_flask_query([], count_val=0),
             ),
         ):
             result = service.search('test', offset=-5)
             assert result['pagination']['offset'] == 0
 
-    def test_search_exception_returns_empty(self, service):
+    def test_search_exception_propagates_to_api_error_handler(self, service):
         with patch.object(service, '_sanitize_keyword', side_effect=Exception('Unexpected')):
-            result = service.search('test')
-            assert result['results'] == []
-            assert result['total'] == 0
+            with pytest.raises(Exception, match='Unexpected'):
+                service.search('test')
 
     def test_search_has_more_pagination(self, service, app):
         with app.app_context():
             award_q = Mock()
             award_q.filter.return_value = award_q
+            award_q.options.return_value = award_q
             award_q.count.return_value = 50
             award_q.order_by.return_value = award_q
             award_q.offset.return_value = award_q
@@ -238,6 +240,7 @@ class TestSearch:
 
             new_q = Mock()
             new_q.filter.return_value = new_q
+            new_q.options.return_value = new_q
             new_q.count.return_value = 0
             new_q.order_by.return_value = new_q
             new_q.offset.return_value = new_q
@@ -269,6 +272,7 @@ class TestSearch:
 
             award_q = Mock()
             award_q.filter.return_value = award_q
+            award_q.options.return_value = award_q
             award_q.count.return_value = 1
             award_q.order_by.return_value = award_q
             award_q.offset.return_value = award_q
@@ -277,6 +281,7 @@ class TestSearch:
 
             new_q = Mock()
             new_q.filter.return_value = new_q
+            new_q.options.return_value = new_q
             new_q.count.return_value = 0
             new_q.order_by.return_value = new_q
             new_q.offset.return_value = new_q
@@ -386,13 +391,13 @@ class TestApplyNewBookSearchConditions:
             patch.object(NewBook, 'title') as mock_title,
             patch.object(NewBook, 'title_zh') as mock_title_zh,
             patch.object(NewBook, 'author') as mock_author,
-            patch.object(NewBook, 'isbn13') as mock_isbn,
+            patch.object(NewBook, 'publisher') as mock_publisher,
             patch('app.services.smart_search_service.or_', return_value=dummy_cond),
         ):
             mock_title.ilike.return_value = dummy_cond
             mock_title_zh.ilike.return_value = dummy_cond
             mock_author.ilike.return_value = dummy_cond
-            mock_isbn.ilike.return_value = dummy_cond
+            mock_publisher.has.return_value = dummy_cond
             service._apply_new_book_search_conditions(mock_query, 'test', 'all')
             mock_query.filter.assert_called_once()
 
@@ -426,19 +431,20 @@ class TestApplyNewBookSearchConditions:
             service._apply_new_book_search_conditions(mock_query, 'test', 'author')
             mock_query.filter.assert_called_once()
 
-    def test_search_type_publisher_uses_isbn(self, service):
+    def test_search_type_publisher_uses_publisher(self, service):
         mock_query = Mock()
         mock_query.filter.return_value = mock_query
         dummy_cond = text('1=1')
         from app.models.new_book import NewBook
 
         with (
-            patch.object(NewBook, 'isbn13') as mock_isbn,
+            patch.object(NewBook, 'publisher') as mock_publisher,
             patch('app.services.smart_search_service.or_', return_value=dummy_cond),
         ):
-            mock_isbn.ilike.return_value = dummy_cond
+            mock_publisher.has.return_value = dummy_cond
             service._apply_new_book_search_conditions(mock_query, 'test', 'publisher')
             mock_query.filter.assert_called_once()
+            mock_publisher.has.assert_called_once()
 
 
 class TestGenerateSuggestions:
@@ -760,3 +766,178 @@ class TestClearSearchHistory:
             result = service.clear_search_history('session1')
             assert result is False
             mock_db.session.rollback.assert_called_once()
+
+
+@pytest.fixture
+def mixed_search_rows(db):
+    """两类来源使用相同排序值，ID 为稳定的最终顺序。"""
+    from app.models.new_book import NewBook, Publisher
+    from app.models.schemas import Award, AwardBook
+
+    award = Award(name='Audit Award', name_en='Audit Award', wikidata_id='Q-audit-search')
+    publisher = Publisher(name='独立出版社', name_en='Distinct Publisher', crawler_class='Fixture')
+    db.session.add_all([award, publisher])
+    db.session.flush()
+    for slot in (3, 1, 2):
+        db.session.add(
+            AwardBook(
+                id=slot,
+                award_id=award.id,
+                title=f'Probe Award {slot}',
+                author='Fixture Author',
+                year=2026,
+                rank=1,
+                isbn13=f'978100000{slot:04d}',
+                is_displayable=True,
+            )
+        )
+        db.session.add(
+            NewBook(
+                id=slot,
+                publisher_id=publisher.id,
+                title=f'Probe New {slot}',
+                author='Fixture Author',
+                isbn13=f'978200000{slot:04d}',
+                publication_date=datetime(2026, 10, 7, tzinfo=UTC).date(),
+                is_displayable=True,
+            )
+        )
+    db.session.commit()
+    db.session.remove()
+    return [('award', slot) for slot in range(1, 4)] + [('new_book', slot) for slot in range(1, 4)]
+
+
+@pytest.mark.parametrize('offset', [0, 2, 3, 4, 6])
+def test_smart_search_combined_cursor_pages_real_db(app, db, mixed_search_rows, offset):
+    response = (
+        app.test_client().get(
+            '/api/search/smart', query_string={'keyword': 'Probe', 'limit': 2, 'page': offset // 2 + 1}
+        )
+        if offset != 3
+        else None
+    )
+    result = SmartSearchService().search('Probe', limit=2, offset=offset)
+    assert [(row['source'], row['id']) for row in result['results']] == mixed_search_rows[offset : offset + 2]
+    assert result['total'] == len(mixed_search_rows)
+    assert result['pagination'] == {'limit': 2, 'offset': offset, 'has_more': offset + 2 < len(mixed_search_rows)}
+    if response is not None:
+        assert response.status_code == 200
+        assert response.get_json()['data']['results'] == result['results']
+
+
+def test_smart_search_query_failure_is_500_and_does_not_record_zero_history(app, db):
+    from app.models.schemas import SearchHistory
+
+    def _fail_select(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().lower().startswith('select') and 'award_books' in statement.lower():
+            raise SQLAlchemyError('audit-private-SQL-failure-detail')
+
+    engine = db.engine
+    event.listen(engine, 'before_cursor_execute', _fail_select)
+    try:
+        response = app.test_client().get('/api/search/smart?keyword=Probe')
+    finally:
+        event.remove(engine, 'before_cursor_execute', _fail_select)
+        db.session.rollback()
+    assert response.status_code == 500
+    assert response.get_json()['success'] is False
+    assert 'audit-private-SQL-failure-detail' not in response.get_data(as_text=True)
+    assert SearchHistory.query.count() == 0
+
+
+def test_smart_search_empty_keyword_is_success_without_queries(app, db):
+    statements = []
+
+    def _capture(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().lower().startswith('select'):
+            statements.append(statement)
+
+    engine = db.engine
+    event.listen(engine, 'before_cursor_execute', _capture)
+    try:
+        response = app.test_client().get('/api/search/smart?keyword=')
+    finally:
+        event.remove(engine, 'before_cursor_execute', _capture)
+    assert response.status_code == 200
+    assert response.get_json()['success'] is True
+    assert response.get_json()['data']['total'] == 0
+    assert statements == []
+
+
+@pytest.mark.parametrize(
+    ('keyword', 'search_type'),
+    [('Distinct Publisher', 'publisher'), ('独立出版社', 'publisher'), ('Distinct Publisher', 'all')],
+)
+def test_smart_search_new_books_match_publisher_names_real_db(db, mixed_search_rows, keyword, search_type):
+    result = SmartSearchService().search(keyword, search_type=search_type)
+    assert result['total'] == 3
+    assert {row['source'] for row in result['results']} == {'new_book'}
+    assert [row['id'] for row in result['results']] == [1, 2, 3]
+
+
+def test_smart_search_publisher_type_does_not_match_isbn(db, mixed_search_rows):
+    result = SmartSearchService().search('9782000000001', search_type='publisher')
+    assert result['total'] == 0
+    assert result['results'] == []
+
+
+@pytest.mark.parametrize('search_type', ['all', 'publisher', 'title', 'author'])
+def test_smart_search_new_book_isbn_remains_only_in_all_search(db, mixed_search_rows, search_type):
+    result = SmartSearchService().search('9782000000001', search_type=search_type)
+    if search_type == 'all':
+        assert result['total'] == 1
+        assert [(row['source'], row['id'], row['isbn13']) for row in result['results']] == [
+            ('new_book', 1, '9782000000001')
+        ]
+    else:
+        assert result['total'] == 0
+        assert result['results'] == []
+
+
+@pytest.mark.parametrize('per_source', [1, 8])
+def test_smart_search_batch_related_rows_use_bounded_selects(db, monkeypatch, per_source):
+    from app.models.new_book import NewBook, Publisher
+    from app.models.schemas import Award, AwardBook
+
+    for slot in range(per_source):
+        award = Award(name=f'Fixture Award {slot}', name_en=f'Award {slot}', wikidata_id=f'Q-search-batch-{slot}')
+        publisher = Publisher(name=f'Fixture Publisher {slot}', name_en=f'Publisher {slot}', crawler_class='Fixture')
+        db.session.add_all([award, publisher])
+        db.session.flush()
+        db.session.add(
+            AwardBook(
+                award_id=award.id,
+                title=f'Probe Award {slot}',
+                author='Fixture',
+                year=2026,
+                isbn13=f'978300000{slot:04d}',
+                is_displayable=True,
+            )
+        )
+        db.session.add(
+            NewBook(
+                publisher_id=publisher.id,
+                title=f'Probe New {slot}',
+                author='Fixture',
+                isbn13=f'978400000{slot:04d}',
+                is_displayable=True,
+            )
+        )
+    db.session.commit()
+    db.session.remove()
+    service = SmartSearchService()
+    monkeypatch.setattr(service, '_generate_suggestions', lambda *_args: [])
+    statements = []
+
+    def _capture(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().lower().startswith('select'):
+            statements.append(statement)
+
+    engine = db.engine
+    event.listen(engine, 'before_cursor_execute', _capture)
+    try:
+        result = service.search('Probe', limit=2 * per_source)
+    finally:
+        event.remove(engine, 'before_cursor_execute', _capture)
+    assert len(result['results']) == 2 * per_source
+    assert len(statements) <= 4, statements
