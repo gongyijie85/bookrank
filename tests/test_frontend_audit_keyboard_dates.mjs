@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const source = path => fs.readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
-const scripts = html => [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script[ \t\n\f\r]*>/gi)].map(match => match[1]);
+const scripts = html => [...html.matchAll(/<script(?:[ \t\n\f\r/][^>]*)?>([\s\S]*?)<\/script(?:[ \t\n\f\r/][^>]*)?>/gi)].map(match => match[1]);
 
 test('actual script extractor accepts mixed-case closing tags with HTML ASCII whitespace and keeps blocks separate', () => {
   for (const whitespace of ['', ' ', '\t', '\n', '\f', '\r', ' \t\r\n\f ']) {
@@ -14,6 +14,24 @@ test('actual script extractor accepts mixed-case closing tags with HTML ASCII wh
     assert.deepEqual(scripts(html), ['first();', 'second();'], JSON.stringify(whitespace));
   }
   assert.deepEqual(scripts('<script>incomplete();</script\u00a0>'), [], 'non-ASCII space must not become an HTML closing-tag separator');
+});
+
+test('actual script extractor accepts browser-tolerated end-tag attributes and self-closing markers', () => {
+  for (const closing of ['</script/>', '</script bar>', '</script\t\n bar>', '</script foo="bar">', '</script data-a="value"/>', '</ScRiPt bar />']) {
+    const html = '<script nonce="example">first();' + closing + '<script>second();</script>';
+    assert.deepEqual(scripts(html), ['first();', 'second();'], closing);
+  }
+  for (const opening of ['<script>', '<ScRiPt />', '<script/type="text/javascript">', '<script\t\n nonce="example">']) {
+    assert.deepEqual(scripts(opening + 'body();</script/>'), ['body();'], opening);
+  }
+});
+
+test('actual script extractor requires HTML delimiters and excludes script-like tag names on both ends', () => {
+  for (const name of ['script-like', 'script.x', 'script:custom', 'script_foo', 'scriptx', 'script\u00a0', 'script\u2028']) {
+    const html = '<' + name + '>notScript();</' + name + '><script>real();</script>';
+    assert.deepEqual(scripts(html), ['real();'], name);
+    assert.deepEqual(scripts('<script>notClosed();</' + name + '>'), [], 'incorrect ending ' + name);
+  }
 });
 
 class Element {
