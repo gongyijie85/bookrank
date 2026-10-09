@@ -21,25 +21,31 @@
     <p class="charts-kicker">NEW ARRIVALS</p>
     <h1 class="page-title" data-i18n="nav_new_books">{{ _('新书速递') }}</h1>
     <p class="charts-source" data-i18n="nb_header_subtitle">{{ _('追踪国际大型出版社最新出版物') }}</p>
-    <p class="page-subtitle">
-        {# 整条句子 + 具名参数：切语言时 applyPageTranslation 按 data-i18n-params-* 重写，
-           不再由「全库收录 / 本新书 / 家出版社」三段各自冻结在 SSR 语言上。 #}
+    <details id="new-books-scope" class="new-books-scope" open>
+        <summary data-zh="详细信息" data-en="Details">{{ _('详细信息') }}</summary>
+        <p class="page-subtitle">
+            {# 整条句子 + 具名参数：切语言时 applyPageTranslation 按 data-i18n-params-* 重写，
+               不再由「全库收录 / 本新书 / 家出版社」三段各自冻结在 SSR 语言上。 #}
 {% if stats_unavailable or stats is none %}
-        <span class="collection-total">{{ _('统计数据暂不可用') }}
-            <a href="{{ request.full_path }}">{{ _('重新加载') }}</a>
-        </span>
+            <span class="collection-total">{{ _('统计数据暂不可用') }}
+                <a href="{{ request.full_path }}">{{ _('重新加载') }}</a>
+            </span>
 {% else %}
-        <span class="collection-total" data-i18n="nb_collection_sources"
-              data-i18n-params-books="{{ stats.total_books }}"
-              data-i18n-params-publishers="{{ stats.active_publishers }}">{{ _('全库收录 %(books)s 本新书 · %(publishers)s 个来源', books=stats.total_books, publishers=stats.active_publishers) }}</span>
+            <span class="collection-total" data-i18n="nb_collection_sources"
+                  data-i18n-params-books="{{ stats.total_books }}"
+                  data-i18n-params-publishers="{{ stats.active_publishers }}">{{ _('全库收录 %(books)s 本新书 · %(publishers)s 个来源', books=stats.total_books, publishers=stats.active_publishers) }}</span>
 {% endif %}
-        <span class="collection-window" data-i18n="nb_window_scope"
-              data-i18n-params-days="{{ selected_days }}"
-              data-i18n-params-preview="{{ future_preview_days }}">{{ _('筛选窗口：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告 + 日期待确认的新发现书目', days=selected_days, preview=future_preview_days) }}</span>
-    </p>
+            <span class="collection-window" data-i18n="nb_window_scope"
+                  data-i18n-params-days="{{ selected_days }}"
+                  data-i18n-params-preview="{{ future_preview_days }}">{{ _('筛选窗口：过去 %(days)s 天已出版 + 未来 %(preview)s 天预告 + 日期待确认的新发现书目', days=selected_days, preview=future_preview_days) }}</span>
+        </p>
+    </details>
 </header>
 
 <form class="filter-bar" role="search" aria-label="{{ _('搜索与筛选') }}" data-i18n-aria-label="nb_filter_bar_label" action="{{ url_for('main.new_books') }}" method="get" id="filter-form">
+    <details id="new-books-advanced-filters" class="new-books-advanced-filters" open>
+        <summary data-zh="高级筛选" data-en="Advanced filters">{{ _('高级筛选') }}</summary>
+        <div class="new-books-advanced-fields">
     <div class="filter-group">
         <label for="publisher-filter"><span data-i18n="nb_filter_source_label">{{ _('来源') }}</span>：</label>
         <select id="publisher-filter" name="publisher" aria-label="{{ _('选择来源') }}" {% if publishers_unavailable %}disabled{% endif %}>
@@ -116,6 +122,8 @@
             <option value="pending" {% if selected_publication_status == 'pending' %}selected{% endif %} data-zh="日期待确认" data-en="Date pending">{{ _('日期待确认') }}</option>
         </select>
     </div>
+        </div>
+    </details>
     <div class="search-box">
         <svg class="icon" width="18" height="18"><use href="#icon-search"/></svg>
         <input type="search" id="search-input" name="search" aria-label="{{ _('搜索新书') }}" data-i18n-aria-label="nb_search_label" data-i18n-placeholder="nb_search_placeholder" placeholder="{{ _('搜索书名或作者...') }}" value="{{ search_query }}">
@@ -1263,5 +1271,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+</script>
+<script nonce="{{ csp_nonce() }}">
+(function initNewBooksResponsiveFilters(){
+    var scope = document.getElementById('new-books-scope');
+    var advanced = document.getElementById('new-books-advanced-filters');
+    if (!scope || !advanced) return;
+    if (typeof window.matchMedia !== 'function') return;
+    var mq = window.matchMedia('(max-width: 768px)');
+    function apply(matches){
+        var open = !matches;
+        if (scope.open !== open) scope.open = open;
+        if (advanced.open !== open) advanced.open = open;
+    }
+    apply(mq.matches);
+    if (typeof mq.addEventListener === 'function'){
+        mq.addEventListener('change', function(e){ apply(e.matches); });
+    } else if (typeof mq.addListener === 'function'){
+        mq.addListener(function(e){ apply(e.matches); });
+    }
+})();
 </script>
 {% endblock %}

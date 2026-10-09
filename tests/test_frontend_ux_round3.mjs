@@ -502,7 +502,7 @@ test('publisher ranking real narrow-card labels switch through its actual langua
   const f=render('rankings.html',{tab:'publishers',category_count:5,cross_entries:[],longevity_entries:[],overlooked_entries:[],publisher_entries:[entry],award_years:[2026],category_names_en:{},update_time:'2026-09-30'},'/rankings?tab=publishers&lang=en','en');
   const values=f.nodes.filter(n=>n.attrs['data-label']);assert.equal(values.length,7);
   const nodes=values.map(n=>{const el=new Element();for(const [k,v] of Object.entries(n.attrs))el.setAttribute(k,v);el.textContent=n.text;return el;});
-  const document={documentElement:{lang:'en'},body:{lang:''},querySelectorAll:s=>s==='[data-label-zh][data-label-en]'?nodes:[]};const window=new Element();window.__APP_LANG__='en';
+  const document=new Element();document.documentElement={lang:'en'};document.body={lang:''};document.querySelector=()=>null;document.querySelectorAll=s=>s==='[data-label-zh][data-label-en]'?nodes:[];const window=new Element();window.__APP_LANG__='en';
   const actual=scripts(f.html).find(s=>s.includes('data-label-zh'));assert.ok(actual,'real label script must exist');vm.runInNewContext(actual,{document,window});
   assert.deepEqual(nodes.map(n=>n.getAttribute('data-label')),['Rank','Publisher','Books on list','Categories covered','Best rank','Total weeks on list','Representative books']);
   window.__APP_LANG__='zh';window.fire('languagechange',{detail:{language:'zh'}});assert.deepEqual(nodes.map(n=>n.getAttribute('data-label')),['排名','厂牌','上榜本数','覆盖分类','最高名次','合计在榜周','代表作']);assert.deepEqual(nodes.map(n=>n.textContent),values.map(n=>n.text));

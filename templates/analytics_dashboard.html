@@ -101,7 +101,7 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title"><span data-zh="用户行为分布（近30天 UserBehavior 事件计数）" data-en="User Behavior Distribution (UserBehavior event count in the last 30 days)">{{ _('用户行为分布（近30天 UserBehavior 事件计数）') }}</span></h5>
+                        <h5 class="card-title"><span data-zh="用户行为分布（近30天事件计数）" data-en="User Behavior Distribution (event count in the last 30 days)">{{ _('用户行为分布（近30天事件计数）') }}</span></h5>
                     </div>
                     <div class="card-body">
                         <div class="chart-container">
@@ -215,7 +215,12 @@ function analyticsText(key) {
       daily: '每日活动数',
       cumulativeWeeklyReportViews: '周报累计阅读量',
       userBehaviorEventDistribution: '用户行为事件分布',
-      dailyUserBehaviorEvents: '每日用户行为事件数'
+      dailyUserBehaviorEvents: '每日用户行为事件数',
+      view_report: '阅读周报',
+      export_report: '导出周报',
+      view_book: '浏览图书',
+      user_activity: '用户活动',
+      other_activity: '其他活动'
     },
     en: {
       loading: 'Loading...',
@@ -227,12 +232,27 @@ function analyticsText(key) {
       daily: 'Daily events',
       cumulativeWeeklyReportViews: 'Cumulative weekly report views',
       userBehaviorEventDistribution: 'User behavior event distribution',
-      dailyUserBehaviorEvents: 'Daily user behavior events'
+      dailyUserBehaviorEvents: 'Daily user behavior events',
+      view_report: 'Read report',
+      export_report: 'Export report',
+      view_book: 'View book',
+      user_activity: 'User activity',
+      other_activity: 'Other activity'
     }
   };
 
   var table = DICT[lang] || DICT.zh;
   return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : key;
+}
+
+function translateEventType(rawType) {
+  if (rawType === 'view_report' || rawType === 'export_report' || rawType === 'view_book') {
+    return analyticsText(rawType);
+  }
+  if (rawType === 'user_activity') {
+    return analyticsText('user_activity');
+  }
+  return analyticsText('other_activity') + ' (' + rawType + ')';
 }
 
 function refreshAnalyticsLanguage() {
@@ -250,6 +270,11 @@ function refreshAnalyticsLanguage() {
   if (typeof dailyChart !== 'undefined' && dailyChart && dailyChart.data && dailyChart.data.datasets && dailyChart.data.datasets[0]) {
     dailyChart.data.datasets[0].label = analyticsText('daily');
     if (typeof dailyChart.update === 'function') { dailyChart.update('none'); }
+  }
+
+  if (typeof behaviorChart !== 'undefined' && behaviorChart && behaviorChart.data && behaviorChart.originalEventTypes) {
+    behaviorChart.data.labels = behaviorChart.originalEventTypes.map(function(t) { return translateEventType(t); });
+    if (typeof behaviorChart.update === 'function') { behaviorChart.update('none'); }
   }
 
   var panels = document.querySelectorAll('.panel-status');
@@ -606,30 +631,72 @@ applyAnalyticsTheme();
                 viewsChart.destroy();
                 viewsChart = null;
             }
-            if (!data || data.length === 0) {
+
+            const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+            const DAY_MS = 86400000;
+
+            function parseDateTs(str) {
+                if (typeof str !== 'string' || !DATE_RE.test(str)) return null;
+                const parts = str.split('-');
+                const y = Number(parts[0]);
+                const m = Number(parts[1]) - 1;
+                const d = Number(parts[2]);
+                const ts = Date.UTC(y, m, d);
+                const check = new Date(ts);
+                if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m || check.getUTCDate() !== d) return null;
+                return ts;
+            }
+
+            function fmtUtc(ts) {
+                const date = new Date(ts);
+                const yy = date.getUTCFullYear();
+                const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const dd = String(date.getUTCDate()).padStart(2, '0');
+                return `${yy}-${mm}-${dd}`;
+            }
+
+            let validData = [];
+            if (data && Array.isArray(data)) {
+                validData = data.reduce((acc, item) => {
+                    if (!item || typeof item !== 'object') return acc;
+                    const ts = parseDateTs(item.date);
+                    if (ts === null) return acc;
+                    const vc = Number(item.view_count);
+                    if (!Number.isFinite(vc)) return acc;
+                    acc.push({ x: ts, y: vc });
+                    return acc;
+                }, []).sort((a, b) => a.x - b.x);
+            }
+
+            if (validData.length === 0) {
                 const ctx = canvas.getContext('2d');
                 viewsChart = new Chart(ctx, {
                     type: 'bar',
-                    data: { labels: [], datasets: [{ label: analyticsText('views'), data: [], backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 }] },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                    data: { datasets: [{ label: analyticsText('views'), data: [], backgroundColor: chartColors.blue, borderColor: chartColors.blueBorder, borderWidth: 1 }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { type: 'linear' },
+                            y: { beginAtZero: true }
+                        }
+                    }
                 });
                 const statusDiv = createPanelStatus('viewsChart');
                 if (statusDiv) {
-            statusDiv.textContent = analyticsText('empty');
-            statusDiv.dataset.statusKind = 'empty';
-        }
+                    statusDiv.textContent = analyticsText('empty');
+                    statusDiv.dataset.statusKind = 'empty';
+                }
                 return;
             }
+
             const ctx = canvas.getContext('2d');
-            const labels = data.map(item => item.date);
-            const values = data.map(item => item.view_count);
             viewsChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
                     datasets: [{
                         label: analyticsText('views'),
-                        data: values,
+                        data: validData,
                         backgroundColor: chartColors.blue,
                         borderColor: chartColors.blueBorder,
                         borderWidth: 1
@@ -639,8 +706,30 @@ applyAnalyticsTheme();
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
+                        x: {
+                            type: 'linear',
+                            ticks: {
+                                stepSize: DAY_MS,
+                                maxTicksLimit: 6,
+                                callback: function(value) {
+                                    return fmtUtc(value);
+                                }
+                            }
+                        },
                         y: {
                             beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    if (tooltipItems.length > 0) {
+                                        return fmtUtc(tooltipItems[0].parsed.x);
+                                    }
+                                    return '';
+                                }
+                            }
                         }
                     }
                 }
@@ -672,7 +761,8 @@ applyAnalyticsTheme();
                 return;
             }
             const ctx = canvas.getContext('2d');
-            const labels = data.map(item => item.event_type);
+            const originalTypes = data.map(item => item.event_type);
+            const labels = originalTypes.map(t => translateEventType(t));
             const values = data.map(item => item.count);
             behaviorChart = new Chart(ctx, {
                 type: 'pie',
@@ -702,6 +792,7 @@ applyAnalyticsTheme();
                     maintainAspectRatio: false
                 }
             });
+            behaviorChart.originalEventTypes = originalTypes;
         }
 
         function renderDailyChart(data) {

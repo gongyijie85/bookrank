@@ -331,6 +331,7 @@ def _send_cached_cover(local_path: str, max_age: int = 604800) -> Response | Non
         return None
     response.headers['Cache-Control'] = f'public, max-age={max_age}'
     response.headers['X-Cover-Source'] = 'cache'
+    response.headers['X-Cover-Path'] = f'/cache/images/{filename}'
     return response
 
 
@@ -390,41 +391,128 @@ def cover_proxy():
 
 @main_bp.route('/award-book/<int:book_id>/cover')
 def award_book_cover(book_id: int):
-    """解析获奖图书封面，缺失时按 ISBN/书名补全并回写。"""
+    """解析获奖图书封面。请求线程只回本地缓存，冷路径回占位图并后台补全。"""
+    from threading import Lock
+
     from ..services.award_book_service import AwardBookService
-    from ..services.award_cover_sync_service import AwardCoverSyncService
 
     book = AwardBookService().get_award_book_by_id(book_id)
     if not book:
         abort(404)
-    sync_service = AwardCoverSyncService(
-        get_google_books_client(),
-        image_cache=get_service('image_cache_service'),
+    source_path = (book.cover_local_path or '').strip()
+    image_cache = get_service('image_cache_service')
+    cached = (
+        _send_cached_cover(source_path, max_age=3600)
+        if image_cache is None or image_cache.is_cached_file_present(source_path)
+        else None
     )
-
-    try:
-        cover_url = sync_service._resolver.resolve(book)
-    except Exception as e:
-        log_error(ErrorCategory.API_CALL, f'获奖图书封面解析失败 book_id={book_id}: {e}', level='warning')
-        cover_url = (book.cover_original_url or '').strip()
-
-    if not cover_url:
-        response = redirect(url_for('static', filename='default-cover.png'), code=302)
-        response.headers['Cache-Control'] = 'no-store'
-        return response
-
-    # 解析成功时通常已是本地缓存文件，直接下发；万一回源失败只剩外链，
-    # 也必须改走同源代理——直接 302 到境外图床在国内同样是占位图。
-    cached = _send_cached_cover(cover_url, max_age=3600)
     if cached is not None:
         return cached
 
-    if cover_url.startswith('/'):
-        response = redirect(cover_url, code=302)
-        response.headers['Cache-Control'] = 'public, max-age=3600'
-        return response
+    def _prefetch_award_cover(app, prefetch_book_id: int) -> None:
+        google_session = None
+        try:
+            with app.app_context():
+                from ..models.database import db
+                from ..services.award_book_service import AwardBookService as WorkerAwardBookService
+                from ..services.award_cover_sync_service import AwardCoverSyncService
+                from ..services.google_books_client import GoogleBooksClient
 
-    return redirect(url_for('main.cover_proxy', src=cover_url), code=302)
+                try:
+                    worker_book = WorkerAwardBookService().get_award_book_by_id(prefetch_book_id)
+                    if worker_book is None:
+                        return
+                    db.session.expunge(worker_book)
+                    db.session.rollback()
+                    db.session.remove()
+
+                    source = get_google_books_client()
+                    google_client = None
+                    if source is not None:
+                        google_client = GoogleBooksClient(
+                            source._api_key,
+                            source._base_url,
+                            source._timeout,
+                            source._cache_ttl,
+                            release_cache_session=True,
+                        )
+                        google_session = google_client._session
+                        shared_cache = source._get_cache_service()
+                        if shared_cache is not None:
+                            google_client._api_cache = shared_cache
+                        google_client._key_validated = source._key_validated
+                        google_client._key_is_valid = source._key_is_valid
+
+                    sync_service = AwardCoverSyncService(
+                        google_client,
+                        image_cache=get_service('image_cache_service'),
+                    )
+                    sync_service._resolver.resolve(worker_book, persist=True, auto_commit=False)
+
+                    current = WorkerAwardBookService().get_award_book_by_id(prefetch_book_id)
+                    if current is None:
+                        return
+                    current.cover_original_url = worker_book.cover_original_url
+                    current.cover_local_path = worker_book.cover_local_path
+                    db.session.commit()
+                except Exception:
+                    log_error(
+                        ErrorCategory.API_CALL,
+                        f'获奖图书封面预取失败 book_id={prefetch_book_id}',
+                        level='warning',
+                    )
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                finally:
+                    try:
+                        db.session.remove()
+                    except Exception:
+                        pass
+        except Exception:
+            log_error(
+                ErrorCategory.API_CALL,
+                f'获奖图书封面预取失败 book_id={prefetch_book_id}',
+                level='warning',
+            )
+        finally:
+            try:
+                if google_session is not None:
+                    google_session.close()
+            except Exception:
+                pass
+            try:
+                prefetch = app.extensions.get('award_cover_prefetch')
+                if prefetch is not None:
+                    with prefetch['lock']:
+                        prefetch['pending'].discard(prefetch_book_id)
+            except Exception:
+                pass
+
+    app = current_app._get_current_object()  # type: ignore[attr-defined]
+    state = app.extensions.setdefault('award_cover_prefetch', {'lock': Lock(), 'pending': set()})
+    queued = False
+    with state['lock']:
+        pending = state['pending']
+        if book_id not in pending and len(pending) < 32:
+            pending.add(book_id)
+            queued = True
+    if queued:
+        try:
+            submit_background_task(_prefetch_award_cover, app, book_id)
+        except Exception:
+            log_error(
+                ErrorCategory.API_CALL,
+                f'获奖图书封面预取提交失败 book_id={book_id}',
+                level='warning',
+            )
+            with state['lock']:
+                state['pending'].discard(book_id)
+
+    response = redirect(url_for('static', filename='default-cover.png'), code=302)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @main_bp.route('/awards')

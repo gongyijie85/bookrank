@@ -36,8 +36,8 @@ test('mobile rendered assets preserve the search CSS version and refresh the ful
     });
     assert.equal(urls.length, 2);
     const expectedVersions = new Map([
-      ['/static/mobile/css/mobile.css', 'mobile-search-320-20261009'],
-      ['/static/mobile/js/mobile.js', 'full-audit-20261009'],
+      ['/static/mobile/css/mobile.css', 'audit-followup-20261009'],
+      ['/static/mobile/js/mobile.js', 'audit-followup-20261009'],
     ]);
     assert.deepEqual(urls.map(url => url.pathname).sort(), [...expectedVersions.keys()].sort());
     for (const url of urls) assert.equal(url.searchParams.get('v'), expectedVersions.get(url.pathname));

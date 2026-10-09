@@ -84,6 +84,16 @@ class TestCachedImage:
 
 
 class TestAwardBookCover:
+    @pytest.fixture(autouse=True)
+    def capture_cover_tasks(self, app, monkeypatch):
+        self.cover_tasks = []
+        app.extensions.pop('award_cover_prefetch', None)
+        monkeypatch.setattr(
+            'app.routes.main.submit_background_task', lambda fn, *args: self.cover_tasks.append((fn, args))
+        )
+        yield
+        app.extensions.pop('award_cover_prefetch', None)
+
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
     @patch('app.routes.main.get_service')
     @patch('app.routes.main.get_google_books_client')
@@ -110,9 +120,11 @@ class TestAwardBookCover:
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
-        # 解析结果仍是外链时不再 302 到境外图床（国内必然失败），改投同源代理
-        assert response.location.startswith('/cover?src=')
-        assert 'example.com' in response.location
+        # 冷缓存请求立即返回占位；来源查询与下载留给后台任务。
+        assert response.location.endswith('/static/default-cover.png')
+        assert response.headers['Cache-Control'] == 'no-store'
+        assert len(self.cover_tasks) == 1
+        mock_sync._resolver.resolve.assert_not_called()
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
     @patch('app.routes.main.get_service')
@@ -120,14 +132,21 @@ class TestAwardBookCover:
     def test_cover_resolved_to_local_cache_is_served_inline(
         self, mock_gbc, mock_ics, MockACSS, client, app, db, tmp_path
     ):
-        """解析结果已落到本地缓存时直接下发字节，省掉一次 302 往返。"""
+        """已持久化且存在本地缓存时直接下发字节，无须解析或排队。"""
         from app.models.schemas import Award, AwardBook
 
         with app.app_context():
             award = Award(name='TestAwardLocal', name_en='Test Award Local')
             db.session.add(award)
             db.session.flush()
-            book = AwardBook(award_id=award.id, year=2024, title='BookL', author='AuthorL', is_displayable=True)
+            book = AwardBook(
+                award_id=award.id,
+                year=2024,
+                title='BookL',
+                author='AuthorL',
+                cover_local_path=f'/cache/images/{"d" * 32}.jpg',
+                is_displayable=True,
+            )
             db.session.add(book)
             db.session.commit()
             book_id = book.id
@@ -151,6 +170,10 @@ class TestAwardBookCover:
         assert response.status_code == 200
         assert response.mimetype == 'image/jpeg'
         assert response.headers['X-Cover-Source'] == 'cache'
+        assert response.headers['X-Cover-Path'] == f'/cache/images/{filename}'
+        assert len(response.data) > 1024
+        assert self.cover_tasks == []
+        MockACSS.assert_not_called()
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
     @patch('app.routes.main.get_service')
@@ -179,7 +202,16 @@ class TestAwardBookCover:
         MockACSS.return_value = mock_sync
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
-        assert 'original.jpg' in response.location
+        assert response.location.endswith('/static/default-cover.png')
+        assert response.headers['Cache-Control'] == 'no-store'
+        assert len(self.cover_tasks) == 1
+        mock_sync._resolver.resolve.assert_not_called()
+        fn, args = self.cover_tasks[0]
+        fn(*args)
+        with app.app_context():
+            assert db.session.get(AwardBook, book_id).cover_original_url == 'https://example.com/original.jpg'
+        client.get(f'/award-book/{book_id}/cover')
+        assert len(self.cover_tasks) == 2
 
     @patch('app.services.award_cover_sync_service.AwardCoverSyncService')
     @patch('app.routes.main.get_service')
@@ -209,6 +241,17 @@ class TestAwardBookCover:
         response = client.get(f'/award-book/{book_id}/cover')
         assert response.status_code == 302
         assert 'no-store' in response.headers.get('Cache-Control', '')
+        assert response.location.endswith('/static/default-cover.png')
+        assert len(self.cover_tasks) == 1
+        mock_sync._resolver.resolve.assert_not_called()
+        fn, args = self.cover_tasks[0]
+        fn(*args)
+        client.get(f'/award-book/{book_id}/cover')
+        assert len(self.cover_tasks) == 2
+
+    def test_missing_award_cover_returns_404_without_tasks(self, client, db):
+        assert client.get('/award-book/999999/cover').status_code == 404
+        assert self.cover_tasks == []
 
 
 class TestAwardsPage:
