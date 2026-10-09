@@ -372,7 +372,7 @@
         if (!raw || typeof raw !== 'string') return null;
         const cleaned = raw.replace(/[\s-]/g, '').toUpperCase();
         if (/^\d{9}[0-9X]$/.test(cleaned)) return cleaned;
-        if (/^\d{13}$/.test(cleaned)) return cleaned;
+        if (/^(978|979)\d{10}$/.test(cleaned)) return cleaned;
         return null;
     }
 

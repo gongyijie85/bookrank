@@ -395,3 +395,90 @@ test('popstate reloads the restored category context without adding a history en
     assert.equal(context.window.location._reloaded, true);
     assert.deepEqual(pushes, []);
 });
+
+// 收藏格式应与现有 API 一致；运行实际函数，避免只匹配源码中的正则文本。
+function favoriteFormatVM(end, isbn, lang = 'zh') {
+    const attributes = new Map([['data-isbn', isbn], ['aria-pressed', 'false']]);
+    const classes = new Set();
+    const button = {
+        dataset: {}, disabled: false, title: '',
+        getAttribute: name => attributes.get(name) ?? null,
+        setAttribute: (name, value) => attributes.set(name, String(value)),
+        removeAttribute: name => attributes.delete(name),
+        classList: {
+            contains: name => classes.has(name),
+            add: name => classes.add(name),
+            remove: name => classes.delete(name),
+        },
+        querySelector: () => null,
+        addEventListener() {},
+    };
+    const file = end === 'desktop' ? '../static/js/base.js' : '../static/mobile/js/mobile.js';
+    const actualSource = readFileSync(new URL(file, import.meta.url), 'utf8');
+    const startMarker = end === 'desktop' ? '// ===== Favorite Functions =====' : '    function normalizeIsbn';
+    const endMarker = end === 'desktop' ? '// ===== Filter Functions =====' : '    function initFavoriteRemove';
+    const start = actualSource.indexOf(startMarker);
+    const stop = actualSource.indexOf(endMarker, start);
+    assert.ok(start >= 0 && stop > start, 'the shipped favorite functions must be present');
+    const api = {}, calls = [];
+    const network = async (url, options = {}) => {
+        calls.push({ url, method: options.method || 'GET' });
+        return { ok: true, json: async () => ({ success: true, data: { favorites: [], total: 0 } }) };
+    };
+    const document = {
+        documentElement: { getAttribute: () => lang },
+        querySelectorAll: selector => selector.includes('favorite') ? [button] : [],
+        querySelector: () => null,
+    };
+    const expose = end === 'desktop'
+        ? 'Object.assign(api, {normalizeIsbn, hydrate: hydrateFavorites, toggle: () => toggleFavorite(button, button.getAttribute("data-isbn"))});'
+        : 'Object.assign(api, {normalizeIsbn, hydrate: initMobileFavorites, toggle: () => toggleMobileFavorite(button)});';
+    vm.runInNewContext(actualSource.slice(start, stop) + '\n' + expose, {
+        api, button, document, fetch: network, csrfFetch: network,
+        window: {}, getCurrentLang: () => lang, showToast() {}, toast() {},
+        setTimeout() {}, clearTimeout() {},
+    });
+    return { api, button, calls };
+}
+
+for (const end of ['desktop', 'mobile']) {
+    test(`${end}: favorite ISBN format preserves existing accepted forms without checksum tightening`, () => {
+        const { api } = favoriteFormatVM(end, '9780306406157');
+        assert.equal(api.normalizeIsbn('978-0-306-40615-7'), '9780306406157');
+        assert.equal(api.normalizeIsbn('979 1234567890'), '9791234567890');
+        assert.equal(api.normalizeIsbn('0-143-12755-x'), '014312755X');
+        assert.equal(api.normalizeIsbn('0316608327'), '0316608327');
+    });
+
+    test(`${end}: favorite ISBN rejects thirteen digits outside the API prefix contract`, () => {
+        const { api } = favoriteFormatVM(end, '1234567890123');
+        for (const invalid of ['1234567890123', '9771234567890', '123-4567890123']) {
+            assert.equal(Boolean(api.normalizeIsbn(invalid)), false, invalid);
+        }
+    });
+
+    for (const lang of ['zh', 'en']) {
+        test(`${end}/${lang}: hydration disables malformed ISBN with a label before the GET resolves`, async () => {
+            const { api, button, calls } = favoriteFormatVM(end, '1234567890123', lang);
+            api.hydrate();
+            assert.equal(button.disabled, true);
+            assert.match(button.getAttribute('aria-label'), lang === 'en' ? /Invalid ISBN|Invalid or missing ISBN/ : /ISBN.*无效/);
+            await new Promise(resolve => setImmediate(resolve));
+            assert.equal(button.disabled, true);
+            api.toggle();
+            await new Promise(resolve => setImmediate(resolve));
+            assert.equal(calls.filter(call => call.method === 'POST' || call.method === 'DELETE').length, 0);
+            assert.equal(button.getAttribute('aria-pressed'), 'false');
+        });
+    }
+
+    test(`${end}: direct repeated clicks on malformed ISBN send no mutations`, async () => {
+        const { api, button, calls } = favoriteFormatVM(end, '1234567890123');
+        api.toggle();
+        api.toggle();
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(calls.filter(call => call.method === 'POST' || call.method === 'DELETE').length, 0);
+        assert.equal(button.disabled, true);
+        assert.equal(button.getAttribute('aria-pressed'), 'false');
+    });
+}

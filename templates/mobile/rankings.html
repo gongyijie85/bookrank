@@ -18,7 +18,7 @@
     {% if entries %}
     <div class="m-book-list">
         {% for entry in entries %}
-        {% set detail_url = url_for('main.book_detail', book_index=entry.source_index, category=entry.source_category, lang=get_locale(), return_to=request.full_path) if entry.source_category else none %}
+        {% set detail_url = url_for('main.book_detail', book_index=entry.source_index, category=entry.source_category, source_isbn=(entry.isbn13 or none), lang=get_locale(), return_to=request.full_path) if entry.source_category else none %}
         <div class="m-card m-book-card">
             <div class="m-book-cover">
                 {% if detail_url %}<a href="{{ detail_url }}" aria-label="{{ _('《') }}{{ entry.title }}{{ _('》封面') }}">{% endif %}
@@ -74,7 +74,7 @@
             {{ _('长销常青榜') }}<span class="m-cat-tab-count">{{ longevity_entries | length }}</span>
         </a>
         <a href="{{ url_for('main.rankings', tab='overlooked', lang=_locale) }}" class="m-cat-tab {% if tab == 'overlooked' %}active{% endif %}">
-            {{ _('遗珠榜') }}<span class="m-cat-tab-count">{{ overlooked_entries | length }}</span>
+            {{ _('遗珠榜') }}{% if rankings_overlooked_loaded | default(true) %}<span class="m-cat-tab-count">{{ overlooked_entries | length }}</span>{% endif %}
         </a>
         <a href="{{ url_for('main.rankings', tab='publishers', lang=_locale) }}" class="m-cat-tab {% if tab == 'publishers' %}active{% endif %}">
             {{ _('厂牌榜') }}<span class="m-cat-tab-count">{{ publisher_entries | length }}</span>

@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -23,6 +24,217 @@ from app.utils.date_helpers import (
     parse_report_content,
     validate_date,
 )
+
+
+@pytest.fixture
+def source_isbn_detail(app, monkeypatch):
+    """真实详情路由与分类服务，仅替换缓存、上游和详情富化边界。"""
+    from app.models.book import Book
+    from app.routes import main
+    from app.services.book_service import BookService
+
+    category = 'hardcover-fiction'
+    monkeypatch.setitem(app.config, 'CATEGORIES', {category: '精装小说'})
+    old_raw = {
+        'title': 'Cached Selected Book A',
+        'author': 'Author A',
+        'publisher': 'Publisher A',
+        'primary_isbn13': '9780306406157',
+        'primary_isbn10': '014312755X',
+        'rank': 1,
+        'rank_last_week': 2,
+        'weeks_on_list': 5,
+    }
+    new_raw = {
+        **old_raw,
+        'title': 'New Ranked Book B',
+        'author': 'Author B',
+        'primary_isbn13': '9781861972712',
+        'primary_isbn10': '1861972717',
+    }
+
+    def cached_row(raw):
+        return Book.from_api_response(raw, category, '精装小说', 'Test List', '2026-10-01', {}).to_dict()
+
+    old_row, new_row = cached_row(old_raw), cached_row(new_raw)
+    cache = MagicMock()
+    cache.get.return_value = None
+    cache.get_stale.return_value = [old_row]
+    cache.get_cache_time.return_value = '2026-10-01 00:00:00'
+    nyt, google, image = MagicMock(), MagicMock(), MagicMock()
+    nyt.fetch_books.return_value = {
+        'results': {'books': [new_raw], 'list_name': 'Test List', 'published_date': '2026-10-08'}
+    }
+    image.get_cached_image_url.return_value = ''
+    service = BookService(nyt, google, cache, image, app=app, categories=app.config['CATEGORIES'])
+    service._language_pack = MagicMock()
+    monkeypatch.setattr(service, '_batch_get_translations', MagicMock(return_value={}))
+    monkeypatch.setattr(service, '_batch_get_supplements', MagicMock(return_value={}))
+    monkeypatch.setattr(service, '_auto_translate_books', MagicMock())
+    monkeypatch.setattr(service, '_notify_data_refreshed', MagicMock())
+    get_books = MagicMock(wraps=service.get_books_by_category)
+    monkeypatch.setattr(service, 'get_books_by_category', get_books)
+    monkeypatch.setattr(main, 'get_service', lambda name: service if name == 'book_service' else None)
+    monkeypatch.setattr(main, 'enrich_book_details', MagicMock())
+    monkeypatch.setattr(main, 'merge_or_translate_book', MagicMock())
+    captured = {}
+
+    def capture(template, **context):
+        captured.update(template=template, **context)
+        return template
+
+    monkeypatch.setattr(main, 'render_adaptive', capture)
+    try:
+        yield {
+            'client': app.test_client(),
+            'service': service,
+            'cache': cache,
+            'nyt': nyt,
+            'get_books': get_books,
+            'captured': captured,
+            'old_row': old_row,
+            'new_row': new_row,
+            'category': category,
+        }
+    finally:
+        service._executor.shutdown(wait=True)
+
+
+class TestBookDetailSourceISBN:
+    @pytest.mark.parametrize(
+        'source_isbn',
+        [
+            '9780306406157',
+            '978-0-306-40615-7',
+            '014312755X',
+            '0 143 12755 x',
+        ],
+    )
+    def test_stale_ranking_identity_never_refreshes_to_another_book(self, source_isbn_detail, source_isbn):
+        fixture = source_isbn_detail
+        response = fixture['client'].get(
+            '/book/0',
+            query_string={
+                'source_isbn': source_isbn,
+                'category': fixture['category'],
+                'return_to': '/rankings?tab=cross&lang=en',
+            },
+        )
+
+        assert response.status_code == 200
+        assert fixture['captured']['book']['title'] == 'Cached Selected Book A'
+        assert fixture['captured']['back_url'] == '/rankings?tab=cross&lang=en'
+        fixture['get_books'].assert_called_once_with(fixture['category'], cached_only=True, report_failures=True)
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    @pytest.mark.parametrize('old_index', [0, 999])
+    def test_reordered_cache_locates_the_isbn_and_updates_actual_index(self, source_isbn_detail, old_index):
+        fixture = source_isbn_detail
+        fixture['cache'].get.return_value = [fixture['new_row'], fixture['old_row']]
+        response = fixture['client'].get(f'/book/{old_index}', query_string={'source_isbn': '9780306406157'})
+
+        assert response.status_code == 200
+        assert fixture['captured']['book']['title'] == 'Cached Selected Book A'
+        assert fixture['captured']['book_index'] == 1
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'field, cached_isbn, source_isbn',
+        [
+            ('isbn13', '978-0-306-40615-7', '9780306406157'),
+            ('isbn10', '0 143 12755 x', '014312755X'),
+        ],
+    )
+    def test_cached_isbn_formatting_preserves_exact_identity(self, source_isbn_detail, field, cached_isbn, source_isbn):
+        fixture = source_isbn_detail
+        fixture['cache'].get.return_value = [fixture['new_row'], dict(fixture['old_row'], **{field: cached_isbn})]
+        response = fixture['client'].get('/book/0', query_string={'source_isbn': source_isbn})
+
+        assert response.status_code == 200
+        assert fixture['captured']['book']['title'] == 'Cached Selected Book A'
+        assert fixture['captured']['book_index'] == 1
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    def test_removed_isbn_is_404_and_never_falls_back_to_old_index(self, source_isbn_detail):
+        fixture = source_isbn_detail
+        fixture['cache'].get.return_value = [fixture['new_row']]
+        response = fixture['client'].get(
+            '/book/0',
+            query_string={
+                'source_isbn': '9780306406157',
+                'return_to': '/rankings?tab=longevity&lang=zh',
+            },
+        )
+
+        assert response.status_code == 404
+        assert fixture['captured']['template'] == 'error.html'
+        assert 'book' not in fixture['captured']
+        assert fixture['captured']['back_url'] == '/rankings?tab=longevity&lang=zh'
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    @pytest.mark.parametrize('cache_state', ['fresh', 'stale'])
+    def test_cached_empty_is_404_without_remote_filling(self, source_isbn_detail, cache_state):
+        fixture = source_isbn_detail
+        fixture['cache'].get.return_value = [] if cache_state == 'fresh' else None
+        fixture['cache'].get_stale.return_value = []
+        response = fixture['client'].get('/book/0', query_string={'source_isbn': '9780306406157'})
+
+        assert response.status_code == 404
+        assert fixture['captured']['template'] == 'error.html'
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    @pytest.mark.parametrize('source_isbn', ['', ' ', 'not-an-isbn', '1234567890123', '9780306406157<script>'])
+    def test_present_invalid_isbn_is_404_before_category_lookup(self, source_isbn_detail, source_isbn):
+        fixture = source_isbn_detail
+        response = fixture['client'].get(
+            '/book/0',
+            query_string={
+                'source_isbn': source_isbn,
+                'return_to': '/rankings?tab=cross&lang=en',
+            },
+        )
+
+        assert response.status_code == 404
+        assert fixture['captured']['template'] == 'error.html'
+        assert fixture['captured']['back_url'] == '/rankings?tab=cross&lang=en'
+        assert 'book' not in fixture['captured']
+        fixture['get_books'].assert_not_called()
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    @pytest.mark.parametrize('mode', ['missing', 'cache_error'])
+    def test_cache_failure_retains_500_feedback_instead_of_filling_remote(self, source_isbn_detail, mode):
+        from app.utils.exceptions import APIException
+
+        fixture = source_isbn_detail
+        if mode == 'missing':
+            fixture['cache'].get_stale.return_value = None
+        else:
+            fixture['cache'].get.side_effect = APIException('Synthetic cache failure')
+        response = fixture['client'].get(
+            '/book/0',
+            query_string={
+                'source_isbn': '9780306406157',
+                'return_to': '/rankings?tab=cross',
+            },
+        )
+
+        assert response.status_code == 500
+        assert fixture['captured']['template'] == 'error.html'
+        assert fixture['captured']['message'] == '榜单暂时无法加载，请稍后再试'
+        assert fixture['captured']['back_url'] == '/rankings?tab=cross'
+        fixture['get_books'].assert_called_once_with(fixture['category'], cached_only=True, report_failures=True)
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    def test_legacy_index_link_preserves_default_refresh_and_safe_return(self, source_isbn_detail):
+        fixture = source_isbn_detail
+        response = fixture['client'].get('/book/0', query_string={'return_to': 'https://outside.example/rankings'})
+
+        assert response.status_code == 200
+        assert fixture['captured']['book']['title'] == 'New Ranked Book B'
+        assert fixture['captured']['book_index'] == 0
+        assert fixture['captured']['back_url'] == '/'
+        fixture['get_books'].assert_called_once_with(fixture['category'])
+        fixture['nyt'].fetch_books.assert_called_once_with(fixture['category'], force_refresh=False)
 
 
 class TestIsValidISBN:

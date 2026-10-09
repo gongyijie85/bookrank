@@ -73,7 +73,7 @@ for (const locale of ['en', 'zh']) {
     assert.equal(action.attrs.type, 'submit'); assert.equal(action.text.trim(), locale === 'en' ? 'Search' : '搜索');
   });
 
-  test(`rendered mobile CSS and JS cache keys advance together for this search repair (${locale})`, () => {
+  test(`rendered mobile CSS keeps its search version and JS refreshes its full-audit version (${locale})`, () => {
     const result = render('mobile/index.html', homepage, locale);
     const urls = result.nodes.flatMap(node => {
       const value = node.tag === 'link' ? node.attrs.href : node.tag === 'script' ? node.attrs.src : null;
@@ -82,7 +82,12 @@ for (const locale of ['en', 'zh']) {
       return ['/static/mobile/css/mobile.css', '/static/mobile/js/mobile.js'].includes(url.pathname) ? [url] : [];
     });
     assert.equal(urls.length, 2);
-    for (const url of urls) assert.equal(url.searchParams.get('v'), 'mobile-search-320-20261009');
+    const expectedVersions = new Map([
+      ['/static/mobile/css/mobile.css', 'mobile-search-320-20261009'],
+      ['/static/mobile/js/mobile.js', 'full-audit-20261009'],
+    ]);
+    assert.deepEqual(urls.map(url => url.pathname).sort(), [...expectedVersions.keys()].sort());
+    for (const url of urls) assert.equal(url.searchParams.get('v'), expectedVersions.get(url.pathname));
   });
 
   for (const reportDate of ['2026-10-08', '2026-10-11']) {

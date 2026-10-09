@@ -10,7 +10,7 @@
     {% if entries %}
     <ol class="cross-list">
         {% for entry in entries %}
-        {% set detail_url = url_for('main.book_detail', book_index=entry.source_index, category=entry.source_category, lang=get_locale(), return_to=request.full_path) if entry.source_category else none %}
+        {% set detail_url = url_for('main.book_detail', book_index=entry.source_index, category=entry.source_category, source_isbn=(entry.isbn13 or none), lang=get_locale(), return_to=request.full_path) if entry.source_category else none %}
         <li class="cross-item">
             <span class="cross-rank">{{ loop.index }}</span>
             {% if detail_url %}
@@ -157,7 +157,7 @@
     </a>
     <a href="{{ url_for('main.rankings', tab='overlooked', lang=_locale) }}" {% if tab == 'overlooked' %}aria-current="page"{% endif %}>
         <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
-        {{ _('遗珠榜') }}<span class="rankings-tab-count">{{ overlooked_entries | length }}</span>
+        {{ _('遗珠榜') }}{% if rankings_overlooked_loaded | default(true) %}<span class="rankings-tab-count">{{ overlooked_entries | length }}</span>{% endif %}
     </a>
     <a href="{{ url_for('main.rankings', tab='publishers', lang=_locale) }}" {% if tab == 'publishers' %}aria-current="page"{% endif %}>
         <svg class="icon" width="14" height="14"><use href="#icon-building"/></svg>

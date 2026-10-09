@@ -101,6 +101,66 @@ class TestBookService:
 
         book_service._nyt_client.fetch_books.assert_called_once_with('hardcover-fiction', force_refresh=True)
 
+    @pytest.mark.parametrize('cache_state', ['fresh', 'stale'])
+    @pytest.mark.parametrize('empty', [False, True])
+    @pytest.mark.parametrize('force_refresh', [False, True])
+    def test_cached_only_reads_existing_cache_without_refresh_work(
+        self, book_service, mock_books_data, cache_state, empty, force_refresh
+    ):
+        """派生榜请求直接读缓存；真实空榜也不触发远端补全。"""
+        rows = [] if empty else mock_books_data[:1]
+        book_service._cache.get.return_value = rows if cache_state == 'fresh' else None
+        book_service._cache.get_stale.return_value = rows
+        with (
+            patch.object(book_service, '_process_api_response') as process,
+            patch.object(book_service, '_auto_translate_books') as translate,
+            patch.object(book_service, '_notify_data_refreshed') as notify,
+        ):
+            books = book_service.get_books_by_category(
+                'hardcover-fiction', cached_only=True, force_refresh=force_refresh
+            )
+
+        assert [book.title for book in books] == ([] if empty else [rows[0]['title']])
+        book_service._nyt_client.fetch_books.assert_not_called()
+        book_service._google_client.fetch_book_details.assert_not_called()
+        book_service._cache.set.assert_not_called()
+        process.assert_not_called()
+        translate.assert_not_called()
+        notify.assert_not_called()
+        if cache_state == 'fresh':
+            book_service._cache.get_stale.assert_not_called()
+        else:
+            book_service._cache.get_stale.assert_called_once_with('books_hardcover-fiction')
+
+    @pytest.mark.parametrize('force_refresh', [False, True])
+    def test_cached_only_missing_cache_reports_unavailable_without_remote_work(self, book_service, force_refresh):
+        """缺失缓存须显式失败，不能伪装成已成功查出的零本。"""
+        book_service._cache.get.return_value = None
+        book_service._cache.get_stale.return_value = None
+
+        with (
+            patch.object(book_service, '_auto_translate_books') as translate,
+            patch.object(book_service, '_notify_data_refreshed') as notify,
+            pytest.raises(APIException),
+        ):
+            book_service.get_books_by_category('hardcover-fiction', cached_only=True, force_refresh=force_refresh)
+
+        book_service._nyt_client.fetch_books.assert_not_called()
+        book_service._google_client.fetch_book_details.assert_not_called()
+        book_service._cache.set.assert_not_called()
+        translate.assert_not_called()
+        notify.assert_not_called()
+
+    def test_explicit_cached_only_false_preserves_network_refresh(self, book_service):
+        books = book_service.get_books_by_category(
+            'hardcover-fiction', cached_only=False, auto_translate=False, notify_refresh=False
+        )
+
+        assert len(books) == 1
+        book_service._nyt_client.fetch_books.assert_called_once_with('hardcover-fiction', force_refresh=False)
+        book_service._google_client.fetch_book_details.assert_called_once_with('9780143127550')
+        book_service._cache.set.assert_called_once()
+
     def test_batch_get_supplements_keeps_app_context_in_workers(self, book_service, app):
         """Google Books 并发请求应在 Flask 应用上下文中执行。"""
         book_service._app = app

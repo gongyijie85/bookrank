@@ -1,5 +1,11 @@
 """派生榜单服务测试：跨榜现象级 / 长销常青榜 / 厂牌榜 / 遗珠榜"""
 
+from unittest.mock import Mock, patch
+
+import pytest
+
+from app.routes import main
+from app.services.book_service import BookService
 from app.services.derived_lists_service import (
     COVER_PLACEHOLDER,
     build_cross_list_entries,
@@ -9,6 +15,118 @@ from app.services.derived_lists_service import (
     normalize_publisher,
 )
 from app.utils.book_keys import book_match_key, normalize_text
+from app.utils.exceptions import APIException
+
+
+@pytest.fixture
+def cached_ranking_service(app, monkeypatch, mock_books_data):
+    """执行真实路由与 BookService，仅替换缓存和远端边界。"""
+    categories = {'hardcover-fiction': '精装小说', 'hardcover-nonfiction': '精装非虚构'}
+    monkeypatch.setitem(app.config, 'CATEGORIES', categories)
+    cache = Mock()
+    rows = {f'books_{category}': [dict(mock_books_data[0], category_id=category)] for category in categories}
+    cache.get.side_effect = rows.get
+    cache.get_stale.return_value = None
+    cache.get_cache_time.return_value = '2026-10-08 00:00:00'
+    nyt = Mock()
+    nyt.fetch_books.side_effect = APIException('Synthetic remote must not run on rankings')
+    service = BookService(nyt, Mock(), cache, Mock(), app=app, categories=categories)
+    service._language_pack = Mock()
+    monkeypatch.setattr(main, 'get_service', lambda name: service if name == 'book_service' else None)
+    try:
+        yield service, rows
+    finally:
+        service._executor.shutdown(wait=True)
+
+
+class TestRankingsCachedRequest:
+    @pytest.mark.parametrize('tab', ['cross', 'longevity', 'publishers', 'overlooked', 'invalid'])
+    def test_rankings_requests_only_cached_categories(self, app, cached_ranking_service, tab):
+        service, _rows = cached_ranking_service
+        with (
+            patch.object(service, 'get_books_by_category', wraps=service.get_books_by_category) as get_books,
+            patch('app.services.award_book_service.AwardBookService') as award_service,
+            patch.object(main, 'render_adaptive', side_effect=lambda template, **context: context),
+            app.test_request_context(f'/rankings?tab={tab}'),
+        ):
+            award_service.return_value.get_award_books.return_value = ([], 0)
+            context = main.rankings()
+
+        assert get_books.call_count == len(app.config['CATEGORIES'])
+        assert all(call.kwargs.get('cached_only') is True for call in get_books.call_args_list)
+        service._nyt_client.fetch_books.assert_not_called()
+        service._google_client.fetch_book_details.assert_not_called()
+        assert context['rankings_nyt_unavailable_count'] == 0
+        assert context['tab'] == ('cross' if tab == 'invalid' else tab)
+
+    @pytest.mark.parametrize('tab', ['cross', 'longevity', 'publishers', 'invalid'])
+    def test_non_overlooked_tab_does_not_query_awards_or_claim_loaded_count(self, app, cached_ranking_service, tab):
+        with (
+            patch('app.services.award_book_service.AwardBookService') as award_service,
+            patch.object(main, 'render_adaptive', side_effect=lambda template, **context: context),
+            app.test_request_context(f'/rankings?tab={tab}'),
+        ):
+            award_service.return_value.get_award_books.return_value = ([], 0)
+            context = main.rankings()
+
+        award_service.assert_not_called()
+        assert context['rankings_overlooked_loaded'] is False
+        assert context['overlooked_entries'] == []
+
+    def test_overlooked_tab_keeps_bounded_award_queries_and_marks_loaded(self, app, cached_ranking_service):
+        with (
+            patch('app.services.award_book_service.AwardBookService') as award_service,
+            patch.object(main, 'render_adaptive', side_effect=lambda template, **context: context),
+            app.test_request_context('/rankings?tab=overlooked'),
+        ):
+            award_service.return_value.get_award_books.return_value = ([], 0)
+            context = main.rankings()
+
+        calls = award_service.return_value.get_award_books.call_args_list
+        assert len(calls) == main.OVERLOOKED_YEAR_SPAN
+        assert {call.kwargs['year'] for call in calls} == set(context['award_years'])
+        assert all(call.kwargs['page'] == 1 for call in calls)
+        assert all(call.kwargs['limit'] == main.OVERLOOKED_AWARD_BOOKS_PER_YEAR for call in calls)
+        assert context['rankings_overlooked_loaded'] is True
+
+    @pytest.mark.parametrize('cache_state', ['stale', 'missing', 'empty'])
+    def test_rankings_distinguishes_missing_cache_from_cached_empty(self, app, cached_ranking_service, cache_state):
+        service, rows = cached_ranking_service
+        category = next(iter(app.config['CATEGORIES']))
+        first_key = f'books_{category}'
+        cached_rows = rows[first_key]
+        if cache_state == 'empty':
+            rows[first_key] = []
+        else:
+            rows.pop(first_key)
+        if cache_state == 'stale':
+            service._cache.get_stale.side_effect = lambda key: cached_rows if key == first_key else None
+
+        with (
+            patch('app.services.award_book_service.AwardBookService') as award_service,
+            patch.object(main, 'render_adaptive', side_effect=lambda template, **context: context),
+            app.test_request_context('/rankings?tab=cross'),
+        ):
+            award_service.return_value.get_award_books.return_value = ([], 0)
+            context = main.rankings()
+
+        service._nyt_client.fetch_books.assert_not_called()
+        service._google_client.fetch_book_details.assert_not_called()
+        assert context['rankings_nyt_unavailable_count'] == (1 if cache_state == 'missing' else 0)
+
+    def test_search_all_categories_preserves_default_network_behavior(self, app, cached_ranking_service):
+        service, rows = cached_ranking_service
+        rows.clear()
+        with (
+            patch.object(service, 'get_books_by_category', wraps=service.get_books_by_category) as get_books,
+            app.test_request_context('/?search=rain'),
+        ):
+            _books, unavailable = main._search_all_categories('rain', app.config['CATEGORIES'])
+
+        assert get_books.call_count == len(app.config['CATEGORIES'])
+        assert all(not call.kwargs.get('cached_only', False) for call in get_books.call_args_list)
+        assert service._nyt_client.fetch_books.call_count == len(app.config['CATEGORIES'])
+        assert unavailable == list(app.config['CATEGORIES'])
 
 
 def _book(title: str, author: str, **overrides):

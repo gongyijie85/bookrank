@@ -25,7 +25,7 @@ const newList = books => ({ books, stats: {}, publishers: [], categories: [], se
 const weeklyBook = { title: 'The Complete Original Book Title: A Very Important Subtitle', title_zh: '译名简称', author: 'Writer', category: '精装小说', cover: '/cache/images/actual.jpg', rank: 2, rank_change: 3, weeks_on_list: 12, is_new: false };
 const weeklyContent = { title_display: 'Weekly Bestseller Report', top_changes: [weeklyBook], new_books: [weeklyBook], top_risers: [weeklyBook], longest_running: [weeklyBook], featured_books: [weeklyBook], category_stats: {}, total_books: 10 };
 
-test('mobile rendered cache version refreshes the shared CSS and JS together in both locales', () => {
+test('mobile rendered assets preserve the search CSS version and refresh the full-audit JS version in both locales', () => {
   for (const locale of ['en', 'zh']) {
     const result = render('mobile/new_books.html', newList([]), locale);
     const urls = result.nodes.flatMap(node => {
@@ -35,7 +35,12 @@ test('mobile rendered cache version refreshes the shared CSS and JS together in 
       return ['/static/mobile/css/mobile.css', '/static/mobile/js/mobile.js'].includes(url.pathname) ? [url] : [];
     });
     assert.equal(urls.length, 2);
-    for (const url of urls) assert.equal(url.searchParams.get('v'), 'mobile-search-320-20261009');
+    const expectedVersions = new Map([
+      ['/static/mobile/css/mobile.css', 'mobile-search-320-20261009'],
+      ['/static/mobile/js/mobile.js', 'full-audit-20261009'],
+    ]);
+    assert.deepEqual(urls.map(url => url.pathname).sort(), [...expectedVersions.keys()].sort());
+    for (const url of urls) assert.equal(url.searchParams.get('v'), expectedVersions.get(url.pathname));
   }
 });
 
