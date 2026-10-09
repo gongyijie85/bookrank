@@ -259,6 +259,12 @@
         const dropdown = document.getElementById('m-lang-dropdown');
         if (!globe || !dropdown) return;
 
+        function closeDropdown(returnFocus) {
+            dropdown.classList.remove('open');
+            globe.setAttribute('aria-expanded', 'false');
+            if (returnFocus) globe.focus();
+        }
+
         // 点击地球按钮：切换下拉
         globe.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -266,21 +272,68 @@
             globe.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         });
 
+        // 键盘支持：Escape 关闭并回焦，ArrowDown/Up 在 trigger 上打开并聚焦首/尾项
+        globe.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                closeDropdown(true);
+                return;
+            }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!dropdown.classList.contains('open')) {
+                    dropdown.classList.add('open');
+                    globe.setAttribute('aria-expanded', 'true');
+                }
+                const items = dropdown.querySelectorAll('button[data-lang]');
+                if (items.length) {
+                    items[e.key === 'ArrowDown' ? 0 : items.length - 1].focus();
+                }
+            }
+        });
+
+        // 菜单内键盘导航：循环 + Home/End
+        dropdown.addEventListener('keydown', function (e) {
+            const items = Array.from(dropdown.querySelectorAll('button[data-lang]'));
+            if (!items.length) return;
+            const idx = items.indexOf(document.activeElement);
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                items[(idx + 1) % items.length].focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                items[(idx - 1 + items.length) % items.length].focus();
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                items[0].focus();
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                items[items.length - 1].focus();
+            } else if (e.key === 'Escape') {
+                closeDropdown(true);
+            }
+        });
+
+        // 焦点移出 trigger/menu 时自动关闭（非 Escape 场景不抢回焦点）
+        document.addEventListener('focusin', function (e) {
+            if (!dropdown.classList.contains('open')) return;
+            if (!dropdown.contains(e.target) && e.target !== globe) {
+                closeDropdown(false);
+            }
+        });
+
         // 点击下拉项：切换语言
         dropdown.querySelectorAll('button[data-lang]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const lang = btn.getAttribute('data-lang') || 'zh';
                 switchLanguage(lang);
-                dropdown.classList.remove('open');
-                globe.setAttribute('aria-expanded', 'false');
+                closeDropdown(false);
             });
         });
 
         // 点击页面其他位置：关闭下拉
         document.addEventListener('click', function (e) {
             if (!dropdown.contains(e.target) && e.target !== globe) {
-                dropdown.classList.remove('open');
-                globe.setAttribute('aria-expanded', 'false');
+                closeDropdown(false);
             }
         });
 

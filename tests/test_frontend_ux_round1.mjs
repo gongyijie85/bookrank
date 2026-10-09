@@ -643,7 +643,7 @@ function analyticsFixture() {
   return { nodes, document, start: () => ready(), tableCard };
 }
 function analyticPayload(url, empty = false) {
-  if (url.includes('report-views')) return { success: true, data: { total_views: empty ? 0 : 42, average_views: empty ? 0 : 21, view_stats: empty ? [] : [{ date: 'd', view_count: 42 }] } };
+  if (url.includes('report-views')) return { success: true, data: { total_views: empty ? 0 : 42, average_views: empty ? 0 : 21, view_stats: empty ? [] : [{ date: '2026-09-30', view_count: 42 }] } };
   if (url.includes('user-behavior')) return { success: true, data: { total_behaviors: empty ? 0 : 5, behavior_stats: empty ? [] : [{ event_type: 'click', count: 5 }] } };
   if (url.includes('daily-stats')) return { success: true, data: { daily_stats: empty ? [] : [{ date: 'd', count: 2 }] } };
   if (url.includes('top-reports')) return { success: true, data: empty ? [] : [{ date: '2026-09-30', title: '<img src=x onerror=alert(1)>', view_count: 7 }] };

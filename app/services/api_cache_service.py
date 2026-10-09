@@ -64,49 +64,58 @@ class APICacheService:
         combined = f'{api_source}:{request_key}'
         return hashlib.sha256(combined.encode('utf-8')).hexdigest()
 
-    def get(self, api_source: str, request_key: str) -> dict | None:
+    def get(self, api_source: str, request_key: str, release_session: bool = False) -> dict | None:
         """
         从缓存获取API响应（先查内存 LRU，再查数据库）
 
         Returns:
             缓存的响应数据或None
         """
-        request_hash = self._compute_hash(api_source, request_key)
-        cache_key = f'{api_source}:{request_hash}'
 
-        # 1. 内存 LRU 快速路径
-        mem_data = self._mem_get(cache_key)
-        if mem_data is not None:
-            return cast('dict | None', mem_data)
+        def _read() -> dict | None:
+            request_hash = self._compute_hash(api_source, request_key)
+            cache_key = f'{api_source}:{request_hash}'
 
-        # 2. 数据库慢路径
-        cache = APICache.query.filter_by(api_source=api_source, request_hash=request_hash).first()
+            # 1. 内存 LRU 快速路径
+            mem_data = self._mem_get(cache_key)
+            if mem_data is not None:
+                return cast('dict | None', mem_data)
 
-        if cache:
-            if cache.is_expired():
-                logger.debug(f'缓存已过期: {api_source} - {request_key}')
-                return None
+            # 2. 数据库慢路径
+            cache = APICache.query.filter_by(api_source=api_source, request_hash=request_hash).first()
 
-            if cache.status_code and cache.status_code >= 400:
-                logger.warning(f'忽略错误API缓存: {api_source} - {request_key} ({cache.status_code})')
-                return None
+            if cache:
+                if cache.is_expired():
+                    logger.debug(f'缓存已过期: {api_source} - {request_key}')
+                    return None
 
-            logger.info(f'API缓存命中: {api_source} - {request_key}')
+                if cache.status_code and cache.status_code >= 400:
+                    logger.warning(f'忽略错误API缓存: {api_source} - {request_key} ({cache.status_code})')
+                    return None
 
-            try:
-                data = json.loads(cache.response_data)
-            except json.JSONDecodeError:
-                data = {'error': cache.response_data}
+                logger.info(f'API缓存命中: {api_source} - {request_key}')
 
-            # 回填内存缓存
-            remaining = int((cache.expires_at.replace(tzinfo=UTC) - datetime.now(UTC)).total_seconds())
-            if remaining > 0:
-                self._mem_set(cache_key, data, remaining)
+                try:
+                    data = json.loads(cache.response_data)
+                except json.JSONDecodeError:
+                    data = {'error': cache.response_data}
 
-            return cast('dict | None', data)
+                # 回填内存缓存
+                remaining = int((cache.expires_at.replace(tzinfo=UTC) - datetime.now(UTC)).total_seconds())
+                if remaining > 0:
+                    self._mem_set(cache_key, data, remaining)
 
-        logger.debug(f'API缓存未命中: {api_source} - {request_key}')
-        return None
+                return cast('dict | None', data)
+
+            logger.debug(f'API缓存未命中: {api_source} - {request_key}')
+            return None
+
+        if not release_session:
+            return _read()
+        try:
+            return _read()
+        finally:
+            db.session.remove()
 
     def set(
         self,

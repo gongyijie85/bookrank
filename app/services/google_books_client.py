@@ -27,11 +27,19 @@ class GoogleBooksClient:
     #: 退避窗口内的上游请求数从「每 ISBN 若干次」降到 0。
     _QUOTA_BLOCKED_KEY = '__quota_blocked__'
 
-    def __init__(self, api_key: str | None, base_url: str, timeout: int = 8, cache_ttl: int | None = None):
+    def __init__(
+        self,
+        api_key: str | None,
+        base_url: str,
+        timeout: int = 8,
+        cache_ttl: int | None = None,
+        release_cache_session: bool = False,
+    ):
         self._api_key = api_key
         self._base_url = base_url
         self._timeout = timeout
         self._cache_ttl = cache_ttl if cache_ttl is not None else self.DEFAULT_CACHE_TTL
+        self._release_cache_session = release_cache_session
         self._session = create_session_with_retry(max_retries=2)
         self._api_cache = None
         self._key_validated = False
@@ -42,13 +50,18 @@ class GoogleBooksClient:
             self._api_cache = _get_api_cache_service()
         return self._api_cache
 
+    def _read_cache(self, cache_service, key):
+        if self._release_cache_session:
+            return cache_service.get('google_books', key, release_session=True)
+        return cache_service.get('google_books', key)
+
     def _quota_backoff_active(self) -> bool:
         """配额是否处于退避窗口内（窗口内不再打上游）。"""
         cache = self._get_cache_service()
         if not cache:
             return False
         try:
-            return bool(cache.get('google_books', self._QUOTA_BLOCKED_KEY))
+            return bool(self._read_cache(cache, self._QUOTA_BLOCKED_KEY))
         except Exception as e:
             # 缓存读异常不该阻断主流程，也不能把「读不到标记」当成「正在退避」。
             log_error(ErrorCategory.CACHE, f'读取 Google Books 配额退避标记失败: {e}', level='warning')
@@ -112,6 +125,10 @@ class GoogleBooksClient:
         if not isbn:
             return {}
 
+        if self._release_cache_session and self._quota_backoff_active():
+            logger.info('Google Books 处于配额退避窗口，跳过请求: ISBN %s', isbn)
+            return {}
+
         self._validate_api_key()
 
         # 配额退避窗口内直接返回：不打上游，避免把 1000 次/天的配额持续烧穿。
@@ -123,7 +140,7 @@ class GoogleBooksClient:
         cache_key = f'isbn_{isbn}'
 
         if cache_service:
-            cached = cache_service.get('google_books', cache_key)
+            cached = self._read_cache(cache_service, cache_key)
             if cached:
                 logger.info('返回Google Books缓存数据: ISBN %s', isbn)
                 return cast('dict[str, Any]', cached)
@@ -180,6 +197,10 @@ class GoogleBooksClient:
         if not title:
             return {}
 
+        if self._release_cache_session and self._quota_backoff_active():
+            logger.info('Google Books 处于配额退避窗口，跳过标题搜索: %s', title)
+            return {}
+
         self._validate_api_key()
 
         # 配额退避窗口内直接返回：不打上游（见 DEFAULT_QUOTA_BACKOFF_TTL 的说明）。
@@ -191,7 +212,7 @@ class GoogleBooksClient:
         cache_service = self._get_cache_service()
 
         if cache_service:
-            cached = cache_service.get('google_books', cache_key)
+            cached = self._read_cache(cache_service, cache_key)
             if cached:
                 logger.info("返回Google Books缓存搜索结果: '%s'", title)
                 return cast('dict[str, Any]', cached)

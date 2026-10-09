@@ -146,7 +146,7 @@
     </p>
 </header>
 
-<nav class="charts-sections rankings-tabs" aria-label="{{ _('榜单切换') }}">
+<nav class="charts-sections rankings-tabs" data-rendered-lang="{{ _locale }}" aria-label="{{ _('榜单切换') }}">
     <a href="{{ url_for('main.rankings', tab='cross', lang=_locale) }}" {% if tab == 'cross' %}aria-current="page"{% endif %}>
         <svg class="icon" width="14" height="14"><use href="#icon-fire"/></svg>
         {{ _('跨榜现象级') }}<span class="rankings-tab-count">{{ cross_entries | length }}</span>
@@ -319,12 +319,76 @@
     return '';
   }
 
+  var renderedLang = (function () {
+    var navEl = document.querySelector('.rankings-tabs[data-rendered-lang]');
+    var raw = navEl ? navEl.getAttribute('data-rendered-lang') : '';
+    var norm = (raw || '').trim().toLowerCase();
+    return (norm === 'zh' || norm === 'en') ? norm : null;
+  })();
+
+  window.addEventListener('languagechange', function (e) {
+    if (!renderedLang) {
+      applyLang((e && e.detail && e.detail.language) || currentLang());
+      return;
+    }
+    var detail = (e && e.detail && typeof e.detail.language === 'string')
+      ? e.detail.language.trim().toLowerCase()
+      : null;
+    if (detail !== 'zh' && detail !== 'en') {
+      applyLang(currentLang());
+      return;
+    }
+    if (detail === renderedLang) {
+      applyLang(detail);
+      return;
+    }
+    try {
+      var updated = new URL(window.location.href);
+      updated.searchParams.set('lang', detail);
+      window.location.replace(updated.toString());
+    } catch (err) {
+      applyLang(detail);
+    }
+  });
+
+  function revealSelectedLink() {
+    var nav = document.querySelector('.rankings-tabs');
+    if (!nav) return;
+    var selected = nav.querySelector('a[aria-current="page"]');
+    if (!selected) return;
+    var navRect = nav.getBoundingClientRect();
+    var linkRect = selected.getBoundingClientRect();
+    if (linkRect.left < navRect.left) {
+      nav.scrollLeft -= (navRect.left - linkRect.left + 4);
+    } else if (linkRect.right > navRect.right) {
+      nav.scrollLeft += (linkRect.right - navRect.right + 4);
+    }
+  }
+
+  function revealFocusedLink(e) {
+    var nav = document.querySelector('.rankings-tabs');
+    if (!nav || !e.target || !nav.contains(e.target)) return;
+    var a = e.target.closest ? e.target.closest('a') : null;
+    if (!a || !nav.contains(a)) return;
+    var navRect = nav.getBoundingClientRect();
+    var linkRect = a.getBoundingClientRect();
+    if (linkRect.left < navRect.left) {
+      nav.scrollLeft -= (navRect.left - linkRect.left + 4);
+    } else if (linkRect.right > navRect.right) {
+      nav.scrollLeft += (linkRect.right - navRect.right + 4);
+    }
+  }
+
+  window.addEventListener('resize', revealSelectedLink);
   window.addEventListener('languagechange', function (e) {
     var lang = (e && e.detail && e.detail.language) || currentLang();
     applyLang(lang);
+    revealSelectedLink();
   });
+  document.addEventListener('focusin', revealFocusedLink);
 
   applyLang(currentLang());
+  revealSelectedLink();
 })();
 </script>
 {% endblock %}

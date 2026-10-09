@@ -944,3 +944,126 @@
 .new-books-page .book-tag.tag-category.tag-muted {
     opacity: 1;
 }
+
+/* Round4 responsive filter form + cover (mobile) */
+.charts-page.new-books-page details#new-books-scope,
+.charts-page.new-books-page details#new-books-advanced-filters,
+.charts-page.new-books-page div.new-books-advanced-fields {
+    display: contents;
+}
+.charts-page.new-books-page details#new-books-scope > summary,
+.charts-page.new-books-page details#new-books-advanced-filters > summary {
+    display: none;
+}
+@media (max-width: 768px) {
+    .charts-page.new-books-page details#new-books-scope,
+    .charts-page.new-books-page details#new-books-advanced-filters {
+        display: block;
+        width: 100%;
+    }
+    .charts-page.new-books-page details#new-books-scope > summary,
+    .charts-page.new-books-page details#new-books-advanced-filters > summary {
+        display: block;
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-card);
+        color: var(--text-primary);
+        cursor: pointer;
+        list-style: none;
+    }
+    .charts-page.new-books-page details#new-books-scope > summary::-webkit-details-marker,
+    .charts-page.new-books-page details#new-books-advanced-filters > summary::-webkit-details-marker {
+        display: none;
+    }
+    .charts-page.new-books-page details#new-books-scope > summary::marker,
+    .charts-page.new-books-page details#new-books-advanced-filters > summary::marker {
+        content: '';
+    }
+    .charts-page.new-books-page details#new-books-scope > summary:focus-visible,
+    .charts-page.new-books-page details#new-books-advanced-filters > summary:focus-visible {
+        outline: 2px solid currentColor;
+        outline-offset: 2px;
+    }
+    .charts-page.new-books-page details#new-books-scope > p.page-subtitle {
+        margin-top: 8px;
+    }
+    .charts-page.new-books-page #filter-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+    }
+    .charts-page.new-books-page #filter-form > details#new-books-advanced-filters,
+    .charts-page.new-books-page #filter-form > div.search-box,
+    .charts-page.new-books-page #filter-form > div.filter-actions,
+    .charts-page.new-books-page #filter-form > div.toolbar {
+        grid-column: 1 / -1;
+    }
+    .charts-page.new-books-page div.new-books-advanced-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .charts-page.new-books-page div.new-books-advanced-fields .filter-group {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 0;
+    }
+    .charts-page.new-books-page div.new-books-advanced-fields .filter-group label {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        color: var(--text-primary);
+    }
+    .charts-page.new-books-page div.new-books-advanced-fields .filter-group select {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        min-height: 44px;
+    }
+    .charts-page.new-books-page div.search-box {
+        width: 100%;
+        min-width: 0;
+    }
+    .charts-page.new-books-page div.search-box input {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+    }
+    .charts-page.new-books-page div.filter-actions,
+    .charts-page.new-books-page div.toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        width: 100%;
+        min-width: 0;
+        margin-left: 0;
+    }
+    .charts-page.new-books-page div.filter-actions .btn,
+    .charts-page.new-books-page div.toolbar .btn {
+        min-height: 44px;
+        max-width: 100%;
+    }
+    .charts-page.new-books-page div.toolbar #btn-export {
+        white-space: normal;
+        text-align: center;
+    }
+    .charts-page.new-books-page .page-header {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    .charts-page.new-books-page .page-title {
+        margin-bottom: 4px;
+    }
+    .charts-page.new-books-page .result-summary .summary-muted {
+        display: none;
+    }
+    .charts-page.new-books-page .book-cover-wrapper {
+        height: clamp(160px, 32vw, 220px);
+        aspect-ratio: auto;
+    }
+    .charts-page.new-books-page .book-cover-wrapper img.book-cover {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+}
