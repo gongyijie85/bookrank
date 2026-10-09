@@ -58,7 +58,7 @@
     <div class="m-book-list">
         {% for report in section.reports %}
         {% set content = report.content_data or {} %}
-        <a href="/reports/weekly/{{ report.week_end.isoformat() }}" class="m-card m-report-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-title="{% if content.title_display %}{{ content.title_display }}{% elif report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}" data-summary="{{ report.content_data.summary if report.content_data else '' }}">
+        <a href="/reports/weekly/{{ report.report_date.isoformat() }}?lang={{ get_locale() }}" class="m-card m-report-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-title="{% if content.title_display %}{{ content.title_display }}{% elif report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}" data-summary="{{ report.content_data.summary if report.content_data else '' }}">
             <div class="m-report-week">W{{ report.week_end.strftime('%V') }}</div>
             <div class="m-report-main">
                 <h3 class="m-report-title">
