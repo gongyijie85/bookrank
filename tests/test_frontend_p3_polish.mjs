@@ -35,7 +35,7 @@ test('mobile rendered cache version refreshes the shared CSS and JS together in 
       return ['/static/mobile/css/mobile.css', '/static/mobile/js/mobile.js'].includes(url.pathname) ? [url] : [];
     });
     assert.equal(urls.length, 2);
-    for (const url of urls) assert.equal(url.searchParams.get('v'), 'p3-polish-20261009');
+    for (const url of urls) assert.equal(url.searchParams.get('v'), 'mobile-search-320-20261009');
   }
 });
 
