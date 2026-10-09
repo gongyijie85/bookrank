@@ -65,21 +65,35 @@
         if (!src) return '';
         try {
             const u = new URL(src, originOf());
+            if (u.origin !== originOf()) return '';
+            if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+            const m = u.pathname.match(/^\/award-book\/(\d+)\/cover$/);
+            if (u.pathname !== '/cover' && !m) return '';
             u.searchParams.delete('_r');
             u.searchParams.delete('_t');
-            if (src.charAt(0) === '/') return u.pathname + u.search;
-            return u.toString();
+            let qs = '';
+            u.searchParams.forEach((v, k) => { qs += (qs ? '&' : '?') + encodeURIComponent(k) + '=' + encodeURIComponent(v); });
+            return (m ? '/award-book/' + encodeURIComponent(m[1]) + '/cover' : '/cover') + qs;
         } catch (err) {
-            return src;
+            return '';
         }
     }
 
     function withRetryQuery(src, attempt, now) {
-        const u = new URL(src, originOf());
-        u.searchParams.set('_r', String(attempt));
-        u.searchParams.set('_t', String(now()));
-        if (src.charAt(0) === '/') return u.pathname + u.search;
-        return u.toString();
+        try {
+            const u = new URL(src, originOf());
+            if (u.origin !== originOf()) return '';
+            if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+            const m = u.pathname.match(/^\/award-book\/(\d+)\/cover$/);
+            if (u.pathname !== '/cover' && !m) return '';
+            u.searchParams.set('_r', String(attempt));
+            u.searchParams.set('_t', String(now()));
+            let qs = '';
+            u.searchParams.forEach((v, k) => { qs += (qs ? '&' : '?') + encodeURIComponent(k) + '=' + encodeURIComponent(v); });
+            return (m ? '/award-book/' + encodeURIComponent(m[1]) + '/cover' : '/cover') + qs;
+        } catch (err) {
+            return '';
+        }
     }
 
     function resolveProxySrc(img) {
@@ -116,7 +130,10 @@
         }
         wait(function () {
             if (img.dataset) img.dataset.coverRetrying = '';
-            img.src = withRetryQuery(proxy, n, now);
+            const safeSrc = withRetryQuery(proxy, n, now);
+            if (safeSrc) {
+                img.src = safeSrc;
+            }
         }, delays[n]);
         return true;
     }
