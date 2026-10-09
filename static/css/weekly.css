@@ -314,3 +314,14 @@
     .weekly-page .browse-report-card,
     .weekly-page .report-card { animation: none; transition: none; transform: none; }
 }
+
+/* Desktop weekly typography: +2px for list summary and recommendation facts (14->16px) */
+@media (min-width: 761px) {
+  body.weekly-page .news-summary {
+    font-size: 16px;
+  }
+
+  body.weekly-detail-page .recommendation-reason p {
+    font-size: 18px;
+  }
+}
