@@ -955,6 +955,14 @@
 .charts-page.new-books-page details#new-books-advanced-filters > summary {
     display: none;
 }
+@media (min-width: 769px) {
+    .charts-page.new-books-page div.new-books-advanced-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: flex-end;
+    }
+}
 @media (max-width: 768px) {
     .charts-page.new-books-page details#new-books-scope,
     .charts-page.new-books-page details#new-books-advanced-filters {
