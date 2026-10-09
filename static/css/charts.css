@@ -941,3 +941,15 @@
     white-space: nowrap;
   }
 }
+
+/* Desktop card intro typography: +2px at each density, line-height/clamping unchanged */
+@media (min-width: 761px) {
+  body.charts-page .card-desc {
+    font-size: 15px;
+  }
+
+  /* More specific compact-grid rule wins over the normal-density rule above */
+  body.charts-page .books-grid.bestseller-grid[data-grid-view="compact"] .card .card-desc {
+    font-size: 13px;
+  }
+}
