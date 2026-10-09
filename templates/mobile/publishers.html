@@ -21,7 +21,7 @@
     <input type="search" id="m-publisher-search" class="m-filter-input"
            aria-label="{{ _('搜索出版社') }}"
            placeholder="{{ _('搜索出版社名称...') }}" autocomplete="off"
-           style="flex:1;min-height:44px;padding:0.5rem 0.75rem;border:1px solid var(--border-color, rgba(0,0,0,0.1));border-radius:8px;background:var(--bg-tertiary, #f6f5f4);font-size:0.875rem;">
+           style="flex:1;min-width:0;min-height:44px;padding:0.5rem 0.75rem;border:1px solid var(--color-border, rgba(0,0,0,0.1));border-radius:8px;background:var(--color-bg-elevated, #ffffff);color:var(--color-text-primary, #171717);font-size:0.875rem;">
     <button type="button" id="m-clear-search-btn" style="margin-left:0.5rem;">{{ _('清除') }}</button>
 </div>
 <p id="m-result-count" aria-live="polite" style="padding:0 0.75rem;margin-bottom:0.5rem;">{{ total_publishers }} {{ _('个目录条目') }}</p>

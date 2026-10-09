@@ -415,7 +415,7 @@
     function normalizeIsbn(isbn) {
         if (!isbn || typeof isbn !== 'string') return '';
         var cleaned = isbn.replace(/[\s-]/g, '').toUpperCase();
-        if (/^\d{13}$/.test(cleaned) || /^\d{9}[\dX]$/.test(cleaned)) {
+        if (/^(978|979)\d{10}$/.test(cleaned) || /^\d{9}[\dX]$/.test(cleaned)) {
             return cleaned;
         }
         return '';

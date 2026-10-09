@@ -185,6 +185,7 @@ class BookService:
         notify_refresh: bool = True,
         allow_stale_fallback: bool = True,
         report_failures: bool = False,
+        cached_only: bool = False,
     ) -> list[Book]:
         """
         获取指定分类的图书列表
@@ -198,11 +199,24 @@ class BookService:
             report_failures: 是否显式上报失败。为 True 且 API 失败且无过期缓存可用时
                 抛异常而非静默返回空列表，便于调用方区分「真的失败」与「成功但空」。
                 默认 False 保持旧调用方行为不变。
+            cached_only: 为 True 时只读新鲜缓存；新鲜数据为 None 时再直接读过期缓存。
+                两者均缺失（None）则抛 APIException。空列表 [] 视为成功的空结果。
+                不访问远端、不写缓存、不触发翻译或刷新通知；force_refresh=True 同样只读缓存。
 
         Returns:
             图书列表
         """
         cache_key = f'books_{category_id}'
+
+        if cached_only:
+            cached_data = self._cache.get(cache_key)
+            if cached_data is not None:
+                return self._books_from_cache_data(cached_data, category_id)
+            get_stale = getattr(self._cache, 'get_stale', None)
+            stale_data = get_stale(cache_key) if callable(get_stale) else None
+            if stale_data is not None:
+                return self._books_from_cache_data(stale_data, category_id)
+            raise APIException(f'Cache unavailable for category {category_id}')
 
         if is_space_runtime():
             auto_translate = False

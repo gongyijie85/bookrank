@@ -212,6 +212,38 @@ class TestAwardBookCover:
 
 
 class TestAwardsPage:
+    @pytest.mark.parametrize('device', ['desktop', 'mobile'])
+    @pytest.mark.parametrize('isbn10', ['0306406152', None], ids=['isbn10-only', 'missing-isbn'])
+    def test_awards_favorite_uses_available_isbn(self, client, db, device, isbn10) -> None:
+        """只有 ISBN-10 的书仍可收藏；两种 ISBN 均缺失时才禁用。"""
+        from app.models.schemas import Award, AwardBook
+
+        award = Award(name='ISBN Fallback Award', name_en='ISBN Fallback Award')
+        db.session.add(award)
+        db.session.flush()
+        db.session.add(
+            AwardBook(
+                award_id=award.id,
+                year=2026,
+                title='ISBN Fallback Book',
+                author='Known Author',
+                isbn13=None,
+                isbn10=isbn10,
+                is_displayable=True,
+            )
+        )
+        db.session.commit()
+
+        user_agent = MOBILE_UA if device == 'mobile' else DESKTOP_UA
+        response = client.get('/awards?lang=en', headers={'User-Agent': user_agent})
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+        buttons = soup.select('button.card-favorite, button.m-favorite-btn')
+        assert len(buttons) == 1
+        button = buttons[0]
+        assert button.get('data-isbn') == (isbn10 or '')
+        assert button.has_attr('disabled') is (isbn10 is None)
+
     def test_awards_default_render(self, client):
         response = client.get('/awards')
         assert response.status_code == 200
@@ -2432,7 +2464,8 @@ def test_rankings_empty_versus_nyt_and_award_faults(mode, db, app, monkeypatch):
     categories = list(app.config['CATEGORIES'])
     first = categories[0]
 
-    def _boundary(category, auto_translate=False, notify_refresh=False, report_failures=False):
+    def _boundary(category, auto_translate=False, notify_refresh=False, report_failures=False, cached_only=False):
+        assert cached_only is True
         if mode == 'nytfail' and category == first:
             raise ExternalAPIError('offline', api_name='book_service')
         return [], None
@@ -2441,11 +2474,14 @@ def test_rankings_empty_versus_nyt_and_award_faults(mode, db, app, monkeypatch):
     captured = _capture_adaptive(monkeypatch)
     listener = _listen_sql(db.engine, 'awardfail') if mode == 'awardfail' else None
     try:
-        resp = app.test_client().get('/rankings')
+        tab = 'overlooked' if mode == 'awardfail' else 'cross'
+        resp = app.test_client().get(f'/rankings?tab={tab}')
     finally:
         if listener is not None:
             event.remove(db.engine, 'before_cursor_execute', listener)
     assert resp.status_code == 200 and resp.get_data(as_text=True) == 'captured'
+    assert captured['tab'] == tab
+    assert captured['rankings_overlooked_loaded'] is (tab == 'overlooked')
     assert captured['rankings_nyt_unavailable_count'] == (1 if mode == 'nytfail' else 0)
     assert captured['rankings_awards_unavailable'] is (mode == 'awardfail')
     assert captured['cross_entries'] == []

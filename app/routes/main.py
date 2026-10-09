@@ -139,19 +139,26 @@ def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | N
 
 def _fetch_all_category_books_with_status(
     categories: dict[str, str],
+    cached_only: bool = False,
 ) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     """抓取全部分类的当前榜，并返回抓取失败的分类列表。
 
     单个分类失败时跳过该分类，不影响其余数据；只把真正抛异常的分类计入
     失败（unavailable），某个分类成功但为空不算失败——不因空数据误判失败。
+    cached_only 为 True 时把该标志传给分类读取，只使用缓存、不触发远端填充。
     """
     result: dict[str, list[dict[str, Any]]] = {}
     unavailable: list[str] = []
     for key in categories:
         try:
-            books_data, _ = _get_books_for_category(
-                key, auto_translate=False, notify_refresh=False, report_failures=True
-            )
+            fetch_kwargs: dict[str, Any] = {
+                'auto_translate': False,
+                'notify_refresh': False,
+                'report_failures': True,
+            }
+            if cached_only:
+                fetch_kwargs['cached_only'] = True
+            books_data, _ = _get_books_for_category(key, **fetch_kwargs)
         except ExternalAPIError as e:
             e.log()
             unavailable.append(key)
@@ -727,7 +734,7 @@ def rankings():
         tab = 'cross'
 
     categories = current_app.config['CATEGORIES']
-    books_by_category, nyt_failed_categories = _fetch_all_category_books_with_status(categories)
+    books_by_category, nyt_failed_categories = _fetch_all_category_books_with_status(categories, cached_only=True)
 
     cross_entries = [entry.to_dict() for entry in build_cross_list_entries(books_by_category)]
     longevity_entries = [entry.to_dict() for entry in build_longevity_entries(books_by_category, limit=LONGEVITY_LIMIT)]
@@ -757,8 +764,10 @@ def rankings():
     current_year = datetime.now(UTC).year
     award_years = list(range(current_year, current_year - OVERLOOKED_YEAR_SPAN, -1))
     unavailable_years: list[int] = []
-    award_books = _load_recent_award_books(AwardBookService(), award_years, unavailable_years)
-    overlooked_entries = [entry.to_dict() for entry in build_overlooked_entries(award_books, books_by_category)]
+    overlooked_entries: list[dict[str, Any]] = []
+    if tab == 'overlooked':
+        award_books = _load_recent_award_books(AwardBookService(), award_years, unavailable_years)
+        overlooked_entries = [entry.to_dict() for entry in build_overlooked_entries(award_books, books_by_category)]
 
     book_service = get_service('book_service')
     update_time = book_service.get_latest_cache_time() if book_service else None
@@ -776,6 +785,7 @@ def rankings():
         update_time=update_time,
         rankings_nyt_unavailable_count=len(nyt_failed_categories),
         rankings_awards_unavailable=bool(unavailable_years),
+        rankings_overlooked_loaded=(tab == 'overlooked'),
         active_tab='rankings',
     )
 
@@ -1349,8 +1359,19 @@ def book_detail(book_index):
 
     back_url = safe_return_path(request.args.get('return_to'), '/')
 
+    has_source_isbn = 'source_isbn' in request.args
+    source_isbn = ''
+    if has_source_isbn:
+        raw_source_isbn = request.args.get('source_isbn')
+        source_isbn = re.sub(r'[\s-]', '', '' if raw_source_isbn is None else str(raw_source_isbn)).upper()
+        if not validate_isbn(source_isbn):
+            return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
+
     try:
-        books_data, _ = _get_books_for_category(category)
+        if has_source_isbn:
+            books_data, _ = _get_books_for_category(category, cached_only=True, report_failures=True)
+        else:
+            books_data, _ = _get_books_for_category(category)
     except ExternalAPIError as e:
         e.log()
         return render_adaptive(
@@ -1372,6 +1393,21 @@ def book_detail(book_index):
             message='书籍暂时无法加载，请稍后再试',
             back_url=back_url,
         ), 500
+
+    if has_source_isbn:
+        matched_index = None
+        for index, entry in enumerate(books_data or []):
+            normalized_isbns = {
+                re.sub(r'[\s-]', '', raw_isbn).upper()
+                for raw_isbn in (entry.get('isbn13'), entry.get('isbn10'))
+                if isinstance(raw_isbn, str)
+            }
+            if source_isbn in normalized_isbns:
+                matched_index = index
+                break
+        if matched_index is None:
+            return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
+        book_index = matched_index
 
     if not books_data or book_index < 0 or book_index >= len(books_data):
         return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
