@@ -227,21 +227,42 @@ def _category_en_to_zh() -> dict[str, str]:
 def category_name(value: object, locale: str | None = None) -> str:
     """新书分类按 locale 呈现。
 
-    中文页：库里的英文别名（`Business` / `Biography & Autobiography`）经
-    `CATEGORY_EN_TO_ZH` 显示为中文；已是中文的值原样返回；表里没有的未知值原样
-    返回（诚实展示，不猜、不隐掉筛选项）。
+    出版分类两个方向都先查 `publisher_data.CATEGORY_EN_TO_ZH`。共享中文名「商业」
+    因此仍显示旧英文规范名 `Business`；已是目标语言的别名、未知值和 XSS 字符串原样
+    返回（chip 是可点筛选项，不猜、不隐掉）。
 
-    英文页：反查 `CATEGORY_EN_TO_ZH` 的键集，把中文值还原为英文；未知值原样返回
-    （chip 是**可点的筛选项**，隐掉等于悄悄删掉一种筛选）。新增分类只会经
-    CATEGORY_EN_TO_ZH 写进库，所以这两张表天然覆盖全部取值。
+    NYT 榜单显示名只作兼容回退，每次现读 `Config.CATEGORIES` 与
+    `Config.CATEGORY_NAMES_EN`，不手抄、不缓存、不改配置。中文页把 `Business Books`
+    显示为「商业」；英文页把其余中文榜单名显示为配置里的英文名。只有一边有对应键时
+    保留原文。
     """
     text = '' if value is None else str(value)
     if not text:
         return ''
     active = locale or str(get_locale() or 'zh')
+    from ..config import Config
+
+    categories = Config.CATEGORIES
+    names_en = Config.CATEGORY_NAMES_EN
     if active.startswith('en'):
-        return _category_zh_to_en().get(text, text)
-    return _category_en_to_zh().get(text, text)
+        translated = _category_zh_to_en().get(text)
+        if translated is not None:
+            return translated
+        if text in _category_en_to_zh():
+            return text
+        for key, zh in categories.items():
+            if zh == text:
+                return names_en.get(key) or text
+        return text
+    translated = _category_en_to_zh().get(text)
+    if translated is not None:
+        return translated
+    if text in _category_zh_to_en():
+        return text
+    for key, en in names_en.items():
+        if en == text:
+            return categories.get(key) or text
+    return text
 
 
 def category_alias_labels() -> dict[str, str]:

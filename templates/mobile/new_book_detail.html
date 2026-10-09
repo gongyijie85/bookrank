@@ -15,11 +15,20 @@
             <p class="m-detail-author" style="font-size:0.9rem;color:var(--text-secondary);margin:0;">{{ book.author or _('未知作者') }}</p>
             {% if book.publisher %}<p style="font-size:0.85rem;color:var(--text-secondary);margin:0.25rem 0 0;">{{ book.publisher.name_en if _l=='en' and book.publisher.name_en else book.publisher.name }}</p>{% endif %}
         </div>
+    {% set _nd_cover = (book.cover_url or '')|trim %}
     <div style="display:flex;gap:1rem;align-items:flex-start;">
-        <img src="{{ book.cover_url|cover_src_or_default }}"
-             alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}"
-             style="width:120px;height:180px;object-fit:cover;border-radius:8px;flex-shrink:0;"
-             data-cover-fallback="">
+        <div class="m-detail-cover-wrap" style="margin:0;padding:0;background:none;width:120px;height:180px;flex-shrink:0;position:relative;">
+            {% if _nd_cover and 'default-cover' not in _nd_cover %}
+            <img src="{{ _nd_cover|cover_src }}"
+                 alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}"
+                 style="width:120px;height:180px;object-fit:cover;border-radius:8px;"
+                 data-neutral-cover="">
+            {% endif %}
+            <span class="m-neutral-cover-placeholder"{% if _nd_cover and 'default-cover' not in _nd_cover %} hidden{% endif %}>
+                <svg class="m-neutral-book-cover" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                <span>{{ _('暂无封面') }}</span>
+            </span>
+        </div>
     </div>
 
     <section>

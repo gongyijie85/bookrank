@@ -300,7 +300,7 @@ test('analytics daily chart uses UTC linear dates and preserves actual zero/gaps
   const html = source('templates/analytics_dashboard.html'); const actual = scripts(html).find(s => s.includes('function renderDailyChart'));
   const start = actual?.indexOf('        function renderDailyChart'); const end = actual?.indexOf('        function renderTopReports', start);
   assert.ok(start >= 0 && end > start, 'real daily renderer source must exist');
-  const helperStart = actual.indexOf('function analyticsText('); const helperEnd = actual.indexOf('function applyAnalyticsTheme(', helperStart);
+  const helperStart = actual.indexOf('function analyticsLanguage('); const helperEnd = actual.indexOf('function applyAnalyticsTheme(', helperStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart, 'real analytics locale helper must exist');
   vm.runInContext(actual.slice(helperStart, helperEnd) + "\nlet dailyChart = null; const chartColors = {greenBorder:'#000',greenLight:'#eee'};\n" + actual.slice(start, end), h.context);
   h.context.rows = [{ date: '2026-10-02', count: 1 }, { date: '2026-09-29', count: 3 }, { date: '2026-09-30', count: 0 }];
@@ -313,7 +313,7 @@ test('analytics daily chart uses UTC linear dates and preserves actual zero/gaps
 });
 
 function renderJinja(fragment, context) {
-  const code = "import json,sys; from jinja2 import Environment; sys.stdout.reconfigure(encoding='utf-8'); sys.stdin.reconfigure(encoding='utf-8'); x=json.load(sys.stdin); e=Environment(); e.globals['_']=lambda s,**kwargs:s%kwargs if kwargs else s; e.filters['format_title']=lambda s:s; print(e.from_string(x['fragment']).render(**x['context']))";
+  const code = "import json,sys; from jinja2 import Environment; sys.stdout.reconfigure(encoding='utf-8'); sys.stdin.reconfigure(encoding='utf-8'); x=json.load(sys.stdin); e=Environment(); e.globals['_']=lambda s,**kwargs:s%kwargs if kwargs else s; e.filters['format_title']=lambda s:s; e.filters['category_name']=lambda s,*args:s; print(e.from_string(x['fragment']).render(**x['context']))";
   const result = spawnSync(process.env.PYTHON || 'python', ['-c', code], { input: JSON.stringify({ fragment, context }), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
   assert.equal(result.error, undefined); assert.equal(result.status, 0, result.stderr); assert.ok(result.stdout.trim());
   return result.stdout;

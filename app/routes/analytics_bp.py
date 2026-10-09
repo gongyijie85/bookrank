@@ -1,4 +1,5 @@
 from flask import Blueprint, request
+from flask_babel import get_locale
 
 from app.services.analytics_service import (
     get_daily_stats as fetch_daily_stats,
@@ -12,6 +13,7 @@ from app.services.analytics_service import (
     get_top_reports as fetch_top_reports,
 )
 from app.utils.api_helpers import APIResponse, handle_api_errors
+from app.utils.weekly_report_presentation import localize_report_title
 
 analytics_bp = Blueprint('analytics', __name__)
 
@@ -59,7 +61,15 @@ def get_top_reports():
     """获取阅读量最高的周报"""
     limit = _clamp(request.args.get('limit', 10, type=int), 1, 50)
     top_reports = fetch_top_reports(limit)
-    return APIResponse.success(data=top_reports)
+    locale = str(get_locale() or 'zh')
+    presented = [
+        {
+            **report,
+            'title_display': localize_report_title(report.get('title'), locale),
+        }
+        for report in top_reports
+    ]
+    return APIResponse.success(data=presented)
 
 
 @analytics_bp.route('/api/analytics/session-stats')

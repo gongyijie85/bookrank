@@ -304,7 +304,7 @@ function analyticsThemeFixture() {
   const canvas=new Map(['viewsChart','behaviorChart','dailyChart'].map(id=>{const n=new Node();n.id=id;n.getContext=()=>({canvas:n});return[id,n];}));
   const table=new Node();table.id='top-reports-table';table.tagName='TBODY';canvas.set(table.id,table);
   document.getElementById=id=>canvas.get(id)||null; document.createElement=()=>new Node(); document.createTextNode=text=>({textContent:text});
-  let requests=0;
+  let requests=0;const requestedURLs=[];
   class Chart {
     static defaults={};
     constructor(_ctx,config){this.data=config.data;this.options=config.options;this.config=config;this.updates=0;this.updateModes=[];this.elementOptions=this.data.datasets.map(ds=>({backgroundColor:structuredClone(ds.backgroundColor),borderColor:structuredClone(ds.borderColor)}));charts.push(this);}
@@ -320,10 +320,10 @@ function analyticsThemeFixture() {
   }
   class MutationObserver {constructor(callback){observers.push(callback);} observe(){}}
   const roles=()=>html.getAttribute('data-theme')==='dark'?{'--text-primary':'#eeeeee','--text-secondary':'#bbbbbb','--text-muted':'#aaaaaa','--border-color':'#555555','--bg-primary':'#111111','--bg-secondary':'#222222','--bg-tertiary':'#333333'}:{'--text-primary':'#111111','--text-secondary':'#555555','--text-muted':'#666666','--border-color':'#cccccc','--bg-primary':'#ffffff','--bg-secondary':'#f5f5f5','--bg-tertiary':'#eeeeee'};
-  const ctx=vm.createContext({document,window,MutationObserver,Chart,URL,Date,Intl,console,getComputedStyle:()=>({getPropertyValue:key=>roles()[key]||''}),fetch:()=>{requests++;throw new Error('theme/language must not request data');}});
+  const ctx=vm.createContext({document,window,MutationObserver,Chart,URL,URLSearchParams,Date,Intl,console,getComputedStyle:()=>({getPropertyValue:key=>roles()[key]||''}),fetch:url=>{requests++;requestedURLs.push(url);return new Promise(()=>{});}});
   const tpl=process.env.ANALYTICS_LOCALE_SCRIPT_PATH?fs.readFileSync(process.env.ANALYTICS_LOCALE_SCRIPT_PATH,'utf8'):source('templates/analytics_dashboard.html');
   const actual=scripts(tpl).find(s=>s.includes('chartColors'));assert.ok(actual,'actual analytics source required');vm.runInContext(actual,ctx);
-  return{ctx,document,window,html,charts,observers,Chart,Node,table,requests:()=>requests};
+  return{ctx,document,window,html,charts,observers,Chart,Node,table,requests:()=>requests,requestedURLs:()=>requestedURLs};
 }
 test('analytics actual English loading and error retry labels use current shared locale',()=>{
   const f=analyticsThemeFixture();const status=new f.Node();f.ctx.showLoading(status);assert.equal(status.textContent,'Loading...');f.ctx.showError(status,()=>{});assert.equal(status.textContent,'Failed to load. Please retry.Retry');
@@ -362,7 +362,7 @@ test('analytics actual theme refreshes shared bar element colors without animati
   assert.equal(f.charts.length,3);assert.equal(bar.data.datasets[0].data,originalData);assert.equal(JSON.stringify(f.charts.map(c=>c.data.datasets.map(d=>d.data))),before);assert.equal(f.requests(),0);
 });
 
-test('analytics real language event refreshes canvas accessible names and an existing retry panel without requesting data',()=>{
+test('analytics real language event refreshes canvas accessible names and retry labels while refetching only localized Top10',()=>{
   const f=analyticsThemeFixture(); const status=new f.Node();
   f.document.querySelectorAll=selector=>selector==='.panel-status'?[status]:[];
   f.ctx.showError(status,()=>{});
@@ -376,10 +376,11 @@ test('analytics real language event refreshes canvas accessible names and an exi
   assert.equal(f.document.getElementById('viewsChart').getAttribute('aria-label'),'Cumulative weekly report views');
   assert.equal(f.document.getElementById('behaviorChart').getAttribute('aria-label'),'User behavior event distribution');
   assert.equal(f.document.getElementById('dailyChart').getAttribute('aria-label'),'Daily user behavior events');
-  assert.equal(f.requests(),0);
+  assert.equal(f.requests(),2);
+  assert.deepEqual(f.requestedURLs(),['/api/analytics/top-reports?limit=10&lang=zh','/api/analytics/top-reports?limit=10&lang=en']);
 });
 
-test('analytics actual table view and empty text switch while literal title/date/count and link stay intact',()=>{
+test('analytics actual table view and empty text switch while factual cells and link destination stay intact',()=>{
   const f=analyticsThemeFixture();f.document.querySelectorAll=s=>{
     const all=[];function walk(n){all.push(n);for(const child of n.children||[])walk(child);}walk(f.table);
     return s==='[data-analytics-text]'?all.filter(n=>n.dataset&&n.dataset.analyticsText):[];
@@ -387,9 +388,11 @@ test('analytics actual table view and empty text switch while literal title/date
   f.ctx.renderTopReports([{date:'2026-09-30',title:'<script >literal</script >',view_count:7}]);
   const row=f.table.children[0];const link=row.children[3].children[0];const href=link.href;
   f.window.__APP_LANG__='zh';f.window.fire('languagechange',{detail:{language:'zh'}});
-  assert.equal(link.textContent,'查看');assert.equal(link.href,href);assert.deepEqual(row.children.slice(0,3).map(n=>n.textContent),['2026-09-30','<script >literal</script >','7']);
+  const currentLink=new URL(link.href,'https://bookrank.test');const previousLink=new URL(href,'https://bookrank.test');
+  assert.equal(link.textContent,'查看');assert.equal(currentLink.pathname,previousLink.pathname);assert.equal(currentLink.searchParams.get('lang'),'zh');assert.deepEqual(row.children.slice(0,3).map(n=>n.textContent),['2026-09-30','<script >literal</script >','7']);
   f.ctx.renderTopReports([]);const empty=f.table.children[0].children[0];assert.equal(empty.textContent,'暂无数据');
-  f.window.__APP_LANG__='en';f.window.fire('languagechange',{detail:{language:'en'}});assert.equal(empty.textContent,'No data available');assert.equal(f.requests(),0);
+  f.window.__APP_LANG__='en';f.window.fire('languagechange',{detail:{language:'en'}});assert.equal(empty.textContent,'No data available');assert.equal(f.requests(),2);
+  assert.deepEqual(f.requestedURLs(),['/api/analytics/top-reports?limit=10&lang=zh','/api/analytics/top-reports?limit=10&lang=en']);
 });
 
 test('publisher ranking actual table keeps all labeled metric values for narrow-screen cards',()=>{
@@ -568,7 +571,7 @@ test('mobile weekly real new and recommended book titles use English outside the
   const input={report:{title:'Report',week_start:'2026-09-21',week_end:'2026-09-27',report_date:'2026-09-27',created_at:'2026-09-27T12:00:00'},content:{top_changes:[],new_books:[book],featured_books:[book]},safe_summary:''};
   const en=render('mobile/weekly_report_detail.html',input,'/reports/weekly/2026-09-27?lang=en','en');
   assert.equal(en.nodes.find(n=>hasClass(n,'m-book-title')).text,book.title);assert.equal(en.nodes.find(n=>hasClass(n,'m-report-rec-title')).text,book.title);assert.equal(en.nodes.some(n=>hasClass(n,'m-report-original-title')),false);
-  const zh=render('mobile/weekly_report_detail.html',input,'/reports/weekly/2026-09-27?lang=zh');assert.deepEqual(zh.nodes.filter(n=>hasClass(n,'m-report-original-title')).map(n=>n.text),[book.title,book.title]);assert.equal(zh.nodes.find(n=>hasClass(n,'m-book-title')).text,book.title_zh);
+  const zh=render('mobile/weekly_report_detail.html',input,'/reports/weekly/2026-09-27?lang=zh');assert.deepEqual(zh.nodes.filter(n=>hasClass(n,'m-report-original-title')).map(n=>n.text),[book.title,book.title]);assert.equal(zh.nodes.find(n=>hasClass(n,'m-book-title')).ownText,book.title_zh);
 });
 
 test('weekly actual theme mutates raw configuration without enumerating or assigning resolved Chart option proxies',()=>{
@@ -777,12 +780,13 @@ test('final weekly actual details click renders facts and escapes text without s
     const mapStart = actual.indexOf('    function buildBookDataMap()'); const mapEnd = actual.indexOf("    if (typeof BookI18n !== 'undefined' && reportContent)", mapStart);
     const handlerStart = actual.indexOf('    function escHtml(str)'); const handlerEnd = actual.indexOf("    modalClose.addEventListener('click'", handlerStart);
     assert.ok(contentStart >= 0 && contentEnd > contentStart && mapStart >= 0 && mapEnd > mapStart && handlerStart >= 0 && handlerEnd > handlerStart, 'all real rendering source sections must exist');
-    const handlers = new Map(); const trigger = { closest(selector) { assert.equal(selector, '.book-item, .change-item, .recommendation-card'); return { dataset: { bookTitle: card.attrs['data-book-title'], bookAuthor: card.attrs['data-book-author'] } }; }, addEventListener(name, fn) { handlers.set(name, fn); } };
+    const handlers = new Map(); const trigger = { closest(selector) { assert.equal(selector, '.book-item, .change-item, .recommendation-card'); return { dataset: { bookTitle: card.attrs['data-book-title'], bookAuthor: card.attrs['data-book-author'], bookDisplayTitle: card.attrs['data-book-display-title'], bookOriginalTitle: card.attrs['data-book-original-title'], bookDisplayCategory: card.attrs['data-book-display-category'] } }; }, addEventListener(name, fn) { handlers.set(name, fn); } };
     const modalBody = { innerHTML: '' }; const opened = [];
     // This fixture models the browser textContent-to-innerHTML encoding boundary; it is not a sanitizer.
     const document = { createElement(tag) { assert.equal(tag, 'div'); return { textContent: '', get innerHTML() { const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }; return Array.from(this.textContent, char => entities[char] || char).join(''); } }; } };
     const context = vm.createContext({ document, bookDetailBtns: [trigger], modalBody, openWeeklyModal: button => opened.push(button), fetch() { throw new Error('details rendering must not fetch'); } });
-    vm.runInContext(actual.slice(contentStart, contentEnd) + actual.slice(mapStart, mapEnd) + actual.slice(handlerStart, handlerEnd), context);
+    const localeDeclaration = actual.match(/var _locale_is_zh = (true|false);/);assert.ok(localeDeclaration,'actual locale declaration must accompany its handler');
+    vm.runInContext(actual.slice(contentStart, contentEnd) + actual.slice(mapStart, mapEnd) + localeDeclaration[0] + actual.slice(handlerStart, handlerEnd), context);
     assert.ok(handlers.has('click')); handlers.get('click').call(trigger); assert.deepEqual(opened, [trigger]);
     const html = modalBody.innerHTML;
     assert.equal(html.includes(book.reason), false, 'unverifiable stored marketing assertion must never be in actual modal content');

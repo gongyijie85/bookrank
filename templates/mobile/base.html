@@ -29,7 +29,7 @@
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css', v='20261001-controls') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css', v='p3-polish-20261009') }}">
 
     {# Open Graph / Twitter Card / JSON-LD SEO（文案与桌面 base.html 同源，复用同一批 msgid） #}
     <meta property="og:type" content="website">
@@ -123,7 +123,7 @@
     </nav>
 
     <script src="{{ url_for('static', filename=dist_url('cover.js')) }}"></script>
-    <script src="{{ url_for('static', filename='mobile/js/mobile.js', v='20261001-controls') }}"></script>
+    <script src="{{ url_for('static', filename='mobile/js/mobile.js', v='p3-polish-20261009') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
