@@ -665,7 +665,7 @@ test('analytics safely renders hostile title as literal text in real tbody', asy
   const f = analyticsFixture(); await analyticsVM(f, async url => response(analyticPayload(url)));
   const row = f.nodes.get('top-reports-table').children[0];
   assert.equal(row.children[1].textContent, '<img src=x onerror=alert(1)>');
-  assert.equal(row.children[3].children[0].href, '/reports/weekly/2026-09-30');
+  assert.equal(row.children[3].children[0].href, '/reports/weekly/2026-09-30?lang=zh');
   assert.equal(f.tableCard.querySelector('.panel-status').textContent, '');
 });
 test('analytics HTTP failure stays local; retry updates the failed widget', async () => {

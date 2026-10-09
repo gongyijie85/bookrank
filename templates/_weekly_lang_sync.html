@@ -4,7 +4,9 @@
    所以「偏好语言」≠「服务端渲染语言」时必须让服务端用正确语言再渲染一次。
    不能直接 reload()：URL 的 ?lang= 优先于 cookie / localStorage，若地址栏是
    ?lang=en 而偏好是 zh，无条件 reload 会永远渲染 EN 形成死循环；因此改写 URL 的
-   lang 参数并用 location.replace 覆盖当前历史记录。
+   lang 参数。当目标 URL 与当前完全一致（含 hash）时浏览器只会做同文档 hash 导航，
+   不会重新拉取 SSR，此时必须显式 reload 才能拿到新语言的页面；其余情况用
+   location.replace 覆盖当前历史记录。
 
    ssr_locale 是本页服务端真实渲染语言（模板里就是 get_locale()），通过 |tojson
    内联进脚本常量——脚本不读任何 DOM 标记。
@@ -41,7 +43,13 @@
         // 未知语言 / 与本次 SSR 相同 / 已经排好导航：什么都不做。
         if (!lang || !ssrLang || lang === ssrLang || navigating) return;
         navigating = true; // 守卫保持置位：本次事件循环里不再排第二次导航
-        window.location.replace(targetUrl(lang));
+        var target = targetUrl(lang);
+        if (target === window.location.href) {
+            // URL 已是正确语言但页面仍是旧 SSR（同文档 hash 导航场景），强制刷新
+            window.location.reload();
+        } else {
+            window.location.replace(target);
+        }
     }
 
     window.addEventListener('languagechange', reconcile);

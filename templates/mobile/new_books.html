@@ -10,7 +10,7 @@
 <nav class="m-top-nav">
     <div class="m-top-nav-copy">
         <span class="m-top-nav-kicker">NEW ARRIVALS</span>
-        <span class="m-top-nav-title">{{ _('新书速递') }}</span>
+        <h1 class="m-top-nav-title">{{ _('新书速递') }}</h1>
         <span class="m-top-nav-subtitle">{{ _('追踪国际大型出版社最新出版物') }}</span>
     </div>
 </nav>
@@ -145,11 +145,18 @@
     {% for book in books %}
     {% set shown_title = book.title_zh|bilingual(book.title) %}
     <a href="{{ url_for('main.new_book_detail', book_id=book.id, lang=get_locale(), return_to=request.full_path) }}" class="m-card m-book-card">
+        {% set _nb_cover = (book.cover_url or '')|trim %}
         <div class="m-book-cover">
-            <img src="{{ book.cover_url|cover_src_or_default }}"
+            {% if _nb_cover and 'default-cover' not in _nb_cover %}
+            <img src="{{ _nb_cover|cover_src }}"
                  alt="{{ _('《') }}{{ shown_title }}{{ _('》封面，作者 ') }}{{ book.author or _('未知') }}"
                  loading="lazy" width="60" height="80"
-                 data-cover-fallback="">
+                 data-neutral-cover="">
+            {% endif %}
+            <span class="m-neutral-cover-placeholder"{% if _nb_cover and 'default-cover' not in _nb_cover %} hidden{% endif %}>
+                <svg class="m-neutral-book-cover" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                <span>{{ _('暂无封面') }}</span>
+            </span>
         </div>
         <div class="m-book-info">
             <h3 class="m-book-title">{{ shown_title }}</h3>

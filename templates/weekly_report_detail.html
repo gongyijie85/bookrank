@@ -191,17 +191,17 @@
                         <h3 class="analysis-subheading">{{ _('重要变化') }}</h3>
                         <ul class="changes-list">
                             {% for change in content.top_changes %}
-                            <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}">
+                            <li class="change-item" data-book-title="{{ change.title }}" data-book-author="{{ change.author }}" data-book-display-title="{{ change.title_zh|bilingual(change.title) }}"{% if _locale == 'zh' and change.title_zh and change.title_zh != change.title %} data-book-original-title="{{ change.title }}"{% endif %}{% if change.category %} data-book-display-category="{{ change.category|category_name(_locale) }}"{% endif %}>
                                 {% if change.cover and 'default-cover' not in change.cover %}
-                                <img src="{{ change.cover|cover_src }}" alt="{{ change.title_zh or change.title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ change.cover|cover_src }}" alt="{{ change.title_zh|bilingual(change.title) }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
-                                <span class="change-title">{{ change.title | format_title }}</span>
+                                <span class="change-title">{{ change.title_zh|bilingual(change.title)|format_title }}{% if _locale == 'zh' and change.title_zh and change.title_zh != change.title %}<small class="m-report-original-title">{{ change.title|format_title }}</small>{% endif %}</span>
                                 <span class="change-author">{{ change.author }}</span>
-                                <span class="change-category">{{ change.category }}</span>
+                                <span class="change-category">{{ change.category|category_name(_locale) }}</span>
                                 {{ monthly_badge(change) }}
                                 <span class="change-rank">
                                     {% if change.rank_change is none or change.rank_change is undefined %}
@@ -231,17 +231,17 @@
                         <h3 class="analysis-subheading">{{ _('新上榜书籍') }}</h3>
                         <ul class="books-list">
                             {% for book in content.new_books %}
-                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}" data-book-display-title="{{ book.title_zh|bilingual(book.title) }}"{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %} data-book-original-title="{{ book.title }}"{% endif %}{% if book.category %} data-book-display-category="{{ book.category|category_name(_locale) }}"{% endif %}>
                                 {% if book.cover and 'default-cover' not in book.cover %}
-                                <img src="{{ book.cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover|cover_src }}" alt="{{ book.title_zh|bilingual(book.title) }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
+                                <span class="book-title">{{ book.title_zh|bilingual(book.title)|format_title }}{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %}<small class="m-report-original-title">{{ book.title|format_title }}</small>{% endif %}</span>
                                 <span class="book-author">{{ book.author }}</span>
-                                <span class="book-category">{{ book.category }}</span>
+                                <span class="book-category">{{ book.category|category_name(_locale) }}</span>
                                 {{ monthly_badge(book) }}
                                 <span class="book-rank">{{ _('排名') }}：{{ book.rank }}</span>
                                 <button class="book-detail-btn">
@@ -259,17 +259,17 @@
                         <h3 class="analysis-subheading">{{ _('排名上升最快') }}</h3>
                         <ul class="books-list">
                             {% for book in content.top_risers %}
-                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}" data-book-display-title="{{ book.title_zh|bilingual(book.title) }}"{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %} data-book-original-title="{{ book.title }}"{% endif %}{% if book.category %} data-book-display-category="{{ book.category|category_name(_locale) }}"{% endif %}>
                                 {% if book.cover and 'default-cover' not in book.cover %}
-                                <img src="{{ book.cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover|cover_src }}" alt="{{ book.title_zh|bilingual(book.title) }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
+                                <span class="book-title">{{ book.title_zh|bilingual(book.title)|format_title }}{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %}<small class="m-report-original-title">{{ book.title|format_title }}</small>{% endif %}</span>
                                 <span class="book-author">{{ book.author }}</span>
-                                <span class="book-category">{{ book.category }}</span>
+                                <span class="book-category">{{ book.category|category_name(_locale) }}</span>
                                 {{ monthly_badge(book) }}
                                 <span class="book-change">↑ {{ book.rank_change }} {{ _('位') }}</span>
                                 <button class="book-detail-btn">
@@ -287,15 +287,15 @@
                         <h3 class="analysis-subheading">{{ _('累计上榜周数') }}</h3>
                         <ul class="books-list">
                             {% for book in content.longest_running %}
-                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                            <li class="book-item" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}" data-book-display-title="{{ book.title_zh|bilingual(book.title) }}"{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %} data-book-original-title="{{ book.title }}"{% endif %}{% if book.category %} data-book-display-category="{{ book.category|category_name(_locale) }}"{% endif %}>
                                 {% if book.cover and 'default-cover' not in book.cover %}
-                                <img src="{{ book.cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="book-cover" width="50" height="75" loading="lazy">
+                                <img src="{{ book.cover|cover_src }}" alt="{{ book.title_zh|bilingual(book.title) }}" class="book-cover" width="50" height="75" loading="lazy">
                                 {% else %}
                                 <div class="book-cover-placeholder" title="{{ _('暂无封面') }}">
                                     {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
                                 </div>
                                 {% endif %}
-                                <span class="book-title">{{ (book.title_zh or book.title) | format_title }}</span>
+                                <span class="book-title">{{ book.title_zh|bilingual(book.title)|format_title }}{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %}<small class="m-report-original-title">{{ book.title|format_title }}</small>{% endif %}</span>
                                 <span class="book-author">{{ book.author }}</span>
                                 {{ monthly_badge(book) }}
                                 <span class="book-weeks">{{ _('累计上榜') }} {{ book.weeks_on_list }} {{ _('周') }}</span>
@@ -323,7 +323,7 @@
                         <h3 class="analysis-subheading">{{ _('推荐书籍') }}</h3>
                         <div class="recommendations-grid">
                             {% for book in content.featured_books %}
-                            <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}">
+                            <div class="recommendation-card" data-book-title="{{ book.title }}" data-book-author="{{ book.author }}" data-book-display-title="{{ book.title_zh|bilingual(book.title) }}"{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %} data-book-original-title="{{ book.title }}"{% endif %}{% if book.category %} data-book-display-category="{{ book.category|category_name(_locale) }}"{% endif %}>
 {% set _cover = '' %}
 {% if book.cover and 'default-cover' not in book.cover %}
   {% set _cover = book.cover %}
@@ -331,25 +331,25 @@
   {% set _cover = book.cover_url %}
 {% endif %}
 {% if _cover %}
-<img src="{{ _cover|cover_src }}" alt="{{ (book.title_zh or book.title) | format_title }}" class="recommendation-cover" width="72" height="108" loading="lazy">
+<img src="{{ _cover|cover_src }}" alt="{{ book.title_zh|bilingual(book.title) }}" class="recommendation-cover" width="72" height="108" loading="lazy">
 {% else %}
 <div class="recommendation-cover-placeholder" title="{% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}" style="width:72px;height:108px;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;">
 {% if get_locale() == 'zh' %}暂无封面{% else %}No cover{% endif %}
 </div>
 {% endif %}
                                 <div class="recommendation-header">
-                                    <h4 class="recommendation-title">{{ (book.title_zh or book.title) | format_title }}</h4>
+                                    <h4 class="recommendation-title">{{ book.title_zh|bilingual(book.title)|format_title }}{% if _locale == 'zh' and book.title_zh and book.title_zh != book.title %}<small class="m-report-original-title">{{ book.title|format_title }}</small>{% endif %}</h4>
                                     <span class="recommendation-author">{{ book.author }}</span>
                                 </div>
                                 <div class="recommendation-reason">
                                     {% set reason_parts = [] %}
-                                    {% if book.category %}{% set _unused = reason_parts.append(book.category) %}{% endif %}
-                                    {% if book.rank %}{% set _unused = reason_parts.append(_('第') ~ book.rank ~ _('名')) %}{% endif %}
-                                    {% if book.weeks_on_list %}{% set _unused = reason_parts.append(_('在榜') ~ book.weeks_on_list ~ _('周')) %}{% endif %}
+                                    {% if book.category %}{% set _unused = reason_parts.append(book.category|category_name(_locale)) %}{% endif %}
+                                    {% if book.rank %}{% set _unused = reason_parts.append(_('第 %(rank)s 名', rank=book.rank)) %}{% endif %}
+                                    {% if book.weeks_on_list %}{% set _unused = reason_parts.append(_('在榜 %(weeks)s 周', weeks=book.weeks_on_list)) %}{% endif %}
                                     {% if book.is_new %}{% set _unused = reason_parts.append(_('新上榜')) %}{% endif %}
                                     {% if book.rank_change is not none and book.rank_change is defined and not book.is_new %}
-                                        {% if book.rank_change > 0 %}{% set _unused = reason_parts.append(_('上升') ~ book.rank_change ~ _('位')) %}
-                                        {% elif book.rank_change < 0 %}{% set _unused = reason_parts.append(_('下降') ~ (book.rank_change | abs) ~ _('位')) %}
+                                        {% if book.rank_change > 0 %}{% set _unused = reason_parts.append(_('上升 %(places)s 位', places=book.rank_change)) %}
+                                        {% elif book.rank_change < 0 %}{% set _unused = reason_parts.append(_('下降 %(places)s 位', places=(book.rank_change | abs))) %}
                                         {% else %}{% set _unused = reason_parts.append(_('无变化')) %}{% endif %}
                                     {% elif book.rank_change is none or book.rank_change is undefined %}
                                         {% set _unused = reason_parts.append(_('变化不可得')) %}
@@ -891,6 +891,15 @@ body.weekly-detail-page { contain: style; }
         position: relative;
         height: 320px;
         margin-top: 1rem;
+    }
+
+    .m-report-original-title {
+        display: block;
+        font-size: 12px;
+        font-family: var(--font-body);
+        color: var(--text-secondary);
+        line-height: 1.4;
+        overflow-wrap: anywhere;
     }
 
     /* {{ _('图表不可用提示') }} */
@@ -1688,8 +1697,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // {{ _('封面图加载失败兜底') }}
+var _locale_is_zh = {{ (_locale == 'zh')|tojson }};
 (function () {
-  var zh = {{ (get_locale() == 'zh')|tojson }};
+  var zh = _locale_is_zh;
   var noCoverText = zh ? '\u6682\u65e0\u5c01\u9762' : 'No cover';
 
   function makePlaceholder(img) {
@@ -1743,15 +1753,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const key = `${bookTitle}|${bookAuthor}`;
             const book = bookDataMap[key];
 
+            const displayTitle = parent.dataset.bookDisplayTitle || bookTitle;
+            let originalTitle = '';
+            if (_locale_is_zh && parent.dataset.bookOriginalTitle && parent.dataset.bookOriginalTitle !== displayTitle) {
+                originalTitle = parent.dataset.bookOriginalTitle;
+            }
+            const titleHtml = `<h4>${escHtml(displayTitle)}${originalTitle ? `<small class="m-report-original-title">${escHtml(originalTitle)}</small>` : ''}</h4>`;
+            const displayCategory = parent.dataset.bookDisplayCategory || '';
+            const rankPhrase = {{ _('第 %(rank)s 名', rank='{rank}')|tojson }};
+            const weeksPhrase = {{ _('在榜 %(weeks)s 周', weeks='{weeks}')|tojson }};
+            const upPhrase = {{ _('上升 %(places)s 位', places='{places}')|tojson }};
+            const downPhrase = {{ _('下降 %(places)s 位', places='{places}')|tojson }};
+
             if (book) {
-                const changeHtml = book.rank_change && book.rank_change !== 0
-                    ? `<p><strong>${escHtml({{ _('排名变化')|tojson }})}：</strong>${escHtml(book.rank_change > 0 ? '↑' : '↓')} ${Math.abs(Number(book.rank_change)||0)} ${escHtml({{ _('位')|tojson }})}</p>` : '';
-                const weeksHtml = book.weeks_on_list ? `<p><strong>${escHtml({{ _('累计上榜周数')|tojson }})}：</strong>${escHtml(book.weeks_on_list)} ${escHtml({{ _('周')|tojson }})}</p>` : '';
-                const rankHtml = book.rank ? `<p><strong>${escHtml({{ _('当前排名')|tojson }})}：</strong>${escHtml({{ _('第')|tojson }})} ${escHtml(book.rank)} ${escHtml({{ _('名')|tojson }})}</p>` : '';
-                const categoryHtml = book.category ? `<p><strong>${escHtml({{ _('类别')|tojson }})}：</strong>${escHtml(book.category)}</p>` : '';
-                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}`;
+                const categoryHtml = displayCategory ? `<p><strong>${escHtml({{ _('类别')|tojson }})}：</strong>${escHtml(displayCategory)}</p>` : '';
+                const rankHtml = (book.rank != null) ? `<p><strong>${escHtml({{ _('当前排名')|tojson }})}：</strong>${escHtml(rankPhrase.replace('{rank}', String(book.rank)))}</p>` : '';
+                const weeksHtml = (book.weeks_on_list != null) ? `<p><strong>${escHtml({{ _('累计上榜周数')|tojson }})}：</strong>${escHtml(weeksPhrase.replace('{weeks}', String(book.weeks_on_list)))}</p>` : '';
+                let changeHtml = '';
+                if (book.rank_change != null && book.rank_change !== 0) {
+                    const magnitude = Math.abs(Number(book.rank_change));
+                    const phrase = book.rank_change > 0 ? upPhrase.replace('{places}', String(magnitude)) : downPhrase.replace('{places}', String(magnitude));
+                    const arrow = book.rank_change > 0 ? '↑' : '↓';
+                    changeHtml = `<p><strong>${escHtml({{ _('排名变化')|tojson }})}：</strong>${escHtml(arrow + ' ' + phrase)}</p>`;
+                }
+                modalBody.innerHTML = `${titleHtml}<p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p>${categoryHtml}${rankHtml}${changeHtml}${weeksHtml}`;
             } else {
-                modalBody.innerHTML = `<h4>${escHtml(bookTitle)}</h4><p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p><p>${escHtml({{ _('暂无更多详情数据')|tojson }})}</p>`;
+                modalBody.innerHTML = `${titleHtml}<p><strong>${escHtml({{ _('作者')|tojson }})}：</strong>${escHtml(bookAuthor)}</p><p>${escHtml({{ _('暂无更多详情数据')|tojson }})}</p>`;
             }
             openWeeklyModal(this);
         });

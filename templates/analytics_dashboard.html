@@ -180,7 +180,7 @@
 // === Analytics theme + i18n helpers (insert after `const chartColors = {...}` and
 //     `let viewsChart, behaviorChart, dailyChart;` declarations) ===
 
-function analyticsText(key) {
+function analyticsLanguage() {
   var lang = null;
   if (typeof window !== 'undefined') {
     var appLang = window.__APP_LANG__;
@@ -198,7 +198,11 @@ function analyticsText(key) {
       lang = 'en';
     }
   }
-  if (!lang) lang = 'zh';
+  return lang || 'zh';
+}
+
+function analyticsText(key) {
+  var lang = analyticsLanguage();
 
   var DICT = {
     zh: {
@@ -266,6 +270,17 @@ function refreshAnalyticsLanguage() {
     var node = textNodes[j];
     var key = node.dataset.analyticsText;
     if (key) { node.textContent = analyticsText(key); }
+    if (key === 'view' && typeof node.href === 'string' && node.href.indexOf('/reports/weekly/') !== -1) {
+      var hashIdx = node.href.indexOf('#');
+      var hrefBase = hashIdx === -1 ? node.href : node.href.slice(0, hashIdx);
+      var hashPart = hashIdx === -1 ? '' : node.href.slice(hashIdx);
+      var qIdx = hrefBase.indexOf('?');
+      var pathPart = qIdx === -1 ? hrefBase : hrefBase.slice(0, qIdx);
+      var queryPart = qIdx === -1 ? '' : hrefBase.slice(qIdx + 1);
+      var params = new URLSearchParams(queryPart);
+      params.set('lang', analyticsLanguage());
+      node.href = pathPart + '?' + params.toString() + hashPart;
+    }
   }
 }
 
@@ -401,6 +416,7 @@ if (typeof MutationObserver === 'function' && typeof document !== 'undefined' &&
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('languagechange', function () {
     refreshAnalyticsLanguage();
+    loadTopReportsPanel();
   });
 }
 refreshAnalyticsLanguage();
@@ -529,19 +545,29 @@ applyAnalyticsTheme();
             }
         }
 
+        let topReportsRequestGeneration = 0;
+
         async function loadTopReportsPanel() {
             const tableBody = document.getElementById('top-reports-table');
             if (!tableBody) return;
+            const requestLocale = analyticsLanguage();
+            const generation = ++topReportsRequestGeneration;
             const statusDiv = createPanelStatus(tableBody.id);
             showLoading(statusDiv);
             try {
-                const data = await fetchJson('/api/analytics/top-reports?limit=10');
+                const data = await fetchJson('/api/analytics/top-reports?limit=10&lang=' + encodeURIComponent(requestLocale));
+                if (generation !== topReportsRequestGeneration || requestLocale !== analyticsLanguage()) {
+                    return;
+                }
                 if (!Array.isArray(data.data)) {
                     throw new Error('Invalid payload shape');
                 }
-                renderTopReports(data.data);
+                renderTopReports(data.data, requestLocale);
                 hideStatus(statusDiv);
             } catch (e) {
+                if (generation !== topReportsRequestGeneration || requestLocale !== analyticsLanguage()) {
+                    return;
+                }
                 console.error('top reports panel error:', e);
                 showError(statusDiv, loadTopReportsPanel);
             }
@@ -755,9 +781,10 @@ applyAnalyticsTheme();
             });
         }
 
-        function renderTopReports(data) {
+        function renderTopReports(data, localeParam) {
             const tableBody = document.getElementById('top-reports-table');
             if (!tableBody) return;
+            const locale = localeParam || analyticsLanguage();
             while (tableBody.firstChild) {
                 tableBody.removeChild(tableBody.firstChild);
             }
@@ -780,7 +807,7 @@ applyAnalyticsTheme();
                 row.appendChild(dateCell);
 
                 const titleCell = document.createElement('td');
-                titleCell.textContent = String(item.title || '');
+                titleCell.textContent = String(item.title_display ?? item.title ?? '');
                 row.appendChild(titleCell);
 
                 const viewCell = document.createElement('td');
@@ -790,7 +817,7 @@ applyAnalyticsTheme();
 
                 const linkCell = document.createElement('td');
                 const a = document.createElement('a');
-                a.href = '/reports/weekly/' + encodeURIComponent(String(item.date || ''));
+                a.href = '/reports/weekly/' + encodeURIComponent(String(item.date || '')) + '?lang=' + encodeURIComponent(locale);
                 a.className = 'btn btn-sm btn-primary';
                 a.dataset.analyticsText = 'view';
                 a.textContent = analyticsText('view');

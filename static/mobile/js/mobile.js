@@ -111,19 +111,37 @@
         img.src = COVER_FALLBACK;
     }
 
+    function revealNeutralPlaceholder(img) {
+        if (img.dataset.neutralCoverRevealed === '1') return;
+        img.dataset.neutralCoverRevealed = '1';
+        img.style.display = 'none';
+        var ph = img.nextElementSibling;
+        if (ph && ph.classList.contains('m-neutral-cover-placeholder')) {
+            ph.hidden = false;
+        }
+    }
+
     function initImageFallback() {
         // img 的 error 事件不冒泡，只能在捕获阶段监听
         document.addEventListener(
             'error',
             function (e) {
                 const el = e.target;
-                if (el && el.tagName === 'IMG' && el.hasAttribute('data-cover-fallback')) applyImageFallback(el);
+                if (!el || el.tagName !== 'IMG') return;
+                if (el.hasAttribute('data-cover-fallback')) {
+                    applyImageFallback(el);
+                } else if (el.hasAttribute('data-neutral-cover')) {
+                    revealNeutralPlaceholder(el);
+                }
             },
             true
         );
         // mobile.js 在 body 末尾执行，此前已失败的图片不会再触发 error，需补扫
         document.querySelectorAll('img[data-cover-fallback]').forEach(function (img) {
             if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
+        });
+        document.querySelectorAll('img[data-neutral-cover]').forEach(function (img) {
+            if (img.complete && img.naturalWidth === 0) revealNeutralPlaceholder(img);
         });
         // /cover 冷缓存 302 到占位图时 error 不会触发，交给 cover.js 按 load 重试。
         if (window.BookRankCover && typeof window.BookRankCover.bind === 'function') {

@@ -242,15 +242,16 @@ test('a valid event locale is authoritative even though the URL does not carry i
     assert.equal(new URL(page.replaced[0]).searchParams.get('lang'), 'zh');
 });
 
-test('a URL that already carries the target locale still navigates when SSR differs', async () => {
+test('a URL that already carries the target locale reloads when SSR differs', async () => {
     // 旧测试的错误假设：地址栏已是 zh 不能证明这次响应就是 zh 渲染的。
     // 服务端 SSR 仍是 en → 必须用修正后的 URL 再请求一次。
     const page = load({ ssrLocale: 'en', htmlLang: 'zh-CN', href: 'https://x.test/reports/weekly?lang=zh' });
     page.languageChange('zh');
     await page.flush();
-    assert.equal(page.replaced.length, 1, 'SSR 仍为 en 时必须导航（地址栏已是 zh 不构成豁免）');
-    assert.equal(new URL(page.replaced[0]).searchParams.get('lang'), 'zh');
-    assert.equal(new URL(page.replaced[0]).pathname, '/reports/weekly');
+    assert.equal(page.replaced.length, 0, '目标等于完整当前 URL 时不依赖可能仅同文档导航的 replace');
+    assert.equal(page.reloads.length, 1, 'SSR 仍为 en 时必须重新获取当前已对齐 zh 的 URL');
+    assert.equal(new URL(page.reloads[0]).searchParams.get('lang'), 'zh');
+    assert.equal(new URL(page.reloads[0]).pathname, '/reports/weekly');
 });
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,8 @@ import re
 from datetime import UTC
 from pathlib import Path
 
+import pytest
+
 from app.config import Config
 from app.utils.book_labels import (
     _AWARD_CATEGORY_ZH_TO_EN,
@@ -17,6 +19,7 @@ from app.utils.book_labels import (
     _category_zh_to_en,
     award_term,
     bilingual,
+    category_alias_labels,
     category_name,
     language_name,
 )
@@ -156,6 +159,64 @@ def test_category_name_follows_request_locale(app):
 
 def test_category_name_filter_registered(app):
     assert app.jinja_env.filters['category_name'] is category_name
+
+
+@pytest.mark.parametrize('category', Config.CATEGORIES)
+@pytest.mark.parametrize('locale', ('en', 'zh'))
+def test_category_name_covers_actual_nyt_labels(category, locale):
+    """NYT 标签由实际配置派生；「商业」保留既有新书显示名优先级。"""
+    zh = Config.CATEGORIES[category]
+    en = Config.CATEGORY_NAMES_EN[category]
+    if locale == 'en':
+        expected = 'Business' if category == 'business-books' else en
+        assert category_name(zh, locale) == expected
+        assert category_name(en, locale) == en
+    else:
+        assert category_name(zh, locale) == zh
+        assert category_name(en, locale) == zh
+
+
+@pytest.mark.parametrize('locale', ('en', 'zh'))
+def test_category_name_nyt_mapping_uses_current_config(monkeypatch, locale):
+    """配置新增标签无需维护另一张显示映射表。"""
+    monkeypatch.setitem(Config.CATEGORIES, 'future-test-category', '测试新增榜单')
+    monkeypatch.setitem(Config.CATEGORY_NAMES_EN, 'future-test-category', 'Future Test List')
+    source = '测试新增榜单' if locale == 'en' else 'Future Test List'
+    expected = 'Future Test List' if locale == 'en' else '测试新增榜单'
+    assert category_name(source, locale) == expected
+
+
+def test_category_name_nyt_follows_request_locale_and_jinja_escaping(app):
+    """周报调用使用请求 locale；未知标签保持原值，HTML 由 Jinja 自动转义。"""
+    source = '<img src=x onerror=alert(1)>'
+    with app.test_request_context('/weekly-reports/1?lang=en'):
+        assert category_name('精装小说') == Config.CATEGORY_NAMES_EN['hardcover-fiction']
+        template = app.jinja_env.from_string('{{ value | category_name }}')
+        assert template.render(value=source) == '&lt;img src=x onerror=alert(1)&gt;'
+    with app.test_request_context('/weekly-reports/1?lang=zh'):
+        assert category_name('Hardcover Fiction') == Config.CATEGORIES['hardcover-fiction']
+
+
+def test_category_name_nyt_preserves_all_publisher_aliases():
+    """新增 NYT 展示映射不改变新书分类、规范名或前端别名字典。"""
+    from app.services.publisher_data import CATEGORY_EN_TO_ZH
+
+    original = dict(CATEGORY_EN_TO_ZH)
+    assert category_alias_labels() == original
+    for en, zh in original.items():
+        assert category_name(en, 'zh') == zh
+        assert category_name(en, 'en') == en
+        assert category_name(zh, 'en') == _category_zh_to_en()[zh]
+        assert category_name(zh, 'zh') == zh
+    assert category_name('商业', 'en') == 'Business'
+    assert category_alias_labels() == original
+    assert original == CATEGORY_EN_TO_ZH
+
+
+@pytest.mark.parametrize('locale', ('en', 'zh'))
+@pytest.mark.parametrize('value', ('未登记榜单', '<script>alert(1)</script>', '', None))
+def test_category_name_nyt_preserves_unknown_and_empty(value, locale):
+    assert category_name(value, locale) == (value or '')
 
 
 def test_award_templates_route_names_through_the_filters():

@@ -60,7 +60,7 @@ for (const tab of ['cross', 'longevity', 'overlooked']) test(`real mobile ${tab}
   for (const failedBeforeScript of [false, true]) {
     const img = { tagName: 'IMG', src: missing, dataset: {}, complete: failedBeforeScript, naturalWidth: 0, hasAttribute: name => Object.hasOwn(rendered.attrs, name) };
     let listener;
-    const context = vm.createContext({ window: {}, document: { addEventListener(type, callback, capture) { if (type === 'error') { listener = callback; assert.equal(capture, true); } }, querySelectorAll: () => img.hasAttribute('data-cover-fallback') ? [img] : [] } });
+    const context = vm.createContext({ window: {}, document: { addEventListener(type, callback, capture) { if (type === 'error') { listener = callback; assert.equal(capture, true); } }, querySelectorAll: selector => selector === 'img[data-cover-fallback]' && img.hasAttribute('data-cover-fallback') ? [img] : [] } });
     vm.runInContext(mobileSource.slice(fallbackStart, fallbackEnd) + '\ninitImageFallback();', context);
     if (!failedBeforeScript) listener({ target: img });
     assert.equal(img.src, '/static/default-cover.png');

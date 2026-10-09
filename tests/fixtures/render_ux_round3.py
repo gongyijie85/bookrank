@@ -1,6 +1,7 @@
 """Render current frontend templates with isolated display data for Node UX QA."""
 
 import ast
+import gettext
 import importlib
 import importlib.util
 import json
@@ -98,6 +99,70 @@ env.filters['is_valid_isbn'] = lambda value: (
 )
 env.filters['clean_isbn'] = lambda value: str(value).replace('-', '').replace(' ', '')
 env.filters['report_title'] = reports.localize_report_title
+
+if task.get('actual_display_labels'):
+    # Opt in to real display helpers/catalogs without booting external services.
+    publisher_spec = importlib.util.spec_from_file_location(
+        'actual_publisher_data', root / 'app/services/publisher_data.py'
+    )
+    publishers = importlib.util.module_from_spec(publisher_spec)
+    publisher_spec.loader.exec_module(publishers)
+    # Load only actual display constants, never configuration/environment bootstrap.
+    display_package = ModuleType('ux_qa_display')
+    display_package.__path__ = []
+    sys.modules[display_package.__name__] = display_package
+    display_utils = ModuleType('ux_qa_display.utils')
+    display_utils.__path__ = []
+    sys.modules[display_utils.__name__] = display_utils
+    display_services = ModuleType('ux_qa_display.services')
+    display_services.__path__ = []
+    sys.modules[display_services.__name__] = display_services
+    sys.modules['ux_qa_display.services.publisher_data'] = publishers
+    config_class = next(
+        node
+        for node in ast.parse((root / 'app/config.py').read_text(encoding='utf8')).body
+        if isinstance(node, ast.ClassDef) and node.name == 'Config'
+    )
+    config_fields = {
+        node.target.id: ast.literal_eval(node.value)
+        for node in config_class.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id in ('CATEGORIES', 'CATEGORY_NAMES_EN')
+    }
+    assert set(config_fields) == {'CATEGORIES', 'CATEGORY_NAMES_EN'}
+    display_config = ModuleType('ux_qa_display.config')
+    display_config.Config = type('Config', (), config_fields)
+    sys.modules[display_config.__name__] = display_config
+    labels.__package__ = 'ux_qa_display.utils'
+    labels._CATEGORY_ZH_TO_EN = None
+    labels._category_en_to_zh = lambda: publishers.CATEGORY_EN_TO_ZH
+    reverse_categories = {}
+    for english, chinese in publishers.CATEGORY_EN_TO_ZH.items():
+        current = reverse_categories.get(chinese)
+        if current is None or current.islower():
+            reverse_categories[chinese] = english
+    labels._CATEGORY_ZH_TO_EN = reverse_categories
+    env.filters['bilingual'] = lambda zh, en='', *args: labels.bilingual(zh, en, locale)
+    env.filters['category_name'] = lambda value, *args: labels.category_name(value, args[0] if args else locale)
+    title_helper = next(
+        node
+        for node in ast.walk(ast.parse((root / 'app/__init__.py').read_text(encoding='utf8')))
+        if isinstance(node, ast.FunctionDef) and node.name == 'format_title_filter'
+    )
+    title_helper.decorator_list = []
+    title_globals = {}
+    exec(compile(ast.Module(body=[title_helper], type_ignores=[]), 'actual_format_title', 'exec'), title_globals)
+    env.filters['format_title'] = title_globals['format_title_filter']
+    catalog_path = root / 'translations' / locale / 'LC_MESSAGES/messages.mo'
+    with catalog_path.open('rb') as catalog_file:
+        catalog = gettext.GNUTranslations(catalog_file)
+
+    def translated(value, **params):
+        text = catalog.gettext(value)
+        return text % params if params else text
+
+    env.globals.update(_=translated, gettext=translated)
 
 
 class DOM(HTMLParser):
