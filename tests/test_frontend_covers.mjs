@@ -133,3 +133,95 @@ test('scheduleRetry stops after the delay list is exhausted', () => {
     assert.equal(scheduled, false);
     assert.equal(img.src, PROXIED);
 });
+
+function retryFromDOM(candidate, boundary = 'data-original', now = () => 123) {
+    const cover = loadCover();
+    const timers = [];
+    const writes = [];
+    let attribute = '/static/default-cover.png';
+    const img = {
+        tagName: 'IMG',
+        dataset: boundary === 'coverProxy' ? { coverProxy: candidate } : {},
+        currentSrc: 'http://local.test/static/default-cover.png',
+        get src() { return new URL(attribute, 'http://local.test').href; },
+        set src(value) { attribute = value; writes.push(value); },
+        getAttribute(key) {
+            if (key === 'src') return attribute;
+            return key === 'data-original' && boundary === 'data-original' ? candidate : '';
+        },
+    };
+    const scheduled = cover.scheduleRetry(img, {
+        now,
+        setTimeout(callback, delay) { timers.push({ callback, delay }); },
+    });
+    return { img, timers, writes, scheduled };
+}
+
+test('actual data-original retry emits canonical relative owned routes without source userinfo or fragment', () => {
+    for (const pathname of ['/cover', '/award-book/42/cover']) {
+        const input = 'http://alice:password@local.test' + pathname + '?key=one&key=two&empty=#fragment';
+        const f = retryFromDOM(input);
+        assert.equal(f.scheduled, true); assert.equal(f.timers.length, 1); f.timers[0].callback();
+        assert.ok(f.writes[0].startsWith(pathname + '?'), f.writes[0]);
+        assert.equal(f.img.getAttribute('src'), f.writes[0], 'native-style src getter is absolute, raw attribute holds the canonical relative value');
+        const assigned = new URL(f.img.src);
+        assert.equal(assigned.origin, 'http://local.test'); assert.equal(assigned.pathname, pathname);
+        assert.equal(assigned.username, ''); assert.equal(assigned.password, ''); assert.equal(assigned.hash, '');
+        assert.deepEqual(assigned.searchParams.getAll('key'), ['one', 'two']);
+        assert.equal(assigned.searchParams.get('empty'), ''); assert.equal(assigned.searchParams.get('_r'), '0');
+        assert.equal(assigned.searchParams.get('_t'), '123');
+    }
+});
+
+const unsafeProxyInputs = [
+    'javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>alert(1)</script>',
+    'data:image/svg+xml,<svg onload=alert(1)>', 'vbscript:msgbox(1)', 'file:///cover',
+    'blob:http://local.test/cover', 'https://local.test/cover', 'http://foreign.test/cover',
+    '//foreign.test/cover', '///foreign.test/cover', '/\\foreign.test/cover',
+    'http://local.test@foreign.test/cover', '/cover-other', '/cover/else',
+    '/award-book/nope/cover', '/award-book/-1/cover', '/award-book/1/cover/extra', 'http://[bad/cover',
+];
+
+test('actual DOM boundaries reject unsafe schemes, external origins and invalid routes without timers or src assignment', () => {
+    for (const boundary of ['data-original', 'coverProxy']) for (const input of unsafeProxyInputs) {
+        const f = retryFromDOM(input, boundary);
+        assert.equal(f.scheduled, false, boundary + ': ' + input);
+        assert.equal(f.timers.length, 0); assert.deepEqual(f.writes, []);
+    }
+});
+
+test('actual canonical retry preserves nested URL, Unicode, percent, quote, duplicate and empty query semantics', () => {
+    const nested = 'https://books.test/image?a=1&name=书 空&percent=%2F&plus=+&quoted="<x>"';
+    const query = 'src=' + encodeURIComponent(nested) + '&token=%25+%2B&repeat=one&repeat=two&empty=&%3Ckey%3E=%22%3Cimg%3E%27&_r=9&_r=8&_t=7';
+    for (const boundary of ['data-original', 'coverProxy']) for (const prefix of ['/cover?', 'http://local.test/cover?', '//local.test/award-book/42/cover?']) {
+        const input = prefix + query;
+        const f = retryFromDOM(input, boundary); assert.equal(f.scheduled, true); f.timers[0].callback();
+        const original = new URL(input, 'http://local.test'); const assigned = new URL(f.img.src);
+        const pairs = url => [...url.searchParams].filter(([key]) => key !== '_r' && key !== '_t');
+        assert.deepEqual(pairs(assigned), pairs(original), boundary + ': ' + prefix);
+        assert.equal(assigned.searchParams.get('src'), nested); assert.equal(assigned.origin, 'http://local.test');
+        assert.equal(assigned.pathname, original.pathname); assert.equal(assigned.searchParams.getAll('_r').length, 1);
+        assert.equal(assigned.searchParams.getAll('_t').length, 1); assert.equal(assigned.searchParams.get('_r'), '0');
+        assert.equal(assigned.searchParams.get('_t'), '123');
+    }
+});
+
+test('private serializers independently fail closed; this strengthens their contract without claiming a public guard bypass', () => {
+    const root = { location: { origin: 'http://local.test' } };
+    const seam = source.replace('    root.BookRankCover = {', '    root.__testOnlySerializers = { cleanProxySrc, withRetryQuery };\n    root.BookRankCover = {');
+    assert.notEqual(seam, source);
+    vm.runInNewContext(seam, { window: root, URL, URLSearchParams });
+    for (const input of ['', ...unsafeProxyInputs]) {
+        assert.doesNotThrow(() => assert.equal(root.__testOnlySerializers.cleanProxySrc(input), '', input));
+        assert.doesNotThrow(() => assert.equal(root.__testOnlySerializers.withRetryQuery(input, 0, () => 123), '', input));
+    }
+    assert.equal(Object.hasOwn(root.BookRankCover, 'cleanProxySrc'), false);
+    assert.equal(Object.hasOwn(root.BookRankCover, 'withRetryQuery'), false);
+});
+
+test('failed safe serialization leaves the current image intact instead of assigning an empty src', () => {
+    const f = retryFromDOM('/cover?src=image', 'data-original', () => { throw new Error('clock unavailable'); });
+    assert.equal(f.scheduled, true);
+    assert.doesNotThrow(() => f.timers[0].callback()); assert.deepEqual(f.writes, []);
+    assert.equal(f.img.getAttribute('src'), '/static/default-cover.png'); assert.equal(f.img.dataset.coverRetrying, '');
+});
