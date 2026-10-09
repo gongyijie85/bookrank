@@ -6,7 +6,15 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const source = path => fs.readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
-const scripts = html => [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
+const scripts = html => [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script[ \t\n\f\r]*>/gi)].map(match => match[1]);
+
+test('actual script extractor accepts mixed-case closing tags with HTML ASCII whitespace and keeps blocks separate', () => {
+  for (const whitespace of ['', ' ', '\t', '\n', '\f', '\r', ' \t\r\n\f ']) {
+    const html = '<ScRiPt nonce="example">first();</sCrIpT' + whitespace + '><script>second();</SCRIPT>';
+    assert.deepEqual(scripts(html), ['first();', 'second();'], JSON.stringify(whitespace));
+  }
+  assert.deepEqual(scripts('<script>incomplete();</script\u00a0>'), [], 'non-ASCII space must not become an HTML closing-tag separator');
+});
 
 class Element {
   constructor(attrs = {}) {
