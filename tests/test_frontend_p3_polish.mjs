@@ -25,6 +25,84 @@ const newList = books => ({ books, stats: {}, publishers: [], categories: [], se
 const weeklyBook = { title: 'The Complete Original Book Title: A Very Important Subtitle', title_zh: '译名简称', author: 'Writer', category: '精装小说', cover: '/cache/images/actual.jpg', rank: 2, rank_change: 3, weeks_on_list: 12, is_new: false };
 const weeklyContent = { title_display: 'Weekly Bestseller Report', top_changes: [weeklyBook], new_books: [weeklyBook], top_risers: [weeklyBook], longest_running: [weeklyBook], featured_books: [weeklyBook], category_stats: {}, total_books: 10 };
 
+for (const locale of ['en', 'zh']) {
+  test(`about introduction preserves readable emphasized word boundaries (${locale})`, () => {
+    const result = render('about.html', { about_stats: {} }, locale);
+    const introduction = result.nodes.find(node => node.tag === 'p' && hasClass(node, 'about-text'));
+    assert.ok(introduction);
+    if (locale === 'en') {
+      assert.match(introduction.text, /featuring\s+major international book awards\s+winners/);
+      assert.match(introduction.text, /provide\s+publisher new releases\s+and\s+weekly list analysis/);
+    } else {
+      assert.ok(introduction.text.includes('收录国际重要图书奖项获奖作品'));
+      assert.ok(introduction.text.includes('并提供出版社新书速递与每周榜单分析'));
+    }
+  });
+}
+
+for (const locale of ['zh', 'en']) {
+  for (const cover of ['', null, '/cache/images/real-cover.jpg']) {
+    test(`desktop new-book detail provides an accessible localized absent cover and preserves a real cover (${locale}, ${String(cover)})`, () => {
+      const result = render('new_book_detail.html', { book: { ...newBook, cover_url: cover }, back_url: `/new-books?lang=${locale}` }, locale);
+      const owner = result.nodes.find(node => hasClass(node, 'detail-cover'));
+      assert.ok(owner);
+      const images = result.nodes.filter(node => node.tag === 'img' && within(result, node, owner));
+      if (cover) {
+        assert.equal(images.length, 1);
+        assert.equal(images[0].attrs.src, cover);
+        assert.equal(images[0].attrs.width, '280');
+        assert.equal(images[0].attrs.height, '420');
+        assert.equal(images[0].attrs.loading, 'lazy');
+        assert.equal(images[0].attrs['data-fallback'], '/static/default-cover.png');
+        assert.ok(images[0].attrs.alt.includes(locale === 'en' ? newBook.title : newBook.title_zh));
+        assert.equal(owner.text.includes(locale === 'en' ? 'No cover' : '暂无封面'), false);
+      } else {
+        assert.equal(images.length, 0);
+        const text = locale === 'en' ? 'No cover' : '暂无封面';
+        const label = result.nodes.find(node => within(result, node, owner) && node.ownText.includes(text));
+        assert.ok(label, 'the placeholder needs its own readable text, not only an attribute');
+        for (const node of [label, ...label.ancestors.map(index => result.nodes[index])]) {
+          assert.equal(Object.hasOwn(node.attrs, 'hidden'), false);
+          assert.notEqual(node.attrs['aria-hidden'], 'true');
+        }
+        const icons = result.nodes.filter(node => node.tag === 'svg' && within(result, node, owner));
+        assert.equal(icons.length, 1);
+        assert.equal(icons[0].attrs['aria-hidden'], 'true');
+      }
+    });
+  }
+  for (const template of ['profile.html', 'mobile/profile.html']) {
+    test(`${template} empty-state search explains its scope in ${locale} while preserving GET and locale`, () => {
+      const result = render(template, { favorites: [], search_history: [], reading_history: [] }, locale);
+      const id = template.startsWith('mobile/') ? 'mobile-profile-search-input' : 'profile-search-input';
+      const input = result.nodes.find(node => node.attrs.id === id);
+      assert.ok(input);
+      const form = result.nodes.find(node => node.tag === 'form' && within(result, input, node));
+      assert.ok(form);
+      assert.equal(form.attrs.action, '/');
+      assert.equal(form.attrs.method, 'get');
+      assert.equal(input.attrs.name, 'search');
+      assert.equal(input.attrs.type, 'search');
+      const language = result.nodes.find(node => node.attrs.name === 'lang' && within(result, node, form));
+      assert.equal(language.attrs.value, locale);
+      const button = result.nodes.find(node => node.tag === 'button' && within(result, node, form));
+      assert.equal(button.attrs.type, 'submit');
+      const hint = input.attrs.placeholder || '';
+      if (locale === 'en') {
+        assert.match(hint, /title/i);
+        assert.match(hint, /author/i);
+        assert.doesNotMatch(hint, /[\u4e00-\u9fff]/);
+      } else {
+        assert.ok(hint.includes('书名') && hint.includes('作者'));
+      }
+      const label = result.nodes.find(node => node.tag === 'label' && node.attrs.for === id);
+      assert.ok(label?.text.trim(), 'visible guidance must keep the associated accessible name');
+      assert.equal(Object.hasOwn(label.attrs, 'hidden'), false);
+      assert.notEqual(label.attrs['aria-hidden'], 'true');
+    });
+  }
+}
+
 test('mobile rendered assets preserve the search CSS version and refresh the full-audit JS version in both locales', () => {
   for (const locale of ['en', 'zh']) {
     const result = render('mobile/new_books.html', newList([]), locale);

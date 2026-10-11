@@ -23,9 +23,10 @@ g.csp_nonce——否则模板里 `nonce or csp_nonce()` 的兜底分支会命中
 """
 
 import json
-from datetime import date
+from datetime import date, datetime
 from html.parser import HTMLParser
 
+import pytest
 from flask import render_template
 
 from app.models.schemas import WeeklyReport
@@ -429,3 +430,92 @@ def test_detail_head_custom_title_verbatim(app, db):
     assert _texts(html, 'title') == [f'{CUSTOM_TITLE} - BookRank']
     assert _meta_content(html, 'og:title') == [f'{CUSTOM_TITLE} - BookRank']
     assert _article_headline(html) == CUSTOM_TITLE
+
+
+# ---- 周期已完整写在标题中时，不在紧邻的副标题 / 元信息里重复 ----
+
+
+@pytest.mark.parametrize('locale', ['zh', 'en'])
+@pytest.mark.parametrize('mobile', [False, True])
+@pytest.mark.parametrize(
+    ('title', 'period_in_title'),
+    [
+        ('2026年09月21日-2026年09月27日 畅销书周报', True),
+        ('编辑特刊：2026-09-21 至 2026-09-27 — 完整原题', True),
+        ('编辑特刊：2026年09月21日 至 2026年09月27日 — 完整原题', True),
+        (STANDARD_TITLE, False),
+        (CUSTOM_TITLE, False),
+        ('编辑特刊：始于 2026-09-21，后续内容见正文', False),
+        ('编辑特刊：2025-09-21 至 2025-09-27 — 历史回顾', False),
+        ('编辑特刊：09.21 - 09.27 — 未注明年份', False),
+    ],
+)
+def test_list_period_once_without_rewriting_title(app, db, locale, mobile, title, period_in_title):
+    report = _make_report(db, title, date(2026, 9, 21), date(2026, 9, 27), _content(), locale)
+    expected_title = report.content_data['title_display']
+    template = 'mobile/weekly_reports.html' if mobile else 'weekly_reports.html'
+    html = _render(app, template, [report], f'/reports/weekly?lang={locale}')
+    title_class = 'm-report-title' if mobile else 'news-title'
+    assert _texts(html, 'h3', title_class) == [expected_title]
+    if title != '2026年09月21日-2026年09月27日 畅销书周报' and title != STANDARD_TITLE:
+        assert expected_title == title
+    cards = _AttrsExtractor('a' if mobile else 'div', 'm-report-card' if mobile else 'report-card')
+    cards.feed(html)
+    assert [card.get('data-title') for card in cards.rows] == [expected_title]
+
+    if mobile:
+        subtitles = _texts(html, 'p', 'm-report-sub')
+        assert len(subtitles) == 1
+        subtitle = subtitles[0]
+        assert ('09.21' in subtitle) is not period_in_title
+        assert ('09.27' in subtitle) is not period_in_title
+        # 去掉周期后仍保留可靠的条目数量，不留下开头的分隔符。
+        assert '15' in subtitle
+        assert not subtitle.startswith(('·', '-', '–', '—'))
+    else:
+        periods = _texts(html, 'span', 'news-period')
+        if period_in_title:
+            assert periods == []
+        else:
+            assert len(periods) == 1
+            assert '2026-09-21' in periods[0] and '2026-09-27' in periods[0]
+
+
+@pytest.mark.parametrize('locale', ['zh', 'en'])
+@pytest.mark.parametrize('mobile', [False, True])
+@pytest.mark.parametrize('created_at', [None, datetime(2026, 10, 2, 13, 47)])
+def test_list_never_invents_generation_time(app, db, locale, mobile, created_at):
+    report = _make_report(db, CUSTOM_TITLE, date(2026, 9, 21), date(2026, 9, 27), _content(), locale)
+    # 不提交：None 必须保持缺失，不能让模型的默认值替测试造时间。
+    report.created_at = created_at
+    template = 'mobile/weekly_reports.html' if mobile else 'weekly_reports.html'
+    html = _render(app, template, [report], f'/reports/weekly?lang={locale}')
+    metadata = _texts(html, 'p', 'm-report-sub') if mobile else _texts(html, 'div', 'news-meta')
+    for text in metadata:
+        if '生成于' in text or 'Generated at' in text:
+            assert created_at is not None
+            assert created_at.strftime('%Y-%m-%d') in text
+            assert created_at.strftime('%H:%M') in text
+
+
+@pytest.mark.parametrize('locale', ['zh', 'en'])
+@pytest.mark.parametrize('total_books', [None, 0])
+def test_mobile_deduplicated_period_keeps_only_known_totals(app, db, locale, total_books):
+    report = _make_report(
+        db,
+        '2026年09月21日-2026年09月27日 畅销书周报',
+        date(2026, 9, 21),
+        date(2026, 9, 27),
+        _content(total_books=total_books),
+        locale,
+    )
+    html = _render(app, 'mobile/weekly_reports.html', [report], f'/reports/weekly?lang={locale}')
+    subtitles = _texts(html, 'p', 'm-report-sub')
+    assert all('09.21' not in text and '09.27' not in text for text in subtitles)
+    assert all(not text.startswith(('·', '-', '–', '—')) for text in subtitles)
+    if total_books is None:
+        # 没有周期或已知总量时，可以完全不渲染副标题；未知不能造出零。
+        assert all(not text for text in subtitles)
+    else:
+        assert len(subtitles) == 1
+        assert subtitles[0] == ('0 list entries' if locale == 'en' else '0 条 上榜记录')

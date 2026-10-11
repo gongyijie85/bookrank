@@ -362,6 +362,92 @@
     .awards-page .books-grid { grid-template-columns: 1fr; }
 }
 
+@media (min-width:769px) {
+  .charts-page.awards-page .filter-group.search-box {
+    min-width: 200px;
+  }
+}
+
+@media (min-width:761px) and (max-width:768px) {
+  .charts-page.awards-page .filter-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 10px 12px;
+  }
+
+  .charts-page.awards-page .filter-group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    width: auto;
+    min-width: 0;
+    flex: initial;
+  }
+
+  .charts-page.awards-page .filter-group label {
+    font-size: 13px;
+    white-space: normal;
+  }
+
+  .charts-page.awards-page .search-box,
+  .charts-page.awards-page .filter-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .charts-page.awards-page select,
+  .charts-page.awards-page input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .charts-page.awards-page .filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .charts-page.awards-page .filter-actions button {
+    min-height: 44px;
+    flex: 1 1 auto;
+  }
+
+  .charts-page.awards-page .books-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .charts-page.awards-page .books-grid .card,
+  .charts-page.awards-page .books-grid .card:nth-child(n+4) {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .charts-page.awards-page .books-grid .card .card-image,
+  .charts-page.awards-page .books-grid .card:nth-child(n+4) .card-image {
+    height: 174px;
+    padding: 26px 14px 20px;
+  }
+
+  .charts-page.awards-page .books-grid .card .card-image .cover-frame,
+  .charts-page.awards-page .books-grid .card:nth-child(n+4) .card-image .cover-frame {
+    height: 128px;
+  }
+
+  .charts-page.awards-page .books-grid .card .card-content,
+  .charts-page.awards-page .books-grid .card:nth-child(n+4) .card-content {
+    padding: 18px 16px 18px 8px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .awards-page .award-rail { scroll-behavior: auto; }
     .awards-page .card,

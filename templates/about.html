@@ -13,6 +13,13 @@
 ], csp_nonce()) }}
 {% endblock %}
 
+{% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+.about-page .about-hero {padding:16px 0;margin-bottom:20px;}
+.about-page .page-title {margin:0 0 8px;}
+</style>
+{% endblock %}
+
 {% block content %}
 {% set _stats = about_stats or {} %}
 {% set _nyt_cat = _stats.get('nyt_category_count') %}
@@ -30,7 +37,7 @@
 }
 </script>
 
-<div class="about-container">
+<div class="about-container about-page">
     <section class="about-hero">
         <h1 class="page-title">
             <svg class="icon text-gold" width="28" height="28"><use href="#icon-book"/></svg>
@@ -43,8 +50,8 @@
         <h2 class="section-title">{{ _('项目介绍') }}</h2>
         <p class="about-text">
             BookRank {{ _('是一个专注于图书排行榜数据聚合与展示的网站。我们实时追踪') }}
-            <strong>{{ _('纽约时报畅销书排行榜') }}</strong>，{{ _('收录') }}<strong>{{ _('国际重要图书奖项') }}</strong>{{ _('获奖作品') }}，
-            {{ _('并提供') }}<strong>{{ _('出版社新书速递') }}</strong>{{ _('与') }}<strong>{{ _('每周榜单分析') }}</strong>，{{ _('帮助读者快速发现优质图书。') }}
+            <strong>{{ _('纽约时报畅销书排行榜') }}</strong>，{{ _('收录') }}{% if get_locale()=='en' %} {% endif %}<strong>{{ _('国际重要图书奖项') }}</strong>{% if get_locale()=='en' %} {% endif %}{{ _('获奖作品') }}，
+            {{ _('并提供') }}{% if get_locale()=='en' %} {% endif %}<strong>{{ _('出版社新书速递') }}</strong>{% if get_locale()=='en' %} {% endif %}{{ _('与') }}{% if get_locale()=='en' %} {% endif %}<strong>{{ _('每周榜单分析') }}</strong>，{{ _('帮助读者快速发现优质图书。') }}
         </p>
     </section>
 

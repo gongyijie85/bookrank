@@ -18,6 +18,7 @@
 .profile-page .about-hero{padding:16px 0;margin-bottom:16px}
 .profile-page .page-title{font-family:var(--font-serif);font-size:32px;margin:0 0 8px;color:var(--text-primary)}
 .profile-page .page-subtitle,.profile-page .about-hero p{margin:0;color:var(--text-secondary)}
+.profile-page #profile-search-input::placeholder{color:var(--text-secondary);opacity:1;}
 
 </style>
 {% endblock %}
@@ -53,8 +54,8 @@
         <p class="about-text">{{ _('浏览书籍时点击收藏按钮即可添加') }}</p>
         <form action="/" method="get" style="display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-4);flex-wrap:wrap;">
             <input type="hidden" name="lang" value="{{ get_locale() }}">
-            <label for="profile-search-input" class="sr-only">{{ _('搜索图书') }}</label>
-            <input id="profile-search-input" type="search" name="search" class="input" aria-label="{{ _('搜索图书') }}" style="min-height:44px;flex:1;">
+            <label for="profile-search-input" class="sr-only">{{ _('搜索书名或作者') }}</label>
+            <input id="profile-search-input" type="search" name="search" class="input" aria-label="{{ _('搜索书名或作者') }}" placeholder="{{ _('搜索书名或作者...') }}" data-i18n-placeholder="search_placeholder_award" data-i18n-aria-label="search_book_author" style="min-height:44px;flex:1;">
             <button type="submit" class="btn btn-primary" style="min-height:44px;">{{ _('搜索图书') }}</button>
         </form>
         <a href="{{ url_for('main.index', lang=get_locale()) }}">{{ _('发现图书') }}</a>

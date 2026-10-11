@@ -67,7 +67,8 @@
             <img src="{{ book.cover_url|cover_src_or_default }}" alt="{{ _('《') }}{{ book.title_zh|bilingual(book.title) }}{{ _('》封面') }}" width="280" height="420" loading="lazy" data-fallback="{{ url_for('static', filename='default-cover.png') }}">
             {% else %}
             <div class="cover-placeholder">
-                <svg class="icon" width="64" height="64"><use href="#icon-book"/></svg>
+                <svg class="icon" width="64" height="64" aria-hidden="true"><use href="#icon-book"/></svg>
+                <span data-zh="暂无封面" data-en="No cover">{{ _('暂无封面') }}</span>
             </div>
             {% endif %}
         </div>
@@ -426,13 +427,22 @@ body.detail-page .main-content {
     display: block;
 }
 
-.cover-placeholder {
+.new-book-detail-layout .cover-placeholder {
     width: 100%;
-    aspect-ratio: 2/3;
+    height: 200px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #a39e98;
+    gap: 8px;
+    background-color: var(--bg-secondary, #f5f5f5);
+    color: var(--text-secondary, #615d59);
+}
+
+@media (max-width: 768px) {
+    .new-book-detail-layout .cover-placeholder {
+        height: 144px;
+    }
 }
 
 /* {{ _('购买按钮') }}：等权重、低干扰的披露块（原为蓝色实心按钮） */

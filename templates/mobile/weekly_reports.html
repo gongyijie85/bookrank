@@ -58,18 +58,28 @@
     <div class="m-book-list">
         {% for report in section.reports %}
         {% set content = report.content_data or {} %}
-        <a href="/reports/weekly/{{ report.report_date.isoformat() }}?lang={{ get_locale() }}" class="m-card m-report-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-title="{% if content.title_display %}{{ content.title_display }}{% elif report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}" data-summary="{{ report.content_data.summary if report.content_data else '' }}">
+        {% set shown_title = content.title_display if content.title_display else (report.title if report.title else (_('周报') ~ ' ' ~ report.week_start.strftime('%m.%d') ~ ' - ' ~ report.week_end.strftime('%m.%d'))) %}
+        {% set ws_iso = report.week_start.strftime('%Y-%m-%d') %}
+        {% set we_iso = report.week_end.strftime('%Y-%m-%d') %}
+        {% set ws_cn = report.week_start.strftime('%Y年%m月%d日') %}
+        {% set we_cn = report.week_end.strftime('%Y年%m月%d日') %}
+        {% set title_has_period = ((ws_iso in (shown_title or '') or ws_cn in (shown_title or '')) and (we_iso in (shown_title or '') or we_cn in (shown_title or ''))) %}
+        <a href="/reports/weekly/{{ report.report_date.isoformat() }}?lang={{ get_locale() }}" class="m-card m-report-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-title="{{ shown_title }}" data-summary="{{ report.content_data.summary if report.content_data else '' }}">
             <div class="m-report-week">W{{ report.week_end.strftime('%V') }}</div>
             <div class="m-report-main">
                 <h3 class="m-report-title">
-                    {% if content.title_display %}{{ content.title_display }}{% elif report.title %}{{ report.title }}{% else %}{{ _('周报') }} {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
+                    {{ shown_title }}
                 </h3>
+                {% set show_period = not title_has_period %}
+                {% if show_period or content.total_books_known %}
                 <p class="m-report-sub">
-                    {{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}
+                    {% if show_period %}{{ report.week_start.strftime('%m.%d') }} - {{ report.week_end.strftime('%m.%d') }}{% endif %}
                     {% if content.total_books_known %}
-                    {% if get_locale() == 'en' %}· {{ content.total_books_display }} {{ _('上榜记录')|lower }}{% else %}· {{ content.total_books_display }} {{ _('条') }} {{ _('上榜记录') }}{% endif %}
+                    {% if show_period %} · {% endif %}
+                    {% if get_locale() == 'en' %}{{ content.total_books_display }} {{ _('上榜记录')|lower }}{% else %}{{ content.total_books_display }} {{ _('条') }} {{ _('上榜记录') }}{% endif %}
                     {% endif %}
                 </p>
+                {% endif %}
                 {% if content.total_new_known or content.total_rising_known or content.total_falling_known %}
                 <div class="m-report-chips">
                     {% if content.total_new_known %}

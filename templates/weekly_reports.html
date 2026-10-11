@@ -114,9 +114,15 @@
         {% if reports %}
         <div class="reports-list">
             {% for report in reports %}
+            {% set shown_title = report.content_data.title_display if report.content_data and report.content_data.title_display else report.title %}
+            {% set week_start_iso = report.week_start.strftime('%Y-%m-%d') %}
+            {% set week_end_iso = report.week_end.strftime('%Y-%m-%d') %}
+            {% set week_start_cn = report.week_start.strftime('%Y年%m月%d日') %}
+            {% set week_end_cn = report.week_end.strftime('%Y年%m月%d日') %}
+            {% set title_has_period = (week_start_iso in (shown_title or '') or week_start_cn in (shown_title or '')) and (week_end_iso in (shown_title or '') or week_end_cn in (shown_title or '')) %}
             {# data-title 与卡片可见标题同源（title_display）：搜索 JS 读的是这个属性，
                若仍是 report.title，英文页搜「NYT」会漏掉显示为英文标题的卡片。 #}
-            <div class="report-card news-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ report.content_data.title_display if report.content_data and report.content_data.title_display else report.title }}" data-summary="{{ report.content_data.summary | markdown | striptags | truncate(200) }}">
+            <div class="report-card news-card" data-month="{{ report.report_date.strftime('%Y-%m') }}" data-date="{{ report.report_date.strftime('%Y-%m-%d') }}" data-title="{{ shown_title }}" data-summary="{{ report.content_data.summary | markdown | striptags | truncate(200) }}">
                 <!-- 日期徽章 -->
                 <div class="news-date-badge">
                     <span class="news-day">{{ report.report_date.strftime('%d') }}</span>
@@ -129,9 +135,10 @@
                     <div class="news-header">
                         <h3 class="news-title">
                             <a href="{{ url_for('main.weekly_report_detail', date=report.report_date.strftime('%Y-%m-%d')) }}">
-                                {{ report.content_data.title_display if report.content_data and report.content_data.title_display else report.title }}
+                                {{ shown_title }}
                             </a>
                         </h3>
+                        {% if not title_has_period %}
                         <div class="news-meta">
                             {# 连接词走 gettext，英文不再出现中文「至」；日期本身用语言中立的 ISO。 #}
                             <span class="news-period">
@@ -139,6 +146,7 @@
                                 {{ report.week_start.strftime('%Y-%m-%d') }} {{ _('至') }} {{ report.week_end.strftime('%Y-%m-%d') }}
                             </span>
                         </div>
+                        {% endif %}
                     </div>
                     
                     <!-- 新闻摘要 -->
