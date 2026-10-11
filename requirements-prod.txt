@@ -15,7 +15,7 @@ Flask-Babel==4.0.0
 # ORM 和数据库
 SQLAlchemy==2.0.38
 alembic==1.14.0
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.12
 
 # 配置和环境
 python-dotenv==1.2.2
