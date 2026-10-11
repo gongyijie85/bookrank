@@ -2584,6 +2584,16 @@ h1.m-report-hero-period {
     display: none;
 }
 
+.mobile-awards-page .m-book-cover {
+    position: relative;
+}
+
+.mobile-awards-page .m-book-cover .m-neutral-cover-placeholder {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
 .m-neutral-book-cover {
     width: 20px;
     height: 20px;

@@ -83,7 +83,7 @@ for (const locale of ['en', 'zh']) {
     });
     assert.equal(urls.length, 2);
     const expectedVersions = new Map([
-      ['/static/mobile/css/mobile.css', 'audit-followup-20261009'],
+      ['/static/mobile/css/mobile.css', 'awards-neutral-20261009'],
       ['/static/mobile/js/mobile.js', 'audit-followup-20261009'],
     ]);
     assert.deepEqual(urls.map(url => url.pathname).sort(), [...expectedVersions.keys()].sort());
