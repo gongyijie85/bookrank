@@ -31,7 +31,9 @@
                      width="280"
                      height="420"
                      data-original="{{ book.cover_original_url|cover_src }}"
-                     data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                     data-fallback="{{ url_for('static', filename='default-cover.png') }}"
+                     data-neutral-cover-feedback="list">
+<span class="neutral-cover-placeholder" hidden><svg aria-hidden="true"><use href="#icon-book"></use></svg><span data-zh="暂无封面" data-en="No cover available">{% if get_locale() == 'zh' %}暂无封面{% else %}No cover available{% endif %}</span></span>
             </a>
         </div>
         {% if book.year %}

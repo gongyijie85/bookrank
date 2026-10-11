@@ -182,6 +182,29 @@
     box-shadow: none;
 }
 
+.awards-page .cover-frame .neutral-cover-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.awards-page .cover-frame .neutral-cover-placeholder[hidden] {
+    display: none;
+}
+
+.awards-page .cover-frame .neutral-cover-placeholder svg {
+    width: 40px;
+    height: 40px;
+}
+
 .awards-page .award-rail .card-image { height: 252px; padding: 14px 14px 10px; }
 .awards-page .award-rail .card-content { padding: 14px 16px 18px; }
 .awards-page .award-rail .card-title { font-size: 15px; }
