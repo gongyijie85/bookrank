@@ -3,6 +3,7 @@
 {% block extra_css %}<style nonce="{{ csp_nonce() }}">.dashboard-container{width:min(1400px,100%);margin:0 auto;padding:0;}
 .dashboard-container h1{font-family:var(--font-serif);font-size:32px;margin:0 0 16px;color:var(--text-primary);}
 .dashboard-container .row{display:grid;gap:16px;}
+.dashboard-container .row>div{min-width:0;}
 .dashboard-container .row.mb-4{grid-template-columns:repeat(4,minmax(0,1fr));}
 .dashboard-container .row:not(.mb-4){grid-template-columns:repeat(2,minmax(0,1fr));}
 .dashboard-container .row>.col-md-12{grid-column:1/-1;}
@@ -17,7 +18,7 @@
 .dashboard-container .panel-status{color:var(--text-primary)!important;background:var(--bg-primary)!important;}
 .dashboard-container button{min-height:44px;color:var(--text-primary);background:transparent;border:1px solid var(--text-primary);}
 .dashboard-container button.primary{color:var(--bg-primary);background:var(--text-primary);border:1px solid var(--text-primary);}
-@media (max-width:768px){.dashboard-container .row.mb-4,.dashboard-container .row:not(.mb-4){grid-template-columns:1fr;}.dashboard-container .row.stats-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width:768px){.dashboard-container .row.mb-4,.dashboard-container .row:not(.mb-4){grid-template-columns:minmax(0,1fr);}.dashboard-container .row.stats-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media (max-width:360px){.dashboard-container .row.stats-row{grid-template-columns:repeat(2,minmax(0,1fr));}}.dashboard-container .chart-container {
   position: relative;
   height: 280px;
@@ -705,12 +706,22 @@ applyAnalyticsTheme();
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 8,
+                            right: 20,
+                            bottom: 8,
+                            left: 8
+                        }
+                    },
                     scales: {
                         x: {
                             type: 'linear',
+                            offset: true,
                             ticks: {
                                 stepSize: DAY_MS,
                                 maxTicksLimit: 6,
+                                padding: 8,
                                 callback: function(value) {
                                     return fmtUtc(value);
                                 }
@@ -842,11 +853,21 @@ applyAnalyticsTheme();
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 8,
+                            right: 20,
+                            bottom: 8,
+                            left: 8
+                        }
+                    },
                     scales: {
                         x: {
                             type: 'linear',
+                            offset: true,
                             ticks: {
                                 stepSize: 86400000,
+                                padding: 8,
                                 callback: function (value) {
                                     const d = new Date(value);
                                     return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
