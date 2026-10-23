@@ -31,6 +31,7 @@ from sqlalchemy.pool import QueuePool
 from app.models.schemas import Award, AwardBook
 from app.services.api_cache_service import APICacheService
 from app.services.api_utils import ImageCacheService, _is_safe_image_url
+from app.services.detail_cache import DetailCache
 from app.services.google_books_client import GoogleBooksClient
 from app.utils.cover_urls import (
     ALLOWED_COVER_HOSTS,
@@ -712,19 +713,45 @@ class TestAwardCoverRequestPipeline:
         assert len(fixture['jobs']) == 32
         assert fixture['trace'] == []
 
-    def test_pending_is_separate_for_each_app(self, client, award_cover_pipeline, monkeypatch):
+    def test_pending_is_separate_for_each_app(self, client, db, award_cover_pipeline):
         from app.routes.main import main_bp
-        from app.services.award_book_service import AwardBookService
 
         fixture = award_cover_pipeline
-        monkeypatch.setattr(AwardBookService, 'get_award_book_by_id', lambda self, book_id: fixture['book'])
         other_app = Flask('synthetic-other-cover-app')
-        other_app.config['IMAGE_CACHE_DIR'] = fixture['cache_dir']
+        other_app.config.update(
+            TESTING=True,
+            SQLALCHEMY_DATABASE_URI='sqlite:///:memory:',
+            IMAGE_CACHE_DIR=fixture['cache_dir'],
+        )
+        other_app.extensions['book_detail_cache'] = DetailCache()
+        db.init_app(other_app)
         other_app.register_blueprint(main_bp)
-        for app_client in (client, other_app.test_client(), client):
-            response = app_client.get(f'/award-book/{fixture["book_id"]}/cover')
-            assert response.status_code == 302
-            assert response.headers['Cache-Control'] == 'no-store'
+        with other_app.app_context():
+            db.create_all()
+            award = Award(name='Other synthetic award')
+            db.session.add(award)
+            db.session.flush()
+            db.session.add(
+                AwardBook(
+                    id=fixture['book_id'],
+                    award_id=award.id,
+                    year=2026,
+                    title='Other synthetic book',
+                    author='Synthetic Author',
+                    is_displayable=True,
+                )
+            )
+            db.session.commit()
+        try:
+            for app_client in (client, other_app.test_client(), client):
+                response = app_client.get(f'/award-book/{fixture["book_id"]}/cover')
+                assert response.status_code == 302
+                assert response.headers['Cache-Control'] == 'no-store'
+        finally:
+            with other_app.app_context():
+                db.session.remove()
+                db.drop_all()
+                db.engine.dispose()
         assert len(fixture['jobs']) == 2
         assert fixture['trace'] == []
 
@@ -747,6 +774,7 @@ class TestAwardCoverRequestPipeline:
             IMAGE_CACHE_DIR=fixture['cache_dir'],
         )
         pooled_app.extensions['image_cache_service'] = fixture['image_cache']
+        pooled_app.extensions['book_detail_cache'] = DetailCache()
         db.init_app(pooled_app)
         pooled_app.register_blueprint(main_bp)
         with pooled_app.app_context():

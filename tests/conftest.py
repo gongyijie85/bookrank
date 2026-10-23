@@ -139,6 +139,17 @@ def _restore_testing_flag(app):
     app.config['TESTING'] = True
 
 
+@pytest.fixture(autouse=True)
+def _clear_book_detail_cache(app):
+    """session 级 app 不应把某个测试的详情快照带入下一个测试。"""
+    cache = app.extensions.get('book_detail_cache')
+    if cache is not None:
+        cache.clear()
+    yield
+    if cache is not None:
+        cache.clear()
+
+
 @pytest.fixture
 def mock_books_data():
     """

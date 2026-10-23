@@ -3,6 +3,7 @@ import logging
 from ...models.database import db
 from ...models.new_book import NewBook, Publisher
 from .. import publisher_data as pd
+from ..public_metadata_cache import cached_public_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,9 @@ class PublisherManager:
             raise
 
     def get_publisher_book_counts(self) -> dict[int, int]:
+        return cached_public_metadata(('public-publisher-book-counts', None), self._get_publisher_book_counts_uncached)
+
+    def _get_publisher_book_counts_uncached(self) -> dict[int, int]:
         from sqlalchemy import func
 
         results = (

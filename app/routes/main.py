@@ -23,6 +23,7 @@ from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
+from ..services.book_detail_cache import cached_bestseller, cached_book
 from ..services.book_detail_service import enrich_book_details, merge_or_translate_book
 from ..services.publisher_data import canonicalize_category
 from ..utils import ExternalAPIError
@@ -312,7 +313,7 @@ def cached_image(filename: str):
     safe_filename = secure_filename(filename)
     cache_dir = current_app.config.get('IMAGE_CACHE_DIR', Path('cache/images'))
 
-    return send_from_directory(cache_dir, safe_filename)
+    return send_from_directory(cache_dir, safe_filename, max_age=604800)
 
 
 def _send_cached_cover(local_path: str, max_age: int = 604800) -> Response | None:
@@ -356,7 +357,9 @@ def cover_proxy():
     if not src or not is_allowed_cover_host(src):
         if src:
             logger.warning(f'拒绝代理非白名单封面源: {src[:200]}')
-        return redirect(default_cover_url, code=302)
+        response = redirect(default_cover_url, code=302)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     image_cache = get_service('image_cache_service')
     if image_cache:
@@ -394,18 +397,10 @@ def award_book_cover(book_id: int):
     """解析获奖图书封面。请求线程只回本地缓存，冷路径回占位图并后台补全。"""
     from threading import Lock
 
-    from ..services.award_book_service import AwardBookService
+    from ..services.award_cover_cache import cached_award_cover
 
-    book = AwardBookService().get_award_book_by_id(book_id)
-    if not book:
-        abort(404)
-    source_path = (book.cover_local_path or '').strip()
-    image_cache = get_service('image_cache_service')
-    cached = (
-        _send_cached_cover(source_path, max_age=3600)
-        if image_cache is None or image_cache.is_cached_file_present(source_path)
-        else None
-    )
+    source_path = cached_award_cover(book_id)
+    cached = _send_cached_cover(source_path, max_age=3600) if source_path else None
     if cached is not None:
         return cached
 
@@ -611,7 +606,6 @@ def _shape_award_book(book) -> dict:
         'author': book.author,
         'description': book.description,
         'description_zh': quick_clean_translation(book.description_zh, 'description'),
-        'details': book.details,
         'cover_local_path': _available_local_cover(book.cover_local_path),
         'cover_original_url': book.cover_original_url,
         'isbn13': book.isbn13,
@@ -624,7 +618,6 @@ def _shape_award_book(book) -> dict:
         'award_name_en': (book.award.name_en or '') if book.award else '',
         'award_wikidata_id': award_wikidata_id,
         'award_result_kind': award_result_kind(book.category, award_wikidata_id),
-        'buy_links': book.buy_links,
     }
 
 
@@ -641,6 +634,7 @@ def _build_award_sections(award_service, awards_list: list, limit: int = 12) -> 
                 include_displayable_only=True,
                 page=1,
                 limit=limit,
+                list_only=True,
             )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'奖项书列查询失败 award={award.name}: {e}', level='warning')
@@ -696,6 +690,7 @@ def _load_awards_data(award_service, params: dict) -> dict:
             include_displayable_only=True,
             page=params['page'],
             limit=params['per_page'],
+            list_only=True,
         )
 
         for book in books:
@@ -774,6 +769,7 @@ def _load_recent_award_books(award_service, years: list[int], unavailable_years:
                 include_displayable_only=True,
                 page=1,
                 limit=OVERLOOKED_AWARD_BOOKS_PER_YEAR,
+                list_only=True,
             )
         except Exception as e:
             log_error(ErrorCategory.DB_QUERY, f'遗珠榜获奖数据加载失败 year={year}: {e}', level='warning')
@@ -988,6 +984,7 @@ def _load_new_books_data(modules, params: dict) -> dict:
                 category=selected_category if selected_category else None,
                 days=selected_days,
                 publication_status=selected_publication_status,
+                list_only=True,
             )
         else:
             books, total = modules.query_service.get_new_books(
@@ -997,6 +994,7 @@ def _load_new_books_data(modules, params: dict) -> dict:
                 page=page,
                 per_page=per_page,
                 publication_status=selected_publication_status,
+                list_only=True,
             )
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'获取书籍数据失败: {e}', level='warning')
@@ -1141,7 +1139,7 @@ def _build_publisher_sections(publishers_data: list, publisher_ids: dict, module
     if not category_index_by_id:
         return []
 
-    books, _total = modules.query_service.get_new_books(days=30, page=1, per_page=200)
+    books, _total = modules.query_service.get_new_books(days=30, page=1, per_page=200, list_only=True)
 
     buckets: dict[int, list] = defaultdict(list)
     for book in books:
@@ -1194,6 +1192,7 @@ def _build_new_book_publisher_sections(
             category=category,
             days=days,
             publication_status=publication_status,
+            list_only=True,
         )
     else:
         books, _total = modules.query_service.get_new_books(
@@ -1203,6 +1202,7 @@ def _build_new_book_publisher_sections(
             page=1,
             per_page=300,
             publication_status=publication_status,
+            list_only=True,
         )
 
     active = {p.id: p for p in publishers}
@@ -1268,8 +1268,23 @@ def new_book_detail(book_id):
     """新书详情页（异步翻译，不阻塞响应）"""
     back_url = safe_return_path(request.args.get('return_to'), '/new-books')
     modules = get_new_book_modules()
-    try:
+
+    def load_book():
         book = modules.query_service.get_book(book_id)
+        if book and (not book.title_zh or not book.description_zh):
+            translation_service = get_service('translation_service')
+            if translation_service:
+                app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
+
+                def translate_book_async():
+                    with app_obj.app_context():
+                        modules.translation_pipeline.translate_book_background(book_id, translation_service)
+
+                submit_background_task(translate_book_async)
+        return book
+
+    try:
+        book = cached_book('new-book', book_id, load_book)
     except Exception:
         log_error(
             ErrorCategory.DB_QUERY,
@@ -1284,20 +1299,6 @@ def new_book_detail(book_id):
 
     if not book:
         return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
-
-    if not book.title_zh or not book.description_zh:
-        translation_service = get_service('translation_service')
-        if translation_service:
-            # 工作线程没有请求上下文，必须先取 app 对象再在线程里 push：db.session 是绑定
-            # app context 的 scoped session，不 push 就 "Working outside of application
-            # context"，并被 pipeline 的 except 记成 warning —— 后台中文补齐从未真正执行。
-            app_obj = current_app._get_current_object()  # type: ignore[attr-defined]
-
-            def translate_book_async():
-                with app_obj.app_context():
-                    modules.translation_pipeline.translate_book_background(book_id, translation_service)
-
-            submit_background_task(translate_book_async)
 
     return render_adaptive('new_book_detail.html', book=book, back_url=back_url)
 
@@ -1358,7 +1359,7 @@ def award_book_detail(book_id):
     back_url = safe_return_path(request.args.get('return_to'), '/awards')
     award_service = AwardBookService()
     try:
-        book = award_service.get_award_book_by_id(book_id)
+        book = cached_book('award', book_id, lambda: award_service.get_award_book_by_id(book_id))
     except Exception:
         log_error(
             ErrorCategory.DB_QUERY,
@@ -1504,8 +1505,7 @@ def book_detail(book_index):
 
     isbn = book.get('isbn13') or book.get('isbn10')
     if isbn and validate_isbn(isbn):
-        enrich_book_details(book, isbn)
-        merge_or_translate_book(book, isbn)
+        book = cached_bestseller(book, isbn, enrich_book_details, merge_or_translate_book)
 
     book['description'] = strip_placeholder(book.get('description'))
     book['details'] = strip_placeholder(book.get('details'))
@@ -1825,15 +1825,14 @@ def weekly_report_status():
     report_service = WeeklyReportService(book_service)
     today = date.today()
     week_start, week_end = compute_expected_week_range(today)
-    has_current = report_service.is_current_week_report_ready()
-    latest = report_service.get_latest_report()
+    has_current, latest_week_end = report_service.get_status_for_week(week_end)
 
     return jsonify(
         {
             'has_current_week': has_current,
             'expected_week_start': week_start.isoformat(),
             'expected_week_end': week_end.isoformat(),
-            'latest_week_end': latest.week_end.isoformat() if latest else None,
+            'latest_week_end': latest_week_end.isoformat() if latest_week_end else None,
         }
     )
 

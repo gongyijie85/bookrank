@@ -250,6 +250,7 @@ def _start_background_tasks(app, book_service, translation_service, google_clien
     cover_sync_delay = 120 if is_render_free else 60
 
     _scheduler = BackgroundScheduler(
+        executors={'default': {'type': 'threadpool', 'max_workers': 1}},
         # daemon 线程：非 daemon 主循环线程会被 threading._shutdown 在 atexit 之前
         # join，导致解释器退出挂起（或退出时提交到期任务报 "cannot schedule new
         # futures after interpreter shutdown"）。运行中任务的完成等待由 atexit 注册的
@@ -419,14 +420,20 @@ def _scheduler_wrapper(app, task_func):
 
     def wrapper():
         task_name = task_func.__name__
-        try:
-            with app.app_context():
+        with app.app_context():
+            try:
                 task_func(app)
-            # 成功后重置失败计数
-            _task_failure_counts.pop(task_name, None)
-        except Exception as e:
-            log_error(ErrorCategory.UNKNOWN, f'后台任务 [{task_name}] 失败: {e}', exc_info=True)
-            _track_task_failure(app, task_name, str(e))
+                # 成功后重置失败计数
+                _task_failure_counts.pop(task_name, None)
+            except Exception as e:
+                from .models import db
+
+                try:
+                    db.session.rollback()
+                except Exception as rollback_error:
+                    logger.warning('后台任务事务回滚失败: %s', type(rollback_error).__name__)
+                log_error(ErrorCategory.UNKNOWN, f'后台任务 [{task_name}] 失败: {type(e).__name__}')
+                _track_task_failure(app, task_name, type(e).__name__)
 
     wrapper.__name__ = task_func.__name__
     return wrapper
@@ -442,7 +449,7 @@ def _track_task_failure(app, task_name: str, error_message: str) -> None:
         SystemConfig.set_value(f'last_failure_count_{task_name}', str(count))
         db.session.commit()
     except Exception as err:
-        logger.warning('记录失败计数失败: %s', err)
+        logger.warning('记录失败计数失败: %s', type(err).__name__)
         try:
             from .models import db
 
@@ -454,24 +461,51 @@ def _track_task_failure(app, task_name: str, error_message: str) -> None:
         _notify_task_failure(app, task_name, count, error_message)
 
 
-def _notify_task_failure(app, task_name: str, failure_count: int, error_message: str) -> None:
+def _post_alert_webhook(app, payload: dict) -> bool:
+    """只发送一次；HTTP 与已知业务回执都成功才确认送达。"""
+    webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
+    if not webhook_url:
+        app.logger.warning('告警未发送：未配置 webhook')
+        return False
+    try:
+        import requests
+
+        response = requests.post(webhook_url, json=payload, timeout=10, allow_redirects=False)
+        response.raise_for_status()
+        if not 200 <= response.status_code < 300:
+            app.logger.warning('告警未确认送达：HTTP %s', response.status_code)
+            return False
+        receipt = response.json()
+        if not isinstance(receipt, dict):
+            app.logger.warning('告警未确认送达：无有效业务回执')
+            return False
+        codes = [receipt[key] for key in ('code', 'StatusCode') if key in receipt]
+        if receipt.get('success') is False or not all(type(value) in (int, float) and value == 0 for value in codes):
+            app.logger.warning('告警未送达：业务拒绝')
+            return False
+        if receipt.get('success') is not True and not codes:
+            app.logger.warning('告警未确认送达：无有效业务回执')
+            return False
+        return True
+    except Exception as exc:
+        app.logger.warning('告警 webhook 未确认送达: %s', type(exc).__name__)
+        return False
+
+
+def _notify_task_failure(app, task_name: str, failure_count: int, error_message: str) -> bool:
     """发送后台任务失败告警（webhook 优先，邮件兜底）"""
     webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
     if webhook_url:
-        try:
-            import requests
-
-            payload = {
-                'task': task_name,
-                'failure_count': failure_count,
-                'error': error_message[:500],
-                'timestamp': datetime.now(UTC).isoformat(),
-            }
-            requests.post(webhook_url, json=payload, timeout=10)
+        payload = {
+            'task': task_name,
+            'failure_count': failure_count,
+            'error': error_message[:500],
+            'timestamp': datetime.now(UTC).isoformat(),
+        }
+        if _post_alert_webhook(app, payload):
             logger.warning('已发送后台任务失败告警: %s', task_name)
-        except Exception as exc:
-            logger.warning('告警 webhook 发送失败: %s', exc)
-        return
+            return True
+        return False
 
     # 邮件兜底
     if app.config.get('MAIL_ENABLED'):
@@ -480,7 +514,8 @@ def _notify_task_failure(app, task_name: str, failure_count: int, error_message:
 
             mail = app.extensions.get('mail')
             if not mail:
-                return
+                logger.warning('告警未发送：邮件服务不可用')
+                return False
             subject = f'[BookRank 告警] 后台任务 {task_name} 连续失败 {failure_count} 次'
             body = f"""任务: {task_name}
 连续失败次数: {failure_count}
@@ -493,8 +528,13 @@ def _notify_task_failure(app, task_name: str, failure_count: int, error_message:
                 msg = Message(subject, recipients=recipients, body=body)
                 mail.send(msg)
                 logger.warning('已发送后台任务失败邮件告警: %s', task_name)
+                return True
+            logger.warning('告警未发送：邮件收件人未配置')
         except Exception as exc:
-            logger.warning('告警邮件发送失败: %s', exc)
+            logger.warning('告警邮件发送失败: %s', type(exc).__name__)
+    else:
+        logger.warning('告警未发送：未配置 webhook 且邮件未启用')
+    return False
 
 
 def _translation_cache_cleanup_task(app):
@@ -548,13 +588,8 @@ def _crawler_drift_alert_task(app):
             }
             webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
             if webhook_url:
-                try:
-                    import requests
-
-                    requests.post(webhook_url, json=payload, timeout=10)
+                if _post_alert_webhook(app, payload):
                     app.logger.warning('⚠️ 爬虫漂移告警已发送: %s', [d['publisher'] for d in drifted])
-                except Exception as exc:
-                    app.logger.warning('爬虫漂移告警 webhook 发送失败: %s', exc)
             else:
                 app.logger.warning('⚠️ 爬虫漂移候选（无 webhook，仅日志）: %s', payload['drifted'])
     except Exception as e:
@@ -597,13 +632,8 @@ def _resource_threshold_alert_task(app):
         }
         webhook_url = os.environ.get('ALERT_WEBHOOK_URL')
         if webhook_url:
-            try:
-                import requests
-
-                requests.post(webhook_url, json=payload, timeout=10)
+            if _post_alert_webhook(app, payload):
                 app.logger.warning('⚠️ 资源阈值告警已发送: %s', exceeded)
-            except Exception as exc:
-                app.logger.warning('资源阈值告警 webhook 发送失败: %s', exc)
         else:
             app.logger.warning('⚠️ 资源超阈值（无 webhook，仅日志）: %s', exceeded)
     except Exception as e:
@@ -653,6 +683,9 @@ def _cover_prefetch_task(app):
 
 def _deferred_init_task(app):
     """延迟初始化任务：翻译数据清理 + 预置获奖图书补种（从冷启动路径移出）"""
+    if app.config.get('APP_ENV') == 'production':
+        app.logger.info('生产环境跳过自动清洗和播种，须由运维显式执行')
+        return
     try:
         from run import _cleanup_dirty_translations
 
@@ -700,6 +733,24 @@ def _weekly_report_task(app):
         _log_failure(app, 'last_report_failure')
 
 
+def _new_book_sync_pending() -> bool:
+    """线程退出不等于旧批次已核实；保留现有摘要作为自动重提门槛。"""
+    import json as _json
+
+    from flask import current_app
+
+    if current_app.extensions.get('new_book_sync_verification_pending') is True:
+        return True
+    previous = SystemConfig.get_value('last_auto_sync_result')
+    if not previous:
+        return False
+    try:
+        summary = _json.loads(previous)
+    except (TypeError, ValueError):
+        return True
+    return not isinstance(summary, dict) or summary.get('status') == 'pending_verification'
+
+
 def run_auto_sync() -> dict:
     """执行新书速递自动同步的核心逻辑。
 
@@ -713,6 +764,11 @@ def run_auto_sync() -> dict:
     from flask import current_app
 
     modules = require_service('new_book_modules')
+
+    if modules.sync_engine.has_in_flight() is True:
+        return {'status': 'pending_verification', 'reason': '上轮同步仍在执行，结果待核实，未提交新批次'}
+    if _new_book_sync_pending():
+        return {'status': 'pending_verification', 'reason': '上轮同步结果尚未核实，须人工核实后受控恢复'}
 
     last_sync = SystemConfig.get_value('last_auto_sync_time')
     if last_sync:
@@ -730,6 +786,16 @@ def run_auto_sync() -> dict:
     total_added = sum(r.get('added', 0) for r in results)
     total_updated = sum(r.get('updated', 0) for r in results)
     failed_results = [result for result in results if result.get('success') is False]
+    pending_results = [result for result in results if result.get('status') == 'pending_verification']
+    failed_results = [result for result in failed_results if result not in pending_results]
+    all_skipped = bool(results) and all(result.get('status') == 'skipped' for result in results)
+    status = 'pending_verification' if pending_results else ('synced' if results and not failed_results else 'partial')
+    if all_skipped:
+        status = 'skipped'
+    if pending_results:
+        # Fail closed even when saving the existing SystemConfig summary fails.
+        # This process-local latch is cleared only by reviewed operator recovery.
+        current_app.extensions['new_book_sync_verification_pending'] = True
 
     # 持久化本次同步摘要，便于生产诊断（哪家失败/超时、各自耗时）
     # SystemConfig.set_value 只写 session，必须 commit 后 last-sync 端点才能读到。
@@ -738,7 +804,7 @@ def run_auto_sync() -> dict:
 
         from .models import db
 
-        if results and not failed_results:
+        if results and not failed_results and not pending_results and not all_skipped:
             SystemConfig.set_value('last_auto_sync_time', datetime.now(UTC).isoformat())
 
         # 工单 #83：Google Books 系日期过滤拒绝计数的字段名（仅 Google 系
@@ -765,15 +831,23 @@ def run_auto_sync() -> dict:
             publishers_summary.append(entry)
 
         summary = {
-            'finished_at': datetime.now(UTC).isoformat(),
+            'status': status,
+            'observed_at': datetime.now(UTC).isoformat(),
+            'pending_publishers': len(pending_results),
             'added': total_added,
             'updated': total_updated,
             'publishers': publishers_summary,
         }
+        if not pending_results:
+            summary['finished_at'] = datetime.now(UTC).isoformat()
         SystemConfig.set_value('last_auto_sync_result', _json.dumps(summary, ensure_ascii=False))
         db.session.commit()
     except Exception as e:
-        current_app.logger.warning(f'保存同步摘要失败: {e}')
+        # Book writes may already have committed. A missing summary is not
+        # proof of completion and must not enable an automatic second batch.
+        status = 'pending_verification'
+        current_app.extensions['new_book_sync_verification_pending'] = True
+        current_app.logger.warning('保存同步摘要失败，结果待核实: %s', type(e).__name__)
         try:
             from .models import db
 
@@ -782,23 +856,27 @@ def run_auto_sync() -> dict:
             pass
 
     return {
-        'status': 'synced' if not failed_results else 'partial',
+        'status': status,
+        'reason': '所有数据源均跳过，未确认新的抓取成功' if all_skipped else None,
         'added': total_added,
         'updated': total_updated,
         'failed_publishers': len(failed_results),
+        'pending_publishers': len(pending_results),
         'total_publishers': len(results),
     }
 
 
-def _auto_sync_task(app):
+def _auto_sync_task(app, *, lock_acquired=False):
     """新书速递自动同步任务（APScheduler 兜底入口）"""
-    if not _auto_sync_lock.acquire(blocking=False):
+    if not lock_acquired and not _auto_sync_lock.acquire(blocking=False):
         app.logger.info('新书同步已有实例在运行，跳过本次调度')
         return
     try:
         result = run_auto_sync()
         if result['status'] == 'skipped':
             app.logger.info(f'{result["reason"]}，跳过')
+        elif result['status'] == 'pending_verification':
+            app.logger.warning('自动同步结果待核实；已有后台工作可能继续写入，不报告完成或自动重提')
         else:
             if result['failed_publishers']:
                 app.logger.warning(
@@ -807,14 +885,16 @@ def _auto_sync_task(app):
                     result['total_publishers'],
                 )
             app.logger.info(f'自动同步完成：新增 {result["added"]} 本，更新 {result["updated"]} 本')
+        return result
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'自动同步失败: {e}', exc_info=True)
         _log_failure(app, 'last_sync_failure')
+        return {'status': 'failed', 'error': type(e).__name__}
     finally:
         _auto_sync_lock.release()
 
 
-def trigger_auto_sync_background(app) -> dict:
+def trigger_auto_sync_background(app, *, receipt=None) -> dict:
     """在后台线程中启动新书同步，立即返回（供外部 cron 端点调用）。
 
     全量同步约 4 分钟，超过 Gunicorn timeout（180秒），不能同步等待。
@@ -822,15 +902,42 @@ def trigger_auto_sync_background(app) -> dict:
 
     返回 {'status': 'started'} 或 {'status': 'already_running'}。
     """
-    if _auto_sync_lock.locked():
+    with app.app_context():
+        modules = app.extensions.get('new_book_modules')
+        if modules is not None and (modules.sync_engine.has_in_flight() is True or _new_book_sync_pending()):
+            if receipt is not None:
+                receipt.transition('pending_verification')
+            return {'status': 'pending_verification', 'reason': '上轮同步仍在执行或结果尚未核实，未提交新批次'}
+    if not _auto_sync_lock.acquire(blocking=False):
+        if receipt is not None:
+            receipt.transition('pending_verification')
         return {'status': 'already_running'}
 
     def _run():
         with app.app_context():
-            _auto_sync_task(app)
+            try:
+                if receipt is not None and not receipt.transition('running'):
+                    _auto_sync_lock.release()
+                    return
+            except Exception:
+                _auto_sync_lock.release()
+                app.logger.warning('新书同步回执启动未确认，未执行任务')
+                return
+            result = _auto_sync_task(app, lock_acquired=True)
+            if receipt is not None:
+                try:
+                    receipt.finish_sync(result)
+                except Exception:
+                    app.logger.warning('新书同步完成回执未确认，须核实后恢复')
 
-    thread = threading.Thread(target=_run, daemon=True, name='auto-sync-cron')
-    thread.start()
+    try:
+        thread = threading.Thread(target=_run, daemon=True, name='auto-sync-cron')
+        thread.start()
+    except Exception as exc:
+        _auto_sync_lock.release()
+        if receipt is not None:
+            receipt.transition('failed', {'error': type(exc).__name__})
+        raise
     return {'status': 'started'}
 
 

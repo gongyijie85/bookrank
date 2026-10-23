@@ -16,7 +16,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import requests
@@ -26,6 +26,15 @@ from urllib3.util.retry import Retry
 from ...utils.error_handler import ErrorCategory, log_error
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_request_target(url: str) -> str:
+    """日志目标不携带认证信息、查询参数或片段。"""
+    try:
+        parsed = urlsplit(url)
+        return f'{parsed.scheme}://{parsed.hostname or "unknown-host"}{parsed.path}'
+    except (ValueError, TypeError):
+        return '<invalid-url>'
 
 
 @dataclass
@@ -112,6 +121,8 @@ class CrawlOutcome:
 
     books: Iterable[BookInfo]
     date_filter_stats: dict[str, int] | None = None
+    # 与生成器共享：消费完成后才能确定分页是否完整成功。
+    errors: list[str] = field(default_factory=list)
 
 
 class BaseCrawler(ABC):
@@ -145,6 +156,7 @@ class BaseCrawler(ABC):
             config: 爬虫配置，为 None 时使用默认配置
         """
         self.config = config or CrawlerConfig()
+        self.crawl_errors: list[str] = []
         self._session = self._create_session()
         self._robots_parser: RobotFileParser | None = None
         # 日期过滤计数：Google Books 系子类重置为计数字典，其余保持 None
@@ -165,10 +177,13 @@ class BaseCrawler(ABC):
 
         # 配置重试策略
         retry_strategy = Retry(
-            total=self.config.max_retries,
+            # _make_request 和 Google API 调用负责有限重试；不能再乘一层。
+            total=0,
             backoff_factor=self.config.retry_delay,
             status_forcelist=[500, 502, 503, 504],
             allowed_methods=['HEAD', 'GET', 'OPTIONS'],
+            raise_on_status=False,
+            respect_retry_after_header=False,
         )
 
         # 配置连接池
@@ -211,7 +226,7 @@ class BaseCrawler(ABC):
                 logger.warning(f'ℹ️ robots.txt 状态码 {response.status_code}，跳过 robots 约束: {robots_url}')
                 self._robots_parser = None
         except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'无法加载 robots.txt: {e}', level='warning')
+            log_error(ErrorCategory.CRAWLER, f'无法加载 robots.txt: {type(e).__name__}', level='warning')
             self._robots_parser = None
 
     def _is_url_allowed(self, url: str) -> bool:
@@ -248,9 +263,11 @@ class BaseCrawler(ABC):
         Returns:
             Response 对象或 None
         """
+        target = _safe_request_target(url)
         # 检查 robots.txt
         if not self._is_url_allowed(url):
-            logger.warning(f'⚠️ robots.txt 禁止访问: {url}')
+            logger.warning(f'⚠️ robots.txt 禁止访问: {target}')
+            self.crawl_errors.append('robots_disallowed')
             return None
 
         # 设置超时
@@ -274,14 +291,14 @@ class BaseCrawler(ABC):
             try:
                 # 请求前延迟
                 delay = self.config.request_delay * (attempt + 1)
-                logger.debug(f'⏳ 等待 {delay:.1f} 秒后请求: {url}')
+                logger.debug(f'⏳ 等待 {delay:.1f} 秒后请求: {target}')
                 time.sleep(delay)
 
                 response = self._session.request(method, url, **kwargs)
 
                 # 处理常见的反爬响应
                 if response.status_code == 403:
-                    logger.warning(f'⚠️ 403 禁止访问: {url}')
+                    logger.warning(f'⚠️ 403 禁止访问: {target}')
                     # 尝试使用不同的 User-Agent
                     headers['User-Agent'] = (
                         f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{90 + attempt}.0.4430.212 Safari/537.36'
@@ -292,46 +309,51 @@ class BaseCrawler(ABC):
 
                 # 处理 429 速率限制
                 if response.status_code == 429:
-                    logger.warning(f'⚠️ 429 速率限制: {url}')
+                    logger.warning(f'⚠️ 429 速率限制: {target}')
                     # 增加延迟
                     time.sleep(5 * (attempt + 1))
                     continue
 
                 # 处理 500 系列错误
                 if 500 <= response.status_code < 600:
-                    logger.warning(f'⚠️ 服务器错误 {response.status_code}: {url}')
+                    logger.warning(f'⚠️ 服务器错误 {response.status_code}: {target}')
                     # 增加延迟后重试
                     time.sleep(3 * (attempt + 1))
                     continue
 
                 response.raise_for_status()
 
-                logger.info(f'✅ 请求成功: {url} (状态码: {response.status_code}, 尝试: {attempt + 1})')
+                logger.info(f'✅ 请求成功: {target} (状态码: {response.status_code}, 尝试: {attempt + 1})')
                 logger.debug(f'📦 响应大小: {len(response.content)} 字节')
                 return response
 
             except requests.Timeout:
-                logger.error(f'❌ 请求超时: {url} (尝试: {attempt + 1})')
+                logger.error(f'❌ 请求超时: {target} (尝试: {attempt + 1})')
                 if attempt >= self.config.max_retries:
-                    logger.error(f'❌ 请求最终失败: {url} - 超时')
+                    logger.error(f'❌ 请求最终失败: {target} - 超时')
+                    self.crawl_errors.append('timeout')
                     return None
             except requests.HTTPError as e:
-                logger.error(f'❌ HTTP错误: {url} - {e} (尝试: {attempt + 1})')
+                logger.error(f'❌ HTTP错误: {target} - {type(e).__name__} (尝试: {attempt + 1})')
                 if attempt >= self.config.max_retries:
-                    logger.error(f'❌ 请求最终失败: {url} - HTTP错误')
+                    logger.error(f'❌ 请求最终失败: {target} - HTTP错误')
+                    self.crawl_errors.append('http_error')
                     return None
             except requests.RequestException as e:
-                logger.error(f'❌ 请求失败: {url} - {e} (尝试: {attempt + 1})')
+                logger.error(f'❌ 请求失败: {target} - {type(e).__name__} (尝试: {attempt + 1})')
                 if attempt >= self.config.max_retries:
-                    logger.error(f'❌ 请求最终失败: {url} - 请求异常')
+                    logger.error(f'❌ 请求最终失败: {target} - 请求异常')
+                    self.crawl_errors.append('network_error')
                     return None
             except Exception as e:
-                log_error(ErrorCategory.CRAWLER, f'未知错误: {url} - {e} (尝试: {attempt + 1})')
+                log_error(ErrorCategory.CRAWLER, f'未知错误: {target} - {type(e).__name__} (尝试: {attempt + 1})')
                 if attempt >= self.config.max_retries:
-                    logger.error(f'❌ 请求最终失败: {url} - 未知错误')
+                    logger.error(f'❌ 请求最终失败: {target} - 未知错误')
+                    self.crawl_errors.append('request_error')
                     return None
 
-        logger.error(f'❌ 所有尝试失败: {url}')
+        logger.error(f'❌ 所有尝试失败: {target}')
+        self.crawl_errors.append('retry_exhausted')
         return None
 
     def _clean_text(self, text: str | None) -> str:
@@ -382,9 +404,11 @@ class BaseCrawler(ABC):
         Returns:
             抓取结果（书籍流 + 日期过滤计数）
         """
+        self.crawl_errors = []
         return CrawlOutcome(
             books=self._iter_new_books(request),
             date_filter_stats=self.date_filter_stats,
+            errors=self.crawl_errors,
         )
 
     @abstractmethod

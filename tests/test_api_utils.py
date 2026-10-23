@@ -3,6 +3,7 @@
 import time
 from collections import OrderedDict
 from pathlib import Path
+from threading import Lock
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -83,13 +84,16 @@ class TestImageCacheService:
         assert result == '/static/default-cover.png'
 
     @patch.object(ImageCacheService, '__init__', lambda self, *a, **kw: None)
-    def test_memory_cache_hit(self):
+    def test_memory_cache_hit(self, tmp_path):
         service = ImageCacheService.__new__(ImageCacheService)
         service._default_cover = '/static/default-cover.png'
         service._memory_cache = OrderedDict()
+        service._memory_lock = Lock()
         service._memory_cache_ttl = 3600
         service._memory_cache_max_size = 1000
-        service._cache_dir = Path('/tmp/test_cache')
+        service._cache_dir = tmp_path
+        (tmp_path / 'test.jpg').write_bytes(b'\xff\xd8\xff' + b'0' * 4096)
+        service._session = MagicMock()
 
         current_time = time.time()
         # 内存缓存键是**归一化后**的 URL（http → https），见
@@ -99,12 +103,14 @@ class TestImageCacheService:
 
         result = service.get_cached_image_url('http://example.com/cover.jpg')
         assert result == '/cache/images/test.jpg'
+        service._session.get.assert_not_called()
 
     @patch.object(ImageCacheService, '__init__', lambda self, *a, **kw: None)
     def test_memory_cache_expired(self):
         service = ImageCacheService.__new__(ImageCacheService)
         service._default_cover = '/static/default-cover.png'
         service._memory_cache = OrderedDict()
+        service._memory_lock = Lock()
         service._memory_cache_ttl = 1
         service._memory_cache_max_size = 1000
         service._cache_dir = Path('/nonexistent/path')
@@ -138,15 +144,19 @@ class TestImageCachePrefetch:
     def service(self, tmp_path):
         import threading as _threading
 
+        from app.services.detail_cache import DetailCache
+
         svc = ImageCacheService.__new__(ImageCacheService)
         svc._default_cover = '/static/default-cover.png'
         svc._memory_cache = OrderedDict()
+        svc._memory_lock = Lock()
         svc._memory_cache_ttl = 3600
         svc._memory_cache_max_size = 1000
         svc._cache_dir = tmp_path / 'cache'
         svc._cache_dir.mkdir()
         svc._prefetch_lock = _threading.Lock()
         svc._prefetch_pending = set()
+        svc._download_loads = DetailCache(ttl=0)
         return svc
 
     def test_block_false_returns_placeholder_immediately(self, service):
@@ -177,6 +187,9 @@ class TestImageCachePrefetch:
 
             def iter_content(self, size):
                 yield b'fake-jpeg-bytes' * 200
+
+            def close(self):
+                pass
 
         session = MagicMock()
         session.get.return_value = Resp()
@@ -236,6 +249,7 @@ class TestImageCachePrefetch:
             url = url.replace('http://', 'https://', 1)  # 真实实现也在入口归一化
             seen.append(url)
             path = '/cache/images/' + 'f' * 32 + '.jpg'
+            (service._cache_dir / ('f' * 32 + '.jpg')).write_bytes(b'fake-jpeg-bytes' * 200)
             service._update_memory_cache(url, path, time.time())  # 与真实实现一致地回填
             return path
 
@@ -317,6 +331,9 @@ class _FakeOKResp:
     def iter_content(self, size):
         yield b'fake-jpeg-bytes' * 200
 
+    def close(self):
+        pass
+
 
 class _FakeResp:
     """可指定响应体的流式响应替身。"""
@@ -331,6 +348,9 @@ class _FakeResp:
     def iter_content(self, size):
         for i in range(0, len(self._body), size):
             yield self._body[i : i + size]
+
+    def close(self):
+        pass
 
 
 # Open Library 对无封面 ISBN 的实际响应（从生产缓存文件抓取）：43 字节
@@ -348,15 +368,19 @@ class TestImageCachePlaceholderGuard:
     def service(self, tmp_path):
         import threading as _threading
 
+        from app.services.detail_cache import DetailCache
+
         svc = ImageCacheService.__new__(ImageCacheService)
         svc._default_cover = '/static/default-cover.png'
         svc._memory_cache = OrderedDict()
+        svc._memory_lock = Lock()
         svc._memory_cache_ttl = 3600
         svc._memory_cache_max_size = 1000
         svc._cache_dir = tmp_path / 'cache'
         svc._cache_dir.mkdir()
         svc._prefetch_lock = _threading.Lock()
         svc._prefetch_pending = set()
+        svc._download_loads = DetailCache(ttl=0)
         return svc
 
     def _cache_file(self, service, url):

@@ -2,6 +2,7 @@ import gc
 import json
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -26,8 +27,7 @@ from .translation_pipeline import TranslationPipeline
 
 logger = logging.getLogger(__name__)
 
-# 单家出版社同步硬超时（秒）：超过即熔断、标记失败并继续下一家，
-# 避免单家挂起拖死整批同步（宁可漏报不误报）。
+# 单家出版社等待时限（秒）：超时不代表真实工作线程停止，结果必须待核实。
 _PER_PUBLISHER_TIMEOUT = float(os.environ.get('SYNC_PUBLISHER_TIMEOUT', '600'))
 
 # 首次回填模式的入库上限：防止异常数据导致无界入库。
@@ -59,6 +59,47 @@ class SyncEngine:
         self._translation_pipeline = translation_pipeline
         # 入库规则集中到深模块 NewBookIngestor，SyncEngine 只管同步编排。
         self._ingestor = NewBookIngestor(self._translation_pipeline)
+        self._reservation_lock = threading.Lock()
+        self._in_flight: dict[int, object] = {}
+        self._batch_running = False
+        self._batch_owner: int | None = None
+
+    def has_in_flight(self) -> bool:
+        """仅报告本进程仍在执行/排队的工作；空闲不证明旧任务成功。"""
+        with self._reservation_lock:
+            return self._batch_running or bool(self._in_flight)
+
+    def _reserve_publisher(self, publisher_id: int) -> object | None:
+        with self._reservation_lock:
+            if publisher_id in self._in_flight or (self._batch_running and self._batch_owner != threading.get_ident()):
+                return None
+            token = object()
+            self._in_flight[publisher_id] = token
+            return token
+
+    def _release_publisher(self, publisher_id: int, token: object) -> None:
+        with self._reservation_lock:
+            # A late old Future callback must not clear a newer reservation.
+            if self._in_flight.get(publisher_id) is token:
+                del self._in_flight[publisher_id]
+
+    @staticmethod
+    def _pending_result(publisher_id: int | None = None, publisher: str | None = None) -> dict[str, Any]:
+        return {
+            'success': False,
+            'status': 'pending_verification',
+            'completion_status': 'unknown',
+            'transport_status': 'unknown',
+            'parse_status': 'unknown',
+            'publisher_id': publisher_id,
+            'publisher': publisher,
+            'total': 0,
+            'added': 0,
+            'updated': 0,
+            'skipped': 0,
+            'errors': 0,
+            'error': '已有同步仍在执行，结果待核实；未重复提交',
+        }
 
     def _ingest_book_stream(
         self,
@@ -116,6 +157,22 @@ class SyncEngine:
         category: str | None = None,
         max_books: int = 50,
         translate: bool = True,
+        *,
+        _reservation: object | None = None,
+    ) -> dict[str, Any]:
+        token = _reservation if _reservation is not None else self._reserve_publisher(publisher_id)
+        if token is None:
+            return self._pending_result(publisher_id)
+        with self._reservation_lock:
+            if self._in_flight.get(publisher_id) is not token:
+                return self._pending_result(publisher_id)
+        try:
+            return self._sync_publisher_books(publisher_id, category, max_books, translate)
+        finally:
+            self._release_publisher(publisher_id, token)
+
+    def _sync_publisher_books(
+        self, publisher_id: int, category: str | None, max_books: int, translate: bool
     ) -> dict[str, Any]:
         publisher = self._publisher_manager.get_publisher(publisher_id)
         if not publisher:
@@ -197,7 +254,12 @@ class SyncEngine:
                 )
                 ingest_stats.merge_into(result)
 
-            result['transport_status'] = 'success'
+            # 生成器可能先产出有效记录，再记录分页/限流失败；消费后核实完整性。
+            result['transport_status'] = 'failed' if outcome.errors else 'success'
+            if outcome.errors:
+                result['errors'] += len(outcome.errors)
+                result['success'] = False
+                result['error'] = '抓取未完整成功，保留已入库的有效记录'
 
             # 工单 #83：Google Books 系日期过滤的分类拒绝计数随抓取结果流出，
             # 供 auto_sync 摘要持久化（只测量，不改变行为）。非 Google 系
@@ -206,6 +268,11 @@ class SyncEngine:
                 result.update(outcome.date_filter_stats)
 
             if result['total'] == 0:
+                if outcome.errors:
+                    result['status'] = 'request_failed'
+                    result['parse_status'] = 'not_started'
+                    db.session.rollback()
+                    return result
                 # 空结果可能表示“确实没有新书”，也可能表示数据源已经失效；
                 # 在没有额外探针确认前，不能把它记录为一次成功同步。
                 result['status'] = 'empty'
@@ -220,7 +287,8 @@ class SyncEngine:
                 # 已保存的有效记录可以保留，但本轮不能更新出版社的“最后成功同步”时间。
                 result['status'] = 'partial_failure'
                 result['success'] = False
-                result['error'] = f'部分书籍保存失败，共 {result["errors"]} 条'
+                if not outcome.errors:
+                    result['error'] = f'部分书籍保存失败，共 {result["errors"]} 条'
             else:
                 result['status'] = 'success'
 
@@ -257,6 +325,21 @@ class SyncEngine:
         translate: bool = True,
         batch_size: int = 1,
     ) -> list[dict[str, Any]]:
+        with self._reservation_lock:
+            if self._batch_running or self._in_flight:
+                return [self._pending_result()]
+            self._batch_running = True
+            self._batch_owner = threading.get_ident()
+        try:
+            return self._sync_all_publishers(category, max_books_per_publisher, translate, batch_size)
+        finally:
+            with self._reservation_lock:
+                self._batch_running = False
+                self._batch_owner = None
+
+    def _sync_all_publishers(
+        self, category: str | None, max_books_per_publisher: int, translate: bool, batch_size: int
+    ) -> list[dict[str, Any]]:
         results = []
         publishers = self._publisher_manager.get_publishers(active_only=True)
 
@@ -289,7 +372,7 @@ class SyncEngine:
         total_errors = sum(r.get('errors', 0) for r in results)
 
         logger.info(
-            f'全部同步完成: 新增 {total_added}, 更新 {total_updated}, 错误 {total_errors}, '
+            f'同步批次已返回（超时项仍待核实）: 新增 {total_added}, 更新 {total_updated}, 错误 {total_errors}, '
             f'总耗时 {time.monotonic() - run_start:.0f}s'
         )
 
@@ -302,41 +385,40 @@ class SyncEngine:
         max_books: int,
         translate: bool,
     ) -> dict[str, Any]:
-        """在独立线程中同步单家出版社，超时即熔断。
-
-        超时后工作线程无法强制终止，但它使用独立的 scoped session，
-        不会阻塞主流程继续同步下一家；其残留请求最终会因各自的
-        请求级超时而自行终结。
-        """
+        """有界等待真实执行；超时保留在途占位，直到线程确实结束。"""
         app_obj = cast('Any', current_app)._get_current_object()
+        publisher_id = publisher.id
+        token = self._reserve_publisher(publisher_id)
+        if token is None:
+            return self._pending_result(publisher_id, publisher.name_en)
 
         def _worker() -> dict[str, Any]:
             with app_obj.app_context():
                 return self.sync_publisher_books(
-                    publisher.id, category=category, max_books=max_books, translate=translate
+                    publisher_id, category=category, max_books=max_books, translate=translate, _reservation=token
                 )
 
-        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f'sync-{publisher.id}')
-        future = executor.submit(_worker)
+        try:
+            executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f'sync-{publisher_id}')
+            try:
+                future = executor.submit(_worker)
+            except BaseException:
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise
+        except BaseException:
+            self._release_publisher(publisher_id, token)
+            raise
+        # Covers cancelled/queued futures, app-context errors, and mocked workers.
+        future.add_done_callback(lambda done: self._release_publisher(publisher_id, token))
         try:
             return future.result(timeout=_PER_PUBLISHER_TIMEOUT)
         except FutureTimeout:
             logger.error(
-                f'⏱️ 出版社同步超时熔断: {publisher.name_en} (超过 {_PER_PUBLISHER_TIMEOUT:.0f}s，标记失败并继续下一家)'
+                f'出版社同步等待超时: {publisher.name_en} (超过 {_PER_PUBLISHER_TIMEOUT:.0f}s，后台结果待核实)'
             )
-            return {
-                'success': False,
-                'status': 'timeout',
-                'transport_status': 'timeout',
-                'parse_status': 'not_started',
-                'publisher': publisher.name_en,
-                'total': 0,
-                'added': 0,
-                'updated': 0,
-                'skipped': 0,
-                'errors': 0,
-                'error': f'同步超时（>{_PER_PUBLISHER_TIMEOUT:.0f}s），已熔断跳过',
-            }
+            result = self._pending_result(publisher_id, publisher.name_en)
+            result.update(transport_status='timeout', error='同步等待超时，工作线程可能继续写入，结果待核实')
+            return result
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'出版社同步线程异常: {publisher.name_en} - {e}')
             return {
@@ -362,14 +444,17 @@ class SyncEngine:
 
         data_dir = pd.resolve_static_data_dir(static_data_dir)
         result: dict[str, Any] = {
-            'success': True,
+            'success': False,
+            'source': 'static_snapshot',
             'files_seen': 0,
             'total': 0,
             'added': 0,
             'updated': 0,
             'skipped': 0,
             'errors': 0,
+            'invalid_rows': 0,
         }
+        committed_records = 0
 
         for filename, publisher_name in self._publisher_manager.STATIC_DATA_FILES.items():
             path = data_dir / filename
@@ -384,7 +469,7 @@ class SyncEngine:
             result['files_seen'] += 1
             try:
                 rows = json.loads(path.read_text(encoding='utf-8'))
-            except (OSError, json.JSONDecodeError) as e:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
                 logger.warning('静态新书文件读取失败 %s: %s', path, e)
                 result['errors'] += 1
                 continue
@@ -397,28 +482,40 @@ class SyncEngine:
             touched_books: list[NewBook] = []
 
             def _static_error_log(e: Exception, book_info: BookInfo) -> None:
-                log_error(ErrorCategory.CRAWLER, f'静态新书导入失败: {book_info.title} - {e}', level='warning')
+                log_error(ErrorCategory.CRAWLER, f'静态新书导入失败: {type(e).__name__}', level='warning')
 
-            ingest_stats = self._ingest_book_stream(
-                self._iter_static_book_infos(rows, result),
-                publisher,
-                translate=False,
-                touched_books=touched_books,
-                on_error=_static_error_log,
-            )
-            ingest_stats.merge_into(result)
-
+            ingest_stats = None
             try:
+                ingest_stats = self._ingest_book_stream(
+                    self._iter_static_book_infos(rows, result),
+                    publisher,
+                    translate=False,
+                    touched_books=touched_books,
+                    on_error=_static_error_log,
+                )
+                ingest_stats.merge_into(result)
                 self._translation_pipeline.persist_language_pack(touched_books, translate=False)
-                publisher.last_sync_at = datetime.now(UTC)
-                if touched_books:
-                    publisher.sync_count = (publisher.sync_count or 0) + 1
+                # 静态快照只证明本地导入，不能据此推进真实抓取成功时间或次数。
                 db.session.commit()
+                committed_records += len(touched_books)
             except Exception as e:
                 db.session.rollback()
-                log_error(ErrorCategory.DB_QUERY, f'静态新书批量提交失败 {filename}: {e}', level='warning')
+                if ingest_stats is not None:
+                    result['added'] -= ingest_stats.added
+                    result['updated'] -= ingest_stats.updated
+                log_error(
+                    ErrorCategory.DB_QUERY, f'静态新书批量提交失败 {filename}: {type(e).__name__}', level='warning'
+                )
                 result['errors'] += 1
 
+        failed = bool(result['errors'] or result['invalid_rows'])
+        result['success'] = committed_records > 0 and not failed
+        if result['success']:
+            result['status'] = 'seeded'
+        elif committed_records:
+            result['status'] = 'partial_failure'
+        else:
+            result['status'] = 'failed' if failed else 'empty'
         logger.info(
             '静态新书兜底导入完成: 文件%s个, 新增%s本, 更新%s本, 跳过%s本, 错误%s',
             result['files_seen'],
@@ -462,16 +559,50 @@ class SyncEngine:
 
     def _iter_static_book_infos(self, rows: list, result: dict[str, Any]) -> Iterator[BookInfo]:
         """静态数据行 → BookInfo 流：非法行计入 skipped，构造异常计入 errors。"""
+        optional_text_fields = (
+            'isbn13',
+            'isbn10',
+            'description',
+            'cover_url',
+            'category',
+            'publication_date',
+            'price',
+            'language',
+            'source_url',
+        )
         for row in rows:
             if not isinstance(row, dict):
                 result['skipped'] += 1
+                result['invalid_rows'] = result.get('invalid_rows', 0) + 1
                 continue
 
-            title = (row.get('title') or '').strip()
-            author = (row.get('author') or '').strip()
-            if not title or not author:
+            title = row.get('title')
+            author = row.get('author')
+            links = row.get('buy_links')
+            invalid_text = any(
+                row.get(key) is not None and not isinstance(row[key], str) for key in optional_text_fields
+            )
+            invalid_links = links is not None and (
+                not isinstance(links, list)
+                or any(
+                    not isinstance(link, dict)
+                    or any(not isinstance(key, str) or not isinstance(value, str) for key, value in link.items())
+                    for link in links
+                )
+            )
+            if (
+                not isinstance(title, str)
+                or not isinstance(author, str)
+                or not title.strip()
+                or not author.strip()
+                or invalid_text
+                or invalid_links
+            ):
                 result['skipped'] += 1
+                result['invalid_rows'] = result.get('invalid_rows', 0) + 1
                 continue
+            title = title.strip()
+            author = author.strip()
 
             try:
                 yield BookInfo(
@@ -486,9 +617,9 @@ class SyncEngine:
                     price=row.get('price'),
                     page_count=pd.parse_int_safe(row.get('page_count')),
                     language=row.get('language'),
-                    buy_links=row.get('buy_links') if isinstance(row.get('buy_links'), list) else [],  # type: ignore[arg-type]
+                    buy_links=links or [],
                     source_url=row.get('source_url'),
                 )
             except Exception as e:
-                log_error(ErrorCategory.CRAWLER, f'静态新书导入失败: {title} - {e}', level='warning')
+                log_error(ErrorCategory.CRAWLER, f'静态新书导入失败: {type(e).__name__}', level='warning')
                 result['errors'] += 1

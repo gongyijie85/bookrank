@@ -14,6 +14,7 @@ API文档: https://developers.google.com/books/docs/v1/getting_started
 """
 
 import logging
+import threading
 import time
 from datetime import date, datetime, timedelta
 
@@ -42,6 +43,44 @@ class GoogleBooksCrawler(BaseCrawler):
     API_KEY_CONFIG = 'GOOGLE_API_KEY'
 
     BASE_URL = 'https://www.googleapis.com/books/v1/volumes'
+    _quota_lock = threading.Lock()
+    _quota_blocked_until = 0.0
+
+    def _block_quota(self, response) -> None:
+        try:
+            seconds = float(response.headers.get('Retry-After', 3600))
+        except (ValueError, TypeError):
+            seconds = 3600
+        with GoogleBooksCrawler._quota_lock:
+            GoogleBooksCrawler._quota_blocked_until = max(
+                GoogleBooksCrawler._quota_blocked_until, time.monotonic() + max(60, min(seconds, 3600))
+            )
+
+    def _request_google(self, params):
+        """单层有限 GET 重试；429 在各出版社实例间共享冷却，不继续烧配额。"""
+        deadline = time.monotonic() + 60
+        for attempt in range(self.config.max_retries + 1):
+            with GoogleBooksCrawler._quota_lock:
+                if time.monotonic() < GoogleBooksCrawler._quota_blocked_until:
+                    raise requests.HTTPError('Google Books quota cooldown active')
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise requests.Timeout('Google Books request budget exhausted')
+            try:
+                response = self._session.get(self.BASE_URL, params=params, timeout=min(self.config.timeout, remaining))
+                if response.status_code == 429:
+                    self._block_quota(response)
+                    raise requests.HTTPError('Google Books quota limited (429)')
+                if response.status_code < 500 or attempt >= self.config.max_retries:
+                    return response
+            except (requests.Timeout, requests.ConnectionError):
+                if attempt >= self.config.max_retries:
+                    raise
+            delay = min(self.config.retry_delay * (2**attempt), 15)
+            if delay >= deadline - time.monotonic():
+                raise requests.Timeout('Google Books retry budget exhausted')
+            time.sleep(delay)
+        raise requests.Timeout('Google Books retries exhausted')
 
     # "新书"窗口：只保留最近 30 天内出版的书（维护者决议，2026-08-07：
     # 出版 30 天内才算"新书"，与展示层默认窗口一致）。Google Books 没有
@@ -92,6 +131,11 @@ class GoogleBooksCrawler(BaseCrawler):
         if self._key_validated:
             return self._key_is_valid
 
+        with GoogleBooksCrawler._quota_lock:
+            if time.monotonic() < GoogleBooksCrawler._quota_blocked_until:
+                self.crawl_errors.append('quota_cooldown')
+                return False
+
         if not self._api_key:
             self._key_validated = True
             self._key_is_valid = False
@@ -110,6 +154,10 @@ class GoogleBooksCrawler(BaseCrawler):
             elif resp.status_code == 400:
                 logger.warning('Google Books API Key 无效，降级为无Key模式')
                 self._key_is_valid = False
+            elif resp.status_code == 429:
+                self._block_quota(resp)
+                self._key_is_valid = False
+                self.crawl_errors.append('quota_limited')
             else:
                 logger.warning(
                     'Google Books API Key 验证异常 (状态码:%s)，降级为无Key模式',
@@ -117,7 +165,7 @@ class GoogleBooksCrawler(BaseCrawler):
                 )
                 self._key_is_valid = False
         except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'Google Books API Key 验证失败: {e}，降级为无Key模式', level='warning')
+            log_error(ErrorCategory.CRAWLER, f'Google Books API Key 验证失败: {type(e).__name__}', level='warning')
             self._key_is_valid = False
 
         self._key_validated = True
@@ -182,43 +230,21 @@ class GoogleBooksCrawler(BaseCrawler):
             params = self._build_query_params(subject, remaining, start_index)
 
             response = None
-            for attempt in range(self.config.max_retries + 1):
-                try:
-                    time.sleep(self.config.request_delay * (attempt + 1))
-                    response = self._session.get(
-                        self.BASE_URL,
-                        params=params,
-                        timeout=self.config.timeout,
-                    )
-
-                    if response.status_code == 400 and self._key_is_valid:
-                        logger.warning('API Key 可能已失效，尝试无Key模式')
-                        self._key_is_valid = False
-                        params.pop('key', None)
-                        response = self._session.get(
-                            self.BASE_URL,
-                            params=params,
-                            timeout=self.config.timeout,
-                        )
-
-                    if response.status_code == 429:
-                        wait = 5 * (attempt + 1)
-                        logger.warning('Google Books 429 限流，等待 %s 秒后重试', wait)
-                        time.sleep(wait)
-                        continue
-
-                    response.raise_for_status()
-                    break
-                except requests.RequestException as e:
-                    logger.error(
-                        'Google Books API 请求失败 (尝试 %s/%s): %s', attempt + 1, self.config.max_retries + 1, e
-                    )
-                    if attempt >= self.config.max_retries:
-                        response = None
-                    else:
-                        time.sleep(self.config.retry_delay * (attempt + 1))
+            try:
+                time.sleep(self.config.request_delay)
+                response = self._request_google(params)
+                if response.status_code == 400 and self._key_is_valid:
+                    logger.warning('API Key 可能已失效，尝试无Key模式')
+                    self._key_is_valid = False
+                    params.pop('key', None)
+                    response = self._request_google(params)
+                response.raise_for_status()
+            except requests.RequestException as e:
+                logger.error('Google Books API 请求失败: %s', type(e).__name__)
+                response = None
 
             if response is None or response.status_code != 200:
+                self.crawl_errors.append('request_failed')
                 logger.error('Google Books API 请求最终失败，跳过本页')
                 break
 
@@ -387,5 +413,5 @@ class GoogleBooksCrawler(BaseCrawler):
             )
 
         except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'解析 Google Books 卷信息失败: {e}', level='warning')
+            log_error(ErrorCategory.CRAWLER, f'解析 Google Books 卷信息失败: {type(e).__name__}', level='warning')
             return None

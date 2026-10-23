@@ -8,8 +8,11 @@ app.extensions['sync_request_gate']。无外部依赖，可独立测试。
 import threading
 import time
 
+from flask import current_app, has_app_context
+
 _SYNC_COOLDOWN_SECONDS = 60.0
 _EXPORT_COOLDOWN_SECONDS = 10.0
+_SEED_RETRY_SECONDS = 60.0
 
 
 class SyncRequestGate:
@@ -22,6 +25,7 @@ class SyncRequestGate:
         self._export_last_at: dict[str, float] = {}
         self._seed_lock = threading.Lock()
         self._seed_done = False
+        self._seed_retry_at = 0.0
 
     def reset(self) -> None:
         """复位全部状态（测试与生命周期复位用）。"""
@@ -31,6 +35,7 @@ class SyncRequestGate:
             self._export_last_at = {}
         with self._seed_lock:
             self._seed_done = False
+            self._seed_retry_at = 0.0
 
     # ---- 同步冷却 ----
 
@@ -80,9 +85,18 @@ class SyncRequestGate:
     # ---- 静态播种一次性化 ----
 
     def seed_static_data(self, sync_engine) -> None:
-        """进程内只执行一次静态数据兜底播种（幂等：首个请求执行，后续跳过）。"""
+        """生产请求只读；本地播种成功后只执行一次，失败短暂冷却。"""
+        if has_app_context() and current_app.config.get('APP_ENV') == 'production':
+            return
         with self._seed_lock:
-            if self._seed_done:
+            if self._seed_done or time.monotonic() < self._seed_retry_at:
                 return
-            sync_engine.ensure_static_data_seeded()
+            try:
+                result = sync_engine.ensure_static_data_seeded()
+            except Exception:
+                self._seed_retry_at = time.monotonic() + _SEED_RETRY_SECONDS
+                raise
+            if isinstance(result, dict) and result.get('success') is False:
+                self._seed_retry_at = time.monotonic() + _SEED_RETRY_SECONDS
+                return
             self._seed_done = True

@@ -5,6 +5,7 @@ import time
 from collections import OrderedDict
 from datetime import UTC
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any
 
@@ -32,7 +33,7 @@ class MemoryCache:
                 return None
 
             expiry_time, value = self._cache[key]
-            if time.time() > expiry_time:
+            if time.time() >= expiry_time:
                 del self._cache[key]
                 self._misses += 1
                 return None
@@ -42,14 +43,14 @@ class MemoryCache:
             self._hits += 1
             return value
 
-    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
+    def set(self, key: str, value: Any, ttl: float | None = None) -> None:
         with self._lock:
             if key in self._cache:
                 del self._cache[key]
             elif len(self._cache) >= self._max_size:
                 self._cache.popitem(last=False)
 
-            ttl = ttl or self._default_ttl
+            ttl = self._default_ttl if ttl is None else ttl
             expiry_time = time.time() + ttl
             self._cache[key] = (expiry_time, value)
             self._cache.move_to_end(key)
@@ -120,15 +121,21 @@ class FileCache:
             return None
 
     def get(self, key: str) -> Any:
+        entry = self.get_with_ttl(key)
+        return entry[0] if entry is not None else None
+
+    def get_with_ttl(self, key: str) -> tuple[Any, float | None] | None:
+        """Return fresh data and its remaining lifetime for memory promotion."""
         entry = self._read_cache_file(key)
         if entry is None:
             return None
 
         value, expires_at = entry
-        if expires_at is not None and time.time() > expires_at:
+        remaining = expires_at - time.time() if expires_at is not None else None
+        if remaining is not None and remaining <= 0:
             return None
 
-        return value
+        return value, remaining
 
     def get_stale(self, key: str) -> Any:
         """获取文件缓存内容，即使已经过期。用于外部 API 故障时降级。"""
@@ -147,14 +154,18 @@ class FileCache:
             self._CACHE_VALUE: value,
         }
 
+        tmp_path = None
         try:
             # 先写入临时文件，再重命名（原子操作）
-            tmp_path = cache_path.with_suffix('.tmp')
-            with open(tmp_path, 'w', encoding='utf-8') as f:
+            with NamedTemporaryFile(mode='w', encoding='utf-8', dir=self._cache_dir, suffix='.tmp', delete=False) as f:
+                tmp_path = Path(f.name)
                 json.dump(payload, f, ensure_ascii=False, separators=(',', ':'))
             tmp_path.replace(cache_path)
         except OSError as e:
             logger.warning(f'Failed to write cache file {cache_path}: {e}')
+        finally:
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
 
     def get_cache_path(self, key: str) -> Path:
         """获取缓存文件路径（公共接口）"""
@@ -208,11 +219,12 @@ class CacheService:
             return value
 
         # 2. 尝试从文件缓存获取
-        value = self._file.get(key)
-        if value is not None:
+        entry = self._file.get_with_ttl(key)
+        if entry is not None:
+            value, remaining = entry
             logger.debug(f'File cache hit: {key}')
             # 同步到内存缓存
-            self._memory.set(key, value)
+            self._memory.set(key, value, ttl=remaining)
             return value
 
         logger.debug(f'Cache miss: {key}')

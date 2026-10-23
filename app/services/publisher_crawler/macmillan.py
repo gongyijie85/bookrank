@@ -106,27 +106,20 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 params['key'] = self._api_key
 
             try:
-                resp = self._session.get(
-                    self.BASE_URL,
-                    params=params,
-                    timeout=self.config.timeout,
-                )
+                resp = self._request_google(params)
 
                 if resp.status_code == 400 and self._key_is_valid:
                     self._key_is_valid = False
                     params.pop('key', None)
-                    resp = self._session.get(
-                        self.BASE_URL,
-                        params=params,
-                        timeout=self.config.timeout,
-                    )
+                    resp = self._request_google(params)
 
                 if resp.status_code == 429:
                     self._google_rate_limited = True
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as exc:
-                log_error(ErrorCategory.CRAWLER, f'印记 {imprint} 查询失败: {exc}', level='warning')
+                self.crawl_errors.append('request_failed')
+                log_error(ErrorCategory.CRAWLER, f'印记 {imprint} 查询失败: {type(exc).__name__}', level='warning')
                 break
 
             items = data.get('items', [])
@@ -189,7 +182,7 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 all_isbns.extend(found)
                 logger.debug('Sitemap %d: 找到 %d 个 ISBN', n, len(found))
             except Exception as exc:
-                log_error(ErrorCategory.CRAWLER, f'Sitemap {n} 获取失败: {exc}', level='warning')
+                log_error(ErrorCategory.CRAWLER, f'Sitemap {n} 获取失败: {type(exc).__name__}', level='warning')
 
         # 去重后打乱顺序，避免总是查同样的前几条
         seen: set[str] = set()
@@ -216,13 +209,12 @@ class MacmillanCrawler(GoogleBooksCrawler):
         Returns:
             BookInfo 或 None
         """
-        url = 'https://www.googleapis.com/books/v1/volumes'
         params: dict[str, str] = {'q': f'isbn:{isbn}'}
         if self._key_is_valid and self._api_key:
             params['key'] = self._api_key
 
         try:
-            resp = self._session.get(url, params=params, timeout=self.config.timeout)
+            resp = self._request_google(params)
             if resp.status_code == 429:
                 self._google_rate_limited = True
             resp.raise_for_status()
@@ -266,7 +258,8 @@ class MacmillanCrawler(GoogleBooksCrawler):
                 source_url=info.get('infoLink', ''),
             )
         except Exception as exc:
-            log_error(ErrorCategory.CRAWLER, f'ISBN {isbn} 查询失败: {exc}', level='warning')
+            self.crawl_errors.append('request_failed')
+            log_error(ErrorCategory.CRAWLER, f'ISBN {isbn} 查询失败: {type(exc).__name__}', level='warning')
             return None
 
     @staticmethod

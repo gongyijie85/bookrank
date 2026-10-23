@@ -10,8 +10,30 @@ AI 推荐服务
 from collections import Counter
 from typing import Any, cast
 
+from flask import has_app_context
+from sqlalchemy.orm import load_only
+
 from ..models.schemas import AwardBook, BookMetadata, UserCategory, UserViewedBook, db
 from ..utils.error_handler import ErrorCategory, log_error
+from .book_detail_cache import get_detail_cache
+from .detail_cache_invalidation import has_uncommitted_cache_writes
+
+
+def _card_columns():
+    """推荐卡片不需要详情正文、购买链接和审核记录。"""
+    return load_only(
+        AwardBook.id,
+        AwardBook.award_id,
+        AwardBook.title,
+        AwardBook.title_zh,
+        AwardBook.author,
+        AwardBook.publisher,
+        AwardBook.year,
+        AwardBook.category,
+        AwardBook.rank,
+        AwardBook.cover_original_url,
+        AwardBook.isbn13,
+    )
 
 
 class RecommendationService:
@@ -338,7 +360,8 @@ class RecommendationService:
         """
         # 获取最近几年的热门获奖图书
         books = (
-            AwardBook.query.filter_by(is_displayable=True)
+            AwardBook.query.options(_card_columns())
+            .filter_by(is_displayable=True)
             .order_by(AwardBook.year.desc(), AwardBook.rank.asc())
             .limit(limit)
             .all()
@@ -374,30 +397,62 @@ class RecommendationService:
             推荐结果字典
         """
         try:
-            # 确定基准图书
-            target_book = None
-            if book_id:
-                target_book = db.session.get(AwardBook, book_id)
-            elif isbn:
-                target_book = AwardBook.query.filter_by(isbn13=isbn).first()
 
-            if target_book:
-                return self._recommend_similar_books(target_book, limit)
+            def load() -> dict[str, Any]:
+                return self._load_similarity_recommendations(book_id, isbn, award_id, category, limit)
 
-            # 基于奖项推荐
-            if award_id:
-                return self._recommend_by_award(award_id, category, limit)
-
-            # 基于分类推荐
-            if category:
-                return self._recommend_by_category(category, limit)
-
-            # 默认返回热门推荐
-            return self._get_popular_recommendations(limit)
-
+            if has_app_context() and not has_uncommitted_cache_writes():
+                key = ('similarity', book_id, isbn, award_id, category, limit)
+                return cast('dict[str, Any]', get_detail_cache().get_or_load(key, load))
+            return load()
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'获取相似推荐失败: {e}')
             return self._get_popular_recommendations(limit)
+
+    def _load_similarity_recommendations(self, book_id, isbn, award_id, category, limit) -> dict[str, Any]:
+        target_book = None
+        if book_id:
+            target_book = db.session.get(
+                AwardBook,
+                book_id,
+                options=[
+                    load_only(
+                        AwardBook.id,
+                        AwardBook.award_id,
+                        AwardBook.category,
+                        AwardBook.year,
+                        AwardBook.title,
+                        AwardBook.author,
+                        AwardBook.isbn13,
+                        AwardBook.isbn10,
+                    )
+                ],
+            )
+        elif isbn:
+            target_book = (
+                AwardBook.query.options(
+                    load_only(
+                        AwardBook.id,
+                        AwardBook.award_id,
+                        AwardBook.category,
+                        AwardBook.year,
+                        AwardBook.title,
+                        AwardBook.author,
+                        AwardBook.isbn13,
+                        AwardBook.isbn10,
+                    )
+                )
+                .filter_by(isbn13=isbn)
+                .first()
+            )
+
+        if target_book:
+            return self._recommend_similar_books(target_book, limit)
+        if award_id:
+            return self._recommend_by_award(award_id, category, limit)
+        if category:
+            return self._recommend_by_category(category, limit)
+        return self._get_popular_recommendations(limit)
 
     def _recommend_similar_books(self, target_book: AwardBook, limit: int) -> dict[str, Any]:
         """推荐与目标图书相似的书籍"""
@@ -454,7 +509,8 @@ class RecommendationService:
         )
         outer_priority = _priority()
         books = (
-            AwardBook.query.join(ranked, AwardBook.id == ranked.c.candidate_id)
+            AwardBook.query.options(_card_columns())
+            .join(ranked, AwardBook.id == ranked.c.candidate_id)
             .filter(ranked.c.rn == 1)
             .order_by(
                 outer_priority.asc(),
@@ -487,7 +543,7 @@ class RecommendationService:
 
     def _recommend_by_award(self, award_id: int, category: str | None, limit: int) -> dict[str, Any]:
         """基于特定奖项推荐"""
-        query = AwardBook.query.filter_by(award_id=award_id, is_displayable=True)
+        query = AwardBook.query.options(_card_columns()).filter_by(award_id=award_id, is_displayable=True)
 
         if category:
             query = query.filter_by(category=category)
@@ -501,7 +557,8 @@ class RecommendationService:
     def _recommend_by_category(self, category: str, limit: int) -> dict[str, Any]:
         """基于分类推荐"""
         books = (
-            AwardBook.query.filter_by(category=category, is_displayable=True)
+            AwardBook.query.options(_card_columns())
+            .filter_by(category=category, is_displayable=True)
             .order_by(AwardBook.year.desc(), AwardBook.rank.asc())
             .limit(limit)
             .all()

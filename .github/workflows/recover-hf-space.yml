@@ -21,6 +21,8 @@ jobs:
       HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
       SPACE_URL: https://elvis85-bookrank.hf.space
     steps:
+      - uses: actions/checkout@v4
+
       - name: Check HuggingFace credentials
         run: |
           set -euo pipefail
@@ -63,20 +65,24 @@ jobs:
             echo "Triggering ordinary restart for ${HF_SPACE_REPO}"
           fi
 
-          HTTP_CODE="$(curl --silent --show-error --max-time 30 -L \
+          if HTTP_CODE="$(curl --silent --show-error --max-time 30 -L \
             -X POST "https://huggingface.co/api/spaces/${HF_SPACE_REPO}/restart${QUERY}" \
             -H "Authorization: Bearer ${HF_TOKEN}" \
             -o artifacts/restart-response.json \
-            -w '%{http_code}')"
+            -w '%{http_code}')"; then
+            :
+          else
+            echo "::error::Space restart acknowledgement lost; pending verification. Check runtime and logs before another restart."
+            exit 2
+          fi
           echo "Restart HTTP ${HTTP_CODE}"
-          cat artifacts/restart-response.json || true
           echo
           if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-            echo "ERROR: Space restart failed with HTTP ${HTTP_CODE}."
+            echo "ERROR: Restart returned HTTP ${HTTP_CODE}; server/gateway errors require verification before another restart."
             exit 1
           fi
 
-      - name: Wait until Space serves HTTP
+      - name: Wait until Space is ready
         run: |
           set -euo pipefail
           DEADLINE=$((SECONDS + 900))
@@ -105,12 +111,10 @@ jobs:
             esac
 
             if [ "$STAGE" = "RUNNING" ]; then
-              if curl --fail --silent --show-error --max-time 20 \
-                "${SPACE_URL}/health/ready" -o /dev/null; then
-                echo "Space is serving /health/ready."
-                curl --silent --show-error --max-time 20 \
-                  "${SPACE_URL}/health/ready" || true
-                echo
+              if BASE_URL="$SPACE_URL" python3 scripts/workflow_http.py \
+                --policy read --path /health/ready --timeout 20 --budget 20 \
+                --report artifacts/readiness.json; then
+                echo "Space readiness JSON confirmed; source freshness still needs verification."
                 if curl --fail --silent --show-error --max-time 45 \
                   "${SPACE_URL}/" -o /dev/null; then
                   echo "Space homepage also responded."

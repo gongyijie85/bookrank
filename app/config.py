@@ -293,7 +293,7 @@ class ProductionConfig(Config):
     }
 
     # 减少并发工作线程；Render 免费层建议配合 WEB_CONCURRENCY=1 使用
-    MAX_WORKERS: int = 2  # 原为 4，实际并发由 Gunicorn 的 WEB_CONCURRENCY 控制
+    MAX_WORKERS: int = min(2, max(1, Config.MAX_WORKERS))
 
     JSONIFY_PRETTYPRINT_REGULAR: bool = False
 

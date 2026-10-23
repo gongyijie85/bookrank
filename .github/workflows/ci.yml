@@ -205,7 +205,7 @@ jobs:
       # Runs serialize, but only the current main SHA is allowed to deploy.
       group: render-production-current-main-bookrank
       cancel-in-progress: false
-    needs: [lint, lint-frontend, typecheck, i18n-catalog, test]
+    needs: [lint, lint-frontend, typecheck, i18n-catalog, test, dependency-audit]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
@@ -252,13 +252,18 @@ jobs:
             exit 0
           fi
 
-          DEPLOY_HTTP_CODE="$(curl --fail --show-error --silent --max-time 30 \
+          if DEPLOY_HTTP_CODE="$(curl --show-error --silent --max-time 30 \
             -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Content-Type: application/json" \
             --data "{\"clearCache\":\"do_not_clear\",\"commitId\":\"${GITHUB_SHA}\"}" \
             -o "$deploy_response" \
-            -w '%{http_code}')"
+            -w '%{http_code}')"; then
+            :
+          else
+            echo "::error::Render deploy acknowledgement lost; pending verification. Check existing deployments for this commit before submitting again."
+            exit 2
+          fi
 
           case "$DEPLOY_HTTP_CODE" in
             201)
@@ -318,7 +323,7 @@ jobs:
               fi
               ;;
             *)
-              echo "ERROR: Render deployment request returned unexpected HTTP status ${DEPLOY_HTTP_CODE}."
+              echo "ERROR: Render deployment request returned HTTP ${DEPLOY_HTTP_CODE}; for server/gateway errors the outcome is pending verification. Do not resubmit before checking deployments for this commit."
               exit 1
               ;;
           esac
@@ -403,8 +408,9 @@ jobs:
           fi
 
           for attempt in $(seq 1 12); do
-            if curl --fail --show-error --silent --max-time 30 \
-              "$RENDER_BASE_URL/health/ready" -o /dev/null; then
+            if BASE_URL="$RENDER_BASE_URL" python3 scripts/workflow_http.py \
+              --policy read --path /health/ready --timeout 30 --budget 30 \
+              --report "$RUNNER_TEMP/deploy-readiness.json"; then
               echo "Render deployment is ready."
               exit 0
             fi

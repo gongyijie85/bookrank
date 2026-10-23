@@ -9,6 +9,8 @@ from hashlib import sha256
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+from sqlalchemy.exc import IntegrityError
+
 from ..models.database import db
 from ..models.new_book import BatchImportReceipt, NewBook, Publisher
 from .publisher_observer.harpercollins import is_valid_isbn13
@@ -208,6 +210,22 @@ def import_batch(payload: dict[str, Any]) -> BatchImportResult:
 
         pilot_gate_service.record_evidence_run(source_id, success=True, batch_id=batch_id)
         return BatchImportResult(status='applied', receipt=receipt, http_status=200)
+    except IntegrityError as exc:
+        db.session.rollback()
+        constraint = getattr(getattr(exc.orig, 'diag', None), 'constraint_name', None)
+        if getattr(exc.orig, 'pgcode', None) == '23505' and constraint == 'batch_import_receipts_pkey':
+            # Another transaction may have committed after our initial lookup.
+            # Resolve only this exact receipt collision, never a book ISBN clash.
+            existing = db.session.get(BatchImportReceipt, batch_id)
+            if existing is not None and existing.batch_id == batch_id and existing.source_id == source_id:
+                if existing.content_sha256 != content_sha256:
+                    raise BatchImportError('DIGEST_MISMATCH', 'batch_id already applied with different content', 409)
+                duplicate = existing.to_dict()
+                duplicate['status'] = 'duplicate'
+                return BatchImportResult(status='duplicate', receipt=duplicate, http_status=200)
+        # Keep an integrity failure an error without exposing SQL, payload fields
+        # or driver details through the generic API exception logger.
+        raise IntegrityError(None, None, RuntimeError(type(exc.orig).__name__), hide_parameters=True) from None
     except BatchImportError as exc:
         try:
             db.session.rollback()

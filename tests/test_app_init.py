@@ -203,6 +203,13 @@ class TestGetLocale:
         assert response.status_code == 200
 
     def test_cookie_lang(self, client):
+        previous = client.get_cookie('lang')
         client.set_cookie('lang', 'zh')
-        response = client.get('/health')
-        assert response.status_code == 200
+        try:
+            response = client.get('/health')
+            assert response.status_code == 200
+        finally:
+            if previous is None:
+                client.delete_cookie('lang')
+            else:
+                client.set_cookie('lang', previous.value)

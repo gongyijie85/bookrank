@@ -43,8 +43,8 @@ access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"
 # 进程名称
 proc_name = 'book-rank-app'
 
-# 预加载应用（节省内存）
-preload_app = True
+# 服务含调度器和连接池，必须在 worker fork 后初始化。
+preload_app = False
 
 # 优雅重启超时
 graceful_timeout = 30

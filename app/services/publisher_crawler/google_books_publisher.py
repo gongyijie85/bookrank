@@ -88,27 +88,20 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     params['key'] = self._api_key
 
                 try:
-                    response = self._session.get(
-                        self.BASE_URL,
-                        params=params,
-                        timeout=self.config.timeout,
-                    )
+                    response = self._request_google(params)
 
                     if response.status_code == 400 and self._key_is_valid:
                         logger.warning('API Key 可能已失效，尝试无Key模式')
                         self._key_is_valid = False
                         params.pop('key', None)
-                        response = self._session.get(
-                            self.BASE_URL,
-                            params=params,
-                            timeout=self.config.timeout,
-                        )
+                        response = self._request_google(params)
 
                     response.raise_for_status()
                     data = response.json()
 
                 except Exception as e:
-                    log_error(ErrorCategory.CRAWLER, f'Google Books API 请求失败: {e}')
+                    self.crawl_errors.append('request_failed')
+                    log_error(ErrorCategory.CRAWLER, f'Google Books API 请求失败: {type(e).__name__}')
                     break
 
                 items = data.get('items', [])

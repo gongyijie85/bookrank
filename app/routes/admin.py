@@ -1,5 +1,6 @@
 import json as json_lib
 import re
+import threading
 import time
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -25,6 +26,7 @@ _ADMIN_ERROR_MSG = '操作失败，请查看服务器日志获取详情'
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 _crawler_status: dict[str, dict[str, Any]] = {}
+_crawler_status_lock = threading.Lock()
 
 
 @admin_bp.route('/award-covers/sync', methods=['POST'])
@@ -225,13 +227,18 @@ def post_sync_source_alert(source_id: str):
         pub = publisher_for_source(source_id)
         if pub is None:
             return APIResponse.error('unknown source', 400)
+        configured = not isinstance(source_alert_service.get_github_client(), source_alert_service.NullGithubClient)
+        delivery = 'not_required' if configured else 'not_configured'
         if pub.source_status == 'degraded':
             issue = source_alert_service.sync_degraded_alert(source_id, pub)
-            return APIResponse.success(data={'action': 'synced', 'issue': issue})
+            if configured:
+                number = issue.get('number') if isinstance(issue, dict) else None
+                delivery = 'delivered' if type(number) is int and number > 0 else 'not_delivered'
+            return APIResponse.success(data={'action': 'synced', 'issue': issue, 'delivery': delivery})
         if pub.source_status == 'healthy':
             source_alert_service.close_degraded_alert(source_id, recovery_batch_id=pub.last_success_batch_id)
-            return APIResponse.success(data={'action': 'closed_if_open'})
-        return APIResponse.success(data={'action': 'noop', 'status': pub.source_status})
+            return APIResponse.success(data={'action': 'closed_if_open', 'delivery': delivery})
+        return APIResponse.success(data={'action': 'noop', 'status': pub.source_status, 'delivery': delivery})
     except Exception as e:
         log_error(ErrorCategory.DB_QUERY, f'同步来源告警失败: {e}', exc_info=True)
         return APIResponse.error('同步失败', 500)
@@ -759,7 +766,11 @@ def clear_errors():
 @admin_required
 def run_crawler(publisher_name: str):
     try:
+        from ..setup import _new_book_sync_pending
+
         modules = get_new_book_modules()
+        if modules.sync_engine.has_in_flight() is True or _new_book_sync_pending():
+            return APIResponse.error('上轮同步仍在执行或结果尚未核实，未提交新任务', 409)
         publishers = modules.publisher_manager.get_publishers(active_only=True)
         publisher = next((p for p in publishers if p.name == publisher_name), None)
         if not publisher:
@@ -769,11 +780,14 @@ def run_crawler(publisher_name: str):
         category = data.get('category')
         max_books = min(max(1, data.get('max_books', 30)), 100)
 
-        _crawler_status[publisher_name] = {
-            'status': 'running',
-            'started_at': datetime.now(UTC).isoformat(),
-            'publisher': publisher_name,
-        }
+        with _crawler_status_lock:
+            if _crawler_status.get(publisher_name, {}).get('status') in {'running', 'pending_verification'}:
+                return APIResponse.error('该出版社同步仍在执行或结果尚未核实，未提交新任务', 409)
+            _crawler_status[publisher_name] = {
+                'status': 'running',
+                'started_at': datetime.now(UTC).isoformat(),
+                'publisher': publisher_name,
+            }
 
         try:
             result = modules.sync_engine.sync_publisher_books(
@@ -782,9 +796,19 @@ def run_crawler(publisher_name: str):
                 max_books=max_books,
                 translate=True,
             )
+            if result.get('status') == 'pending_verification':
+                current_app.extensions['new_book_sync_verification_pending'] = True
+                _crawler_status[publisher_name].update(
+                    {
+                        'status': 'pending_verification',
+                        'observed_at': datetime.now(UTC).isoformat(),
+                        'last_result': result,
+                    }
+                )
+                return APIResponse.success(data=result, message=f'{publisher_name} 同步结果待核实；未重复提交')
             _crawler_status[publisher_name].update(
                 {
-                    'status': 'completed',
+                    'status': 'failed' if result.get('success') is False else 'completed',
                     'finished_at': datetime.now(UTC).isoformat(),
                     'last_result': result,
                 }
@@ -830,6 +854,7 @@ def crawler_status():
                 'publishers': publishers_info,
                 'total_publishers': len(publishers_info),
                 'active_crawlers': sum(1 for s in _crawler_status.values() if s.get('status') == 'running'),
+                'backend_in_flight': modules.sync_engine.has_in_flight() is True,
             }
         )
     except Exception as e:

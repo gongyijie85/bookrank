@@ -2,7 +2,7 @@
 Render 部署启动入口（免费版优化版）
 
 优化点：
-1. 惰性数据库初始化（第一次请求时执行，减少冷启动时间）
+1. 生产请求不执行迁移或数据初始化；迁移由发布流程显式执行
 2. 减少启动时的数据库查询次数
 3. 缩短连接超时，适应 Render 免费版限制
 """
@@ -11,8 +11,6 @@ import logging
 import os
 import threading
 from typing import Any, cast
-
-from sqlalchemy import inspect
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -76,91 +74,19 @@ def _cleanup_dirty_translations():
 
 
 def _run_migrations():
-    """运行数据库迁移（先检查是否已有迁移记录，避免重复执行）
-
-    调用方需确保已在 app.app_context() 内。
-    """
+    """本地初始化使用的迁移；失败保留版本历史，不自动 stamp/create_all。"""
     try:
-        result = db.session.execute(db.text('SELECT version_num FROM alembic_version')).fetchone()
-        if result:
-            if is_space_runtime():
-                logger.info(f'数据库已有迁移版本 {result[0]}，跳过 upgrade 以免独占 Space 唯一 worker')
+        if is_space_runtime():
+            result = db.session.execute(db.text('SELECT version_num FROM alembic_version')).fetchone()
+            if result:
                 return True
-            from flask_migrate import upgrade as _upgrade
-
-            _upgrade()
-            logger.info(f'数据库迁移已是最新版本: {result[0]}')
-            return True
-    except Exception:
-        db.session.rollback()
-        logger.info('迁移升级失败或 alembic_version 表不存在，尝试清理并重新 stamp')
-
-    # 迁移失败时：清理 alembic_version，检查 schema 后重新 stamp
-    try:
-        db.session.execute(db.text('DELETE FROM alembic_version'))
-        db.session.commit()
-        logger.info('已清理 alembic_version 表')
-    except Exception:
-        db.session.rollback()
-
-    has_app_tables, schema_is_current = _inspect_schema_state()
-    if schema_is_current:
-        return _stamp_current_schema('现有 schema 已完整，写入 Alembic 版本')
-
-    if not has_app_tables:
-        try:
-            db.create_all()
-            return _stamp_current_schema('新数据库已按当前模型创建，写入 Alembic 版本')
-        except Exception as e:
-            db.session.rollback()
-            logger.warning(f'按模型创建数据库失败: {e}')
-
-    try:
         from flask_migrate import upgrade as _upgrade
 
         _upgrade()
-        logger.info('数据库迁移完成')
         return True
-    except Exception as e:
+    except Exception as exc:
         db.session.rollback()
-        logger.warning(f'迁移失败: {e}')
-        return False
-
-
-def _inspect_schema_state():
-    """检查当前数据库是否已具备模型要求的表和字段。"""
-    try:
-        inspector = inspect(db.engine)
-        existing_tables = set(inspector.get_table_names())
-        model_tables = set(db.metadata.tables.keys())
-        has_app_tables = bool(existing_tables & model_tables)
-
-        if not model_tables.issubset(existing_tables):
-            return has_app_tables, False
-
-        for table_name, table in db.metadata.tables.items():
-            existing_columns = {column['name'] for column in inspector.get_columns(table_name)}
-            expected_columns = set(table.columns.keys())
-            if not expected_columns.issubset(existing_columns):
-                return has_app_tables, False
-
-        return has_app_tables, True
-    except Exception as e:
-        logger.warning(f'检查数据库 schema 失败: {e}')
-        return False, False
-
-
-def _stamp_current_schema(reason):
-    """把已存在的当前 schema 标记为 Alembic head。"""
-    try:
-        from flask_migrate import stamp as _stamp
-
-        _stamp(revision='head')
-        logger.info(reason)
-        return True
-    except Exception as e:
-        db.session.rollback()
-        logger.warning(f'写入 Alembic 版本失败: {e}')
+        logger.warning('迁移失败，保留现有 schema 和迁移记录: %s', type(exc).__name__)
         return False
 
 
@@ -168,21 +94,14 @@ def _init_database_lazy():
     """惰性初始化数据库（线程安全双重检查锁）"""
     global _db_initialized
     if _db_initialized:
-        return
+        return True
 
     with _db_init_lock:
         if _db_initialized:
-            return
+            return True
 
         with app.app_context():
             logger.info('首次请求，初始化数据库...')
-
-            if not _run_migrations():
-                try:
-                    db.create_all()
-                    logger.info('使用 create_all 创建表')
-                except Exception as e:
-                    logger.error(f'创建表失败: {e}')
 
             try:
                 from app.initialization import init_awards_data
@@ -201,10 +120,13 @@ def _init_database_lazy():
                     modules.publisher_manager.init_publishers()
 
             except Exception as e:
-                logger.warning(f'基础数据初始化跳过: {e}')
+                db.session.rollback()
+                logger.warning('基础数据初始化失败: %s', type(e).__name__)
+                return False
 
             _db_initialized = True
             logger.info('数据库初始化完成')
+            return True
 
 
 @app.before_request
@@ -215,7 +137,12 @@ def _ensure_db_ready():
     if request.path in HEALTH_CHECK_PATHS or request.path.startswith('/static/'):
         return
 
-    _init_database_lazy()
+    if app.config.get('APP_ENV') == 'production':
+        return None
+
+    if not _init_database_lazy():
+        return {'success': False, 'error': 'database_initialization_failed'}, 503
+    return None
 
 
 application = app

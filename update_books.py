@@ -12,7 +12,9 @@
 import json
 import logging
 import os
-from datetime import datetime
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
 
 # 配置日志
 logging.basicConfig(
@@ -48,11 +50,11 @@ def sync_all_publishers():
     """
     try:
         from app.services.publisher_crawler import get_crawler_class
-        from app.services.publisher_crawler.base_crawler import CrawlRequest
+        from app.services.publisher_crawler.base_crawler import CrawlerConfig, CrawlRequest
         from app.services.publisher_data import DEFAULT_PUBLISHERS
     except ImportError as e:
         logger.error(f'导入模块失败: {e}')
-        return {}
+        raise RuntimeError('爬虫模块不可用') from e
 
     class_by_name_en = {p['name_en']: p['crawler_class'] for p in DEFAULT_PUBLISHERS}
 
@@ -63,60 +65,173 @@ def sync_all_publishers():
         """
         name_en, slug = item
         logger.info(f'开始同步 {name_en}...')
+        crawler = None
         try:
             crawler_cls = get_crawler_class(class_by_name_en[name_en])
             if crawler_cls is None:
                 logger.error(f'爬虫类不可用: {name_en}')
-                return slug, []
-            crawler = crawler_cls()
+                return slug, None
+            key_name = crawler_cls.API_KEY_CONFIG
+            api_key = os.environ.get(key_name, '').strip() if key_name else None
+            logger.info('%s API Key 配置: %s', name_en, '已配置' if api_key else '未配置或不需要')
+            if crawler_cls.api_key_required and not api_key:
+                logger.error('%s 缺少必需的 API Key 配置', name_en)
+                return slug, None
+            crawler_config = CrawlerConfig(api_key=api_key)
+            if crawler_cls.REQUEST_DELAY is not None:
+                crawler_config.request_delay = crawler_cls.REQUEST_DELAY
+            crawler = crawler_cls(crawler_config)
             outcome = crawler.get_new_books(CrawlRequest(max_books=100))
-            return slug, [book.to_dict() for book in outcome.books]
+            books = [book.to_dict() for book in outcome.books]
+            if outcome.errors:
+                logger.error('%s 抓取不完整，保留上次有效快照', name_en)
+                return slug, None
+            return slug, books
         except Exception as e:
-            logger.error(f'同步 {name_en} 失败: {e}')
-            return slug, []
+            # requests 异常字符串可能带含凭据的 URL；仅记录类型。
+            logger.error('同步 %s 失败: %s', name_en, type(e).__name__)
+            return slug, None
+        finally:
+            if crawler is not None:
+                try:
+                    crawler.close()
+                except Exception as error:
+                    logger.error('关闭 %s 爬虫失败: %s', name_en, type(error).__name__)
 
     all_books: dict = {}
 
     # v0.9.47：使用线程池并行，max_workers 与 publisher 数量一致
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    with ThreadPoolExecutor(
-        max_workers=len(_PUBLISHER_EXPORTS), thread_name_prefix='pub-crawl'
-    ) as executor:
+    with ThreadPoolExecutor(max_workers=len(_PUBLISHER_EXPORTS), thread_name_prefix='pub-crawl') as executor:
         futures = {executor.submit(_sync_one, item): item for item in _PUBLISHER_EXPORTS}
         for future in as_completed(futures):
             slug, books = future.result()
             all_books[slug] = books
-            logger.info(f'{slug} 同步完成，获取到 {len(books)} 本书籍')
+            logger.info('%s 同步结果: %s', slug, f'{len(books)} 本' if books is not None else '失败')
 
     return all_books
 
 
+def _read_json(path, default):
+    if not path.exists():
+        return default
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def _atomic_publish(documents):
+    """先完整序列化，再逐文件原子替换；异常时恢复本轮已替换文件。"""
+    staged = {}
+    previous = {}
+    replaced = []
+    try:
+        for path, document in documents.items():
+            payload = (json.dumps(document, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+            previous[path] = path.read_bytes() if path.exists() else None
+            with tempfile.NamedTemporaryFile(dir=path.parent, suffix='.tmp', delete=False) as stream:
+                staged[path] = Path(stream.name)
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+        for path, temporary in staged.items():
+            os.replace(temporary, path)
+            replaced.append(path)
+    except BaseException:
+        for path in reversed(replaced):
+            old = previous[path]
+            if old is None:
+                path.unlink(missing_ok=True)
+            else:
+                with tempfile.NamedTemporaryFile(dir=path.parent, suffix='.tmp', delete=False) as stream:
+                    restore = Path(stream.name)
+                    stream.write(old)
+                try:
+                    os.replace(restore, path)
+                finally:
+                    restore.unlink(missing_ok=True)
+        raise
+    finally:
+        for temporary in staged.values():
+            temporary.unlink(missing_ok=True)
+
+
 def export_to_static_files(books_data):
-    """将书籍数据导出为静态 JSON 文件"""
-    # 导出所有出版社数据
-    all_data_path = os.path.join(STATIC_DATA_DIR, 'all_books.json')
-    with open(all_data_path, 'w', encoding='utf-8') as f:
-        json.dump(books_data, f, ensure_ascii=False, indent=2)
-    logger.info(f'已导出所有数据到 {all_data_path}')
+    """失败源和空结果不得清空有效快照；尝试时间与成功时间分别记录。
 
-    # 为每个出版社单独导出数据
-    for publisher_name, books in books_data.items():
-        publisher_path = os.path.join(STATIC_DATA_DIR, f'{publisher_name}_books.json')
-        with open(publisher_path, 'w', encoding='utf-8') as f:
-            json.dump(books, f, ensure_ascii=False, indent=2)
-        logger.info(f'已导出 {publisher_name} 数据到 {publisher_path}')
+    None 表示抓取失败，[] 表示抓取成功但为空。空结果默认不满足替换
+    已有非空数据的有效性条件，需要人工核实后才能清空。
+    """
+    directory = Path(STATIC_DATA_DIR)
+    directory.mkdir(parents=True, exist_ok=True)
+    attempted_at = datetime.now(UTC).isoformat()
+    merged = _read_json(directory / 'all_books.json', {})
+    if not isinstance(merged, dict):
+        raise ValueError('已有汇总快照格式无效，拒绝覆盖')
+    metadata = _read_json(directory / 'update_time.json', {})
+    source_success_at = dict(metadata.get('source_success_at', {}))
+    documents = {}
+    statuses = {}
+    for slug, books in books_data.items():
+        if not slug or any(character not in 'abcdefghijklmnopqrstuvwxyz0123456789_' for character in slug):
+            raise ValueError('无效的来源标识')
+        path = directory / f'{slug}_books.json'
+        old_books = _read_json(path, merged.get(slug, []))
+        if not isinstance(old_books, list):
+            raise ValueError('已有来源快照格式无效，拒绝覆盖')
+        merged[slug] = old_books
+        if books is None:
+            status = 'failed'
+        elif not isinstance(books, list) or any(
+            not isinstance(book, dict)
+            or not isinstance(book.get('title'), str)
+            or not book['title'].strip()
+            or not isinstance(book.get('author'), str)
+            or not book['author'].strip()
+            for book in books
+        ):
+            status = 'invalid'
+        elif not books:
+            status = 'empty_rejected' if old_books else 'success_empty'
+            if status == 'success_empty':
+                source_success_at[slug] = attempted_at
+        else:
+            status = 'success'
+            merged[slug] = books
+            documents[path] = books
+            source_success_at[slug] = attempted_at
+        successful = status in ('success', 'success_empty')
+        statuses[slug] = {
+            'status': status,
+            'book_count': len(books) if isinstance(books, list) else None,
+            'freshness': 'fresh' if successful else ('stale' if old_books else 'unknown'),
+            'last_success_at': source_success_at.get(slug),
+            'retained_previous': not successful and bool(old_books),
+        }
 
-    # 创建更新时间文件
-    update_time = {
-        'timestamp': datetime.now().isoformat(),
-        'publishers': list(books_data.keys()),
-        'total_books': sum(len(books) for books in books_data.values()),
-    }
-    update_time_path = os.path.join(STATIC_DATA_DIR, 'update_time.json')
-    with open(update_time_path, 'w', encoding='utf-8') as f:
-        json.dump(update_time, f, ensure_ascii=False, indent=2)
-    logger.info(f'已更新时间戳到 {update_time_path}')
+    published = bool(documents)
+    complete = bool(statuses) and all(item['status'] in ('success', 'success_empty') for item in statuses.values())
+    attempt = {'attempted_at': attempted_at, 'sources': statuses, 'published': published, 'complete': complete}
+    if published:
+        documents[directory / 'all_books.json'] = merged
+        # 成功标记最后替换；历史成功时间未知的来源不从提交时间/mtime伪造。
+        documents[directory / 'update_time.json'] = {
+            # 旧消费端只识别 timestamp：部分成功不得冒充整批新数据。
+            'timestamp': attempted_at if complete else metadata.get('timestamp'),
+            'published_at': attempted_at,
+            'last_complete_success_at': attempted_at if complete else metadata.get('last_complete_success_at'),
+            'status': 'success' if complete else 'partial',
+            'publishers': list(merged),
+            'total_books': sum(len(rows) for rows in merged.values()),
+            'source_success_at': source_success_at,
+        }
+    elif source_success_at != metadata.get('source_success_at', {}):
+        # A confirmed empty source still has a successful crawl time. Keep it
+        # without advancing any snapshot publication or global success marker.
+        documents[directory / 'update_time.json'] = dict(metadata, source_success_at=source_success_at)
+    documents[directory / 'sync_attempt.json'] = attempt
+    _atomic_publish(documents)
+    logger.info('本轮快照: %s；完整成功: %s', '已更新有效来源' if published else '保留原数据', complete)
+    return attempt
 
 
 if __name__ == '__main__':
@@ -126,6 +241,7 @@ if __name__ == '__main__':
     books_data = sync_all_publishers()
 
     # 导出为静态文件
-    export_to_static_files(books_data)
+    report = export_to_static_files(books_data)
 
-    logger.info('同步完成！')
+    logger.info('同步完成，来源状态见 sync_attempt.json')
+    raise SystemExit(0 if report['complete'] and report['published'] else 1)

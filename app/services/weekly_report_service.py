@@ -692,6 +692,19 @@ class WeeklyReportService:
             log_error(ErrorCategory.DB_QUERY, f'获取最新周报时出错: {e!s}')
             raise
 
+    def get_status_for_week(self, week_end: date) -> tuple[bool, date | None]:
+        """一次查询轮询所需状态，避免读取周报正文。"""
+        try:
+            has_current = db.select(WeeklyReport.id).where(WeeklyReport.week_end == week_end).exists()
+            latest_week_end = (
+                db.select(WeeklyReport.week_end).order_by(WeeklyReport.report_date.desc()).limit(1).scalar_subquery()
+            )
+            row = db.session.execute(db.select(has_current, latest_week_end)).one()
+            return bool(row[0]), cast('date | None', row[1])
+        except Exception as e:
+            log_error(ErrorCategory.DB_QUERY, f'获取周报生成状态时出错: {e!s}')
+            return False, None
+
     def get_or_trigger_current_week_report(self) -> tuple[WeeklyReport | None, bool]:
         """获取"应当存在"的周报，缺失时后台异步补生成（应用层自愈机制）。
 

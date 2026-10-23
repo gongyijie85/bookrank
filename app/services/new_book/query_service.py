@@ -1,8 +1,11 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
+
+from sqlalchemy.orm import joinedload, load_only
 
 from ...models.database import db
 from ...models.new_book import NewBook, Publisher
+from ..public_metadata_cache import cached_public_metadata
 from ..publisher_data import canonicalize_category, category_alias_in_set
 from .translation_pipeline import TranslationPipeline
 
@@ -10,6 +13,37 @@ from .translation_pipeline import TranslationPipeline
 class NewBookQueryService:
     def __init__(self, translation_pipeline: TranslationPipeline) -> None:
         self._translation_pipeline = translation_pipeline
+
+    @staticmethod
+    def _list_options():
+        """HTML 书卡和语言包使用的列，不包含购买/版本/字段出处大 JSON。"""
+        columns = load_only(
+            *[
+                getattr(NewBook, name)
+                for name in (
+                    'id',
+                    'publisher_id',
+                    'title',
+                    'title_zh',
+                    'author',
+                    'description',
+                    'description_zh',
+                    'isbn13',
+                    'isbn10',
+                    'cover_url',
+                    'category',
+                    'publication_date',
+                    'price',
+                    'language',
+                )
+            ],
+            raiseload=True,
+        )
+        publisher = joinedload(NewBook.publisher).load_only(  # type: ignore[arg-type]
+            *[getattr(Publisher, name) for name in ('id', 'name', 'name_en')],
+            raiseload=True,
+        )
+        return columns, publisher
 
     @staticmethod
     def _canonicalize_category(raw: str | None) -> str:
@@ -49,10 +83,11 @@ class NewBookQueryService:
         page: int = 1,
         per_page: int = 20,
         publication_status: str = 'all',
+        list_only: bool = False,
     ) -> tuple[list[NewBook], int]:
-        from sqlalchemy.orm import joinedload
-
         query = NewBook.query.options(joinedload(NewBook.publisher)).filter(NewBook.is_displayable.is_(True))  # type: ignore[arg-type,attr-defined]
+        if list_only:
+            query = query.options(*self._list_options())
         query = self._exclude_hidden_site_primary_books(query)
 
         query = self._apply_publication_window(query, days)
@@ -73,8 +108,6 @@ class NewBookQueryService:
         return pagination.items, pagination.total
 
     def get_book(self, book_id: int) -> NewBook | None:
-        from sqlalchemy.orm import joinedload
-
         book = db.session.get(NewBook, book_id, options=[joinedload(NewBook.publisher)])  # type: ignore[arg-type]
         if book:
             self._translation_pipeline._hydrate_language_pack([book])
@@ -89,9 +122,8 @@ class NewBookQueryService:
         category: str | None = None,
         days: int | None = None,
         publication_status: str = 'all',
+        list_only: bool = False,
     ) -> tuple[list[NewBook], int]:
-        from sqlalchemy.orm import joinedload
-
         search_pattern = f'%{keyword}%'
 
         query = (
@@ -107,6 +139,8 @@ class NewBookQueryService:
             )
             .filter(NewBook.is_displayable.is_(True))  # type: ignore[attr-defined]
         )
+        if list_only:
+            query = query.options(*self._list_options())
         query = self._exclude_hidden_site_primary_books(query)
 
         if publisher_id:
@@ -128,6 +162,9 @@ class NewBookQueryService:
         return pagination.items, pagination.total
 
     def get_categories(self) -> list[dict[str, Any]]:
+        return cached_public_metadata(('public-new-book-categories', None), self._get_categories_uncached)
+
+    def _get_categories_uncached(self) -> list[dict[str, Any]]:
         from sqlalchemy import func
 
         results = (
@@ -150,9 +187,14 @@ class NewBookQueryService:
         return [{'name': name, 'count': count} for name, count in ordered]
 
     def get_statistics(self) -> dict[str, Any]:
+        today = datetime.now(UTC).date()
+        return cached_public_metadata(
+            ('public-new-book-statistics', today.isoformat()), lambda: self._get_statistics_for_date(today)
+        )
+
+    def _get_statistics_for_date(self, today: date) -> dict[str, Any]:
         from sqlalchemy import func
 
-        today = datetime.now(UTC).date()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
 

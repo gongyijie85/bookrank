@@ -110,6 +110,7 @@ class OpenLibraryCrawler(BaseCrawler):
                     count += 1
 
         except Exception as e:
+            self.crawl_errors.append('invalid_response')
             log_error(ErrorCategory.CRAWLER, f'解析 Open Library 数据失败: {e}')
 
     def _parse_work(self, work: dict, default_category: str) -> BookInfo | None:

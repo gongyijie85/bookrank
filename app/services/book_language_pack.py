@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from flask import current_app, has_app_context
 from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -14,6 +15,8 @@ from ..models.database import db
 from ..models.schemas import BookMetadata, TranslationCache
 from ..utils.api_helpers import PLACEHOLDER_TEXTS, clean_translation_text, is_non_substantive_details
 from ..utils.error_handler import ErrorCategory, log_error
+from .book_detail_cache import get_detail_cache
+from .detail_cache_invalidation import has_uncommitted_cache_writes
 from .translation_cache_service import TranslationCacheService
 
 
@@ -41,7 +44,12 @@ class BookLanguagePack:
         if not books:
             return
 
-        isbns = [isbn for isbn in (self._book_isbn(book) for book in books) if isbn]
+        isbns = [
+            isbn
+            for book in books
+            if any(not self._get_value(book, target_attr) for _, target_attr, _ in self._FIELDS)
+            if (isbn := self._book_isbn(book))
+        ]
         if isbns:
             self._apply_isbn_translations(books, self.get_book_metadata_translations(isbns))
             self._apply_isbn_translations(books, self._load_static_pack())
@@ -156,7 +164,7 @@ class BookLanguagePack:
         if not unique_isbns:
             return {}
 
-        try:
+        def load() -> dict[str, dict[str, str | None]]:
             columns = self._table_columns('book_metadata')
             query_fields: list[Any] = [BookMetadata.isbn]
             for column_name in ('title_zh', 'description_zh', 'details_zh'):
@@ -179,6 +187,18 @@ class BookLanguagePack:
                     'details_zh': mapping.get('details_zh'),
                 }
             return translations
+
+        try:
+            if (
+                has_app_context()
+                and current_app.extensions.get('book_detail_cache') is not None
+                and not has_uncommitted_cache_writes()
+            ):
+                return cast(
+                    'dict[str, dict[str, str | None]]',
+                    get_detail_cache().get_or_load(('language-metadata', tuple(unique_isbns)), load),
+                )
+            return load()
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'BookMetadata language-pack lookup skipped: {e}', level='warning')
             try:
@@ -226,17 +246,23 @@ class BookLanguagePack:
         if not texts:
             return {}
 
-        try:
-            hash_to_texts: dict[str, set[str]] = {}
-            for text in texts:
-                source_hash = TranslationCacheService._compute_source_hash(text)
-                hash_to_texts.setdefault(source_hash, set()).add(text)
+        hash_to_texts: dict[str, set[str]] = {}
+        for text in texts:
+            source_hash = TranslationCacheService._compute_source_hash(text)
+            hash_to_texts.setdefault(source_hash, set()).add(text)
 
-            rows = TranslationCache.query.filter(
-                TranslationCache.source_hash.in_(list(hash_to_texts.keys())),
-                TranslationCache.source_lang == 'en',
-                TranslationCache.target_lang == 'zh',
-            ).all()
+        def load() -> dict[str, str]:
+            rows = (
+                db.session.query(
+                    TranslationCache.source_hash, TranslationCache.source_text, TranslationCache.translated_text
+                )
+                .filter(
+                    TranslationCache.source_hash.in_(list(hash_to_texts.keys())),
+                    TranslationCache.source_lang == 'en',
+                    TranslationCache.target_lang == 'zh',
+                )
+                .all()
+            )
 
             translations: dict[str, str] = {}
             for row in rows:
@@ -244,6 +270,18 @@ class BookLanguagePack:
                 if row.source_text in matching_texts and row.translated_text:
                     translations[row.source_text] = row.translated_text
             return translations
+
+        try:
+            if (
+                has_app_context()
+                and current_app.extensions.get('book_detail_cache') is not None
+                and not has_uncommitted_cache_writes()
+            ):
+                return cast(
+                    'dict[str, str]',
+                    get_detail_cache().get_or_load(('language-text', 'en', 'zh', tuple(sorted(hash_to_texts))), load),
+                )
+            return load()
         except SQLAlchemyError as e:
             log_error(ErrorCategory.TRANSLATION, f'TranslationCache language-pack lookup skipped: {e}', level='warning')
             try:

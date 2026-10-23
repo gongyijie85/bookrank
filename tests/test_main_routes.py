@@ -911,15 +911,16 @@ class TestAboutStats:
             )
         return box
 
-    def test_detail_primary_load_status_and_fallback(self, app, db, monkeypatch):
-        expect = {'ok': 200, 'missing': 404, 'failure': 500}
-        for route, path, fallback, ok_template in self._DETAIL_SPECS:
-            for mode, status in expect.items():
-                box = self._arm_detail(monkeypatch, route, mode)
-                response = app.test_client().get(path, headers={'Referer': 'https://evil.example/ignored'})
-                assert response.status_code == status
-                assert box['template'] == (ok_template if mode == 'ok' else 'error.html')
-                assert box['context']['back_url'] == fallback
+    @pytest.mark.parametrize(('route', 'path', 'fallback', 'ok_template'), _DETAIL_SPECS)
+    @pytest.mark.parametrize(('mode', 'status'), [('ok', 200), ('missing', 404), ('failure', 500)])
+    def test_detail_primary_load_status_and_fallback(
+        self, app, db, monkeypatch, route, path, fallback, ok_template, mode, status
+    ):
+        box = self._arm_detail(monkeypatch, route, mode)
+        response = app.test_client().get(path, headers={'Referer': 'https://evil.example/ignored'})
+        assert response.status_code == status
+        assert box['template'] == (ok_template if mode == 'ok' else 'error.html')
+        assert box['context']['back_url'] == fallback
         assert db is not None
 
     def test_detail_return_to_safe_query_ignores_referrer(self, app, db, monkeypatch):

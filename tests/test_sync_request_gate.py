@@ -86,6 +86,20 @@ class TestExportCooldown:
 
 
 class TestSeedStaticData:
+    @pytest.mark.parametrize('testing', [False, True])
+    def test_production_never_runs_automatic_seeding(self, gate, testing):
+        from unittest.mock import Mock
+
+        from flask import Flask
+
+        app = Flask(__name__)
+        app.config.update(APP_ENV='production', TESTING=testing)
+        engine = Mock()
+        with app.app_context():
+            gate.seed_static_data(engine)
+            gate.seed_static_data(engine)
+        engine.ensure_static_data_seeded.assert_not_called()
+
     def test_seeds_once_per_gate(self):
         calls = []
 
@@ -98,7 +112,45 @@ class TestSeedStaticData:
         gate.seed_static_data(CountingEngine())
         assert calls == [1]
 
-    def test_seed_error_propagates_and_flag_stays_false(self, gate):
+    def test_failed_result_is_retryable_after_short_cooldown(self, gate, monkeypatch):
+        now = [100.0]
+        monkeypatch.setattr('app.services.sync_request_gate.time.monotonic', lambda: now[0])
+        calls = []
+
+        class EmptyEngine:
+            def ensure_static_data_seeded(self):
+                calls.append(1)
+                return {'success': False, 'status': 'empty'}
+
+        gate.seed_static_data(EmptyEngine())
+        assert gate._seed_done is False
+        gate.seed_static_data(EmptyEngine())
+        assert calls == [1]
+        now[0] += 61
+        gate.seed_static_data(EmptyEngine())
+        assert calls == [1, 1]
+
+    def test_seed_exception_is_also_throttled_without_marking_done(self, gate, monkeypatch):
+        from unittest.mock import Mock
+
+        now = [100.0]
+        monkeypatch.setattr('app.services.sync_request_gate.time.monotonic', lambda: now[0])
+        engine = Mock()
+        engine.ensure_static_data_seeded.side_effect = [RuntimeError('failed'), None]
+        with pytest.raises(RuntimeError):
+            gate.seed_static_data(engine)
+        gate.seed_static_data(engine)
+        assert engine.ensure_static_data_seeded.call_count == 1
+        assert gate._seed_done is False
+        now[0] += 61
+        gate.seed_static_data(engine)
+        assert engine.ensure_static_data_seeded.call_count == 2
+        assert gate._seed_done is True
+
+    def test_seed_error_propagates_and_flag_stays_false(self, gate, monkeypatch):
+        now = [100.0]
+        monkeypatch.setattr('app.services.sync_request_gate.time.monotonic', lambda: now[0])
+
         class BoomEngine:
             def ensure_static_data_seeded(self):
                 raise RuntimeError('boom')
@@ -106,12 +158,15 @@ class TestSeedStaticData:
         with pytest.raises(RuntimeError):
             gate.seed_static_data(BoomEngine())
 
-        # 失败未置位：下次仍会重试
+        # 失败未置位，但冷却期内不让每个业务请求再次尝试。
         calls = []
 
         class CountingEngine:
             def ensure_static_data_seeded(self):
                 calls.append(1)
 
+        gate.seed_static_data(CountingEngine())
+        assert calls == []
+        now[0] += 61
         gate.seed_static_data(CountingEngine())
         assert calls == [1]

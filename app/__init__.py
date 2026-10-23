@@ -13,6 +13,7 @@ from flask import Flask, Response, g, render_template, request
 from flask_babel import Babel
 from flask_babel import gettext as _
 from flask_cors import CORS
+from werkzeug.http import parse_set_header
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import config
@@ -95,6 +96,14 @@ def create_app(config_name: str | None = None) -> Flask:
             )
 
     _init_extensions(app, config_name)
+    from .services.detail_cache import DetailCache
+    from .services.detail_cache_invalidation import init_detail_cache_invalidation
+
+    app.extensions['book_detail_cache'] = DetailCache(
+        ttl=app.config.get('BOOK_DETAIL_CACHE_TTL', 300),
+        max_size=app.config.get('BOOK_DETAIL_CACHE_MAX_SIZE', 512),
+    )
+    init_detail_cache_invalidation()
     _register_blueprints(app)
     _register_error_handlers(app)
     _configure_logging(app)
@@ -504,34 +513,58 @@ def _apply_security_headers(app: Flask) -> None:
             response.headers['X-Request-ID'] = request.request_id
 
         request_path = request.path if request else ''
+        if request_path.startswith('/cache/images/') and response.status_code not in (200, 304):
+            response.headers['Cache-Control'] = 'no-store'
         if request_path.startswith('/static/'):
             # immutable 只对内容指纹化的 URL 成立：文件名带内容 hash 时，内容变了 URL 就变。
             # 未指纹化的资源（mobile/css、mobile/js 不在构建入口里，以及 dist_url 回退到
             # dist/base.min.js 这类稳定名的情况）标 immutable，会让改动最长 30 天送不到
             # 回访用户，故一律改走 ETag 协商。
-            if _HASHED_ASSET_RE.search(request_path):
+            if response.status_code not in (200, 304):
+                response.headers['Cache-Control'] = 'no-store'
+            elif _HASHED_ASSET_RE.search(request_path):
                 response.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
             else:
                 response.headers['Cache-Control'] = 'public, max-age=3600, must-revalidate'
 
+        mimetype = response.mimetype or ''
+        compressible = (
+            mimetype.startswith('text/')
+            or mimetype in ('application/json', 'application/javascript', 'image/svg+xml')
+            or mimetype.endswith('+json')
+        )
         if (
-            'gzip' in request.headers.get('Accept-Encoding', '')
-            and not response.headers.get('Content-Encoding')  # 防上游代理已压缩导致双重 gzip（P-MEDIUM-07）
-            and response.content_type
-            and any(
-                t in response.content_type for t in ('text/', 'application/json', 'application/javascript', 'image/svg')
-            )
+            compressible
+            and response.status_code in (200, 206, 304)
+            and not response.headers.get('Content-Encoding')
+            and not response.cache_control.no_transform
+        ):
+            # Preserve every Vary field line, including on cache revalidation.
+            vary = parse_set_header(', '.join(response.headers.getlist('Vary')))
+            vary.add('Accept-Encoding')
+            response.vary = vary
+        if (
+            compressible
+            and response.status_code == 200
+            and not response.is_streamed
+            and not response.direct_passthrough
+            and not response.headers.get('Content-Encoding')
+            and not response.headers.get('Content-Range')
+            and not response.cache_control.no_transform
             and response.content_length
             and response.content_length > 1024
+            and request.method != 'HEAD'
+            and request.accept_encodings['gzip'] > 0
         ):
-            response.direct_passthrough = False
             gzip_buffer = io.BytesIO()
-            with gzip.GzipFile(fileobj=gzip_buffer, mode='wb', compresslevel=4) as gz:
+            with gzip.GzipFile(fileobj=gzip_buffer, mode='wb', compresslevel=4, mtime=0) as gz:
                 gz.write(response.get_data())
             response.set_data(gzip_buffer.getvalue())
             response.headers['Content-Encoding'] = 'gzip'
-            response.headers['Content-Length'] = str(len(response.get_data()))
-            response.headers['Vary'] = 'Accept-Encoding'
+            # set_data adjusts Content-Length to the transmitted bytes.
+            etag, _weak = response.get_etag()
+            if etag:
+                response.set_etag(etag, weak=True)
 
         return response
 

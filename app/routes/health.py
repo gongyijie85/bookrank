@@ -7,7 +7,7 @@ import logging
 
 from flask import Blueprint, make_response
 
-from ..services.health_service import check_database
+from ..services.health_service import SchemaNotReady, check_database
 
 health_bp = Blueprint('health', __name__)
 logger = logging.getLogger(__name__)
@@ -43,12 +43,14 @@ def detailed_health_check():
 
 @health_bp.route('/health/ready')
 def readiness_check():
-    """就绪检查 - 快速检测数据库连通性（不重试，减少延迟）"""
+    """连接和生产迁移版本检查；业务数据完整性需要单独验收。"""
     try:
         check_database()
         return _json_response('{"success":true,"status":"ready"}')
+    except SchemaNotReady:
+        return _json_response('{"success":false,"status":"not_ready","error":"schema_not_ready"}', status=503)
     except Exception as e:
-        logger.warning(f'Readiness check failed: {e}')
+        logger.warning('Readiness check failed: %s', type(e).__name__)
         return _json_response(
             '{"success":false,"status":"not_ready","error":"database_unavailable"}',
             status=503,
