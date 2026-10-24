@@ -210,6 +210,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate static snapshot before publishing
+        run: python3 scripts/validate_static_snapshot.py --data-dir static/data
+
       - name: Deploy and verify Render revision
         env:
           GH_TOKEN: ${{ github.token }}
@@ -460,6 +463,9 @@ jobs:
           cp -a app templates static translations migrations \
             run.py gunicorn.conf.py requirements-prod.txt Dockerfile Procfile .dockerignore \
             "${STAGE}/"
+          mkdir -p "${STAGE}/scripts"
+          cp scripts/validate_static_snapshot.py "${STAGE}/scripts/"
+          python3 "${STAGE}/scripts/validate_static_snapshot.py" --data-dir "${STAGE}/static/data"
 
           # 其余内容整体换成 main，让它不再是手工补丁的硬分叉。
           # *.mo 不同步：由 Space 镜像构建时从 .po 现编，避免译文一改就撞上二进制拒绝。

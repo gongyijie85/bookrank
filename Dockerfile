@@ -28,6 +28,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY . .
 
+# Reject empty or inconsistent fallback data before creating a releasable image.
+RUN python scripts/validate_static_snapshot.py --data-dir static/data
+
 # HuggingFace Space 不注入 PORT（compose 显式给 8000、Render 自带 PORT），缺省会落到
 # gunicorn.conf.py 的 10000，而 Space 的 app_port 是 7860，于是探活永远不过、一直用旧构建。
 ENV PORT=7860

@@ -230,6 +230,11 @@ bookrank/
 
 ## 部署
 
+发布前先运行 `python scripts/validate_static_snapshot.py --data-dir static/data`。
+全空、缺失或不一致的快照会阻止发布；合法空来源与保留的有效旧数据可以通过。
+校验不会联网、连接数据库或修改数据，也不代表数据已经足够新鲜。
+仓库当前全空快照不可作为发布数据；详见[静态快照发布门禁](docs/static-snapshot-release-gate.md)。
+
 ### Render 部署（推荐）
 
 1. 在 Render 平台创建新的 Web Service，连接 GitHub 仓库。
@@ -237,7 +242,7 @@ bookrank/
    - Name: bookrank
    - Region: Oregon / Singapore（根据实际网络情况选择）
    - Branch: main
-   - Build Command: `pip install -r requirements-prod.txt`
+   - Build Command: `python scripts/validate_static_snapshot.py --data-dir static/data && pip install -r requirements-prod.txt`
    - Start Command: `gunicorn -c gunicorn.conf.py run:application`
    - Health Check Path: `/health/ready`
 3. 在 Render Dashboard 添加环境变量（参考 `.env.example`）：
@@ -245,7 +250,7 @@ bookrank/
    - `DATABASE_URL`（外部 PostgreSQL，如 Supabase Session Pooler）
    - `NYT_API_KEY`、`GOOGLE_API_KEY`、`ZHIPU_API_KEY`
    - `SENTRY_DSN`、`ALERT_WEBHOOK_URL`（生产环境建议配置）
-4. **关闭自动部署**：`render.yaml` 中 `autoDeploy: false`。生产部署仅由 `main` 当前 HEAD 的成功 CI 通过 Render Public API 发起；较旧 CI 运行会成功跳过，避免覆盖较新的提交。
+4. **关闭自动部署**：核对现有服务的 Render Dashboard，并明确关闭 Auto-Deploy；`render.yaml` 中的 `autoDeploy: false` 是目标配置，不能代替实际核对。生产部署仅由 `main` 当前 HEAD 的成功 CI 通过 Render Public API 发起；较旧 CI 运行会成功跳过，避免覆盖较新的提交。
 5. 在 GitHub 仓库配置最小权限 Secret `RENDER_API_KEY`，以及非秘密 Repository Variables `RENDER_SERVICE_ID` 和 `RENDER_BASE_URL`。CI 使用这些配置调用 Render Public API；绝不将秘密提交到仓库。紧急情况可在 Render Dashboard 使用 Manual Deploy。
 6. Render 免费层内存限制为 512MB，已强制 `WEB_CONCURRENCY=1` / `MAX_WORKERS=1`，避免多 worker OOM。
    > **若要提高 `WEB_CONCURRENCY`**：必须先设置 `RATE_LIMIT_REDIS_URL` 启用 Redis 共享限流，
