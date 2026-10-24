@@ -31,34 +31,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Wake Render
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Wake Render with bounded readiness probes
         env:
           BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
-          curl -s --max-time 30 "${BASE_URL}/api/health" > /dev/null || true
-          sleep 15
+          python scripts/workflow_http.py --policy read --path /health/ready \
+            --timeout 20 --budget 75 --report artifacts/readiness.json
 
-      - name: Trigger existing daily auto_sync (path C)
+      - name: Submit existing daily auto_sync once (path C)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_auto_sync != true }}
         env:
           BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          set -e
-          for i in 1 2 3; do
-            code=$(curl -s -o /tmp/sync.json -w '%{http_code}' --max-time 60 \
-              -H "Authorization: Bearer ${CRON_SECRET}" \
-              "${BASE_URL}/api/cron/trigger-new-books-sync")
-            echo "HTTP $code"
-            cat /tmp/sync.json || true
-            if [ "$code" = "200" ]; then exit 0; fi
-            if [ "$code" = "401" ]; then echo "CRON_SECRET invalid"; exit 1; fi
-            sleep 30
-          done
-          exit 1
+          python scripts/workflow_http.py --policy submit --path /api/cron/trigger-new-books-sync \
+            --secret-env CRON_SECRET --timeout 60 --budget 60 --report artifacts/auto-sync.json
+
+      - name: Preserve wake and submission outcome
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: crawl-auto-sync-outcome
+          path: artifacts/
+          if-no-files-found: ignore
 
   observe:
     needs: wake-and-auto-sync
+    # Observe is independent of an ambiguous remote auto_sync acknowledgement.
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Observe phase MUST NOT receive BATCH_IMPORT_SECRET
@@ -121,7 +126,7 @@ jobs:
 
   import:
     needs: observe
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_import != true }}
+    if: ${{ always() && !cancelled() && needs.observe.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.skip_import != true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Import phase holds BATCH_IMPORT_SECRET only — no Playwright browser secrets
@@ -129,42 +134,44 @@ jobs:
       SOURCE_ID: ${{ github.event.inputs.source_id || 'harpercollins' }}
       BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
       - name: Download batch draft
         uses: actions/download-artifact@v8
         with:
           name: batch-draft-${{ env.SOURCE_ID }}
           path: drafts
 
-      - name: Import batch (idempotent; retry transient only)
+      - name: Import fixed batch with durable receipt replay
         env:
           BATCH_IMPORT_SECRET: ${{ secrets.BATCH_IMPORT_SECRET }}
         run: |
-          set -e
-          DRAFT=$(ls drafts/*-batch-draft.json | head -n1)
-          echo "Using $DRAFT"
-          # business 4xx: do not retry; 5xx/timeout: up to 3 tries
-          for i in 1 2 3; do
-            code=$(curl -s -o /tmp/import.json -w '%{http_code}' --max-time 60 \
-              -X POST "${BASE_URL}/api/new-books/import-batch" \
-              -H "Authorization: Bearer ${BATCH_IMPORT_SECRET}" \
-              -H "Content-Type: application/json" \
-              --data-binary @"${DRAFT}")
-            echo "HTTP $code attempt $i"
-            cat /tmp/import.json || true
-            if [ "$code" = "200" ]; then
-              echo "import ok (applied or duplicate)"
-              exit 0
-            fi
-            if [ "$code" = "401" ] || [ "$code" = "403" ] || [ "$code" = "400" ] || [ "$code" = "409" ]; then
-              echo "business/auth failure, no retry"
-              exit 1
-            fi
-            sleep 20
-          done
-          exit 1
+          set -euo pipefail
+          drafts=(drafts/*-batch-draft.json)
+          if [ "${#drafts[@]}" -ne 1 ] || [ ! -f "${drafts[0]}" ]; then
+            echo "Expected exactly one immutable batch draft."
+            exit 1
+          fi
+          # Same bytes and batch_id on every attempt. Receipt and book writes
+          # are committed together by batch_import_service.import_batch.
+          python scripts/workflow_http.py --policy batch --method POST \
+            --path /api/new-books/import-batch --secret-env BATCH_IMPORT_SECRET \
+            --body-file "${drafts[0]}" --timeout 45 --budget 160 \
+            --report artifacts/import.json
+
+      - name: Preserve import outcome
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: crawl-import-outcome
+          path: artifacts/
+          if-no-files-found: ignore
 
   alert:
-    needs: [observe, import]
+    needs: [wake-and-auto-sync, observe, import]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -173,19 +180,28 @@ jobs:
       SOURCE_ID: ${{ github.event.inputs.source_id || 'harpercollins' }}
       BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
     steps:
-      - name: Sync source degraded/recovery GitHub issue
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Sync source alert without masking original outcomes
         env:
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          AUTO_SYNC_RESULT: ${{ needs.wake-and-auto-sync.result }}
+          OBSERVE_RESULT: ${{ needs.observe.result }}
+          IMPORT_RESULT: ${{ needs.import.result }}
         run: |
-          set -e
-          if [ -z "$ADMIN_SECRET" ]; then
-            echo "ADMIN_SECRET not set; skip remote alert sync (app-side hooks still apply on import)."
-            exit 0
-          fi
-          code=$(curl -s -o /tmp/alert.json -w '%{http_code}' --max-time 30 \
-            -X POST "${BASE_URL}/api/admin/new-books/source-alert/sync/${SOURCE_ID}" \
-            -H "X-Admin-Secret: ${ADMIN_SECRET}")
-          echo "HTTP $code"
-          cat /tmp/alert.json || true
-          # do not fail the pipeline solely on alert transport; log for ops
-          exit 0
+          echo "auto_sync=$AUTO_SYNC_RESULT observe=$OBSERVE_RESULT import=$IMPORT_RESULT" >> "$GITHUB_STEP_SUMMARY"
+          python scripts/workflow_http.py --policy notify --method POST \
+            --path "/api/admin/new-books/source-alert/sync/${SOURCE_ID}" \
+            --secret-env ADMIN_SECRET --header-name X-Admin-Secret \
+            --timeout 20 --budget 20 --report artifacts/alert.json
+
+      - name: Preserve alert delivery outcome
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: crawl-alert-outcome
+          path: artifacts/
+          if-no-files-found: ignore

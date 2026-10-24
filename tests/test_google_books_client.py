@@ -41,7 +41,7 @@ class TestBackgroundCacheSession:
             value = 'Synthetic quota title' if method.startswith('search') else '9780306406157'
             assert getattr(client, method)(value) == {}
             record_property('synthetic_http_queries', json.dumps(queries))
-            assert queries == ([] if release_session else ['test'])
+            assert queries == []
             if release_session:
                 assert not db.session().in_transaction()
                 assert not client._key_validated
@@ -90,19 +90,35 @@ class TestBackgroundCacheSession:
         finally:
             client._session.close()
 
-    def test_real_cache_hit_keeps_network_zero(self, db, monkeypatch):
+    @pytest.mark.parametrize('method', ['fetch_book_details', 'search_book_by_title'])
+    @pytest.mark.parametrize('release_session', [False, True], ids=['default-compatibility', 'background'])
+    @pytest.mark.parametrize('empty', [False, True], ids=['content', 'negative'])
+    def test_real_cache_hit_keeps_network_zero(self, db, monkeypatch, method, release_session, empty):
         cache = APICacheService()
-        payload = {'title': 'Synthetic cached title', 'cover_url': 'https://books.google.com/synthetic-cover'}
-        cache.set('google_books', 'isbn_9780306406157', payload)
+        payload = (
+            {}
+            if empty
+            else {'title': 'Synthetic cached title', 'cover_url': 'https://books.google.com/synthetic-cover'}
+        )
+        value = 'Synthetic title' if method.startswith('search') else '9780306406157'
+        cache_key = 'title_synthetic title_none' if method.startswith('search') else 'isbn_9780306406157'
+        cache.set('google_books', cache_key, payload)
+        cache.set('google_books', GoogleBooksClient._QUOTA_BLOCKED_KEY, True)
         cache._mem_cache.clear()
-        client = GoogleBooksClient(None, 'https://www.googleapis.com/books/v1/volumes', release_cache_session=True)
+        client = GoogleBooksClient(
+            'synthetic-key-not-a-credential',
+            'https://www.googleapis.com/books/v1/volumes',
+            release_cache_session=release_session,
+        )
         client._api_cache = cache
         monkeypatch.setattr(
             requests.sessions.Session, 'request', lambda *args, **kwargs: pytest.fail('Cache hit must block HTTP')
         )
         try:
-            assert client.fetch_book_details('9780306406157') == payload
-            assert not db.session().in_transaction()
+            assert getattr(client, method)(value) == payload
+            assert not client._key_validated
+            if release_session:
+                assert not db.session().in_transaction()
         finally:
             client._session.close()
 
@@ -196,6 +212,24 @@ class TestFetchBookDetails:
 
     def test_empty_isbn(self, client_no_key):
         assert client_no_key.fetch_book_details('') == {}
+
+    @pytest.mark.parametrize('cached', [{}, {'title': 'Cached Book'}])
+    def test_cached_result_precedes_key_validation_and_quota_lookup(self, client_with_key, cached):
+        cache = MagicMock()
+        cache.get.side_effect = lambda source, key: cached if key == 'isbn_9780743273565' else None
+        client_with_key._api_cache = cache
+        assert client_with_key.fetch_book_details('9780743273565') == cached
+        cache.get.assert_called_once_with('google_books', 'isbn_9780743273565')
+        client_with_key._session.get.assert_not_called()
+
+    @pytest.mark.parametrize('cached', [{}, {'title': 'Cached Book'}])
+    def test_cached_search_precedes_key_validation_and_quota_lookup(self, client_with_key, cached):
+        cache = MagicMock()
+        cache.get.side_effect = lambda source, key: cached if key == 'title_cached book_none' else None
+        client_with_key._api_cache = cache
+        assert client_with_key.search_book_by_title('Cached Book') == cached
+        cache.get.assert_called_once_with('google_books', 'title_cached book_none')
+        client_with_key._session.get.assert_not_called()
 
     def test_cache_hit(self, client_no_key):
         mock_cache_service = MagicMock()
@@ -605,3 +639,19 @@ class TestQuotaBackoff:
     def test_backoff_ttl_is_hours_not_minutes(self):
         """退避太短等于没退避：必须显著长于旧的 300 秒错误缓存。"""
         assert GoogleBooksClient.DEFAULT_QUOTA_BACKOFF_TTL >= 1800
+
+    def test_transport_does_not_retry_429_before_shared_backoff(self):
+        client = GoogleBooksClient(api_key=None, base_url='https://example.invalid/volumes')
+        strategy = client._session.get_adapter('https://').max_retries
+        assert 429 not in strategy.status_forcelist
+        assert strategy.respect_retry_after_header is False
+
+    def test_validation_429_is_not_followed_by_anonymous_lookup(self):
+        client = GoogleBooksClient(api_key='local-key', base_url='https://example.invalid/volumes')
+        client._session = MagicMock()
+        client._api_cache = _RecordingCache()
+        client._session.get.return_value = self._resp(429)
+        assert client.fetch_book_details('9780000000004') == {}
+        assert client._session.get.call_count == 1
+        assert client.search_book_by_title('Another title') == {}
+        assert client._session.get.call_count == 1

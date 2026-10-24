@@ -100,9 +100,15 @@ def _acquire_sync_slot() -> str | None:
 
 def _submit_sync_job(runner) -> tuple[bool, Any]:
     """占用同步任务槽并提交后台执行；已在运行时返回 (False, 409 响应)。"""
+    from ..setup import _new_book_sync_pending
+
     with _sync_task_lock:
         if _sync_task.get('status') == 'running':
             return False, APIResponse.error('已有同步任务在执行中，请先等待完成', 409)
+        if _sync_task.get('status') == 'pending_verification' or _new_book_sync_pending():
+            return False, APIResponse.error('上轮同步结果尚未核实，未提交新任务', 409)
+        if get_new_book_modules().sync_engine.has_in_flight() is True:
+            return False, APIResponse.error('已有后台同步仍在执行，结果待核实，未提交新批次', 409)
         _sync_task.clear()
         _sync_task.update({'status': 'running', 'started_at': datetime.now(UTC).isoformat()})
     try:
@@ -115,9 +121,14 @@ def _submit_sync_job(runner) -> tuple[bool, Any]:
 
 
 def _finish_sync_job(**fields: Any) -> None:
-    """后台任务结束时落最终状态（success/error）。"""
+    """记录已知结果；等待超时只记录观察时间，不冒充完成。"""
     with _sync_task_lock:
-        _sync_task.update({'finished_at': datetime.now(UTC).isoformat(), **fields})
+        if fields.get('status') == 'pending_verification':
+            current_app.extensions['new_book_sync_verification_pending'] = True
+            _sync_task.pop('finished_at', None)
+            _sync_task.update({'observed_at': datetime.now(UTC).isoformat(), **fields})
+        else:
+            _sync_task.update({'finished_at': datetime.now(UTC).isoformat(), **fields})
 
 
 @new_books_bp.route('/publishers')
@@ -331,13 +342,18 @@ def sync_all_publishers():
                     total_added = sum(r.get('added', 0) for r in results)
                     total_updated = sum(r.get('updated', 0) for r in results)
                     total_errors = sum(r.get('errors', 0) for r in results)
+                    pending = [r for r in results if r.get('status') == 'pending_verification']
+                    failed = [r for r in results if r.get('success') is False and r not in pending]
+                    status = 'pending_verification' if pending else ('error' if failed or not results else 'success')
                     summary = {
                         'total_publishers': len(results),
                         'total_added': total_added,
                         'total_updated': total_updated,
                         'total_errors': total_errors,
+                        'pending_publishers': len(pending),
+                        'failed_publishers': len(failed),
                     }
-                    _finish_sync_job(status='success', kind='all', summary=summary, results=results)
+                    _finish_sync_job(status=status, kind='all', summary=summary, results=results)
                 except Exception as e:
                     log_error(ErrorCategory.CRAWLER, f'后台同步新书失败: {e}', exc_info=True)
                     _finish_sync_job(status='error', kind='all', error=str(e))
@@ -378,7 +394,11 @@ def sync_publisher(publisher_id: int):
                 try:
                     modules = get_new_book_modules()
                     result = modules.sync_engine.sync_publisher_books(publisher_id, max_books=sync_q.max_books)
-                    if result.get('success'):
+                    if result.get('status') == 'pending_verification':
+                        _finish_sync_job(
+                            status='pending_verification', kind='publisher', publisher_id=publisher_id, result=result
+                        )
+                    elif result.get('success'):
                         _finish_sync_job(status='success', kind='publisher', publisher_id=publisher_id, result=result)
                     else:
                         _finish_sync_job(
@@ -410,9 +430,10 @@ def sync_publisher(publisher_id: int):
 @new_books_bp.route('/sync/status')
 @admin_required
 def get_sync_status():
-    """查询最近一次同步任务的执行状态（idle/running/success/error）"""
+    """查询最近任务及本进程活动；空闲不会把待核实任务改成成功。"""
     with _sync_task_lock:
         snapshot = dict(_sync_task)
+    snapshot['backend_in_flight'] = get_new_book_modules().sync_engine.has_in_flight() is True
     return APIResponse.success(data=snapshot)
 
 

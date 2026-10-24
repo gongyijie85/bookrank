@@ -1,11 +1,6 @@
 name: Trigger New Books Sync
 
-# 免费层方案说明：
-# Render 免费层 15 分钟无请求即休眠，进程内 APScheduler 定时器会被
-# 休眠打断导致 auto_sync 静默跳过（见 issue #76 调查结论）。
-# 本工作流复用周报触发的"唤醒 + 重试"模式，每日外部触发一次新书同步；
-# APScheduler IntervalTrigger(hours=24) 保留作为兜底，同步逻辑内置
-# 24 小时自我节流，两套机制并存不会重复同步（决策见 issue #80）。
+# Mutating cron GET: one submission only. Lost acknowledgements require verification.
 
 on:
   schedule:
@@ -16,7 +11,7 @@ on:
 
 concurrency:
   group: trigger-new-books-sync
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   trigger:
@@ -24,50 +19,31 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Wake up Render app (free tier cold start)
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Check readiness with bounded retries
         env:
           BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
         run: |
-          echo "唤醒 Render 应用（免费层冷启动）..."
-          # 先 ping 健康端点触发冷启动，不检查返回码
-          curl -s --max-time 30 \
-            "${BASE_URL}/api/health" > /dev/null || true
-          echo "等待冷启动完成..."
-          sleep 15
+          python scripts/workflow_http.py --policy read --path /health/ready \
+            --timeout 20 --budget 75 --report artifacts/readiness.json
 
-      - name: Trigger new books sync
+      - name: Submit new-books-sync once
         env:
           BASE_URL: ${{ vars.RENDER_BASE_URL || 'https://bookrank-ckml.onrender.com' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          set -e
-          MAX_RETRIES=3
-          RETRY_DELAY=30
+          python scripts/workflow_http.py --policy submit --path /api/cron/trigger-new-books-sync \
+            --secret-env CRON_SECRET --timeout 60 --budget 60 \
+            --report artifacts/new-books-sync.json
 
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "尝试 $i/$MAX_RETRIES: 触发新书自动同步..."
-
-            HTTP_CODE=$(curl -s -o /tmp/new-books-sync-response.json -w '%{http_code}' \
-              --max-time 60 \
-              -H "Authorization: Bearer ${CRON_SECRET}" \
-              "${BASE_URL}/api/cron/trigger-new-books-sync")
-
-            echo "HTTP 状态码: $HTTP_CODE"
-            cat /tmp/new-books-sync-response.json | python3 -m json.tool || cat /tmp/new-books-sync-response.json
-
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ 新书同步触发成功"
-              exit 0
-            elif [ "$HTTP_CODE" = "401" ]; then
-              echo "❌ 认证失败，请检查 CRON_SECRET"
-              exit 1
-            fi
-
-            if [ $i -lt $MAX_RETRIES ]; then
-              echo "请求失败，${RETRY_DELAY}秒后重试..."
-              sleep $RETRY_DELAY
-            fi
-          done
-
-          echo "❌ $MAX_RETRIES 次尝试后仍失败"
-          exit 1
+      - name: Preserve operation outcome
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: new-books-sync-outcome
+          path: artifacts/
+          if-no-files-found: ignore

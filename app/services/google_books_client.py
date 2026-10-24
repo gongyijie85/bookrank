@@ -40,7 +40,7 @@ class GoogleBooksClient:
         self._timeout = timeout
         self._cache_ttl = cache_ttl if cache_ttl is not None else self.DEFAULT_CACHE_TTL
         self._release_cache_session = release_cache_session
-        self._session = create_session_with_retry(max_retries=2)
+        self._session = create_session_with_retry(max_retries=2, retry_statuses=(500, 502, 503, 504))
         self._api_cache = None
         self._key_validated = False
         self._key_is_valid = False
@@ -103,11 +103,14 @@ class GoogleBooksClient:
             elif resp.status_code == 400:
                 logger.warning('Google Books API Key 无效，降级为无Key模式（配额较低）')
                 self._key_is_valid = False
+            elif resp.status_code == 429:
+                self._enter_quota_backoff()
+                self._key_is_valid = False
             else:
                 logger.warning('Google Books API Key 验证异常 (状态码:%s)，降级为无Key模式', resp.status_code)
                 self._key_is_valid = False
         except Exception as e:
-            log_error(ErrorCategory.API_CALL, f'Google Books API Key 验证失败: {e}，降级为无Key模式', level='warning')
+            log_error(ErrorCategory.API_CALL, f'Google Books API Key 验证失败: {type(e).__name__}', level='warning')
             self._key_is_valid = False
 
         self._key_validated = True
@@ -125,25 +128,22 @@ class GoogleBooksClient:
         if not isbn:
             return {}
 
-        if self._release_cache_session and self._quota_backoff_active():
-            logger.info('Google Books 处于配额退避窗口，跳过请求: ISBN %s', isbn)
-            return {}
-
-        self._validate_api_key()
+        cache_service = self._get_cache_service()
+        cache_key = f'isbn_{isbn}'
+        if cache_service:
+            cached = self._read_cache(cache_service, cache_key)
+            if cached is not None:
+                logger.info('返回Google Books缓存数据: ISBN %s', isbn)
+                return cast('dict[str, Any]', cached)
 
         # 配额退避窗口内直接返回：不打上游，避免把 1000 次/天的配额持续烧穿。
         if self._quota_backoff_active():
             logger.info('Google Books 处于配额退避窗口，跳过请求: ISBN %s', isbn)
             return {}
 
-        cache_service = self._get_cache_service()
-        cache_key = f'isbn_{isbn}'
-
-        if cache_service:
-            cached = self._read_cache(cache_service, cache_key)
-            if cached:
-                logger.info('返回Google Books缓存数据: ISBN %s', isbn)
-                return cast('dict[str, Any]', cached)
+        self._validate_api_key()
+        if self._quota_backoff_active():
+            return {}
 
         params = self._build_params({'q': f'isbn:{isbn}'})
 
@@ -185,9 +185,15 @@ class GoogleBooksClient:
             return result
 
         except requests.RequestException as e:
-            logger.warning('Failed to fetch Google Books data for ISBN %s: %s', isbn, e)
+            logger.warning('Failed to fetch Google Books data for ISBN %s: %s', isbn, type(e).__name__)
             _safe_cache_set(
-                cache_service, 'google_books', cache_key, {}, ttl_seconds=300, is_error=True, error_message=str(e)
+                cache_service,
+                'google_books',
+                cache_key,
+                {},
+                ttl_seconds=300,
+                is_error=True,
+                error_message=type(e).__name__,
             )
             return {}
 
@@ -197,25 +203,22 @@ class GoogleBooksClient:
         if not title:
             return {}
 
-        if self._release_cache_session and self._quota_backoff_active():
-            logger.info('Google Books 处于配额退避窗口，跳过标题搜索: %s', title)
-            return {}
-
-        self._validate_api_key()
+        cache_key = f'title_{title.lower()}_{author.lower() if author else "none"}'
+        cache_service = self._get_cache_service()
+        if cache_service:
+            cached = self._read_cache(cache_service, cache_key)
+            if cached is not None:
+                logger.info("返回Google Books缓存搜索结果: '%s'", title)
+                return cast('dict[str, Any]', cached)
 
         # 配额退避窗口内直接返回：不打上游（见 DEFAULT_QUOTA_BACKOFF_TTL 的说明）。
         if self._quota_backoff_active():
             logger.info('Google Books 处于配额退避窗口，跳过标题搜索: %s', title)
             return {}
 
-        cache_key = f'title_{title.lower()}_{author.lower() if author else "none"}'
-        cache_service = self._get_cache_service()
-
-        if cache_service:
-            cached = self._read_cache(cache_service, cache_key)
-            if cached:
-                logger.info("返回Google Books缓存搜索结果: '%s'", title)
-                return cast('dict[str, Any]', cached)
+        self._validate_api_key()
+        if self._quota_backoff_active():
+            return {}
 
         query = f'intitle:{title}'
         if author:
@@ -258,9 +261,15 @@ class GoogleBooksClient:
             return result
 
         except requests.RequestException as e:
-            logger.warning("Failed to search Google Books for '%s': %s", title, e)
+            logger.warning("Failed to search Google Books for '%s': %s", title, type(e).__name__)
             _safe_cache_set(
-                cache_service, 'google_books', cache_key, {}, ttl_seconds=300, is_error=True, error_message=str(e)
+                cache_service,
+                'google_books',
+                cache_key,
+                {},
+                ttl_seconds=300,
+                is_error=True,
+                error_message=type(e).__name__,
             )
             return {}
 

@@ -165,12 +165,14 @@ class PrhApiCrawler(BaseCrawler):
             try:
                 payload = response.json()
             except ValueError:
+                self.crawl_errors.append('invalid_response')
                 logger.warning('⚠️ PRH API 响应不是合法 JSON，停止翻页')
                 break
 
             # status=error 是业务错误（如 key 无效/限流）：首屏直接抛异常
             # 交给单家熔断，避免静默产出 0 本；中途则返回已取部分
             if payload.get('status') == 'error':
+                self.crawl_errors.append('business_error')
                 if page == 0:
                     raise RuntimeError(f'PRH API 返回业务错误: {payload.get("error")}')
                 logger.warning('⚠️ PRH API 第 %d 页返回业务错误，返回已获取的 %d 条', page + 1, len(all_titles))

@@ -6,7 +6,8 @@ import time
 from collections import OrderedDict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from tempfile import NamedTemporaryFile
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import requests
@@ -16,6 +17,7 @@ from urllib3.util.retry import Retry
 
 from ..utils.cover_urls import is_allowed_cover_host, normalize_cover_url
 from ..utils.error_handler import ErrorCategory, log_error
+from .detail_cache import DetailCache
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +63,19 @@ def run_with_app_context(app, func, *args):
     return func(*args)
 
 
-def create_session_with_retry(max_retries: int = 3, backoff_factor: float = 0.5) -> requests.Session:
+def create_session_with_retry(
+    max_retries: int = 3, backoff_factor: float = 0.5, *, retry_statuses: Iterable[int] = (429, 500, 502, 503, 504)
+) -> requests.Session:
     """创建配置了重试机制的 requests Session"""
     session = requests.Session()
+    retry_statuses = tuple(retry_statuses)
 
     retry_strategy = Retry(
         total=max_retries,
         backoff_factor=backoff_factor,
-        status_forcelist=[429, 500, 502, 503, 504],
+        status_forcelist=list(retry_statuses),
+        # 交由调用方识别 429 并共享冷却时，不得通过 Retry-After 暗中重试。
+        respect_retry_after_header=429 in retry_statuses,
         allowed_methods=['HEAD', 'GET', 'OPTIONS'],
     )
 
@@ -139,9 +146,11 @@ class ImageCacheService:
         self._default_cover = default_cover
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._memory_cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
+        self._memory_lock = threading.Lock()
         self._memory_cache_ttl = 3600
         self._memory_cache_max_size = 1000
         self._session = create_session_with_retry(max_retries=2)
+        self._download_loads = DetailCache(ttl=0)
         # 异步预取去重锁（同 URL 并发仅一次下载）
         self._prefetch_lock = threading.Lock()
         self._prefetch_pending: set[str] = set()
@@ -168,14 +177,20 @@ class ImageCacheService:
             return self._default_cover
 
         current_time = time.time()
-        if original_url in self._memory_cache:
-            cached_path, timestamp = self._memory_cache[original_url]
-            if current_time - timestamp < self._memory_cache_ttl:
-                self._memory_cache.move_to_end(original_url)
+        with self._memory_lock:
+            entry = self._memory_cache.get(original_url)
+        if entry is not None:
+            cached_path, timestamp = entry
+            if current_time - timestamp < self._memory_cache_ttl and self.is_cached_file_present(cached_path):
+                with self._memory_lock:
+                    if self._memory_cache.get(original_url) is entry:
+                        self._memory_cache.move_to_end(original_url)
                 logger.info(f'Returning image from memory cache: {original_url}')
                 return cached_path
             else:
-                del self._memory_cache[original_url]
+                with self._memory_lock:
+                    if self._memory_cache.get(original_url) is entry:
+                        self._memory_cache.pop(original_url, None)
 
         filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'  # type: ignore[arg-type]
         cache_path = self._cache_dir / filename
@@ -216,16 +231,33 @@ class ImageCacheService:
             return self._default_cover
 
         if not block:
-            self._enqueue_prefetch(original_url)
+            self._enqueue_prefetch(original_url, ttl=ttl)
             return self._default_cover
 
         try:
-            return self._download_to_cache(original_url)
+            return self._download_to_cache(original_url, ttl=ttl)
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'Failed to cache image from {original_url}: {e}', level='warning')
             return self._default_cover
 
     def _download_to_cache(self, original_url: str, ttl: int = 3600) -> str:
+        """Share an in-flight download between foreground and prefetch callers."""
+
+        def load() -> str:
+            filename = hashlib.md5(original_url.encode(), usedforsecurity=False).hexdigest() + '.jpg'  # type: ignore[arg-type]
+            cache_path = self._cache_dir / filename
+            try:
+                if self._is_usable_cache_file(cache_path) and time.time() - cache_path.stat().st_mtime < ttl:
+                    relative_path = f'/cache/images/{filename}'
+                    self._update_memory_cache(original_url, relative_path, time.time())
+                    return relative_path
+            except OSError:
+                pass
+            return self._fetch_image_to_cache(original_url)
+
+        return cast('str', self._download_loads.get_or_load((original_url,), load))
+
+    def _fetch_image_to_cache(self, original_url: str) -> str:
         """同步下载图片到缓存；失败抛异常（由调用方兜底返回占位）。
 
         NYT CDN 偶发 SSL 手部失败（SSLEOFError）——做 2 次短退避重试，
@@ -239,8 +271,9 @@ class ImageCacheService:
         relative_path = f'/cache/images/{filename}'
 
         last_exc: Exception | None = None
-        is_placeholder = False
         for attempt in range(3):
+            response = None
+            tmp_path = None
             try:
                 response = self._session.get(original_url, timeout=10, stream=True)
                 response.raise_for_status()
@@ -249,15 +282,15 @@ class ImageCacheService:
                     logger.warning(f'Blocked non-image Content-Type {ctype} for {original_url}')
                     raise ValueError(f'non-image content: {ctype}')
 
-                with open(cache_path, 'wb') as f:
+                with NamedTemporaryFile(dir=self._cache_dir, suffix='.tmp', delete=False) as f:
+                    tmp_path = Path(f.name)
                     for chunk in response.iter_content(1024):
                         f.write(chunk)
 
-                if cache_path.stat().st_size < MIN_IMAGE_BYTES:
-                    cache_path.unlink(missing_ok=True)
-                    is_placeholder = True
-                    break
+                if tmp_path.stat().st_size < MIN_IMAGE_BYTES:
+                    raise ValueError(f'placeholder image (below {MIN_IMAGE_BYTES}B) from {original_url}')
 
+                tmp_path.replace(cache_path)
                 self._update_memory_cache(original_url, relative_path, time.time())
                 return relative_path
             except (requests.RequestException, OSError) as e:
@@ -265,11 +298,16 @@ class ImageCacheService:
                 if attempt < 2:
                     time.sleep(0.4 * (attempt + 1))
                     continue
-        if is_placeholder:
-            raise ValueError(f'placeholder image (below {MIN_IMAGE_BYTES}B) from {original_url}')
+            finally:
+                try:
+                    if response is not None:
+                        response.close()
+                finally:
+                    if tmp_path is not None:
+                        tmp_path.unlink(missing_ok=True)
         raise last_exc if last_exc else RuntimeError(f'download failed: {original_url}')
 
-    def _enqueue_prefetch(self, original_url: str) -> None:
+    def _enqueue_prefetch(self, original_url: str, ttl: int = 3600) -> None:
         """MISS 时提交后台下载（同 URL 去重，下载成功回填内存/文件缓存）。"""
         if not original_url:
             return
@@ -282,7 +320,7 @@ class ImageCacheService:
 
         def _worker() -> None:
             try:
-                self._download_to_cache(original_url)
+                self._download_to_cache(original_url, ttl=ttl)
             except Exception as e:
                 log_error(ErrorCategory.API_CALL, f'后台图片预取失败 {original_url}: {e}', level='warning')
             finally:
@@ -330,9 +368,10 @@ class ImageCacheService:
 
     def _update_memory_cache(self, key: str, value: str, timestamp: float):
         """更新内存缓存，确保不超过最大大小"""
-        if key in self._memory_cache:
-            del self._memory_cache[key]
-        elif len(self._memory_cache) >= self._memory_cache_max_size:
-            self._memory_cache.popitem(last=False)
-        self._memory_cache[key] = (value, timestamp)
-        self._memory_cache.move_to_end(key)
+        with self._memory_lock:
+            if key in self._memory_cache:
+                del self._memory_cache[key]
+            elif len(self._memory_cache) >= self._memory_cache_max_size:
+                self._memory_cache.popitem(last=False)
+            self._memory_cache[key] = (value, timestamp)
+            self._memory_cache.move_to_end(key)

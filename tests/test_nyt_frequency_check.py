@@ -65,6 +65,42 @@ def test_main_returns_operational_error_for_api_failure(monkeypatch, capsys):
     assert 'NYT 频率检查失败' in capsys.readouterr().out
 
 
+def test_metadata_get_recovers_from_first_timeout_with_limited_retry(monkeypatch):
+    response = Mock(status_code=200)
+    response.json.return_value = {'status': 'OK', 'results': []}
+    get = Mock(side_effect=[requests.Timeout('first timeout'), response])
+    monkeypatch.setattr(requests, 'get', get)
+    sleep = Mock()
+    monkeypatch.setattr(checker.time, 'sleep', sleep)
+    assert checker.fetch_nyt_frequencies('local-key') == {}
+    assert get.call_count == 2
+    sleep.assert_called_once_with(1)
+
+
+def test_metadata_get_stops_after_three_timeouts(monkeypatch):
+    import pytest
+
+    get = Mock(side_effect=requests.Timeout('all timeouts'))
+    monkeypatch.setattr(requests, 'get', get)
+    monkeypatch.setattr(checker.time, 'sleep', Mock())
+    with pytest.raises(requests.Timeout):
+        checker.fetch_nyt_frequencies('local-key')
+    assert get.call_count == 3
+
+
+def test_main_reports_404_as_unverified_without_leaking_request_credentials(monkeypatch, capsys):
+    monkeypatch.setenv('NYT_API_KEY', 'local-secret-test-value')
+    response = requests.Response()
+    response.status_code = 404
+    failure = requests.HTTPError('404 at https://example.invalid/?api-key=local-secret-test-value', response=response)
+    monkeypatch.setattr(checker, 'fetch_nyt_frequencies', Mock(side_effect=failure))
+    assert checker.main() == checker.EXIT_OPERATIONAL_ERROR
+    output = capsys.readouterr().out
+    assert 'HTTP 404' in output
+    assert '待核实' in output
+    assert 'local-secret-test-value' not in output
+
+
 def test_main_returns_drift_and_markdown_report(monkeypatch, capsys):
     monkeypatch.setenv('NYT_API_KEY', 'secret')
     actual = {category: frequency.upper() for category, frequency in Config.NYT_CATEGORY_UPDATE_FREQUENCIES.items()}

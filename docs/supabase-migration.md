@@ -48,7 +48,7 @@ pg_dump --format=custom --no-owner --no-acl --file .\bookrank_render.dump $env:R
 pg_restore --clean --if-exists --no-owner --no-acl --dbname $env:SUPABASE_DATABASE_URL .\bookrank_render.dump
 ```
 
-验证 Supabase schema 和行数：
+只读核验连接与 Alembic 版本（不会迁移或验证业务行数）：
 
 ```powershell
 $env:DATABASE_URL = $env:SUPABASE_DATABASE_URL
@@ -67,13 +67,19 @@ Remove-Item Env:\DISABLE_BACKGROUND_THREADS
 
 ## 路径 B：原数据已无法恢复，重建 Supabase 空库
 
+以下属于显式数据库写入流程，须在备份、隔离演练及单独批准后执行。
+先准备专用的空 schema（例如 `bookrank_empty`），不要对已有或无版本旧库直接标记当前版本。
+
 ```powershell
 $env:DATABASE_URL = "postgresql://postgres.PROJECT_REF:supabase_password@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
 $env:DISABLE_BACKGROUND_THREADS = "true"
-python scripts/init_external_postgres.py --seed-base-data
+python scripts/init_external_postgres.py --bootstrap-empty-schema --schema bookrank_empty --seed-base-data
 ```
 
-这会创建当前模型表结构、写入 Alembic 当前版本，并补种奖项、示例榜单、出版社和静态新书兜底数据。
+脚本拒绝 public、系统 schema 或任何已有对象；按已审查的当前基线，在同一事务中创建模型及迁移补充对象并写入版本。
+播种是单独的数据事务，空或部分失败会报错，已提交记录可能保留；应先检查结果，不能盲目重投。
+应用连接必须显式配置同一 `search_path`，脚本不会更改生产连接配置或权限。
+已有合法版本的库另用 `--upgrade`；默认无参数仅只读核验，不自动加载 `.env`、建表、迁移或播种。
 
 ## 切换 Render Web Service
 

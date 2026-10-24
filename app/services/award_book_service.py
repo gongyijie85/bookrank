@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
 
 from ..models import db
 from ..models.schemas import Award, AwardBook, SystemConfig
@@ -22,6 +22,29 @@ from .open_library_client import OpenLibraryClient
 from .wikidata_client import WikidataClient
 
 logger = logging.getLogger(__name__)
+
+
+def _award_list_columns():
+    """HTML 书卡及派生榜所需列；保留双语简介，不读取详情和审核正文。"""
+    return load_only(
+        AwardBook.id,
+        AwardBook.award_id,
+        AwardBook.year,
+        AwardBook.category,
+        AwardBook.rank,
+        AwardBook.title,
+        AwardBook.title_zh,
+        AwardBook.author,
+        AwardBook.description,
+        AwardBook.description_zh,
+        AwardBook.cover_local_path,
+        AwardBook.cover_original_url,
+        AwardBook.isbn13,
+        AwardBook.isbn10,
+        AwardBook.publisher,
+        AwardBook.publication_year,
+        raiseload=True,
+    )
 
 
 class AwardBookService:
@@ -456,9 +479,12 @@ class AwardBookService:
         page: int = 1,
         limit: int = 20,
         include_displayable_only: bool = False,
+        list_only: bool = False,
     ) -> tuple[list[AwardBook], int]:
         """
         查询获奖图书（支持多条件筛选和分页）
+
+        list_only 仅供 HTML 书列使用；API、管理与导出保持默认全量加载。
 
         Returns:
             (books, total) 元组
@@ -484,6 +510,8 @@ class AwardBookService:
                 )
 
             total = query.count()
+            if list_only:
+                query = query.options(_award_list_columns())
             books = (
                 query.options(selectinload(cast('Any', AwardBook.award)))
                 .order_by(AwardBook.year.desc(), AwardBook.rank.asc())
@@ -545,7 +573,9 @@ class AwardBookService:
                 pass
             return False
 
-    def search_award_books(self, keyword: str, page: int = 1, limit: int = 20) -> tuple[list[AwardBook], int]:
+    def search_award_books(
+        self, keyword: str, page: int = 1, limit: int = 20, list_only: bool = False
+    ) -> tuple[list[AwardBook], int]:
         """搜索获奖图书（标题/作者/中文标题）"""
         try:
             escaped = keyword.replace('%', r'\%').replace('_', r'\_')
@@ -557,6 +587,8 @@ class AwardBookService:
                 )
             )
             total = query.count()
+            if list_only:
+                query = query.options(_award_list_columns())
             books = (
                 query.options(selectinload(cast('Any', AwardBook.award)))
                 .order_by(AwardBook.year.desc())

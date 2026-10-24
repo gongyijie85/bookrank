@@ -20,6 +20,8 @@ from ..utils.space_runtime import is_space_runtime
 from .api_utils import ImageCacheService, run_with_app_context
 from .book_language_pack import BookLanguagePack
 from .cache_service import CacheService
+from .detail_cache import DetailCache
+from .detail_cache_invalidation import has_uncommitted_cache_writes
 from .google_books_client import GoogleBooksClient
 from .nyt_client import NYTApiClient
 
@@ -48,6 +50,8 @@ class BookService:
         self._max_workers = max_workers
         self._categories = categories or {}
         self._language_pack = BookLanguagePack(language_pack_path or self._resolve_language_pack_path(app))
+        # Reuse the existing per-key flight mechanism; snapshots remain in CacheService.
+        self._category_loads = DetailCache(ttl=0)
 
         self._translation_lock = threading.Lock()
         self._translation_thread_active = False
@@ -206,7 +210,46 @@ class BookService:
         Returns:
             图书列表
         """
+        key = (
+            category_id,
+            force_refresh,
+            auto_translate,
+            notify_refresh,
+            allow_stale_fallback,
+            report_failures,
+            cached_only,
+        )
+
+        def load() -> list[Book]:
+            return self._load_books_by_category(
+                category_id,
+                force_refresh,
+                auto_translate,
+                notify_refresh,
+                allow_stale_fallback,
+                report_failures,
+                cached_only,
+            )
+
+        if has_uncommitted_cache_writes():
+            return load()
+        return cast(
+            'list[Book]',
+            self._category_loads.get_or_load(key, load),
+        )
+
+    def _load_books_by_category(
+        self,
+        category_id: str,
+        force_refresh: bool,
+        auto_translate: bool,
+        notify_refresh: bool,
+        allow_stale_fallback: bool,
+        report_failures: bool,
+        cached_only: bool,
+    ) -> list[Book]:
         cache_key = f'books_{category_id}'
+        shareable = not has_uncommitted_cache_writes()
 
         if cached_only:
             cached_data = self._cache.get(cache_key)
@@ -250,9 +293,10 @@ class BookService:
             books_data = [book.to_dict() for book in books]
             cache_ttl = self._app.config.get('BOOK_SERVICE_CACHE_TTL', 86400) if self._app else 86400
             # 写缓存前清理该分类的旧 ISBN 反向索引条目，再登记新条目，避免内存只增不减
-            self._invalidate_isbn_index_for_category(category_id)
-            self._cache.set(cache_key, books_data, ttl=cache_ttl)
-            self._register_isbn_index_for_category(category_id, books_data)
+            if shareable and not has_uncommitted_cache_writes():
+                self._invalidate_isbn_index_for_category(category_id)
+                self._cache.set(cache_key, books_data, ttl=cache_ttl)
+                self._register_isbn_index_for_category(category_id, books_data)
 
             logger.info(f'Fetched and cached {len(books)} books for {category_id}')
 

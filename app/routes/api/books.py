@@ -8,6 +8,8 @@ from urllib.parse import quote
 
 from flask import current_app, request
 
+from ...services.book_detail_cache import get_detail_cache
+from ...services.detail_cache_invalidation import has_uncommitted_cache_writes
 from ...services.user_service import UserService
 from ...utils.api_helpers import (
     APIResponse,
@@ -303,42 +305,37 @@ def get_book_details(isbn: str):
 
         google_client = get_or_create_google_books_client()
 
-        try:
+        def load_details() -> dict[str, Any] | None:
             book_data = google_client.fetch_book_details(isbn)
-        except Exception as e:
-            if 'no such table' in str(e):
-                return APIResponse.error('Book not found', 404)
-            raise
 
-        if not book_data:
-            return APIResponse.error('Book not found in Google Books', 404)
+            if not book_data:
+                return None
 
-        cover_url = book_data.get('cover_url')
-        if not cover_url and book_data.get('isbn_13'):
-            cover_url = f'https://covers.openlibrary.org/b/isbn/{book_data["isbn_13"]}-L.jpg'
+            cover_url = book_data.get('cover_url')
+            if not cover_url and book_data.get('isbn_13'):
+                cover_url = f'https://covers.openlibrary.org/b/isbn/{book_data["isbn_13"]}-L.jpg'
 
-        details_en = book_data.get('details', '')
-        details_zh = ''
+            details_en = book_data.get('details', '')
+            details_zh = ''
 
-        # 通过 Service 层获取翻译缓存（不直接访问 db.session）
-        try:
-            meta = _user_service.get_book_metadata(isbn)
-            if meta and meta.details_zh:
-                details_zh = clean_translation_text(meta.details_zh, 'details')
-        except Exception as e:
-            log_error(ErrorCategory.API_CALL, f'查询翻译缓存失败: {e}', level='warning')
-
-        # 如果没有翻译，尝试同步翻译
-        if details_en and not details_zh:
+            # 通过 Service 层获取翻译缓存（不直接访问 db.session）
             try:
-                translation_service = get_service('translation_service')
-                if translation_service:
-                    details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
+                meta = _user_service.get_book_metadata(isbn)
+                if meta and meta.details_zh:
+                    details_zh = clean_translation_text(meta.details_zh, 'details')
             except Exception as e:
-                log_error(ErrorCategory.API_CALL, f'详情翻译失败: {e}', level='warning')
+                log_error(ErrorCategory.API_CALL, f'查询翻译缓存失败: {e}', level='warning')
 
-        return APIResponse.success(
-            data={
+            # 如果没有翻译，尝试同步翻译
+            if details_en and not details_zh:
+                try:
+                    translation_service = get_service('translation_service')
+                    if translation_service:
+                        details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
+                except Exception as e:
+                    log_error(ErrorCategory.API_CALL, f'详情翻译失败: {e}', level='warning')
+
+            return {
                 'description': details_zh or details_en,
                 'details': details_en,
                 'details_zh': details_zh,
@@ -349,7 +346,21 @@ def get_book_details(isbn: str):
                 'publication_date': book_data.get('publication_dt'),
                 'buy_links': {},
             }
-        )
+
+        try:
+            data = (
+                load_details()
+                if has_uncommitted_cache_writes()
+                else get_detail_cache().get_or_load(('book-api', isbn), load_details)
+            )
+        except Exception as e:
+            if 'no such table' in str(e):
+                return APIResponse.error('Book not found', 404)
+            raise
+
+        if data is None:
+            return APIResponse.error('Book not found in Google Books', 404)
+        return APIResponse.success(data=data)
 
     except Exception as e:
         log_error(ErrorCategory.API_CALL, f'Get book details error: {e}', exc_info=True)

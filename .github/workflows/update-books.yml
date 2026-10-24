@@ -1,7 +1,7 @@
 name: Update Books Data
 
 permissions:
-  contents: write
+  contents: read
   issues: write
 
 on:
@@ -47,6 +47,27 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
+      - name: Prepare bounded issue body
+        if: always()
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from scripts.workflow_http import truncate_issue
+          report = Path(os.environ['RUNNER_TEMP']) / 'nyt-frequency-report.md'
+          link = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          body = truncate_issue(report.read_text(encoding='utf-8') if report.exists() else 'Report unavailable.', link)
+          (report.parent / 'nyt-frequency-issue.md').write_text(body, encoding='utf-8')
+          PY
+
+      - name: Preserve full frequency report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nyt-frequency-report
+          path: ${{ runner.temp }}/nyt-frequency-report.md
+          if-no-files-found: ignore
+
       - name: Create or update drift issue
         if: steps.frequency-check.outputs.status == '1'
         env:
@@ -59,13 +80,13 @@ jobs:
 
           if [ -z "$issue" ]; then
             gh issue create --title "$title" --label "needs-triage" --label "data-drift" \
-              --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+              --body-file "$RUNNER_TEMP/nyt-frequency-issue.md"
             exit 0
           fi
 
           IFS=$'\t' read -r number state <<< "$issue"
           gh issue edit "$number" --add-label "needs-triage" --add-label "data-drift" \
-            --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+            --body-file "$RUNNER_TEMP/nyt-frequency-issue.md"
           if [ "$state" = 'CLOSED' ]; then
             gh issue reopen "$number" --comment '自动检查再次发现 NYT 分类频率漂移。'
           fi
@@ -82,13 +103,13 @@ jobs:
 
           if [ -z "$issue" ]; then
             gh issue create --title "$title" --label "needs-triage" --label "operational-error" \
-              --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+              --body-file "$RUNNER_TEMP/nyt-frequency-issue.md"
             exit 0
           fi
 
           IFS=$'\t' read -r number state <<< "$issue"
           gh issue edit "$number" --add-label "needs-triage" --add-label "operational-error" \
-            --body-file "$RUNNER_TEMP/nyt-frequency-report.md"
+            --body-file "$RUNNER_TEMP/nyt-frequency-issue.md"
           if [ "$state" = 'CLOSED' ]; then
             gh issue reopen "$number" --comment '自动检查再次遇到 NYT 频率检查运行错误。'
           fi
@@ -155,15 +176,19 @@ jobs:
           NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          PRH_API_KEY: ${{ secrets.PRH_API_KEY }}
         run: |
           python update_books.py
 
-      - name: Commit and push changes
+      - name: Preserve data candidate and attempt report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: books-data-candidate
+          path: static/data/
+          if-no-files-found: ignore
+
+      - name: Explain protected publication
+        if: always()
         run: |
-          git config --global user.name 'GitHub Actions'
-          git config --global user.email 'actions@github.com'
-          git add static/data/
-          git commit -m 'chore: update books data'
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo 'Data candidate only. Review source outcomes and last-success timestamps before opening a data PR through the normal required checks and protected branch merge.' >> "$GITHUB_STEP_SUMMARY"

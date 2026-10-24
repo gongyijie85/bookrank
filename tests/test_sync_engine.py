@@ -6,7 +6,7 @@ SyncEngine 单元测试
 """
 
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -90,6 +90,74 @@ class TestSyncEngineInit:
 
 class TestSyncPublisherBooks:
     """sync_publisher_books 核心同步流程测试"""
+
+    @pytest.mark.parametrize('include_book', [False, True])
+    def test_crawler_failure_does_not_advance_success_time(
+        self, engine, publisher_manager, sample_publisher, sample_book_info, db, include_book
+    ):
+        publisher_manager.get_publisher.return_value = sample_publisher
+        crawl_errors = []
+
+        def pages():
+            if include_book:
+                yield sample_book_info
+            crawl_errors.append('timeout')
+
+        crawler = _make_crawler_mock()
+        crawler.get_new_books.return_value = CrawlOutcome(books=pages(), errors=crawl_errors)
+        with patch.object(engine, 'get_crawler', return_value=crawler):
+            result = engine.sync_publisher_books(sample_publisher.id, translate=False)
+
+        assert result['success'] is False
+        assert result['status'] == ('partial_failure' if include_book else 'request_failed')
+        assert result['transport_status'] == 'failed'
+        assert result['errors'] == 1
+        assert sample_publisher.last_sync_at is None
+        assert sample_publisher.sync_count == 0
+        db.session.expire_all()
+        assert NewBook.query.count() == int(include_book)
+
+    def test_partial_crawl_does_not_advance_global_auto_sync_time(
+        self, engine, publisher_manager, sample_publisher, sample_book_info, app, db
+    ):
+        import json
+        from types import SimpleNamespace
+
+        from app.models.schemas import SystemConfig
+        from app.setup import run_auto_sync
+
+        publisher_manager.get_publisher.return_value = sample_publisher
+        crawl_errors = []
+
+        def pages():
+            yield sample_book_info
+            crawl_errors.append('timeout')
+
+        crawler = _make_crawler_mock()
+        crawler.get_new_books.return_value = CrawlOutcome(books=pages(), errors=crawl_errors)
+        previous = '2020-01-01T00:00:00+00:00'
+        SystemConfig.set_value('last_auto_sync_time', previous)
+        db.session.commit()
+        modules = SimpleNamespace(publisher_manager=publisher_manager, sync_engine=engine)
+        with (
+            app.app_context(),
+            patch('app.setup.require_service', return_value=modules),
+            patch.object(engine, 'get_crawler', return_value=crawler),
+            patch.object(
+                engine,
+                'sync_all_publishers',
+                side_effect=lambda **kwargs: [engine.sync_publisher_books(sample_publisher.id, translate=False)],
+            ),
+        ):
+            result = run_auto_sync()
+
+        assert result['status'] == 'partial'
+        assert SystemConfig.get_value('last_auto_sync_time') == previous
+        assert sample_publisher.last_sync_at is None
+        assert sample_publisher.sync_count == 0
+        assert NewBook.query.count() == 1
+        summary = json.loads(SystemConfig.get_value('last_auto_sync_result'))
+        assert summary['publishers'][0]['status'] == 'partial_failure'
 
     def test_returns_error_when_publisher_not_found(self, engine, publisher_manager, db):
         publisher_manager.get_publisher.return_value = None
@@ -461,7 +529,7 @@ class TestSyncAllPublishers:
             mock_sync.return_value = {'success': True, 'added': 0, 'updated': 0, 'errors': 0}
             engine.sync_all_publishers(category='Fiction', max_books_per_publisher=20, translate=False)
 
-        mock_sync.assert_called_once_with(1, category='Fiction', max_books=20, translate=False)
+        mock_sync.assert_called_once_with(1, category='Fiction', max_books=20, translate=False, _reservation=ANY)
 
     def test_aggregates_results(self, engine, publisher_manager, db):
         pub1 = MagicMock(id=1, name_en='Pub1', is_active=True, sync_count=0, last_sync_at=None)
@@ -774,7 +842,9 @@ class TestSyncPublisherWithTimeout:
             result = engine._sync_publisher_with_timeout(sample_publisher, None, 50, False)
 
         assert result['success'] is False
-        assert result['status'] == 'timeout'
+        assert result['status'] == 'pending_verification'
+        assert result['transport_status'] == 'timeout'
+        assert result['completion_status'] == 'unknown'
         assert result['publisher'] == sample_publisher.name_en
         assert '超时' in result['error']
 
@@ -828,6 +898,141 @@ class TestSeedFromStaticData:
         assert book.get_buy_links()[0]['name'] == 'Google Books'
 
         assert engine.ensure_static_data_seeded() is None
+
+    @pytest.fixture
+    def static_engine(self, db):
+        from datetime import datetime
+
+        from app.services.book_language_pack import BookLanguagePack
+        from app.services.new_book.publisher_manager import PublisherManager
+        from app.services.new_book.translation_pipeline import TranslationPipeline
+
+        manager = PublisherManager()
+        manager.init_publishers()
+        for publisher in Publisher.query.all():
+            publisher.last_sync_at = datetime(2025, 1, 1)
+            publisher.sync_count = 3
+        db.session.commit()
+        return SyncEngine(manager, TranslationPipeline(None, BookLanguagePack(None)))
+
+    def test_empty_static_sources_do_not_claim_success_or_live_refresh(self, static_engine, db, tmp_path):
+        import json
+        from datetime import datetime
+
+        for filename in static_engine._publisher_manager.STATIC_DATA_FILES:
+            (tmp_path / filename).write_text(json.dumps([]), encoding='utf-8')
+        result = static_engine.seed_from_static_data(tmp_path)
+        assert result['success'] is False
+        assert result['status'] == 'empty'
+        assert result['files_seen'] == 7
+        assert result['added'] == 0
+        assert all(publisher.last_sync_at == datetime(2025, 1, 1) for publisher in Publisher.query.all())
+        assert all(publisher.sync_count == 3 for publisher in Publisher.query.all())
+
+    def test_old_static_seed_without_capture_metadata_keeps_live_success_time(self, static_engine, db, tmp_path):
+        import json
+        from datetime import datetime
+
+        (tmp_path / 'google_books_books.json').write_text(
+            json.dumps([{'title': 'Historical catalog record', 'author': 'Writer', 'publication_date': '1994-03-21'}]),
+            encoding='utf-8',
+        )
+        (tmp_path / 'update_time.json').write_text(
+            json.dumps({'timestamp': '2026-08-10T04:04:43.093089'}), encoding='utf-8'
+        )
+        result = static_engine.seed_from_static_data(tmp_path)
+        assert result['success'] is True
+        assert result['source'] == 'static_snapshot'
+        assert result['added'] == 1
+        publisher = Publisher.query.filter_by(name_en='Google Books').one()
+        assert publisher.last_sync_at == datetime(2025, 1, 1)
+        assert publisher.sync_count == 3
+        assert NewBook.query.one().publication_date == date(1994, 3, 21)
+
+    def test_partial_static_parse_failure_keeps_valid_records_without_success(self, static_engine, db, tmp_path):
+        import json
+        from datetime import datetime
+
+        (tmp_path / 'google_books_books.json').write_text(
+            json.dumps([{'title': 7, 'author': 'Writer'}, {'title': 'Valid historical record', 'author': 'Writer'}]),
+            encoding='utf-8',
+        )
+        result = static_engine.seed_from_static_data(tmp_path)
+        assert result['success'] is False
+        assert result['status'] == 'partial_failure'
+        assert result['invalid_rows'] == 1
+        assert result['added'] == 1
+        assert NewBook.query.one().title == 'Valid historical record'
+        assert Publisher.query.filter_by(name_en='Google Books').one().last_sync_at == datetime(2025, 1, 1)
+
+    @pytest.mark.parametrize('invalid_content', [b'not json', b'\xff\xfeinvalid'])
+    def test_static_read_error_keeps_other_source_and_reports_partial_failure(
+        self, static_engine, db, tmp_path, invalid_content
+    ):
+        import json
+        from datetime import datetime
+
+        (tmp_path / 'google_books_books.json').write_bytes(invalid_content)
+        (tmp_path / 'hachette_books.json').write_text(
+            json.dumps([{'title': 'Recoverable catalog record', 'author': 'Writer'}]), encoding='utf-8'
+        )
+        result = static_engine.seed_from_static_data(tmp_path)
+        assert result['success'] is False
+        assert result['status'] == 'partial_failure'
+        assert result['errors'] == 1
+        assert result['added'] == 1
+        assert NewBook.query.one().title == 'Recoverable catalog record'
+        assert all(publisher.last_sync_at == datetime(2025, 1, 1) for publisher in Publisher.query.all())
+        assert all(publisher.sync_count == 3 for publisher in Publisher.query.all())
+
+    @pytest.mark.parametrize(
+        ('field', 'value'),
+        [
+            ('description', {'invalid': 'object'}),
+            ('cover_url', []),
+            ('category', {'invalid': 'object'}),
+            ('language', 42),
+            ('source_url', 7),
+            ('price', []),
+            ('isbn13', {'invalid': 'object'}),
+            ('publication_date', 123),
+            ('buy_links', [7]),
+            ('buy_links', {'url': 'https://example.com'}),
+            ('buy_links', [{'url': 7}]),
+        ],
+    )
+    def test_invalid_optional_field_does_not_discard_valid_static_row(self, static_engine, db, tmp_path, field, value):
+        import json
+
+        (tmp_path / 'google_books_books.json').write_text(
+            json.dumps(
+                [
+                    {'title': 'Invalid catalog row', 'author': 'Writer', field: value},
+                    {'title': 'Valid catalog row', 'author': 'Writer'},
+                ]
+            ),
+            encoding='utf-8',
+        )
+        result = static_engine.seed_from_static_data(tmp_path)
+        assert result['success'] is False
+        assert result['status'] == 'partial_failure'
+        assert result['invalid_rows'] == 1
+        assert result['added'] == 1
+        assert NewBook.query.one().title == 'Valid catalog row'
+
+    def test_failed_static_commit_does_not_report_rolled_back_additions(self, static_engine, db, tmp_path):
+        import json
+
+        (tmp_path / 'google_books_books.json').write_text(
+            json.dumps([{'title': 'Uncommitted record', 'author': 'Writer'}]), encoding='utf-8'
+        )
+        with patch.object(db.session, 'commit', side_effect=RuntimeError('simulated commit failure')):
+            result = static_engine.seed_from_static_data(tmp_path)
+        assert result['success'] is False
+        assert result['status'] == 'failed'
+        assert result['added'] == 0
+        assert result['errors'] >= 1
+        assert NewBook.query.count() == 0
 
 
 class TestSyncWritesLanguagePack:

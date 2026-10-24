@@ -16,6 +16,8 @@ jobs:
       HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO || 'Elvis85/bookrank' }}
       SPACE_URL: https://elvis85-bookrank.hf.space
     steps:
+      - uses: actions/checkout@v4
+
       - name: Check HuggingFace credentials
         run: |
           set -euo pipefail
@@ -76,9 +78,10 @@ jobs:
             esac
 
             if [ "$STAGE" = "RUNNING" ]; then
-              if curl --fail --silent --show-error --max-time 25 \
-                "${SPACE_URL}/health/ready" -o /dev/null; then
-                echo "Health is ready; checking homepage."
+              if BASE_URL="$SPACE_URL" python3 scripts/workflow_http.py \
+                --policy read --path /health/ready --timeout 25 --budget 25 \
+                --report "$RUNNER_TEMP/hf-hardening-readiness.json"; then
+                echo "Readiness JSON confirmed; checking homepage. Source freshness needs separate verification."
                 if curl --fail --silent --show-error --max-time 60 \
                   -o /tmp/hf-home.html \
                   -w 'homepage HTTP %{http_code} time %{time_total}\n' \

@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,11 +18,26 @@ EXIT_OPERATIONAL_ERROR = 2
 
 
 def fetch_nyt_frequencies(api_key: str, timeout: int = 15) -> dict[str, str]:
-    response = requests.get(
-        Config.NYT_LIST_NAMES_URL,
-        params={'api-key': api_key},
-        timeout=timeout,
-    )
+    deadline = time.monotonic() + 60
+    for attempt in range(3):
+        try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise requests.Timeout('NYT metadata request budget exhausted')
+            response = requests.get(
+                Config.NYT_LIST_NAMES_URL,
+                params={'api-key': api_key},
+                timeout=min(timeout, remaining),
+            )
+            if response.status_code not in (429, 500, 502, 503, 504) or attempt == 2:
+                break
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt == 2:
+                raise
+        delay = 2**attempt
+        if delay >= deadline - time.monotonic():
+            raise requests.Timeout('NYT metadata retry budget exhausted')
+        time.sleep(delay)
     response.raise_for_status()
     payload = response.json()
     if payload.get('status') != 'OK' or not isinstance(payload.get('results'), list):
@@ -61,7 +77,12 @@ def main() -> int:
     try:
         actual = fetch_nyt_frequencies(api_key, timeout=Config.API_TIMEOUT)
     except (requests.RequestException, ValueError, TypeError, KeyError) as error:
-        print(f'NYT 频率检查失败：{error}')
+        status = (
+            error.response.status_code if isinstance(error, requests.HTTPError) and error.response is not None else None
+        )
+        print(f'NYT 频率检查失败：{type(error).__name__}' + (f' (HTTP {status})' if status is not None else ''))
+        if status == 404:
+            print('官方规格仍列出 lists/names.json；本次结果待核实，不将其认定为分类漂移或自动换用其他接口。')
         return EXIT_OPERATIONAL_ERROR
 
     problems = find_frequency_drift(
