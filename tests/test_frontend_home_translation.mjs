@@ -430,7 +430,7 @@ function mobilePage(values, request) {
     p.context.document.getElementById = id => id === 'initial-books-data' ? { textContent: JSON.stringify(values) } : null;
     p.context.window.MobileApp = { csrfFetch: async (url, opts) => { p.calls.push({ url, opts }); return request(url, opts); } };
     const template = readFileSync(new URL('templates/mobile/index.html', root), 'utf8');
-    const script = [...template.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)]
+    const script = [...template.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\b[^>]*>/gi)]
         .map(value => value[1]).find(value => value.includes('BookRankHomeTranslation.create'));
     assert.ok(script, 'the real mobile template must initialize the shared queue');
     vm.runInContext(script.replace('{{ PLACEHOLDER_TEXTS|list|tojson }}', '["暂无简介", "No summary available."]'), p.context);
