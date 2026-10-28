@@ -891,6 +891,251 @@ class TestBookService:
 
         assert select_count == 5  # 每本书一次 SELECT
 
+    @pytest.mark.parametrize(
+        ('isbn', 'title', 'description'),
+        [
+            (
+                '9781668251065',
+                'PECK & PECK',
+                'In 1982, a recent college graduate named Batter Gray winds up in the middle of '
+                'internecine wars at a prestigious poetry journal.',
+            ),
+            (
+                '9781464244698',
+                'HEXED',
+                'The sixth book in the Never After series. A forbidden love develops between '
+                "the underboss to a mafia syndicate and his fiancee's cousin.",
+            ),
+            (
+                '9781464244681',
+                'CROSSED',
+                'The fifth book in the Never After series. Father Cade becomes a priest in '
+                'a Vermont town, where he is tempted by Amaya.',
+            ),
+        ],
+        ids=['peck-peck', 'hexed', 'crossed'],
+    )
+    def test_cached_books_retry_missing_translations(
+        self, book_service, db, tmp_path, monkeypatch, isbn, title, description
+    ):
+        """首次翻译失败后，缓存命中的新上榜图书仍应补译并持久化。"""
+        monkeypatch.delenv('SPACE_ID', raising=False)
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book_service._language_pack = BookLanguagePack(pack_path)
+        source = dict(book_service._nyt_client.fetch_books.return_value['results']['books'][0])
+        source.update(primary_isbn13=isbn, primary_isbn10='', title=title, description=description)
+        cached_book = Book.from_api_response(
+            source, 'hardcover-fiction', '精装小说', 'Hardcover Fiction', '2026-10-25', {}
+        )
+        book_service._cache.get.return_value = [cached_book.to_dict()]
+
+        class FakeTranslator:
+            def translate(self, text, source_lang='en', target_lang='zh', field_type='text'):
+                return {'title': '测试书名', 'description': '测试中文简介'}[field_type]
+
+        def translate_now(books):
+            book_service._translate_books_now(books, translator=FakeTranslator())
+
+        with patch.object(book_service, '_auto_translate_books', side_effect=translate_now) as auto_translate:
+            books = book_service.get_books_by_category('hardcover-fiction')
+
+        assert books[0].description_zh == '测试中文简介'
+        auto_translate.assert_called_once()
+        book_service._nyt_client.fetch_books.assert_not_called()
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert saved['books'][isbn]['description_zh'] == '测试中文简介'
+        metadata = db.session.get(BookMetadata, isbn)
+        assert metadata is not None
+        assert metadata.title_zh == '测试书名'
+        assert metadata.description_zh == '测试中文简介'
+
+    @pytest.mark.parametrize('skip_reason', ['disabled', 'space', 'already_translated'])
+    def test_cached_books_skip_unnecessary_translation(self, book_service, monkeypatch, skip_reason):
+        """缓存补译应遵守显式开关、Space 限制和已有中文字段。"""
+        monkeypatch.delenv('SPACE_ID', raising=False)
+        if skip_reason == 'space':
+            monkeypatch.setenv('SPACE_ID', 'Elvis85/bookrank')
+        source = book_service._nyt_client.fetch_books.return_value['results']['books'][0]
+        cached_book = Book.from_api_response(
+            source, 'hardcover-fiction', '精装小说', 'Hardcover Fiction', '2026-10-25', {}
+        )
+        if skip_reason == 'already_translated':
+            cached_book.title_zh = '测试书名'
+            cached_book.description_zh = '测试中文简介'
+        book_service._cache.get.return_value = [cached_book.to_dict()]
+
+        with patch.object(book_service, '_auto_translate_books') as auto_translate:
+            books = book_service.get_books_by_category('hardcover-fiction', auto_translate=skip_reason != 'disabled')
+
+        assert len(books) == 1
+        auto_translate.assert_not_called()
+        book_service._nyt_client.fetch_books.assert_not_called()
+
+    @pytest.mark.parametrize('description_zh', [None, '暂无简介'])
+    def test_translate_books_now_counts_missing_fields_when_unavailable(self, book_service, tmp_path, description_zh):
+        """翻译器不可用时，缺失简介应计为失败，已有译文及占位详情不计入。"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book_service._language_pack = BookLanguagePack(pack_path)
+        source = book_service._nyt_client.fetch_books.return_value['results']['books'][0]
+        book = Book.from_api_response(source, 'hardcover-fiction', '精装小说', 'Hardcover Fiction', '2026-10-25', {})
+        book.title_zh = '测试书名'
+        book.description_zh = description_zh
+        book.details = 'No detailed description available.'
+        translator = Mock()
+        translator.is_available.return_value = False
+
+        stats = book_service._translate_books_now([book], translator=translator)
+
+        assert stats == {
+            'books_seen': 1,
+            'books_missing': 1,
+            'fields_from_pack': 0,
+            'fields_stored': 0,
+            'fields_translated': 0,
+            'failures': 1,
+            'pack_writes': 0,
+        }
+        translator.translate.assert_not_called()
+        assert not pack_path.exists()
+
+    @pytest.mark.parametrize('translation_source', ['existing', 'static_pack', 'static_pack_placeholder'])
+    def test_translate_books_now_accepts_complete_books_when_unavailable(
+        self, book_service, tmp_path, translation_source
+    ):
+        """已有中文或可从语言包补齐时，供应商不可用不应误报翻译失败。"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book_service._language_pack = BookLanguagePack(pack_path)
+        source = book_service._nyt_client.fetch_books.return_value['results']['books'][0]
+        book = Book.from_api_response(source, 'hardcover-fiction', '精装小说', 'Hardcover Fiction', '2026-10-25', {})
+        translations = {'title_zh': '测试书名', 'description_zh': '测试简介'}
+        if translation_source == 'existing':
+            book.title_zh = translations['title_zh']
+            book.description_zh = translations['description_zh']
+        else:
+            pack_path.write_text(json.dumps({'books': {book.isbn13: translations}}), encoding='utf-8')
+            if translation_source == 'static_pack_placeholder':
+                book.description_zh = '暂无简介'
+        translator = Mock()
+        translator.is_available.return_value = False
+
+        stats = book_service._translate_books_now([book], translator=translator)
+
+        assert stats['books_missing'] == 0
+        assert stats['failures'] == 0
+        assert stats['pack_writes'] == 0
+        assert book.title_zh == '测试书名'
+        assert book.description_zh == '测试简介'
+        translator.translate.assert_not_called()
+
+    @pytest.mark.parametrize('stored_placeholder_source', ['metadata', 'static_pack'])
+    def test_translate_books_now_counts_stored_placeholders_when_unavailable(
+        self, book_service, db, tmp_path, stored_placeholder_source
+    ):
+        """补齐阶段读回的历史中文占位串也不能伪装成已译简介。"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book_service._language_pack = BookLanguagePack(pack_path)
+        source = book_service._nyt_client.fetch_books.return_value['results']['books'][0]
+        book = Book.from_api_response(source, 'hardcover-fiction', '精装小说', 'Hardcover Fiction', '2026-10-25', {})
+        book.title_zh = '测试书名'
+        if stored_placeholder_source == 'metadata':
+            db.session.add(
+                BookMetadata(isbn=book.isbn13, title=book.title, author=book.author, description_zh='暂无简介')
+            )
+            db.session.commit()
+        else:
+            pack_path.write_text(json.dumps({'books': {book.isbn13: {'description_zh': '暂无简介'}}}), encoding='utf-8')
+        translator = Mock()
+        translator.is_available.return_value = False
+
+        stats = book_service._translate_books_now([book], translator=translator)
+
+        assert stats['books_missing'] == 1
+        assert stats['failures'] == 1
+        assert stats['pack_writes'] == 0
+        translator.translate.assert_not_called()
+
+    @pytest.mark.parametrize('translation_source', ['model', 'static_pack'])
+    def test_translate_books_now_replaces_placeholder_with_available_translator(
+        self, book_service, tmp_path, translation_source
+    ):
+        """供应商可用时，中文占位串仍须由既有语言包或真实翻译结果替换。"""
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book_service._language_pack = BookLanguagePack(pack_path)
+        source = book_service._nyt_client.fetch_books.return_value['results']['books'][0]
+        book = Book.from_api_response(source, 'hardcover-fiction', '精装小说', 'Hardcover Fiction', '2026-10-25', {})
+        book.title_zh = '测试书名'
+        book.description_zh = '暂无简介'
+        if translation_source == 'static_pack':
+            pack_path.write_text(json.dumps({'books': {book.isbn13: {'description_zh': '测试简介'}}}), encoding='utf-8')
+        translator = Mock()
+        translator.is_available.return_value = True
+        translator.translate.return_value = '测试简介'
+
+        stats = book_service._translate_books_now([book], translator=translator)
+
+        assert book.description_zh == '测试简介'
+        assert stats['failures'] == 0
+        assert stats['fields_translated'] == (1 if translation_source == 'model' else 0)
+        if translation_source == 'model':
+            translator.translate.assert_called_once()
+        else:
+            translator.translate.assert_not_called()
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert saved['books'][book.isbn13]['description_zh'] == '测试简介'
+
+    @pytest.mark.parametrize(
+        ('failure_mode', 'expected_failures'), [('unavailable', 2), ('all_fields', 2), ('description', 1)]
+    )
+    def test_sync_all_categories_reports_translation_failure(
+        self, book_service, tmp_path, failure_mode, expected_failures
+    ):
+        """缺译或供应商返回空值时，同步仍保留英文资料，但分类不得报告完整成功。"""
+        book_service._language_pack = BookLanguagePack(tmp_path / 'book_language_pack.zh.json')
+        book_service._google_client.fetch_book_details.return_value = {}
+        translator = Mock()
+        translator.is_available.return_value = failure_mode != 'unavailable'
+        translator.translate.side_effect = lambda text, *args, field_type='text', **kwargs: (
+            '测试书名' if failure_mode == 'description' and field_type == 'title' else None
+        )
+
+        results = book_service.sync_all_categories(translator=translator)
+
+        assert results[0]['language_pack']['failures'] == expected_failures
+        assert results[0]['language_pack']['books_missing'] == 1
+        assert results[0]['success'] is False
+        assert results[0]['books'] == 1
+        assert results[0]['metadata_saved'] == 1
+
+    def test_sync_all_categories_without_translation_remains_successful(self, book_service):
+        """显式关闭翻译仍表示仅同步英文资料，不受翻译器状态影响。"""
+        translator = Mock()
+        translator.is_available.return_value = False
+
+        results = book_service.sync_all_categories(translate=False, translator=translator)
+
+        assert results[0]['success'] is True
+        assert results[0]['language_pack']['failures'] == 0
+        translator.is_available.assert_not_called()
+        translator.translate.assert_not_called()
+
+    def test_nyt_sync_translation_failure_does_not_advance_success_time(
+        self, book_service, app, db, tmp_path, monkeypatch
+    ):
+        """真实同步链翻译失败后，调度器不得启动七天成功冷却。"""
+        from app.setup import _nyt_ranking_sync_task
+
+        book_service._language_pack = BookLanguagePack(tmp_path / 'book_language_pack.zh.json')
+        translator = Mock()
+        translator.is_available.return_value = True
+        translator.translate.return_value = None
+        monkeypatch.setitem(app.extensions, 'book_service', book_service)
+        monkeypatch.setitem(app.extensions, 'translation_service', translator)
+        assert SystemConfig.get_value('last_nyt_ranking_sync_time') is None
+
+        _nyt_ranking_sync_task(app)
+
+        assert SystemConfig.get_value('last_nyt_ranking_sync_time') is None
+
 
 def test_nyt_ranking_sync_task_refreshes_all_categories(app, db):
     """测试后台NYT任务会触发全分类刷新和语言包写入"""
