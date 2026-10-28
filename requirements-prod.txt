@@ -45,7 +45,7 @@ tenacity==9.0.0
 APScheduler==3.11.0
 
 # 导出功能（PDF/Excel）
-fpdf2==2.7.9
+fpdf2==2.8.8
 openpyxl==3.1.2
 
 # Markdown 渲染
