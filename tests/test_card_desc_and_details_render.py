@@ -164,42 +164,224 @@ class TestCardDescriptionNotTruncated:
         assert 'No summary available.' not in card_descs
 
     @pytest.mark.parametrize(
-        ('isbn', 'title', 'description'),
+        ('category', 'isbn', 'title', 'description'),
         [
             (
+                'hardcover-fiction',
                 '9781668251065',
                 'PECK & PECK',
                 'In 1982, a recent college graduate named Batter Gray winds up in the middle of '
                 'internecine wars at a prestigious poetry journal.',
             ),
             (
+                'hardcover-fiction',
                 '9781464244698',
                 'HEXED',
                 'The sixth book in the Never After series. A forbidden love develops between '
                 "the underboss to a mafia syndicate and his fiancee's cousin.",
             ),
             (
+                'hardcover-fiction',
                 '9781464244681',
                 'CROSSED',
                 'The fifth book in the Never After series. Father Cade becomes a priest in '
                 'a Vermont town, where he is tempted by Amaya.',
             ),
+            (
+                'hardcover-nonfiction',
+                '9781538784723',
+                'IN THE SHADOW OF EIGHT',
+                'A dark tell-all by one of the sextuplets from the reality TV series “Jon & Kate Plus 8.”',
+            ),
+            (
+                'hardcover-nonfiction',
+                '9798217059706',
+                'VIBE',
+                'The author of “Think Again” delves into what might reinforce the strengths or exacerbate '
+                'the weaknesses of bonds within relationships.',
+            ),
+            (
+                'hardcover-nonfiction',
+                '9780063384538',
+                'OUT OF THE SHADOWS',
+                'A former senior U.S. intelligence official gives his account of investigations into '
+                'unidentified anomalous phenomena and non-human intelligent life.',
+            ),
+            (
+                'hardcover-nonfiction',
+                '9780063490031',
+                'UNITING THE STATES',
+                'A co-host of “Fox & Friends” portrays contributions made by six key people around '
+                'the time of the formation of our country.',
+            ),
+            (
+                'hardcover-nonfiction',
+                '9781324123637',
+                'THE GAME',
+                'The rise of the National Football League over the last four decades told through '
+                'the stories of some of the players, teams, coaches and controversies.',
+            ),
+            (
+                'hardcover-nonfiction',
+                '9780063454958',
+                'ETHEL KENNEDY',
+                'The daughter of Ethel Kennedy depicts her mother’s working-class background, '
+                'marriage to Robert F. Kennedy and work in human rights.',
+            ),
+            (
+                'hardcover-nonfiction',
+                '9781400260270',
+                'LOOKING FOR TERRY',
+                'The Hall of Fame quarterback who became a N.F.L. broadcaster describes '
+                'personal difficulties he encountered.',
+            ),
+            (
+                'picture-books',
+                '9781967836888',
+                'PATCH WORK',
+                'Embracing what makes you unique. (Ages 4 to 8)',
+            ),
         ],
-        ids=['peck-peck', 'hexed', 'crossed'],
+        ids=[
+            'peck-peck',
+            'hexed',
+            'crossed',
+            'in-the-shadow-of-eight',
+            'vibe',
+            'out-of-the-shadows',
+            'uniting-the-states',
+            'the-game',
+            'ethel-kennedy',
+            'looking-for-terry',
+            'patch-work',
+        ],
     )
-    def test_new_arrival_card_descriptions_from_language_pack(self, client, book_service, db, isbn, title, description):
-        """截图中新上榜的三本书须能离线补齐中文简介并渲染到卡片。"""
-        book = _make_book(id=isbn, isbn13=isbn, title=title, description=description)
+    def test_new_arrival_card_descriptions_from_language_pack(
+        self, client, book_service, db, category, isbn, title, description
+    ):
+        """各分类实际漏译的新上榜图书须能离线补齐中文简介并渲染到卡片。"""
+        book = _make_book(id=isbn, isbn13=isbn, category_id=category, title=title, description=description)
         pack_path = CSS_DIR.parent / 'data' / 'book_language_pack.zh.json'
         BookLanguagePack(pack_path).hydrate_books([book])
         book_service([book])
 
-        html = client.get('/?category=hardcover-fiction&lang=zh').get_data(as_text=True)
+        html = client.get(f'/?category={category}&lang=zh').get_data(as_text=True)
 
         desc = BeautifulSoup(html, 'html.parser').select_one('.card-desc')
         assert desc is not None
         assert re.search(r'[\u4e00-\u9fff]', desc.get_text()), f'{title} 的卡片简介仍是英文'
         assert desc.get_text(strip=True) == book.description_zh
+
+    @pytest.mark.parametrize(
+        ('category', 'isbn', 'title', 'description', 'previous_zh', 'expected_zh'),
+        [
+            (
+                'childrens-middle-grade-hardcover',
+                '9781419770555',
+                'SPOOKY RIVERS',
+                'The histories of 25 mysterious rivers around the world. (Ages 8 to 11)',
+                '《神秘河流》（原',
+                '世界各地 25 条神秘河流的历史。（适读年龄：8 至 11 岁）',
+            ),
+            (
+                'picture-books',
+                '9781442402973',
+                'CREEPY CARROTS!',
+                'A rabbit’s comeuppance. (Ages 4 to 8)',
+                '《诡异的胡萝卜！》（CREEPY CARROTS!）',
+                '一只兔子自食其果的故事。（适读年龄：4 至 8 岁）',
+            ),
+            (
+                'picture-books',
+                '9781442402980',
+                'CREEPY PAIR OF UNDERWEAR',
+                "Jasper Rabbit deals with a pair of glowing underwear that won't go away. (Ages 4 to 8)",
+                '《恐怖的发光内衣》（CREEPY PAIR OF UNDERWEAR）',
+                '兔子贾斯珀要应付一条发光、怎么也甩不掉的内裤。（适读年龄：4 至 8 岁）',
+            ),
+            (
+                'series-books',
+                '9781419782695',
+                'DIARY OF A WIMPY KID',
+                'The travails and challenges of adolescence. (Ages 9 to 12)',
+                '《小懦夫的日记》（Diary of a Wimpy Kid）',
+                '本书描绘了青少年时期所面临的种种困境与挑战（适合9至12岁读者阅读）。',
+            ),
+            (
+                'picture-books',
+                '9780062954541',
+                'THE BAD SEED PRESENTS: THE GOOD, THE BAD, AND THE SPOOKY',
+                'Bad Seed seeks the perfect Halloween costume. (Ages 4 to 8)',
+                '《坏种子的故事：善良、邪恶与诡异》（The Bad Seed Presents: The Good, the Bad, and the Spooky）',
+                '坏种子寻找完美的万圣节服装。（适读年龄：4 至 8 岁）',
+            ),
+            (
+                'young-adult-hardcover',
+                '9780316608312',
+                'DEVOURED',
+                'Vanessa secretly hones her werewolf skills to exact revenge on the Wolf Queen’s court. (Ages 14 to 18)',
+                '乔丹·斯蒂芬妮·格雷（Jordan Stephanie Gray）是一位备受瞩目的青年作家，其作品以紧张刺激的剧情和深刻的人物塑造而著称。',
+                '凡妮莎暗中磨炼自己的狼人本领，准备向狼女王的宫廷复仇。（适读年龄：14 至 18 岁）',
+            ),
+            (
+                'young-adult-hardcover',
+                '9798217449484',
+                'WONDROUS',
+                'Alice returns to Wonderland to find out there are other Alices there! (Ages 12 and up)',
+                '希瑟·福塞特（Heather Fawcett）是一位备受赞誉的儿童文学作家，她的作品以丰富的想象力、细腻的情感描写和深刻的主题而著称。',
+                '爱丽丝重返仙境，却发现那里还有其他爱丽丝！（适读年龄：12 岁及以上）',
+            ),
+            (
+                'trade-fiction-paperback',
+                '9781538784051',
+                'VERITY',
+                'Lowen Ashleigh is hired by the husband of an injured writer to complete her popular series and uncovers a horrifying truth; the basis of the movie.',
+                '洛文·阿什利受一名受伤作家的丈夫雇佣，来完成她的热门剧集，并揭露了一个可怕的真相。',
+                '洛文·阿什利受一位受伤作家的丈夫雇用，续写她的畅销系列小说，却揭开了一个可怕的真相。本书是电影改编的原著。',
+            ),
+            (
+                'paperback-nonfiction-monthly',
+                '9781250448194',
+                'ENSHITTIFICATION',
+                "The author of “The Reverse Centaur's Guide to Life After AI” describes how decisions by tech leaders made services worse.",
+                '《技术领导者的错误决策如何毁掉服务体验》',
+                "《The Reverse Centaur's Guide to Life After AI》的作者讲述科技行业领导者的决策如何让服务变差。",
+            ),
+        ],
+        ids=[
+            'spooky-rivers',
+            'creepy-carrots',
+            'creepy-underwear',
+            'diary-of-a-wimpy-kid',
+            'bad-seed',
+            'devoured',
+            'wondrous',
+            'verity',
+            'enshittification',
+        ],
+    )
+    def test_reviewed_description_corrections_reach_cached_cards(
+        self, client, book_service, db, category, isbn, title, description, previous_zh, expected_zh
+    ):
+        """已有书名、作者简介或缺句旧值不能挡住已审核的中文简介修正。"""
+        book = _make_book(
+            id=isbn,
+            isbn13=isbn,
+            category_id=category,
+            title=title,
+            description=description,
+            description_zh=previous_zh,
+        )
+        pack_path = CSS_DIR.parent / 'data' / 'book_language_pack.zh.json'
+        BookLanguagePack(pack_path).hydrate_books([book])
+        book_service([book])
+
+        html = client.get(f'/?category={category}&lang=zh').get_data(as_text=True)
+        desc = BeautifulSoup(html, 'html.parser').select_one('.card-desc')
+
+        assert desc is not None
+        assert desc.get_text(strip=True) == expected_zh
+        assert book.description_zh == expected_zh
 
 
 class TestCardDescCssDoesNotClamp:

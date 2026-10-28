@@ -31,12 +31,13 @@ class BookLanguagePack:
 
     def __init__(self, pack_path: str | Path | None = None):
         self._pack_path = Path(pack_path) if pack_path else None
-        self._pack_mtime: float | None = None
+        self._pack_mtime: int | None = None
         self._pack_books: dict[str, dict[str, str | None]] = {}
+        self._description_zh_replaces: dict[str, set[str]] = {}
         self._table_columns_cache: dict[str, set[str]] = {}
 
     def hydrate_books(self, books: Iterable[Any]) -> None:
-        """Fill missing zh fields from DB metadata, static pack, then translation cache."""
+        """Hydrate zh fields, then apply explicitly approved description corrections."""
         books = list(books)
         if not books:
             return
@@ -47,6 +48,19 @@ class BookLanguagePack:
             self._apply_isbn_translations(books, self._load_static_pack())
 
         self._apply_exact_text_cache(books)
+        self._apply_known_description_corrections(books)
+
+    def _apply_known_description_corrections(self, books: list[Any]) -> None:
+        """Replace only an ISBN's explicitly reviewed, exact old description values."""
+        for book in books:
+            isbn = self._book_isbn(book)
+            old_values = self._description_zh_replaces.get(isbn)
+            if not old_values:
+                continue
+            current = book.get('description_zh') if isinstance(book, dict) else getattr(book, 'description_zh', None)
+            replacement = self._pack_books.get(isbn, {}).get('description_zh')
+            if isinstance(current, str) and current in old_values and replacement:
+                self._set_value(book, 'description_zh', clean_translation_text(replacement, 'description'))
 
     def translate_and_store_books(
         self,
@@ -258,11 +272,14 @@ class BookLanguagePack:
             return {}
 
     def _load_static_pack(self) -> dict[str, dict[str, str | None]]:
-        if not self._pack_path or not self._pack_path.exists():
-            return {}
-
         try:
-            mtime = self._pack_path.stat().st_mtime
+            if not self._pack_path or not self._pack_path.exists():
+                self._pack_mtime = None
+                self._pack_books = {}
+                self._description_zh_replaces = {}
+                return {}
+
+            mtime = self._pack_path.stat().st_mtime_ns
             if self._pack_mtime == mtime:
                 return self._pack_books
 
@@ -272,6 +289,7 @@ class BookLanguagePack:
                 books = {}
 
             normalized: dict[str, dict[str, str | None]] = {}
+            description_replaces: dict[str, set[str]] = {}
             for isbn, values in books.items():
                 if isinstance(values, dict):
                     normalized[str(isbn)] = {
@@ -279,9 +297,21 @@ class BookLanguagePack:
                         for key, value in values.items()
                         if key in {'title_zh', 'description_zh', 'details_zh'} and value
                     }
+                    replaces = values.get('description_zh_replaces')
+                    replacement = values.get('description_zh')
+                    if (
+                        isinstance(replaces, list)
+                        and replaces
+                        and all(isinstance(value, str) and value.strip() for value in replaces)
+                        and isinstance(replacement, str)
+                        and replacement.strip()
+                        and not self._is_placeholder(replacement)
+                    ):
+                        description_replaces[str(isbn)] = set(replaces)
 
             self._pack_mtime = mtime
             self._pack_books = normalized
+            self._description_zh_replaces = description_replaces
             return self._pack_books
         except Exception as e:
             log_error(
@@ -289,6 +319,7 @@ class BookLanguagePack:
             )
             self._pack_mtime = None
             self._pack_books = {}
+            self._description_zh_replaces = {}
             return {}
 
     def _load_pack_document(self) -> dict[str, Any]:
@@ -339,6 +370,7 @@ class BookLanguagePack:
 
         self._pack_mtime = None
         self._pack_books = {}
+        self._description_zh_replaces = {}
 
     def _fill_missing(self, book: Any, data: dict[str, str | None]) -> None:
         for _source_attr, target_attr, field_type in self._FIELDS:
