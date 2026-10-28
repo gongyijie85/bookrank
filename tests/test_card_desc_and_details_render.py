@@ -27,6 +27,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from app.models.book import Book
+from app.services.book_language_pack import BookLanguagePack
 
 CSS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'css'
 JS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'js'
@@ -161,6 +162,44 @@ class TestCardDescriptionNotTruncated:
         soup = BeautifulSoup(html, 'html.parser')
         card_descs = [el.get_text(strip=True) for el in soup.select('.card-desc')]
         assert 'No summary available.' not in card_descs
+
+    @pytest.mark.parametrize(
+        ('isbn', 'title', 'description'),
+        [
+            (
+                '9781668251065',
+                'PECK & PECK',
+                'In 1982, a recent college graduate named Batter Gray winds up in the middle of '
+                'internecine wars at a prestigious poetry journal.',
+            ),
+            (
+                '9781464244698',
+                'HEXED',
+                'The sixth book in the Never After series. A forbidden love develops between '
+                "the underboss to a mafia syndicate and his fiancee's cousin.",
+            ),
+            (
+                '9781464244681',
+                'CROSSED',
+                'The fifth book in the Never After series. Father Cade becomes a priest in '
+                'a Vermont town, where he is tempted by Amaya.',
+            ),
+        ],
+        ids=['peck-peck', 'hexed', 'crossed'],
+    )
+    def test_new_arrival_card_descriptions_from_language_pack(self, client, book_service, db, isbn, title, description):
+        """截图中新上榜的三本书须能离线补齐中文简介并渲染到卡片。"""
+        book = _make_book(id=isbn, isbn13=isbn, title=title, description=description)
+        pack_path = CSS_DIR.parent / 'data' / 'book_language_pack.zh.json'
+        BookLanguagePack(pack_path).hydrate_books([book])
+        book_service([book])
+
+        html = client.get('/?category=hardcover-fiction&lang=zh').get_data(as_text=True)
+
+        desc = BeautifulSoup(html, 'html.parser').select_one('.card-desc')
+        assert desc is not None
+        assert re.search(r'[\u4e00-\u9fff]', desc.get_text()), f'{title} 的卡片简介仍是英文'
+        assert desc.get_text(strip=True) == book.description_zh
 
 
 class TestCardDescCssDoesNotClamp:

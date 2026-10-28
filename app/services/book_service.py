@@ -227,7 +227,24 @@ class BookService:
             cached_data = self._cache.get(cache_key)
             if cached_data:
                 logger.info(f'Returning cached books for {category_id}')
-                return self._books_from_cache_data(cached_data, category_id)
+                books = self._books_from_cache_data(cached_data, category_id)
+                if auto_translate:
+                    missing_books = [
+                        book
+                        for book in books
+                        if any(
+                            getattr(book, field)
+                            and not is_placeholder_text(getattr(book, field))
+                            and (
+                                not (getattr(book, f'{field}_zh') or '').strip()
+                                or is_placeholder_text(getattr(book, f'{field}_zh'))
+                            )
+                            for field in ('title', 'description')
+                        )
+                    ]
+                    if missing_books:
+                        self._auto_translate_books(missing_books)
+                return books
 
         # 从API获取
         try:
@@ -592,16 +609,34 @@ class BookService:
             return None
 
     def _translate_books_now(self, books: list[Book], translator: Any | None = None) -> dict[str, int]:
+        for book in books:
+            for _source_attr, target_attr, _field_type in self._language_pack._FIELDS:
+                if self._language_pack._is_placeholder(self._language_pack._get_value(book, target_attr)):
+                    self._language_pack._set_value(book, target_attr, '')
         service = translator or self._get_translation_service()
         if not self._translator_is_available(service):
             logger.warning('翻译服务不可用，跳过语言包写入')
+            self._hydrate_language_pack(books)
+            missing_by_book = []
+            for book in books:
+                missing_fields = 0
+                for source_attr, target_attr, _field_type in self._language_pack._FIELDS:
+                    source_text = self._language_pack._get_value(book, source_attr)
+                    target_text = self._language_pack._get_value(book, target_attr)
+                    if (
+                        source_text
+                        and not self._language_pack._is_placeholder(source_text)
+                        and (not target_text or self._language_pack._is_placeholder(target_text))
+                    ):
+                        missing_fields += 1
+                missing_by_book.append(missing_fields)
             return {
                 'books_seen': len(books),
-                'books_missing': 0,
+                'books_missing': sum(count > 0 for count in missing_by_book),
                 'fields_from_pack': 0,
                 'fields_stored': 0,
                 'fields_translated': 0,
-                'failures': 0,
+                'failures': sum(missing_by_book),
                 'pack_writes': 0,
             }
 
@@ -651,7 +686,7 @@ class BookService:
                     {
                         'category_id': category_id,
                         'category_name': category_name,
-                        'success': True,
+                        'success': language_pack_stats['failures'] == 0,
                         'books': len(books),
                         'metadata_saved': metadata_saved,
                         'language_pack': language_pack_stats,
