@@ -5,6 +5,7 @@
 """
 
 import json
+import os
 from unittest.mock import Mock, patch
 
 import pytest
@@ -266,6 +267,145 @@ class TestBookService:
 
         assert books[0].title_zh == '缓存书名'
         assert books[0].description_zh == '缓存简介'
+
+    @pytest.mark.parametrize('translation_source', ['cached_book', 'metadata'])
+    def test_language_pack_corrects_known_description_in_cached_service(
+        self, book_service, db, tmp_path, translation_source
+    ):
+        """已知坏简介来自缓存对象或元数据时，都应在读取后定点纠正。"""
+        isbn = '9780143127550'
+        old_description = '《只有书名的错误简介》'
+        corrected_description = '这是一段经人工核对的完整故事简介。'
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        pack_path.write_text(
+            json.dumps(
+                {
+                    'books': {
+                        isbn: {'description_zh': corrected_description, 'description_zh_replaces': [old_description]}
+                    }
+                }
+            ),
+            encoding='utf-8',
+        )
+        pack_before = pack_path.read_bytes()
+        book_service._language_pack = BookLanguagePack(pack_path)
+        source = book_service._nyt_client.fetch_books.return_value['results']['books'][0]
+        cached_book = Book.from_api_response(
+            source, 'hardcover-fiction', '精装小说', 'Hardcover Fiction', '2026-10-25', {}
+        )
+        cached_book.title_zh = '已有正确书名'
+        cached_book.details_zh = '已有正确详情'
+        if translation_source == 'cached_book':
+            cached_book.description_zh = old_description
+        else:
+            db.session.add(
+                BookMetadata(isbn=isbn, title='Cached Book', author='Cached Author', description_zh=old_description)
+            )
+        db.session.commit()
+        book_service._cache.get.return_value = [cached_book.to_dict()]
+
+        with (
+            patch.object(book_service, '_auto_translate_books') as translate,
+            patch.object(db.session, 'commit') as commit,
+        ):
+            books = book_service.get_books_by_category('hardcover-fiction', auto_translate=False)
+
+        assert books[0].description_zh == corrected_description
+        assert books[0].title_zh == '已有正确书名'
+        assert books[0].details_zh == '已有正确详情'
+        translate.assert_not_called()
+        commit.assert_not_called()
+        book_service._nyt_client.fetch_books.assert_not_called()
+        book_service._google_client.fetch_book_details.assert_not_called()
+        assert pack_path.read_bytes() == pack_before
+        if translation_source == 'metadata':
+            assert db.session.get(BookMetadata, isbn).description_zh == old_description
+
+    @pytest.mark.parametrize(
+        ('isbn', 'description_zh'),
+        [
+            ('9780143127550', '已有正确中文简介'),
+            ('9780143127550', ' 《只有书名的错误简介》 '),
+            ('9780000000002', '《只有书名的错误简介》'),
+        ],
+        ids=['valid-description', 'exact-match-required', 'different-isbn'],
+    )
+    def test_language_pack_description_correction_preserves_other_translations(
+        self, db, tmp_path, isbn, description_zh
+    ):
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        pack_path.write_text(
+            json.dumps(
+                {
+                    'books': {
+                        '9780143127550': {
+                            'title_zh': '另一书名',
+                            'description_zh': '经核对的完整简介。',
+                            'details_zh': '另一详情',
+                            'description_zh_replaces': ['《只有书名的错误简介》'],
+                        }
+                    }
+                }
+            ),
+            encoding='utf-8',
+        )
+        book = {'isbn13': isbn, 'description_zh': description_zh, 'title_zh': '原书名', 'details_zh': '原详情'}
+
+        BookLanguagePack(pack_path).hydrate_books([book])
+
+        assert book == {
+            'isbn13': isbn,
+            'description_zh': description_zh,
+            'title_zh': '原书名',
+            'details_zh': '原详情',
+        }
+
+    @pytest.mark.parametrize('pack_change', ['replacement', 'removed', 'deleted', 'invalid_json', 'read_failure'])
+    def test_language_pack_description_correction_reloads_and_discards_stale_rules(self, db, tmp_path, pack_change):
+        isbn = '9780143127550'
+        old_description = '已知错误简介'
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        document = {'books': {isbn: {'description_zh': '第一版正确简介', 'description_zh_replaces': [old_description]}}}
+        pack_path.write_text(json.dumps(document), encoding='utf-8')
+        language_pack = BookLanguagePack(pack_path)
+        first_book = {'isbn13': isbn, 'description_zh': old_description}
+        language_pack.hydrate_books([first_book])
+        assert first_book['description_zh'] == '第一版正确简介'
+        previous_stat = pack_path.stat()
+
+        if pack_change == 'deleted':
+            pack_path.unlink()
+        else:
+            if pack_change == 'replacement':
+                document['books'][isbn]['description_zh'] = '第二版正确简介'
+            elif pack_change == 'removed':
+                document['books'][isbn].pop('description_zh_replaces')
+            pack_path.write_text('{' if pack_change == 'invalid_json' else json.dumps(document), encoding='utf-8')
+            os.utime(pack_path, ns=(previous_stat.st_atime_ns, previous_stat.st_mtime_ns + 1_000_000_000))
+
+        next_book = {'isbn13': isbn, 'description_zh': old_description}
+        if pack_change == 'read_failure':
+            with patch.object(type(pack_path), 'read_text', side_effect=OSError('unreadable test pack')):
+                language_pack.hydrate_books([next_book])
+        else:
+            language_pack.hydrate_books([next_book])
+
+        assert next_book['description_zh'] == ('第二版正确简介' if pack_change == 'replacement' else old_description)
+
+    @pytest.mark.parametrize('replaces', [None, '已知错误简介', {'old': '已知错误简介'}, [7], ['已知错误简介', 7], []])
+    def test_language_pack_description_correction_ignores_invalid_rules(self, db, tmp_path, replaces):
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        pack_path.write_text(
+            json.dumps(
+                {'books': {'9780143127550': {'description_zh': '正确简介', 'description_zh_replaces': replaces}}}
+            ),
+            encoding='utf-8',
+        )
+        book = {'isbn13': '9780143127550', 'description_zh': '已知错误简介'}
+
+        BookLanguagePack(pack_path).hydrate_books([book])
+
+        assert book['description_zh'] == '已知错误简介'
 
     def test_get_books_by_category_hydrates_cached_books_from_translation_cache(self, book_service, db):
         """测试缓存图书会从翻译缓存补齐中文字段"""
