@@ -23,6 +23,7 @@ const jsEntries = {
   'cover.js': 'static/js/cover.js',
   'base.js': 'static/js/base.js',
   'index.js': 'static/js/index.js',
+  'home-translation.js': 'static/js/home-translation.js',
 };
 
 function hashName(file) {

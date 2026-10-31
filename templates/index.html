@@ -170,8 +170,9 @@
     {% set detail_url = url_for('main.book_detail', book_index=source_index, category=detail_category, lang=get_locale(), return_to=request.full_path) %}
     <article class="card card-animate"
              data-isbn="{{ book.isbn13 or book.isbn10 }}"
+             data-book-position="{{ loop.index0 }}"
              data-index="{{ source_index }}"
-             {% if _locale == 'zh' and not book.title_zh %}data-needs-translation="1"{% endif %}
+             {% if _locale == 'zh' and ((book.title and not book.title_zh) or (book.description and not book.description_zh)) %}data-needs-translation="1"{% endif %}
              aria-label="{{ book.title_zh or book.title }} - {{ _('第') }}{{ current_rank }}{{ _('名') }}">
         <a href="{{ detail_url }}" class="card-link">
         <div class="card-image">
@@ -238,7 +239,7 @@
             {% endif %}
             {# 简介完整展示：此前 [:80] 硬截断 + CSS 两行钳制，长简介只剩开头一句。
                卡片宽度已随列数下调而放宽（见 index.css 的 .books-grid 断点）。 #}
-            {% set _desc = (book.description_zh or book.description) if _locale == 'zh' else book.description %}
+            {% set _desc = (book.description_zh if book.description_zh and book.description_zh not in PLACEHOLDER_TEXTS else book.description) if _locale == 'zh' else book.description %}
             {% if _desc and _desc not in PLACEHOLDER_TEXTS %}
             <p class="card-desc">{{ _desc }}</p>
             {% endif %}
@@ -319,6 +320,7 @@
         currentCategory: '{{ current_category }}',
         monthlyCategories: {{ monthly_categories|tojson }},
         searchQuery: {{ search_query|tojson }},
+        translationPlaceholders: {{ PLACEHOLDER_TEXTS|list|tojson }},
         searchUnavailableCount: {{ search_unavailable_count|tojson }}
     };
 </script>
@@ -377,5 +379,6 @@
 <script type="application/json" id="initial-books-data">
 {{ books|tojson }}
 </script>
+<script src="{{ url_for('static', filename=dist_url('home-translation.js')) }}" nonce="{{ csp_nonce() }}"></script>
 <script type="module" src="{{ url_for('static', filename=dist_url('index.js')) }}" nonce="{{ csp_nonce() }}"></script>
 {% endblock %}

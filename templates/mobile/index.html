@@ -136,6 +136,9 @@
     {% set rank_change = previous_rank - current_rank if previous_rank else 0 %}
     <a href="{{ url_for('main.book_detail', book_index=source_index, category=detail_category, lang=get_locale(), return_to=request.full_path) }}"
        class="m-card m-book-card" data-href="{{ url_for('main.book_detail', book_index=source_index, category=detail_category, lang=get_locale(), return_to=request.full_path) }}"
+       data-isbn="{{ book.isbn13 or book.isbn10 }}"
+       data-book-position="{{ loop.index0 }}"
+       {% if _locale == 'zh' and ((book.title and not book.title_zh) or (book.description and not book.description_zh)) %}data-needs-translation="1"{% endif %}
        aria-label="{% if _locale == 'zh' %}{{ _('第') }}{{ current_rank }}{{ _('名') }}，{{ book.title_zh or book.title }}{% if book.weeks_on_list %}，{{ _('累计上榜') }}{{ book.weeks_on_list }}{{ _('周') }}{% endif %}{% else %}Rank {{ current_rank }}, {{ book.title }}{% if book.weeks_on_list %}, {{ book.weeks_on_list }} weeks on list{% endif %}{% endif %}">
         <span class="m-rank-badge {% if current_rank > 3 %}small{% endif %}">{{ current_rank }}</span>
         <div class="m-book-cover">
@@ -187,7 +190,7 @@
             {% if _isbn_value and _isbn_value|is_valid_isbn %}<p class="m-book-card-meta">ISBN {{ _isbn_value }}</p>{% endif %}
 
             {# 描述预览（80 字截断） #}
-            {% set desc = book.description_zh if _locale == 'zh' and book.description_zh else book.description %}
+            {% set desc = book.description_zh if _locale == 'zh' and book.description_zh and book.description_zh not in PLACEHOLDER_TEXTS else book.description %}
             {% if desc and desc not in PLACEHOLDER_TEXTS %}
             <p class="m-book-card-desc">{{ desc[:80] }}{% if desc|length > 80 %}…{% endif %}</p>
             {% endif %}
@@ -207,4 +210,32 @@
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
+<script type="application/json" id="initial-books-data">{{ books|tojson }}</script>
+<script src="{{ url_for('static', filename=dist_url('home-translation.js')) }}" nonce="{{ csp_nonce() }}"></script>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+    var books = JSON.parse(document.getElementById('initial-books-data').textContent || '[]');
+    var language = document.documentElement.lang.indexOf('zh') === 0 ? 'zh' : 'en';
+    var queue = window.BookRankHomeTranslation.create({
+        getBooks: function () { return books; },
+        getLanguage: function () { return language; },
+        getCards: function () { return Array.from(document.querySelectorAll('.m-book-card[data-isbn]')); },
+        titleSelector: '.m-book-title',
+        descriptionSelector: '.m-book-card-desc',
+        descriptionContainerSelector: '.m-book-info',
+        descriptionClass: 'm-book-card-desc',
+        descriptionLimit: 80,
+        placeholders: {{ PLACEHOLDER_TEXTS|list|tojson }},
+        request: function (url, options) { return window.MobileApp.csrfFetch(url, options); },
+    });
+    window.addEventListener('languagechange', function (event) {
+        language = event.detail.language;
+        queue.refresh();
+    });
+    queue.refresh();
+})();
+</script>
 {% endblock %}

@@ -154,12 +154,9 @@ class TestTranslateAwardBookDisplayTitle:
             headers={'X-CSRF-Token': csrf_token},
         )
         assert response.status_code == 200
-        # 核心断言：送进翻译器的 title 不应该是 ISBN
-        assert captured_input.get('title') != dirty_isbn
-        # 也不应该是空字符串
-        assert captured_input.get('title'), '翻译源 title 不应为空'
-        # 应该是 display_title 的退化值（因为 title 是 ISBN，display_title 会退化到 title_zh）
-        assert captured_input.get('title') == '血中流淌的花'
+        # display_title 已经是有效中文，不应把它或 ISBN 再送去翻译。
+        assert captured_input == {}
+        assert response.get_json()['data']['book']['title_zh'] == '血中流淌的花'
 
     def test_clean_title_passes_through(self, app, db, client, csrf_token, monkeypatch):
         """award_book.title 是真实书名时，display_title == title，行为不变"""
@@ -175,7 +172,7 @@ class TestTranslateAwardBookDisplayTitle:
                 category='Fiction',
                 rank=1,
                 title='Real Book Title',  # 干净数据
-                title_zh='真实书名',
+                title_zh=None,
                 author='Test Author',
                 isbn13='9780525559474',
                 is_displayable=True,

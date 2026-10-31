@@ -375,6 +375,7 @@ async function changeCategory(category) {
         currentCategory = category;
         booksData = cachedBooks;
 
+        mergeHomeTranslations(cachedBooks);
         if (typeof BookI18n !== 'undefined') {
             BookI18n.clear();
             BookI18n.registerAll(cachedBooks);
@@ -395,6 +396,7 @@ async function changeCategory(category) {
         if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
             BookI18n.applyLanguage('zh');
         }
+        initOnDemandTranslation();
         return;
     }
 
@@ -434,6 +436,7 @@ async function changeCategory(category) {
         currentCategory = category;     // 模块级，供 rerenderCurrentBooks 使用
         booksData = books;             // 模块级，供 rerenderCurrentBooks 使用
 
+        mergeHomeTranslations(books);
         if (typeof BookI18n !== 'undefined') {
             BookI18n.clear();
             BookI18n.registerAll(books);
@@ -453,6 +456,7 @@ async function changeCategory(category) {
         if (currentLanguage === 'zh' && typeof BookI18n !== 'undefined') {
             BookI18n.applyLanguage('zh');
         }
+        initOnDemandTranslation();
 
     } catch (error) {
         console.error('分类切换失败:', error);
@@ -652,6 +656,7 @@ function renderCardIsbn(book) {
 }
 
 function updateBooksOnPage(books, category, updateTime, updateFrequency, listPublishedDate) {
+    mergeHomeTranslations(books);
     const isZh = currentLanguage === 'zh';
     const defaultCover = window.APP_CONFIG.defaultCover;
     const lang = currentLanguage;  // 显式捕获当前语言，供所有内嵌字符串使用
@@ -697,6 +702,8 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             return `
             <article class="card card-animate"
                      data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
+                     data-book-position="${index}"
+                     ${isZh && homeTranslationMissing(book) ? 'data-needs-translation="1"' : ''}
                      data-index="${sourceIndex}"
                      data-category="${esc(sourceCategory)}"
                      aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: rank }))}">
@@ -746,6 +753,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             infoEl.innerHTML = countText.replace(/(\d+)/, '<strong>$1</strong>');
         }
     }
+    initOnDemandTranslation();
 }
 
 window.addEventListener('popstate', function() {
@@ -918,123 +926,56 @@ window.addEventListener('languagechange', function(e) {
     if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
         try { BookI18n.applyLanguage(lang); } catch(e) { console.warn('BookI18n error:', e); }
     }
+    initOnDemandTranslation();
 });
 
-/* 按需翻译：中文页对缺中文标题的卡片逐本请求服务端翻译（结果服务端持久化）。
-   免费层后台线程不可靠，故由前端在空闲时逐本触发；失败即停，不打扰阅读。 */
+/* 桌面/移动共用串行队列；分类缓存与重绘保留本页刚补齐的译文。 */
+var homeTranslationQueue = null;
+
+function mergeHomeTranslations(books) {
+    if (homeTranslationQueue) homeTranslationQueue.merge(books);
+}
+
+function homeTranslationMissing(book) {
+    return window.BookRankHomeTranslation
+        ? window.BookRankHomeTranslation.missing(book, window.APP_CONFIG.translationPlaceholders)
+        : (book.title && !book.title_zh) || (book.description && !book.description_zh);
+}
+
 function initOnDemandTranslation() {
-    try {
-        var lang = document.documentElement.getAttribute('lang') || '';
-        var appLang = null;
-        try {
-            appLang = localStorage.getItem('app_language') || localStorage.getItem('bookrank_language');
-        } catch (e) { /* ignore */ }
-        if (appLang) {
-            if (appLang !== 'zh') return;
-        } else if (lang && lang.toLowerCase().indexOf('zh') !== 0) {
-            return;
-        }
-
-        var cards = Array.prototype.slice.call(
-            document.querySelectorAll('article[data-needs-translation="1"][data-isbn]')
-        ).slice(0, 15);
-        if (!cards.length) {
-            hideTranslationProgress();
-            return;
-        }
-
-        var bar = document.getElementById('translation-progress');
-        var label = bar ? bar.querySelector('.progress-text') : null;
-        var fill = bar ? bar.querySelector('.progress-fill') : null;
-        var total = cards.length;
-        var done = 0;
-        var stopped = false;
-
-        function paint() {
-            if (label) label.textContent = '正在翻译... (' + done + '/' + total + ')';
-            if (fill) fill.style.width = Math.round((done / total) * 100) + '%';
-            if (done >= total && bar) bar.style.display = 'none';
-        }
-
-        function next() {
-            if (stopped || !cards.length) {
-                paint();
-                return;
-            }
-            var card = cards.shift();
-            var isbn = (card.getAttribute('data-isbn') || '').replace(/[^0-9Xx]/g, '');
-            if (!isbn) {
-                done += 1;
-                paint();
-                next();
-                return;
-            }
-            fetch('/api/translate/book/' + encodeURIComponent(isbn), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
-            })
-                .then(function (resp) {
-                    if (!resp.ok) {
-                        // 翻译服务不可用（key 未配/限流）：停掉后续请求
-                        if (resp.status === 401 || resp.status === 500 || resp.status === 429) stopped = true;
-                        throw new Error('http ' + resp.status);
-                    }
-                    return resp.json();
-                })
-                .then(function (result) {
-                    var book = result && result.data && result.data.book;
-                    if (book) applyCardTranslation(card, book);
-                    card.removeAttribute('data-needs-translation');
-                    done += 1;
-                    paint();
-                    next();
-                })
-                .catch(function () {
-                    done += 1;
-                    paint();
-                    next();
+    if (!window.BookRankHomeTranslation) return;
+    if (!homeTranslationQueue) {
+        homeTranslationQueue = window.BookRankHomeTranslation.create({
+            getBooks: function () { return booksData; },
+            getLanguage: function () { return currentLanguage; },
+            getCards: function () {
+                return Array.from(document.querySelectorAll('article.card[data-isbn]'));
+            },
+            titleSelector: '.card-title, .list-item-title',
+            descriptionSelector: '.card-desc, .list-item-desc',
+            descriptionContainerSelector: '.card-content',
+            descriptionClass: 'card-desc',
+            placeholders: window.APP_CONFIG.translationPlaceholders,
+            request: function (url, options) { return fetch(url, options); },
+            onTranslation: function (merge) {
+                _memoryCategoryCache.forEach(function (cached) {
+                    merge(cached.books);
                 });
-        }
-
-        function applyCardTranslation(card, book) {
-            var title = book.title_zh;
-            if (title) {
-                var link = card.querySelector('h3.list-item-title a');
-                if (link) {
-                    link.textContent = title;
-                } else {
-                    var titleEl = card.querySelector('h3.card-title');
-                    if (titleEl) {
-                        titleEl.textContent = title;
-                        titleEl.setAttribute('title', title);
-                    }
+                if (typeof BookI18n !== 'undefined') {
+                    BookI18n.registerAll(booksData);
+                    BookI18n.updateBatch(booksData.map(function (book) {
+                        return {
+                            isbn: book.isbn13 || book.isbn10,
+                            language: 'zh',
+                            data: { title: book.title_zh, description: book.description_zh },
+                        };
+                    }));
                 }
-            }
-            var desc = book.description_zh;
-            if (desc) {
-                var descEl = card.querySelector('p.card-desc, p.list-item-desc');
-                if (descEl) {
-                    // 简介一律整段写入：显示多少行由 CSS 决定（紧凑五列钳 5 行、
-                    // 精选三列完整展示）。前端再按字数截断会与 CSS 钳制叠加，
-                    // 长简介只剩开头一句 —— 服务端与 CSS 修好后仍从这里复现。
-                    descEl.textContent = desc;
-                }
-            }
-            try {
-                if (typeof BookI18n !== 'undefined' && BookI18n.updateBatch) {
-                    var bisbn = (card.getAttribute('data-isbn') || '').replace(/[^0-9Xx]/g, '');
-                    BookI18n.updateBatch([{ isbn: bisbn, language: 'zh', data: { title: title, description: desc } }]);
-                }
-            } catch (e) { /* ignore */ }
-        }
-
-        paint();
-        // 延迟启动：先让首屏可交互
-        setTimeout(next, 1500);
-    } catch (e) {
-        /* ignore */
+            },
+            onIdle: hideTranslationProgress,
+        });
     }
+    homeTranslationQueue.refresh();
 }
 
 function hideTranslationProgress() {

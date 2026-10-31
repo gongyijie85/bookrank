@@ -1,10 +1,32 @@
+import re
+
 from flask import request
 
+from ...models.database import db
+from ...models.schemas import BookMetadata
 from ...utils.admin_auth import admin_required
-from ...utils.api_helpers import APIResponse, csrf_protect, handle_api_errors, rate_limit, validate_isbn
+from ...utils.api_helpers import (
+    PLACEHOLDER_TEXTS,
+    APIResponse,
+    clean_translation_text,
+    csrf_protect,
+    handle_api_errors,
+    is_non_substantive_details,
+    rate_limit,
+    validate_isbn,
+)
 from ...utils.error_handler import ErrorCategory, log_error
 from ...utils.service_helpers import get_service
 from . import api_bp
+
+
+def _valid_chinese(value: object, field: str) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(re.search(r'[\u3400-\u9fff]', value))
+        and value.strip() not in PLACEHOLDER_TEXTS
+        and not (field == 'details' and is_non_substantive_details(value))
+    )
 
 
 @api_bp.route('/translate', methods=['POST'])
@@ -86,6 +108,7 @@ def translate_book(isbn: str):
 
     book_service = get_service('book_service')
     book_data = book_service.get_book_by_isbn(isbn) if book_service else None
+    is_main_book = bool(book_data)
 
     # Fallback: 查询 AwardBook 表（获奖书单数据不在主 books 缓存中）
     # 注意：用 display_title 替代原始 title，避免 v0.9.57 修复前的 ISBN 脏数据
@@ -98,32 +121,110 @@ def translate_book(isbn: str):
             'description': award_book.description or '',
             'details': award_book.details or '',
             'isbn13': award_book.isbn13 or isbn,
+            'title_zh': award_book.title_zh or '',
+            'description_zh': award_book.description_zh or '',
         }
 
     if not book_data:
         return APIResponse.error('图书不存在', 404)
 
-    service = get_translation_service()
-    translated_data = service.translate_book_info(book_data)
-    if translated_data:
+    translated_data = dict(book_data)
+    fields = ('title', 'description', 'details')
+    if is_main_book and any(
+        book_data.get(field) and not _valid_chinese(translated_data.get(f'{field}_zh'), field) for field in fields
+    ):
+        # Cached ranking snapshots can predate a saved on-demand translation.
+        # A failed metadata read must propagate, rather than retranslate over it.
         try:
-            if book_service:
-                book_service.save_book_translation(
-                    isbn=isbn,
-                    title_zh=translated_data.get('title_zh'),
-                    description_zh=translated_data.get('description_zh'),
-                    details_zh=translated_data.get('details_zh'),
-                )
-            if award_book:
-                award_book_service.save_award_book_translation(
-                    isbn=isbn,
-                    title_zh=translated_data.get('title_zh'),
-                    description_zh=translated_data.get('description_zh'),
-                )
+            metadata = db.session.get(BookMetadata, isbn)
         except Exception as e:
-            log_error(ErrorCategory.TRANSLATION, f'翻译结果写入语言包失败 {isbn}: {e}', level='warning')
+            log_error(ErrorCategory.DB_QUERY, f'读取已有翻译失败 {isbn}: {e}', level='warning')
+            return APIResponse.error('已有译文暂时无法读取，请稍后重试', 503, errors={'retryable': True})
+        if metadata:
+            for field in fields:
+                target = f'{field}_zh'
+                value = getattr(metadata, target)
+                if not _valid_chinese(translated_data.get(target), field) and _valid_chinese(value, field):
+                    translated_data[target] = value
 
-    return APIResponse.success(data={'book': translated_data})
+    unsupported_details = bool(not is_main_book and book_data.get('details'))
+    pending = []
+    for field in fields:
+        source = str(book_data.get(field) or '').strip()
+        if (
+            source
+            and source not in PLACEHOLDER_TEXTS
+            and not (field == 'details' and (unsupported_details or is_non_substantive_details(source)))
+            and not _valid_chinese(translated_data.get(f'{field}_zh'), field)
+            and not re.search(r'[\u3400-\u9fff]', source)
+        ):
+            pending.append(field)
+
+    new_values = {}
+    if pending:
+        input_data = dict(translated_data)
+        for field in fields:
+            if field not in pending:
+                input_data[field] = ''
+            else:
+                input_data[f'{field}_zh'] = ''
+        try:
+            result = get_translation_service().translate_book_info(input_data) or {}
+        except Exception as e:
+            log_error(ErrorCategory.TRANSLATION, f'翻译暂不可用 {isbn}: {e}', level='warning')
+            return APIResponse.error('翻译暂不可用，请稍后重试', 503, errors={'retryable': True})
+        for field in pending:
+            target = f'{field}_zh'
+            value = result.get(target)
+            if isinstance(value, str):
+                value = clean_translation_text(value, field)
+            if _valid_chinese(value, field):
+                new_values[target] = value
+        if not new_values:
+            return APIResponse.error('翻译暂不可用，请稍后重试', 503, errors={'retryable': True})
+        if book_service and is_main_book:
+            try:
+                saved = bool(book_service.save_book_translation(isbn=isbn, **new_values))
+            except Exception as e:
+                log_error(ErrorCategory.TRANSLATION, f'翻译结果写入语言包失败 {isbn}: {e}', level='warning')
+                saved = False
+            if not saved:
+                return APIResponse.error('译文保存失败，请稍后重试', 503, errors={'retryable': True})
+            translated_data.update(new_values)
+
+    award_partial = False
+    if award_book:
+        # Reuse durable main-book translations for the same ISBN.  An earlier
+        # main save can succeed while the award save fails, so this also runs
+        # when no new translation was necessary on this request.
+        available_values = translated_data if is_main_book else {**translated_data, **new_values}
+        award_values = {
+            f'{field}_zh': available_values[f'{field}_zh']
+            for field in ('title', 'description')
+            if _valid_chinese(available_values.get(f'{field}_zh'), field)
+            and not _valid_chinese(getattr(award_book, f'{field}_zh'), field)
+        }
+        if award_values:
+            try:
+                award_saved = bool(award_book_service.save_award_book_translation(isbn=isbn, **award_values))
+            except Exception as e:
+                log_error(ErrorCategory.TRANSLATION, f'获奖书译文保存失败 {isbn}: {e}', level='warning')
+                award_saved = False
+            if not award_saved:
+                if not is_main_book:
+                    return APIResponse.error('译文保存失败，请稍后重试', 503, errors={'retryable': True})
+                award_partial = True
+            elif not is_main_book:
+                translated_data.update(new_values)
+
+    status = (
+        'partial'
+        if unsupported_details
+        or award_partial
+        or any(not _valid_chinese(translated_data.get(f'{field}_zh'), field) for field in pending)
+        else 'complete'
+    )
+    return APIResponse.success(data={'book': translated_data, 'translation_status': status})
 
 
 @api_bp.route('/translate/cache/stats')

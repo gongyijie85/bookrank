@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.config import Config
 from app.models.book import Book
 
@@ -245,26 +247,34 @@ class TestCrossCategorySearch:
 
 
 class TestOnDemandTranslationMarker:
+    @pytest.mark.parametrize('user_agent', [DESKTOP_UA, MOBILE_UA])
     @patch('app.routes.main.get_service')
-    def test_untranslated_books_marked(self, mock_get_svc, client):
-        """无 title_zh 的书打标 data-needs-translation，有的不打."""
+    def test_untranslated_books_marked(self, mock_get_svc, client, user_agent):
+        """缺书名或简介均需补译；两个字段齐全时不打标。"""
         mock_get_svc.return_value = _mock_book_service(
             {
                 'hardcover-fiction': [
                     _make_book(title_zh=None, isbn13='9780000000001', isbn10='0000000001', id='9780000000001'),
                     _make_book(
                         title_zh='中文标题',
+                        description_zh='中文简介',
                         isbn13='9780000000002',
                         isbn10='0000000002',
                         id='9780000000002',
                     ),
+                    _make_book(
+                        title_zh='已有中文但简介缺译',
+                        isbn13='9780000000003',
+                        isbn10='0000000003',
+                        id='9780000000003',
+                    ),
                 ]
             }
         )
-        resp = client.get('/?lang=zh', headers={'User-Agent': DESKTOP_UA})
+        resp = client.get('/?lang=zh', headers={'User-Agent': user_agent})
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')
-        assert html.count('data-needs-translation="1"') == 1  # 当前视图下一本未翻译
+        assert html.count('data-needs-translation="1"') == 2
 
 
 class TestMobileSearchEntry:
