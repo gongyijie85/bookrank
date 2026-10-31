@@ -321,6 +321,149 @@ class TestBookService:
         if translation_source == 'metadata':
             assert db.session.get(BookMetadata, isbn).description_zh == old_description
 
+    def test_background_translation_keeps_another_category_while_busy(self, book_service, tmp_path, mock_books_data):
+        book_service._language_pack = BookLanguagePack(tmp_path / 'pack.json')
+        first, second = [Book(**row) for row in mock_books_data]
+        processed = []
+
+        def translate(batch):
+            processed.extend(book.isbn13 for book in batch)
+            if first in batch:
+                book_service._auto_translate_books([first, second, second])
+            return {'books_seen': len(batch), 'fields_translated': len(batch), 'failures': 0, 'pack_writes': 1}
+
+        with (
+            patch('app.services.book_service.threading.Thread') as thread,
+            patch.object(book_service, '_translate_books_now', side_effect=translate),
+        ):
+            book_service._auto_translate_books([first])
+            thread.call_args.kwargs['target']()
+
+        assert processed == [first.isbn13, second.isbn13]
+        thread.assert_called_once()
+        assert book_service._translation_thread_active is False
+
+    def test_background_translation_reports_partial_failure(self, book_service, tmp_path, mock_books_data, caplog):
+        book_service._language_pack = BookLanguagePack(tmp_path / 'pack.json')
+        book = Book(**mock_books_data[0])
+        stats = {'books_seen': 1, 'fields_translated': 1, 'failures': 2, 'pack_writes': 1}
+
+        with (
+            patch('app.services.book_service.threading.Thread') as thread,
+            patch.object(book_service, '_translate_books_now', return_value=stats),
+        ):
+            book_service._auto_translate_books([book])
+            thread.call_args.kwargs['target']()
+
+        assert '失败字段2个' in caplog.text
+        assert book.isbn13 in caplog.text
+        assert '批量预翻译完成' not in caplog.text
+        assert book_service._translation_thread_active is False
+
+    def test_background_translation_continues_queue_after_exception(
+        self, book_service, tmp_path, mock_books_data, caplog
+    ):
+        book_service._language_pack = BookLanguagePack(tmp_path / 'pack.json')
+        first, second = [Book(**row) for row in mock_books_data]
+        processed = []
+
+        def translate(batch):
+            processed.extend(book.isbn13 for book in batch)
+            if first in batch:
+                book_service._auto_translate_books([second])
+                raise ValueError('test failure')
+            return {'books_seen': 1, 'fields_translated': 1, 'failures': 0, 'pack_writes': 1}
+
+        with (
+            patch('app.services.book_service.threading.Thread') as thread,
+            patch.object(book_service, '_translate_books_now', side_effect=translate),
+        ):
+            book_service._auto_translate_books([first])
+            thread.call_args.kwargs['target']()
+
+        assert processed == [first.isbn13, second.isbn13]
+        assert first.isbn13 in caplog.text
+        assert book_service._translation_thread_active is False
+
+    def test_background_translation_can_retry_after_thread_start_failure(self, book_service, tmp_path, mock_books_data):
+        book_service._language_pack = BookLanguagePack(tmp_path / 'pack.json')
+        book = Book(**mock_books_data[0])
+        stats = {'books_seen': 1, 'fields_translated': 2, 'failures': 0, 'pack_writes': 1}
+
+        with (
+            patch('app.services.book_service.threading.Thread') as thread,
+            patch.object(book_service, '_translate_books_now', return_value=stats) as translate,
+        ):
+            thread.return_value.start.side_effect = RuntimeError('cannot start thread')
+            book_service._auto_translate_books([book])
+            assert book_service._translation_thread_active is False
+            thread.return_value.start.side_effect = None
+            book_service._auto_translate_books([book])
+            thread.call_args.kwargs['target']()
+
+        translate.assert_called_once_with([book])
+        assert book_service._translation_thread_active is False
+
+    def test_background_translation_bounds_pending_queue_and_allows_later_retry(
+        self, book_service, tmp_path, mock_books_data, caplog
+    ):
+        book_service._language_pack = BookLanguagePack(tmp_path / 'pack.json')
+        book_service._MAX_PENDING_TRANSLATION_BOOKS = 1
+        first, second = [Book(**row) for row in mock_books_data]
+        stats = {'books_seen': 1, 'fields_translated': 1, 'failures': 0, 'pack_writes': 1}
+
+        with (
+            patch('app.services.book_service.threading.Thread') as thread,
+            patch.object(book_service, '_translate_books_now', return_value=stats) as translate,
+        ):
+            book_service._auto_translate_books([first, second])
+            assert len(book_service._translation_pending) == 1
+            thread.call_args.kwargs['target']()
+            book_service._auto_translate_books([second])
+            thread.call_args.kwargs['target']()
+
+        assert [call.args[0] for call in translate.call_args_list] == [[first], [second]]
+        assert '队列已满' in caplog.text
+
+    def test_background_translation_failed_cache_request_can_recover(
+        self, book_service, tmp_path, mock_books_data, monkeypatch
+    ):
+        monkeypatch.delenv('SPACE_ID', raising=False)
+        pack_path = tmp_path / 'pack.json'
+        book_service._language_pack = BookLanguagePack(pack_path)
+        book_service._cache.get.return_value = [mock_books_data[0]]
+        ready = False
+        translator = Mock()
+        translator.is_available.return_value = True
+        translator.translate.side_effect = lambda *args, **kwargs: (
+            {'title': '测试书名', 'description': '已恢复的中文简介', 'details': '中文详情'}[kwargs['field_type']]
+            if ready
+            else None
+        )
+
+        with (
+            patch('app.services.book_service.threading.Thread') as thread,
+            patch.object(book_service, '_get_translation_service', return_value=translator),
+        ):
+            first = book_service.get_books_by_category('hardcover-fiction')
+            thread.call_args.kwargs['target']()
+            assert not first[0].description_zh
+            assert not pack_path.exists()
+
+            ready = True
+            second = book_service.get_books_by_category('hardcover-fiction')
+            thread.call_args.kwargs['target']()
+            assert second[0].description_zh == '已恢复的中文简介'
+            third = book_service.get_books_by_category('hardcover-fiction')
+
+        assert third[0].description_zh == '已恢复的中文简介'
+        assert (
+            json.loads(pack_path.read_text(encoding='utf-8'))['books'][first[0].isbn13]['description_zh']
+            == '已恢复的中文简介'
+        )
+        assert thread.call_count == 2
+        book_service._nyt_client.fetch_books.assert_not_called()
+
     @pytest.mark.parametrize(
         ('isbn', 'description_zh'),
         [
