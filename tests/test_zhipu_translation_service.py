@@ -9,6 +9,7 @@
 - 模块级 _translate_book_info 辅助函数
 """
 
+import sys
 from unittest.mock import MagicMock, Mock, patch
 
 from app.services.zhipu_translation_service import (
@@ -268,7 +269,9 @@ class TestHybridTranslationServiceAvailability:
         mock_zhipu = Mock()
         mock_zhipu.is_available.return_value = True
         service.zhipu = mock_zhipu
-        assert service.is_available() is True
+        with patch.object(service, '_get_fallback') as mock_fallback:
+            assert service.is_available() is True
+            mock_fallback.assert_not_called()
 
     def test_available_when_fallback_available(self):
         service = HybridTranslationService(zhipu_api_key=None)
@@ -276,8 +279,28 @@ class TestHybridTranslationServiceAvailability:
         mock_zhipu.is_available.return_value = False
         service.zhipu = mock_zhipu
         mock_fallback = Mock()
+        mock_fallback.is_available.return_value = True
         with patch.object(service, '_get_fallback', return_value=mock_fallback):
             assert service.is_available() is True
+
+    def test_not_available_when_fallback_dependency_missing(self):
+        service = HybridTranslationService(zhipu_api_key=None)
+        with (
+            patch.object(service.zhipu, 'is_available', return_value=False),
+            patch.dict(sys.modules, {'deep_translator': None}),
+        ):
+            assert service._get_fallback() is not None
+            assert service.is_available() is False
+
+    def test_not_available_when_fallback_reports_unavailable(self):
+        service = HybridTranslationService(zhipu_api_key=None)
+        mock_fallback = Mock()
+        mock_fallback.is_available.return_value = False
+        with (
+            patch.object(service.zhipu, 'is_available', return_value=False),
+            patch.object(service, '_get_fallback', return_value=mock_fallback),
+        ):
+            assert service.is_available() is False
 
     def test_not_available_when_neither_available(self):
         service = HybridTranslationService(zhipu_api_key=None)
@@ -332,10 +355,24 @@ class TestHybridTranslationServiceTranslate:
             mock_zhipu.is_available.return_value = False
             service.zhipu = mock_zhipu
             mock_fallback = Mock()
+            mock_fallback.is_available.return_value = True
             mock_fallback.translate.return_value = '备用翻译结果'
             with patch.object(service, '_get_fallback', return_value=mock_fallback):
                 result = service.translate('Hello')
                 assert result == '备用翻译结果'
+
+    def test_unavailable_fallback_is_not_called(self):
+        service = HybridTranslationService(zhipu_api_key=None)
+        mock_fallback = Mock()
+        mock_fallback.is_available.return_value = False
+        mock_fallback.translate.return_value = '备用翻译结果'
+        with (
+            patch.object(service, '_get_cache_service', return_value=None),
+            patch.object(service.zhipu, 'is_available', return_value=False),
+            patch.object(service, '_get_fallback', return_value=mock_fallback),
+        ):
+            assert service.translate('Hello') is None
+            mock_fallback.translate.assert_not_called()
 
     def test_returns_none_when_all_services_fail(self):
         service = HybridTranslationService(zhipu_api_key=None)

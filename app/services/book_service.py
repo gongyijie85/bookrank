@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 class BookService:
     """图书业务服务"""
 
+    _MAX_PENDING_TRANSLATION_BOOKS = 200
+
     def __init__(
         self,
         nyt_client: NYTApiClient,
@@ -51,6 +53,8 @@ class BookService:
 
         self._translation_lock = threading.Lock()
         self._translation_thread_active = False
+        self._translation_pending: dict[str, Book] = {}
+        self._translation_processing: set[str] = set()
         self._on_data_refreshed_callbacks: weakref.WeakSet[Callable[[], None]] = weakref.WeakSet()
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='bookrank-fetch')
         self._isbn_index: dict[str, dict[str, Any]] = {}  # ISBN -> book_data 反向索引
@@ -727,35 +731,67 @@ class BookService:
             return
 
         with self._translation_lock:
-            if self._translation_thread_active:
-                logger.info('预翻译线程已在运行中，跳过重复启动')
-                return
             if not books:
                 logger.debug('无图书数据，跳过预翻译')
+                return
+            overflow = 0
+            for book in books:
+                key = book.isbn13 or book.isbn10 or book.id
+                if key in self._translation_processing or key in self._translation_pending:
+                    continue
+                if len(self._translation_pending) >= self._MAX_PENDING_TRANSLATION_BOOKS:
+                    overflow += 1
+                    continue
+                self._translation_pending[key] = book
+            if overflow:
+                logger.warning('预翻译待处理队列已满，%s本留待后续访问重试', overflow)
+            if self._translation_thread_active or not self._translation_pending:
                 return
             self._translation_thread_active = True
 
         def translate_in_background():
-            """后台线程执行翻译任务"""
-            try:
-                stats = self._translate_books_now(books)
-
-                logger.info(
-                    '批量预翻译完成: 图书%s本, 翻译字段%s个, 语言包写入%s次',
-                    stats.get('books_missing', 0),
-                    stats.get('fields_translated', 0),
-                    stats.get('pack_writes', 0),
-                )
-
-            except (RuntimeError, AttributeError) as e:
-                logger.error(f'后台翻译线程异常: {e}')
-            finally:
+            """单线程逐批处理，失败批次由后续访问重试。"""
+            while True:
                 with self._translation_lock:
-                    self._translation_thread_active = False
+                    if not self._translation_pending:
+                        self._translation_thread_active = False
+                        return
+                    batch = list(self._translation_pending.values())
+                    self._translation_processing = set(self._translation_pending)
+                    self._translation_pending.clear()
+                batch_isbns = ','.join(book.isbn13 or book.isbn10 or book.id for book in batch)
+                try:
+                    stats = self._translate_books_now(batch)
+                    if stats.get('failures', 0):
+                        logger.warning(
+                            '批量预翻译部分失败: 图书%s本, 翻译字段%s个, 失败字段%s个, '
+                            '语言包写入%s次, 批次ISBN=%s；后续访问可重试',
+                            stats.get('books_seen', len(batch)),
+                            stats.get('fields_translated', 0),
+                            stats['failures'],
+                            stats.get('pack_writes', 0),
+                            batch_isbns,
+                        )
+                    else:
+                        logger.info(
+                            '批量预翻译完成: 图书%s本, 翻译字段%s个, 失败字段0个, 语言包写入%s次',
+                            stats.get('books_seen', len(batch)),
+                            stats.get('fields_translated', 0),
+                            stats.get('pack_writes', 0),
+                        )
+                except Exception as e:
+                    logger.error('后台翻译批次异常: %s, 批次ISBN=%s', type(e).__name__, batch_isbns)
+                finally:
+                    with self._translation_lock:
+                        self._translation_processing.clear()
 
-        thread = threading.Thread(target=translate_in_background, daemon=True)
-        thread.start()
-        logger.info(f'已启动后台预翻译线程，共 {len(books)} 本图书待处理')
+        try:
+            thread = threading.Thread(target=translate_in_background, daemon=True)
+            thread.start()
+        except Exception as e:
+            with self._translation_lock:
+                self._translation_thread_active = False
+            logger.error('后台翻译线程启动失败，保留队列待重试: %s', type(e).__name__)
 
     def search_books(self, keyword: str, categories: list[str] | None = None) -> list[Book]:
         """

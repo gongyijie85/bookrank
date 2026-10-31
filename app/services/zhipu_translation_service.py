@@ -1015,7 +1015,7 @@ class HybridTranslationService:
 
         if not translated:
             fallback = self._get_fallback()
-            if fallback:
+            if fallback and fallback.is_available():
                 logger.info('使用备用翻译服务...')
                 translated = fallback.translate(text, source_lang, target_lang)
                 used_fallback = bool(translated)
@@ -1160,8 +1160,11 @@ class HybridTranslationService:
         return self.zhipu.translate_author_name(author)
 
     def is_available(self) -> bool:
-        """检查服务是否可用"""
-        return self.zhipu.is_available() or self._get_fallback() is not None
+        """检查主服务或备用服务的本地客户端是否可用，不探测远端服务。"""
+        if self.zhipu.is_available():
+            return True
+        fallback = self._get_fallback()
+        return bool(fallback and fallback.is_available())
 
     def get_cache_stats(self) -> dict[str, Any]:
         """获取缓存统计信息"""

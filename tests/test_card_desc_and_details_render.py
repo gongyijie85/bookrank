@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -31,6 +32,11 @@ from app.services.book_language_pack import BookLanguagePack
 
 CSS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'css'
 JS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'js'
+MISSING_RANKING_TRANSLATIONS = json.loads(
+    (Path(__file__).resolve().parent / 'fixtures' / 'ranking-missing-translations-20261031.json').read_text(
+        encoding='utf-8'
+    )
+)['books']
 
 #: 明显超过旧的 80 字服务端截断阈值，用来证明没有按长度砍
 LONG_DESCRIPTION = (
@@ -271,6 +277,35 @@ class TestCardDescriptionNotTruncated:
         assert desc is not None
         assert re.search(r'[\u4e00-\u9fff]', desc.get_text()), f'{title} 的卡片简介仍是英文'
         assert desc.get_text(strip=True) == book.description_zh
+
+    @pytest.mark.parametrize('record', MISSING_RANKING_TRANSLATIONS, ids=lambda record: record['isbn'])
+    def test_20261031_first_week_ranking_descriptions_render_in_chinese(self, client, book_service, db, record):
+        """冻结的 16 本首周上榜书须通过真实首页模板显示离线中文简介。"""
+        assert record['weeks_on_list'] == 1
+        assert record['description_zh'] is None
+        book = _make_book(
+            id=record['isbn'],
+            isbn13=record['isbn'],
+            category_id=record['category'],
+            title=record['title'],
+            author=record['author'],
+            description=record['description'],
+            weeks_on_list=record['weeks_on_list'],
+        )
+        pack_path = CSS_DIR.parent / 'data' / 'book_language_pack.zh.json'
+        BookLanguagePack(pack_path).hydrate_books([book])
+        book_service([book])
+
+        response = client.get(f'/?category={record["category"]}&lang=zh')
+
+        assert response.status_code == 200
+        desc = BeautifulSoup(response.get_data(as_text=True), 'html.parser').select_one('.card-desc')
+        assert desc is not None
+        assert re.search(r'[\u4e00-\u9fff]', desc.get_text()), f'{record["title"]} 的卡片简介仍是英文'
+        assert desc.get_text(strip=True) == record['expected_description_zh']
+        assert desc.get_text(strip=True) == book.description_zh
+        assert book.description == record['description']
+        assert book.title == record['title']
 
     @pytest.mark.parametrize(
         ('category', 'isbn', 'title', 'description', 'previous_zh', 'expected_zh'),

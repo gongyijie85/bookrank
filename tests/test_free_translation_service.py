@@ -9,12 +9,35 @@ path (module missing -> None) directly.
 import builtins
 import sys
 import types
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from app.services.free_translation_service import FreeTranslationService, GoogleTranslationService
 
 
 class TestGoogleTranslationService:
+    def test_not_available_when_dependency_missing(self):
+        with patch.dict(sys.modules, {'deep_translator': None}):
+            svc = GoogleTranslationService()
+            assert svc.is_available() is False
+
+    def test_available_with_local_client_without_translation_request(self):
+        svc = GoogleTranslationService()
+        svc._client = Mock()
+
+        assert svc.is_available() is True
+        svc._client.assert_not_called()
+
+    def test_missing_client_does_not_wait_for_request_delay(self):
+        svc = GoogleTranslationService(delay=10)
+        svc._last_request_time = 1000
+        with (
+            patch.dict(sys.modules, {'deep_translator': None}),
+            patch('app.services.free_translation_service.time.time', return_value=1000),
+            patch('app.services.free_translation_service.time.sleep') as mock_sleep,
+        ):
+            assert svc.translate('hello') is None
+            mock_sleep.assert_not_called()
+
     def test_empty_text_passthrough(self):
         svc = GoogleTranslationService()
         assert svc.translate('') == ''
@@ -77,6 +100,18 @@ class TestGoogleTranslationService:
 
 
 class TestFreeTranslationService:
+    def test_not_available_when_dependency_missing(self):
+        with patch.dict(sys.modules, {'deep_translator': None}):
+            svc = FreeTranslationService()
+            assert svc.is_available() is False
+
+    def test_available_when_google_client_is_available(self):
+        svc = FreeTranslationService()
+        svc.google._client = Mock()
+
+        assert svc.is_available() is True
+        svc.google._client.assert_not_called()
+
     def test_empty_text(self):
         svc = FreeTranslationService()
         assert svc.translate('') == ''

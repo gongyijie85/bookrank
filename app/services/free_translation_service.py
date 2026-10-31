@@ -54,18 +54,22 @@ class GoogleTranslationService:
                 return None
         return self._client
 
+    def is_available(self) -> bool:
+        """检查本地客户端依赖是否可用，不探测远端服务。"""
+        return self._get_client() is not None
+
     def translate(self, text: str, source_lang: str = 'en', target_lang: str = 'zh') -> str | None:
         if not text or not text.strip():
             return text
+
+        client_class = self._get_client()
+        if client_class is None:
+            return None
 
         current_time = time.time()
         time_since_last = current_time - self._last_request_time
         if time_since_last < self.delay:
             time.sleep(self.delay - time_since_last)
-
-        client_class = self._get_client()
-        if not client_class:
-            return None
 
         max_retries = 2
         for attempt in range(max_retries + 1):
@@ -98,6 +102,10 @@ class FreeTranslationService:
 
     def __init__(self):
         self.google = GoogleTranslationService()
+
+    def is_available(self) -> bool:
+        """检查免费翻译的本地客户端是否可用。"""
+        return self.google.is_available()
 
     def translate(self, text: str, source_lang: str = 'en', target_lang: str = 'zh') -> str | None:
         if not text or not text.strip():
