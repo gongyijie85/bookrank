@@ -37,6 +37,9 @@ MISSING_RANKING_TRANSLATIONS = json.loads(
         encoding='utf-8'
     )
 )['books']
+MISSING_RANKING_TITLES = json.loads(
+    (Path(__file__).resolve().parent / 'fixtures' / 'ranking-missing-titles-20261102.json').read_text(encoding='utf-8')
+)['books']
 
 #: 明显超过旧的 80 字服务端截断阈值，用来证明没有按长度砍
 LONG_DESCRIPTION = (
@@ -611,6 +614,45 @@ class TestBookDetailDetailsPanel:
         soup, panel, _, _ = _details_panel(html)
         assert soup.find(id='tab-details') is None
         assert panel is None, '没有详情时不该留下一个空面板'
+
+
+class TestRankingTitleTranslations:
+    @pytest.mark.parametrize('record', MISSING_RANKING_TITLES, ids=lambda record: record['isbn'])
+    @pytest.mark.parametrize('lang', ['zh', 'en'])
+    @pytest.mark.parametrize('mobile', [False, True], ids=['desktop', 'mobile'])
+    def test_missing_ranking_titles_render_in_selected_language(self, client, book_service, db, record, lang, mobile):
+        """真实缺译书名通过离线语言包补齐，两个模板均保留英文原名。"""
+        book = _make_book(
+            id=record['isbn'],
+            isbn13=record['isbn'],
+            category_id=record['category'],
+            title=record['title'],
+            title_zh=record['title_zh'],
+            author=record['author'],
+            description=record['description'] or '',
+            description_zh=record['description_zh'],
+        )
+        BookLanguagePack(CSS_DIR.parent / 'data' / 'book_language_pack.zh.json').hydrate_books([book])
+        book_service([book])
+        user_agent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile' if mobile else 'Mozilla/5.0'
+
+        response = client.get(f'/?category={record["category"]}&lang={lang}', headers={'User-Agent': user_agent})
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+        heading = soup.select_one('.m-book-title' if mobile else '.card-title')
+        assert heading is not None
+        expected = record['expected_title_zh'] if lang == 'zh' else record['title']
+        assert heading.get_text(strip=True) == expected
+        assert book.title == record['title']
+        assert book.title_zh == record['expected_title_zh']
+        payload = book.to_dict()
+        assert payload['title'] == record['title']
+        assert payload['title_zh'] == record['expected_title_zh']
+        if lang == 'zh':
+            original = soup.select_one('.m-book-original-title' if mobile else '.card-original-title')
+            assert original is not None
+            assert original.get_text(strip=True) == record['title']
 
 
 class TestIndexCoverIsProxied:

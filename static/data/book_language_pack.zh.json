@@ -2931,7 +2931,9 @@
       "title_zh": "那些女人",
       "description_zh": "一位护士跟随她的兄弟前往越南战争前线服役，战后回到了分裂的美国。"
     },
-    "9781400356829": {},
+    "9781400356829": {
+      "title_zh": "争战"
+    },
     "9781250369628": {},
     "9781984863164": {
       "title_zh": "做饭好看"
@@ -2941,7 +2943,8 @@
     "9780593994849": {},
     "9798217274161": {},
     "9781668251065": {
-      "description_zh": "1982年，刚大学毕业的巴特·格雷卷入一家著名诗歌期刊内部的派系争斗。"
+      "description_zh": "1982年，刚大学毕业的巴特·格雷卷入一家著名诗歌期刊内部的派系争斗。",
+      "title_zh": "佩克与佩克"
     },
     "9781464244698": {
       "description_zh": "《Never After》系列第六部。一个黑手党组织的二把手与其未婚妻的表亲之间，萌生了一段禁忌之恋。"
@@ -2950,19 +2953,24 @@
       "description_zh": "《Never After》系列第五部。凯德来到佛蒙特州的一座小镇担任神父，却在那里受到阿玛娅的诱惑。"
     },
     "9781538784723": {
-      "description_zh": "真人秀《Jon & Kate Plus 8》中的六胞胎之一，揭露了不为人知的阴暗内幕。"
+      "description_zh": "真人秀《Jon & Kate Plus 8》中的六胞胎之一，揭露了不为人知的阴暗内幕。",
+      "title_zh": "“八”的阴影下"
     },
     "9798217059706": {
-      "description_zh": "《Think Again》的作者探讨，哪些因素可能强化人际关系中的优势，或加剧其中的弱点。"
+      "description_zh": "《Think Again》的作者探讨，哪些因素可能强化人际关系中的优势，或加剧其中的弱点。",
+      "title_zh": "合拍"
     },
     "9780063384538": {
-      "description_zh": "一名前美国高级情报官员讲述有关不明异常现象及非人类智慧生命调查的情况。"
+      "description_zh": "一名前美国高级情报官员讲述有关不明异常现象及非人类智慧生命调查的情况。",
+      "title_zh": "走出阴影"
     },
     "9780063490031": {
-      "description_zh": "《Fox & Friends》的一位联合主持人描绘了六位关键人物在美国建国前后所作的贡献。"
+      "description_zh": "《Fox & Friends》的一位联合主持人描绘了六位关键人物在美国建国前后所作的贡献。",
+      "title_zh": "联合诸州"
     },
     "9781324123637": {
-      "description_zh": "通过若干球员、球队、教练以及争议事件的故事，讲述美国国家橄榄球联盟（NFL）过去四十年的崛起历程。"
+      "description_zh": "通过若干球员、球队、教练以及争议事件的故事，讲述美国国家橄榄球联盟（NFL）过去四十年的崛起历程。",
+      "title_zh": "赛场"
     },
     "9780063454958": {
       "description_zh": "埃塞尔·肯尼迪的女儿讲述了母亲的工人阶级出身、与罗伯特·F. 肯尼迪的婚姻，以及她在人权事业中的工作。"
@@ -2970,11 +2978,21 @@
     "9781400260270": {
       "description_zh": "这位入选名人堂、后来成为 NFL 赛事解说员的四分卫，讲述了自己遭遇的个人困境。"
     },
-    "9780593234174": {},
-    "9798217181391": {},
-    "9780593799901": {},
-    "9798217033843": {},
-    "9781668212462": {},
+    "9780593234174": {
+      "title_zh": "伊娜的简单料理"
+    },
+    "9798217181391": {
+      "title_zh": "共存"
+    },
+    "9780593799901": {
+      "title_zh": "尽享地中海风味"
+    },
+    "9798217033843": {
+      "title_zh": "简易植物料理"
+    },
+    "9781668212462": {
+      "title_zh": "欢迎来到来世"
+    },
     "9781400230723": {
       "title_zh": "与无法控制的事物和平共处"
     },
@@ -2987,52 +3005,68 @@
       "description_zh": "《小懦夫的日记》（Diary of a Wimpy Kid）"
     },
     "9781250412607": {
-      "description_zh": "《Chief Inspector Gamache》系列第 21 部。来自过去的谜团让加马什（Gamache）及其团队的谋杀案调查陷入困境。"
+      "description_zh": "《Chief Inspector Gamache》系列第 21 部。来自过去的谜团让加马什（Gamache）及其团队的谋杀案调查陷入困境。",
+      "title_zh": "沃尔科特小姐的幽灵"
     },
     "9781538780046": {
-      "description_zh": "收录三篇节日主题中篇小说：《Sweater Weather》《Stealing Christmas》和《Marry Little Christmas》。"
+      "description_zh": "收录三篇节日主题中篇小说：《Sweater Weather》《Stealing Christmas》和《Marry Little Christmas》。",
+      "title_zh": "圣诞婚事"
     },
     "9780316569743": {
-      "description_zh": "《Alex Cross》系列第 36 部。家庭危机与华盛顿特区的地下犯罪势力让这位心理学家陷入困境。"
+      "description_zh": "《Alex Cross》系列第 36 部。家庭危机与华盛顿特区的地下犯罪势力让这位心理学家陷入困境。",
+      "title_zh": "克罗斯一家"
     },
     "9798217375158": {
-      "description_zh": "《Jack Reacher》系列第 31 部。苏珊·特纳（Susan Turner）将军需要里奇（Reacher）的帮助，调查一名执行秘密任务的团队成员遇害一案。"
+      "description_zh": "《Jack Reacher》系列第 31 部。苏珊·特纳（Susan Turner）将军需要里奇（Reacher）的帮助，调查一名执行秘密任务的团队成员遇害一案。",
+      "title_zh": "连锁反应"
     },
     "9780778306689": {
-      "description_zh": "《Bloodwing Academy》系列第 4 部。矮人的秘密任务、龙的出现和一则古老预言，可能迫使人们作出牺牲。"
+      "description_zh": "《Bloodwing Academy》系列第 4 部。矮人的秘密任务、龙的出现和一则古老预言，可能迫使人们作出牺牲。",
+      "title_zh": "烈焰之心"
     },
     "9781668264218": {
-      "description_zh": "1874 年，埃塔·惠勒（Etta Wheeler）搬到纽约市，最终与一些权势强大的机构展开抗争。"
+      "description_zh": "1874 年，埃塔·惠勒（Etta Wheeler）搬到纽约市，最终与一些权势强大的机构展开抗争。",
+      "title_zh": "慈悲之子"
     },
     "9798217040599": {
-      "description_zh": "16 岁的埃拉·华盛顿（Ella Washington）应对精神疾病、悲伤与霸凌。（适读年龄：14 岁及以上）"
+      "description_zh": "16 岁的埃拉·华盛顿（Ella Washington）应对精神疾病、悲伤与霸凌。（适读年龄：14 岁及以上）",
+      "title_zh": "并非一切都已失去"
     },
     "9781464243684": {
-      "description_zh": "《How My Neighbor Stole Christmas》系列第 3 部。这个假日季，塔兰（Taran）陷入一对兄弟之间的纠葛。"
+      "description_zh": "《How My Neighbor Stole Christmas》系列第 3 部。这个假日季，塔兰（Taran）陷入一对兄弟之间的纠葛。",
+      "title_zh": "圣诞居家假期"
     },
     "9781464261855": {
-      "description_zh": "《Beasts of the Briar》系列第 7 部。各方势力必须携手，进行最后一战。"
+      "description_zh": "《Beasts of the Briar》系列第 7 部。各方势力必须携手，进行最后一战。",
+      "title_zh": "玫瑰加冕"
     },
     "9798217090143": {
-      "description_zh": "这位艾美奖获奖主持人分享二十多年来真人秀节目中的回忆与照片。"
+      "description_zh": "这位艾美奖获奖主持人分享二十多年来真人秀节目中的回忆与照片。",
+      "title_zh": "安迪的 Bravo 剪贴簿"
     },
     "9781538787175": {
-      "description_zh": "独立新闻网络 MeidasTouch 的创办人阐述他们对美国当下政治与社会状况的看法。"
+      "description_zh": "独立新闻网络 MeidasTouch 的创办人阐述他们对美国当下政治与社会状况的看法。",
+      "title_zh": "美国，搞什么鬼？！"
     },
     "9781546012276": {
-      "description_zh": "这位前美国众议院议长根据科技发展和特朗普总统的行动，对美国的未来作出预测。"
+      "description_zh": "这位前美国众议院议长根据科技发展和特朗普总统的行动，对美国的未来作出预测。",
+      "title_zh": "美国的黄金时代"
     },
     "9798901160626": {
-      "description_zh": "一位数据分析师将美国当前的经济状况归咎于非政府组织。"
+      "description_zh": "一位数据分析师将美国当前的经济状况归咎于非政府组织。",
+      "title_zh": "非民选"
     },
     "9781648213021": {
-      "description_zh": "特朗普白宫的总统高级顾问兼助理评述已卸任的总统首席医疗顾问的工作。"
+      "description_zh": "特朗普白宫的总统高级顾问兼助理评述已卸任的总统首席医疗顾问的工作。",
+      "title_zh": "为什么福奇必须把牢底坐穿"
     },
     "9798217113248": {
-      "description_zh": "在《Dragonborn》的这部续集中，亚历克斯（Alex）与朋友们踏上危险旅程，阻止德拉克·米德纳（Drak Midna）杀光所有人类的阴谋。（适读年龄：8 至 12 岁）"
+      "description_zh": "在《Dragonborn》的这部续集中，亚历克斯（Alex）与朋友们踏上危险旅程，阻止德拉克·米德纳（Drak Midna）杀光所有人类的阴谋。（适读年龄：8 至 12 岁）",
+      "title_zh": "龙裔：暮光之子"
     },
     "9781546185949": {
-      "description_zh": "基蒂（Kitty）觉得自己活在马克斯（Max）以前养的猫利科里斯（Licorice）的阴影中。（适读年龄：8 至 12 岁）"
+      "description_zh": "基蒂（Kitty）觉得自己活在马克斯（Max）以前养的猫利科里斯（Licorice）的阴影中。（适读年龄：8 至 12 岁）",
+      "title_zh": "利科里斯"
     }
   }
 }
