@@ -303,6 +303,9 @@ def _extract_field_content(text: str, field_type: str) -> str:
     return text[start_pos:end_pos].strip()
 
 
+_TITLE_TRANSLATOR_SUFFIX = re.compile(r'\s+[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译\s*$')
+
+
 def _clean_title_text(text: str) -> str:
     """清理书名中混入的作者名、描述等多余内容
 
@@ -335,7 +338,8 @@ def _clean_title_text(text: str) -> str:
             return candidates[0]
 
     text_flat = text.replace('\n', ' ').strip()
-    text_flat = re.sub(r'\s+[\u4e00-\u9fff]{1,4}(?:·[\u4e00-\u9fff]{1,4})*译?\s*$', '', text_flat).strip()
+    # 仅凭空格不能判断是署名；“Bravo 剪贴簿”等合法书名也包含短中文词。
+    text_flat = _TITLE_TRANSLATOR_SUFFIX.sub('', text_flat).strip()
 
     desc_match = re.search(r'[。，；](?:这本书|作者|该书|本书)', text_flat)
     if desc_match and desc_match.start() > 2:
@@ -391,7 +395,9 @@ def clean_translation_text(text: str | None, field_type: str = 'text') -> str | 
     text = _strip_markdown(text)
     # 清除残留的单个星号（兜底）
     text = text.replace('*', '')
-    # 清除末尾的"译"字后缀（GLM模型翻译标记残留，如"希望升起译"）
+    if field_type == 'title':
+        text = _TITLE_TRANSLATOR_SUFFIX.sub('', text).strip()
+    # 保留清理书名号前的顺序，避免将《口译》内的“译”当成模型标记。
     text = re.sub(r'[\s]*译$', '', text)
     text = re.sub(r'[\s]*\[译\]$', '', text)
     text = re.sub(r'[\s]*\(译\)$', '', text)

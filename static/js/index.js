@@ -285,11 +285,19 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 const _memoryCategoryCache = new Map();
 
+function hasTranslatedCategoryTitles(books) {
+    return Array.isArray(books) && books.every(book =>
+        book && typeof book.title_zh === 'string' && book.title_zh.trim().length > 0
+    );
+}
+
 const categoryCache = {
     get: function(category) {
         // 1) 内存热层（本次会话）
         if (_memoryCategoryCache.has(category)) {
-            return _memoryCategoryCache.get(category);
+            const cached = _memoryCategoryCache.get(category);
+            if (hasTranslatedCategoryTitles(cached.books)) return cached;
+            _memoryCategoryCache.delete(category);
         }
         // 2) localStorage 持久层（24h 跨会话）
         try {
@@ -299,7 +307,8 @@ const categoryCache = {
                 const parsed = JSON.parse(data);
                 const hasMetadata = ['updateTime', 'updateFrequency', 'listPublishedDate']
                     .every(field => Object.prototype.hasOwnProperty.call(parsed, field));
-                if (Date.now() - parsed.timestamp < 86400000 && Array.isArray(parsed.books) && hasMetadata) {
+                // 缺译数据下次访问时重取，避免 24h 旧缓存盖过服务端新补齐的书名。
+                if (Date.now() - parsed.timestamp < 86400000 && hasTranslatedCategoryTitles(parsed.books) && hasMetadata) {
                     // 命中后回填内存热层，下次切换瞬时
                     _memoryCategoryCache.set(category, parsed);
                     return parsed;

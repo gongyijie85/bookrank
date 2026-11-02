@@ -19,7 +19,7 @@ function renderer(view, overrides = {}) {
     );
     const context = vm.createContext({
         console,
-        localStorage: { getItem: () => 'en' },
+        localStorage: overrides.localStorage || { getItem: () => 'en' },
         window: {
             APP_CONFIG: appConfig,
             addEventListener(type, fn) { this['_on' + type] = fn; },
@@ -296,11 +296,16 @@ for (const mode of ['search', 'cache', 'fetch']) {
         context.window.location.search = '?lang=en&view=compact&search=rain&page=3';
         let destination = '';
         context.window.history = { pushState(_state, _title, url) { destination = url; } };
-        context.fetch = async () => ({ ok: true, json: async () => ({ success: true, data: { books: [], update_time: null, update_frequency: 'weekly', list_published_date: null } }) });
+        let requests = 0;
+        context.fetch = async () => {
+            requests++;
+            return { ok: true, json: async () => ({ success: true, data: { books: [], update_time: null, update_frequency: 'weekly', list_published_date: null } }) };
+        };
         if (mode === 'cache') {
-            vm.runInContext("categoryCache.set('business-books', [{ title: 'Cached book', author: 'Writer' }], null, 'weekly', null)", context);
+            vm.runInContext("categoryCache.set('business-books', [{ title: 'Cached book', title_zh: '缓存图书', author: 'Writer' }], null, 'weekly', null)", context);
         }
         await context.changeCategory('business-books');
+        assert.equal(requests, mode === 'fetch' ? 1 : 0, mode + ': request count confirms the intended navigation path');
         const url = new URL(context.window.location.href || destination, 'https://bookrank.example');
         assert.equal(url.searchParams.get('category'), 'business-books', mode);
         assert.equal(url.searchParams.get('lang'), 'en', mode);
@@ -326,6 +331,104 @@ function browserHistory(context, search) {
     return pushes;
 }
 
+function categoryTitlePage(cachedBooks, lang = 'zh') {
+    const storage = new Map([['app_language', lang]]);
+    for (const [category, books] of Object.entries(cachedBooks)) {
+        storage.set('bookrank_category_' + category, JSON.stringify({
+            timestamp: Date.now(), books,
+            updateTime: null, updateFrequency: 'weekly', listPublishedDate: null,
+        }));
+    }
+    const a = isbnBook({ title: 'A ORIGINAL', title_zh: '甲书新译名' });
+    const b = isbnBook({ title: 'B ORIGINAL', title_zh: '乙书新译名', isbn13: '9780000000002' });
+    const page = renderer('books-grid', {
+        initialBooks: [a],
+        localStorage: {
+            getItem: key => storage.get(key) ?? null,
+            setItem: (key, value) => storage.set(key, value),
+            removeItem: key => storage.delete(key),
+        },
+    });
+    browserHistory(page.context, '?category=hardcover-fiction&lang=' + lang);
+    page.context.window.currentCategory = 'hardcover-fiction';
+    const requests = [];
+    page.context.fetch = async url => {
+        const category = new URL(url, 'https://bookrank.example').searchParams.get('category');
+        requests.push(category);
+        const books = category === 'hardcover-fiction' ? [a] : [b];
+        return { ok: true, json: async () => ({ success: true, data: {
+            books, update_time: null, update_frequency: 'weekly', list_published_date: null,
+        } }) };
+    };
+    return { ...page, requests, a, b };
+}
+
+test('returning from category B cannot replace translated SSR A with an old untranslated cache', async () => {
+    const { context, container, requests } = categoryTitlePage({
+        'hardcover-fiction': [isbnBook({ title: 'A ORIGINAL', title_zh: null })],
+        'business-books': [isbnBook({ title: 'B ORIGINAL', title_zh: '乙书新译名' })],
+    });
+    context.rerenderCurrentBooks('zh');
+    assert.match(container.innerHTML, /<h3[^>]*>甲书新译名<\/h3>/);
+    await context.changeCategory('business-books');
+    assert.match(container.innerHTML, /<h3[^>]*>乙书新译名<\/h3>/);
+    await context.changeCategory('hardcover-fiction');
+    assert.match(container.innerHTML, /<h3[^>]*>甲书新译名<\/h3>/);
+    assert.deepEqual(requests, ['hardcover-fiction']);
+    for (const [language, expected] of [['en', 'A ORIGINAL'], ['zh', '甲书新译名'], ['en', 'A ORIGINAL']]) {
+        context.window._onlanguagechange({ detail: { language } });
+        assert.match(container.innerHTML, new RegExp('<h3[^>]*>' + expected + '</h3>'));
+    }
+});
+
+for (const lang of ['zh', 'en']) {
+    for (const title of [null, '   ']) {
+        test(`old category B cache with ${JSON.stringify(title)} translation fetches current bilingual titles in ${lang}`, async () => {
+            const { context, container, requests } = categoryTitlePage({
+                'business-books': [isbnBook({ title: 'B ORIGINAL', title_zh: title })],
+            }, lang);
+            await context.changeCategory('business-books');
+            assert.deepEqual(requests, ['business-books']);
+            assert.match(container.innerHTML, new RegExp('<h3[^>]*>' + (lang === 'zh' ? '乙书新译名' : 'B ORIGINAL') + '</h3>'));
+            context.window._onlanguagechange({ detail: { language: 'zh' } });
+            assert.match(container.innerHTML, /<h3[^>]*>乙书新译名<\/h3>/);
+            context.window._onlanguagechange({ detail: { language: 'en' } });
+            assert.match(container.innerHTML, /<h3[^>]*>B ORIGINAL<\/h3>/);
+            context.window._onlanguagechange({ detail: { language: 'zh' } });
+            assert.match(container.innerHTML, /<h3[^>]*>乙书新译名<\/h3>/);
+        });
+    }
+}
+
+test('an untranslated memory cache is refreshed before rendering a category', async () => {
+    const { context, container, requests } = categoryTitlePage({});
+    vm.runInContext("categoryCache.set('business-books', [{ title: 'B ORIGINAL', title_zh: null }], null, 'weekly', null)", context);
+    await context.changeCategory('business-books');
+    assert.deepEqual(requests, ['business-books']);
+    assert.match(container.innerHTML, /<h3[^>]*>乙书新译名<\/h3>/);
+});
+
+test('an English-only API response renders once and retries translation data on the next category visit', async () => {
+    const { context, container, a } = categoryTitlePage({});
+    let requests = 0;
+    context.fetch = async url => {
+        requests++;
+        const books = url.includes('business-books')
+            ? [isbnBook({ title: 'B ORIGINAL', title_zh: null })]
+            : [a];
+        return { ok: true, json: async () => ({ success: true, data: {
+            books, update_time: null, update_frequency: 'weekly', list_published_date: null,
+        } }) };
+    };
+    await context.changeCategory('business-books');
+    assert.equal(requests, 1, 'missing translations must not trigger an immediate request loop');
+    assert.match(container.innerHTML, /<h3[^>]*>B ORIGINAL<\/h3>/);
+    await context.changeCategory('hardcover-fiction');
+    await context.changeCategory('business-books');
+    assert.equal(requests, 3, 'revisiting a category must retry its untranslated cached data');
+    assert.match(container.innerHTML, /<h3[^>]*>B ORIGINAL<\/h3>/);
+});
+
 function renderedDetailUrl(container) {
     const link = container.innerHTML.match(/<a class="card-link" href="([^"]+)"/);
     assert.ok(link, 'the actual dynamic card must contain its native detail link');
@@ -337,14 +440,19 @@ for (const mode of ['cache', 'fetch']) {
         test(`dynamic ${mode} cards return to the selected category from ${search}`, async () => {
             const { context, container } = renderer('books-grid');
             const pushes = browserHistory(context, search);
-            const books = [isbnBook({ title: 'ATOMIC HABITS' })];
-            context.fetch = async () => ({ ok: true, json: async () => ({ success: true, data: { books } }) });
+            const books = [isbnBook({ title: 'ATOMIC HABITS', title_zh: '原子习惯' })];
+            let requests = 0;
+            context.fetch = async () => {
+                requests++;
+                return { ok: true, json: async () => ({ success: true, data: { books } }) };
+            };
             if (mode === 'cache') {
                 context.cachedBooks = books;
                 vm.runInContext("categoryCache.set('business-books', cachedBooks, null, 'weekly', null)", context);
             }
 
             await context.changeCategory('business-books');
+            assert.equal(requests, mode === 'cache' ? 0 : 1, mode + ': request count confirms the intended card-render path');
 
             const detail = renderedDetailUrl(container);
             const back = new URL(detail.searchParams.get('return_to'), 'https://bookrank.example');

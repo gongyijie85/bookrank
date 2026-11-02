@@ -392,6 +392,10 @@ class TestCleanTitleText:
         result = _clean_title_text('书名 张三译')
         assert '张三译' not in result
 
+    @pytest.mark.parametrize('title', ['安迪的 Bravo 剪贴簿', 'AI 创作指南'])
+    def test_keeps_chinese_title_words_after_spaces(self, title):
+        assert _clean_title_text(title) == title
+
     def test_description_truncation(self):
         result = _clean_title_text('书名是一本非常好的长书名。这本书很好看值得推荐')
         assert '这本书' not in result
@@ -435,6 +439,13 @@ class TestStripMarkdown:
 
 
 class TestCleanTranslationTextExtended:
+    @pytest.mark.parametrize('title', ['口译', '文学翻译'])
+    def test_keeps_yi_inside_title_brackets(self, title):
+        assert clean_translation_text(f'《{title}》', field_type='title') == title
+
+    def test_title_removes_explicit_translator_suffix(self):
+        assert clean_translation_text('书名 张三译', field_type='title') == '书名'
+
     def test_removes_translation_prefix(self):
         result = clean_translation_text('翻译：这是翻译结果')
         assert result == '这是翻译结果'
