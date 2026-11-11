@@ -1,0 +1,276 @@
+{
+  "source": "Hugging Face category API snapshot 2026-11-11",
+  "titles_are_reference_translations": true,
+  "books": [
+    {
+      "isbn": "9781639739134",
+      "category": "hardcover-fiction",
+      "title": "A COURT OF SPLINTERED HARMONY",
+      "author": "Sarah J. Maas",
+      "description": "The sixth book in the \"Court of Thorns and Roses\" series. Former alliances must be restored to fight the threat of Koschei the Deathless.",
+      "expected_title_zh": "破碎和谐之庭",
+      "expected_description_zh": "《荆棘与玫瑰之庭》系列第六部。为了对抗不死者科谢伊的威胁，昔日盟友必须重建联盟。"
+    },
+    {
+      "isbn": "9780316563857",
+      "category": "hardcover-fiction",
+      "title": "THE HOLLOW",
+      "author": "Michael Connelly",
+      "description": "The 21st book in the Harry Bosch series. Bosch investigates the facility where he was a ward of the state in his youth.",
+      "expected_title_zh": "幽谷",
+      "expected_description_zh": "哈里·博斯系列第21部。博斯调查了他少年时受国家监护、被安置的机构。"
+    },
+    {
+      "isbn": "9780593978382",
+      "category": "hardcover-fiction",
+      "title": "PUBLIC ACCESS AFTERWORLD",
+      "author": "Jane Schoenbrun",
+      "description": "Surreal broadcasts from a pirate TV network affect outcasts across several decades.",
+      "expected_title_zh": "来世公共频道",
+      "expected_description_zh": "一家地下电视网播出的超现实节目，影响了跨越数十年的边缘人群。"
+    },
+    {
+      "isbn": "9781464223341",
+      "category": "trade-fiction-paperback",
+      "title": "THE KEEPER",
+      "author": "Ana Huang",
+      "description": "The third book in the Gods of the Game series. Carina Vu becomes a nanny to the daughter of a goalkeeper who is also a single dad.",
+      "expected_title_zh": "守门人",
+      "expected_description_zh": "《球场之神》系列第三部。卡丽娜·武成为一名守门员女儿的保姆；这位守门员也是一名单亲父亲。"
+    },
+    {
+      "isbn": "9781464246937",
+      "category": "trade-fiction-paperback",
+      "title": "CHRISTMAS STAYCATION",
+      "author": "Meghan Quinn",
+      "description": "The third book in the \"How My Neighbor Stole Christmas\" series. Taran is caught between brothers this holiday season.",
+      "expected_title_zh": "留家过圣诞",
+      "expected_description_zh": "《邻居如何偷走圣诞节》系列第三部。这个假日季，塔兰陷入一对兄弟之间的纠葛。"
+    },
+    {
+      "isbn": "9781635575583",
+      "category": "trade-fiction-paperback",
+      "title": "A COURT OF MIST AND FURY",
+      "author": "Sarah J. Maas",
+      "description": "The second book in the \"Court of Thorns and Roses\" series. Feyre gains the powers of the High Fae and a greater evil emerges.",
+      "expected_title_zh": "雾与怒之庭",
+      "expected_description_zh": "《荆棘与玫瑰之庭》系列第二部。费耶获得高等仙灵的力量，更大的邪恶随之出现。"
+    },
+    {
+      "isbn": "9781635577020",
+      "category": "trade-fiction-paperback",
+      "title": "HOUSE OF EARTH AND BLOOD",
+      "author": "Sarah J. Maas",
+      "description": "Passion arises between Bryce Quinlan and Hunt Athalar as they seek to avenge the deaths of Bryce’s friends.",
+      "expected_title_zh": "大地与鲜血之屋",
+      "expected_description_zh": "布莱丝·昆兰与亨特·阿萨拉尔为给布莱丝死去的朋友复仇而携手，彼此之间萌生爱意。"
+    },
+    {
+      "isbn": "9781635577990",
+      "category": "trade-fiction-paperback",
+      "title": "A COURT OF SILVER FLAMES",
+      "author": "Sarah J. Maas",
+      "description": "The fifth book in the \"Court of Thorns and Roses\" series. Nesta Archeron is forced into close quarters with a warrior named Cassian.",
+      "expected_title_zh": "银焰之庭",
+      "expected_description_zh": "《荆棘与玫瑰之庭》系列第五部。内丝塔·阿切伦被迫与名叫卡西安的战士近距离相处。"
+    },
+    {
+      "isbn": "9781335004093",
+      "category": "trade-fiction-paperback",
+      "title": "HEATED RIVALRY",
+      "author": "Rachel Reid",
+      "description": "The second book in the Game Changers series. Rival captains of two hockey teams try to keep their relationship out of the spotlight; the basis of the TV series.",
+      "expected_title_zh": "炽热对决",
+      "expected_description_zh": "《游戏改变者》系列第二部。两支冰球队的对手队长试图让他们的关系远离公众视线；本书是相关电视剧的原作。"
+    },
+    {
+      "isbn": "9781635575606",
+      "category": "trade-fiction-paperback",
+      "title": "A COURT OF WINGS AND RUIN",
+      "author": "Sarah J. Maas",
+      "description": "The third book in the \"Court of Thorns and Roses\" series. As war approaches, Feyre endeavors to take charge of her magical and political powers.",
+      "expected_title_zh": "羽翼与毁灭之庭",
+      "expected_description_zh": "《荆棘与玫瑰之庭》系列第三部。战事将近，费耶努力掌控自己的魔法力量与政治权力。"
+    },
+    {
+      "isbn": "9781250457899",
+      "category": "hardcover-nonfiction",
+      "title": "AND I WILL TELL YOU MINE",
+      "author": "Sophia Bush",
+      "description": "The actress, activist and host of the \"Work in Progress With Sophia Bush\" podcast shares stories from her life and career.",
+      "expected_title_zh": "我也会告诉你我的故事",
+      "expected_description_zh": "演员、活动人士兼播客“Work in Progress With Sophia Bush”主持人讲述自己生活和职业生涯中的故事。"
+    },
+    {
+      "isbn": "9781668095324",
+      "category": "hardcover-nonfiction",
+      "title": "PRINCES AND THIEVES",
+      "author": "Matthew Cole",
+      "description": "An account of the financial and political alliances between Jared Kushner, Erik Prince, Mohammed bin Zayed and Mohammed bin Salman.",
+      "expected_title_zh": "王子与窃贼",
+      "expected_description_zh": "讲述贾里德·库什纳、埃里克·普林斯、穆罕默德·本·扎耶德和穆罕默德·本·萨勒曼之间的金融与政治联盟。"
+    },
+    {
+      "isbn": "9798217208692",
+      "category": "hardcover-nonfiction",
+      "title": "ABANDONING A CAT",
+      "author": "Haruki Murakami",
+      "description": "Murakami reflects on his relationship with his father, from whom he had been estranged for 20 years; translated by Philip Gabriel.",
+      "expected_title_zh": "弃猫",
+      "expected_description_zh": "村上春树回顾自己与父亲的关系；两人曾疏远20年。英文译者为菲利普·加布里埃尔。"
+    },
+    {
+      "isbn": "9781250344489",
+      "category": "paperback-nonfiction-monthly",
+      "title": "FAMILY OF SPIES",
+      "author": "Christine Kuehn",
+      "description": "The story of a family that worked as Japanese and Nazi spies during World War II.",
+      "expected_title_zh": "间谍家族",
+      "expected_description_zh": "讲述二战期间一个为日本和纳粹从事间谍活动的家庭的故事。"
+    },
+    {
+      "isbn": "9780525431992",
+      "category": "paperback-nonfiction-monthly",
+      "title": "BAD BLOOD",
+      "author": "John Carreyrou",
+      "description": "The rise and fall of Theranos, the biotech startup that failed to deliver on its promise to make blood testing more efficient.",
+      "expected_title_zh": "坏血",
+      "expected_description_zh": "讲述生物科技初创公司 Theranos 的兴衰；该公司未能兑现提高血液检测效率的承诺。"
+    },
+    {
+      "isbn": "9781668094723",
+      "category": "paperback-nonfiction-monthly",
+      "title": "MOTHER MARY COMES TO ME",
+      "author": "Arundhati Roy",
+      "description": "The author of “The Ministry of Utmost Happiness” ruminates on her relationship with her late mother.",
+      "expected_title_zh": "母亲玛丽向我走来",
+      "expected_description_zh": "《极乐之邦》（The Ministry of Utmost Happiness）的作者回顾自己与已故母亲的关系。"
+    },
+    {
+      "isbn": "9781250866455",
+      "category": "paperback-nonfiction-monthly",
+      "title": "FRIENDS, LOVERS, AND THE BIG TERRIBLE THING",
+      "author": "Matthew Perry",
+      "description": "The late actor, known for playing Chandler Bing on “Friends,” shares stories from his childhood and his struggles with sobriety.",
+      "expected_title_zh": "朋友、爱人和那件可怕的大事",
+      "expected_description_zh": "因在《老友记》中饰演钱德勒·宾而闻名的已故演员，讲述童年经历及为保持清醒而奋斗的故事。"
+    },
+    {
+      "isbn": "9781538768471",
+      "category": "paperback-nonfiction-monthly",
+      "title": "BIG DUMB EYES",
+      "author": "Nate Bargatze",
+      "description": "The Grammy Award-winning comedian shares snippets from his life and career.",
+      "expected_title_zh": "又大又呆的眼睛",
+      "expected_description_zh": "格莱美奖得主、喜剧演员分享自己生活和职业经历中的片段。"
+    },
+    {
+      "isbn": "9781464246029",
+      "category": "childrens-middle-grade-hardcover",
+      "title": "THIS IS A DOOR",
+      "author": "Daniel Nayeri",
+      "description": "A boy named Nothing the Younger and his friends accompany the Wander Prince on an adventure to defeat the Giantess. (Ages 8 to 12)",
+      "expected_title_zh": "这是一扇门",
+      "expected_description_zh": "名叫“小无名”（Nothing the Younger）的男孩和朋友们陪伴流浪王子踏上冒险，打败女巨人。（适读年龄：8至12岁）"
+    },
+    {
+      "isbn": "9781492664352",
+      "category": "picture-books",
+      "title": "HOW TO CATCH A TURKEY",
+      "author": "Adam Wallace",
+      "description": "Students try to catch a runaway turkey before their Thanksgiving play. (Ages 4 to 8)",
+      "expected_title_zh": "如何抓住一只火鸡",
+      "expected_description_zh": "感恩节演出前，学生们试图抓住一只逃跑的火鸡。（适读年龄：4至8岁）"
+    },
+    {
+      "isbn": "9780062024701",
+      "category": "series-books",
+      "title": "WILDWOOD CHRONICLES",
+      "author": "Colin Meloy",
+      "description": "Prue McKeel and Curtis Mehlberg’s adventures in the Impassable Wilderness. The basis for the movie \"Wildwood.\" (Ages 8 and up)",
+      "expected_title_zh": "荒林纪事",
+      "expected_description_zh": "普鲁·麦基尔和柯蒂斯·梅尔伯格在不可通行荒野中的冒险；本书是电影《Wildwood》的原作。（适读年龄：8岁及以上）"
+    },
+    {
+      "isbn": "9780593971536",
+      "category": "advice-how-to-and-miscellaneous",
+      "title": "SIMPLE KITCHEN MAGIC",
+      "author": "Rebekah Moyer",
+      "description": "",
+      "expected_title_zh": "简单的厨房魔法",
+      "expected_description_zh": null
+    },
+    {
+      "isbn": "9798217035366",
+      "category": "advice-how-to-and-miscellaneous",
+      "title": "COFFEE, FOR HERE",
+      "author": "Morgan Eckroth",
+      "description": "",
+      "expected_title_zh": "咖啡，在这里喝",
+      "expected_description_zh": null
+    },
+    {
+      "isbn": "9781636415789",
+      "category": "advice-how-to-and-miscellaneous",
+      "title": "THE STONES CRY OUT",
+      "author": "Dinesh D'Souza",
+      "description": "",
+      "expected_title_zh": "石头发出呼喊",
+      "expected_description_zh": null
+    },
+    {
+      "isbn": "9781638494812",
+      "category": "graphic-books-and-manga",
+      "title": "DUNGEON CRAWLER CARL, VOL. 2",
+      "author": "Tevagah",
+      "description": "Difficult characters might make it tricky for Carl and Princess Donut to get to the second floor.",
+      "expected_title_zh": "地牢爬行者卡尔：第2卷",
+      "expected_description_zh": "棘手的人物可能会让卡尔和甜甜圈公主难以抵达第二层。"
+    },
+    {
+      "isbn": "9781974766512",
+      "category": "graphic-books-and-manga",
+      "title": "CHAINSAW MAN, VOL. 22",
+      "author": "Tatsuki Fujimoto",
+      "description": "Denji and Yoru take a breather as the truth about Fami being the Death Devil becomes known.",
+      "expected_title_zh": "电锯人：第22卷",
+      "expected_description_zh": "当法米（Fami）是死亡恶魔的真相逐渐为人所知时，电次和夜（Yoru）得以喘口气。"
+    },
+    {
+      "isbn": "9781546135401",
+      "category": "graphic-books-and-manga",
+      "title": "BABY-SITTERS LITTLE SISTER: KAREN’S NEW YEAR",
+      "author": "Ann M. Martin",
+      "description": "Karen seems to be the only one keeping her New Year’s promises.",
+      "expected_title_zh": "保姆俱乐部的小妹妹：凯伦的新年",
+      "expected_description_zh": "凯伦似乎是唯一一个坚持履行新年承诺的人。"
+    },
+    {
+      "isbn": "9798217091218",
+      "category": "graphic-books-and-manga",
+      "title": "LORE OLYMPUS, VOL. 11",
+      "author": "Rachel Smythe",
+      "description": "In this final volume, Hades and Persephone fight to get back together and prevent Apollo from destroying the realms.",
+      "expected_title_zh": "奥林匹斯传说：第11卷",
+      "expected_description_zh": "在最终卷中，哈迪斯与珀耳塞福涅为重新团聚并阻止阿波罗毁灭各个领域而战斗。"
+    },
+    {
+      "isbn": "9798855437799",
+      "category": "graphic-books-and-manga",
+      "title": "THE SUMMER HIKARU DIED, VOL. 8",
+      "author": "Mokumokuren",
+      "description": "“Hikaru\" returns and presents a threat that forces Kurebayashi to make a tough decision; translated by Ajani Oloye.",
+      "expected_title_zh": "光死去的夏天：第8卷",
+      "expected_description_zh": "“光”归来，带来的威胁迫使暮林做出艰难决定；英文译者为阿贾尼·奥洛耶。"
+    },
+    {
+      "isbn": "9798855444209",
+      "category": "graphic-books-and-manga",
+      "title": "THE GUY SHE WAS INTERESTED IN WASN'T A GUY AT ALL, VOL. 4",
+      "author": "Sumiko Arai",
+      "description": "Mitsuki impulsively decides to go to the prom with Aya. Will there be something more between them after high school? Translated by Ajani Oloye.",
+      "expected_title_zh": "她感兴趣的人竟然不是男生：第4卷",
+      "expected_description_zh": "美月冲动地决定和阿雅一起参加毕业舞会。高中毕业后，她们之间会有进一步发展吗？英文译者为阿贾尼·奥洛耶。"
+    }
+  ]
+}

@@ -730,3 +730,63 @@ class TestCardShowsPlainIsbn:
 
         assert 'class="book-isbn"' in macro, 'new_book_card 宏丢失了明文 ISBN 段落（#248 曾删掉）'
         assert 'book.isbn13' in macro and 'book.isbn10' in macro, '宏里应同时覆盖 ISBN-13 与回退的 ISBN-10'
+
+
+MISSING_RANKING_20261111 = json.loads(
+    (Path(__file__).resolve().parent / 'fixtures' / 'ranking-missing-translations-20261111.json').read_text(
+        encoding='utf-8'
+    )
+)['books']
+
+
+@pytest.mark.parametrize('record', MISSING_RANKING_20261111, ids=lambda record: record['isbn'])
+@pytest.mark.parametrize('mobile', [False, True], ids=['desktop', 'mobile'])
+def test_november_snapshot_translations_render_by_isbn(client, book_service, db, record, mobile):
+    book = _make_book(
+        id=record['isbn'],
+        isbn13=record['isbn'],
+        category_id=record['category'],
+        title=record['title'],
+        author=record['author'],
+        description=record['description'],
+    )
+    BookLanguagePack(CSS_DIR.parent / 'data' / 'book_language_pack.zh.json').hydrate_books([book])
+    assert book.title_zh == record['expected_title_zh']
+    assert book.description_zh == record['expected_description_zh']
+    book_service([book])
+    user_agent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile' if mobile else 'Mozilla/5.0'
+    response = client.get(f'/?category={record["category"]}&lang=zh', headers={'User-Agent': user_agent})
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+    assert (
+        soup.select_one('.m-book-title' if mobile else '.card-title').get_text(strip=True)
+        == record['expected_title_zh']
+    )
+    desc = soup.select_one('.m-book-card-desc' if mobile else '.card-desc')
+    if record['expected_description_zh']:
+        assert desc is not None
+        assert desc.get_text(strip=True).startswith(
+            record['expected_description_zh'][:80] if mobile else record['expected_description_zh']
+        )
+    else:
+        assert desc is None
+
+
+def test_homepage_marks_missing_description_for_translation(client, book_service):
+    book = _make_book(title_zh='已有书名', description='English summary', description_zh=None)
+    book_service([book])
+    response = client.get('/?category=hardcover-fiction&lang=zh')
+    card = BeautifulSoup(response.get_data(as_text=True), 'html.parser').select_one('article.card')
+    assert card is not None
+    assert card.get('data-needs-translation') == '1'
+
+
+def test_mobile_homepage_marks_untranslated_book_for_on_demand_translation(client, book_service):
+    book = _make_book(title='English title', title_zh=None, description='English summary', description_zh=None)
+    book_service([book])
+    user_agent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile'
+    response = client.get('/?category=hardcover-fiction&lang=zh', headers={'User-Agent': user_agent})
+    card = BeautifulSoup(response.get_data(as_text=True), 'html.parser').select_one('a.m-book-card')
+    assert card is not None
+    assert card.get('data-isbn') == book.isbn13
+    assert card.get('data-needs-translation') == '1'

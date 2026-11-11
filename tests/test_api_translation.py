@@ -262,3 +262,136 @@ class TestCacheAPI:
         """测试不带CSRF令牌清除缓存"""
         response = client.post('/api/cache/clear', json={})
         assert response.status_code in (200, 400, 403, 429)
+
+
+@pytest.mark.usefixtures('db')
+class TestBookTranslationFailureReporting:
+    def _setup(self, monkeypatch, source, translated):
+        from unittest.mock import Mock
+
+        book_service = Mock()
+        book_service.get_book_by_isbn.return_value = source
+        translator = Mock()
+        translator.translate_book_info.return_value = translated
+        monkeypatch.setattr('app.routes.api.translation.get_service', lambda name: book_service)
+        monkeypatch.setattr(
+            'app.services.award_book_service.AwardBookService.get_award_book_by_isbn',
+            lambda self, isbn: None,
+        )
+        monkeypatch.setattr(
+            'app.services.zhipu_translation_service.get_translation_service',
+            lambda: translator,
+        )
+        return book_service
+
+    def test_empty_translation_is_service_failure_and_is_not_saved(self, client, csrf_token, monkeypatch):
+        source = {'title': 'The Hollow', 'description': 'A detective investigates.', 'isbn13': '9780316563857'}
+        service = self._setup(monkeypatch, source, dict(source))
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 503
+        assert response.get_json()['success'] is False
+        service.save_book_translation.assert_not_called()
+
+    @pytest.mark.parametrize('invalid_value', [None, '   ', 123])
+    def test_invalid_translation_is_not_saved(self, client, csrf_token, monkeypatch, invalid_value):
+        source = {'title': 'The Hollow'}
+        service = self._setup(monkeypatch, source, {**source, 'title_zh': invalid_value})
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 503
+        service.save_book_translation.assert_not_called()
+
+    def test_existing_title_does_not_hide_failed_description_translation(self, client, csrf_token, monkeypatch):
+        source = {'title': 'The Hollow', 'title_zh': '幽谷', 'description': 'A detective investigates.'}
+        service = self._setup(monkeypatch, source, dict(source))
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 503
+        service.save_book_translation.assert_not_called()
+
+    def test_partial_translation_is_preserved_and_reports_remaining_fields(self, client, csrf_token, monkeypatch):
+        source = {'title': 'The Hollow', 'description': 'A detective investigates.'}
+        translated = {**source, 'title_zh': '幽谷'}
+        service = self._setup(monkeypatch, source, translated)
+        service.save_book_translation.return_value = True
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['book']['title_zh'] == '幽谷'
+        assert data['untranslated_fields'] == ['description_zh']
+        service.save_book_translation.assert_called_once()
+
+    def test_partial_translation_does_not_store_malformed_field(self, client, csrf_token, monkeypatch):
+        source = {'title': 'The Hollow', 'description': 'A detective investigates.'}
+        translated = {**source, 'title_zh': 123, 'description_zh': '侦探展开调查。'}
+        service = self._setup(monkeypatch, source, translated)
+        service.save_book_translation.return_value = True
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['book']['title_zh'] is None
+        assert data['untranslated_fields'] == ['title_zh']
+        assert service.save_book_translation.call_args.kwargs['title_zh'] is None
+
+    def test_existing_translation_is_not_overwritten_by_retry(self, client, csrf_token, monkeypatch):
+        source = {'title': 'The Hollow', 'title_zh': '已有书名', 'description': 'A detective investigates.'}
+        translated = {**source, 'title_zh': '错误替换', 'description_zh': '侦探展开调查。'}
+        service = self._setup(monkeypatch, source, translated)
+        service.save_book_translation.return_value = True
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 200
+        assert response.get_json()['data']['book']['title_zh'] == '已有书名'
+        assert service.save_book_translation.call_args.kwargs['title_zh'] is None
+
+    def test_failed_storage_does_not_claim_success(self, client, csrf_token, monkeypatch):
+        source = {'title': 'The Hollow', 'description': 'A detective investigates.'}
+        translated = {**source, 'title_zh': '幽谷', 'description_zh': '侦探展开调查。'}
+        service = self._setup(monkeypatch, source, translated)
+        service.save_book_translation.return_value = False
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 503
+        assert response.get_json()['success'] is False
+
+    def test_partial_retry_keeps_translation_already_in_metadata(self, db, client, csrf_token, monkeypatch):
+        from unittest.mock import Mock
+
+        from app.models.schemas import BookMetadata
+        from app.services.book_service import BookService
+
+        isbn = '9780316563857'
+        book_service = BookService(Mock(), Mock(), Mock(), Mock(), categories={'hardcover-fiction': '小说'})
+        book_service._isbn_index[isbn] = {
+            'isbn13': isbn,
+            'title': 'The Hollow',
+            'title_zh': None,
+            'description': 'A detective investigates.',
+        }
+        db.session.add(BookMetadata(isbn=isbn, title='The Hollow', author='Writer', title_zh='已有中文书名'))
+        db.session.commit()
+        translator = Mock()
+        translator.translate_book_info.side_effect = lambda book: {**book, 'description_zh': '侦探展开调查。'}
+        monkeypatch.setattr('app.routes.api.translation.get_service', lambda name: book_service)
+        monkeypatch.setattr(
+            'app.services.award_book_service.AwardBookService.get_award_book_by_isbn', lambda self, value: None
+        )
+        monkeypatch.setattr('app.services.zhipu_translation_service.get_translation_service', lambda: translator)
+
+        response = client.post(f'/api/translate/book/{isbn}', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 200
+        assert translator.translate_book_info.call_args.args[0]['title_zh'] == '已有中文书名'
+        metadata = db.session.get(BookMetadata, isbn)
+        assert metadata.title_zh == '已有中文书名'
+        assert metadata.description_zh == '侦探展开调查。'

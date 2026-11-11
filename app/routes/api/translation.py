@@ -105,25 +105,50 @@ def translate_book(isbn: str):
 
     service = get_translation_service()
     translated_data = service.translate_book_info(book_data)
-    if translated_data:
+    fields = (('title', 'title_zh'), ('description', 'description_zh'), ('details', 'details_zh'))
+
+    def has_text(value):
+        return isinstance(value, str) and bool(value.strip())
+
+    missing = [
+        target for source, target in fields if has_text(book_data.get(source)) and not has_text(book_data.get(target))
+    ]
+    if not isinstance(translated_data, dict):
+        return APIResponse.error('翻译服务暂时不可用', 503)
+    translated_data = dict(translated_data)
+    for _, target in fields:
+        if has_text(book_data.get(target)):
+            translated_data[target] = book_data[target]
+    untranslated = [field for field in missing if not has_text(translated_data.get(field))]
+    if missing and len(untranslated) == len(missing):
+        return APIResponse.error('翻译服务暂时不可用', 503)
+    for field in untranslated:
+        translated_data[field] = None
+
+    if missing:
         try:
+            saved = True
             if book_service:
-                book_service.save_book_translation(
+                saved = book_service.save_book_translation(
                     isbn=isbn,
-                    title_zh=translated_data.get('title_zh'),
-                    description_zh=translated_data.get('description_zh'),
-                    details_zh=translated_data.get('details_zh'),
+                    title_zh=translated_data.get('title_zh') if 'title_zh' in missing else None,
+                    description_zh=translated_data.get('description_zh') if 'description_zh' in missing else None,
+                    details_zh=translated_data.get('details_zh') if 'details_zh' in missing else None,
                 )
             if award_book:
-                award_book_service.save_award_book_translation(
+                saved_award = award_book_service.save_award_book_translation(
                     isbn=isbn,
-                    title_zh=translated_data.get('title_zh'),
-                    description_zh=translated_data.get('description_zh'),
+                    title_zh=translated_data.get('title_zh') if 'title_zh' in missing else None,
+                    description_zh=translated_data.get('description_zh') if 'description_zh' in missing else None,
                 )
+                saved = saved and saved_award
+            if not saved:
+                return APIResponse.error('译文保存失败，请稍后重试', 503)
         except Exception as e:
             log_error(ErrorCategory.TRANSLATION, f'翻译结果写入语言包失败 {isbn}: {e}', level='warning')
+            return APIResponse.error('译文保存失败，请稍后重试', 503)
 
-    return APIResponse.success(data={'book': translated_data})
+    return APIResponse.success(data={'book': translated_data, 'untranslated_fields': untranslated})
 
 
 @api_bp.route('/translate/cache/stats')
