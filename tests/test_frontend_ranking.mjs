@@ -349,11 +349,11 @@ function browserHistory(context, search) {
     return pushes;
 }
 
-function categoryTitlePage(cachedBooks, lang = 'zh') {
+function categoryTitlePage(cachedBooks, lang = 'zh', version = 2) {
     const storage = new Map([['app_language', lang]]);
     for (const [category, books] of Object.entries(cachedBooks)) {
         storage.set('bookrank_category_' + category, JSON.stringify({
-            timestamp: Date.now(), books,
+            version, timestamp: Date.now(), books,
             updateTime: null, updateFrequency: 'weekly', listPublishedDate: null,
         }));
     }
@@ -380,6 +380,23 @@ function categoryTitlePage(cachedBooks, lang = 'zh') {
     };
     return { ...page, requests, a, b };
 }
+
+test('old category cache cannot hide newly recovered Chinese descriptions', async () => {
+    const page = categoryTitlePage({
+        'business-books': [isbnBook({ title: 'B ORIGINAL', title_zh: '旧书名', description: '', description_zh: null })],
+    }, 'zh', 1);
+    let requests = 0;
+    page.context.fetch = async () => {
+        requests++;
+        return { ok: true, json: async () => ({ success: true, data: {
+            books: [isbnBook({ title: 'B ORIGINAL', title_zh: '新书名', description_zh: '新补充的中文简介。' })],
+            update_time: null, update_frequency: 'weekly', list_published_date: null,
+        } }) };
+    };
+    await page.context.changeCategory('business-books');
+    assert.equal(requests, 1);
+    assert.match(page.container.innerHTML, /<p class="card-desc">新补充的中文简介。<\/p>/);
+});
 
 test('returning from category B cannot replace translated SSR A with an old untranslated cache', async () => {
     const { context, container, requests } = categoryTitlePage({
