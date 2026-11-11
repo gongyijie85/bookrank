@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 
-from flask import Blueprint, current_app, request
+from flask import Blueprint, abort, current_app, request
 
 from ..services.award_book_service import AwardBookService
 from ..utils.api_helpers import APIResponse, rate_limit, validate_isbn
@@ -11,6 +11,12 @@ from ..utils.service_helpers import get_new_book_modules, get_service
 public_api_bp = Blueprint('public_api', __name__, url_prefix='/api/public')
 
 _award_service = AwardBookService()
+
+
+@public_api_bp.before_request
+def _require_public_api_enabled():
+    if not current_app.config.get('PUBLIC_API_ENABLED', False):
+        abort(404)
 
 
 @public_api_bp.route('/bestsellers')

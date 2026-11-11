@@ -74,6 +74,7 @@ class Config:
 
     API_RATE_LIMIT: int = int(os.environ.get('API_RATE_LIMIT', 100))
     API_RATE_LIMIT_WINDOW: int = int(os.environ.get('API_RATE_LIMIT_WINDOW', 60))
+    PUBLIC_API_ENABLED: bool = os.environ.get('PUBLIC_API_ENABLED', 'false').strip().lower() in ('1', 'true', 'yes')
     CRON_RATE_LIMIT: int = int(os.environ.get('CRON_RATE_LIMIT', 20))
     CRON_RATE_LIMIT_WINDOW: int = int(os.environ.get('CRON_RATE_LIMIT_WINDOW', 60))
 
@@ -308,6 +309,7 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED: bool = False
     SESSION_COOKIE_SECURE: bool = False
     API_RATE_LIMIT: int = 10000
+    PUBLIC_API_ENABLED: bool = True
     # 翻译：测试固定走智谱 GLM（合并 JSON 路径稳定），不受线上默认 provider 影响；
     # 模型名不在此固定，由服务按 provider 决定（zhipu→ZHIPU_TRANSLATION_MODEL）
     TRANSLATION_PROVIDER: str = 'zhipu'

@@ -157,7 +157,7 @@
     <div class="m-related-books-scroll no-scrollbar">
         {% for related in related_books %}
         {% set related_title = related.title_zh|bilingual(related.title) %}
-        <a href="{{ url_for('main.award_book_detail', book_id=related.id, lang=get_locale(), return_to=request.full_path) }}" class="m-related-book-card">
+        <a href="{{ url_for('main.award_book_detail', book_id=related.id, lang=get_locale(), return_to=request.path) }}" class="m-related-book-card">
             <div class="m-related-book-cover">
                 <img src="{{ related.cover_url|cover_src_or_default }}"
                      alt="{{ related_title }}" loading="lazy"
