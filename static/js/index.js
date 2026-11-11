@@ -1016,12 +1016,27 @@ function initOnDemandTranslation() {
                 next();
                 return;
             }
+            requestCard(card, isbn, 0);
+        }
+
+        function requestCard(card, isbn, attempt) {
+            if (card.isConnected === false) {
+                done += 1;
+                paint();
+                next();
+                return;
+            }
             fetch('/api/translate/book/' + encodeURIComponent(isbn), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
             })
                 .then(function (resp) {
+                    if (resp.status === 503 && attempt === 0) {
+                        // A busy model may recover; wait in the browser instead of blocking a server thread.
+                        setTimeout(function () { requestCard(card, isbn, 1); }, 20000);
+                        return null;
+                    }
                     if (!resp.ok) {
                         // 翻译服务不可用（key 未配/限流）：停掉后续请求
                         if (resp.status === 401 || resp.status === 500 || resp.status === 503 || resp.status === 429) stopped = true;
@@ -1030,6 +1045,7 @@ function initOnDemandTranslation() {
                     return resp.json();
                 })
                 .then(function (result) {
+                    if (result === null) return;
                     var book = result && result.data && result.data.book;
                     if (book) {
                         applyCardTranslation(card, book);

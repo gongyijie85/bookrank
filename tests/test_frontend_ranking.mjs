@@ -845,8 +845,10 @@ test('a book missing only its Chinese description remains eligible for translati
 });
 
 
-test('service unavailable stops the current batch without duplicate retry loops', async () => {
+test('service unavailable schedules one bounded delayed retry without duplicate loops', async () => {
     const page = translationLifecyclePage();
+    const retries = [];
+    page.context.setTimeout = (callback, delay) => delay === 20000 ? retries.push(callback) : callback();
     page.context.fetch = url => {
         page.requests.push(url.split('/').pop());
         return Promise.resolve({ ok: false, status: 503 });
@@ -855,7 +857,74 @@ test('service unavailable stops the current batch without duplicate retry loops'
     page.context.initOnDemandTranslation();
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(page.requests, [page.first.isbn13]);
+    assert.equal(retries.length, 1);
+    retries[0]();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13, page.first.isbn13]);
+    assert.equal(retries.length, 1);
     assert.equal(page.cards[0].needsTranslation, true);
+});
+
+test('translation continues when a delayed retry succeeds', async () => {
+    const page = translationLifecyclePage();
+    const retries = [];
+    page.context.setTimeout = (callback, delay) => delay === 20000 ? retries.push(callback) : callback();
+    page.context.fetch = url => {
+        page.requests.push(url.split('/').pop());
+        if (page.requests.length === 1) return Promise.resolve({ ok: false, status: 503 });
+        return Promise.resolve({ ok: true, json: async () => ({
+            success: true, data: { book: { title_zh: '恢复的书名', description_zh: '恢复的简介' } },
+        }) });
+    };
+    page.start();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(retries.length, 1);
+    retries[0]();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13, page.first.isbn13]);
+    assert.equal(page.cards[0].desc.textContent, '恢复的简介');
+});
+
+for (const status of [401, 429, 500]) {
+    test(`translation status ${status} does not schedule a delayed retry`, async () => {
+        const page = translationLifecyclePage();
+        const retries = [];
+        page.context.setTimeout = (callback, delay) => delay === 20000 ? retries.push(callback) : callback();
+        page.context.fetch = url => {
+            page.requests.push(url.split('/').pop());
+            return Promise.resolve({ ok: false, status });
+        };
+        page.start();
+        await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(page.requests, [page.first.isbn13]);
+        assert.equal(retries.length, 0);
+    });
+}
+
+test('a delayed retry skips a card removed during category switching', async () => {
+    const page = translationLifecyclePage();
+    const retries = [];
+    page.context.setTimeout = (callback, delay) => delay === 20000 ? retries.push(callback) : callback();
+    page.context.fetch = url => {
+        if (url.startsWith('/api/category-books?')) {
+            return Promise.resolve({ ok: true, json: async () => ({ success: true, data: {
+                books: [page.second], update_time: null, update_frequency: 'weekly', list_published_date: null,
+            } }) });
+        }
+        const isbn = url.split('/').pop();
+        page.requests.push(isbn);
+        if (isbn === page.first.isbn13) return Promise.resolve({ ok: false, status: 503 });
+        return Promise.resolve({ ok: true, json: async () => ({
+            success: true, data: { book: { title_zh: '第二本', description_zh: '第二本简介' } },
+        }) });
+    };
+    page.start();
+    await new Promise(resolve => setImmediate(resolve));
+    await page.context.changeCategory('business-books');
+    retries[0]();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13, page.second.isbn13]);
+    assert.equal(page.cards[0].desc.textContent, '第二本简介');
 });
 
 test('partial result preserves the pending description without an immediate retry', async () => {
