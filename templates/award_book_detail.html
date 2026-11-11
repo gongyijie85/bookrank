@@ -260,7 +260,7 @@ body.detail-page .main-content {
         {% set related_title_en = related.title %}
         {% set related_title_zh = related.title_zh or related.title %}
         {% set related_title_shown = related_title_zh|bilingual(related_title_en) %}
-        <a href="{{ url_for('main.award_book_detail', book_id=related.id, lang=get_locale(), return_to=request.full_path) }}" class="related-book-card">
+        <a href="{{ url_for('main.award_book_detail', book_id=related.id, lang=get_locale(), return_to=request.path) }}" class="related-book-card">
             <div class="related-book-cover">
                 {% if related.cover_url %}
                 <img src="{{ related.cover_url|cover_src_or_default }}" alt="{{ related_title_shown }}" loading="lazy"

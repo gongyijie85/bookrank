@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 from flask import (
     Blueprint,
@@ -19,6 +20,7 @@ from flask import (
     url_for,
 )
 from flask_babel import get_locale
+from markupsafe import escape
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
@@ -45,6 +47,7 @@ from ..utils.cover_urls import cached_filename_from_path, is_allowed_cover_host
 from ..utils.date_helpers import parse_report_content, validate_date
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.ranking import classify_listing
+from ..utils.rate_limiter import get_rate_limiter
 from ..utils.security import is_safe_redirect_url, safe_return_path
 from ..utils.template_resolver import render_adaptive
 from ..utils.weekly_report_presentation import prepare_report_presentation
@@ -79,6 +82,33 @@ _READER_SESSION_ENDPOINTS = frozenset(
         'main.rankings',
     }
 )
+_TRAFFIC_GUARDED_ENDPOINTS = _READER_SESSION_ENDPOINTS | {'main.book_details_api', 'main.api_category_books'}
+
+
+@main_bp.before_request
+def _limit_reader_page_traffic() -> Response | None:
+    """限制单个访客的 HTML 页面访问频率，避免爬虫持续下载整页。"""
+    if (
+        current_app.testing
+        or request.method not in ('GET', 'HEAD')
+        or request.endpoint not in _TRAFFIC_GUARDED_ENDPOINTS
+    ):
+        return None
+    client_ip = request.remote_addr or 'unknown'
+    try:
+        if not ipaddress.ip_address(client_ip).is_global:
+            return None
+    except ValueError:
+        return None
+    limiter = get_rate_limiter(max_requests=25, window_seconds=60)
+    if limiter.is_allowed(client_ip):
+        return None
+    retry_after = limiter.get_retry_after(client_ip)
+    logger.warning('Reader page rate limit exceeded: client_ip=%s endpoint=%s', client_ip, request.endpoint)
+    response = make_response('Too many requests', 429)
+    response.headers['Retry-After'] = str(retry_after)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @main_bp.before_request
@@ -92,6 +122,13 @@ def _ensure_reader_signed_session() -> None:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_ip_text(value: str | None) -> str:
+    try:
+        return ipaddress.ip_address((value or '').strip()).compressed
+    except ValueError:
+        return '-'
 
 
 def _get_list_published_date(books_data: list[dict]) -> str | None:
@@ -1076,6 +1113,8 @@ def favicon():
 @main_bp.route('/openapi.json')
 def openapi_spec():
     """机器可读 OpenAPI 3.1 规范（ROADMAP #1）"""
+    if not current_app.config.get('PUBLIC_API_ENABLED', False):
+        return Response(status=404)
     return send_from_directory(
         current_app.static_folder or current_app.root_path + '/static',
         'openapi.json',
@@ -1352,6 +1391,31 @@ def _parse_award_buy_links(raw: Any) -> list[dict[str, str]]:
 @main_bp.route('/award-book/<int:book_id>')
 def award_book_detail(book_id):
     """获奖图书详情（通过 Service 层）"""
+    raw_return = request.args.get('return_to', '')
+    try:
+        parsed_return = urlsplit(raw_return)
+        nested_award_return = bool(
+            re.fullmatch(r'/award-book/\d+', parsed_return.path)
+            and 'return_to' in parse_qs(parsed_return.query, keep_blank_values=True)
+        )
+    except ValueError:
+        nested_award_return = False
+    if nested_award_return:
+        forwarded = request.headers.get('X-Forwarded-For', '')[:1024].split(',')[-4:]
+        forwarded_ips = ','.join(ip for ip in (_safe_ip_text(value) for value in forwarded) if ip != '-') or '-'
+        logger.warning(
+            'Nested award-book return path: remote_ip=%s reported_cf_ip=%s reported_forwarded=%s',
+            _safe_ip_text(request.remote_addr),
+            _safe_ip_text(request.headers.get('CF-Connecting-IP')),
+            forwarded_ips,
+        )
+        lang = request.args.get('lang')
+        target = url_for('main.award_book_detail', book_id=book_id, lang=lang if lang in ('zh', 'en') else None)
+        response = make_response(f'<a href="{escape(target)}" rel="nofollow">查看图书 / View book</a>', 410)
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow'
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
     from ..models.schemas import AwardBook
     from ..services.award_book_service import AwardBookService
 

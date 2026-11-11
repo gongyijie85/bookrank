@@ -306,6 +306,9 @@ docker run -p 5000:5000 --env-file .env bookrank
 
 ## 公开API
 
+独立的 `/api/public` 接口默认关闭，以减少无关的外部调用；网站自身的接口仍可正常使用。
+如确需重新开放，可在部署环境设置 `PUBLIC_API_ENABLED=true`。
+
 完整 API 文档见 [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md)。
 
 ### API 端点结构
