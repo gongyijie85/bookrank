@@ -1419,6 +1419,18 @@ class TestBookService:
 
         assert SystemConfig.get_value('last_nyt_ranking_sync_time') is None
 
+    def test_isbn_lookup_uses_current_metadata_without_mutating_cached_book(self, book_service, db):
+        isbn = '9780316563857'
+        cached = {'isbn13': isbn, 'title': 'The Hollow', 'title_zh': None, 'description': 'A detective investigates.'}
+        book_service._isbn_index[isbn] = cached
+        db.session.add(BookMetadata(isbn=isbn, title='The Hollow', author='Writer', title_zh='已有中文书名'))
+        db.session.commit()
+
+        result = book_service.get_book_by_isbn(isbn)
+
+        assert result['title_zh'] == '已有中文书名'
+        assert cached['title_zh'] is None
+
 
 def test_nyt_ranking_sync_task_refreshes_all_categories(app, db):
     """测试后台NYT任务会触发全分类刷新和语言包写入"""

@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+from bs4 import BeautifulSoup
+
 from app.config import Config
 from app.models.book import Book
 
@@ -247,24 +249,46 @@ class TestCrossCategorySearch:
 class TestOnDemandTranslationMarker:
     @patch('app.routes.main.get_service')
     def test_untranslated_books_marked(self, mock_get_svc, client):
-        """无 title_zh 的书打标 data-needs-translation，有的不打."""
+        """书名或有原文的简介缺译时打标，完整译文和没有原文的简介不打标。"""
         mock_get_svc.return_value = _mock_book_service(
             {
                 'hardcover-fiction': [
                     _make_book(title_zh=None, isbn13='9780000000001', isbn10='0000000001', id='9780000000001'),
                     _make_book(
                         title_zh='中文标题',
+                        description_zh='中文简介',
                         isbn13='9780000000002',
                         isbn10='0000000002',
                         id='9780000000002',
+                    ),
+                    _make_book(
+                        title_zh='中文标题',
+                        description_zh=None,
+                        isbn13='9780000000003',
+                        isbn10='0000000003',
+                        id='9780000000003',
+                    ),
+                    _make_book(
+                        title_zh='中文标题',
+                        description='',
+                        description_zh=None,
+                        isbn13='9780000000004',
+                        isbn10='0000000004',
+                        id='9780000000004',
                     ),
                 ]
             }
         )
         resp = client.get('/?lang=zh', headers={'User-Agent': DESKTOP_UA})
         assert resp.status_code == 200
-        html = resp.data.decode('utf-8')
-        assert html.count('data-needs-translation="1"') == 1  # 当前视图下一本未翻译
+        cards = BeautifulSoup(resp.data, 'html.parser').select('article.card')
+        markers = {card.get('data-isbn'): card.get('data-needs-translation') for card in cards}
+        assert markers == {
+            '9780000000001': '1',
+            '9780000000002': None,
+            '9780000000003': '1',
+            '9780000000004': None,
+        }
 
 
 class TestMobileSearchEntry:

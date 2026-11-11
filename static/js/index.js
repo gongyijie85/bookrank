@@ -6,6 +6,9 @@
 // 用于切换语言时本地重渲染（无需重新请求 API）
 let booksData = [];
 let currentCategory = '';
+let onDemandTranslationActive = false;
+let onDemandTranslationPending = false;
+let onDemandTranslationCards = new Set();
 
 // 启动时从服务端嵌入的 JSON 节点读取初始数据（首页 SSR 渲染时已生成）
 (function initModuleState() {
@@ -708,6 +711,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                      data-isbn="${esc(book.isbn13 || book.isbn10 || '')}"
                      data-index="${sourceIndex}"
                      data-category="${esc(sourceCategory)}"
+                     ${isZh && (!book.title_zh || (book.description && !book.description_zh)) ? 'data-needs-translation="1"' : ''}
                      aria-label="${esc(title)} - ${esc(t('card_rank_aria', lang, { n: rank }))}">
                 <a class="card-link" href="${detailUrl}">
                 <div class="card-image">
@@ -754,6 +758,9 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
             const countText = t('books_count', lang, { count: books.length });
             infoEl.innerHTML = countText.replace(/(\d+)/, '<strong>$1</strong>');
         }
+    }
+    if (isZh && document.readyState !== 'loading') {
+        initOnDemandTranslation();
     }
 }
 
@@ -927,6 +934,9 @@ window.addEventListener('languagechange', function(e) {
     if (typeof BookI18n !== 'undefined' && BookI18n.size() > 0) {
         try { BookI18n.applyLanguage(lang); } catch(e) { console.warn('BookI18n error:', e); }
     }
+    if (lang === 'zh' && document.readyState !== 'loading') {
+        initOnDemandTranslation();
+    }
 });
 
 /* 按需翻译：中文页对缺中文标题的卡片逐本请求服务端翻译（结果服务端持久化）。
@@ -947,10 +957,20 @@ function initOnDemandTranslation() {
         var cards = Array.prototype.slice.call(
             document.querySelectorAll('article[data-needs-translation="1"][data-isbn]')
         ).slice(0, 15);
+        if (onDemandTranslationActive) {
+            if (cards.some(function (card) { return !onDemandTranslationCards.has(card); })) {
+                onDemandTranslationPending = true;
+            }
+            return;
+        }
+        var booksForTranslation = booksData;
         if (!cards.length) {
             hideTranslationProgress();
             return;
         }
+        onDemandTranslationActive = true;
+        onDemandTranslationPending = false;
+        onDemandTranslationCards = new Set(cards);
 
         var bar = document.getElementById('translation-progress');
         var label = bar ? bar.querySelector('.progress-text') : null;
@@ -968,9 +988,21 @@ function initOnDemandTranslation() {
         function next() {
             if (stopped || !cards.length) {
                 paint();
+                if (stopped && bar) bar.style.display = 'none';
+                var runPending = onDemandTranslationPending && !stopped;
+                onDemandTranslationActive = false;
+                onDemandTranslationPending = false;
+                onDemandTranslationCards.clear();
+                if (runPending) initOnDemandTranslation();
                 return;
             }
             var card = cards.shift();
+            if (card.isConnected === false) {
+                done += 1;
+                paint();
+                next();
+                return;
+            }
             var isbn = (card.getAttribute('data-isbn') || '').replace(/[^0-9Xx]/g, '');
             if (!isbn) {
                 done += 1;
@@ -986,15 +1018,18 @@ function initOnDemandTranslation() {
                 .then(function (resp) {
                     if (!resp.ok) {
                         // 翻译服务不可用（key 未配/限流）：停掉后续请求
-                        if (resp.status === 401 || resp.status === 500 || resp.status === 429) stopped = true;
+                        if (resp.status === 401 || resp.status === 500 || resp.status === 503 || resp.status === 429) stopped = true;
                         throw new Error('http ' + resp.status);
                     }
                     return resp.json();
                 })
                 .then(function (result) {
                     var book = result && result.data && result.data.book;
-                    if (book) applyCardTranslation(card, book);
-                    card.removeAttribute('data-needs-translation');
+                    if (book) {
+                        applyCardTranslation(card, book);
+                        var liveCard = document.querySelector('article[data-isbn="' + isbn + '"]');
+                        if (liveCard && liveCard !== card) applyCardTranslation(liveCard, book);
+                    }
                     done += 1;
                     paint();
                     next();
@@ -1008,6 +1043,21 @@ function initOnDemandTranslation() {
 
         function applyCardTranslation(card, book) {
             var title = book.title_zh;
+            var desc = book.description_zh;
+            var bisbn = (card.getAttribute('data-isbn') || '').replace(/[^0-9Xx]/g, '');
+            var matchingBook = null;
+            var datasets = booksData === booksForTranslation ? [booksData] : [booksForTranslation, booksData];
+            datasets.forEach(function (items) {
+                if (!bisbn || !Array.isArray(items)) return;
+                items.forEach(function (item) {
+                    var itemIsbn = String(item.isbn13 || item.isbn10 || '').replace(/[^0-9Xx]/g, '');
+                    if (itemIsbn !== bisbn) return;
+                    if (title) item.title_zh = title;
+                    if (desc) item.description_zh = desc;
+                    matchingBook = item;
+                });
+            });
+            if (currentLanguage !== 'zh' || card.isConnected === false) return;
             if (title) {
                 var link = card.querySelector('h3.list-item-title a');
                 if (link) {
@@ -1015,12 +1065,28 @@ function initOnDemandTranslation() {
                 } else {
                     var titleEl = card.querySelector('h3.card-title');
                     if (titleEl) {
+                        var originalTitle = matchingBook && matchingBook.title ? matchingBook.title : titleEl.textContent.trim();
+                        if (originalTitle && originalTitle !== title && !card.querySelector('.card-original-title') &&
+                            typeof titleEl.insertAdjacentElement === 'function' && typeof document.createElement === 'function') {
+                            var originalEl = document.createElement('p');
+                            originalEl.className = 'card-original-title';
+                            originalEl.textContent = originalTitle;
+                            titleEl.insertAdjacentElement('afterend', originalEl);
+                        }
                         titleEl.textContent = title;
                         titleEl.setAttribute('title', title);
+                        var ariaLabel = card.getAttribute('aria-label');
+                        if (ariaLabel && originalTitle && ariaLabel.includes(originalTitle)) {
+                            card.setAttribute('aria-label', ariaLabel.replace(originalTitle, title));
+                        }
+                        var coverImage = card.querySelector('.card-image img');
+                        if (coverImage && originalTitle) {
+                            var alt = coverImage.getAttribute('alt');
+                            if (alt && alt.includes(originalTitle)) coverImage.setAttribute('alt', alt.replace(originalTitle, title));
+                        }
                     }
                 }
             }
-            var desc = book.description_zh;
             if (desc) {
                 var descEl = card.querySelector('p.card-desc, p.list-item-desc');
                 if (descEl) {
@@ -1030,9 +1096,11 @@ function initOnDemandTranslation() {
                     descEl.textContent = desc;
                 }
             }
+            if (matchingBook && matchingBook.title_zh && (!matchingBook.description || matchingBook.description_zh)) {
+                card.removeAttribute('data-needs-translation');
+            }
             try {
                 if (typeof BookI18n !== 'undefined' && BookI18n.updateBatch) {
-                    var bisbn = (card.getAttribute('data-isbn') || '').replace(/[^0-9Xx]/g, '');
                     BookI18n.updateBatch([{ isbn: bisbn, language: 'zh', data: { title: title, description: desc } }]);
                 }
             } catch (e) { /* ignore */ }

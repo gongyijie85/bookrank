@@ -94,7 +94,7 @@ class BookService:
         """通过ISBN查找图书数据（先查反向索引 O(1)，再回退遍历缓存）"""
         # 1. 反向索引快速路径
         if isbn in self._isbn_index:
-            return self._isbn_index[isbn]
+            return self._hydrate_isbn_book(self._isbn_index[isbn])
 
         # 2. 遍历缓存并构建索引
         for category_id in self._categories:
@@ -102,6 +102,7 @@ class BookService:
             cached_data = self._cache.get(cache_key)
             if not cached_data:
                 continue
+            found_book = None
             with self._isbn_index_lock:
                 cat_isbns = self._isbn_index_by_category.setdefault(category_id, set())
                 for book_data in cached_data:
@@ -114,17 +115,31 @@ class BookService:
                         self._isbn_index[isbn10] = book_data
                         cat_isbns.add(isbn10)
                     if isbn13 == isbn or isbn10 == isbn:
-                        return cast('dict[str, Any] | None', book_data)
+                        found_book = book_data
+                        break
+            if found_book is not None:
+                return self._hydrate_isbn_book(found_book)
 
         metadata = db.session.get(BookMetadata, isbn)
         if metadata:
-            return {
-                'title': metadata.title or '',
-                'author': metadata.author or '',
-                'description': metadata.description_zh or metadata.details or '',
-                'isbn13': isbn,
-            }
+            return self._hydrate_isbn_book(
+                {
+                    'title': metadata.title or '',
+                    'author': metadata.author or '',
+                    'description': metadata.description_zh or metadata.details or '',
+                    'isbn13': isbn,
+                }
+            )
         return None
+
+    def _hydrate_isbn_book(self, book_data: dict[str, Any]) -> dict[str, Any]:
+        """补齐当前译文，同时保留缓存中的原始数据。"""
+        result = dict(book_data)
+        try:
+            self._language_pack.hydrate_books([result])
+        except Exception as e:
+            log_error(ErrorCategory.CACHE, f'Book language-pack hydration skipped: {e}', level='warning')
+        return result
 
     def _invalidate_isbn_index_for_category(self, category_id: str) -> None:
         """清除某个分类先前贡献给反向索引的所有 ISBN 条目，避免缓存刷新后旧数据残留"""

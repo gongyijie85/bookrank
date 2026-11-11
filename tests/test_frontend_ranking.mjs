@@ -590,3 +590,251 @@ for (const end of ['desktop', 'mobile']) {
         assert.equal(button.getAttribute('aria-pressed'), 'false');
     });
 }
+
+
+test('initial Chinese rerender keeps missing title eligible for on-demand translation', () => {
+    const { context, container } = renderer('books-grid', {
+        initialBooks: [
+            { isbn13: '9781639739134', title: 'A COURT OF SPLINTERED HARMONY', title_zh: null, author: 'Writer' },
+            { isbn13: '9781682818084', title: 'THRESHING DAY', title_zh: '试炼之日', author: 'Writer' },
+        ],
+        localStorage: { getItem: () => 'zh' },
+    });
+    context.window._onlanguagechange({ detail: { language: 'zh' } });
+    const cards = container.innerHTML.match(/<article[\s\S]*?<\/article>/g);
+    assert.equal(cards.length, 2);
+    assert.match(cards[0], /data-needs-translation="1"/);
+    assert.doesNotMatch(cards[1], /data-needs-translation/);
+    context.window._onlanguagechange({ detail: { language: 'en' } });
+    assert.doesNotMatch(container.innerHTML, /data-needs-translation/);
+});
+
+
+test('on-demand translation survives an English-Chinese rerender', async () => {
+    const { context, container } = renderer('books-grid', {
+        initialBooks: [{
+            isbn13: '9781639739134', title: 'A COURT OF SPLINTERED HARMONY',
+            title_zh: null, description: 'An English description.', description_zh: null, author: 'Writer',
+        }],
+        localStorage: { getItem: () => 'zh' },
+    });
+    const titleElement = { textContent: '', setAttribute() {} };
+    const descElement = { textContent: '' };
+    const card = {
+        getAttribute: name => name === 'data-isbn' ? '9781639739134' : null,
+        removeAttribute() {},
+        querySelector(selector) {
+            if (selector === 'h3.card-title') return titleElement;
+            if (selector === 'p.card-desc, p.list-item-desc') return descElement;
+            return null;
+        },
+    };
+    context.document.documentElement = { getAttribute: () => 'zh-CN' };
+    context.document.querySelectorAll = () => [card];
+    context.setTimeout = callback => callback();
+    context.fetch = async () => ({ ok: true, json: async () => ({
+        data: { book: { title_zh: '模拟译名', description_zh: '模拟简介' } },
+    }) });
+    context.initOnDemandTranslation();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(titleElement.textContent, '模拟译名');
+    assert.equal(descElement.textContent, '模拟简介');
+    context.window._onlanguagechange({ detail: { language: 'en' } });
+    assert.match(container.innerHTML, /<h3[^>]*>A COURT OF SPLINTERED HARMONY<\/h3>/);
+    context.window._onlanguagechange({ detail: { language: 'zh' } });
+    assert.match(container.innerHTML, /<h3[^>]*>模拟译名<\/h3>/);
+    assert.match(container.innerHTML, /<p class="card-desc">模拟简介<\/p>/);
+});
+
+
+test('switching an initially English page to Chinese starts on-demand translation once', async () => {
+    let language = 'en';
+    const { context, container } = renderer('books-grid', {
+        initialBooks: [{
+            isbn13: '9781639739134', title: 'A COURT OF SPLINTERED HARMONY',
+            title_zh: null, description: 'An English description.', author: 'Writer',
+        }],
+        localStorage: { getItem: () => language },
+    });
+    const titleElement = { textContent: '', setAttribute() {} };
+    const card = {
+        getAttribute: name => name === 'data-isbn' ? '9781639739134' : null,
+        removeAttribute() {},
+        querySelector: selector => selector === 'h3.card-title' ? titleElement : null,
+    };
+    context.document.readyState = 'complete';
+    context.document.documentElement = { getAttribute: () => language };
+    context.document.querySelectorAll = () => container.innerHTML.includes('data-needs-translation="1"') ? [card] : [];
+    context.setTimeout = callback => callback();
+    const requests = [];
+    context.fetch = async url => {
+        requests.push(url);
+        return { ok: true, json: async () => ({ data: { book: { title_zh: '模拟译名' } } }) };
+    };
+    language = 'zh';
+    context.window._onlanguagechange({ detail: { language: 'zh' } });
+    context.window._onlanguagechange({ detail: { language: 'zh' } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(requests, ['/api/translate/book/9781639739134']);
+    assert.equal(titleElement.textContent, '模拟译名');
+    context.window._onlanguagechange({ detail: { language: 'zh' } });
+    assert.match(container.innerHTML, /<h3[^>]*>模拟译名<\/h3>/);
+});
+
+
+function translationLifecyclePage({ deferFirst = false } = {}) {
+    const first = { isbn13: '9781639739134', title: 'FIRST BOOK', description: 'First description', author: 'Writer' };
+    const second = { isbn13: '9780000000002', title: 'SECOND BOOK', description: 'Second description', author: 'Writer' };
+    let language = 'zh';
+    const page = renderer('books-grid', {
+        initialBooks: [first],
+        localStorage: { getItem: () => language, setItem() {}, removeItem() {} },
+    });
+    let markup = '';
+    let cards = [];
+    Object.defineProperty(page.container, 'innerHTML', {
+        get() { return markup; },
+        set(value) {
+            cards.forEach(card => { card.isConnected = false; });
+            markup = value;
+            cards = [...value.matchAll(/<article[\s\S]*?<\/article>/g)].map(match => {
+                const html = match[0];
+                const isbn = /data-isbn="([^"]*)"/.exec(html)?.[1] || '';
+                const title = {
+                    textContent: /<h3[^>]*>([^<]*)<\/h3>/.exec(html)?.[1] || '',
+                    setAttribute() {},
+                    insertAdjacentElement(_where, element) { card.original = element; },
+                };
+                const desc = { textContent: /<p class="card-desc">([^<]*)<\/p>/.exec(html)?.[1] || '' };
+                const card = {
+                    isbn, title, desc, original: null, isConnected: true, needsTranslation: html.includes('data-needs-translation="1"'),
+                    getAttribute: key => key === 'data-isbn' ? isbn : null,
+                    removeAttribute(key) { if (key === 'data-needs-translation') this.needsTranslation = false; },
+                    querySelector(selector) {
+                        if (selector === 'h3.card-title') return title;
+                        if (selector === 'p.card-desc, p.list-item-desc') return desc;
+                        if (selector === '.card-original-title') return this.original;
+                        return null;
+                    },
+                };
+                return card;
+            });
+        },
+    });
+    page.context.document.readyState = 'complete';
+    page.context.document.documentElement = { getAttribute: () => language };
+    page.context.document.createElement = () => ({ className: '', textContent: '' });
+    page.context.document.querySelectorAll = selector => selector.includes('data-needs-translation')
+        ? cards.filter(card => card.needsTranslation) : cards;
+    page.context.document.querySelector = selector => {
+        const isbn = /^article\[data-isbn="([^"]+)"\]$/.exec(selector)?.[1];
+        return isbn ? cards.find(card => card.isbn === isbn) || null : null;
+    };
+    page.context.setTimeout = callback => callback();
+    page.context.window.currentCategory = 'hardcover-fiction';
+    page.context.window.history = { pushState() {} };
+    const requests = [];
+    let resolveFirst;
+    const translated = isbn => ({ ok: true, json: async () => ({
+        success: true, data: { book: { title_zh: isbn === first.isbn13 ? '第一本' : '第二本', description_zh: '中文简介' } },
+    }) });
+    page.context.fetch = url => {
+        if (url.startsWith('/api/category-books?')) {
+            return Promise.resolve({ ok: true, json: async () => ({
+                success: true, data: { books: [second], update_time: null, update_frequency: 'weekly', list_published_date: null },
+            }) });
+        }
+        const isbn = url.split('/').pop();
+        requests.push(isbn);
+        if (deferFirst && isbn === first.isbn13 && !resolveFirst) {
+            return new Promise(resolve => { resolveFirst = () => resolve(translated(isbn)); });
+        }
+        return Promise.resolve(translated(isbn));
+    };
+    return {
+        ...page, requests, first, second,
+        get cards() { return cards; },
+        start() { page.context.window._onlanguagechange({ detail: { language } }); },
+        setLanguage(next) { language = next; page.context.window._onlanguagechange({ detail: { language } }); },
+        resolveFirst() { resolveFirst(); },
+    };
+}
+
+test('switching category starts translation for new untranslated cards', async () => {
+    const page = translationLifecyclePage();
+    page.start();
+    await new Promise(resolve => setImmediate(resolve));
+    await page.context.changeCategory('business-books');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13, page.second.isbn13]);
+    assert.equal(page.cards[0].title.textContent, '第二本');
+});
+
+test('on-demand translation retains the original title on the visible desktop card', async () => {
+    const page = translationLifecyclePage();
+    page.start();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(page.cards[0].title.textContent, '第一本');
+    assert.equal(page.cards[0].original.textContent, 'FIRST BOOK');
+});
+
+test('a category change during a pending translation queues the new category without overlap', async () => {
+    const page = translationLifecyclePage({ deferFirst: true });
+    page.start();
+    await page.context.changeCategory('business-books');
+    assert.deepEqual(page.requests, [page.first.isbn13]);
+    page.resolveFirst();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13, page.second.isbn13]);
+    assert.equal(page.cards[0].title.textContent, '第二本');
+});
+
+test('a language rerender during a pending translation updates the live card without duplicate requests', async () => {
+    const page = translationLifecyclePage({ deferFirst: true });
+    page.start();
+    page.setLanguage('en');
+    page.setLanguage('zh');
+    page.resolveFirst();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13]);
+    assert.equal(page.cards[0].title.textContent, '第一本');
+});
+
+test('a book missing only its Chinese description remains eligible for translation', () => {
+    const page = renderer('books-grid', {
+        initialBooks: [{ isbn13: '9781639739134', title: 'FIRST', title_zh: '第一本', description: 'Summary', description_zh: null, author: 'Writer' }],
+        localStorage: { getItem: () => 'zh' },
+    });
+    page.context.window._onlanguagechange({ detail: { language: 'zh' } });
+    assert.match(page.container.innerHTML, /data-needs-translation="1"/);
+});
+
+
+test('service unavailable stops the current batch without duplicate retry loops', async () => {
+    const page = translationLifecyclePage();
+    page.context.fetch = url => {
+        page.requests.push(url.split('/').pop());
+        return Promise.resolve({ ok: false, status: 503 });
+    };
+    page.start();
+    page.context.initOnDemandTranslation();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13]);
+    assert.equal(page.cards[0].needsTranslation, true);
+});
+
+test('partial result preserves the pending description without an immediate retry', async () => {
+    const page = translationLifecyclePage();
+    page.context.fetch = url => {
+        page.requests.push(url.split('/').pop());
+        return Promise.resolve({ ok: true, json: async () => ({
+            success: true, data: { book: { title_zh: '第一本' }, untranslated_fields: ['description_zh'] },
+        }) });
+    };
+    page.start();
+    page.context.initOnDemandTranslation();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(page.requests, [page.first.isbn13]);
+    assert.equal(page.cards[0].title.textContent, '第一本');
+    assert.equal(page.cards[0].needsTranslation, true);
+});
