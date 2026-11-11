@@ -737,11 +737,20 @@ MISSING_RANKING_20261111 = json.loads(
         encoding='utf-8'
     )
 )['books']
+PUBLISHER_DESCRIPTIONS_20261111 = {
+    row['isbn']: row['description_zh']
+    for row in json.loads(
+        (
+            Path(__file__).resolve().parent / 'fixtures' / 'ranking-description-publisher-sources-20261111.json'
+        ).read_text(encoding='utf-8')
+    )
+}
 
 
 @pytest.mark.parametrize('record', MISSING_RANKING_20261111, ids=lambda record: record['isbn'])
 @pytest.mark.parametrize('mobile', [False, True], ids=['desktop', 'mobile'])
 def test_november_snapshot_translations_render_by_isbn(client, book_service, db, record, mobile):
+    expected_description = PUBLISHER_DESCRIPTIONS_20261111.get(record['isbn'], record['expected_description_zh'])
     book = _make_book(
         id=record['isbn'],
         isbn13=record['isbn'],
@@ -752,7 +761,7 @@ def test_november_snapshot_translations_render_by_isbn(client, book_service, db,
     )
     BookLanguagePack(CSS_DIR.parent / 'data' / 'book_language_pack.zh.json').hydrate_books([book])
     assert book.title_zh == record['expected_title_zh']
-    assert book.description_zh == record['expected_description_zh']
+    assert book.description_zh == expected_description
     book_service([book])
     user_agent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile' if mobile else 'Mozilla/5.0'
     response = client.get(f'/?category={record["category"]}&lang=zh', headers={'User-Agent': user_agent})
@@ -763,11 +772,9 @@ def test_november_snapshot_translations_render_by_isbn(client, book_service, db,
         == record['expected_title_zh']
     )
     desc = soup.select_one('.m-book-card-desc' if mobile else '.card-desc')
-    if record['expected_description_zh']:
+    if expected_description:
         assert desc is not None
-        assert desc.get_text(strip=True).startswith(
-            record['expected_description_zh'][:80] if mobile else record['expected_description_zh']
-        )
+        assert desc.get_text(strip=True).startswith(expected_description[:80] if mobile else expected_description)
     else:
         assert desc is not None
         assert desc.get_text(strip=True) == '暂无简介'
