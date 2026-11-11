@@ -38,6 +38,24 @@ function renderer(view, overrides = {}) {
     return { context, container };
 }
 
+test('category rerender shows translated details excerpt when the NYT summary is absent', () => {
+    const { context, container } = renderer('books-grid', { localStorage: { getItem: () => 'zh' } });
+    context.updateBooksOnPage([{
+        rank: 1, title: 'A book', title_zh: '一本书', author: 'A',
+        description: '', description_zh: '', description_excerpt_zh: '详情摘录：可靠的中文资料。',
+    }], 'business-books', null);
+    assert.match(container.innerHTML, /<p class="card-desc">详情摘录：可靠的中文资料。<\/p>/);
+});
+
+test('category rerender does not show English text as a Chinese summary', () => {
+    const { context, container } = renderer('books-grid', { localStorage: { getItem: () => 'zh' } });
+    context.updateBooksOnPage([{
+        rank: 1, title: 'A book', title_zh: '一本书', author: 'A', description: 'An English summary.',
+    }], 'young-adult-hardcover', null);
+    assert.match(container.innerHTML, /<p class="card-desc">暂无中文简介<\/p>/);
+    assert.doesNotMatch(container.innerHTML, /<p class="card-desc">An English summary\.<\/p>/);
+});
+
 // 只覆盖真实存在的容器：#209 用「网格密度」切换取代了列表视图，模板里已无
 // id="books-list"，而 index.js 的渲染目标只有 books-grid。此前这里按两个视图参数化，
 // books-list 那条永远拿到空 innerHTML 而失败（test:frontend 未进 CI，所以一直没被发现）。

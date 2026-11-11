@@ -769,7 +769,8 @@ def test_november_snapshot_translations_render_by_isbn(client, book_service, db,
             record['expected_description_zh'][:80] if mobile else record['expected_description_zh']
         )
     else:
-        assert desc is None
+        assert desc is not None
+        assert desc.get_text(strip=True) == '暂无简介'
 
 
 def test_homepage_marks_missing_description_for_translation(client, book_service):

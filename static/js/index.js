@@ -702,7 +702,10 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                 ? book.cover
                 : (book._original_cover || defaultCover);
             const title = isZh ? (book.title_zh || book.title) : book.title;
-            const desc = isZh ? (book.description_zh || book.description || '') : (book.description || '');
+            const desc = isZh
+                ? (book.description_zh || book.description_excerpt_zh || '')
+                : (book.description || book.description_excerpt || '');
+            const noDescription = isZh && book.description ? '暂无中文简介' : t('no_description', lang);
             // 分类标签：优先双语映射表 → book 数据 → 默认
             const catLabel = resolveCategoryLabel(book, category, lang);
             const originalCover = coverToSrc(book._original_cover);
@@ -742,7 +745,7 @@ function updateBooksOnPage(books, category, updateTime, updateFrequency, listPub
                         ${renderCardIsbn(book)}
                         ${book.weeks_on_list ? `<span class="card-pub-isbn-item weeks" title="${esc(t('weeks_on_list', lang))}">${esc(t('card_weeks_suffix', lang, { n: book.weeks_on_list }))}</span>` : ''}
                     </p>` : ''}
-                    ${desc ? `<p class="card-desc">${esc(desc)}</p>` : ''}
+                    <p class="card-desc">${esc(desc || noDescription)}</p>
                 </div>
                 </a>
             </article>

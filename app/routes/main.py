@@ -1,5 +1,6 @@
 import ipaddress
 import logging
+import os
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -20,7 +21,7 @@ from flask import (
     url_for,
 )
 from flask_babel import get_locale
-from markupsafe import escape
+from markupsafe import Markup, escape
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
@@ -31,6 +32,8 @@ from ..utils import ExternalAPIError
 from ..utils.api_helpers import (
     APIResponse,
     handle_api_errors,
+    is_non_substantive_details,
+    is_placeholder_text,
     quick_clean_translation,
     strip_placeholder,
     validate_isbn,
@@ -96,8 +99,15 @@ def _limit_reader_page_traffic() -> Response | None:
         return None
     client_ip = request.remote_addr or 'unknown'
     try:
-        if not ipaddress.ip_address(client_ip).is_global:
-            return None
+        remote_ip = ipaddress.ip_address(client_ip)
+        if not remote_ip.is_global:
+            # Render's public edge overwrites CF-Connecting-IP. Never trust the
+            # caller-controlled X-Forwarded-For chain or a header on other hosts.
+            if not (os.environ.get('RENDER_SERVICE_ID') and remote_ip.is_private):
+                return None
+            client_ip = request.headers.get('CF-Connecting-IP', '').strip()
+            if not ipaddress.ip_address(client_ip).is_global:
+                return None
     except ValueError:
         return None
     limiter = get_rate_limiter(max_requests=25, window_seconds=60)
@@ -139,6 +149,29 @@ def _get_list_published_date(books_data: list[dict]) -> str | None:
     return None
 
 
+def _description_excerpt(value: str | None, *, chinese: bool) -> str:
+    """Make a small, labelled preview of existing details when the NYT summary is absent."""
+    if not value:
+        return ''
+    text = ' '.join(Markup(value).striptags().split())
+    if not text or is_non_substantive_details(text) or is_placeholder_text(text):
+        return ''
+    if chinese and not any('\u4e00' <= char <= '\u9fff' for char in text):
+        return ''
+    preview = text[:140] + ('…' if len(text) > 140 else '')
+    return f'详情摘录：{preview}' if chinese else f'Details excerpt: {preview}'
+
+
+def _ranking_book_data(book: Any) -> dict[str, Any]:
+    """Add presentation-only excerpts after serialization so cache records stay compatible."""
+    data: dict[str, Any] = book.to_dict()
+    if not data.get('description_zh'):
+        data['description_excerpt_zh'] = _description_excerpt(data.get('details_zh'), chinese=True)
+    if not data.get('description'):
+        data['description_excerpt'] = _description_excerpt(data.get('details'), chinese=False)
+    return data
+
+
 def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | None]:
     """获取指定分类的书籍数据（统一入口）"""
     categories = current_app.config['CATEGORIES']
@@ -159,7 +192,7 @@ def _get_books_for_category(category: str, **kwargs: Any) -> tuple[list, str | N
 
     try:
         books = book_service.get_books_by_category(category, **kwargs) or []
-        books_data = [book.to_dict() for book in books]
+        books_data = [_ranking_book_data(book) for book in books]
     except Exception as e:
         raise ExternalAPIError(
             f"获取分类 '{category}' 数据失败", api_name='book_service', details={'category': category}
@@ -1796,7 +1829,7 @@ def api_category_books():
             try:
                 books = book_service.get_books_by_category(category)
                 if books:
-                    books_data = [book.to_dict() for book in books]
+                    books_data = [_ranking_book_data(book) for book in books]
                     update_time = book_service.get_cache_time(category)
             except Exception as e:
                 log_error(ErrorCategory.API_CALL, f'获取分类 {category} 图书失败: {e}', exc_info=True)
