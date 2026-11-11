@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 
 from app.config import Config
 from app.models.book import Book
+from app.routes.main import _ranking_book_data
 
 
 def _make_book(**overrides):
@@ -55,6 +56,48 @@ def _mock_book_service(by_category):
 
 MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'
 DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0'
+
+
+def test_missing_nyt_description_displays_available_chinese_details(client):
+    book = _make_book(description='', description_zh=None, details='', details_zh='这本书讨论如何养成良好习惯。')
+    with patch('app.routes.main.get_service', return_value=_mock_book_service({'business-books': [book]})):
+        for user_agent, selector in ((DESKTOP_UA, '.card-desc'), (MOBILE_UA, '.m-book-card-desc')):
+            response = client.get('/?category=business-books&lang=zh', headers={'User-Agent': user_agent})
+            description = BeautifulSoup(response.data, 'html.parser').select_one(selector)
+            assert description is not None
+            assert '这本书讨论如何养成良好习惯' in description.get_text()
+            assert '详情' in description.get_text()
+
+
+def test_placeholder_details_are_not_presented_as_a_book_description(client):
+    book = _make_book(description='', description_zh=None, details='', details_zh='英文')
+    with patch('app.routes.main.get_service', return_value=_mock_book_service({'business-books': [book]})):
+        response = client.get('/?category=business-books&lang=zh', headers={'User-Agent': DESKTOP_UA})
+    description = BeautifulSoup(response.data, 'html.parser').select_one('.card-desc')
+    assert description is not None
+    assert description.get_text(strip=True) == '暂无简介'
+
+
+def test_chinese_cards_do_not_present_an_untranslated_english_summary_as_chinese(client):
+    book = _make_book(description='An English summary about this book.', description_zh=None, details_zh=None)
+    with patch('app.routes.main.get_service', return_value=_mock_book_service({'young-adult-hardcover': [book]})):
+        for user_agent, selector in ((DESKTOP_UA, '.card-desc'), (MOBILE_UA, '.m-book-card-desc')):
+            response = client.get('/?category=young-adult-hardcover&lang=zh', headers={'User-Agent': user_agent})
+            description = BeautifulSoup(response.data, 'html.parser').select_one(selector)
+            assert description is not None
+            assert description.get_text(strip=True) == '暂无中文简介'
+
+
+def test_description_fallback_is_bounded_and_does_not_modify_source():
+    details = '<p>' + '内容' * 200 + '</p>'
+    book = _make_book(description='', description_zh=None, details_zh=details)
+    data = _ranking_book_data(book)
+    assert len(data['description_excerpt_zh']) < 200
+    assert '<p>' not in data['description_excerpt_zh']
+    assert data['description'] == ''
+    assert data['details_zh'] == details
+    assert 'description_excerpt_zh' not in book.to_dict()
+    assert Book(**book.to_dict()).details_zh == details
 
 
 def _mobile_tabs(html: str) -> str:

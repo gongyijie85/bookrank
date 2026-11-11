@@ -145,6 +145,51 @@ def test_private_proxy_address_does_not_throttle_all_visitors(app, client, monke
     get_limiter.assert_not_called()
 
 
+def test_render_uses_edge_client_ip_instead_of_private_proxy_or_spoofed_forwarded(app, client, monkeypatch):
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    monkeypatch.setenv('RENDER_SERVICE_ID', 'test-render-service')
+    limiter = MagicMock()
+    limiter.is_allowed.return_value = False
+    limiter.get_retry_after.return_value = 30
+    with patch('app.routes.main.get_rate_limiter', return_value=limiter):
+        response = client.get(
+            '/award-book/1',
+            headers={'CF-Connecting-IP': '8.8.8.8', 'X-Forwarded-For': '1.1.1.1'},
+            environ_base={'REMOTE_ADDR': '10.0.0.5'},
+        )
+    assert response.status_code == 429
+    limiter.is_allowed.assert_called_once_with('8.8.8.8')
+
+
+@pytest.mark.parametrize('cf_ip', ['', 'invalid', '10.1.2.3'])
+def test_render_does_not_throttle_all_visitors_when_edge_ip_is_missing_or_private(app, client, monkeypatch, cf_ip):
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    monkeypatch.setenv('RENDER_SERVICE_ID', 'test-render-service')
+    query = urlencode({'return_to': '/award-book/2?return_to=%2Fawards'})
+    with patch('app.routes.main.get_rate_limiter') as get_limiter:
+        response = client.get(
+            '/award-book/1?' + query,
+            headers={'CF-Connecting-IP': cf_ip},
+            environ_base={'REMOTE_ADDR': '10.0.0.5'},
+        )
+    assert response.status_code == 410
+    get_limiter.assert_not_called()
+
+
+def test_non_render_does_not_trust_edge_header_from_private_proxy(app, client, monkeypatch):
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    monkeypatch.delenv('RENDER_SERVICE_ID', raising=False)
+    query = urlencode({'return_to': '/award-book/2?return_to=%2Fawards'})
+    with patch('app.routes.main.get_rate_limiter') as get_limiter:
+        response = client.get(
+            '/award-book/1?' + query,
+            headers={'CF-Connecting-IP': '8.8.8.8'},
+            environ_base={'REMOTE_ADDR': '10.0.0.5'},
+        )
+    assert response.status_code == 410
+    get_limiter.assert_not_called()
+
+
 def test_website_category_api_is_rate_limited(app, client, monkeypatch):
     monkeypatch.setitem(app.config, 'TESTING', False)
     limiter = MagicMock()
