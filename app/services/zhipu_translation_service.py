@@ -487,6 +487,7 @@ class ZhipuTranslationService:
         if not client:
             return None
 
+        provider_name = '硅基流动' if self.provider == 'siliconflow' else '智谱AI'
         from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
         # 可变持有：命中「上下文注水」防线时置空，用无上下文提示词重译一次。
@@ -564,11 +565,11 @@ class ZhipuTranslationService:
                             logger.warning('去掉上下文后译文仍不可信，丢弃以免污染缓存: %s', text[:40])
                             return None
 
-                    logger.info(f'智谱AI翻译成功: {text[:50]}... -> {result[:50]}...')
+                    logger.info(f'{provider_name}翻译成功: {text[:50]}... -> {result[:50]}...')
                     return cast('str | None', result)
 
         except Exception as e:
-            log_error(ErrorCategory.TRANSLATION, f'智谱AI翻译失败(重试耗尽): {e}', level='warning')
+            log_error(ErrorCategory.TRANSLATION, f'{provider_name}翻译失败(重试耗尽): {e}', level='warning')
 
         return None
 
@@ -1007,7 +1008,8 @@ class HybridTranslationService:
         used_fallback = False
 
         if self.zhipu.is_available():
-            logger.info('使用智谱AI翻译...')
+            provider_name = '硅基流动' if self.zhipu.provider == 'siliconflow' else '智谱AI'
+            logger.info(f'使用{provider_name}翻译...')
             translate_kwargs: dict[str, Any] = {'field_type': field_type}
             if self.zhipu.provider == 'siliconflow':
                 translate_kwargs['context'] = context

@@ -50,6 +50,45 @@ def _provider_app(provider: str, base_url: str | None = None) -> SimpleNamespace
     return SimpleNamespace(config=config)
 
 
+@pytest.mark.parametrize(('provider', 'label'), [('zhipu', '智谱AI'), ('siliconflow', '硅基流动')])
+def test_provider_failure_log_identifies_actual_provider(provider, label):
+    service, client = _make_zhipu_service(app=_provider_app(provider))
+    client.chat.completions.create.side_effect = RuntimeError('simulated provider failure')
+
+    with patch('app.services.zhipu_translation_service.log_error') as log_error:
+        assert service.translate('Test book') is None
+
+    assert label in log_error.call_args.args[1]
+
+
+@pytest.mark.parametrize(('provider', 'label'), [('zhipu', '智谱AI'), ('siliconflow', '硅基流动')])
+def test_provider_success_log_identifies_actual_provider(provider, label):
+    service, client = _make_zhipu_service(app=_provider_app(provider))
+    client.chat.completions.create.return_value = _make_api_response('测试书名')
+
+    with patch('app.services.zhipu_translation_service.logger.info') as log_info:
+        assert service.translate('Test book', field_type='title') == '测试书名'
+
+    assert any(label in str(call) for call in log_info.call_args_list)
+
+
+@pytest.mark.parametrize(('provider', 'label'), [('zhipu', '智谱AI'), ('siliconflow', '硅基流动')])
+def test_hybrid_provider_log_identifies_actual_provider(provider, label):
+    service = HybridTranslationService(app=_provider_app(provider))
+    service.zhipu = Mock(provider=provider)
+    service.zhipu.is_available.return_value = True
+    service.zhipu.translate.return_value = None
+
+    with (
+        patch.object(service, '_get_cache_service', return_value=None),
+        patch.object(service, '_get_fallback', return_value=None),
+        patch('app.services.zhipu_translation_service.logger.info') as log_info,
+    ):
+        assert service.translate('Test book') is None
+
+    assert any(label in str(call) for call in log_info.call_args_list)
+
+
 class TestGetClientErrorPaths:
     def test_import_error_returns_none(self):
         with patch.dict('os.environ', {}, clear=True):
