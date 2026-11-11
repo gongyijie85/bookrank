@@ -13,6 +13,9 @@ CASES = json.loads((ROOT / 'tests/fixtures/ranking-description-regressions-20261
 RECOVERED = json.loads(
     (ROOT / 'tests/fixtures/ranking-description-recovered-20261111.json').read_text(encoding='utf-8')
 )
+RECOVERED += json.loads(
+    (ROOT / 'tests/fixtures/ranking-description-publisher-sources-20261111.json').read_text(encoding='utf-8')
+)
 
 
 @pytest.mark.parametrize('case', CASES, ids=lambda case: case['isbn'])

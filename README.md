@@ -45,7 +45,7 @@ BookRank 是一个聚合全球优质图书信息的平台，旨在为读者提�
 - **前端**：Jinja2 + 原生JS (ES2020+)
 - **部署**：Render + Gunicorn 23.0
 - **API集成**：NYT Books API、Google Books API、Open Library API、Wikidata SPARQL
-- **翻译服务**：硅基流动 Hunyuan-MT-7B（生产默认，openai 兼容端点）、智谱 GLM（回退，测试环境默认）
+- **翻译服务**：智谱 GLM-4.7-Flash（默认）；可通过 `TRANSLATION_PROVIDER=siliconflow` 切换至硅基流动 Hunyuan-MT-7B。
   - 原 Google 翻译回退（`deep-translator`）已移除：上游 PyPI 账号被钓鱼接管后发布了含**安装期恶意代码**的版本（PYSEC-2022-252），详见 [`SECURITY.md`](./SECURITY.md)
 - **限流**：进程内滑动窗口（默认）；可选 **Redis 共享后端**，供多 worker 部署时使用（见 [`SECURITY.md`](./SECURITY.md)）
 - **代码质量**：Ruff（linting+formatting）、mypy（类型检查）、Pydantic（数据验证）、pytest-cov

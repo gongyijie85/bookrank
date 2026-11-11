@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, Mock, patch
 import httpx
 import pytest
 from openai import OpenAI as ActualOpenAI
+from openai import RateLimitError
 
 from app.services.zhipu_translation_service import (
     HybridTranslationService,
@@ -48,6 +49,190 @@ def _provider_app(provider: str, base_url: str | None = None) -> SimpleNamespace
     if base_url is not None:
         config['SILICONFLOW_BASE_URL'] = base_url
     return SimpleNamespace(config=config)
+
+
+def _rate_error(code: str) -> RateLimitError:
+    response = httpx.Response(429, request=httpx.Request('POST', 'https://example.test'))
+    return RateLimitError('simulated rate limit', response=response, body={'code': code})
+
+
+@pytest.mark.parametrize('merged', [False, True])
+def test_glm_47_flash_disables_thinking_for_book_translation(merged):
+    service, client = _make_zhipu_service(app=_provider_app('zhipu'))
+    service.model = 'glm-4.7-flash'
+    client.chat.completions.create.return_value = _make_api_response(
+        '{"title_zh": "测试书名"}' if merged else '测试书名'
+    )
+    with patch.object(service, '_get_cache_service', return_value=None):
+        if merged:
+            assert service.translate_book_fields(title='Test book')['title_zh'] == '测试书名'
+        else:
+            assert service.translate('Test book', field_type='title') == '测试书名'
+    assert client.chat.completions.create.call_args.kwargs['extra_body'] == {'thinking': {'type': 'disabled'}}
+
+
+@pytest.mark.parametrize('merged', [False, True])
+def test_model_busy_retries_a_bounded_number_of_times(merged):
+    service, client = _make_zhipu_service(app=_provider_app('zhipu'))
+    service.model = 'glm-4.7-flash'
+    client.chat.completions.create.side_effect = [
+        _rate_error('1305'),
+        _rate_error('1305'),
+        _make_api_response('{"title_zh": "测试书名"}' if merged else '测试书名'),
+    ]
+    with (
+        patch.object(service, '_get_cache_service', return_value=None),
+        patch('app.services.zhipu_translation_service.time.sleep') as sleep,
+    ):
+        if merged:
+            assert service.translate_book_fields(title='Test book')['title_zh'] == '测试书名'
+        else:
+            assert service.translate('Test book', field_type='title') == '测试书名'
+    assert client.chat.completions.create.call_count == 3
+    assert [call.args[0] for call in sleep.call_args_list] == [1, 3]
+
+
+@pytest.mark.parametrize('code', ['1113', '1308', 'unknown'])
+def test_quota_or_unknown_429_does_not_trigger_provider_retry(code):
+    service, client = _make_zhipu_service(app=_provider_app('zhipu'))
+    client.chat.completions.create.side_effect = _rate_error(code)
+    with patch('app.services.zhipu_translation_service.time.sleep') as sleep:
+        assert service.translate('Test book', field_type='title') is None
+    client.chat.completions.create.assert_called_once()
+    sleep.assert_not_called()
+
+
+def test_busy_merged_translation_does_not_multiply_retries_by_field():
+    service, client = _make_zhipu_service(app=_provider_app('zhipu'))
+    client.chat.completions.create.side_effect = _rate_error('1305')
+    with (
+        patch.object(service, '_get_cache_service', return_value=None),
+        patch('app.services.zhipu_translation_service.time.sleep'),
+        patch.object(service, 'translate') as single,
+    ):
+        result = service.translate_book_fields(title='Test book', description='A description')
+    assert result['title_zh'] is None
+    assert result['description_zh'] is None
+    assert client.chat.completions.create.call_count == 3
+    single.assert_not_called()
+
+
+def test_model_busy_retry_recognizes_real_openai_sdk_error_body():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if len(calls) < 3:
+            return httpx.Response(429, json={'error': {'code': '1305', 'message': 'busy'}})
+        return httpx.Response(
+            200,
+            json={
+                'id': 'test-completion',
+                'object': 'chat.completion',
+                'created': 0,
+                'model': 'glm-4.7-flash',
+                'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': '测试书名'}}],
+            },
+        )
+
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    sdk = ActualOpenAI(api_key='synthetic', base_url='https://example.test/v1', max_retries=0, http_client=http_client)
+    service = ZhipuTranslationService(api_key='synthetic', app=_provider_app('zhipu'))
+    service._client = sdk
+    try:
+        with patch('app.services.zhipu_translation_service.time.sleep') as sleep:
+            assert service.translate('Test book', field_type='title') == '测试书名'
+        assert len(calls) == 3
+        assert [call.args[0] for call in sleep.call_args_list] == [1, 3]
+        assert json.loads(calls[-1].content)['thinking'] == {'type': 'disabled'}
+    finally:
+        sdk.close()
+        http_client.close()
+
+
+def test_siliconflow_merged_mode_keeps_its_existing_transport():
+    service, client = _make_zhipu_service(app=_provider_app('siliconflow'))
+    service.use_merged_json = True
+    client.chat.completions.create.return_value = _make_api_response('{"title_zh": "测试书名"}')
+    with patch.object(service, '_get_cache_service', return_value=None):
+        assert service.translate_book_fields(title='Test book')['title_zh'] == '测试书名'
+    assert 'extra_body' not in client.chat.completions.create.call_args.kwargs
+
+
+def test_other_zhipu_model_keeps_its_default_thinking_setting():
+    service, client = _make_zhipu_service(app=_provider_app('zhipu'))
+    service.model = 'glm-other'
+    client.chat.completions.create.return_value = _make_api_response('测试书名')
+    assert service.translate('Test book', field_type='title') == '测试书名'
+    assert 'extra_body' not in client.chat.completions.create.call_args.kwargs
+
+
+def test_author_only_response_is_not_saved_as_description():
+    service = HybridTranslationService()
+    service.zhipu = Mock(provider='zhipu', model='glm-4.7-flash')
+    service.zhipu.is_available.return_value = True
+    service.zhipu.translate.return_value = '安德鲁·约瑟夫·怀特（Andrew Joseph White）'
+    cache = Mock()
+    cache.get.return_value = None
+    with (
+        patch.object(service, '_get_cache_service', return_value=cache),
+        patch.object(service, '_get_fallback', return_value=None),
+    ):
+        result = service.translate(
+            'Morgan hunts for the identity of his father’s final victim.',
+            field_type='description',
+            context={'author': 'Andrew Joseph White'},
+        )
+    assert result is None
+    cache.set.assert_not_called()
+
+
+def test_author_only_cache_entry_is_treated_as_a_miss_and_retranslated():
+    service = HybridTranslationService()
+    service.zhipu = Mock(provider='zhipu', model='glm-4.7-flash')
+    service.zhipu.is_available.return_value = True
+    service.zhipu.translate.return_value = '摩根寻找父亲最后一名受害者的身份。'
+    cache = Mock()
+    cache.get.return_value.translated_text = '安德鲁·约瑟夫·怀特（Andrew Joseph White）'
+    with patch.object(service, '_get_cache_service', return_value=cache):
+        result = service.translate(
+            'Morgan hunts for the identity of his father’s final victim.',
+            field_type='description',
+            context={'author': 'Andrew Joseph White'},
+        )
+    assert result == '摩根寻找父亲最后一名受害者的身份。'
+    service.zhipu.translate.assert_called_once()
+    cache.set.assert_called_once()
+
+
+def test_merged_translation_does_not_reuse_author_only_cache_entry():
+    service, client = _make_zhipu_service(app=_provider_app('zhipu'))
+    cache = Mock()
+    cache.get.return_value.translated_text = '安德鲁·约瑟夫·怀特（Andrew Joseph White）'
+    client.chat.completions.create.return_value = _make_api_response(
+        '{"description_zh": "摩根寻找父亲最后一名受害者的身份。"}'
+    )
+    with patch.object(service, '_get_cache_service', return_value=cache):
+        result = service.translate_book_fields(
+            description='Morgan hunts for the identity of his father’s final victim.',
+            context={'author': 'Andrew Joseph White'},
+        )
+    assert result['description_zh'] == '摩根寻找父亲最后一名受害者的身份。'
+    client.chat.completions.create.assert_called_once()
+
+
+def test_nonmerged_book_translation_rejects_author_only_description():
+    service, _ = _make_zhipu_service(app=_provider_app('zhipu'))
+    service.use_merged_json = False
+    with (
+        patch.object(service, '_get_cache_service', return_value=None),
+        patch.object(service, 'translate', return_value='安德鲁·约瑟夫·怀特（Andrew Joseph White）'),
+    ):
+        result = service.translate_book_fields(
+            description='Morgan hunts for the identity of his father’s final victim.',
+            context={'author': 'Andrew Joseph White'},
+        )
+    assert result['description_zh'] is None
 
 
 @pytest.mark.parametrize(('provider', 'label'), [('zhipu', '智谱AI'), ('siliconflow', '硅基流动')])
@@ -123,14 +308,14 @@ class TestGetClientErrorPaths:
                     api_key='test-key',
                     base_url='https://open.bigmodel.cn/api/paas/v4/',
                     timeout=60.0,
-                    max_retries=3,
+                    max_retries=0,
                 )
                 assert service._get_client() is sentinel
                 mock_openai.assert_called_once_with(
                     api_key='test-key',
                     base_url='https://open.bigmodel.cn/api/paas/v4/',
                     timeout=60.0,
-                    max_retries=3,
+                    max_retries=0,
                 )
 
     def test_cached_client_returned_directly(self):
@@ -162,7 +347,7 @@ class TestOpenAIChatCompletionTransport:
     @pytest.mark.parametrize(
         ('provider', 'api_key', 'base_url', 'expected_retries'),
         [
-            ('zhipu', 'synthetic-zhipu-key', None, 3),
+            ('zhipu', 'synthetic-zhipu-key', None, 0),
             ('siliconflow', 'synthetic-sf-key', 'https://api.siliconflow.cn/v1', 2),
         ],
     )
@@ -235,6 +420,8 @@ class TestOpenAIChatCompletionTransport:
             payload = json.loads(request.content)
             assert payload['model'] == service.model
             assert payload['messages'] == expected_messages
+            if provider == 'zhipu':
+                assert payload['thinking'] == {'type': 'disabled'}
             assert request.extensions['timeout'] == {
                 'connect': 60.0,
                 'read': 60.0,

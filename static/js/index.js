@@ -287,6 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
  * localStorage 持久层：跨会话 24h 内切换同分类也走缓存
  */
 const _memoryCategoryCache = new Map();
+const _CATEGORY_CACHE_VERSION = 2;
 
 function hasTranslatedCategoryTitles(books) {
     return Array.isArray(books) && books.every(book =>
@@ -299,7 +300,7 @@ const categoryCache = {
         // 1) 内存热层（本次会话）
         if (_memoryCategoryCache.has(category)) {
             const cached = _memoryCategoryCache.get(category);
-            if (hasTranslatedCategoryTitles(cached.books)) return cached;
+            if (cached.version === _CATEGORY_CACHE_VERSION && hasTranslatedCategoryTitles(cached.books)) return cached;
             _memoryCategoryCache.delete(category);
         }
         // 2) localStorage 持久层（24h 跨会话）
@@ -311,7 +312,8 @@ const categoryCache = {
                 const hasMetadata = ['updateTime', 'updateFrequency', 'listPublishedDate']
                     .every(field => Object.prototype.hasOwnProperty.call(parsed, field));
                 // 缺译数据下次访问时重取，避免 24h 旧缓存盖过服务端新补齐的书名。
-                if (Date.now() - parsed.timestamp < 86400000 && hasTranslatedCategoryTitles(parsed.books) && hasMetadata) {
+                if (parsed.version === _CATEGORY_CACHE_VERSION && Date.now() - parsed.timestamp < 86400000 &&
+                    hasTranslatedCategoryTitles(parsed.books) && hasMetadata) {
                     // 命中后回填内存热层，下次切换瞬时
                     _memoryCategoryCache.set(category, parsed);
                     return parsed;
@@ -323,6 +325,7 @@ const categoryCache = {
     },
     set: function(category, books, updateTime, updateFrequency, listPublishedDate) {
         const data = {
+            version: _CATEGORY_CACHE_VERSION,
             timestamp: Date.now(),
             books: books,
             updateTime: updateTime,
