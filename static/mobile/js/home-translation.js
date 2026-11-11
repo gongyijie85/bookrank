@@ -46,17 +46,27 @@
             const card = cards.shift();
             const isbn = (card.getAttribute('data-isbn') || '').replace(/[^0-9Xx]/g, '');
             if (!isbn) { next(); return; }
+            requestCard(card, isbn, 0);
+        }
+
+        function requestCard(card, isbn, attempt) {
+            if (card.isConnected === false) { next(); return; }
             window.MobileApp.csrfFetch('/api/translate/book/' + encodeURIComponent(isbn), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
             }).then(function (response) {
+                if (response.status === 503 && attempt === 0) {
+                    setTimeout(function () { requestCard(card, isbn, 1); }, 20000);
+                    return null;
+                }
                 if (!response.ok) {
                     if ([401, 429, 500, 503].includes(response.status)) stopped = true;
                     throw new Error('http ' + response.status);
                 }
                 return response.json();
             }).then(function (result) {
+                if (result === null) return;
                 const book = result && result.data && result.data.book;
                 if (book) applyTranslation(card, book);
                 next();
