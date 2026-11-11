@@ -19,10 +19,10 @@ jobs:
           key = os.environ.get('ZHIPU_API_KEY', '')
           if not key:
               print(json.dumps({'result':'missing_key'})); sys.exit(1)
-          payload = {'model':'glm-4.7-flash','messages':[{'role':'system','content':'Translate the English book title to simplified Chinese. Return only the translation.'},{'role':'user','content':'A COURT OF SPLINTERED HARMONY'}],'temperature':0.3,'max_tokens':4096}
+          payload = {'model':'glm-4.7-flash','messages':[{'role':'system','content':'Translate the English book title to simplified Chinese. Return only the translation.'},{'role':'user','content':'A COURT OF SPLINTERED HARMONY'}],'temperature':0.3,'max_tokens':4096,'thinking':{'type':'disabled'}}
           request = urllib.request.Request('https://open.bigmodel.cn/api/paas/v4/chat/completions', data=json.dumps(payload).encode(), headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'}, method='POST')
           try:
-              with urllib.request.urlopen(request, timeout=90) as response:
+              with urllib.request.urlopen(request, timeout=60) as response:
                   result = json.load(response)
                   text = (result.get('choices') or [{}])[0].get('message', {}).get('content') or ''
                   valid = bool(re.search('[\u3400-\u9fff]', text))
