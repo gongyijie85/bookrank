@@ -38,6 +38,15 @@ def _cached_translate_author_name(translator: Any, author: str) -> Any:
 _MERGED_FIELD_KEYS = {'title': 'title_zh', 'description': 'description_zh', 'details': 'details_zh'}
 
 
+def _is_author_only_description(source: str, translated: str, context: Any) -> bool:
+    """Reject an observed error where a biography-independent synopsis became the author's name."""
+    author = context.get('author') if isinstance(context, dict) else getattr(context, 'author', None)
+    if not isinstance(author, str) or not author.strip() or author.casefold() in source.casefold():
+        return False
+    pattern = r'(?:作者[：:]\s*)?[\u4e00-\u9fff·\s]{1,40}[（(]\s*' + re.escape(author.strip()) + r'\s*[）)][。\s]*'
+    return bool(re.fullmatch(pattern, translated.strip(), flags=re.IGNORECASE))
+
+
 def _unwrap_merged_json_result(result: str, field_type: str) -> str | None:
     """合并 JSON 模式下，从整串 JSON 里取出当前字段的译文；非 JSON 则原样返回。
 
@@ -156,7 +165,7 @@ class ZhipuTranslationService:
         self._app = app
 
         # provider: 'zhipu'（智谱 GLM，免费）| 'siliconflow'（硅基流动 Hunyuan-MT-7B，付费）
-        # 默认走硅基流动 Hunyuan（线上实测期）；TRANSLATION_PROVIDER=zhipu 一键回退智谱。
+        # 默认走智谱 GLM；TRANSLATION_PROVIDER=siliconflow 可切换到硅基流动。
         self.provider = 'zhipu'
         if app is not None:
             self.provider = app.config.get('TRANSLATION_PROVIDER', 'zhipu')
@@ -424,12 +433,12 @@ class ZhipuTranslationService:
 
                     # 显式超时：SDK 默认超时过长（可达数百秒），后台批量同步时
                     # 单次翻译挂起会成倍放大（每本书 2 个字段×重试），必须封顶。
-                    # max_retries=3 对齐旧智谱 SDK 默认重试次数。
+                    # 应用层只重试模型繁忙、临时限流和网络错误，避免 SDK 把欠费等 429 反复重试。
                     self._client = OpenAI(
                         api_key=self.api_key,
                         base_url='https://open.bigmodel.cn/api/paas/v4/',
                         timeout=60.0,
-                        max_retries=3,
+                        max_retries=0,
                     )
                     logger.info('智谱AI客户端初始化成功')
             except ImportError as e:
@@ -442,6 +451,40 @@ class ZhipuTranslationService:
                 return None
 
         return self._client
+
+    def _call_zhipu(self, client: Any, *, messages: list[dict[str, str]]) -> Any:
+        """Use bounded backoff for transient Zhipu errors without retrying exhausted quota."""
+        from openai import APIConnectionError
+
+        kwargs: dict[str, Any] = {
+            'model': self.model,
+            'messages': messages,
+            'temperature': 0.3,
+            'max_tokens': 4096,
+        }
+        if self.model.lower() == 'glm-4.7-flash':
+            kwargs['extra_body'] = {'thinking': {'type': 'disabled'}}
+
+        for attempt in range(3):
+            try:
+                return client.chat.completions.create(**kwargs)
+            except Exception as exc:
+                status = getattr(exc, 'status_code', None)
+                body = getattr(exc, 'body', None)
+                if isinstance(body, dict) and isinstance(body.get('error'), dict):
+                    body = body['error']
+                code = str(body.get('code', '')) if isinstance(body, dict) else ''
+                retryable = (
+                    isinstance(exc, APIConnectionError)
+                    or (isinstance(status, int) and (status in (408, 409) or status >= 500))
+                    or (status == 429 and code in ('1302', '1305'))
+                )
+                if not retryable or attempt == 2:
+                    raise
+                delay = (1, 3)[attempt]
+                logger.warning('智谱暂时不可用，%s 秒后重试（第 %s 次）', delay, attempt + 1)
+                time.sleep(delay)
+        raise RuntimeError('unreachable')
 
     def _get_cache_service(self):
         """获取翻译缓存服务"""
@@ -515,14 +558,12 @@ class ZhipuTranslationService:
                     max_tokens=4096,
                     extra_body={'top_k': 20, 'repetition_penalty': 1.05},
                 )
-            return client.chat.completions.create(
-                model=self.model,
+            return self._call_zhipu(
+                client,
                 messages=[
                     {'role': 'system', 'content': self._get_prompt_for_field(field_type)},
                     {'role': 'user', 'content': text},
                 ],
-                temperature=0.3,
-                max_tokens=4096,
             )
 
         try:
@@ -705,7 +746,13 @@ class ZhipuTranslationService:
                             cache_kwargs['cache_context'] = cache_context
                         cached = cache_service.get(field, source_lang, target_lang, **cache_kwargs)
                         if cached:
-                            result[key] = clean_translation_text(cached.translated_text, field_type=field_type)
+                            cleaned = clean_translation_text(cached.translated_text, field_type=field_type)
+                            if field_type == 'description' and _is_author_only_description(
+                                field, cleaned, book_context
+                            ):
+                                logger.warning('缓存简介只有作者名，按未命中处理')
+                            else:
+                                result[key] = cleaned
                     except Exception as e:
                         log_error(ErrorCategory.TRANSLATION, f'读取翻译缓存失败 key={key}: {e}', level='warning')
 
@@ -730,7 +777,9 @@ class ZhipuTranslationService:
                     translate_kwargs['context'] = book_context
                 single = self.translate(text, source_lang, target_lang, **translate_kwargs)
                 key = f'{field_type}_zh'
-                if single:
+                if single and not (
+                    field_type == 'description' and _is_author_only_description(text, single, book_context)
+                ):
                     result[key] = single
             return result
 
@@ -769,9 +818,12 @@ class ZhipuTranslationService:
             reraise=True,
         )
         def _call_api():
+            messages = [{'role': 'system', 'content': combined_prompt}, {'role': 'user', 'content': combined_text}]
+            if self.provider == 'zhipu':
+                return self._call_zhipu(client, messages=messages)
             return client.chat.completions.create(
                 model=self.model,
-                messages=[{'role': 'system', 'content': combined_prompt}, {'role': 'user', 'content': combined_text}],
+                messages=messages,
                 temperature=0.3,
                 max_tokens=4096,
             )
@@ -824,6 +876,11 @@ class ZhipuTranslationService:
                                     cleaned[:40],
                                 )
                                 continue
+                            if field_type == 'description' and _is_author_only_description(
+                                description, cleaned, book_context
+                            ):
+                                logger.warning('合并翻译把作者名误作简介，已丢弃')
+                                continue
                             result[key] = cleaned
 
                         if cache_service:
@@ -852,6 +909,13 @@ class ZhipuTranslationService:
                         return result
 
         except Exception as e:
+            from openai import APIConnectionError
+
+            if self.provider == 'zhipu' and (
+                isinstance(e, APIConnectionError) or isinstance(getattr(e, 'status_code', None), int)
+            ):
+                logger.warning('合并翻译服务不可用，不重复逐字段请求: %s', type(e).__name__)
+                return result
             logger.warning(f'合并翻译失败，回退到逐字段翻译: {e}')
 
         for field_type, text in uncached_fields:
@@ -860,7 +924,7 @@ class ZhipuTranslationService:
                 translate_kwargs['context'] = book_context
             single = self.translate(text, source_lang, target_lang, **translate_kwargs)
             key = f'{field_type}_zh'
-            if single:
+            if single and not (field_type == 'description' and _is_author_only_description(text, single, book_context)):
                 result[key] = single
 
         return result
@@ -996,7 +1060,9 @@ class HybridTranslationService:
                     # 缓存里的旧译文可能是「上下文注水」时代的产物。按未命中处理，
                     # 让下面的重译用新提示词覆盖同一个缓存键，实现自愈（不必整体
                     # bump PROMPT_VERSION —— 那会把没问题的缓存也一并作废）。
-                    if field_type in INFLATION_GUARDED_FIELDS and is_inflated_translation(text, result, context):
+                    if field_type == 'description' and _is_author_only_description(text, result, context):
+                        logger.warning('缓存简介只有作者名，按未命中处理')
+                    elif field_type in INFLATION_GUARDED_FIELDS and is_inflated_translation(text, result, context):
                         logger.warning('缓存译文疑似被上下文注水，按未命中处理并重译: %s', text[:40])
                     else:
                         logger.debug('缓存命中，返回翻译结果（已后处理）')
@@ -1015,12 +1081,20 @@ class HybridTranslationService:
                 translate_kwargs['context'] = context
             translated = self.zhipu.translate(text, source_lang, target_lang, **translate_kwargs)
 
+        if translated and field_type == 'description' and _is_author_only_description(text, translated, context):
+            logger.warning('翻译结果只有作者名，丢弃以免污染简介')
+            translated = None
+
         if not translated:
             fallback = self._get_fallback()
             if fallback and fallback.is_available():
                 logger.info('使用备用翻译服务...')
                 translated = fallback.translate(text, source_lang, target_lang)
                 used_fallback = bool(translated)
+
+        if translated and field_type == 'description' and _is_author_only_description(text, translated, context):
+            logger.warning('备用翻译结果只有作者名，丢弃以免污染简介')
+            translated = None
 
         # 英文回显视为失败：既不能返回给调用方，更不能写进缓存（写进去会自我固化，
         # 后续请求一直命中坏值，书名永远补不上 —— 见 #210 的取证）。
