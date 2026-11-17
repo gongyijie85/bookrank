@@ -66,10 +66,14 @@ class TestSaveBook:
     """save_book 保存与去重逻辑测试"""
 
     def test_adds_new_book(self, ingestor, sample_publisher, sample_book_info, db):
+        # 测试库启动时会从 static/data/*.json 灌种子书，所以断言增量而不是绝对条数，
+        # 否则每周数据 PR 都会把这条用例打红。
+        before = NewBook.query.count()
         result = ingestor.save_book(sample_publisher, sample_book_info, translate=False)
         assert result is SaveOutcome.ADDED
-        assert NewBook.query.count() == 1
-        book = NewBook.query.first()
+        assert NewBook.query.count() == before + 1
+        book = NewBook.query.filter_by(isbn13='9780000000001').first()
+        assert book is not None
         assert book.title == 'Test Book'
         assert book.isbn13 == '9780000000001'
         assert book.isbn10 == '0000000001'
