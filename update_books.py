@@ -13,6 +13,10 @@ import json
 import logging
 import os
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.services.publisher_crawler.base_crawler import CrawlerConfig
 
 # 配置日志
 logging.basicConfig(
@@ -39,6 +43,44 @@ _PUBLISHER_EXPORTS = [
     ('Open Library', 'open_library'),
     ('Library of Congress', 'library_of_congress'),
 ]
+
+
+def _build_crawler_config(crawler_cls) -> 'CrawlerConfig | None':
+    """按基类声明的接口事实给爬虫注入配置（API_KEY_CONFIG / REQUEST_DELAY）。
+
+    这里曾经直接调用 crawler_cls()：workflow 明明注入了 GOOGLE_API_KEY，但没人读它，
+    于是 Google Books 系全程无 key 匿名请求，被 GitHub Actions 的共享出口 IP 限流成
+    429（GCP 配额页显示只用了 1.3%，key 根本没被用过）；PRH 也因为拿不到 key 直接失败。
+    Flask 内的 sync_engine 是走 API_KEY_CONFIG 注入的，本脚本是另一条路径，得自己来。
+
+    无可注入项时返回 None，保持各爬虫 __init__ 里 config=None 的默认节奏
+    （如 Macmillan 的 0.8 秒），不给没有 key 的源制造行为变化。
+    """
+    from app.services.publisher_crawler.base_crawler import CrawlerConfig
+
+    api_key_config = getattr(crawler_cls, 'API_KEY_CONFIG', None)
+    api_key = os.environ.get(api_key_config) if api_key_config else None
+    request_delay = getattr(crawler_cls, 'REQUEST_DELAY', None)
+    if not api_key and request_delay is None:
+        return None
+
+    config = CrawlerConfig(api_key=api_key)
+    if request_delay is not None:
+        config.request_delay = request_delay
+    return config
+
+
+def _has_required_env(crawler_cls) -> bool:
+    """必填凭据的适配器（如 PRH）缺配置时快速失败，别把协议错误伪装成「0 本」。
+
+    只返回布尔值：日志里不放任何从该属性派生的名字。CodeQL 会把名为
+    *_API_KEY* 的配置项当敏感源，哪怕只打印变量名也会判成明文泄漏；而同一行日志
+    已经写了出版社名，够定位了。
+    """
+    env_name = getattr(crawler_cls, 'API_KEY_CONFIG', None)
+    if not env_name or not getattr(crawler_cls, 'api_key_required', False):
+        return True
+    return bool(os.environ.get(env_name))
 
 
 def sync_all_publishers():
@@ -77,7 +119,10 @@ def sync_all_publishers():
             if crawler_cls is None:
                 logger.error(f'爬虫类不可用: {name_en}')
                 return slug, [], '爬虫类不可用'
-            crawler = crawler_cls()
+            if not _has_required_env(crawler_cls):
+                logger.error(f'{name_en} 缺少必需的凭据配置，跳过该源')
+                return slug, [], '缺少必需的凭据配置'
+            crawler = crawler_cls(_build_crawler_config(crawler_cls))
             outcome = crawler.get_new_books(CrawlRequest(max_books=100))
             books = [book.to_dict() for book in outcome.books]
             return slug, books, '' if books else '上游返回 0 本'
