@@ -224,9 +224,13 @@ def run_request(
 
 
 def truncate_issue(report: str, run_link: str, limit: int = 12000) -> str:
+    """保留报告结尾：失败信息总在最后，开头是大段启动日志。"""
     footer = f'\n\n完整日志见本次运行的 nyt-frequency-report 产物：{run_link}\n'
-    available = max(0, limit - len(footer.encode('utf-8')))
-    return report.encode('utf-8')[:available].decode('utf-8', errors='ignore') + footer
+    marker = '（前面的大段启动日志已省略，以下是报告结尾）\n\n'
+    budget = limit - len(footer.encode('utf-8')) - len(marker.encode('utf-8'))
+    raw = report.encode('utf-8')
+    body = raw[-budget:].decode('utf-8', errors='ignore') if budget > 0 else ''
+    return marker + body + footer
 
 
 def main() -> int:
