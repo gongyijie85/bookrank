@@ -70,17 +70,17 @@ def _build_crawler_config(crawler_cls) -> 'CrawlerConfig | None':
     return config
 
 
-def _missing_required_env(crawler_cls) -> str | None:
+def _has_required_env(crawler_cls) -> bool:
     """必填凭据的适配器（如 PRH）缺配置时快速失败，别把协议错误伪装成「0 本」。
 
-    返回的是**环境变量名**（如 'PRH_API_KEY'），不是它的值；调用方只能拿它拼日志。
+    只返回布尔值：日志里不放任何从该属性派生的名字。CodeQL 会把名为
+    *_API_KEY* 的配置项当敏感源，哪怕只打印变量名也会判成明文泄漏；而同一行日志
+    已经写了出版社名，够定位了。
     """
     env_name = getattr(crawler_cls, 'API_KEY_CONFIG', None)
     if not env_name or not getattr(crawler_cls, 'api_key_required', False):
-        return None
-    if os.environ.get(env_name):
-        return None
-    return env_name
+        return True
+    return bool(os.environ.get(env_name))
 
 
 def sync_all_publishers():
@@ -119,10 +119,9 @@ def sync_all_publishers():
             if crawler_cls is None:
                 logger.error(f'爬虫类不可用: {name_en}')
                 return slug, [], '爬虫类不可用'
-            missing_env = _missing_required_env(crawler_cls)
-            if missing_env:
-                logger.error(f'{name_en} 缺少必需的环境变量 {missing_env}，跳过该源')
-                return slug, [], f'缺少环境变量 {missing_env}'
+            if not _has_required_env(crawler_cls):
+                logger.error(f'{name_en} 缺少必需的凭据配置，跳过该源')
+                return slug, [], '缺少必需的凭据配置'
             crawler = crawler_cls(_build_crawler_config(crawler_cls))
             outcome = crawler.get_new_books(CrawlRequest(max_books=100))
             books = [book.to_dict() for book in outcome.books]
