@@ -49,6 +49,8 @@ jobs:
 
       - name: Prepare bounded issue body
         if: always()
+        env:
+          NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
         run: |
           python - <<'PY'
           import os
@@ -56,7 +58,13 @@ jobs:
           from scripts.workflow_http import truncate_issue
           report = Path(os.environ['RUNNER_TEMP']) / 'nyt-frequency-report.md'
           link = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-          body = truncate_issue(report.read_text(encoding='utf-8') if report.exists() else 'Report unavailable.', link)
+          secret = os.environ.get('NYT_API_KEY', '')
+          text = report.read_text(encoding='utf-8') if report.exists() else 'Report unavailable.'
+          # artifact 不走 GitHub 日志脱敏，上传前必须自己擦掉密钥。
+          if secret:
+              text = text.replace(secret, '***')
+              report.write_text(text, encoding='utf-8')
+          body = truncate_issue(text, link)
           (report.parent / 'nyt-frequency-issue.md').write_text(body, encoding='utf-8')
           PY
 

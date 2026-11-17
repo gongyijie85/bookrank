@@ -100,3 +100,24 @@ def test_main_returns_ok_when_frequencies_match(monkeypatch, capsys):
 
     assert checker.main() == checker.EXIT_OK
     assert 'NYT 分类更新频率一致' in capsys.readouterr().out
+
+
+def test_main_redacts_api_key_from_error_report(monkeypatch, capsys):
+    # 公开仓库的 artifact 不走日志脱敏，报告里绝不能出现密钥原文。
+    api_key = 'test-nyt-key-not-real'
+    monkeypatch.setenv('NYT_API_KEY', api_key)
+    response = Mock()
+    response.status_code = 404
+    response.text = '{"status":"ERROR","errors":["list not found"]}'
+    url = f'{Config.NYT_LIST_NAMES_URL}?api-key={api_key}'
+    monkeypatch.setattr(
+        checker,
+        'fetch_nyt_frequencies',
+        Mock(side_effect=requests.HTTPError(f'404 Client Error for url: {url}', response=response)),
+    )
+
+    assert checker.main() == checker.EXIT_OPERATIONAL_ERROR
+    output = capsys.readouterr().out
+    assert api_key not in output
+    assert 'api-key=***' in output
+    assert 'list not found' in output

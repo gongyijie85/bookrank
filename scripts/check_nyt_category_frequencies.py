@@ -52,6 +52,11 @@ def find_frequency_drift(
     return problems
 
 
+def _redact(text: str, secret: str) -> str:
+    """报告会进公开工单和 artifact 产物；GitHub 只对日志做密钥脱敏，这里自己擦。"""
+    return text.replace(secret, '***') if secret else text
+
+
 def main() -> int:
     api_key = os.environ.get('NYT_API_KEY', '').strip()
     if not api_key:
@@ -61,13 +66,14 @@ def main() -> int:
     try:
         actual = fetch_nyt_frequencies(api_key, timeout=Config.API_TIMEOUT)
     except (requests.RequestException, ValueError, TypeError, KeyError) as error:
-        print(f'NYT 频率检查失败：{error}')
-        # 只报状态码无法区分“key 失效/接口变动/账号权限”，把 NYT 自己的错误体带出来。
+        # requests 的异常消息里带完整请求 URL（含 api-key）：原样打印会经 artifact
+        # 泄漏密钥（公开仓库的 artifact 不走日志脱敏），所以先擦后印。
+        print(f'NYT 频率检查失败：{_redact(str(error), api_key)}')
         response = getattr(error, 'response', None)
         if response is not None:
             detail = ' '.join(response.text.split())[:300]
             if detail:
-                print(f'NYT 响应体：{detail}')
+                print(f'NYT 响应体：{_redact(detail, api_key)}')
         return EXIT_OPERATIONAL_ERROR
 
     problems = find_frequency_drift(
