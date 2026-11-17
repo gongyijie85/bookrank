@@ -237,16 +237,16 @@ class TestOpenLibraryCrawler:
 
     def test_get_new_books_success(self):
         c = self._make()
+        # search API 的响应形状：docs + isbn 数组 + cover_i（/subjects 的 works 已弃用）
         data = {
-            'works': [
+            'docs': [
                 {
                     'title': 'OL Book',
-                    'authors': [{'name': 'Author'}],
+                    'author_name': ['Author'],
                     'key': '/works/OL1W',
-                    'availability': {'isbn': '9781234567890'},
-                    'cover_id': 12345,
+                    'isbn': ['9781234567890'],
+                    'cover_i': 12345,
                     'first_publish_year': 2024,
-                    'subject': ['Fiction'],
                 }
             ],
         }
@@ -255,7 +255,31 @@ class TestOpenLibraryCrawler:
         mock_resp.raise_for_status = MagicMock()
         with patch.object(c, '_make_request', return_value=mock_resp):
             books = list(c.get_new_books(CrawlRequest(max_books=1)).books)
-        assert len(books) >= 1
+        assert len(books) == 1
+        assert books[0].isbn13 == '9781234567890'
+
+    def test_year_filter_drops_old_and_future_docs(self):
+        """subjects/fiction 返回的热门作品是旧书（实测首条 1813），必须按年过滤。"""
+        c = self._make()
+        data = {
+            'docs': [
+                {'title': 'Old', 'first_publish_year': 1813, 'key': '/works/OL1W'},
+                {'title': 'Future', 'first_publish_year': 2098, 'key': '/works/OL2W'},
+                {'title': 'Fresh', 'first_publish_year': 2026, 'key': '/works/OL3W'},
+                {'title': 'NoYear', 'key': '/works/OL4W'},
+            ],
+        }
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = data
+        with patch.object(c, '_make_request', return_value=mock_resp):
+            books = list(c.get_new_books(CrawlRequest(max_books=10)).books)
+        assert [book.title for book in books] == ['Fresh', 'NoYear']
+
+    def test_work_url_does_not_double_works_prefix(self):
+        c = self._make()
+        assert c._work_url('/works/OL1W') == 'https://openlibrary.org/works/OL1W'
+        assert c._work_url('OL1W') == 'https://openlibrary.org/works/OL1W'
+        assert c._work_url('') == 'https://openlibrary.org'
 
 
 # ---------- GoogleBooks ----------

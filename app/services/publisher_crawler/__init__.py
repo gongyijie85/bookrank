@@ -16,6 +16,7 @@
 """
 
 import importlib
+import threading
 
 from ...utils.error_handler import ErrorCategory, log_error
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlOutcome, CrawlRequest
@@ -27,6 +28,7 @@ __all__ = [
     'CrawlRequest',
     'CrawlerConfig',
     'get_crawler_class',
+    'load_all_crawlers',
 ]
 
 
@@ -54,19 +56,46 @@ def register_crawler(crawler_class: type[BaseCrawler]) -> None:
 
 
 def get_crawler_class(name: str) -> type[BaseCrawler] | None:
-    _load_all_crawlers()
+    load_all_crawlers()
     return CRAWLER_REGISTRY.get(name)
 
 
-def _load_all_crawlers() -> None:
-    """加载所有爬虫到注册表（统一注册入口）"""
-    if CRAWLER_REGISTRY:
+_LOAD_LOCK = threading.Lock()
+_LOADED = False
+
+
+def load_all_crawlers() -> None:
+    """加载所有爬虫到注册表（统一注册入口，线程安全）。
+
+    并发调用方（update_books 的线程池）在首次加载时会撞上「注册表非空就直接
+    返回」的旧语义：先到的线程导入到一半，其余线程看到半填的注册表就返回，
+    拿不到自己那一类 —— 表现为随机某个出版社「爬虫类不可用」。
+
+    这里加锁，并在局部 dict 里攒齐后一次性发布：任何人观察到的注册表要么是空的，
+    要么是完整的。用 _LOADED 而不是「注册表非空」当加载完成标志，避免半填状态
+    把后续调用锁死。
+    """
+    global _LOADED
+
+    if _LOADED:
         return
 
-    for class_name, module_path in _CRAWLER_MODULES:
-        try:
-            module = importlib.import_module(module_path, package=__name__)
-            crawler_class = getattr(module, class_name)
-            register_crawler(crawler_class)
-        except Exception as e:
-            log_error(ErrorCategory.CRAWLER, f'无法加载爬虫 {class_name}: {e}', level='warning')
+    with _LOAD_LOCK:
+        if _LOADED:
+            return
+
+        loaded: dict[str, type[BaseCrawler]] = {}
+        for class_name, module_path in _CRAWLER_MODULES:
+            try:
+                module = importlib.import_module(module_path, package=__name__)
+                crawler_class = getattr(module, class_name)
+                loaded[crawler_class.CRAWLER_CLASS_NAME] = crawler_class
+            except Exception as e:
+                log_error(ErrorCategory.CRAWLER, f'无法加载爬虫 {class_name}: {e}', level='warning')
+
+        CRAWLER_REGISTRY.update(loaded)
+        _LOADED = True
+
+
+# 兼容旧调用点（历史上是私有函数）
+_load_all_crawlers = load_all_crawlers
