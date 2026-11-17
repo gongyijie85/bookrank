@@ -114,8 +114,9 @@ class Config:
         'graphic-books-and-manga': 'monthly',
         'childrens-middle-grade-hardcover': 'weekly',
         'young-adult-hardcover': 'weekly',
-        'picture-books': 'monthly',
-        'series-books': 'monthly',
+        # 2026-11 实测：NYT lists/overview 里这两本已改成 WEEKLY（原配置 monthly）
+        'picture-books': 'weekly',
+        'series-books': 'weekly',
         'business-books': 'monthly',
         'middle-grade-paperback-monthly': 'monthly',
         'young-adult-paperback-monthly': 'monthly',
