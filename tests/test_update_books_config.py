@@ -53,20 +53,20 @@ class TestBuildCrawlerConfig:
         assert config.request_delay == PrhApiCrawler.REQUEST_DELAY
 
 
-class TestMissingRequiredKey:
-    def test_reports_missing_prh_key(self, update_books, monkeypatch):
+class TestMissingRequiredEnv:
+    def test_reports_missing_prh_env(self, update_books, monkeypatch):
         from app.services.publisher_crawler.prh_api import PrhApiCrawler
 
         monkeypatch.delenv('PRH_API_KEY', raising=False)
 
-        assert update_books._missing_required_key(PrhApiCrawler) == 'PRH_API_KEY'
+        assert update_books._missing_required_env(PrhApiCrawler) == 'PRH_API_KEY'
 
-    def test_returns_none_when_key_present(self, update_books, monkeypatch):
+    def test_returns_none_when_env_present(self, update_books, monkeypatch):
         from app.services.publisher_crawler.prh_api import PrhApiCrawler
 
         monkeypatch.setenv('PRH_API_KEY', 'prh-secret')
 
-        assert update_books._missing_required_key(PrhApiCrawler) is None
+        assert update_books._missing_required_env(PrhApiCrawler) is None
 
     def test_optional_key_crawler_is_not_gated(self, update_books, monkeypatch):
         """Google Books 的 key 是可选的（无 key 也能跑），不能因此跳过整源。"""
@@ -74,7 +74,7 @@ class TestMissingRequiredKey:
 
         monkeypatch.delenv('GOOGLE_API_KEY', raising=False)
 
-        assert update_books._missing_required_key(GoogleBooksCrawler) is None
+        assert update_books._missing_required_env(GoogleBooksCrawler) is None
 
 
 class TestSyncInjectsKey:

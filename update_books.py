@@ -70,14 +70,17 @@ def _build_crawler_config(crawler_cls) -> 'CrawlerConfig | None':
     return config
 
 
-def _missing_required_key(crawler_cls) -> str | None:
-    """必填 key 的适配器（如 PRH）缺 key 时快速失败，别把协议错误伪装成「0 本」。"""
-    api_key_config = getattr(crawler_cls, 'API_KEY_CONFIG', None)
-    if not api_key_config or not getattr(crawler_cls, 'api_key_required', False):
+def _missing_required_env(crawler_cls) -> str | None:
+    """必填凭据的适配器（如 PRH）缺配置时快速失败，别把协议错误伪装成「0 本」。
+
+    返回的是**环境变量名**（如 'PRH_API_KEY'），不是它的值；调用方只能拿它拼日志。
+    """
+    env_name = getattr(crawler_cls, 'API_KEY_CONFIG', None)
+    if not env_name or not getattr(crawler_cls, 'api_key_required', False):
         return None
-    if os.environ.get(api_key_config):
+    if os.environ.get(env_name):
         return None
-    return api_key_config
+    return env_name
 
 
 def sync_all_publishers():
@@ -116,10 +119,10 @@ def sync_all_publishers():
             if crawler_cls is None:
                 logger.error(f'爬虫类不可用: {name_en}')
                 return slug, [], '爬虫类不可用'
-            missing_key = _missing_required_key(crawler_cls)
-            if missing_key:
-                logger.error(f'{name_en} 缺少必需的 {missing_key}，跳过该源')
-                return slug, [], f'缺少 {missing_key}'
+            missing_env = _missing_required_env(crawler_cls)
+            if missing_env:
+                logger.error(f'{name_en} 缺少必需的环境变量 {missing_env}，跳过该源')
+                return slug, [], f'缺少环境变量 {missing_env}'
             crawler = crawler_cls(_build_crawler_config(crawler_cls))
             outcome = crawler.get_new_books(CrawlRequest(max_books=100))
             books = [book.to_dict() for book in outcome.books]
