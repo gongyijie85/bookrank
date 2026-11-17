@@ -1,9 +1,321 @@
 {
   "penguin_random_house": [],
   "simon_schuster": [],
+  "macmillan": [],
   "harpercollins": [],
   "hachette": [],
-  "macmillan": [],
-  "open_library": [],
-  "google_books": []
+  "library_of_congress": [
+    {
+      "title": "The Invisible Host",
+      "author": "leslie s. klinger, gwen bristow, bruce manning",
+      "isbn13": "9781464281082",
+      "isbn10": null,
+      "description": "This novel is a chilling locked room thriller which traps eight dinner guests in a New Orleans penthouse with a host who communicates only by radio as the party is killed one by one.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/10/9781464281082.jpg",
+      "category": "crime classics",
+      "publication_date": "2026-12-01",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9781464281082"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9781464281082"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/the-invisible-host/"
+    },
+    {
+      "title": "Voices of the Early Americas",
+      "author": "library of congress",
+      "isbn13": "9780844496030",
+      "isbn10": null,
+      "description": "This book puts varied items from the Jay I. Kislak Collection of the Archaeology and History of the Early Americas—ancient objects, colonial and modern paintings, books, manuscripts, and maps—in conversation with other materials from the Library of Congress, including contemporary photography and poetry.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/09/Voices-Cover_SELECTED.jpg",
+      "category": "exhibit companions",
+      "publication_date": "2026-11-15",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9780844496030"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9780844496030"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/voices-of-the-early-americas/"
+    },
+    {
+      "title": "Speaking of America",
+      "author": "david m. rubenstein",
+      "isbn13": "9781478034643",
+      "isbn10": null,
+      "description": "Featuring interviews with eminent historians, journalists, and writers, this book brings together nineteen wide-ranging conversations from philanthropist and financier David M. Rubenstein’s long-running Congressional Dialogues series of interviews at the Library of Congress. Highlights include Ken Burns on documenting American history, Stacy Schiff on Samuel Adams, and David McCullough on the American frontier.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/03/Rubenstein_Speaking_cover-front.jpg",
+      "category": "america 250",
+      "publication_date": "2026-10-06",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9781478034643"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9781478034643"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/speaking-of-america/"
+    },
+    {
+      "title": "Sharing Food, Sharing Culture",
+      "author": "meg nicholas, allina migoni, stephen winick",
+      "isbn13": "9780844496023",
+      "isbn10": null,
+      "description": "This book shares the wealth of cultural documentation about community-based foodways found in the collections of the American Folklife Center at the Library of Congress.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/08/AFC-Foodways-cover_jpg.jpg",
+      "category": "inside the collections",
+      "publication_date": "2026-09-15",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9780844496023"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9780844496023"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/sharing-food-sharing-culture/"
+    },
+    {
+      "title": "Detective Duff Unravels It",
+      "author": "harvey o'higgins, leslie s. klinger",
+      "isbn13": "9781464258015",
+      "isbn10": null,
+      "description": "From murder to extortion to kidnapping and more, Detective Duff unravels it all in this collection of ten short stories, using his shrewd understanding of human behavior and his expert team of operatives to pick apart even the knottiest of cases.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/09/9781464258015.jpg",
+      "category": "crime classics",
+      "publication_date": "2026-09-01",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9781464258015"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9781464258015"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/detective-duff-unravels-it/"
+    },
+    {
+      "title": "Florentine Finish",
+      "author": "leslie s. klinger, cornelius hirschberg",
+      "isbn13": "9781464265372",
+      "isbn10": null,
+      "description": "First published in 1964, this novel follows diamond salesman Saul Handy as he&#8217;s caught between the cops, the mob, a beautiful amateur jeweler, and shady gemologists.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/06/JPG_FlorentineFinish.jpg",
+      "category": "crime classics",
+      "publication_date": "2026-06-30",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9781464265372"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9781464265372"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/florentine-finish/"
+    },
+    {
+      "title": "A Revolutionary Idea",
+      "author": "library of congress",
+      "isbn13": "9780844495989",
+      "isbn10": null,
+      "description": "Compact, lively, and accessible, this book features archival images, historical maps, and new artwork to convey the story of the Declaration of Independence in fresh and compelling ways.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/06/declaration-front-cover.jpg",
+      "category": "america 250",
+      "publication_date": "2026-06-22",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9780844495989"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9780844495989"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/a-revolutionary-idea/"
+    },
+    {
+      "title": "Immigration and Migration in US History",
+      "author": "library of congress",
+      "isbn13": "9798892552691",
+      "isbn10": null,
+      "description": "Exploring the experiences of immigration, migration, and relocation, this book in the Discover and Learn with the Library series offers instruction-ready materials for teachers, librarians, and home educators.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/05/LOC_ImmigrationMigration_cvr_cropped.jpg",
+      "category": "discover and learn with the library of congress",
+      "publication_date": "2026-06-01",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9798892552691"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9798892552691"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/immigration-and-migration-in-us-history/"
+    },
+    {
+      "title": "The American Revolution",
+      "author": "library of congress",
+      "isbn13": "9798892552585",
+      "isbn10": null,
+      "description": "Exploring the many different aspects of the American Revolution, this book in the Discover and Learn with the Library series offers instruction-ready materials for teachers, librarians, and home educators.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/05/DLWL-Am-Rev-Cover-Cropped.jpg",
+      "category": "america 250",
+      "publication_date": "2026-06-01",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9798892552585"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9798892552585"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/the-american-revolution/"
+    },
+    {
+      "title": "The Source Creative Research Journal",
+      "author": "library of congress",
+      "isbn13": "9780844495996",
+      "isbn10": null,
+      "description": "This interactive journal contains research tips, creative prompts with space to brainstorm, and guides for exploring Library of Congress collections and your own world as you pursue your unique research projects.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/04/The-Source-journal-cover.jpg",
+      "category": "exhibit companions",
+      "publication_date": "2026-05-01",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9780844495996"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9780844495996"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/the-source-creative-research-journal/"
+    },
+    {
+      "title": "Pocket Constitution Annotated",
+      "author": "library of congress",
+      "isbn13": "9780844495972",
+      "isbn10": null,
+      "description": "This unique pocket-size version of the U.S. Constitution contains the full text of each article and amendment, brief explanations in plain English, and QR codes that link to the Library of Congress’s online version of the Constitution of the United States of America, Analysis and Interpretation, Congress’s official record of the Constitution.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/03/Pocket-Constitution-Cover.jpg",
+      "category": "america 250",
+      "publication_date": "2026-04-14",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9780844495972"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9780844495972"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/pocket-constitution-annotated/"
+    },
+    {
+      "title": "Transient Worlds",
+      "author": "arthur sze",
+      "isbn13": "9781556597329",
+      "isbn10": null,
+      "description": "This book is a personal guide to global poetry in translation by 25th U.S. Poet Laureate Arthur Sze. Focusing on an accessible selection of key works, Sze takes readers through nearly two millennia of poetry from every part of the world, constructing fifteen different “zones” of literary discussion.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/03/TransientWorlds_ArthurSze.png",
+      "category": "inside the collections",
+      "publication_date": "2026-04-14",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9781556597329"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9781556597329"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/transient-worlds/"
+    },
+    {
+      "title": "Tell Me a Story",
+      "author": "hannah freece, mac barnett",
+      "isbn13": "9780844495934",
+      "isbn10": null,
+      "description": "From alphabet books to adventurous graphic novels, this book explores the Library of Congress’s American children’s literature collections dating from the colonial era to the present. It highlights both classic and award-winning books as well as lesser-known gems ready for rediscovery.",
+      "cover_url": "https://www.loc.gov/static/managed-content/uploads/sites/24/2026/02/COVER_Tell-Me-a-Story09-13-2025-front-only.jpg",
+      "category": "inside the collections",
+      "publication_date": "2026-02-25",
+      "price": null,
+      "page_count": null,
+      "language": "english",
+      "buy_links": [
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.com/s?k=9780844495934"
+        },
+        {
+          "name": "Barnes & Noble",
+          "url": "https://www.barnesandnoble.com/s/9780844495934"
+        }
+      ],
+      "source_url": "http://www.loc.gov/item/library-publications/tell-me-a-story/"
+    }
+  ]
 }
