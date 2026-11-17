@@ -47,7 +47,7 @@ def sync_all_publishers():
     爬虫是 IO 密集型（HTTP 请求），线程足够，无需 multiprocessing。
     """
     try:
-        from app.services.publisher_crawler import get_crawler_class
+        from app.services.publisher_crawler import get_crawler_class, load_all_crawlers
         from app.services.publisher_crawler.base_crawler import CrawlRequest
         from app.services.publisher_data import DEFAULT_PUBLISHERS
     except ImportError as e:
@@ -67,29 +67,68 @@ def sync_all_publishers():
             crawler_cls = get_crawler_class(class_by_name_en[name_en])
             if crawler_cls is None:
                 logger.error(f'爬虫类不可用: {name_en}')
-                return slug, []
+                return slug, [], '爬虫类不可用'
             crawler = crawler_cls()
             outcome = crawler.get_new_books(CrawlRequest(max_books=100))
-            return slug, [book.to_dict() for book in outcome.books]
+            books = [book.to_dict() for book in outcome.books]
+            return slug, books, '' if books else '上游返回 0 本'
         except Exception as e:
             logger.error(f'同步 {name_en} 失败: {e}')
-            return slug, []
+            return slug, [], f'同步异常: {e}'
 
     all_books: dict = {}
+    empty_sources: dict[str, str] = {}
+
+    # 先一次性把注册表加载完，再进线程池：多个线程同时首次加载会看到半填的
+    # 注册表，随机某个出版社拿不到自己的爬虫类（见 publisher_crawler.load_all_crawlers）。
+    load_all_crawlers()
 
     # v0.9.47：使用线程池并行，max_workers 与 publisher 数量一致
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    with ThreadPoolExecutor(
-        max_workers=len(_PUBLISHER_EXPORTS), thread_name_prefix='pub-crawl'
-    ) as executor:
+    with ThreadPoolExecutor(max_workers=len(_PUBLISHER_EXPORTS), thread_name_prefix='pub-crawl') as executor:
         futures = {executor.submit(_sync_one, item): item for item in _PUBLISHER_EXPORTS}
         for future in as_completed(futures):
-            slug, books = future.result()
+            slug, books, reason = future.result()
             all_books[slug] = books
             logger.info(f'{slug} 同步完成，获取到 {len(books)} 本书籍')
+            if not books:
+                empty_sources[slug] = reason
 
+    _report_sync_summary(all_books, empty_sources)
     return all_books
+
+
+def _report_sync_summary(all_books: dict, empty_sources: dict[str, str]) -> None:
+    """把「绿着但空转」写成一条可 grep 的结论，并同步进 Actions 的 step summary。
+
+    #346 之后每周都跑绿却一本没抓到，日志里只有 7 条「获取到 0 本书籍」散落其中，
+    看不出整体结论。这里聚合一次，配额/缺 key/上游改协议的锅一眼能分清。
+    """
+    total_books = sum(len(books) for books in all_books.values())
+    if not empty_sources:
+        logger.info(f'数据源同步汇总：{len(all_books)} 源共 {total_books} 本，全部有数据')
+        return
+
+    logger.warning(
+        f'数据源同步汇总：{len(all_books)} 源共 {total_books} 本，'
+        f'{len(empty_sources)} 源为空 —— '
+        + '；'.join(f'{slug}({reason})' for slug, reason in sorted(empty_sources.items()))
+    )
+
+    summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+    if not summary_path:
+        return
+    try:
+        with open(summary_path, 'a', encoding='utf-8') as f:
+            f.write('### 数据源同步结果\n\n')
+            f.write('| 数据源 | 本数 | 说明 |\n| --- | --- | --- |\n')
+            for slug, books in all_books.items():
+                note = empty_sources.get(slug) or ''
+                f.write(f'| {slug} | {len(books)} | {note} |\n')
+            f.write(f'\n合计 {total_books} 本。\n')
+    except OSError as e:
+        logger.warning(f'写入 step summary 失败: {e}')
 
 
 def export_to_static_files(books_data):

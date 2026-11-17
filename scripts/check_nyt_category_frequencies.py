@@ -1,4 +1,8 @@
-"""Compare configured NYT list frequencies with the official list metadata."""
+"""Compare configured NYT list frequencies with the official list metadata.
+
+lists/names.json 已被 NYT 下线（带 key 返回 {"errors":["list not found"]}），
+所以频率元数据从 lists/overview.json 的 results.lists[*].updated 读取。
+"""
 
 import os
 import sys
@@ -17,20 +21,29 @@ EXIT_OPERATIONAL_ERROR = 2
 
 
 def fetch_nyt_frequencies(api_key: str, timeout: int = 15) -> dict[str, str]:
+    """读当前所有榜单及其更新频率。
+
+    lists/names.json 已下线，改用 lists/overview.json：results.lists[*] 里同时有
+    list_name_encoded 和 updated；updated 缺失时记为 ''（调用方据此跳过比对）。
+    """
     response = requests.get(
-        Config.NYT_LIST_NAMES_URL,
+        Config.NYT_LISTS_OVERVIEW_URL,
         params={'api-key': api_key},
         timeout=timeout,
     )
     response.raise_for_status()
     payload = response.json()
-    if payload.get('status') != 'OK' or not isinstance(payload.get('results'), list):
-        raise ValueError('NYT lists/names 返回格式无效')
+    results = payload.get('results')
+    if payload.get('status') != 'OK' or not isinstance(results, dict):
+        raise ValueError('NYT lists/overview 返回格式无效')
+    lists = results.get('lists')
+    if not isinstance(lists, list):
+        raise ValueError('NYT lists/overview 未返回榜单列表')
 
     return {
-        item['list_name_encoded']: str(item.get('updated') or 'UNKNOWN').upper()
-        for item in payload['results']
-        if item.get('list_name_encoded')
+        item['list_name_encoded']: str(item.get('updated') or '').upper()
+        for item in lists
+        if isinstance(item, dict) and item.get('list_name_encoded')
     }
 
 
@@ -45,6 +58,9 @@ def find_frequency_drift(
             problems.append(f'- `{category}`: 本地未配置预期频率')
         elif category not in actual:
             problems.append(f'- `{category}`: NYT 未返回该分类')
+        elif not actual[category]:
+            # overview 不保证带 updated：没这个字段就不当作漂移（调用方会提示跳过）
+            continue
         elif expected[category].upper() != actual[category].upper():
             problems.append(
                 f'- `{category}`: 预期 `{expected[category].upper()}`，NYT 返回 `{actual[category].upper()}`'
@@ -82,7 +98,14 @@ def main() -> int:
         actual,
     )
     if not problems:
-        print('NYT 分类更新频率一致')
+        unverifiable = [category for category in Config.CATEGORIES if category in actual and not actual[category]]
+        if unverifiable:
+            print(
+                f'NYT 未返回更新频率字段，跳过 {len(unverifiable)} 个分类的比对：'
+                + ', '.join(f'`{category}`' for category in unverifiable)
+            )
+        else:
+            print('NYT 分类更新频率一致')
         return EXIT_OK
 
     checked_at = datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')

@@ -156,7 +156,10 @@ class Config:
     }
 
     NYT_API_BASE_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/current'
-    NYT_LIST_NAMES_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/names.json'
+    # NYT 已下线 lists/names.json（带有效 key 访问返回 {"errors":["list not found"]}），
+    # 频率元数据改从 overview 的 results.lists[*].updated 读；该字段可能缺失，
+    # 缺失时检查脚本跳过比对而不是报漂移。
+    NYT_LISTS_OVERVIEW_URL: str = 'https://api.nytimes.com/svc/books/v3/lists/overview.json'
     GOOGLE_BOOKS_API_URL: str = 'https://www.googleapis.com/books/v1/volumes'
 
     # 外部 API 缓存 TTL（秒）

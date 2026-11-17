@@ -28,14 +28,18 @@ def test_find_frequency_drift_reports_changed_missing_and_unconfigured_categorie
     ]
 
 
-def test_fetch_nyt_frequencies_uses_list_names_metadata(monkeypatch):
+def test_fetch_nyt_frequencies_uses_overview_metadata(monkeypatch):
+    # lists/names.json 已下线，元数据改读 overview 的 results.lists
     response = Mock()
     response.json.return_value = {
         'status': 'OK',
-        'results': [
-            {'list_name_encoded': 'hardcover-fiction', 'updated': 'WEEKLY'},
-            {'list_name_encoded': 'graphic-books-and-manga', 'updated': 'MONTHLY'},
-        ],
+        'results': {
+            'lists': [
+                {'list_name_encoded': 'hardcover-fiction', 'updated': 'WEEKLY'},
+                {'list_name_encoded': 'graphic-books-and-manga', 'updated': 'MONTHLY'},
+                {'display_name': '没有 list_name_encoded 的条目应被忽略'},
+            ],
+        },
     }
     monkeypatch.setattr(requests, 'get', Mock(return_value=response))
 
@@ -43,11 +47,33 @@ def test_fetch_nyt_frequencies_uses_list_names_metadata(monkeypatch):
 
     assert result == {'hardcover-fiction': 'WEEKLY', 'graphic-books-and-manga': 'MONTHLY'}
     requests.get.assert_called_once_with(
-        Config.NYT_LIST_NAMES_URL,
+        Config.NYT_LISTS_OVERVIEW_URL,
         params={'api-key': 'secret'},
         timeout=7,
     )
     response.raise_for_status.assert_called_once_with()
+
+
+def test_fetch_nyt_frequencies_tolerates_missing_updated(monkeypatch):
+    response = Mock()
+    response.json.return_value = {
+        'status': 'OK',
+        'results': {'lists': [{'list_name_encoded': 'hardcover-fiction'}]},
+    }
+    monkeypatch.setattr(requests, 'get', Mock(return_value=response))
+
+    assert checker.fetch_nyt_frequencies('secret', timeout=7) == {'hardcover-fiction': ''}
+
+
+def test_main_reports_unverifiable_categories_when_overview_lacks_updated(monkeypatch, capsys):
+    monkeypatch.setenv('NYT_API_KEY', 'secret')
+    actual = {category: '' for category in Config.CATEGORIES}
+    monkeypatch.setattr(checker, 'fetch_nyt_frequencies', Mock(return_value=actual))
+
+    assert checker.main() == checker.EXIT_OK
+    output = capsys.readouterr().out
+    assert '未返回更新频率字段' in output
+    assert '# NYT 分类更新频率发生漂移' not in output
 
 
 def test_main_returns_operational_error_without_api_key(monkeypatch, capsys):
@@ -109,7 +135,7 @@ def test_main_redacts_api_key_from_error_report(monkeypatch, capsys):
     response = Mock()
     response.status_code = 404
     response.text = '{"status":"ERROR","errors":["list not found"]}'
-    url = f'{Config.NYT_LIST_NAMES_URL}?api-key={api_key}'
+    url = f'{Config.NYT_LISTS_OVERVIEW_URL}?api-key={api_key}'
     monkeypatch.setattr(
         checker,
         'fetch_nyt_frequencies',

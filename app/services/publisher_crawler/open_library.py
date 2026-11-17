@@ -6,6 +6,7 @@ Open Library 提供免费的图书数据API，可以获取新出版图书信息�
 """
 
 import logging
+import urllib.parse
 from datetime import datetime
 
 from ...utils.error_handler import ErrorCategory, log_error
@@ -67,11 +68,23 @@ class OpenLibraryCrawler(BaseCrawler):
         subject = category or 'fiction'
         limit = min(max_books * 2, 100)  # 多获取一些以便过滤
 
-        url = f'{self.BASE_URL}/subjects/{subject}.json?limit={limit}'
-        logger.info(f'📚 正在从 Open Library 获取 {subject} 类新书...')
-
         current_year = datetime.now().year
         min_year = current_year - 2  # 默认近2年
+        max_year = current_year + 1  # 上界：挡掉 2098 这类未来年份脏数据
+
+        # 不要用 /subjects/{subject}.json：它返回「最热门」作品，既没有 isbn 字段，
+        # 也基本是旧书（实测首条 first_publish_year=1813），近两年过滤会把整页丢光。
+        # search API 支持 subject 过滤 + 年份闭区间 + sort=new，显式 fields 也带 isbn。
+        query = f'subject:{subject} first_publish_year:[{min_year} TO {max_year}]'
+        url = f'{self.BASE_URL}/search.json?' + urllib.parse.urlencode(
+            {
+                'q': query,
+                'sort': 'new',
+                'limit': limit,
+                'fields': 'title,author_name,isbn,cover_i,first_publish_year,key',
+            }
+        )
+        logger.info(f'📚 正在从 Open Library 获取 {subject} 类新书...')
 
         response = self._make_request(url)
         if not response:
@@ -80,10 +93,10 @@ class OpenLibraryCrawler(BaseCrawler):
 
         try:
             data = response.json()
-            works = data.get('works', [])
+            docs = data.get('docs', [])
 
             count = 0
-            for work in works:
+            for work in docs:
                 if count >= max_books:
                     break
 
@@ -93,7 +106,7 @@ class OpenLibraryCrawler(BaseCrawler):
                     try:
                         year = int(publish_year)
                         # 只返回近期出版的书
-                        if year < min_year:
+                        if year < min_year or year > max_year:
                             continue
                     except (ValueError, TypeError):
                         pass
@@ -118,7 +131,8 @@ class OpenLibraryCrawler(BaseCrawler):
             title = work.get('title', 'Unknown Title')
             author_name = work.get('author_name', ['Unknown Author'])[0]
 
-            cover_id = work.get('cover_id')
+            # search API 用 cover_i，/subjects 响应用 cover_id：两个都认
+            cover_id = work.get('cover_i') or work.get('cover_id')
             cover_url = None
             if cover_id:
                 cover_url = f'https://covers.openlibrary.org/b/id/{cover_id}-M.jpg'
@@ -157,12 +171,18 @@ class OpenLibraryCrawler(BaseCrawler):
                 page_count=None,
                 language='English',
                 buy_links=self._generate_buy_links(isbn13, isbn10, title),
-                source_url=f'{self.BASE_URL}/works/{work.get("key", "")}',
+                source_url=self._work_url(work.get('key', '')),
             )
 
         except Exception as e:
             log_error(ErrorCategory.CRAWLER, f'解析书籍数据失败: {e}', level='warning')
             return None
+
+    def _work_url(self, key: str) -> str:
+        """search API 的 key 已经是 '/works/OL...W'，再拼一次会变成 /works//works/..."""
+        if not key:
+            return self.BASE_URL
+        return f'{self.BASE_URL}{key}' if key.startswith('/') else f'{self.BASE_URL}/works/{key}'
 
     def _generate_buy_links(self, isbn13: str | None, isbn10: str | None, title: str) -> list[dict[str, str]]:
         """生成购买链接"""

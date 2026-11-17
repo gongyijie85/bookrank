@@ -153,6 +153,26 @@ class TestCrawlerRegistry:
         cls = get_crawler_class('NonExistentCrawler')
         assert cls is None
 
+    def test_registry_load_never_exposes_partial_state(self, monkeypatch):
+        """线程池并行首次加载时，任何一刻都不能看到半填的注册表。
+
+        #346 的日志里随机出现「爬虫类不可用: Simon & Schuster」：多个线程同时
+        首次加载，先到的线程导入到一半，其余线程看到非空注册表就提前返回。
+        """
+        from app.services import publisher_crawler as registry
+
+        monkeypatch.setattr(registry, 'CRAWLER_REGISTRY', {})
+        monkeypatch.setattr(registry, '_LOADED', False)
+        real_import = registry.importlib.import_module
+
+        def asserting_import(name, package=None):
+            assert registry.CRAWLER_REGISTRY == {}, '加载过程中暴露了半填的注册表'
+            return real_import(name, package=package)
+
+        monkeypatch.setattr(registry.importlib, 'import_module', asserting_import)
+
+        assert registry.get_crawler_class('SimonSchusterGoogleCrawler') is not None
+
 
 class TestGoogleBooksParsing:
     """Google Books 爬虫解析测试"""
