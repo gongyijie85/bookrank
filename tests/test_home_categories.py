@@ -122,16 +122,18 @@ class TestCategoryConfig:
         assert set(Config.NYT_CATEGORY_UPDATE_FREQUENCIES.keys()) == set(Config.CATEGORIES.keys())
         assert set(Config.NYT_CATEGORY_UPDATE_FREQUENCIES.values()) <= {'weekly', 'monthly'}
 
-    def test_new_categories_monthly(self):
+    def test_monthly_categories(self):
+        """picture-books / series-books 已由 NYT 改为 WEEKLY（见 NYT 漂移检查），
+        其余三个仍是月更。"""
         freqs = Config.NYT_CATEGORY_UPDATE_FREQUENCIES
         for key in (
-            'picture-books',
-            'series-books',
             'business-books',
             'middle-grade-paperback-monthly',
             'young-adult-paperback-monthly',
         ):
             assert freqs[key] == 'monthly'
+        for key in ('picture-books', 'series-books'):
+            assert freqs[key] == 'weekly'
 
     def test_english_names_parity(self):
         assert set(Config.CATEGORY_NAMES_EN.keys()) == set(Config.CATEGORIES.keys())
