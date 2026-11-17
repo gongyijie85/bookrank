@@ -64,13 +64,22 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
             if collected >= max_books:
                 break
 
-            search_query = f'inpublisher:"{self.PUBLISHER_NAME_EN}" {query}'
+            # Google Books 的 inpublisher: 不保证接受带引号的写法；实测返回空 items 时
+            # 无法区分「真没货」和「语法不认」。这里两种写法都试，日志带上 totalItems。
+            query_forms = [
+                f'inpublisher:"{self.PUBLISHER_NAME_EN}" {query}',
+                f'inpublisher:{self.PUBLISHER_NAME_EN} {query}',
+            ]
+            search_query = query_forms[0]
             logger.info('搜索查询: %s', search_query)
 
             start_index = 0
+            page = 0
             max_pages = 3  # 每个关键词最多翻3页
 
-            for page in range(max_pages):
+            # 用 while 而不是 for range：换 inpublisher 写法时要重跑同一页，
+            # for 循环的隐式自增会白白吃掉一页配额。
+            while page < max_pages:
                 if collected >= max_books:
                     break
 
@@ -112,6 +121,18 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     break
 
                 items = data.get('items', [])
+                if not items and page == 0 and len(query_forms) > 1:
+                    # 首页空：换另一种 inpublisher 写法再试一次，避免整源被语法差异清零
+                    query_forms.pop(0)
+                    search_query = query_forms[0]
+                    logger.info(
+                        "查询 '%s' 无结果 (totalItems=%s)，改用 %s 重试",
+                        query,
+                        data.get('totalItems', 0),
+                        search_query,
+                    )
+                    continue
+
                 if not items:
                     logger.info("查询 '%s' 第 %d 页无更多结果", query, page + 1)
                     break
@@ -146,6 +167,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                         yield book_info
                         collected += 1
 
+                page += 1
                 start_index += len(items)
                 if start_index >= total_items:
                     break
