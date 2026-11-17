@@ -37,13 +37,14 @@ _PUBLISHER_EXPORTS = [
     ('Macmillan', 'macmillan'),
     ('Simon & Schuster', 'simon_schuster'),
     ('Open Library', 'open_library'),
+    ('Library of Congress', 'library_of_congress'),
 ]
 
 
 def sync_all_publishers():
     """并行同步所有出版社数据（走注册表与新爬虫接口 CrawlRequest/CrawlOutcome）。
 
-    v0.9.47：7 个出版社爬虫改为 ThreadPoolExecutor 并行。
+    只跑 DEFAULT_PUBLISHERS 里 is_active 的源（Google Books / Open Library 已停用）。
     爬虫是 IO 密集型（HTTP 请求），线程足够，无需 multiprocessing。
     """
     try:
@@ -55,6 +56,14 @@ def sync_all_publishers():
         return {}
 
     class_by_name_en = {p['name_en']: p['crawler_class'] for p in DEFAULT_PUBLISHERS}
+    # 配置里显式标记 is_active=False 的源不该再跑：Google Books 和 Open Library
+    # 早就是停用状态，但同步列表一直是硬编码的，于是每周都白跑两条、日志里还各留
+    # 一行「获取到 0 本书籍」，把真正的失败原因埋掉了。
+    active_by_name_en = {p['name_en']: p.get('is_active', True) for p in DEFAULT_PUBLISHERS}
+    exports = [item for item in _PUBLISHER_EXPORTS if active_by_name_en.get(item[0], True)]
+    skipped_sources = [name for name, _ in _PUBLISHER_EXPORTS if not active_by_name_en.get(name, True)]
+    if skipped_sources:
+        logger.info(f'按 is_active=false 跳过数据源：{", ".join(skipped_sources)}')
 
     def _sync_one(item: tuple) -> tuple:
         """单个 publisher 同步任务（线程 worker）
@@ -86,8 +95,8 @@ def sync_all_publishers():
     # v0.9.47：使用线程池并行，max_workers 与 publisher 数量一致
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    with ThreadPoolExecutor(max_workers=len(_PUBLISHER_EXPORTS), thread_name_prefix='pub-crawl') as executor:
-        futures = {executor.submit(_sync_one, item): item for item in _PUBLISHER_EXPORTS}
+    with ThreadPoolExecutor(max_workers=len(exports), thread_name_prefix='pub-crawl') as executor:
+        futures = {executor.submit(_sync_one, item): item for item in exports}
         for future in as_completed(futures):
             slug, books, reason = future.result()
             all_books[slug] = books

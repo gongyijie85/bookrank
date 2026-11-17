@@ -45,6 +45,7 @@ _CRAWLER_MODULES = [
     ('HachetteGoogleCrawler', '.google_books_publisher'),
     ('HarperCollinsGoogleCrawler', '.google_books_publisher'),
     ('MacmillanGoogleCrawler', '.google_books_publisher'),
+    ('LibraryOfCongressCrawler', '.library_of_congress'),
 ]
 
 

@@ -140,6 +140,7 @@ class TestCrawlerRegistry:
             'HachetteGoogleCrawler',
             'HarperCollinsGoogleCrawler',
             'MacmillanGoogleCrawler',
+            'LibraryOfCongressCrawler',
         ]
         for name in expected:
             assert get_crawler_class(name) is not None
