@@ -97,6 +97,7 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                     params['key'] = self._api_key
 
                 try:
+                    self._acquire_quota()
                     response = self._session.get(
                         self.BASE_URL,
                         params=params,
@@ -107,6 +108,15 @@ class GoogleBooksPublisherCrawler(GoogleBooksCrawler):
                         logger.warning('API Key 可能已失效，尝试无Key模式')
                         self._key_is_valid = False
                         params.pop('key', None)
+                        response = self._session.get(
+                            self.BASE_URL,
+                            params=params,
+                            timeout=self.config.timeout,
+                        )
+
+                    if response.status_code == 429:
+                        # 撞到每分钟窗口：等窗口过去再试一次，别把一个关键词整段丢掉
+                        self._acquire_quota()
                         response = self._session.get(
                             self.BASE_URL,
                             params=params,

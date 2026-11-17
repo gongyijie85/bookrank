@@ -20,10 +20,18 @@ from datetime import date, datetime, timedelta
 import requests
 
 from ...utils.error_handler import ErrorCategory, log_error
+from ...utils.rate_limiter import RateLimiter
 from ..publisher_data import parse_static_date
 from .base_crawler import BaseCrawler, BookInfo, CrawlerConfig, CrawlRequest
 
 logger = logging.getLogger(__name__)
+
+
+# Google Books 的配额有两层：每天 1000 次（够用）和**每分钟每用户 100 次**。
+# 7 个爬虫并发跑，后者瞬间就被打满，表现成 429 而不是「配额用完」——GCP 配额页
+# 只显示日配额，所以很容易误判成配额没动。这里在进程内共享一个每分钟窗口，
+# 留 20% 余量给同一 key 上并行的 award/校验请求。
+_QUOTA_LIMITER = RateLimiter(max_calls=80, window_seconds=60)
 
 
 class GoogleBooksCrawler(BaseCrawler):
@@ -86,6 +94,13 @@ class GoogleBooksCrawler(BaseCrawler):
             'rejected_future_placeholder': 0,
             'accepted_year_only': 0,
         }
+
+    def _acquire_quota(self) -> None:
+        """按每分钟窗口节流；跨爬虫共享，所以并发也不会打爆 100/min 的限制。"""
+        while not _QUOTA_LIMITER.is_allowed():
+            wait = max(1, _QUOTA_LIMITER.get_retry_after())
+            logger.info('Google Books 每分钟配额已满，等待 %s 秒', wait)
+            time.sleep(wait)
 
     def _validate_api_key(self) -> bool:
         """验证 API Key 是否有效，无效则自动降级为无Key模式"""
