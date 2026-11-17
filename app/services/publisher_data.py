@@ -63,6 +63,14 @@ DEFAULT_PUBLISHERS: list[dict[str, str | bool]] = [
         'website': 'https://us.macmillan.com',
         'crawler_class': 'MacmillanCrawler',
     },
+    {
+        'name': '美国国会图书馆',
+        'name_en': 'Library of Congress',
+        'website': 'https://www.loc.gov',
+        # 无 key、无配额的官方 JSON 接口；Open Library 的 /search.json 被其
+        # robots.txt 禁止，免费「新书」来源改由这里承担
+        'crawler_class': 'LibraryOfCongressCrawler',
+    },
 ]
 
 STATIC_DATA_FILES: dict[str, str] = {
@@ -73,6 +81,7 @@ STATIC_DATA_FILES: dict[str, str] = {
     'hachette_books.json': 'Hachette',
     'harpercollins_books.json': 'HarperCollins',
     'macmillan_books.json': 'Macmillan',
+    'library_of_congress_books.json': 'Library of Congress',
 }
 
 # 英文分类到中文的映射表（sanitize_category 使用）

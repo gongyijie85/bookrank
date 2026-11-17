@@ -16,8 +16,9 @@ from app.services.publisher_data import (
 
 
 class TestConstants:
-    def test_default_publishers_has_seven_entries(self):
-        assert len(DEFAULT_PUBLISHERS) == 7
+    def test_default_publishers_has_eight_entries(self):
+        # 7 个出版社 + 2026-11 新增的美国国会图书馆（免费兜底新书源）
+        assert len(DEFAULT_PUBLISHERS) == 8
 
     def test_static_data_files_match_publishers(self):
         """确保 STATIC_DATA_FILES 的 publisher name 在 DEFAULT_PUBLISHERS 中"""
@@ -78,6 +79,7 @@ class TestConstants:
             'Hachette',
             'HarperCollins',
             'Macmillan',
+            'Library of Congress',
         ):
             assert by_name_en[name_en].get('is_active', True) is True
 
