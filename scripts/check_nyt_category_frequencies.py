@@ -62,6 +62,12 @@ def main() -> int:
         actual = fetch_nyt_frequencies(api_key, timeout=Config.API_TIMEOUT)
     except (requests.RequestException, ValueError, TypeError, KeyError) as error:
         print(f'NYT 频率检查失败：{error}')
+        # 只报状态码无法区分“key 失效/接口变动/账号权限”，把 NYT 自己的错误体带出来。
+        response = getattr(error, 'response', None)
+        if response is not None:
+            detail = ' '.join(response.text.split())[:300]
+            if detail:
+                print(f'NYT 响应体：{detail}')
         return EXIT_OPERATIONAL_ERROR
 
     problems = find_frequency_drift(

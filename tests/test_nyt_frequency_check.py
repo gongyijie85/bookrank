@@ -65,6 +65,22 @@ def test_main_returns_operational_error_for_api_failure(monkeypatch, capsys):
     assert 'NYT 频率检查失败' in capsys.readouterr().out
 
 
+def test_main_prints_nyt_response_body_for_http_error(monkeypatch, capsys):
+    monkeypatch.setenv('NYT_API_KEY', 'secret')
+    response = Mock()
+    response.text = '{"fault": {"faultstring": "Invalid ApiKey"}}'
+    monkeypatch.setattr(
+        checker,
+        'fetch_nyt_frequencies',
+        Mock(side_effect=requests.HTTPError('404 Client Error', response=response)),
+    )
+
+    assert checker.main() == checker.EXIT_OPERATIONAL_ERROR
+    output = capsys.readouterr().out
+    assert 'NYT 频率检查失败' in output
+    assert 'Invalid ApiKey' in output
+
+
 def test_main_returns_drift_and_markdown_report(monkeypatch, capsys):
     monkeypatch.setenv('NYT_API_KEY', 'secret')
     actual = {category: frequency.upper() for category, frequency in Config.NYT_CATEGORY_UPDATE_FREQUENCIES.items()}
