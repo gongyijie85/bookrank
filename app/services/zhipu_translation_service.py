@@ -20,6 +20,7 @@ from ..utils.api_helpers import (
     is_english_echo,
     is_inflated_translation,
     is_non_substantive_details,
+    truncate_details_for_translation,
 )
 from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import run_with_app_context
@@ -199,6 +200,13 @@ class ZhipuTranslationService:
         # 避免 JSON 输出不稳。可被 TRANSLATION_USE_MERGED_JSON 显式覆盖。
         merged_override = app.config.get('TRANSLATION_USE_MERGED_JSON') if app is not None else None
         self.use_merged_json = merged_override if merged_override is not None else (self.provider == 'zhipu')
+
+        # 单次请求上限：SDK 默认超时过长（数百秒），后台批量翻译会被单次挂起放大。
+        # 可用 TRANSLATION_TIMEOUT 覆盖（秒）。
+        if app is not None:
+            self.timeout = float(app.config.get('TRANSLATION_TIMEOUT', 20))
+        else:
+            self.timeout = float(os.environ.get('TRANSLATION_TIMEOUT', '20'))
 
         self._client: Any = None
         self._last_request_time: float = 0
@@ -426,7 +434,7 @@ class ZhipuTranslationService:
                     self._client = OpenAI(
                         api_key=self.api_key,
                         base_url=self.base_url or 'https://api.siliconflow.cn/v1',
-                        timeout=60.0,
+                        timeout=self.timeout,
                     )
                     logger.info('硅基流动(Hunyuan-MT-7B)客户端初始化成功')
                 else:
@@ -438,7 +446,7 @@ class ZhipuTranslationService:
                     self._client = OpenAI(
                         api_key=self.api_key,
                         base_url='https://open.bigmodel.cn/api/paas/v4/',
-                        timeout=60.0,
+                        timeout=self.timeout,
                         max_retries=0,
                     )
                     logger.info('智谱AI客户端初始化成功')
@@ -521,6 +529,9 @@ class ZhipuTranslationService:
         """
         if not text or not text.strip():
             return text
+
+        if field_type == 'details':
+            text = truncate_details_for_translation(text)
 
         current_time = time.time()
         time_since_last = current_time - self._last_request_time
@@ -1040,6 +1051,11 @@ class HybridTranslationService:
     ) -> str | None:
         if not text or not text.strip():
             return text
+
+        # 长详情先截断再查缓存：缓存键与落库/语言包必须用同一份待译文本，
+        # 否则整段文本会命中一条只覆盖前 6000 字符的译文。
+        if field_type == 'details':
+            text = truncate_details_for_translation(text)
 
         cache_service = self._get_cache_service()
         cache_context = (

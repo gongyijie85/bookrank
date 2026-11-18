@@ -463,6 +463,27 @@ _NON_SUBSTANTIVE_DETAILS = frozenset(
 )
 
 
+#: 详情翻译的输入上限。超长详情（部分简介 2 万字符）整段送模型会占满 prompt、
+#: 只拿回 max_tokens=4096 对应的一小段，并把单次调用拖到几十秒（实测生产 69.7s 后 503）。
+DETAILS_TRANSLATION_MAX_CHARS = 6000
+
+
+def truncate_details_for_translation(text: str | None, max_chars: int = DETAILS_TRANSLATION_MAX_CHARS) -> str:
+    """把超过上限的详情截到可翻译长度，优先在句子/段落边界切开。
+
+    正常长度的详情原样返回（不奖励截断，只防病态输入）。
+    """
+    if not isinstance(text, str):
+        return ''
+    if len(text) <= max_chars:
+        return text
+    cut = text[:max_chars]
+    boundary = max(cut.rfind('. '), cut.rfind('! '), cut.rfind('? '), cut.rfind('。'), cut.rfind('\n'))
+    if boundary >= max_chars // 2:
+        cut = cut[: boundary + 1]
+    return cut.rstrip()
+
+
 def strip_non_substantive_details(text: str | None) -> str:
     """把无信息量的 details 译文归一化为空串（供读写边界统一使用）。
 

@@ -88,6 +88,9 @@ class Config:
 
     API_TIMEOUT: int = int(os.environ.get('API_TIMEOUT', 15))
     IMAGE_TIMEOUT: int = int(os.environ.get('IMAGE_TIMEOUT', 10))
+    # 单次翻译调用上限（秒）。SDK 默认超时过长：实测生产一次详情翻译挂 69.7s
+    # 后返回 503，后台翻译线程被长期占用。20s 覆盖正常长文翻译，失败也能快速重试。
+    TRANSLATION_TIMEOUT: int = int(os.environ.get('TRANSLATION_TIMEOUT', 20))
 
     CATEGORIES: dict[str, str] = {
         'hardcover-fiction': '精装小说',

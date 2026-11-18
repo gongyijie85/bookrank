@@ -307,14 +307,14 @@ class TestGetClientErrorPaths:
                 mock_openai.assert_called_once_with(
                     api_key='test-key',
                     base_url='https://open.bigmodel.cn/api/paas/v4/',
-                    timeout=60.0,
+                    timeout=20.0,
                     max_retries=0,
                 )
                 assert service._get_client() is sentinel
                 mock_openai.assert_called_once_with(
                     api_key='test-key',
                     base_url='https://open.bigmodel.cn/api/paas/v4/',
-                    timeout=60.0,
+                    timeout=20.0,
                     max_retries=0,
                 )
 
@@ -338,7 +338,7 @@ class TestGetClientErrorPaths:
                 mock_openai.assert_called_once_with(
                     api_key='sf-synthetic-key',
                     base_url=custom_base,
-                    timeout=60.0,
+                    timeout=20.0,
                 )
                 assert 'max_retries' not in mock_openai.call_args.kwargs
 
@@ -423,10 +423,10 @@ class TestOpenAIChatCompletionTransport:
             if provider == 'zhipu':
                 assert payload['thinking'] == {'type': 'disabled'}
             assert request.extensions['timeout'] == {
-                'connect': 60.0,
-                'read': 60.0,
-                'write': 60.0,
-                'pool': 60.0,
+                'connect': 20.0,
+                'read': 20.0,
+                'write': 20.0,
+                'pool': 20.0,
             }
             assert captured['sdk'].max_retries == expected_retries
             assert captured['n'] == 1
