@@ -748,6 +748,40 @@ class TestMergeOrTranslateBook:
     @patch('app.services.book_detail_service.submit_background_task')
     @patch('app.services.book_detail_service.clean_translation_text')
     @patch('app.services.user_service.UserService')
+    def test_non_substantive_details_zh_does_not_block_retranslation(
+        self, mock_us_cls, mock_clean, mock_submit, mock_get_ts, app, db
+    ):
+        """回归：库里 details_zh 是语言标记（'英文'）时不得当成「已翻译」。
+
+        生产取证（2026-11-18）：/api/book-details/9798217181391 返回 details_zh='英文'
+        （2 字），而同一段英文现译可得 568 字中文。模板把 '英文' 当噪音清空后回退英文，
+        而 needs_details 又因 details_zh 为真值不再复译 —— 详情页永久英文。
+        """
+        mock_meta = SimpleNamespace(title_zh='已翻译书名', description_zh='已翻译简介', details_zh='英文')
+        mock_us = MagicMock()
+        mock_us.get_book_metadata.return_value = mock_meta
+        mock_us_cls.return_value = mock_us
+
+        mock_clean.side_effect = lambda text, _field_type='text': text
+        mock_get_ts.return_value = MagicMock()
+
+        with app.app_context():
+            book = {
+                'title': 'Test',
+                'title_zh': '已翻译书名',
+                'description': 'Desc',
+                'description_zh': '已翻译简介',
+                'details': 'Details',
+            }
+            merge_or_translate_book(book, '9798217181391')
+
+            assert book.get('details_zh') in (None, '')
+            mock_submit.assert_called_once()
+
+    @patch('app.services.book_detail_service.get_service')
+    @patch('app.services.book_detail_service.submit_background_task')
+    @patch('app.services.book_detail_service.clean_translation_text')
+    @patch('app.services.user_service.UserService')
     def test_user_service_exception_handled(self, mock_us_cls, mock_clean, mock_submit, mock_get_ts, app, db):
         """UserService 异常被安全捕获"""
         mock_us_cls.side_effect = RuntimeError('DB connection error')

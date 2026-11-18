@@ -21,6 +21,7 @@ from app.services.zhipu_translation_service import (
     translate_book_info,
     translate_text,
 )
+from app.utils.api_helpers import DETAILS_TRANSLATION_MAX_CHARS
 
 
 def _make_api_response(content: str) -> Mock:
@@ -691,3 +692,55 @@ class TestHunyuanPublishingPrompts:
         assert title_context != other_book
         assert title_context != description_context
         assert ZhipuTranslationService.PROMPT_VERSION in title_context
+
+
+class TestTranslationTimeoutAndDetailsBudget:
+    """翻译调用的预算边界：超时可配置、超长详情先截断再送模型。"""
+
+    def test_client_uses_configured_timeout(self):
+        with patch('openai.OpenAI') as mock_openai:
+            service = ZhipuTranslationService(api_key='test-key')
+            service._get_client()
+
+        assert mock_openai.call_args.kwargs['timeout'] == service.timeout
+
+    def test_timeout_defaults_to_twenty_seconds_without_app(self):
+        service = ZhipuTranslationService(api_key='test-key')
+        assert service.timeout == 20.0
+
+    def test_timeout_can_be_configured_by_app(self):
+        app = Mock()
+        app.config = {'TRANSLATION_TIMEOUT': 7}
+        service = ZhipuTranslationService(api_key='test-key', app=app)
+
+        assert service.timeout == 7.0
+
+    def test_long_details_are_truncated_before_the_model_call(self):
+        service, _mock_client = _make_zhipu_service()
+        captured = {}
+
+        def fake_call(client, *, messages):
+            captured['text'] = messages[-1]['content']
+            return _make_api_response('中文详情')
+
+        long_details = 'This is a sentence about the book. ' * 500
+
+        with patch.object(service, '_call_zhipu', side_effect=fake_call):
+            service.translate(long_details, 'en', 'zh', field_type='details')
+
+        assert len(captured['text']) <= DETAILS_TRANSLATION_MAX_CHARS
+        assert captured['text'].endswith('.')
+
+    def test_short_details_are_sent_verbatim(self):
+        service, _mock_client = _make_zhipu_service()
+        captured = {}
+
+        def fake_call(client, *, messages):
+            captured['text'] = messages[-1]['content']
+            return _make_api_response('中文详情')
+
+        details = 'A short blurb about the book.'
+        with patch.object(service, '_call_zhipu', side_effect=fake_call):
+            service.translate(details, 'en', 'zh', field_type='details')
+
+        assert captured['text'] == details

@@ -463,6 +463,39 @@ _NON_SUBSTANTIVE_DETAILS = frozenset(
 )
 
 
+#: 详情翻译的输入上限。超长详情（部分简介 2 万字符）整段送模型会占满 prompt、
+#: 只拿回 max_tokens=4096 对应的一小段，并把单次调用拖到几十秒（实测生产 69.7s 后 503）。
+DETAILS_TRANSLATION_MAX_CHARS = 6000
+
+
+def truncate_details_for_translation(text: str | None, max_chars: int = DETAILS_TRANSLATION_MAX_CHARS) -> str:
+    """把超过上限的详情截到可翻译长度，优先在句子/段落边界切开。
+
+    正常长度的详情原样返回（不奖励截断，只防病态输入）。
+    """
+    if not isinstance(text, str):
+        return ''
+    if len(text) <= max_chars:
+        return text
+    cut = text[:max_chars]
+    boundary = max(cut.rfind('. '), cut.rfind('! '), cut.rfind('? '), cut.rfind('。'), cut.rfind('\n'))
+    if boundary >= max_chars // 2:
+        cut = cut[: boundary + 1]
+    return cut.rstrip()
+
+
+def strip_non_substantive_details(text: str | None) -> str:
+    """把无信息量的 details 译文归一化为空串（供读写边界统一使用）。
+
+    '英文' / '- 英文' / '小说' 这类语言标记不是译文：模板会把它清空（回退英文），
+    而「有值即已翻译」的判断会因此**永不复译**，形成页面永久英文的自我固化。
+    所有写入 BookMetadata / 语言包 / 读取缓存的位置都走这里，别在各处重写清单。
+    """
+    if is_non_substantive_details(text):
+        return ''
+    return text.strip() if isinstance(text, str) else ''
+
+
 def is_non_substantive_details(text: str | None) -> bool:
     """判断 details / details_zh 是否为无信息量的语言标记或占位符。
 

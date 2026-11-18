@@ -4,10 +4,12 @@ import pytest
 from flask import Flask
 
 from app.utils.api_helpers import (
+    DETAILS_TRANSLATION_MAX_CHARS,
     APIResponse,
     clean_translation_text,
     handle_api_errors,
     is_non_substantive_details,
+    truncate_details_for_translation,
     validate_isbn,
     validate_pagination,
 )
@@ -257,3 +259,32 @@ class TestIsNonSubstantiveDetails:
     def test_real_details_pass_through(self, value):
         """短句正常详情与英文原文都不得被误判。"""
         assert is_non_substantive_details(value) is False
+
+
+class TestTruncateDetailsForTranslation:
+    """超长详情截断：只防病态输入，正常长度原样返回。"""
+
+    def test_short_text_is_returned_unchanged(self):
+        text = 'A short blurb about a book.'
+        assert truncate_details_for_translation(text) == text
+
+    def test_long_text_is_cut_at_sentence_boundary_within_limit(self):
+        sentence = 'This is a sentence about the book. '
+        text = sentence * 400  # ~14k chars
+
+        result = truncate_details_for_translation(text)
+
+        assert len(result) <= DETAILS_TRANSLATION_MAX_CHARS
+        assert result.endswith('.')
+        assert text.startswith(result)
+
+    def test_long_text_without_boundary_is_hard_cut(self):
+        text = 'x' * (DETAILS_TRANSLATION_MAX_CHARS + 500)
+
+        result = truncate_details_for_translation(text)
+
+        assert len(result) <= DETAILS_TRANSLATION_MAX_CHARS
+
+    def test_none_and_non_string_are_normalised_to_empty(self):
+        assert truncate_details_for_translation(None) == ''
+        assert truncate_details_for_translation(123) == ''  # type: ignore[arg-type]

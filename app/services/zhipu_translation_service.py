@@ -19,6 +19,8 @@ from ..utils.api_helpers import (
     clean_translation_text,
     is_english_echo,
     is_inflated_translation,
+    is_non_substantive_details,
+    truncate_details_for_translation,
 )
 from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import run_with_app_context
@@ -198,6 +200,13 @@ class ZhipuTranslationService:
         # 避免 JSON 输出不稳。可被 TRANSLATION_USE_MERGED_JSON 显式覆盖。
         merged_override = app.config.get('TRANSLATION_USE_MERGED_JSON') if app is not None else None
         self.use_merged_json = merged_override if merged_override is not None else (self.provider == 'zhipu')
+
+        # 单次请求上限：SDK 默认超时过长（数百秒），后台批量翻译会被单次挂起放大。
+        # 可用 TRANSLATION_TIMEOUT 覆盖（秒）。
+        if app is not None:
+            self.timeout = float(app.config.get('TRANSLATION_TIMEOUT', 20))
+        else:
+            self.timeout = float(os.environ.get('TRANSLATION_TIMEOUT', '20'))
 
         self._client: Any = None
         self._last_request_time: float = 0
@@ -425,7 +434,7 @@ class ZhipuTranslationService:
                     self._client = OpenAI(
                         api_key=self.api_key,
                         base_url=self.base_url or 'https://api.siliconflow.cn/v1',
-                        timeout=60.0,
+                        timeout=self.timeout,
                     )
                     logger.info('硅基流动(Hunyuan-MT-7B)客户端初始化成功')
                 else:
@@ -437,7 +446,7 @@ class ZhipuTranslationService:
                     self._client = OpenAI(
                         api_key=self.api_key,
                         base_url='https://open.bigmodel.cn/api/paas/v4/',
-                        timeout=60.0,
+                        timeout=self.timeout,
                         max_retries=0,
                     )
                     logger.info('智谱AI客户端初始化成功')
@@ -520,6 +529,9 @@ class ZhipuTranslationService:
         """
         if not text or not text.strip():
             return text
+
+        if field_type == 'details':
+            text = truncate_details_for_translation(text)
 
         current_time = time.time()
         time_since_last = current_time - self._last_request_time
@@ -1040,6 +1052,11 @@ class HybridTranslationService:
         if not text or not text.strip():
             return text
 
+        # 长详情先截断再查缓存：缓存键与落库/语言包必须用同一份待译文本，
+        # 否则整段文本会命中一条只覆盖前 6000 字符的译文。
+        if field_type == 'details':
+            text = truncate_details_for_translation(text)
+
         cache_service = self._get_cache_service()
         cache_context = (
             self.zhipu.build_cache_context(field_type, context) if self.zhipu.provider == 'siliconflow' else None
@@ -1062,6 +1079,10 @@ class HybridTranslationService:
                     # bump PROMPT_VERSION —— 那会把没问题的缓存也一并作废）。
                     if field_type == 'description' and _is_author_only_description(text, result, context):
                         logger.warning('缓存简介只有作者名，按未命中处理')
+                    elif field_type == 'details' and is_non_substantive_details(result):
+                        # 缓存里的 '英文' / '- 英文' 是模型返回的语言标记，不是译文。
+                        # 按未命中处理，用后面的重译覆盖同一个缓存键（自愈）。
+                        logger.warning('缓存详情译文是语言标记，按未命中处理并重译: %r', result[:20])
                     elif field_type in INFLATION_GUARDED_FIELDS and is_inflated_translation(text, result, context):
                         logger.warning('缓存译文疑似被上下文注水，按未命中处理并重译: %s', text[:40])
                     else:
@@ -1100,6 +1121,12 @@ class HybridTranslationService:
         # 后续请求一直命中坏值，书名永远补不上 —— 见 #210 的取证）。
         if translated and is_english_echo(text, translated, target_lang):
             logger.warning('翻译结果为原文回显，已丢弃以避免污染缓存: %r -> %r', text[:40], translated[:40])
+            translated = None
+
+        # 语言标记（'英文' / '- 英文'）同理：它不是译文，返回或落库都会把详情页
+        # 永久钉在英文上（模板清空噪音 + 真值判断不再复译）。
+        if translated and field_type == 'details' and is_non_substantive_details(translated):
+            logger.warning('详情译文是语言标记，已丢弃以避免污染缓存: %r', translated[:20])
             translated = None
 
         if translated and cache_service:

@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from ..models.book import Book
 from ..models.schemas import BookMetadata, db
-from ..utils.api_helpers import is_placeholder_text
+from ..utils.api_helpers import is_placeholder_text, strip_non_substantive_details
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.exceptions import APIException, APIRateLimitException, ExternalAPIError
 from ..utils.space_runtime import is_space_runtime
@@ -591,8 +591,10 @@ class BookService:
                 metadata.title_zh = title_zh
             if description_zh:
                 metadata.description_zh = description_zh
-            if details_zh:
-                metadata.details_zh = details_zh
+            # 语言标记（'英文' / '- 英文'）不是译文：落库后会永久挡住复译。
+            cleaned_details_zh = strip_non_substantive_details(details_zh)
+            if cleaned_details_zh:
+                metadata.details_zh = cleaned_details_zh
 
             metadata.translated_at = datetime.now(UTC)
             db.session.commit()
