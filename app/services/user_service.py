@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..models.database import db
 from ..models.schemas import BookMetadata, SearchHistory, UserCategory, UserFavorite, UserPreference, UserViewedBook
+from ..utils.api_helpers import strip_non_substantive_details
 from ..utils.error_handler import ErrorCategory, log_error
 
 
@@ -153,8 +154,10 @@ class UserService:
                 meta.title_zh = title_zh
             if description_zh:
                 meta.description_zh = description_zh
-            if details_zh:
-                meta.details_zh = details_zh
+            # 语言标记（'英文' / '- 英文'）不是译文：落库后会永久挡住复译。
+            cleaned_details_zh = strip_non_substantive_details(details_zh)
+            if cleaned_details_zh:
+                meta.details_zh = cleaned_details_zh
 
             meta.translated_at = datetime.now(UTC)
             db.session.commit()

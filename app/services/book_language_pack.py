@@ -12,7 +12,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..models.database import db
 from ..models.schemas import BookMetadata, TranslationCache
-from ..utils.api_helpers import PLACEHOLDER_TEXTS, clean_translation_text, is_non_substantive_details
+from ..utils.api_helpers import (
+    PLACEHOLDER_TEXTS,
+    clean_translation_text,
+    is_non_substantive_details,
+    strip_non_substantive_details,
+)
 from ..utils.error_handler import ErrorCategory, log_error
 from .translation_cache_service import TranslationCacheService
 
@@ -109,20 +114,24 @@ class BookLanguagePack:
                     if not source_text or self._is_placeholder(source_text):
                         continue
 
-                    object_value = self._get_value(book, target_attr)
+                    object_value: str | None = self._get_value(book, target_attr)
                     pack_value = pack_entry.get(target_attr)
 
+                    # 语言标记/占位符噪音（'英文' / '- 英文'）不是译文：写进权威语言包
+                    # 会让页面显示「详情: 英文」（实测 88 条、其中 32 本在榜），
+                    # 而把它当成「已翻译」又会永久封死复译路径 —— 因此归一化成缺失，
+                    # 让下面的 pack/模型分支照常补译。
+                    if target_attr == 'details_zh' and is_non_substantive_details(object_value):
+                        log_error(
+                            ErrorCategory.TRANSLATION,
+                            f'丢弃非实质 details_zh 值并重新翻译: {isbn} {object_value!r}',
+                            level='warning',
+                        )
+                        stats['rejected_non_substantive'] = stats.get('rejected_non_substantive', 0) + 1
+                        object_value = None
+                        self._set_value(book, target_attr, '')
+
                     if object_value and not force:
-                        # 拒收语言标记/占位符噪音：这类值写进权威语言包后会让页面
-                        # 显示「详情: 英文」（实测 88 条、其中 32 本在榜）。
-                        if target_attr == 'details_zh' and is_non_substantive_details(object_value):
-                            log_error(
-                                ErrorCategory.TRANSLATION,
-                                f'跳过非实质 details_zh 值: {isbn} {object_value!r}',
-                                level='warning',
-                            )
-                            stats['rejected_non_substantive'] = stats.get('rejected_non_substantive', 0) + 1
-                            continue
                         cleaned = clean_translation_text(object_value, field_type)
                         self._set_value(book, target_attr, cleaned)
                         if not pack_value:
@@ -146,6 +155,15 @@ class BookLanguagePack:
                         continue
 
                     cleaned = clean_translation_text(translated, field_type)
+                    if target_attr == 'details_zh' and is_non_substantive_details(cleaned):
+                        log_error(
+                            ErrorCategory.TRANSLATION,
+                            f'模型返回的详情译文是语言标记，已丢弃: {isbn} {cleaned!r}',
+                            level='warning',
+                        )
+                        stats['rejected_non_substantive'] = stats.get('rejected_non_substantive', 0) + 1
+                        stats['failures'] += 1
+                        continue
                     self._set_value(book, target_attr, cleaned)
                     pack_entry[target_attr] = cleaned
                     translated_for_metadata[target_attr] = cleaned
@@ -190,7 +208,9 @@ class BookLanguagePack:
                 translations[isbn] = {
                     'title_zh': mapping.get('title_zh'),
                     'description_zh': mapping.get('description_zh'),
-                    'details_zh': mapping.get('details_zh'),
+                    # 库里可能躺着语言标记噪音（'英文' / '- 英文'）：读取侧就归一化成
+                    # 缺失，否则它会一路流到模板，并让「有值即已翻译」永不复译。
+                    'details_zh': strip_non_substantive_details(mapping.get('details_zh')) or None,
                 }
             return translations
         except Exception as e:
@@ -232,6 +252,8 @@ class BookLanguagePack:
                     continue
                 source_text = self._get_value(book, source_attr)
                 translated = cached.get(source_text or '')
+                if translated and target_attr == 'details_zh' and is_non_substantive_details(translated):
+                    translated = None
                 if translated:
                     self._set_value(book, target_attr, clean_translation_text(translated, field_type))
 
@@ -374,9 +396,14 @@ class BookLanguagePack:
 
     def _fill_missing(self, book: Any, data: dict[str, str | None]) -> None:
         for _source_attr, target_attr, field_type in self._FIELDS:
+            if target_attr == 'details_zh' and is_non_substantive_details(self._get_value(book, target_attr)):
+                # 缓存/库里带来的语言标记等同缺失：先清空，才轮到 DB 或语言包补值。
+                self._set_value(book, target_attr, '')
             if self._get_value(book, target_attr):
                 continue
             value = data.get(target_attr)
+            if target_attr == 'details_zh':
+                value = strip_non_substantive_details(value) or None
             if value:
                 self._set_value(book, target_attr, clean_translation_text(value, field_type))
 

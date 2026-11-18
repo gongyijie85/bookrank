@@ -14,6 +14,7 @@ from ...utils.api_helpers import (
     clean_translation_text,
     csrf_protect,
     rate_limit,
+    strip_non_substantive_details,
     validate_isbn,
 )
 from ...utils.error_handler import ErrorCategory, log_error
@@ -323,8 +324,9 @@ def get_book_details(isbn: str):
         # 通过 Service 层获取翻译缓存（不直接访问 db.session）
         try:
             meta = _user_service.get_book_metadata(isbn)
-            if meta and meta.details_zh:
-                details_zh = clean_translation_text(meta.details_zh, 'details')
+            meta_details_zh = strip_non_substantive_details(meta.details_zh if meta else None)
+            if meta_details_zh:
+                details_zh = clean_translation_text(meta_details_zh, 'details')
         except Exception as e:
             log_error(ErrorCategory.API_CALL, f'查询翻译缓存失败: {e}', level='warning')
 
@@ -333,7 +335,9 @@ def get_book_details(isbn: str):
             try:
                 translation_service = get_service('translation_service')
                 if translation_service:
-                    details_zh = translation_service.translate(details_en, 'en', 'zh', field_type='details')
+                    translated_details = translation_service.translate(details_en, 'en', 'zh', field_type='details')
+                    if strip_non_substantive_details(translated_details):
+                        details_zh = translated_details
             except Exception as e:
                 log_error(ErrorCategory.API_CALL, f'详情翻译失败: {e}', level='warning')
 

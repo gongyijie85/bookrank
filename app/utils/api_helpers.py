@@ -463,6 +463,18 @@ _NON_SUBSTANTIVE_DETAILS = frozenset(
 )
 
 
+def strip_non_substantive_details(text: str | None) -> str:
+    """把无信息量的 details 译文归一化为空串（供读写边界统一使用）。
+
+    '英文' / '- 英文' / '小说' 这类语言标记不是译文：模板会把它清空（回退英文），
+    而「有值即已翻译」的判断会因此**永不复译**，形成页面永久英文的自我固化。
+    所有写入 BookMetadata / 语言包 / 读取缓存的位置都走这里，别在各处重写清单。
+    """
+    if is_non_substantive_details(text):
+        return ''
+    return text.strip() if isinstance(text, str) else ''
+
+
 def is_non_substantive_details(text: str | None) -> bool:
     """判断 details / details_zh 是否为无信息量的语言标记或占位符。
 

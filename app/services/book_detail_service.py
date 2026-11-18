@@ -4,7 +4,13 @@ from typing import Any, cast
 from flask import current_app
 
 from ..utils import clean_translation_text
-from ..utils.api_helpers import is_placeholder_text, strip_placeholder, validate_isbn
+from ..utils.api_helpers import (
+    is_non_substantive_details,
+    is_placeholder_text,
+    strip_non_substantive_details,
+    strip_placeholder,
+    validate_isbn,
+)
 from ..utils.error_handler import ErrorCategory, log_error
 from ..utils.service_helpers import (
     get_google_books_client,
@@ -184,16 +190,25 @@ def merge_or_translate_book(book: dict, isbn: str) -> None:
         if meta:
             if meta.description_zh and not book.get('description_zh'):
                 book['description_zh'] = clean_translation_text(meta.description_zh, 'description')
-            if meta.details_zh and not book.get('details_zh'):
-                book['details_zh'] = clean_translation_text(meta.details_zh, 'details')
+            # 库里可能存着语言标记噪音（'英文' / '- 英文'）：它不是译文，
+            # 既不能渲染（模板会清空），也不能算「已翻译」（会让复译永不发生）。
+            meta_details_zh = strip_non_substantive_details(meta.details_zh)
+            if meta_details_zh and not book.get('details_zh'):
+                book['details_zh'] = clean_translation_text(meta_details_zh, 'details')
             if meta.title_zh and not book.get('title_zh'):
                 book['title_zh'] = clean_translation_text(meta.title_zh, 'title')
 
             # 应用翻译覆盖
             _apply_translation_overrides(book, isbn)
 
-            if meta.title_zh and meta.description_zh and meta.details_zh:
+            # 三个字段都「有实质译文」才短路；noise 已在上方归一化成空，不能算数。
+            if meta.title_zh and meta.description_zh and meta_details_zh:
                 return
+
+        # 实例上带的 details_zh 也可能是噪音（缓存列表 / 语言包历史值），先归一化，
+        # 否则 needs_details 恒为假，详情页就永久停在英文。
+        if is_non_substantive_details(book.get('details_zh')):
+            book['details_zh'] = ''
 
         needs_title = bool(book.get('title') and not book.get('title_zh'))
         needs_desc = bool(

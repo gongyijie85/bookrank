@@ -83,6 +83,19 @@ class TestUserServicePreferences:
 
 
 class TestUserServiceBookTranslation:
+    def test_save_book_translation_drops_non_substantive_details(self, app, db, user_service):
+        """回归：语言标记（'英文'）不是译文，不得写进 BookMetadata。
+
+        写入后模板会把它当噪音清空（页面回退英文），同时 details_zh 为真值
+        又挡住后续复译，形成「永久英文」的自我固化。
+        """
+        result = user_service.save_book_translation('9798217181391', details_zh='英文')
+
+        assert result is True
+        meta = db.session.get(BookMetadata, '9798217181391')
+        assert meta is not None
+        assert meta.details_zh is None
+
     def test_save_book_translation_creates_metadata_with_required_fields(self, app, db, user_service):
         result = user_service.save_book_translation('9780143127550', title_zh='测试书名')
 

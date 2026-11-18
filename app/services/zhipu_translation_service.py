@@ -19,6 +19,7 @@ from ..utils.api_helpers import (
     clean_translation_text,
     is_english_echo,
     is_inflated_translation,
+    is_non_substantive_details,
 )
 from ..utils.error_handler import ErrorCategory, log_error
 from .api_utils import run_with_app_context
@@ -1062,6 +1063,10 @@ class HybridTranslationService:
                     # bump PROMPT_VERSION —— 那会把没问题的缓存也一并作废）。
                     if field_type == 'description' and _is_author_only_description(text, result, context):
                         logger.warning('缓存简介只有作者名，按未命中处理')
+                    elif field_type == 'details' and is_non_substantive_details(result):
+                        # 缓存里的 '英文' / '- 英文' 是模型返回的语言标记，不是译文。
+                        # 按未命中处理，用后面的重译覆盖同一个缓存键（自愈）。
+                        logger.warning('缓存详情译文是语言标记，按未命中处理并重译: %r', result[:20])
                     elif field_type in INFLATION_GUARDED_FIELDS and is_inflated_translation(text, result, context):
                         logger.warning('缓存译文疑似被上下文注水，按未命中处理并重译: %s', text[:40])
                     else:
@@ -1100,6 +1105,12 @@ class HybridTranslationService:
         # 后续请求一直命中坏值，书名永远补不上 —— 见 #210 的取证）。
         if translated and is_english_echo(text, translated, target_lang):
             logger.warning('翻译结果为原文回显，已丢弃以避免污染缓存: %r -> %r', text[:40], translated[:40])
+            translated = None
+
+        # 语言标记（'英文' / '- 英文'）同理：它不是译文，返回或落库都会把详情页
+        # 永久钉在英文上（模板清空噪音 + 真值判断不再复译）。
+        if translated and field_type == 'details' and is_non_substantive_details(translated):
+            logger.warning('详情译文是语言标记，已丢弃以避免污染缓存: %r', translated[:20])
             translated = None
 
         if translated and cache_service:

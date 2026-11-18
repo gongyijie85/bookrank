@@ -1,7 +1,14 @@
 from flask import request
 
 from ...utils.admin_auth import admin_required
-from ...utils.api_helpers import APIResponse, csrf_protect, handle_api_errors, rate_limit, validate_isbn
+from ...utils.api_helpers import (
+    APIResponse,
+    csrf_protect,
+    handle_api_errors,
+    rate_limit,
+    strip_non_substantive_details,
+    validate_isbn,
+)
 from ...utils.error_handler import ErrorCategory, log_error
 from ...utils.service_helpers import get_service
 from . import api_bp
@@ -119,6 +126,10 @@ def translate_book(isbn: str):
     for _, target in fields:
         if has_text(book_data.get(target)):
             translated_data[target] = book_data[target]
+    # 语言标记（'英文' / '- 英文'）不是译文：按未翻译处理，避免落库后永久挡住复译。
+    for field in missing:
+        if field == 'details_zh' and not strip_non_substantive_details(translated_data.get(field)):
+            translated_data[field] = None
     untranslated = [field for field in missing if not has_text(translated_data.get(field))]
     if missing and len(untranslated) == len(missing):
         return APIResponse.error('翻译服务暂时不可用', 503)

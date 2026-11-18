@@ -208,6 +208,36 @@ class TestISBNValidation:
         assert response.status_code in [200, 404]
 
 
+@pytest.mark.routes
+class TestBookDetailsLanguageMarker:
+    """回归：/api/book-details/<isbn> 不得把语言标记当成中文详情下发。
+
+    生产取证（2026-11-18）：该接口对 9798217181391 返回 details_zh='英文'，
+    前端拿到后当成正文渲染；同一段英文现译可得 568 字中文。
+    """
+
+    def test_language_marker_details_zh_is_not_served(self, client, db, monkeypatch):
+        from app.models.schemas import BookMetadata
+        from app.services.google_books_client import GoogleBooksClient
+
+        db.session.add(
+            BookMetadata(isbn='9798217181391', title='Co-Existence', author='Ethan Mollick', details_zh='英文')
+        )
+        db.session.commit()
+        monkeypatch.setattr(
+            GoogleBooksClient,
+            'fetch_book_details',
+            lambda self, isbn: {'details': 'A long English blurb.', 'isbn_13': isbn},
+        )
+
+        response = client.get('/api/book-details/9798217181391')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)['data']
+        assert data['details_zh'] in ('', None)
+        assert data['description'] != '英文'
+
+
 # ==================== 奖项相关测试 ====================
 
 

@@ -685,6 +685,45 @@ class TestBookService:
         assert saved['books']['9780143127550']['details_zh'] == '最初由Viking Penguin于2014年出版。'
         assert stats.get('rejected_non_substantive', 0) == 0
 
+    def test_language_pack_retranslates_when_details_zh_is_language_marker(self, tmp_path):
+        """回归：book 上的 details_zh 是语言标记时，同步流程必须复译而不是跳过。
+
+        旧行为：object_value 为真值即视为「已翻译」，只记一条 rejected 就 continue，
+        语言包因此永远补不上 details_zh —— 生产实测 799 条里只有 203 条有详情译文。
+        """
+        pack_path = tmp_path / 'book_language_pack.zh.json'
+        book = {
+            'id': '9798217181391',
+            'isbn13': '9798217181391',
+            'title': 'Co-Existence',
+            'title_zh': '共存',
+            'description': 'A test description',
+            'description_zh': '测试简介',
+            'details': 'Detailed book description',
+            'details_zh': '英文',
+        }
+
+        class FakeTranslator:
+            def translate(self, text, source_lang='en', target_lang='zh', field_type='text'):
+                return {'title': '共存', 'description': '测试简介', 'details': '中文详情'}[field_type]
+
+        stats = BookLanguagePack(pack_path).translate_and_store_books([book], translator=FakeTranslator())
+
+        saved = json.loads(pack_path.read_text(encoding='utf-8'))
+        assert saved['books']['9798217181391']['details_zh'] == '中文详情'
+        assert stats['fields_translated'] >= 1
+
+    def test_metadata_translations_drop_language_marker_details(self, db):
+        """回归：数据库里的语言标记在读取侧就要归一化成缺失，别让噪音流进模板。"""
+        db.session.add(
+            BookMetadata(isbn='9798217181391', title='Co-Existence', author='Ethan Mollick', details_zh='- 英文')
+        )
+        db.session.commit()
+
+        translations = BookLanguagePack().get_book_metadata_translations(['9798217181391'])
+
+        assert translations['9798217181391']['details_zh'] in (None, '')
+
     def test_sync_all_categories_refreshes_metadata_and_language_pack(self, book_service, db, tmp_path):
         """测试每周NYT同步会补资料、翻译并写入语言包和数据库"""
         pack_path = tmp_path / 'book_language_pack.zh.json'
@@ -1018,6 +1057,15 @@ class TestBookService:
         assert metadata.title_zh == '测试书名'
         assert metadata.description_zh == '测试描述'
         assert metadata.details_zh == '测试详情'
+
+    def test_save_book_translation_drops_language_marker_details(self, book_service, db):
+        """回归：'英文' / '- 英文' 这类语言标记不得写进 BookMetadata.details_zh。"""
+        result = book_service.save_book_translation(isbn='9798217181391', details_zh='- 英文')
+
+        assert result is True
+        metadata = db.session.get(BookMetadata, '9798217181391')
+        assert metadata is not None
+        assert metadata.details_zh is None
 
     def test_save_book_translation_invalid_isbn(self, book_service):
         """测试保存图书翻译时ISBN无效的情况"""
