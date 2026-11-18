@@ -121,7 +121,12 @@ jobs:
 
   import:
     needs: observe
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_import != true }}
+    # Observation-only on schedule (#94/#98): a cron run builds the fixture draft
+    # but must never POST it to import-batch (that created pending_review rows
+    # for the two test samples). Only an explicit manual dispatch may import,
+    # and only when skip_import is not set. write_enabled=false is inert here —
+    # import_batch() gates on publisher.site_import_enabled, not on the draft flag.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_import != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Import phase holds BATCH_IMPORT_SECRET only — no Playwright browser secrets
