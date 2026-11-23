@@ -17,6 +17,7 @@ import json
 import os
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy import text
 
 from app.models.schemas import APICache, BookMetadata, TranslationCache
@@ -24,6 +25,7 @@ from app.services.translation_cache_service import TranslationCacheService
 from scripts.backfill_inflated_translations import (
     EnglishSource,
     apply_clears,
+    collect_english_sources,
     find_inflated_rows,
     main,
     scrub_pack_document,
@@ -249,6 +251,48 @@ class TestFindInflatedRows:
 
         assert hits == []
         assert (stats.scanned, stats.hits, stats.unresolved) == (1, 0, 1)
+
+    @pytest.mark.parametrize(
+        ('isbn', 'title', 'translated_length'),
+        [
+            ('9781668092538', 'MEET ME IN PARIS', 867),
+            ('9781668214343', 'YOUR FELLOW AMERICANS', 543),
+            ('9781668222027', 'CANCEL ME IF YOU CAN', 759),
+        ],
+    )
+    def test_production_detail_placeholder_is_missing_source(self, db, isbn, title, translated_length):
+        translated = _zh('已有的中文详情。', translated_length)
+        _add_book(db, isbn, title=title, details='暂无详细描述', details_zh=translated)
+
+        hits, stats = find_inflated_rows(db.session, {})
+        assert hits == []
+        assert (stats.scanned, stats.hits, stats.unresolved_details) == (1, 0, 1)
+        assert db.session.get(BookMetadata, isbn).details_zh == translated
+
+    @pytest.mark.parametrize('source', [None, '  ', ' No detailed description available. ', '- 英文'])
+    def test_missing_detail_sources_are_counted(self, db, source):
+        _add_book(db, ISBN_DETAILS, details=source, details_zh=ZH_DETAILS)
+        hits, stats = find_inflated_rows(db.session, {})
+
+        assert hits == []
+        assert stats.unresolved_details == 1
+
+    def test_placeholder_description_does_not_hide_a_real_snapshot(self, db, tmp_path):
+        payload = {'isbn13': ISBN_INFLATED, 'description': '暂无简介'}
+        db.session.add(
+            APICache(
+                api_source='nyt',
+                request_key='test',
+                request_hash='placeholder-source',
+                response_data=json.dumps(payload),
+            )
+        )
+        db.session.commit()
+        (tmp_path / 'snapshot.json').write_text(json.dumps({**payload, 'description': EN_SHORT}), encoding='utf8')
+
+        sources = collect_english_sources(db.session, cache_dir=tmp_path)
+
+        assert sources[ISBN_INFLATED].description == EN_SHORT
 
     def test_scan_writes_nothing(self, db):
         """dry-run 的安全性：扫描本身只读，跑完 DB 必须原样。"""
@@ -556,6 +600,15 @@ class TestMainCli:
         db.session.expire_all()
         assert db.session.get(BookMetadata, ISBN_NORMAL).description_zh == ZH_NORMAL
         assert _read_pack(pack)['books'][ISBN_INFLATED]['description_zh'] == ZH_INFLATED
+
+    def test_dry_run_reports_missing_details_without_a_hit(self, db, app, tmp_path, capsys):
+        _add_book(db, ISBN_DETAILS, details='暂无详细描述', details_zh=ZH_DETAILS)
+
+        code, _ = self._run(app, tmp_path)
+
+        assert code == 0
+        assert '简介 0 行，详情 1 行' in capsys.readouterr().out
+        assert db.session.get(BookMetadata, ISBN_DETAILS).details_zh == ZH_DETAILS
 
     def test_does_not_leak_the_disabled_scheduler_flag(self, db, app, tmp_path, monkeypatch):
         """回归：main() 曾把 DISABLE_BACKGROUND_THREADS=true 永久留在环境里。
