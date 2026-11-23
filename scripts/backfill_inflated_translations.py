@@ -40,7 +40,8 @@
 2. ``--cache-dir``（默认 ``cache/``）下的 API 快照 JSON；
 3. ``new_books`` 表的 ``description``。
 
-三处都找不到英文原文的行会被计入 ``unresolved`` 并**跳过**（不猜、不清）。
+简介三处都找不到原文时计入 ``unresolved``，详情没有原文时计入 ``unresolved_details``。
+缺失和已知占位语都视为没有原文，对应字段不参与判定或清理。
 
 被清的是 ``description_zh`` 与 ``details_zh`` 两个字段（``title_zh`` 不启用注水判定，
 理由见 ``api_helpers.INFLATION_GUARDED_FIELDS``）。清空写的是 NULL，不是空字符串。
@@ -79,7 +80,7 @@ if str(ROOT) not in sys.path:
 if __name__ == '__main__':
     os.environ['DISABLE_BACKGROUND_THREADS'] = 'true'
 
-from app.utils.api_helpers import is_inflated_translation
+from app.utils.api_helpers import is_inflated_translation, strip_non_substantive_details, strip_placeholder
 from app.utils.error_handler import ErrorCategory, log_error
 
 #: 权威语言包（部署态直接生效，必须与 DB 一起清，理由见模块 docstring）
@@ -184,6 +185,7 @@ class Stats:
     scanned: int = 0
     hits: int = 0
     unresolved: int = 0
+    unresolved_details: int = 0
     cleared_db: int = 0
     cleared_pack: int = 0
     pack_mismatch: int = 0
@@ -213,9 +215,9 @@ def iter_book_entries(payload: Any, list_name: str = '') -> list[tuple[str, str,
         if isinstance(raw_list, str) and raw_list.strip():
             current_list = raw_list.strip()
 
-        description = payload.get(_DESCRIPTION_KEY)
+        description = strip_placeholder(payload.get(_DESCRIPTION_KEY))
         isbn = _first_isbn(payload)
-        if isbn and isinstance(description, str) and description.strip():
+        if isbn and description:
             metadata = {
                 key: payload[key].strip()
                 for key in _CONTEXT_KEYS
@@ -223,7 +225,7 @@ def iter_book_entries(payload: Any, list_name: str = '') -> list[tuple[str, str,
             }
             if current_list and 'list_name' not in metadata:
                 metadata['list_name'] = current_list
-            found.append((isbn, description.strip(), metadata))
+            found.append((isbn, description, metadata))
 
         for value in payload.values():
             found.extend(iter_book_entries(value, current_list))
@@ -283,7 +285,7 @@ def collect_english_sources(
         new_books = []
     for book in new_books:
         isbn = str(book.isbn13 or book.isbn10 or '').strip()
-        description = str(book.description or '').strip()
+        description = strip_placeholder(book.description)
         if isbn and description:
             metadata = {key: str(getattr(book, key)).strip() for key in _CONTEXT_KEYS if getattr(book, key, None)}
             sources.setdefault(isbn, EnglishSource(description=description, context=metadata))
@@ -311,8 +313,10 @@ def find_inflated_rows(
 
         details_zh = str(row.details_zh or '').strip()
         if details_zh:
-            source_text = str(row.details or '').strip()
-            if is_inflated_translation(source_text, details_zh):
+            source_text = strip_non_substantive_details(strip_placeholder(row.details))
+            if not source_text:
+                stats.unresolved_details += 1
+            elif is_inflated_translation(source_text, details_zh):
                 hits.append(
                     Hit(
                         isbn=isbn,
@@ -327,7 +331,7 @@ def find_inflated_rows(
         description_zh = str(row.description_zh or '').strip()
         if description_zh:
             source = sources.get(isbn)
-            if source is None:
+            if source is None or not strip_placeholder(source.description):
                 # 没有英文原文就无法算比率，也不做任何猜测：留给人工核对
                 stats.unresolved += 1
             elif is_inflated_translation(source.description, description_zh, source.as_context()):
@@ -462,7 +466,7 @@ def apply_clears(
 
 
 def _report_dry_run(hits: list[Hit], stats: Stats, pack_path: Path | None, clear_pack: bool) -> None:
-    emit(f'命中 {stats.hits} 条（扫描 {stats.scanned} 行，缺少英文原文 {stats.unresolved} 行）：')
+    emit(f'命中 {stats.hits} 条（扫描 {stats.scanned} 行）：')
     emit('-' * 78)
     emit(f'{"ISBN":<15}{"字段":<17}{"en":>5}{"zh":>6}{"倍数":>8}  书名')
     for hit in hits:
@@ -478,8 +482,6 @@ def _report_dry_run(hits: list[Hit], stats: Stats, pack_path: Path | None, clear
             emit(f'语言包 {pack_path.name}：将删除 {removed} 条同值坏值，另有 {mismatch} 条与 DB 不同值（保留）。')
         except (OSError, ValueError) as exc:
             emit(f'语言包预演失败（未写入）：{exc}')
-    if stats.unresolved:
-        emit(f'⚠️ {stats.unresolved} 行有中文简介但找不到英文原文，已跳过（未做任何判定）。')
     emit('\n（dry-run：未写库、未改语言包、未删缓存。加 --apply 才执行）')
 
 
@@ -516,9 +518,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             emit(f'英文原文来源：{len(sources)} 本（api_cache/nyt + 快照 + new_books）')
             hits, stats = find_inflated_rows(db.session, sources, limit=args.limit)
+            emit(f'缺少英文原文，已跳过对应字段（简介 {stats.unresolved} 行，详情 {stats.unresolved_details} 行）。')
 
             if not hits:
-                emit(f'✅ 未发现注水译文（扫描 {stats.scanned} 行，缺英文原文 {stats.unresolved} 行）。')
+                emit(f'✅ 未发现注水译文（扫描 {stats.scanned} 行）。')
                 return 0
 
             if not args.apply:
@@ -539,8 +542,6 @@ def main(argv: list[str] | None = None) -> int:
                 f'语言包 {stats.cleared_pack} 条（保留 {stats.pack_mismatch} 条不同值）/ '
                 f'翻译缓存 {stats.cleared_cache} 行 / 失败 {stats.failures} 条'
             )
-            if stats.unresolved:
-                emit(f'⚠️ 另有 {stats.unresolved} 行因缺英文原文未判定，需人工核对。')
             emit('提示：清空后需等下一次同步/翻译流程重新生成，见模块 docstring。')
             return 0 if stats.failures == 0 else 1
 
