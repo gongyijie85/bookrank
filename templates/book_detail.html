@@ -165,10 +165,14 @@
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
                             <span class="toggle-text" data-i18n="view_original">{{ _('查看英文原文') }}</span>
                         </button>
-                        <div class="detail-content lang-toggle-content" id="details-en">{{ _details_en }}</div>
                         {% endif %}
-                        {% else %}
-                        <div class="detail-content">{{ _details_en }}</div>
+                        {% endif %}
+                        {% if _details_en %}
+                        <div class="detail-content{% if _details_zh %} lang-toggle-content{% endif %}"{% if _details_zh %} id="details-en"{% endif %} lang="en">
+                            {% for paragraph in _details_en.splitlines() if paragraph.strip() %}
+                            <p>{{ paragraph|trim }}</p>
+                            {% endfor %}
+                        </div>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -674,11 +678,11 @@ body.detail-page .main-content {
     border-bottom: 1px solid var(--apple-border);
 }
 
-#panel-details .zh-description > p {
+#panel-details :is(.zh-description, .detail-content) > p {
     margin: 0;
 }
 
-#panel-details .zh-description > p + p {
+#panel-details :is(.zh-description, .detail-content) > p + p {
     margin-block-start: 0.85em;
 }
 

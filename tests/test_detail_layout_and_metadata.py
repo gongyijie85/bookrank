@@ -257,6 +257,27 @@ class TestDetailsTabHonesty:
             assert self._has_details_panel(soup), f'{label}: 有详情时「详细信息」面板必须出现'
             assert '一段有实质内容的中文详细介绍。' in html, f'{label}: 详情正文必须渲染'
 
+    @pytest.mark.parametrize('details_zh', ['中文第一段。\n\n中文第二段。', None])
+    def test_desktop_english_details_render_each_paragraph(self, client, book_service, details_zh):
+        html = _render_detail(
+            client,
+            book_service,
+            lang='en',
+            ua=DESKTOP_UA,
+            details='First English paragraph.\r\n\r\n  Second English paragraph. \n\nThird English paragraph.',
+            details_zh=details_zh,
+        )
+        soup = BeautifulSoup(html, 'html.parser')
+        selector = '#details-en' if details_zh else '#panel-details > .detail-content'
+        assert [p.get_text() for p in soup.select(f'{selector} > p')] == [
+            'First English paragraph.',
+            'Second English paragraph.',
+            'Third English paragraph.',
+        ]
+        assert [p.get_text() for p in soup.select('#panel-details .zh-description > p')] == (
+            details_zh.split('\n\n') if details_zh else []
+        )
+
 
 # ---------------------------------------------------------------------------
 # D. 首屏布局：结构性事实
