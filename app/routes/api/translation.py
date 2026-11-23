@@ -110,6 +110,8 @@ def translate_book(isbn: str):
     if not book_data:
         return APIResponse.error('图书不存在', 404)
 
+    if isinstance(book_data.get('details_zh'), str):
+        book_data = {**book_data, 'details_zh': strip_non_substantive_details(book_data['details_zh'])}
     service = get_translation_service()
     translated_data = service.translate_book_info(book_data)
     fields = (('title', 'title_zh'), ('description', 'description_zh'), ('details', 'details_zh'))

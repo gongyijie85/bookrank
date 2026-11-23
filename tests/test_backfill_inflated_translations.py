@@ -277,6 +277,64 @@ class TestFindInflatedRows:
 class TestApplyClears:
     """写入语义：NULL 而不是空字符串；三层一起清。"""
 
+    def test_keeps_metadata_corrected_after_scan(self, db):
+        _add_book(db, ISBN_INFLATED, description_zh=ZH_INFLATED)
+        hits, stats = find_inflated_rows(db.session, {ISBN_INFLATED: EnglishSource(EN_SHORT)})
+        db.session.get(BookMetadata, ISBN_INFLATED).description_zh = ZH_NORMAL
+        db.session.commit()
+
+        apply_clears(db.session, hits, stats, clear_pack=False)
+
+        assert db.session.get(BookMetadata, ISBN_INFLATED).description_zh == ZH_NORMAL
+        assert stats.cleared_db == 0
+
+    def test_keeps_correct_cache_for_same_source(self, db):
+        _add_book(db, ISBN_INFLATED, description_zh='  ' + ZH_INFLATED + '  ')
+        _add_cache_row(db, EN_SHORT, ZH_NORMAL)
+        hits, stats = find_inflated_rows(db.session, {ISBN_INFLATED: EnglishSource(EN_SHORT)})
+
+        apply_clears(db.session, hits, stats, clear_pack=False)
+
+        assert db.session.get(BookMetadata, ISBN_INFLATED).description_zh is None
+        assert db.session.query(TranslationCache).one().translated_text == ZH_NORMAL
+        assert stats.cleared_cache == 0
+
+    def test_removes_same_bad_cache_with_surrounding_whitespace(self, db):
+        _add_book(db, ISBN_INFLATED, description_zh=ZH_INFLATED)
+        _add_cache_row(db, EN_SHORT, '\t' + ZH_INFLATED + '\n')
+        hits, stats = find_inflated_rows(db.session, {ISBN_INFLATED: EnglishSource(EN_SHORT)})
+
+        apply_clears(db.session, hits, stats, clear_pack=False)
+
+        assert stats.cleared_cache == 1
+        assert db.session.query(TranslationCache).count() == 0
+
+    def test_retry_after_pack_write_failure(self, db, tmp_path):
+        _add_book(db, ISBN_INFLATED, description_zh=ZH_INFLATED)
+        _add_cache_row(db, EN_SHORT, ZH_INFLATED)
+        pack = _write_pack(tmp_path, {ISBN_INFLATED: {'description_zh': ZH_INFLATED}})
+        sources = {ISBN_INFLATED: EnglishSource(EN_SHORT)}
+        hits, stats = find_inflated_rows(db.session, sources)
+        with patch('scripts.backfill_inflated_translations._write_pack_document', side_effect=OSError('disk full')):
+            apply_clears(db.session, hits, stats, pack_path=pack)
+        assert stats.failures == 1
+        assert (stats.cleared_db, stats.cleared_cache, stats.cleared_pack) == (0, 0, 0)
+
+        hits, stats = find_inflated_rows(db.session, sources)
+        apply_clears(db.session, hits, stats, pack_path=pack)
+        assert (stats.cleared_db, stats.cleared_cache, stats.cleared_pack) == (1, 1, 1)
+        assert _read_pack(pack)['books'] == {}
+
+    def test_limit_applies_to_fields_on_the_same_book(self, db):
+        _add_book(db, ISBN_INFLATED, description_zh=ZH_INFLATED, details=EN_DETAILS, details_zh=ZH_DETAILS)
+        sources = {ISBN_INFLATED: EnglishSource(EN_SHORT)}
+        hits, stats = find_inflated_rows(db.session, sources, limit=1)
+        assert len(hits) == stats.hits == 1
+        apply_clears(db.session, hits, stats, clear_pack=False)
+        remaining, _ = find_inflated_rows(db.session, sources)
+        assert len(remaining) == 1
+        assert remaining[0].field_name != hits[0].field_name
+
     def test_cleared_column_is_null_not_empty_string(self, db):
         _add_book(db, ISBN_INFLATED, description_zh=ZH_INFLATED)
         hits, stats = find_inflated_rows(db.session, {ISBN_INFLATED: EnglishSource(EN_SHORT, CONTEXT)})

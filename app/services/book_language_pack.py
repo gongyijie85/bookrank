@@ -116,6 +116,14 @@ class BookLanguagePack:
 
                     object_value: str | None = self._get_value(book, target_attr)
                     pack_value = pack_entry.get(target_attr)
+                    if (
+                        target_attr == 'details_zh'
+                        and isinstance(pack_value, str)
+                        and is_non_substantive_details(pack_value)
+                    ):
+                        del pack_entry[target_attr]
+                        pack_value = None
+                        pack_changed = True
 
                     # 语言标记/占位符噪音（'英文' / '- 英文'）不是译文：写进权威语言包
                     # 会让页面显示「详情: 英文」（实测 88 条、其中 32 本在榜），

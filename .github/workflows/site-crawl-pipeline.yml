@@ -46,9 +46,9 @@ jobs:
         run: |
           set -e
           for i in 1 2 3; do
-            code=$(curl -s -o /tmp/sync.json -w '%{http_code}' --max-time 60 \
+            code=$(curl -sS -o /tmp/sync.json -w '%{http_code}' --max-time 60 \
               -H "Authorization: Bearer ${CRON_SECRET}" \
-              "${BASE_URL}/api/cron/trigger-new-books-sync")
+              "${BASE_URL}/api/cron/trigger-new-books-sync") || code=000
             echo "HTTP $code"
             cat /tmp/sync.json || true
             if [ "$code" = "200" ]; then exit 0; fi
@@ -149,11 +149,11 @@ jobs:
           echo "Using $DRAFT"
           # business 4xx: do not retry; 5xx/timeout: up to 3 tries
           for i in 1 2 3; do
-            code=$(curl -s -o /tmp/import.json -w '%{http_code}' --max-time 60 \
+            code=$(curl -sS -o /tmp/import.json -w '%{http_code}' --max-time 60 \
               -X POST "${BASE_URL}/api/new-books/import-batch" \
               -H "Authorization: Bearer ${BATCH_IMPORT_SECRET}" \
               -H "Content-Type: application/json" \
-              --data-binary @"${DRAFT}")
+              --data-binary @"${DRAFT}") || code=000
             echo "HTTP $code attempt $i"
             cat /tmp/import.json || true
             if [ "$code" = "200" ]; then
@@ -187,9 +187,9 @@ jobs:
             echo "ADMIN_SECRET not set; skip remote alert sync (app-side hooks still apply on import)."
             exit 0
           fi
-          code=$(curl -s -o /tmp/alert.json -w '%{http_code}' --max-time 30 \
+          code=$(curl -sS -o /tmp/alert.json -w '%{http_code}' --max-time 30 \
             -X POST "${BASE_URL}/api/admin/new-books/source-alert/sync/${SOURCE_ID}" \
-            -H "X-Admin-Secret: ${ADMIN_SECRET}")
+            -H "X-Admin-Secret: ${ADMIN_SECRET}") || code=000
           echo "HTTP $code"
           cat /tmp/alert.json || true
           # do not fail the pipeline solely on alert transport; log for ops
