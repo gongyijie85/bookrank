@@ -65,7 +65,7 @@ jobs:
     env:
       SOURCE_ID: ${{ github.event.inputs.source_id || 'harpercollins' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
