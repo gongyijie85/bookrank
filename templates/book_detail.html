@@ -153,7 +153,11 @@
                     {% if _has_details %}
                     <div class="tab-panel" id="panel-details">
                         {% if _details_zh %}
-                        <div class="zh-description">{{ _details_zh }}</div>
+                        <div class="zh-description">
+                            {% for paragraph in _details_zh.splitlines() if paragraph.strip() %}
+                            <p>{{ paragraph|trim }}</p>
+                            {% endfor %}
+                        </div>
                         {% if _details_en %}
                         <button class="lang-toggle-btn" data-toggle-original="details">
                             <svg class="icon" width="14" height="14"><use href="#icon-globe"/></svg>
@@ -666,6 +670,14 @@ body.detail-page .main-content {
     margin-bottom: 1.25rem;
     padding-bottom: 1.25rem;
     border-bottom: 1px solid var(--apple-border);
+}
+
+#panel-details .zh-description > p {
+    margin: 0;
+}
+
+#panel-details .zh-description > p + p {
+    margin-block-start: 0.85em;
 }
 
 .en-description {

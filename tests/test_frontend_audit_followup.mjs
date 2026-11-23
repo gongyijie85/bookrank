@@ -49,6 +49,48 @@ test('real NYT detail language initialization survives denied reads and continue
   }
 });
 
+test('desktop NYT Chinese details keep separate paragraphs when switching languages', () => {
+  const paragraphs = ['第一段含有 <书名> 和 & 符号。', '第二段应独立显示。', '第三段保留在原位置。'];
+  const url = '/book/0?lang=zh';
+  const result = render('book_detail.html', {
+    book: { ...book, publisher: 'Publisher', buy_links: [], details: 'English details',
+      details_zh: paragraphs[0] + '\r\n\r\n  ' + paragraphs[1] + '\n \n' + paragraphs[2] },
+    book_index: 0, category: 'fiction', categories: { fiction: '小说' },
+    category_names_en: { fiction: 'Fiction' }, back_url: '/',
+  }, url, 'zh');
+  const panelIndex = result.nodes.findIndex(node => node.attrs.id === 'panel-details');
+  const chineseIndex = result.nodes.findIndex(node => node.ancestors.includes(panelIndex) &&
+    (node.attrs.class || '').split(' ').includes('zh-description'));
+  assert.ok(chineseIndex >= 0);
+  const renderedParagraphs = result.nodes.filter(node => node.tag === 'p' && node.ancestors.at(-1) === chineseIndex);
+  assert.deepEqual(renderedParagraphs.map(node => node.text), paragraphs);
+
+  const chinese = { style: {}, children: renderedParagraphs };
+  const english = { style: {}, classList: { remove() {} } };
+  for (const node of [chinese, english]) {
+    Object.defineProperty(node, 'textContent', {
+      set() { assert.fail('language switching must preserve the rendered text nodes'); },
+    });
+  }
+  const panel = { querySelector: selector => selector === '.zh-description' ? chinese : english };
+  const document = {
+    querySelector: () => null, querySelectorAll: () => [],
+    getElementById: id => id === 'panel-details' ? panel : null,
+  };
+  const start = result.html.indexOf('function switchDetailLang(');
+  const end = result.html.indexOf('// 初始化时保存原始文本', start);
+  assert.ok(start >= 0 && end > start);
+  const context = vm.createContext({ document });
+  vm.runInContext(result.html.slice(start, end), context);
+  context.switchDetailLang('en');
+  assert.equal(chinese.style.display, 'none');
+  assert.equal(english.style.display, 'block');
+  context.switchDetailLang('zh');
+  assert.equal(chinese.style.display, 'block');
+  assert.equal(english.style.display, '');
+  assert.deepEqual(chinese.children.map(node => node.text), paragraphs);
+});
+
 const mobileSource = readFileSync(path.join(repo, 'static/mobile/js/mobile.js'), 'utf8');
 const fallbackStart = mobileSource.indexOf('    const COVER_FALLBACK ='); const fallbackEnd = mobileSource.indexOf('    // ===== 4b.', fallbackStart);
 assert.ok(fallbackStart >= 0 && fallbackEnd > fallbackStart);
