@@ -60,7 +60,7 @@
 <!-- Tab 切换：图书简介 / 详细信息 -->
 <div class="m-detail-tabs-wrapper"
      data-isbn="{{ book.isbn13 or book.isbn10 or '' }}"
-     data-book-index="{{ book_index }}"
+     {% if book_index is defined and book_index is not none %}data-book-index="{{ book_index }}"{% endif %}
      data-category="{{ category or '' }}">
     <div class="m-detail-tabs" role="tablist">
         <button class="m-tab-btn active" data-tab="description" role="tab" aria-selected="true" type="button">
@@ -123,8 +123,10 @@
                 {% endfor %}
             </div>
             {% endif %}
+            {% if book_index is defined and book_index is not none %}
             {# JS 懒加载的 Google Books 详细介绍会追加到这里 #}
             <div class="m-tab-panel-extra" data-source="google-books"></div>
+            {% endif %}
         </div>
         {% endif %}
     </div>

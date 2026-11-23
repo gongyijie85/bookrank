@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from bs4 import BeautifulSoup
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -27,7 +28,7 @@ from app.utils.date_helpers import (
 
 
 @pytest.fixture
-def source_isbn_detail(app, monkeypatch):
+def source_isbn_detail(app, db, monkeypatch):
     """真实详情路由与分类服务，仅替换缓存、上游和详情富化边界。"""
     from app.models.book import Book
     from app.routes import main
@@ -75,14 +76,17 @@ def source_isbn_detail(app, monkeypatch):
     get_books = MagicMock(wraps=service.get_books_by_category)
     monkeypatch.setattr(service, 'get_books_by_category', get_books)
     monkeypatch.setattr(main, 'get_service', lambda name: service if name == 'book_service' else None)
-    monkeypatch.setattr(main, 'enrich_book_details', MagicMock())
-    monkeypatch.setattr(main, 'merge_or_translate_book', MagicMock())
+    enrich = MagicMock()
+    translate = MagicMock()
+    monkeypatch.setattr(main, 'enrich_book_details', enrich)
+    monkeypatch.setattr(main, 'merge_or_translate_book', translate)
     captured = {}
 
     def capture(template, **context):
         captured.update(template=template, **context)
         return template
 
+    render = main.render_adaptive
     monkeypatch.setattr(main, 'render_adaptive', capture)
     try:
         yield {
@@ -91,6 +95,9 @@ def source_isbn_detail(app, monkeypatch):
             'cache': cache,
             'nyt': nyt,
             'get_books': get_books,
+            'render': render,
+            'enrich': enrich,
+            'translate': translate,
             'captured': captured,
             'old_row': old_row,
             'new_row': new_row,
@@ -223,6 +230,103 @@ class TestBookDetailSourceISBN:
         assert fixture['captured']['message'] == '榜单暂时无法加载，请稍后再试'
         assert fixture['captured']['back_url'] == '/rankings?tab=cross'
         fixture['get_books'].assert_called_once_with(fixture['category'], cached_only=True, report_failures=True)
+        fixture['nyt'].fetch_books.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ('isbn', 'title', 'cache_state', 'paragraph_count'),
+        [
+            ('9781668092538', 'MEET ME IN PARIS', 'isbn_absent', 7),
+            ('9781668214343', 'YOUR FELLOW AMERICANS', 'missing', 6),
+            ('9781668222027', 'CANCEL ME IF YOU CAN', 'unreadable', 5),
+        ],
+    )
+    @pytest.mark.parametrize('mobile', [False, True], ids=['desktop', 'mobile'])
+    def test_saved_isbn_fallback_renders_exact_book_without_writing(
+        self, source_isbn_detail, monkeypatch, db, isbn, title, cache_state, paragraph_count, mobile
+    ):
+        from app.models.schemas import BookMetadata
+        from app.routes import main
+        from app.utils.exceptions import APIException
+
+        fixture = source_isbn_detail
+        if cache_state == 'isbn_absent':
+            fixture['cache'].get.return_value = [fixture['new_row']]
+        elif cache_state == 'missing':
+            fixture['cache'].get_stale.return_value = None
+        else:
+            fixture['cache'].get.side_effect = APIException('Synthetic cache read failure')
+        monkeypatch.setattr(main, 'render_adaptive', fixture['render'])
+        category = 'hardcover-fiction' if cache_state == 'isbn_absent' else 'hardcover-nonfiction'
+        monkeypatch.setitem(fixture['client'].application.config['CATEGORIES'], 'hardcover-nonfiction', '精装非虚构')
+        approved = [f'这是经过校订的第 {n} 段。' for n in range(1, paragraph_count + 1)]
+        db.session.add(
+            BookMetadata(
+                isbn=isbn, title=title, author='作者', details='暂无详细描述', details_zh='\n\n'.join(approved)
+            )
+        )
+        db.session.commit()
+        writes = []
+
+        def record_writes(conn, cursor, statement, parameters, context, executemany):
+            if statement.lstrip().upper().startswith(('INSERT', 'UPDATE', 'DELETE', 'REPLACE')):
+                writes.append(statement)
+
+        ua = (
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile'
+            if mobile
+            else 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        )
+        engine = db.engine
+        event.listen(engine, 'before_cursor_execute', record_writes)
+        try:
+            response = fixture['client'].get(
+                '/book/0',
+                query_string={
+                    'source_isbn': f'{isbn[:3]}-{isbn[3:]}',
+                    'category': category,
+                    'lang': 'zh',
+                    'return_to': '/rankings?tab=cross',
+                },
+                headers={'User-Agent': ua},
+            )
+        finally:
+            event.remove(engine, 'before_cursor_execute', record_writes)
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.get_data(as_text=True), 'html.parser')
+        assert soup.h1 and soup.h1.get_text(strip=True) == title
+        selector = '[data-panel="details"] .m-detail-longtext p' if mobile else '#panel-details .zh-description > p'
+        assert [p.get_text() for p in soup.select(selector)] == approved
+        assert '暂无详细描述' not in soup.get_text()
+        assert 'New Ranked Book B' not in soup.get_text()
+        if mobile:
+            wrapper = soup.select_one('.m-detail-tabs-wrapper')
+            assert wrapper is not None and wrapper['data-isbn'] == isbn
+            assert wrapper.get('data-book-index') in (None, '')
+        else:
+            assert not soup.select('.detail-rank-badge')
+        assert writes == []
+        fixture['nyt'].fetch_books.assert_not_called()
+        fixture['cache'].set.assert_not_called()
+        fixture['enrich'].assert_not_called()
+        fixture['translate'].assert_not_called()
+        fixture['get_books'].assert_called_once_with(category, cached_only=True, report_failures=True)
+
+    def test_saved_lookup_failure_is_not_reported_as_a_missing_book(self, source_isbn_detail, monkeypatch):
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from app.routes import main
+
+        fixture = source_isbn_detail
+        fixture['cache'].get.return_value = [fixture['new_row']]
+        lookup = MagicMock(side_effect=SQLAlchemyError('Synthetic database read failure'))
+        monkeypatch.setattr(main, 'get_saved_book_details', lookup)
+
+        response = fixture['client'].get('/book/0', query_string={'source_isbn': '9781668092538'})
+
+        assert response.status_code == 500
+        assert fixture['captured']['message'] == '书籍暂时无法加载，请稍后再试'
+        lookup.assert_called_once_with('9781668092538')
         fixture['nyt'].fetch_books.assert_not_called()
 
     def test_legacy_index_link_preserves_default_refresh_and_safe_return(self, source_isbn_detail):
