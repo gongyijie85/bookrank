@@ -3,6 +3,8 @@ from typing import Any, cast
 
 from flask import current_app
 
+from ..models.database import db
+from ..models.schemas import BookMetadata
 from ..utils import clean_translation_text
 from ..utils.api_helpers import (
     is_non_substantive_details,
@@ -21,6 +23,23 @@ from ..utils.service_helpers import (
 from ..utils.translation_overrides import TRANSLATION_OVERRIDES
 
 logger = logging.getLogger(__name__)
+
+
+def get_saved_book_details(isbn: str) -> dict[str, Any] | None:
+    """Read the exact ISBN for detail links whose ranking entry is unavailable."""
+    with db.session.no_autoflush:
+        metadata = db.session.get(BookMetadata, isbn)
+    if metadata is None:
+        return None
+
+    book = metadata.to_dict()
+    book.update(
+        isbn13=isbn if len(isbn) == 13 else '',
+        isbn10=isbn if len(isbn) == 10 else '',
+        publication_dt=metadata.publication_date,
+        details_zh=metadata.details_zh,
+    )
+    return book
 
 
 def fetch_google_books_details(book: dict, isbn: str) -> None:

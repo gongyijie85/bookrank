@@ -106,7 +106,9 @@
                      loading="lazy"
                      data-original="{{ book._original_cover|cover_src }}"
                      data-fallback="{{ url_for('static', filename='default-cover.png') }}">
+                {% if book_index is defined and book_index is not none %}
                 <div class="detail-rank-badge">{{ book_index + 1 }}</div>
+                {% endif %}
             </div>
 
         </div>

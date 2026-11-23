@@ -22,11 +22,12 @@ from flask import (
 )
 from flask_babel import get_locale
 from markupsafe import Markup, escape
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
 from ..data.publishers import PUBLISHERS_DATA
-from ..services.book_detail_service import enrich_book_details, merge_or_translate_book
+from ..services.book_detail_service import enrich_book_details, get_saved_book_details, merge_or_translate_book
 from ..services.publisher_data import canonicalize_category
 from ..utils import ExternalAPIError
 from ..utils.api_helpers import (
@@ -1533,7 +1534,7 @@ def award_book_detail(book_id):
 
 
 @main_bp.route('/book/<int:book_index>')
-def book_detail(book_index):
+def book_detail(book_index: int):
     """书籍详情页（集成 Google Books API 获取详细信息）"""
     categories = current_app.config['CATEGORIES']
     default_category = next(iter(categories.keys()))
@@ -1552,6 +1553,8 @@ def book_detail(book_index):
         if not validate_isbn(source_isbn):
             return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
 
+    books_data: list = []
+    ranking_error = None
     try:
         if has_source_isbn:
             books_data, _ = _get_books_for_category(category, cached_only=True, report_failures=True)
@@ -1559,11 +1562,7 @@ def book_detail(book_index):
             books_data, _ = _get_books_for_category(category)
     except ExternalAPIError as e:
         e.log()
-        return render_adaptive(
-            'error.html',
-            message='榜单暂时无法加载，请稍后再试',
-            back_url=back_url,
-        ), 500
+        ranking_error = '榜单暂时无法加载，请稍后再试'
     except Exception as exc:
         error_category = (
             ErrorCategory.DB_QUERY if type(exc).__module__.startswith('sqlalchemy') else ErrorCategory.API_CALL
@@ -1573,14 +1572,11 @@ def book_detail(book_index):
             f'分类榜单加载失败 category={category}: {exc}',
             exc_info=True,
         )
-        return render_adaptive(
-            'error.html',
-            message='书籍暂时无法加载，请稍后再试',
-            back_url=back_url,
-        ), 500
+        ranking_error = '书籍暂时无法加载，请稍后再试'
 
+    ranked_index: int | None = book_index
     if has_source_isbn:
-        matched_index = None
+        ranked_index = None
         for index, entry in enumerate(books_data or []):
             normalized_isbns = {
                 re.sub(r'[\s-]', '', raw_isbn).upper()
@@ -1588,21 +1584,27 @@ def book_detail(book_index):
                 if isinstance(raw_isbn, str)
             }
             if source_isbn in normalized_isbns:
-                matched_index = index
+                ranked_index = index
                 break
-        if matched_index is None:
-            return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
-        book_index = matched_index
 
-    if not books_data or book_index < 0 or book_index >= len(books_data):
+    book = None
+    if books_data and ranked_index is not None and 0 <= ranked_index < len(books_data):
+        book = books_data[ranked_index].copy()
+        isbn = book.get('isbn13') or book.get('isbn10')
+        if isbn and validate_isbn(isbn):
+            enrich_book_details(book, isbn)
+            merge_or_translate_book(book, isbn)
+    elif source_isbn:
+        try:
+            book = get_saved_book_details(source_isbn)
+        except SQLAlchemyError as exc:
+            log_error(ErrorCategory.DB_QUERY, f'读取图书详情失败 ISBN {source_isbn}: {exc}', exc_info=True)
+            ranking_error = '书籍暂时无法加载，请稍后再试'
+
+    if book is None:
+        if ranking_error:
+            return render_adaptive('error.html', message=ranking_error, back_url=back_url), 500
         return render_adaptive('error.html', message='书籍不存在', back_url=back_url), 404
-
-    book = books_data[book_index].copy()
-
-    isbn = book.get('isbn13') or book.get('isbn10')
-    if isbn and validate_isbn(isbn):
-        enrich_book_details(book, isbn)
-        merge_or_translate_book(book, isbn)
 
     book['description'] = strip_placeholder(book.get('description'))
     book['details'] = strip_placeholder(book.get('details'))
@@ -1612,7 +1614,7 @@ def book_detail(book_index):
     return render_adaptive(
         'book_detail.html',
         book=book,
-        book_index=book_index,
+        book_index=ranked_index,
         category=category,
         categories=categories,
         category_names_en=current_app.config.get('CATEGORY_NAMES_EN', {}),
