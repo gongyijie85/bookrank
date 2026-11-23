@@ -685,6 +685,21 @@ class TestBookService:
         assert saved['books']['9780143127550']['details_zh'] == '最初由Viking Penguin于2014年出版。'
         assert stats.get('rejected_non_substantive', 0) == 0
 
+    @pytest.mark.parametrize('existing', ['', '人工校订的详情'])
+    def test_old_pack_marker_can_be_replaced(self, tmp_path, existing):
+        isbn = '9780143127550'
+        path = tmp_path / 'pack.json'
+        path.write_text(json.dumps({'books': {isbn: {'details_zh': '- 英文'}}}), encoding='utf-8')
+        book = {'isbn13': isbn, 'details': 'A full description.', 'details_zh': existing}
+        translator = Mock()
+        translator.translate.return_value = '新译的详情'
+
+        BookLanguagePack(path).translate_and_store_books([book], translator=translator)
+
+        assert book['details_zh'] == (existing or '新译的详情')
+        assert json.loads(path.read_text(encoding='utf-8'))['books'][isbn]['details_zh'] == book['details_zh']
+        assert translator.translate.call_count == (0 if existing else 1)
+
     def test_language_pack_retranslates_when_details_zh_is_language_marker(self, tmp_path):
         """回归：book 上的 details_zh 是语言标记时，同步流程必须复译而不是跳过。
 

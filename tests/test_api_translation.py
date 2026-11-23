@@ -313,6 +313,22 @@ class TestBookTranslationFailureReporting:
         assert response.status_code == 503
         service.save_book_translation.assert_not_called()
 
+    def test_cached_details_marker_is_retranslated(self, client, csrf_token, monkeypatch):
+        source = {'details': 'A full description.', 'details_zh': '英文'}
+        book_service = self._setup(monkeypatch, source, {})
+        from app.services.zhipu_translation_service import get_translation_service
+
+        translator = get_translation_service().translate_book_info
+        translator.side_effect = lambda book: {**book, 'details_zh': book.get('details_zh') or '完整的中文详情'}
+
+        response = client.post('/api/translate/book/9780316563857', headers={'X-CSRF-Token': csrf_token})
+
+        assert response.status_code == 200
+        data = response.get_json()['data']
+        assert data['book']['details_zh'] == '完整的中文详情'
+        assert data['untranslated_fields'] == []
+        assert book_service.save_book_translation.call_args.kwargs['details_zh'] == '完整的中文详情'
+
     def test_partial_translation_is_preserved_and_reports_remaining_fields(self, client, csrf_token, monkeypatch):
         source = {'title': 'The Hollow', 'description': 'A detective investigates.'}
         translated = {**source, 'title_zh': '幽谷'}

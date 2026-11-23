@@ -11,9 +11,13 @@ write is the workflow not invoking the import step on a schedule event.
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 _WORKFLOW = Path(__file__).resolve().parents[1] / '.github/workflows/site-crawl-pipeline.yml'
@@ -72,19 +76,49 @@ def test_scheduled_crawl_does_not_import_fixture_samples() -> None:
     )
 
 
-def test_manual_dispatch_can_still_import_when_not_skipped() -> None:
-    """Keep the deliberate demo path: manual dispatch with import enabled."""
+@pytest.mark.parametrize('skip_import', [False, True], ids=['import', 'observe-only'])
+def test_manual_dispatch_respects_skip_import(skip_import) -> None:
     workflow = yaml.safe_load(_WORKFLOW.read_text(encoding='utf-8'))
     import_job = workflow['jobs']['import']
     condition = str(import_job.get('if', ''))
 
     manual_ctx = {
         'github': {'event_name': 'workflow_dispatch'},
-        'inputs': {'skip_import': False},
+        'inputs': {'skip_import': skip_import},
     }
-    assert condition and _eval_if(condition, manual_ctx), (
-        'manual dispatch with skip_import=false must still be able to import the fixture batch (the demo path)'
+    assert condition and _eval_if(condition, manual_ctx) is (not skip_import)
+
+
+@pytest.mark.parametrize(('job', 'attempts'), [('wake-and-auto-sync', 2), ('import', 2), ('alert', 1)])
+def test_curl_timeout_handling(job, attempts, tmp_path):
+    workflow = yaml.safe_load(_WORKFLOW.read_text(encoding='utf-8'))
+    script = workflow['jobs'][job]['steps'][-1]['run']
+    # Windows CI/development uses Git Bash, not the WSL launcher in System32.
+    git = shutil.which('git')
+    bash = Path(git).resolve().parents[1] / 'bin/bash.exe' if os.name == 'nt' and git else shutil.which('bash')
+    if not bash or not Path(bash).is_file():
+        pytest.skip('Bash is required to execute the workflow step')
+    (tmp_path / 'drafts').mkdir()
+    (tmp_path / 'drafts/source-batch-draft.json').write_text('{}')
+    stub = """
+ADMIN_SECRET=test
+curl() {
+    echo attempt >> attempts
+    if [ ! -f timed_out ]; then touch timed_out; return 28; fi
+    printf 200
+}
+sleep() { :; }
+cat() { :; }
+"""
+    result = subprocess.run(
+        [str(bash), '--noprofile', '--norc', '-e', '-c', stub + script],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / 'attempts').read_text().splitlines() == ['attempt'] * attempts
 
 
 def test_observe_job_has_no_import_secret() -> None:

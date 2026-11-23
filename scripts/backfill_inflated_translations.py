@@ -319,7 +319,7 @@ def find_inflated_rows(
                         title=title,
                         field_name='details_zh',
                         source_text=source_text,
-                        translated=details_zh,
+                        translated=row.details_zh,
                         origin='book_metadata.details',
                     )
                 )
@@ -337,12 +337,13 @@ def find_inflated_rows(
                         title=title,
                         field_name='description_zh',
                         source_text=source.description,
-                        translated=description_zh,
+                        translated=row.description_zh,
                         origin='nyt/api_cache',
                     )
                 )
 
         if limit and len(hits) >= limit:
+            del hits[limit:]
             break
 
     stats.hits = len(hits)
@@ -364,7 +365,7 @@ def scrub_pack_document(pack_doc: dict[str, Any], hits: list[Hit]) -> tuple[int,
         entry = books.get(hit.isbn)
         if not isinstance(entry, dict):
             continue
-        if str(entry.get(hit.field_name) or '').strip() != hit.translated:
+        if str(entry.get(hit.field_name) or '').strip() != hit.translated.strip():
             if entry.get(hit.field_name):
                 mismatch += 1
             continue
@@ -393,15 +394,14 @@ def _clear_translation_cache(session: Any, hit: Hit) -> int:
     if not hit.source_text:
         return 0
     source_hash = TranslationCacheService._compute_source_hash(hit.source_text)
-    deleted = (
-        session.query(TranslationCache)
-        .filter(
-            TranslationCache.source_hash == source_hash,
-            TranslationCache.source_lang == 'en',
-            TranslationCache.target_lang == 'zh',
-        )
-        .delete(synchronize_session=False)
+    candidate = session.query(TranslationCache).filter_by(
+        source_hash=source_hash, source_text=hit.source_text, source_lang='en', target_lang='zh'
     )
+    cached_text = candidate.with_entities(TranslationCache.translated_text).scalar()
+    if cached_text is None or cached_text.strip() != hit.translated.strip():
+        return 0
+    # 比较时忽略首尾空白，执行 DELETE 时再次精确匹配刚读到的缓存值。
+    deleted = candidate.filter_by(translated_text=cached_text).delete(synchronize_session=False)
     return int(deleted or 0)
 
 
@@ -413,20 +413,36 @@ def apply_clears(
     clear_pack: bool = True,
     clear_cache: bool = True,
 ) -> Stats:
-    """逐条清空：DB 置 NULL → 翻译缓存删行 → 语言包删字段（最后一次原子写回）。"""
+    """先清语言包，保留数据库命中以供重试。每条数据库更新与缓存删除在同一事务内完成。"""
     from app.models.schemas import BookMetadata
+
+    if clear_pack and pack_path is not None:
+        try:
+            pack_doc = json.loads(pack_path.read_text(encoding='utf-8'))
+            if not isinstance(pack_doc, dict) or not isinstance(pack_doc.get('books'), dict):
+                raise ValueError('缺少 books 对象')
+            removed, stats.pack_mismatch = scrub_pack_document(pack_doc, hits)
+            if removed:
+                _write_pack_document(pack_path, pack_doc)
+            stats.cleared_pack = removed
+        except (OSError, ValueError) as exc:
+            stats.failures += 1
+            log_error(ErrorCategory.CACHE, f'清理语言包 {pack_path} 失败: {exc}', level='warning')
+            return stats
 
     for hit in hits:
         try:
-            row = session.get(BookMetadata, hit.isbn)
-            if row is None:
-                continue
-
-            if clear_cache:
-                stats.cleared_cache += _clear_translation_cache(session, hit)
-
-            setattr(row, hit.field_name, None)
+            column = getattr(BookMetadata, hit.field_name)
+            cleared = (
+                session.query(BookMetadata)
+                .filter(BookMetadata.isbn == hit.isbn, column == hit.translated)
+                .update({column: None}, synchronize_session=False)
+            )
+            cache_rows = _clear_translation_cache(session, hit) if clear_cache else 0
             session.commit()
+            stats.cleared_cache += cache_rows
+            if not cleared:
+                continue
             stats.cleared_db += 1
             emit(
                 f'  🧹 {hit.isbn} {hit.title[:32]} [{hit.field_name}] '
@@ -441,22 +457,6 @@ def apply_clears(
                 exc_info=True,
             )
             emit(f'  ✗ {hit.isbn} {hit.field_name} 清空失败：{type(exc).__name__}: {exc}')
-
-    if clear_pack and pack_path and pack_path.exists():
-        try:
-            pack_doc = json.loads(pack_path.read_text(encoding='utf-8'))
-        except (OSError, ValueError) as exc:
-            stats.failures += 1
-            log_error(ErrorCategory.CACHE, f'读取语言包 {pack_path} 失败: {exc}', level='warning')
-            pack_doc = None
-        if isinstance(pack_doc, dict):
-            stats.cleared_pack, stats.pack_mismatch = scrub_pack_document(pack_doc, hits)
-            if stats.cleared_pack:
-                try:
-                    _write_pack_document(pack_path, pack_doc)
-                except OSError as exc:
-                    stats.failures += 1
-                    log_error(ErrorCategory.CACHE, f'写回语言包 {pack_path} 失败: {exc}', level='warning')
 
     return stats
 
@@ -492,6 +492,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--cache-dir', default=CACHE_DIR_DEFAULT, help='上游 API 快照目录（英文原文来源）')
     parser.add_argument('--static-data-dir', default=STATIC_DATA_DIR_DEFAULT, help='静态新书 JSON 目录（英文原文来源）')
     args = parser.parse_args(argv)
+    if args.limit < 0:
+        parser.error('--limit 必须大于或等于 0')
 
     from dotenv import load_dotenv
 
